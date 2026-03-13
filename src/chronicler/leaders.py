@@ -7,10 +7,7 @@ import random
 from chronicler.models import (
     ActiveCondition, Civilization, Event, Leader, NamedEvent, TechEra, WorldState,
 )
-
-
-def _clamp(value: int, low: int, high: int) -> int:
-    return max(low, min(high, value))
+from chronicler.utils import clamp
 
 
 _DOMAIN_TO_ARCHETYPE: dict[str, str] = {
@@ -139,8 +136,8 @@ LEGACY_EPITHETS: dict[str, str] = {
 }
 
 ACTION_TO_SECONDARY: dict[str, str] = {
-    "WAR": "warlike", "DEVELOP": "builder", "TRADE": "merchant",
-    "EXPAND": "conqueror", "DIPLOMACY": "diplomat",
+    "war": "warlike", "develop": "builder", "trade": "merchant",
+    "expand": "conqueror", "diplomacy": "diplomat",
 }
 
 
@@ -160,6 +157,17 @@ def _pick_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
         parts = used.split(" ", 1)
         used_bases.add(parts[-1] if len(parts) > 1 else parts[0])
         used_bases.add(used)
+    # Custom name pool (scenario-provided) takes priority
+    if civ.leader_name_pool:
+        custom_available = [n for n in civ.leader_name_pool if n not in used_bases]
+        if custom_available:
+            title = rng.choice(TITLES)
+            base_name = rng.choice(custom_available)
+            full_name = f"{title} {base_name}"
+            world.used_leader_names.append(full_name)
+            return full_name
+
+    # Existing cultural pool logic (unchanged)
     available = [n for n in pool if n not in used_bases]
     if not available:
         available = [n for n in CULTURAL_NAME_POOLS["default"] if n not in used_bases]
@@ -204,17 +212,17 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ
     if stype == "general":
-        civ.stability = _clamp(civ.stability - 1, 1, 10)
-        civ.military = _clamp(civ.military + 1, 1, 10)
+        civ.stability = clamp(civ.stability - 1, 1, 10)
+        civ.military = clamp(civ.military + 1, 1, 10)
     elif stype == "usurper":
-        civ.stability = _clamp(civ.stability - 3, 1, 10)
+        civ.stability = clamp(civ.stability - 3, 1, 10)
         civ.asabiya = min(civ.asabiya + 0.1, 1.0)
         world.named_events.append(NamedEvent(
             name=f"The {civ.name} Coup", event_type="coup", turn=world.turn,
             actors=[civ.name], description=f"{name} seizes power from {old_leader.name}", importance=8,
         ))
     elif stype == "elected":
-        civ.stability = _clamp(civ.stability + 1, 1, 10)
+        civ.stability = clamp(civ.stability + 1, 1, 10)
     civ.action_counts = {}
     return new_leader
 
@@ -253,7 +261,7 @@ def check_rival_fall(civ: Civilization, dead_leader_name: str, world: WorldState
         if other_civ.name == civ.name:
             continue
         if other_civ.leader.rival_leader == dead_leader_name:
-            other_civ.culture = _clamp(other_civ.culture + 1, 1, 10)
+            other_civ.culture = clamp(other_civ.culture + 1, 1, 10)
             other_civ.leader.rival_leader = None
             other_civ.leader.rival_civ = None
             world.named_events.append(NamedEvent(
@@ -275,7 +283,7 @@ def check_trait_evolution(civ: Civilization, world: WorldState) -> str | None:
         return None
     if not civ.action_counts:
         return None
-    majority_action = max(civ.action_counts, key=civ.action_counts.get)
+    majority_action = max(civ.action_counts, key=lambda k: civ.action_counts[k])
     secondary = ACTION_TO_SECONDARY.get(majority_action)
     if secondary:
         leader.secondary_trait = secondary

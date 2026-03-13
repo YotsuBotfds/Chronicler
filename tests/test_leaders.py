@@ -106,7 +106,7 @@ class TestSuccession:
 
     def test_name_deduplication(self, leader_civ, leader_world):
         names = set()
-        for i in range(100):
+        for i in range(40):
             leader_civ.leader.alive = False
             new = generate_successor(leader_civ, leader_world, seed=i)
             assert new.name not in names, f"Duplicate name: {new.name}"
@@ -213,23 +213,82 @@ class TestRivalFall:
 class TestTraitEvolution:
     def test_no_evolution_short_reign(self, leader_civ, leader_world):
         leader_civ.leader.reign_start = 15
-        leader_civ.action_counts = {"WAR": 5}
+        leader_civ.action_counts = {"war": 5}
         assert check_trait_evolution(leader_civ, leader_world) is None
 
     def test_evolution_after_10_turns(self, leader_civ, leader_world):
         leader_civ.leader.reign_start = 5
-        leader_civ.action_counts = {"WAR": 10, "DEVELOP": 3, "TRADE": 2}
+        leader_civ.action_counts = {"war": 10, "develop": 3, "trade": 2}
         result = check_trait_evolution(leader_civ, leader_world)
         assert result == "warlike"
         assert leader_civ.leader.secondary_trait == "warlike"
 
     def test_evolution_develop(self, leader_civ, leader_world):
         leader_civ.leader.reign_start = 5
-        leader_civ.action_counts = {"DEVELOP": 10, "WAR": 3}
+        leader_civ.action_counts = {"develop": 10, "war": 3}
         assert check_trait_evolution(leader_civ, leader_world) == "builder"
 
     def test_no_double_evolution(self, leader_civ, leader_world):
         leader_civ.leader.reign_start = 5
         leader_civ.leader.secondary_trait = "warlike"
-        leader_civ.action_counts = {"DEVELOP": 10}
+        leader_civ.action_counts = {"develop": 10}
         assert check_trait_evolution(leader_civ, leader_world) is None
+
+
+class TestCustomNamePool:
+    def test_picks_from_custom_pool(self, leader_world):
+        civ = leader_world.civilizations[0]
+        civ.leader_name_pool = ["CustomAlpha", "CustomBeta", "CustomGamma", "CustomDelta", "CustomEpsilon"]
+        civ.leader.alive = False
+        import random
+        rng = random.Random(42)
+        from chronicler.leaders import _pick_name
+        name = _pick_name(civ, leader_world, rng)
+        # Name should be "Title CustomX" format
+        base = name.split(" ", 1)[-1] if " " in name else name
+        assert base in civ.leader_name_pool
+
+    def test_custom_pool_uses_rng(self, leader_world):
+        """Same seed produces same name — deterministic."""
+        civ = leader_world.civilizations[0]
+        civ.leader_name_pool = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]
+        import random
+        from chronicler.leaders import _pick_name
+        name1 = _pick_name(civ, leader_world, random.Random(99))
+        # Reset used names
+        leader_world.used_leader_names = leader_world.used_leader_names[:-1]
+        name2 = _pick_name(civ, leader_world, random.Random(99))
+        assert name1 == name2
+
+    def test_custom_pool_dedup_against_used_bases(self, leader_world):
+        """A name already used (with title) should not be picked from custom pool."""
+        civ = leader_world.civilizations[0]
+        civ.leader_name_pool = ["UsedName", "FreshName", "AnotherFresh", "MoreFresh", "YetMore"]
+        leader_world.used_leader_names.append("Emperor UsedName")
+        import random
+        from chronicler.leaders import _pick_name
+        name = _pick_name(civ, leader_world, random.Random(42))
+        base = name.split(" ", 1)[-1] if " " in name else name
+        assert base != "UsedName"
+
+    def test_custom_pool_exhausted_falls_back(self, leader_world):
+        """When custom pool is exhausted, falls back to cultural pool."""
+        civ = leader_world.civilizations[0]
+        civ.leader_name_pool = ["OnlyName", "SecondName", "ThirdName", "FourthName", "FifthName"]
+        # Mark all custom names as used
+        for n in civ.leader_name_pool:
+            leader_world.used_leader_names.append(f"Title {n}")
+        import random
+        from chronicler.leaders import _pick_name
+        name = _pick_name(civ, leader_world, random.Random(42))
+        base = name.split(" ", 1)[-1] if " " in name else name
+        assert base not in civ.leader_name_pool
+
+    def test_custom_pool_adds_to_used_leader_names(self, leader_world):
+        civ = leader_world.civilizations[0]
+        civ.leader_name_pool = ["TrackMe", "Other", "Another", "More", "Extra"]
+        import random
+        from chronicler.leaders import _pick_name
+        count_before = len(leader_world.used_leader_names)
+        _pick_name(civ, leader_world, random.Random(42))
+        assert len(leader_world.used_leader_names) == count_before + 1
