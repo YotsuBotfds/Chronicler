@@ -1,0 +1,26 @@
+[project]
+name = "chronicler"
+version = "0.1.0"
+description = "AI-driven civilization chronicle generator"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.0",
+    "anthropic>=0.50.0",
+    "openai>=1.0.0",
+]
+
+[project.scripts]
+chronicler = "chronicler.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
