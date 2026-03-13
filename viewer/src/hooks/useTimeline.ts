@@ -1,20 +1,37 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 
-export function useTimeline(maxTurn: number) {
-  const [currentTurn, setCurrentTurn] = useState(1);
+interface TimelineOptions {
+  liveMode?: boolean;
+}
+
+export function useTimeline(maxTurn: number, options?: TimelineOptions) {
+  const liveMode = options?.liveMode ?? false;
+  const [currentTurn, setCurrentTurn] = useState(liveMode ? maxTurn : 1);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [followMode, setFollowMode] = useState(liveMode);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const seek = useCallback(
     (turn: number) => {
-      setCurrentTurn(Math.max(1, Math.min(turn, maxTurn)));
+      const clamped = Math.max(1, Math.min(turn, maxTurn));
+      setCurrentTurn(clamped);
+      if (liveMode) {
+        setFollowMode(clamped >= maxTurn);
+      }
     },
-    [maxTurn],
+    [maxTurn, liveMode],
   );
 
   const play = useCallback(() => setPlaying(true), []);
   const pause = useCallback(() => setPlaying(false), []);
+
+  // Follow mode: auto-advance when maxTurn increases
+  useEffect(() => {
+    if (followMode && liveMode) {
+      setCurrentTurn(maxTurn);
+    }
+  }, [followMode, liveMode, maxTurn]);
 
   useEffect(() => {
     if (!playing) {
@@ -44,5 +61,5 @@ export function useTimeline(maxTurn: number) {
     };
   }, [playing, speed, maxTurn]);
 
-  return { currentTurn, playing, speed, seek, play, pause, setSpeed };
+  return { currentTurn, playing, speed, seek, play, pause, setSpeed, followMode, setFollowMode };
 }

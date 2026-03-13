@@ -66,3 +66,50 @@ describe("useTimeline", () => {
     expect(result.current.playing).toBe(false);
   });
 });
+
+describe("useTimeline follow mode", () => {
+  it("auto-advances when followMode is true and maxTurn increases", () => {
+    const { result, rerender } = renderHook(
+      ({ maxTurn }) => useTimeline(maxTurn, { liveMode: true }),
+      { initialProps: { maxTurn: 5 } },
+    );
+
+    expect(result.current.followMode).toBe(true);
+    expect(result.current.currentTurn).toBe(5);
+
+    rerender({ maxTurn: 8 });
+    expect(result.current.currentTurn).toBe(8);
+  });
+
+  it("disables followMode when user seeks backward", () => {
+    const { result, rerender } = renderHook(
+      ({ maxTurn }) => useTimeline(maxTurn, { liveMode: true }),
+      { initialProps: { maxTurn: 10 } },
+    );
+
+    act(() => result.current.seek(5));
+    expect(result.current.followMode).toBe(false);
+    expect(result.current.currentTurn).toBe(5);
+
+    rerender({ maxTurn: 12 });
+    expect(result.current.currentTurn).toBe(5);
+  });
+
+  it("re-enables followMode when user seeks to latest", () => {
+    const { result, rerender } = renderHook(
+      ({ maxTurn }) => useTimeline(maxTurn, { liveMode: true }),
+      { initialProps: { maxTurn: 10 } },
+    );
+
+    act(() => result.current.seek(5));
+    expect(result.current.followMode).toBe(false);
+
+    act(() => result.current.seek(10));
+    expect(result.current.followMode).toBe(true);
+  });
+
+  it("does not use followMode in static mode", () => {
+    const { result } = renderHook(() => useTimeline(10));
+    expect(result.current.followMode).toBe(false);
+  });
+});
