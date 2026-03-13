@@ -42,14 +42,14 @@ Make large empires expensive to hold. Distance from capital creates pressure; se
 capital_region: str | None = None  # set during world_gen; scenario can override
 ```
 
-Defaults to `None`, set to the civ's first region during world generation. Scenario YAML can specify `capital: "Region Name"` on a civ override.
+Defaults to `None`, set to the civ's first region in placement order during world generation (seed-deterministic but not semantically meaningful — just the first region assigned). Scenario YAML can specify `capital: "Region Name"` on a civ override.
 
 **`ScenarioConfig` (scenario.py):**
 ```python
 secession_pool: list[CivOverride] = Field(default_factory=list)
 ```
 
-Defined but unused in M14a. M14c/M14d will check it before falling back to auto-generation.
+Defined but unused in M14. Future milestones may check it before falling back to auto-generation. See the `secession_pool` entry in Scenario Compatibility for consistency.
 
 ### New Module: `src/chronicler/politics.py`
 
@@ -78,7 +78,7 @@ For each civ with region_count > 2:
 **Design notes:**
 - No flat stability penalty per region count. Only distance-based stability drain. This prevents instant collapse of compact empires — a 6-region empire where all regions are adjacent to the capital pays only 5 stability/turn (5 regions × distance 1), creating pressure over 10-20 turns rather than 2.
 - Treasury has both flat and distance components. Money drains are recoverable through trade; stability is what triggers secession, so it needs careful tuning.
-- A compact 3-region empire with all regions adjacent to capital pays: treasury `(3-2)*2 + 1*2 = 4`, stability `1*1 = 1`. Manageable.
+- A compact 3-region empire with all regions adjacent to capital pays: treasury `(3-2)*2 + 2*(1*2) = 6`, stability `1+1 = 2`. Manageable.
 - A sprawling 6-region empire with max distance 4 from capital pays: treasury `(6-2)*2 + sum(distances)*2`, stability `sum(distances)`. Hemorrhaging unless rich.
 
 ### Capital Designation & Movement
@@ -99,7 +99,7 @@ Added to `ActionType` enum. Registered via `@register_action(ActionType.MOVE_CAP
   - `treasury -= 15`
   - Apply `ActiveCondition("capital_relocation", [civ.name], duration=5, severity=10)` — drains stability by 10/turn for 5 turns via existing condition system
   - Set `capital_region` to target region: most central region by average graph distance to all other owned regions
-- **Weight profile:** Low across all traits (desperation move, not routine). `cautious` and `visionary` get slight bias.
+- **Weight profile:** Low across all traits (desperation move, not routine). `cautious` and `visionary` get slight bias. All trait references in M14 refer to `civ.leader.trait` (the `trait` field lives on `Leader`, not `Civilization`).
 
 ### Civil War / Secession
 
@@ -112,7 +112,7 @@ Added to `ActionType` enum. Registered via `@register_action(ActionType.MOVE_CAP
   - Uses post-clamp stability value (if governing costs push stability to -5 but clamp brings it to 0, probability is based on 0)
 - Seeded: `world.seed + turn + hash(civ.name)`
 
-**Proxy war interaction:** If a `ProxyWar` (M14c) targets this civ's most-distant region, add `0.05` to the base probability.
+**Proxy war interaction:** If a `ProxyWar` (M14c) targets any region of this civ, add `0.05` to the civ-wide secession probability. The proxy war's `target_region` influences which region the sponsor intended to destabilize, but the secession roll itself is civ-level — the breakaway always takes the most distant regions regardless of which region was targeted.
 
 **Breakaway spawn:**
 
@@ -120,12 +120,12 @@ Added to `ActionType` enum. Registered via `@register_action(ActionType.MOVE_CAP
 2. Breakaway takes the most distant `ceil(region_count / 3)` regions (minimum 1)
 3. New civ created with:
    - **Name:** Prefix pool `["Free", "Eastern", "Western", "Northern", "Southern", "New", "Upper", "Lower", "Greater"]` combined with parent name or breakaway's most prominent region name. Deterministic selection from `world.seed + turn + hash(parent.name)`.
-   - **Stats:** Breakaway gets `floor(stat * breakaway_ratio)` for population, military, economy, treasury. Parent gets `stat - breakaway_amount`. No stats created or destroyed.
+   - **Stats:** `breakaway_ratio = breakaway_region_count / total_region_count`. Breakaway gets `floor(stat * breakaway_ratio)` for population, military, economy, treasury. Parent gets `stat - floor(stat * breakaway_ratio)` (the remainder). No stats created or destroyed in the split.
    - **Culture:** `culture = parent.culture` (cultural continuity)
    - **Stability:** `40` (fresh start energy)
    - **Tech era:** Inherits parent's tech era (they didn't forget how to smelt iron when they seceded)
-   - **Trait:** Parent's trait with one random swap from the trait pool (rebellion often produces opposite temperament)
-   - **Leader:** Generated from parent's `leader_name_pool` (cultural consistency). New leader with randomized trait.
+   - **Leader trait:** Parent leader's trait (`civ.leader.trait`) with one random swap from the trait pool (rebellion often produces opposite temperament)
+   - **Leader:** Generated from parent's `leader_name_pool` (cultural consistency). New leader with the swapped trait.
    - **Domains/values:** Parent's domains with one random value swap (ideological divergence that motivated the split)
    - **Asabiya:** `0.7` (revolutionary vigor)
    - **Capital:** Set to the breakaway's first region (closest to parent border — the "new capital")
@@ -194,6 +194,8 @@ allied_turns: int = 0  # consecutive turns at ALLIED disposition
 
 Incremented when disposition == ALLIED, reset to 0 only when disposition drops below FRIENDLY (not just below ALLIED). Two civs hovering between ALLIED and FRIENDLY for 15 turns clearly want to federate; two that drop to SUSPICIOUS don't.
 
+Note: `Relationship` is directional (`world.relationships[a][b]` is separate from `[b][a]`). `allied_turns` is tracked on both sides independently. Federation formation requires BOTH directions to reach `allied_turns >= 10` — mutual sustained alliance, not one-sided.
+
 ### Vassal States
 
 **Creation trigger:** After a war is won (existing war resolution), the victor chooses between absorption (existing behavior) and vassalization via `politics.choose_vassalize_or_absorb(winner, loser, world)`.
@@ -201,9 +203,10 @@ Incremented when disposition == ALLIED, reset to 0 only when disposition drops b
 **Choice logic:**
 - Vassalize when `winner.stability > 40` (strong empires prefer tributaries over direct control — less governing cost)
 - No region count guard — single-region vassals paying tribute are historically common (city-states under empire protection)
-- Personality influence (weighted coin flip, seeded on `world.seed + turn + hash(winner.name)`):
-  - `ambitious`, `aggressive`: bias toward absorption (want direct control)
-  - `cautious`, `diplomatic`, `visionary`: bias toward vassalization
+- Personality influence via `winner.leader.trait` (weighted coin flip, seeded on `world.seed + turn + hash(winner.name)`):
+  - `ambitious`, `aggressive`, `zealous`: bias toward absorption (want direct control)
+  - `cautious`, `shrewd`, `visionary`, `calculating`: bias toward vassalization (lower governing cost)
+  - Others (`opportunistic`, `bold`, `stubborn`): no bias, use default (vassalize if guard met)
 - If conditions not met, existing absorption logic applies unchanged
 
 **Vassalization resolution:**
@@ -235,6 +238,8 @@ For each VassalRelation:
 
 **Vassal secession interaction:** Vassals can secede internally (M14a secession check still runs). If a vassal secedes, the breakaway is NOT a vassal of the overlord — it's a free civ. The overlord's vassal just got weaker, and a new hostile civ appeared.
 
+**Transitive vassalage:** A civ can be both overlord (has vassals) and vassal (of another civ) simultaneously. If Civ C vassalizes Civ A, and A already has vassal B: A still collects tribute from B, A pays tribute to C, and A cannot declare wars. This creates chains of dependency — a powerful civ can vassalize an entire sub-hierarchy. No special handling needed; the existing mechanics compose correctly.
+
 ### Federations
 
 **Formation trigger** (checked via `politics.check_federation_formation(world)` in phase 10):
@@ -259,7 +264,7 @@ Named event: "Formation of [Federation Name]" (importance 7)
 
 **Federation dissolution:**
 
-- **Voluntary exit:** Automatic when a member's disposition toward any other member drops below FRIENDLY. Exiting civ: `stability -= 15`. All remaining members: `stability -= 5`.
+- **Voluntary exit:** Automatic when a member's disposition toward any other member drops below FRIENDLY. Only the civ whose disposition dropped exits — the other member (whose disposition toward the exiter may still be FRIENDLY+) remains in the federation. Exiting civ: `stability -= 15`. All remaining members: `stability -= 5`. This asymmetry is intentional — one side souring doesn't force the other out.
 - **Size collapse:** If federation drops to 1 member, dissolved automatically (no penalty).
 - Named event: "Collapse of [Federation Name]" (importance 7)
 
@@ -324,11 +329,13 @@ class ExileModifier(BaseModel):
 proxy_wars: list[ProxyWar] = Field(default_factory=list)
 exile_modifiers: list[ExileModifier] = Field(default_factory=list)
 war_start_turns: dict[str, int] = Field(default_factory=dict)
-    # key = "civ_a:civ_b" (sorted pair), value = start turn
+    # key = "civ_a:civ_b" (alphabetically sorted pair), value = start turn
     # populated when wars added to active_wars, cleaned when wars end
 ```
 
-Note: `war_start_turns` is listed here but should be introduced alongside the first code that populates `active_wars` (M13b-1 or M14a, whichever ships first). If M13b-1 is already implemented by M14c, add `war_start_turns` as a patch to M13b-1's war tracking.
+**`war_start_turns` key mapping:** `active_wars` stores `(attacker, defender)` tuples where attacker comes first (ordered by who declared). `war_start_turns` uses alphabetically sorted keys (`":".join(sorted([civ_a, civ_b]))`) for canonical lookup regardless of who attacked first. All code that populates or queries `war_start_turns` must use this sorting convention. Helper: `def war_key(a: str, b: str) -> str: return ":".join(sorted([a, b]))`.
+
+Note: `war_start_turns` should be introduced alongside the first code that populates `active_wars` (M13b-1 or M14a, whichever ships first). If M13b-1 is already implemented by M14c, add `war_start_turns` as a patch to M13b-1's war tracking.
 
 ### Proxy Wars
 
@@ -349,7 +356,7 @@ Added to `ActionType` enum. Registered via `@register_action(ActionType.FUND_INS
 4. `sponsor.treasury -= 8`
 5. No event generated — covert action. Events only appear if detected.
 
-**Weight profile:** `cunning` gets highest weight. `cautious` and `diplomatic` bias toward FUND_INSTABILITY over WAR. `aggressive` and `bold` bias toward direct WAR.
+**Weight profile:** `calculating` and `shrewd` get highest weight (indirect, strategic approach). `cautious` biases toward FUND_INSTABILITY over WAR. `aggressive` and `bold` bias toward direct WAR. All trait names reference existing `TRAIT_WEIGHTS` entries (`aggressive`, `cautious`, `opportunistic`, `zealous`, `ambitious`, `calculating`, `visionary`, `bold`, `shrewd`, `stubborn`).
 
 **Ongoing effects** (in `apply_automatic_effects` via `politics.apply_proxy_wars(world)`):
 ```python
@@ -397,12 +404,14 @@ The `+0.05` secession probability boost for the targeted region is applied durin
 1. Identify participants: every civ involved in at least one active war
 2. Compute negotiating power per participant:
    ```python
-   longest_war = world.turn - min(
+   matching_starts = [
        war_start_turns[key] for key in war_start_turns
        if civ.name in key.split(":")
-   )
+   ]
+   longest_war = world.turn - min(matching_starts) if matching_starts else 1
    power = (military + economy + federation_allies_count * 10) / max(longest_war, 1)
    ```
+   Note: `matching_starts` should always be non-empty since we only include civs in active wars, but the `if matching_starts` guard defends against sync issues between `active_wars` and `war_start_turns`.
 3. Roll outcome (seeded, three options):
    - **Full peace (40%):** All `active_wars` among participants cleared. All `war_start_turns` entries cleaned. All participant dispositions set to NEUTRAL. Named event: "The Congress of [capital region of highest-culture participant]" (importance 9).
    - **Partial ceasefire (35%):** The two highest-power participants settle. Their wars end, dispositions → NEUTRAL. Others continue. Named event (importance 7).
@@ -443,9 +452,9 @@ For each ExileModifier:
 - Base probability: `0.05` per turn
 - Bonus: `+0.03` per civ in `recognized_by` per turn
 - On restoration:
-  1. Respawn in conquered region with highest `carrying_capacity * fertility`
+  1. Filter `conquered_regions` to only those still controlled by `absorber_civ`. If none remain (absorber lost those regions to other civs), restoration does not occur this turn (check again next turn). Respawn in the filtered region with highest `carrying_capacity * fertility`.
   2. Stats: `population=30, military=20, economy=20, culture=original_culture, stability=50, asabiya=0.8`
-  3. Tech era: `max(TRIBAL, absorber_era - 1)` — knowledge atrophied in exile, floored at TRIBAL
+  3. Tech era: one era below absorber's current era in `TechEra` enum order (ordinal index subtraction via `_ERA_ORDER`, as used in `action_engine.py`), floored at TRIBAL. E.g., absorber at CLASSICAL → restored civ at IRON.
   4. Leader: generated from original civ's `leader_name_pool`
   5. Disposition: HOSTILE toward absorber, NEUTRAL toward everyone else, FRIENDLY toward recognizers
   6. Absorber loses that region
@@ -477,7 +486,7 @@ For each ExileModifier:
 - Restoration tech era: `max(TRIBAL, absorber_era - 1)` — can't go below TRIBAL
 - Restored civ: gets one region back, starts with fighting chance but not dominance
 - Recognition: automatic side effect of DIPLOMACY, generates importance 5 event
-- Proxy war boosts secession probability (+0.05) in targeted region
+- Proxy war boosts civ-wide secession probability (+0.05), not per-region
 
 ---
 
@@ -495,14 +504,12 @@ peak_region_count: int = 0           # updated whenever region_count increases
 decline_turns: int = 0               # consecutive turns where stat sum is lower than 20 turns ago
 stats_sum_history: list[int] = Field(default_factory=list)
     # rolling window of economy+military+culture sums, last 20 entries
-prev_economy: int = 0                # for decline tracking (set end of each turn)
-prev_military: int = 0
-prev_culture: int = 0
 ```
 
 **`WorldState`:**
 ```python
-peace_turns: int = 0  # consecutive turns with no active wars
+peace_turns: int = 0              # consecutive turns with no active wars
+balance_of_power_turns: int = 0   # consecutive turns with a dominant civ (>40% power share)
 ```
 
 ### Balance of Power
@@ -517,13 +524,15 @@ total_power = sum(power_score(c) for c in living_civs)
 
 **Trigger:** Any civ where `power_score / total_power > 0.40`.
 
-**Effect:** All other civs get `+3 disposition toward each other` per turn (coalition pressure). Disposition drift capped at one disposition level per turn (can't jump HOSTILE to ALLIED in a single turn).
+**Effect:** All other civs upgrade disposition toward each other by one level every 5 turns (coalition pressure). Tracked via a counter: `balance_of_power_turns: int` on WorldState (incremented each turn the trigger is active, reset to 0 when no civ exceeds 40%). When `balance_of_power_turns % 5 == 0`, apply one disposition upgrade (e.g., HOSTILE → SUSPICIOUS → NEUTRAL → FRIENDLY → ALLIED) to all non-dominant civ pairs. Maximum one level upgrade per 5 turns.
 
-**Why +3 not +10:** At the 0-100 scale, +10/turn would federate the world against the dominant civ in 3-4 turns. +3 creates gradual alignment over 10-15 turns — enough time for the dominant civ to respond with diplomacy, proxy wars, or preemptive strikes. The pressure is inevitable but not instant.
+Note: `Disposition` is a 5-value enum, not a numeric scale. All disposition changes in M14 use discrete level upgrades/downgrades via the existing `DISPOSITION_ORDER` lookup, not numeric arithmetic.
+
+**Why every 5 turns:** Upgrading every turn would federate the world against the dominant civ in 4 turns (HOSTILE → ALLIED). Every 5 turns creates gradual alignment over 20 turns — enough time for the dominant civ to respond with diplomacy, proxy wars, or preemptive strikes. The pressure is inevitable but not instant.
 
 **Federation interaction:** Coalition pressure naturally feeds into federation formation. Three civs drifting to ALLIED through balance-of-power and staying there 10 turns federate — an emergent mechanical counterweight.
 
-**No new model fields.** Pure computation.
+Uses `balance_of_power_turns` on WorldState (defined in Model Changes above).
 
 ### Fallen Empire Modifier
 
@@ -561,8 +570,8 @@ This is robust against per-turn noise — a single good turn doesn't reset the c
 **Twilight trigger:** `decline_turns >= 20 AND len(civ.regions) == 1`
 
 **Twilight effects** (in `apply_automatic_effects` via `politics.apply_twilight(world)`):
-- `population -= 3` per turn (slow bleed)
-- `culture -= 2` per turn (institutional decay)
+- `population -= 3` per turn (slow bleed, clamped to `STAT_FLOOR["population"]` = 1)
+- `culture -= 2` per turn (institutional decay, clamped to `STAT_FLOOR["culture"]` = 0)
 - Named event on first entering twilight: "The Twilight of [Civ Name]" (importance 7)
 
 **Revival conditions** (any one resets `decline_turns` to 0 and exits twilight):
@@ -590,11 +599,11 @@ This is robust against per-turn noise — a single good turn doesn't reset the c
 1. **Military restlessness:** Civs with `military > 60`: `stability -= 2` per turn (idle armies are political liabilities)
 
 2. **Economic inequality:** Each turn during long peace:
-   - Richest civ (highest `economy`): `economy += 1` (structural advantage compounds)
-   - Poorest civ (lowest `economy`): `economy -= 1` (falls further behind)
+   - Richest civ (highest `economy`): `economy += 1` (structural advantage compounds, clamped to 100)
+   - Poorest civ (lowest `economy`): `economy -= 1` (falls further behind, clamped to `STAT_FLOOR["economy"]` = 0)
    - Stat changes, not just treasury — affects all downstream calculations (trade income, development costs, tech requirements)
 
-3. **Disposition decay:** All ALLIED dispositions drift by `-1` per turn during long peace (without a common enemy, alliances fray). Doesn't immediately dissolve federations (allied_turns uses FRIENDLY threshold), but prolonged peace erodes federation conditions.
+3. **Disposition decay:** All ALLIED dispositions downgrade by one level every 10 turns during long peace (without a common enemy, alliances fray). Tracked via `peace_turns % 10 == 0` — when the peace counter hits a multiple of 10, all ALLIED pairs downgrade to FRIENDLY. Doesn't immediately dissolve federations (allied_turns uses FRIENDLY threshold), but prolonged peace erodes federation conditions. Further downgrades (FRIENDLY → NEUTRAL, etc.) do NOT occur — only ALLIED is affected.
 
 **Self-correcting:** The long peace creates conditions for its own end:
 - Military-heavy civs lose stability → governing costs hurt more → potential secession → wars restart
@@ -616,7 +625,7 @@ All M14d mechanics in `politics.py`, called from existing phase hooks:
 
 ### Verification
 
-- Balance of power: coalition drift activates at 40%+ power share, +3/turn capped at one disposition level per turn
+- Balance of power: coalition drift activates at 40%+ power share, one disposition upgrade per 5 turns
 - Balance of power: dominant civ eventually faces federated opposition
 - Fallen empire: activates at peak 5+ regions reduced to 1, asabiya +0.05/turn + war/expand weight ×2.0
 - Fallen empire: deactivates at 3+ regions, reactivates if they fall again
@@ -628,7 +637,7 @@ All M14d mechanics in `politics.py`, called from existing phase hooks:
 - Long peace: activates at 30 turns without wars
 - Long peace: military restlessness (-2 stability for military > 60 civs)
 - Long peace: economy stat change (+1 richest, -1 poorest) — not just treasury
-- Long peace: ALLIED disposition decay -1/turn
+- Long peace: ALLIED disposition downgrade every 10 peace turns (only ALLIED affected)
 - Long peace: self-correcting — instabilities trigger war, resetting counter
 - `peak_region_count` never decreases
 - `stats_sum_history` capped at 20 entries
@@ -718,13 +727,14 @@ Each phase adds new event types. No new LLM capabilities needed — richer struc
 
 All new fields have defaults:
 - `capital_region`: `None` (set during world_gen)
-- `secession_pool`: empty list (unused in M14)
+- `secession_pool`: empty list (defined as extension point, unused in M14 — future milestones may populate)
 - `vassal_relations`: empty
 - `federations`: empty
 - `proxy_wars`: empty
 - `exile_modifiers`: empty
 - `war_start_turns`: empty dict
 - `peace_turns`: 0
+- `balance_of_power_turns`: 0
 - `peak_region_count`: 0
 - `decline_turns`: 0
 - `stats_sum_history`: empty list
@@ -807,7 +817,7 @@ Each phase testable in isolation before the next starts.
 - Restoration tech era floored at TRIBAL
 
 **M14d tests:**
-- Balance of power: coalition drift at 40%+ power share
+- Balance of power: coalition drift at 40%+ power share, one level per 5 turns
 - Fallen empire: activates at peak 5+, regions == 1
 - Fallen empire: deactivates at regions >= 3
 - Twilight: rolling window stat comparison over 20 turns
