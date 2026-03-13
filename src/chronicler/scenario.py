@@ -125,6 +125,46 @@ def load_scenario(path: Path) -> ScenarioConfig:
                 f"Event probability for '{key}' must be 0.0-1.0, got {val}"
             )
 
+    # event_flavor keys must be valid event types
+    if config.event_flavor:
+        for key in config.event_flavor:
+            if key not in VALID_EVENT_OVERRIDE_KEYS:
+                raise ValueError(
+                    f"Invalid event type '{key}' in event_flavor. "
+                    f"Valid types: {sorted(VALID_EVENT_OVERRIDE_KEYS)}"
+                )
+
+    # leader_name_pool validation
+    for civ in config.civilizations:
+        if civ.leader_name_pool is not None:
+            if len(civ.leader_name_pool) < 5:
+                raise ValueError(
+                    f"leader_name_pool for '{civ.name}' must have at least 5 names, "
+                    f"got {len(civ.leader_name_pool)}"
+                )
+
+    # Cross-pool uniqueness
+    all_pool_names: dict[str, str] = {}  # name -> civ that owns it
+    for civ in config.civilizations:
+        if civ.leader_name_pool:
+            for name in civ.leader_name_pool:
+                if name in all_pool_names:
+                    raise ValueError(
+                        f"Name '{name}' appears in leader_name_pool for both "
+                        f"'{all_pool_names[name]}' and '{civ.name}'"
+                    )
+                all_pool_names[name] = civ.name
+
+    # controller references must match defined civ names
+    defined_civ_names = {c.name for c in config.civilizations}
+    for region in config.regions:
+        if region.controller is not None and region.controller != "none":
+            if region.controller not in defined_civ_names:
+                raise ValueError(
+                    f"Region '{region.name}' controller '{region.controller}' "
+                    f"not found in defined civilizations"
+                )
+
     # num_civs >= len(civilizations)
     if config.num_civs is not None and config.num_civs < len(config.civilizations):
         raise ValueError(

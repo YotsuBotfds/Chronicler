@@ -233,6 +233,91 @@ class TestLoadScenario:
         assert config.civilizations[0].leader.trait == "cautious"
         assert config.relationships == {"Civ A": {"Civ B": "hostile"}}
 
+    def test_load_invalid_event_flavor_key(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "event_flavor": {"tech_advancement": {"name": "X", "description": "Y"}},
+        })
+        with pytest.raises(ValueError, match="tech_advancement"):
+            load_scenario(path)
+
+    def test_load_valid_event_flavor(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "event_flavor": {"drought": {"name": "Harsh Winter", "description": "Cold"}},
+        })
+        config = load_scenario(path)
+        assert config.event_flavor["drought"].name == "Harsh Winter"
+
+    def test_load_leader_name_pool_too_few(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "civilizations": [{"name": "Civ A", "leader_name_pool": ["A", "B"]}],
+        })
+        with pytest.raises(ValueError, match="leader_name_pool"):
+            load_scenario(path)
+
+    def test_load_leader_name_pool_empty_list(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "civilizations": [{"name": "Civ A", "leader_name_pool": []}],
+        })
+        with pytest.raises(ValueError, match="leader_name_pool"):
+            load_scenario(path)
+
+    def test_load_leader_name_pool_valid(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "civilizations": [{"name": "Civ A", "leader_name_pool": ["A", "B", "C", "D", "E"]}],
+        })
+        config = load_scenario(path)
+        assert config.civilizations[0].leader_name_pool == ["A", "B", "C", "D", "E"]
+
+    def test_load_cross_pool_duplicate_raises(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "civilizations": [
+                {"name": "Civ A", "leader_name_pool": ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]},
+                {"name": "Civ B", "leader_name_pool": ["Alpha", "Zeta", "Eta", "Theta", "Iota"]},
+            ],
+        })
+        with pytest.raises(ValueError, match="Alpha"):
+            load_scenario(path)
+
+    def test_load_controller_invalid_civ_name(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "regions": [{"name": "R1", "controller": "Nonexistent Civ"}],
+        })
+        with pytest.raises(ValueError, match="controller"):
+            load_scenario(path)
+
+    def test_load_controller_valid_civ_name(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "civilizations": [{"name": "Civ A"}],
+            "regions": [{"name": "R1", "controller": "Civ A"}],
+        })
+        config = load_scenario(path)
+        assert config.regions[0].controller == "Civ A"
+
+    def test_load_controller_none_accepted(self, tmp_path):
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "regions": [{"name": "R1"}],
+        })
+        config = load_scenario(path)
+        assert config.regions[0].controller is None
+
+    def test_load_controller_none_string(self, tmp_path):
+        """The literal string 'none' (quoted in YAML) means explicitly uncontrolled."""
+        path = self._write_yaml(tmp_path, {
+            "name": "Test",
+            "regions": [{"name": "R1", "controller": "none"}],
+        })
+        config = load_scenario(path)
+        assert config.regions[0].controller == "none"
+
 
 @pytest.fixture
 def generated_world():
