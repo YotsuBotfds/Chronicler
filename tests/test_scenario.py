@@ -938,3 +938,10 @@ class TestIntegration:
                      narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
         assert world.turn == 20
         assert len(world.civilizations) >= 5
+
+
+def test_apply_scenario_sets_scenario_name(sample_world):
+    from chronicler.scenario import ScenarioConfig, apply_scenario
+    config = ScenarioConfig(name="Test Scenario")
+    apply_scenario(sample_world, config)
+    assert sample_world.scenario_name == "Test Scenario"

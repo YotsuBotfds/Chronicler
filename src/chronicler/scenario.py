@@ -316,6 +316,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     if config.world_name is not None:
         world.name = config.world_name
 
+    # --- Step 7: Record scenario name ---
+    world.scenario_name = config.name
+
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}
 
