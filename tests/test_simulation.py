@@ -1,4 +1,4 @@
-"""Tests for the six-phase simulation engine."""
+"""Tests for the nine-phase simulation engine."""
 import pytest
 from chronicler.simulation import (
     phase_environment,
@@ -18,6 +18,8 @@ from chronicler.models import (
     Disposition,
     Event,
     ActiveCondition,
+    TechEra,
+    NamedEvent,
 )
 
 
@@ -127,6 +129,21 @@ class TestPhaseConsequences:
         phase_consequences(sample_world)
         assert len(sample_world.active_conditions) == 0
 
+    def test_collapse_events_returned(self, sample_world):
+        """Collapse events must be returned so the narrator can see them."""
+        civ = sample_world.civilizations[0]
+        civ.asabiya = 0.05  # Below 0.1 threshold
+        civ.stability = 1   # Below 2 threshold
+        # Give civ multiple regions so collapse actually fires
+        civ.regions = [r.name for r in sample_world.regions[:3]]
+        for r in sample_world.regions[:3]:
+            r.controller = civ.name
+        collapse_events = phase_consequences(sample_world)
+        assert len(collapse_events) == 1
+        assert collapse_events[0].event_type == "collapse"
+        assert collapse_events[0].importance == 10
+        assert civ.name in collapse_events[0].actors
+
 
 class TestRunTurn:
     def test_turn_increments(self, sample_world):
@@ -148,6 +165,29 @@ class TestRunTurn:
 
         run_turn(sample_world, action_selector=stub_selector, narrator=stub_narrator, seed=42)
         assert len(sample_world.events_timeline) > 0
+
+    def test_collapse_events_passed_to_narrator(self, sample_world):
+        """Narrator must receive collapse events (critical fix: was previously missed)."""
+        # Force a collapse for the first civ
+        civ = sample_world.civilizations[0]
+        civ.asabiya = 0.05
+        civ.stability = 1
+        civ.regions = [r.name for r in sample_world.regions[:3]]
+        for r in sample_world.regions[:3]:
+            r.controller = civ.name
+
+        narrator_events = []
+
+        def stub_selector(c, w):
+            return ActionType.DEVELOP
+
+        def capturing_narrator(world, turn_events):
+            narrator_events.extend(turn_events)
+            return "Collapse narrated."
+
+        run_turn(sample_world, stub_selector, capturing_narrator, seed=42)
+        collapse = [e for e in narrator_events if e.event_type == "collapse"]
+        assert len(collapse) >= 1, "Narrator should receive collapse events"
 
 
 class TestFiveTurnValidation:
@@ -207,3 +247,124 @@ class TestFiveTurnValidation:
             assert 1 <= civ.culture <= 10
             assert 1 <= civ.stability <= 10
             assert 0.0 <= civ.asabiya <= 1.0
+
+
+def test_nine_phase_run_turn(sample_world):
+    """run_turn executes all 9 phases without error."""
+    for civ in sample_world.civilizations:
+        civ.tech_era = TechEra.TRIBAL
+        civ.economy = 5
+        civ.culture = 5
+        civ.treasury = 15
+
+    def stub_selector(civ, world):
+        return ActionType.DEVELOP
+
+    def stub_narrator(world, events):
+        return "Turn narrative."
+
+    result = run_turn(sample_world, stub_selector, stub_narrator, seed=42)
+    assert isinstance(result, str)
+    assert sample_world.turn == 1
+
+
+def test_tech_phase_runs(sample_world):
+    """Tech advancement should happen during the tech phase."""
+    for civ in sample_world.civilizations:
+        civ.tech_era = TechEra.TRIBAL
+        civ.economy = 4
+        civ.culture = 4
+        civ.treasury = 10
+
+    def stub_selector(civ, world):
+        return ActionType.DEVELOP
+
+    def stub_narrator(world, events):
+        return "Turn narrative."
+
+    run_turn(sample_world, stub_selector, stub_narrator, seed=42)
+    # At least one civ should have advanced past TRIBAL
+    eras = [civ.tech_era for civ in sample_world.civilizations]
+    assert any(era != TechEra.TRIBAL for era in eras)
+
+
+def test_leader_dynamics_phase(sample_world):
+    """Leader dynamics phase handles trait evolution."""
+    civ = sample_world.civilizations[0]
+    civ.leader.reign_start = 0
+    civ.action_counts = {"WAR": 15}
+    sample_world.turn = 15
+
+    def stub_selector(c, w):
+        return ActionType.DEVELOP
+
+    def stub_narrator(w, e):
+        return "Turn narrative."
+
+    run_turn(sample_world, stub_selector, stub_narrator, seed=42)
+    assert civ.leader.secondary_trait == "warlike"
+
+
+def test_action_history_tracked(sample_world):
+    """Action history is recorded for streak tracking."""
+    def stub_selector(civ, world):
+        return ActionType.DEVELOP
+
+    def stub_narrator(world, events):
+        return "Turn narrative."
+
+    run_turn(sample_world, stub_selector, stub_narrator, seed=42)
+    for civ in sample_world.civilizations:
+        assert civ.name in sample_world.action_history
+        assert sample_world.action_history[civ.name][-1] == "develop"
+
+
+def test_action_counts_tracked(sample_world):
+    """Action counts increment for current leader's reign."""
+    def stub_selector(civ, world):
+        return ActionType.DEVELOP
+
+    def stub_narrator(world, events):
+        return "Turn narrative."
+
+    run_turn(sample_world, stub_selector, stub_narrator, seed=42)
+    for civ in sample_world.civilizations:
+        assert civ.action_counts.get("develop", 0) >= 1
+
+
+def test_war_uses_tech_disparity(sample_world):
+    """War resolution accounts for tech era gap."""
+    from chronicler.simulation import resolve_war
+    attacker = sample_world.civilizations[0]
+    defender = sample_world.civilizations[1]
+    attacker.tech_era = TechEra.MEDIEVAL
+    defender.tech_era = TechEra.TRIBAL
+    results = []
+    for seed in range(50):
+        attacker.military = 5
+        defender.military = 5
+        attacker.treasury = 10
+        defender.treasury = 10
+        result = resolve_war(attacker, defender, sample_world, seed=seed)
+        results.append(result)
+    attacker_wins = sum(1 for r in results if r == "attacker_wins")
+    assert attacker_wins > 25, f"Tech advantage not reflected: {attacker_wins}/50 wins"
+
+
+def test_backward_compat_old_state(tmp_path, sample_world):
+    """Old state files without new fields should load and run."""
+    state_path = tmp_path / "state.json"
+    sample_world.save(state_path)
+    from chronicler.models import WorldState
+    loaded = WorldState.load(state_path)
+    assert loaded.named_events == []
+    assert loaded.used_leader_names == []
+    assert loaded.action_history == {}
+
+    def stub_selector(civ, world):
+        return ActionType.DEVELOP
+
+    def stub_narrator(world, events):
+        return "Turn narrative."
+
+    run_turn(loaded, stub_selector, stub_narrator, seed=42)

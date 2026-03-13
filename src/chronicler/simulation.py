@@ -1,15 +1,17 @@
-"""Six-phase simulation engine for the civilization chronicle.
+"""Nine-phase simulation engine for the civilization chronicle.
 
 Turn phases:
 1. Environment — natural events (drought, plague, earthquake)
 2. Production — income, population growth
-3. Action — each civ takes one action from constrained menu
-4. Random Events — 0-1 external events from cascading probability table
-5. Consequences — resolve cascading effects, tick condition durations
-6. Chronicle — narrative summary (delegated to narrator callback)
+3. Technology — tech advancement checks
+4+5. Action — each civ takes one action from constrained menu
+6. Cultural Milestones — check cultural threshold for named works
+7. Random Events — 0-1 external events from cascading probability table
+8. Leader Dynamics — trait evolution for all living leaders
+9. Consequences — resolve cascading effects, tick condition durations
 
-The engine is deterministic given a seed, except for Phase 3 (action
-selection) and Phase 6 (narration) which accept callbacks.
+The engine is deterministic given a seed, except for Phase 4 (action
+selection) and narration which accept callbacks.
 """
 from __future__ import annotations
 
@@ -28,8 +30,15 @@ from chronicler.models import (
     Disposition,
     Event,
     Leader,
+    NamedEvent,
     WorldState,
 )
+from chronicler.tech import check_tech_advancement, tech_war_multiplier
+from chronicler.leaders import (
+    generate_successor, apply_leader_legacy, check_trait_evolution,
+    check_rival_fall, update_rivalries,
+)
+from chronicler.named_events import generate_battle_name, generate_treaty_name, generate_tech_breakthrough_name
 
 
 # --- Type aliases for callbacks ---
@@ -151,6 +160,10 @@ def phase_production(world: WorldState) -> None:
         maintenance = civ.military // 2
         civ.treasury = max(0, civ.treasury - maintenance)
 
+        # Treasury cap: scales with economy to preserve tension
+        treasury_cap = 10 + civ.economy * 3
+        civ.treasury = min(civ.treasury, treasury_cap)
+
         # Population growth: if economy > population and stability > 3
         region_capacity = sum(
             r.carrying_capacity
@@ -177,6 +190,16 @@ def phase_action(
     for civ in world.civilizations:
         action = action_selector(civ, world)
         event = _resolve_action(civ, action, world)
+
+        # Track action in history (for streak breaker)
+        history = world.action_history.setdefault(civ.name, [])
+        history.append(action.value)
+        if len(history) > 5:
+            world.action_history[civ.name] = history[-5:]
+
+        # Track action counts (for trait evolution)
+        civ.action_counts[action.value] = civ.action_counts.get(action.value, 0) + 1
+
         events.append(event)
 
     return events
@@ -227,7 +250,8 @@ def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
 
 def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
     """Claim an uncontrolled region."""
-    rng = random.Random(world.turn * 1000 + hash(civ.name) % 1000)
+    civ_index = next((i for i, c in enumerate(world.civilizations) if c.name == civ.name), 0)
+    rng = random.Random(world.turn * 1000 + civ_index)
     unclaimed = [r for r in world.regions if r.controller is None]
     if unclaimed and civ.military >= 3:
         target = rng.choice(unclaimed)
@@ -286,6 +310,15 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
         if worst_name in world.relationships and civ.name in world.relationships[worst_name]:
             rel_in = world.relationships[worst_name][civ.name]
             rel_in.disposition = DISPOSITION_UPGRADE[rel_in.disposition]
+        new_disp = rel_out.disposition
+        # Generate named treaty for significant upgrades
+        if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED):
+            treaty_name = generate_treaty_name(civ.name, worst_name, world, seed=world.seed)
+            world.named_events.append(NamedEvent(
+                name=treaty_name, event_type="treaty", turn=world.turn,
+                actors=[civ.name, worst_name],
+                description=f"{civ.name} and {worst_name} sign {treaty_name}", importance=5,
+            ))
         return Event(
             turn=world.turn, event_type="diplomacy", actors=[civ.name, worst_name],
             description=f"{civ.name} improved relations with {worst_name}.", importance=4,
@@ -299,23 +332,43 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
 def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
     """Declare war on the most hostile neighbor."""
     target_name = None
-    worst_disp = 5
+    worst_disp = None
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
-            d = DISPOSITION_ORDER.get(rel.disposition, 2)
-            if d < worst_disp:
+            if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                continue
+            d = DISPOSITION_ORDER[rel.disposition]
+            if worst_disp is None or d < worst_disp:
                 worst_disp = d
                 target_name = other_name
 
-    if target_name:
-        defender = _get_civ(world, target_name)
-        if defender:
-            result = resolve_war(civ, defender, world, seed=world.turn)
-            return Event(
-                turn=world.turn, event_type="war", actors=[civ.name, target_name],
-                description=f"{civ.name} attacked {target_name}: {result}.",
-                importance=8,
-            )
+    if target_name is None:
+        return _resolve_develop(civ, world)
+
+    defender = _get_civ(world, target_name)
+    if defender:
+        result = resolve_war(civ, defender, world, seed=world.turn)
+        # Generate named battle for decisive outcomes
+        if result in ("attacker_wins", "defender_wins"):
+            # Pick a region for the battle name
+            battle_region = None
+            if defender.regions:
+                battle_region = defender.regions[0]
+            elif civ.regions:
+                battle_region = civ.regions[0]
+            if battle_region:
+                battle_name = generate_battle_name(battle_region, civ.tech_era, world, seed=world.seed)
+                world.named_events.append(NamedEvent(
+                    name=battle_name, event_type="battle", turn=world.turn,
+                    actors=[civ.name, target_name], region=battle_region,
+                    description=f"{civ.name} vs {target_name}: {result}", importance=7,
+                ))
+            # Update rivalries
+            update_rivalries(civ, defender, world)
+        return Event(
+            turn=world.turn, event_type="war", actors=[civ.name, target_name],
+            description=f"{civ.name} attacked {target_name}: {result}.", importance=8,
+        )
     return Event(
         turn=world.turn, event_type="war", actors=[civ.name],
         description=f"{civ.name} prepared for war but found no target.", importance=3,
@@ -336,6 +389,10 @@ def resolve_war(
     # Lanchester-inspired: effective power = military^2 * asabiya + random factor
     att_power = (attacker.military ** 2) * attacker.asabiya + rng.uniform(0, 3)
     def_power = (defender.military ** 2) * defender.asabiya + rng.uniform(0, 3)
+
+    # Apply tech disparity multiplier
+    att_power *= tech_war_multiplier(attacker.tech_era, defender.tech_era)
+    def_power *= tech_war_multiplier(defender.tech_era, attacker.tech_era)
 
     # War costs treasury regardless of outcome
     attacker.treasury = max(0, attacker.treasury - 2)
@@ -447,15 +504,16 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
 def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) -> None:
     """Apply mechanical stat changes for a random event."""
     if event_type == "leader_death":
-        civ.leader.alive = False
+        old_leader = civ.leader
+        old_leader.alive = False
         civ.stability = _clamp(civ.stability - 2, 1, 10)
-        # Succession: new leader takes over
-        rng = random.Random(world.turn * 100 + hash(civ.name) % 100)
-        civ.leader = Leader(
-            name=rng.choice(SUCCESSOR_NAMES),
-            trait=rng.choice(SUCCESSOR_TRAITS),
-            reign_start=world.turn,
-        )
+        # Apply legacy if long reign
+        apply_leader_legacy(civ, old_leader, world)
+        # Check rival fall
+        check_rival_fall(civ, old_leader.name, world)
+        # Generate successor using leaders module
+        new_leader = generate_successor(civ, world, seed=world.turn * 100)
+        civ.leader = new_leader
     elif event_type == "rebellion":
         civ.stability = _clamp(civ.stability - 2, 1, 10)
         civ.military = _clamp(civ.military - 1, 1, 10)
@@ -477,8 +535,8 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
 
 # --- Phase 5: Consequences ---
 
-def phase_consequences(world: WorldState) -> None:
-    """Resolve cascading effects and tick condition durations."""
+def phase_consequences(world: WorldState) -> list[Event]:
+    """Resolve cascading effects and tick condition durations. Returns collapse events."""
     # Tick down active conditions
     for condition in world.active_conditions:
         condition.duration -= 1
@@ -495,6 +553,7 @@ def phase_consequences(world: WorldState) -> None:
     apply_asabiya_dynamics(world)
 
     # Check for civilization collapse (asabiya < 0.1 and stability <= 2)
+    collapse_events: list[Event] = []
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 2:
             # Collapse: lose all but one region, stats halved
@@ -506,13 +565,63 @@ def phase_consequences(world: WorldState) -> None:
                         region.controller = None
                 civ.military = _clamp(civ.military // 2, 1, 10)
                 civ.economy = _clamp(civ.economy // 2, 1, 10)
-                world.events_timeline.append(Event(
+                collapse_events.append(Event(
                     turn=world.turn,
                     event_type="collapse",
                     actors=[civ.name],
                     description=f"{civ.name} collapsed under internal pressure.",
                     importance=10,
                 ))
+
+    return collapse_events
+
+
+# --- Phase 3: Technology ---
+
+def phase_technology(world: WorldState) -> list[Event]:
+    """Phase 3: Check tech advancement for each civ."""
+    events = []
+    for civ in world.civilizations:
+        event = check_tech_advancement(civ, world)
+        if event:
+            events.append(event)
+            name = generate_tech_breakthrough_name(civ.tech_era)
+            world.named_events.append(NamedEvent(
+                name=name, event_type="tech_breakthrough", turn=world.turn,
+                actors=[civ.name], description=event.description, importance=7,
+            ))
+    return events
+
+
+def phase_cultural_milestones(world: WorldState) -> list[Event]:
+    """Check cultural milestone thresholds for named works."""
+    from chronicler.named_events import generate_cultural_work
+    events = []
+    for civ in world.civilizations:
+        for threshold in [8, 10]:
+            marker = f"culture_{threshold}"
+            if civ.culture >= threshold and marker not in civ.cultural_milestones:
+                civ.cultural_milestones.append(marker)
+                name = generate_cultural_work(civ, world, seed=world.seed)
+                ne = NamedEvent(
+                    name=name, event_type="cultural_work", turn=world.turn,
+                    actors=[civ.name], description=f"{civ.name} produces a cultural masterwork",
+                    importance=6,
+                )
+                world.named_events.append(ne)
+                events.append(Event(
+                    turn=world.turn, event_type="cultural_work", actors=[civ.name],
+                    description=ne.description, importance=6,
+                ))
+    return events
+
+
+def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
+    """Phase 7: Handle trait evolution for all living leaders."""
+    events = []
+    for civ in world.civilizations:
+        check_trait_evolution(civ, world)
+    return events
 
 
 # --- Turn orchestrator ---
@@ -533,21 +642,34 @@ def run_turn(
     # Phase 2: Production
     phase_production(world)
 
-    # Phase 3: Action
+    # Phase 3: Technology (NEW)
+    tech_events = phase_technology(world)
+    turn_events.extend(tech_events)
+
+    # Phase 4+5: Action (selection + resolution)
     action_events = phase_action(world, action_selector=action_selector)
     turn_events.extend(action_events)
 
-    # Phase 4: Random events
+    # Phase 6: Cultural Milestones (NEW)
+    cultural_events = phase_cultural_milestones(world)
+    turn_events.extend(cultural_events)
+
+    # Phase 7: Random events
     random_events = phase_random_events(world, seed=seed + 100)
     turn_events.extend(random_events)
 
-    # Phase 5: Consequences
-    phase_consequences(world)
+    # Phase 8: Leader Dynamics (NEW)
+    leader_events = phase_leader_dynamics(world, seed=seed)
+    turn_events.extend(leader_events)
+
+    # Phase 9: Consequences
+    collapse_events = phase_consequences(world)
+    turn_events.extend(collapse_events)
 
     # Record events
     world.events_timeline.extend(turn_events)
 
-    # Phase 6: Chronicle (narrative generation)
+    # Chronicle (narrative generation)
     chronicle_text = narrator(world, turn_events)
 
     # Advance turn counter

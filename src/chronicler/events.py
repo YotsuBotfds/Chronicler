@@ -66,6 +66,24 @@ EVENT_CASCADE_RULES: dict[str, dict[str, float]] = {
         "rebellion": +0.01,
         "migration": +0.01,
     },
+    "tech_advancement": {
+        "discovery": 0.03,
+        "cultural_renaissance": 0.02,
+        "trade": 0.02,
+    },
+    "coup": {
+        "rebellion": 0.05,
+        "border_incident": 0.03,
+        "migration": 0.02,
+    },
+    "legacy": {
+        "cultural_renaissance": 0.02,
+        "discovery": 0.01,
+    },
+    "rival_fall": {
+        "border_incident": -0.02,
+        "war": -0.01,
+    },
 }
 
 
