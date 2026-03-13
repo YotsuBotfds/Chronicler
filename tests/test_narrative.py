@@ -12,6 +12,7 @@ from chronicler.models import (
     Civilization,
     Event,
     Leader,
+    NamedEvent,
     WorldState,
 )
 
@@ -112,3 +113,38 @@ class TestNarrativeEngine:
         assert isinstance(text, str)
         assert sample_world.turn == 1
         assert sim_client.complete.call_count == len(sample_world.civilizations)
+
+
+def test_chronicle_prompt_includes_recent_named_events(sample_world):
+    for i in range(7):
+        sample_world.named_events.append(NamedEvent(
+            name=f"Event {i}", event_type="battle", turn=i,
+            actors=["Kethani Empire"], description=f"Description {i}",
+        ))
+    events = []
+    prompt = build_chronicle_prompt(sample_world, events)
+    assert "Event 6" in prompt
+    assert "Event 5" in prompt
+    assert "Event 2" in prompt
+
+
+def test_chronicle_prompt_includes_highest_importance_event(sample_world):
+    sample_world.named_events.append(NamedEvent(
+        name="Minor Skirmish", event_type="battle", turn=1,
+        actors=["Kethani Empire"], description="A minor border clash", importance=3,
+    ))
+    sample_world.named_events.append(NamedEvent(
+        name="The Great Catastrophe", event_type="battle", turn=2,
+        actors=["Kethani Empire"], description="The most important event ever", importance=10,
+    ))
+    events = []
+    prompt = build_chronicle_prompt(sample_world, events)
+    assert "The Great Catastrophe" in prompt
+
+
+def test_chronicle_prompt_includes_rivalries(sample_world):
+    sample_world.civilizations[0].leader.rival_leader = "Gorath"
+    sample_world.civilizations[0].leader.rival_civ = "Dorrathi Clans"
+    events = []
+    prompt = build_chronicle_prompt(sample_world, events)
+    assert "rival" in prompt.lower() or "Gorath" in prompt

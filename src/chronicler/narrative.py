@@ -16,6 +16,7 @@ from chronicler.models import (
     Civilization,
     Disposition,
     Event,
+    NamedEvent,
     WorldState,
 )
 
@@ -77,6 +78,7 @@ ACTIVE CONDITIONS: {cond_text}
 Choose exactly ONE action from: EXPAND, DEVELOP, TRADE, DIPLOMACY, WAR
 
 Consider: your goal, your stats, your relationships, active threats, and available resources.
+You must respond with exactly one word. Do not explain your reasoning.
 Respond with ONLY the action name (one word, all caps). Nothing else."""
 
 
@@ -97,21 +99,50 @@ def build_chronicle_prompt(world: WorldState, events: list[Event]) -> str:
     for e in events:
         event_text += f"\n- [{e.event_type}] {e.description} (actors: {', '.join(e.actors)}, importance: {e.importance}/10)"
 
+    # Named events context for historical callbacks
+    named_context = ""
+    if world.named_events:
+        recent = world.named_events[-5:]
+        named_context += "\n\nRecent historical landmarks:\n"
+        for ne in recent:
+            named_context += f"- {ne.name} (turn {ne.turn}): {ne.description}\n"
+
+        best_named = max(world.named_events, key=lambda ne: ne.importance)
+        if best_named not in recent:
+            named_context += f"\nMost significant event in all history: {best_named.name} (turn {best_named.turn})\n"
+
+        named_context += "\nReference these landmarks when relevant — weave callbacks to past events.\n"
+
+    # Rivalry context
+    rivalries = []
+    for civ in world.civilizations:
+        if civ.leader.rival_leader:
+            rivalries.append(f"{civ.leader.name} of {civ.name} has a personal rivalry with {civ.leader.rival_leader} of {civ.leader.rival_civ}")
+    rivalry_context = ""
+    if rivalries:
+        rivalry_context += "\n\nActive rivalries:\n"
+        for r in rivalries:
+            rivalry_context += f"- {r}\n"
+        rivalry_context += "Weave these personal rivalries into the narrative when relevant.\n"
+
     return f"""You are a mythic historian chronicling the world of {world.name}.
 
 TURN {world.turn}:
 
 CIVILIZATIONS:{civ_summaries}
 
-EVENTS THIS TURN:{event_text}
+EVENTS THIS TURN:{event_text}{named_context}{rivalry_context}
 
-Write a chronicle entry for this turn (2-4 paragraphs). Rules:
+Write a chronicle entry for this turn. Rules:
 1. Write in the style of a mythic history — evocative, literary, as if written by a scholar looking back on these events centuries later.
 2. For each civilization mentioned, weave their cultural DOMAINS into the prose. A maritime culture's trade dispute involves harbors and currents; a mountain culture's crisis involves peaks and stone. This is critical for thematic coherence.
 3. Focus on events with importance >= 5. Mention lower-importance events briefly or skip them.
 4. Reference specific leader names, region names, and cultural values where relevant.
 5. End with a sentence that hints at coming tension or change.
-6. Do NOT include turn numbers or game mechanics in the prose."""
+6. Do NOT include turn numbers or game mechanics in the prose.
+7. Write 3-5 paragraphs.
+
+Respond only with the chronicle prose. No preamble, no markdown formatting, no meta-commentary."""
 
 
 class NarrativeEngine:
@@ -130,9 +161,13 @@ class NarrativeEngine:
         """Ask the LLM to choose an action for a civilization.
 
         Routes to sim_client (local model) for cost efficiency.
+        Falls back to DEVELOP on any LLM error.
         """
         prompt = build_action_prompt(civ, world)
-        text = self.sim_client.complete(prompt, max_tokens=10).upper()
+        try:
+            text = self.sim_client.complete(prompt, max_tokens=10).upper()
+        except Exception:
+            return ActionType.DEVELOP
 
         # Parse response — must be exactly one valid action
         try:
@@ -147,10 +182,16 @@ class NarrativeEngine:
     def generate_chronicle(self, world: WorldState, events: list[Event]) -> str:
         """Generate a chronicle entry for the current turn.
 
-        Routes to narrative_client (Claude API) for prose quality.
+        Routes to narrative_client for prose quality.
+        Falls back to a mechanical summary on any LLM error.
         """
         prompt = build_chronicle_prompt(world, events)
-        return self.narrative_client.complete(prompt, max_tokens=1000)
+        try:
+            return self.narrative_client.complete(prompt, max_tokens=1000)
+        except Exception:
+            # Fallback: mechanical summary so the run doesn't crash
+            summaries = "; ".join(e.description for e in events if e.description)
+            return f"Turn {world.turn}: {summaries or 'Events unfolded.'}"
 
     def action_selector(self, civ: Civilization, world: WorldState) -> ActionType:
         """Adapter method matching the ActionSelector callback signature."""
