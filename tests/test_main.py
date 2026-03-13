@@ -5,6 +5,13 @@ from pathlib import Path
 from chronicler.main import run_chronicle, DEFAULT_CONFIG
 
 
+def test_llm_actions_flag_in_parser():
+    from chronicler.main import _build_parser
+    p = _build_parser()
+    args = p.parse_args(["--llm-actions"])
+    assert args.llm_actions is True
+
+
 class TestDefaultConfig:
     def test_config_has_required_keys(self):
         assert "num_turns" in DEFAULT_CONFIG
@@ -78,3 +85,45 @@ class TestRunChronicle:
         # Verify the mocks were called for action selection + narration
         assert sim_client.complete.call_count > 0
         assert narrative_client.complete.call_count > 0
+
+    def test_resume_from_saved_state(self, tmp_path):
+        """--resume should load state and continue from the saved turn."""
+        sim_client = self._mock_llm("DEVELOP")
+        narrative_client = self._mock_llm("Resumed narrative.")
+
+        # Run 3 turns first, saving state
+        output_path = tmp_path / "chronicle.md"
+        state_path = tmp_path / "state.json"
+        run_chronicle(
+            seed=42,
+            num_turns=3,
+            num_civs=2,
+            num_regions=4,
+            output_path=output_path,
+            state_path=state_path,
+            sim_client=sim_client,
+            narrative_client=narrative_client,
+            reflection_interval=10,
+        )
+        assert state_path.exists()
+
+        # Now resume from saved state to turn 5
+        sim_client2 = self._mock_llm("DEVELOP")
+        narrative_client2 = self._mock_llm("Resumed events.")
+        output_path2 = tmp_path / "chronicle_resumed.md"
+
+        run_chronicle(
+            seed=42,
+            num_turns=5,
+            num_civs=2,
+            num_regions=4,
+            output_path=output_path2,
+            state_path=state_path,
+            sim_client=sim_client2,
+            narrative_client=narrative_client2,
+            reflection_interval=10,
+            resume_path=state_path,
+        )
+        assert output_path2.exists()
+        # Should only run 2 more turns (3→5), so 2 narrator calls
+        assert narrative_client2.complete.call_count == 2
