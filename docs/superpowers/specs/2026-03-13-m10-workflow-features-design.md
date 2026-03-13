@@ -6,7 +6,20 @@
 
 **Architecture:** Four new flat modules (`batch.py`, `interestingness.py`, `fork.py`, `interactive.py`) plus a shared `types.py` for cross-module dataclasses. No abstraction layer — each module owns its workflow independently. `main.py` gains a dispatch layer that routes to the right module based on CLI flags.
 
-**Refactor in `main.py`:** Extract the core run logic (world gen → turn loop → compile chronicle → write output) into `_execute_run(args, ...) -> RunResult`. The existing `run_chronicle()` becomes a thin wrapper. Batch, fork, and interactive all call `_execute_run` with different setup and teardown.
+**Refactor in `main.py`:** Extract the core run logic (world gen → turn loop → compile chronicle → write output) into a callable function:
+
+```python
+def _execute_run(
+    args,
+    world: WorldState | None = None,        # None = generate fresh; set for fork/resume
+    memories: dict[str, MemoryStream] | None = None,  # None = create fresh; set for fork/resume
+    on_pause: Callable[[WorldState, dict[str, MemoryStream], list], None] | None = None,
+    pause_every: int | None = None,
+    pending_injections: list[tuple[str, str]] | None = None,  # mutable list shared with on_pause callback
+) -> RunResult
+```
+
+The existing `run_chronicle()` becomes a thin wrapper. Batch, fork, and interactive all call `_execute_run` with different setup and teardown. The `pending_injections` list is a mutable shared object: the `on_pause` callback appends to it, and `_execute_run()` drains it at the start of each turn (before calling `run_turn()`). Injections are processed by `_execute_run()` directly, not inside `run_turn()` — this keeps `run_turn()` pure and unchanged.
 
 ---
 
@@ -30,10 +43,10 @@ chronicler --batch N [--parallel [WORKERS]] --seed BASE --turns T [--scenario pa
 output/batch_{base_seed}/
   seed_{base_seed+0}/chronicle.md
   seed_{base_seed+0}/state.json
-  seed_{base_seed+0}/memories_{civ_name}.json  (one per civ)
+  seed_{base_seed+0}/memories_{sanitized_civ_name}.json  (one per civ)
   seed_{base_seed+1}/chronicle.md
   seed_{base_seed+1}/state.json
-  seed_{base_seed+1}/memories_{civ_name}.json
+  seed_{base_seed+1}/memories_{sanitized_civ_name}.json
   ...
   summary.md
 ```
@@ -53,18 +66,28 @@ Lives in `src/chronicler/types.py` (shared between `batch.py`, `interestingness.
 class RunResult:
     seed: int
     output_dir: Path
-    war_count: int
-    collapse_count: int
-    named_event_count: int
-    distinct_action_count: int
-    high_importance_reflection_count: int  # reflections with importance >= 7
-    tech_advancement_count: int
-    max_stat_swing: float  # variance of final total stats across all civs
+    war_count: int              # events with event_type == "war"
+    collapse_count: int         # events with event_type == "collapse"
+    named_event_count: int      # len(world.named_events)
+    distinct_action_count: int  # unique action types across all civs
+    reflection_count: int       # total era reflections generated
+    tech_advancement_count: int # events with event_type == "tech_advancement"
+    max_stat_swing: float       # variance of final total stats across all civs
     action_distribution: dict[str, dict[str, int]]  # civ_name -> {action_type: count}
-    dominant_faction: str  # highest total stats at run end
+    dominant_faction: str       # highest total stats at run end
     total_turns: int
-    boring_civs: list[str]  # civs that picked the same action >60% of the time
+    boring_civs: list[str]      # civs that picked the same action >60% of the time
 ```
+
+**Data sources for RunResult fields:**
+- `war_count`, `collapse_count`, `tech_advancement_count`: Counted from the events timeline accumulated during the turn loop (filtering by `event_type`).
+- `named_event_count`: `len(world.named_events)` at run end.
+- `reflection_count`: Total era reflections generated. Note: all reflections are currently created with `importance=10` in `MemoryStream.add_reflection()`, so there is no meaningful distinction between "high importance" and "all" reflections. The field counts all reflections.
+- `distinct_action_count`: Derived from `action_distribution` (count of unique keys across all civs).
+- `action_distribution`: Built from `Civilization.action_counts` (cumulative per-civ action counters maintained by `simulation.py`), NOT from `WorldState.action_history` (which only stores the last 5 actions per civ).
+- `max_stat_swing`: Variance of the set `{total_stat_civ1, total_stat_civ2, ...}` at run end, where `total_stat = population + military + economy + culture + stability`. Measures outcome differentiation — a run where all civs converge scores 0, a run with one dominant empire and several collapsed factions scores high.
+- `dominant_faction`: Civ with highest total stat sum at run end.
+- `boring_civs`: Populated by `find_boring_civs()`, which checks each civ's `action_distribution` for any single action >60%.
 
 `_execute_run()` computes these aggregate stats internally and returns only the `RunResult`. Full state is on disk in `state.json`.
 
@@ -73,7 +96,7 @@ class RunResult:
 Sequential by default. When `--parallel` is passed:
 - Uses `multiprocessing.Pool(workers)`.
 - Each worker gets an independent copy of args with its own seed, output dir, and RNG.
-- `--parallel` and `--llm-actions` are in a mutual exclusion group. If both are passed, argparse errors out with a clear message: "Cannot use --parallel with --llm-actions (LM Studio serves one request at a time)."
+- `--parallel` and `--llm-actions` are in a mutual exclusion group. If both are passed, argparse errors out with a clear message: "Cannot use --parallel with --llm-actions (parallel LLM calls create unpredictable latency and resource contention on local inference servers)."
 - Future note: if `--parallel` and `--llm-actions` are ever relaxed, each worker will need its own LLM client instances.
 
 ---
@@ -92,15 +115,17 @@ Takes a `RunResult` and optional custom weights. Returns a single float score.
 
 ### Default Weights (Hardcoded Fallback)
 
-| Metric | Weight | RunResult Field |
+Canonical weight keys match `RunResult` field names. These are the keys used in scenario YAML, in `score_run()`, and in validation:
+
+| Weight Key | Default | RunResult Field |
 |---|---|---|
-| Wars | 3 | `war_count` |
-| Collapses | 5 | `collapse_count` |
-| Named events | 1 | `named_event_count` |
-| Distinct action types | 1 | `distinct_action_count` |
-| High-importance reflections | 2 | `high_importance_reflection_count` |
-| Tech advancements | 2 | `tech_advancement_count` |
-| Max stat swing (variance) | 1 | `max_stat_swing` |
+| `war_count` | 3 | `war_count` |
+| `collapse_count` | 5 | `collapse_count` |
+| `named_event_count` | 1 | `named_event_count` |
+| `distinct_action_count` | 1 | `distinct_action_count` |
+| `reflection_count` | 2 | `reflection_count` |
+| `tech_advancement_count` | 2 | `tech_advancement_count` |
+| `max_stat_swing` | 1 | `max_stat_swing` |
 
 ### Scenario-Level Weight Overrides
 
@@ -115,9 +140,9 @@ Keys must be valid metric names (matching the default weight table above). The s
 Example in scenario YAML:
 ```yaml
 interestingness_weights:
-  collapses: 8
-  tech_advancements: 0
-  wars: 1
+  collapse_count: 8
+  tech_advancement_count: 0
+  war_count: 1
 ```
 
 ### Max Stat Swing Definition
@@ -151,7 +176,7 @@ chronicler --fork output/seed_42/state.json --seed 999 --turns 50 [--scenario pa
 - `--fork PATH` — Path to a saved `state.json`. Loads WorldState at whatever turn it was saved.
 - `--seed` — New RNG seed for the forked future. Required with `--fork`.
 - `--turns` — Additional turns to run from the fork point. Required with `--fork`.
-- `--scenario` — Optional. Pass explicitly if the parent run used a scenario (for event probabilities, narrative style, event flavor). Not auto-detected.
+- `--scenario` — Optional. Pass explicitly if the parent run used a scenario (for narrative style and event flavor). Not auto-detected. Note: `event_probabilities` are already persisted in `WorldState` and survive the fork automatically. However, `event_flavor` and `narrative_style` live on `ScenarioConfig` and are passed to `NarrativeEngine` — without `--scenario`, the forked run loses flavor and style while keeping probability overrides. If the fork state directory contains scenario-derived artifacts (e.g., non-default event probabilities) but no `--scenario` is passed, print a warning: "Note: forking without --scenario; event flavor and narrative style from the parent run will not be applied."
 - Mutually exclusive with: `--batch`, `--interactive`, `--resume`.
 
 ### Module Internals
@@ -161,7 +186,7 @@ def run_fork(args) -> RunResult
 ```
 
 1. Load `WorldState` from the fork path via `WorldState.load()`.
-2. Load memory stream files (`memories_{civ_name}.json`) from the same directory as the fork state file.
+2. Load memory stream files (`memories_{sanitized_civ_name}.json`) from the same directory as the fork state file.
 3. Set `world.seed = new_seed`, re-initialize RNG.
 4. Create output directory: `output/fork_{parent_seed}_t{fork_turn}_s{new_seed}/`.
 5. Call `_execute_run()` with `start_turn = world.turn`, loaded state, and loaded memory streams.
@@ -188,7 +213,7 @@ Memory streams do NOT carry forward chronicle entries — those are narrative ou
 Currently `MemoryStream` objects are in-memory only. Fork mode (and resume robustness) require persistence:
 
 - Add `MemoryStream.save(path)` and `MemoryStream.load(path)` — serialize entries and reflections to JSON.
-- File format: one file per civ, `memories_{civ_name}.json`, containing a JSON object with `civilization_name`, `entries` (list of `MemoryEntry` dicts), and `reflections` (list of `MemoryEntry` dicts).
+- File format: one file per civ, `memories_{sanitized_civ_name}.json`, containing a JSON object with `civilization_name`, `entries` (list of `MemoryEntry` dicts), and `reflections` (list of `MemoryEntry` dicts). Civ names are sanitized for filenames: lowercased, spaces replaced with underscores, non-alphanumeric characters (except underscores) stripped. E.g., "Kethani Empire" → `memories_kethani_empire.json`.
 - **Save frequency:** Every turn, alongside `state.json`. Memory stream files are small (each entry is a sentence + turn number + importance score). Even a 500-turn, 5-civ run produces memory files in the low hundreds of KB. The I/O cost is negligible compared to LLM calls.
 - This enables fork-from-any-turn without warnings or data loss.
 
@@ -220,13 +245,12 @@ chronicler --interactive [--pause-every N] --seed 42 --turns 100 [--scenario pat
 
 ### Pause Mechanism
 
-`_execute_run()` accepts an optional callback:
+`_execute_run()` accepts optional interactive parameters (see signature in Architecture section):
+- `on_pause` callback — called at pause boundaries (`turn % pause_every == 0`)
+- `pause_every` — interval in turns
+- `pending_injections` — mutable list shared between callback and turn loop
 
-```python
-on_pause: Callable[[WorldState, dict[str, MemoryStream]], None] | None
-```
-
-When set, `_execute_run()` calls it at pause boundaries (`turn % pause_every == 0`). The callback owns the input loop — it stays at the prompt until the user types `continue` or `quit`, mutating WorldState directly for `set` commands and populating a pending injection queue for `inject`. Returns when the user chooses to continue.
+The `on_pause` callback receives `(world, memories, pending_injections)`. It owns the input loop — stays at the prompt until the user types `continue` or `quit`, mutating WorldState directly for `set` commands and appending to `pending_injections` for `inject`. Returns `True` to continue or `False` if the user typed `quit`.
 
 ### State Summary at Pause
 
@@ -257,7 +281,7 @@ Active Conditions:
 |---|---|---|
 | `continue` | `continue` | Resume simulation until next pause boundary. |
 | `inject` | `inject <event_type> "<target_civ>"` | Queue a forced event for next turn. Event fires at the start of the next turn before the normal phase pipeline, going through the same handlers as natural events. |
-| `set` | `set "<civ_name>" <stat> <value>` | Immediately mutate a civ's stat. Validated: stat must be one of `population`, `military`, `economy`, `culture`, `stability`, `treasury`. Value bounds-checked (0-10 for core stats, 0+ for treasury). |
+| `set` | `set "<civ_name>" <stat> <value>` | Immediately mutate a civ's stat. Validated: stat must be one of `population`, `military`, `economy`, `culture`, `stability`, `treasury`. Value bounds-checked (1-10 for core stats matching `Civilization` model constraints, 0+ for treasury). |
 | `fork` | `fork` | Save current state + memory streams to `output/fork_save_t{turn}/`. Print the path. Continue the current run (save-point only, does not branch execution). |
 | `quit` | `quit` | Compile chronicle from entries so far, write output, exit. Chronicle ends with: `> Chronicle ended early at turn {turn} of {total_turns}.` |
 | `help` | `help` | Print command list with syntax and valid event types. |
@@ -273,7 +297,9 @@ The `help` command prints this full list. No friendly-name mapping — these are
 
 ### Injection Queue
 
-`inject` does not execute the event immediately. It adds a `(event_type, target_civ_name)` tuple to a `pending_injections` list. At the start of the next turn (before the environment phase), `_execute_run()` checks for pending injections and fires them through the standard event effect handlers. Multiple injections can be queued at a single pause.
+`inject` does not execute the event immediately. It adds a `(event_type, target_civ_name)` tuple to a `pending_injections` list (the mutable list shared with `_execute_run()` via the `pending_injections` parameter). At the start of the next turn (before the environment phase), `_execute_run()` drains the list and fires each injection through the standard event effect handlers. Multiple injections can be queued at a single pause.
+
+**Target resolution:** Injected events affect *only* the named civ, overriding the normal random selection. For environment events (`drought`, `plague`, `earthquake`) that normally affect `max(1, len(civs) // 2)` civilizations, injection narrows the effect to the single specified target. This is an intentional deviation — the point of `inject` is precise, directed intervention.
 
 ### Command Parsing
 
@@ -289,7 +315,7 @@ Simple `input(">>> ")` loop in `interactive.py`. Split on whitespace, respecting
 |---|---|
 | `--batch` | `--fork`, `--interactive`, `--resume` |
 | `--fork` | `--batch`, `--interactive`, `--resume` |
-| `--interactive` | `--batch`, `--fork` |
+| `--interactive` | `--batch`, `--fork`, `--resume` |
 | `--parallel` | `--llm-actions` |
 | `--resume` | `--batch`, `--fork` |
 
