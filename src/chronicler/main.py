@@ -502,6 +502,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Interactive mode: pause at intervals for commands")
     parser.add_argument("--pause-every", type=int, default=None,
                         help="Pause interval in turns for interactive mode (default: reflection_interval)")
+    parser.add_argument("--live", action="store_true", default=False,
+                        help="Live mode: start WebSocket server for viewer connection")
+    parser.add_argument("--live-port", type=int, default=8765,
+                        help="WebSocket server port for live mode (default: 8765)")
     return parser
 
 
@@ -518,6 +522,8 @@ def main() -> None:
         mode_flags.append("--fork")
     if args.interactive:
         mode_flags.append("--interactive")
+    if args.live:
+        mode_flags.append("--live")
     if args.resume:
         mode_flags.append("--resume")
     if len(mode_flags) > 1:
@@ -567,6 +573,11 @@ def main() -> None:
         from chronicler.interactive import run_interactive
         result = run_interactive(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
         print(f"\nInteractive session complete: {result.output_dir}")
+
+    elif args.live:
+        from chronicler.live import run_live
+        result = run_live(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        print(f"\nLive session complete: {result.output_dir}")
 
     else:
         # Single run (default) or resume

@@ -362,3 +362,121 @@ def make_live_pause(
                 })
 
     return live_pause
+
+
+def run_live(
+    args: Any,
+    sim_client: Any = None,
+    narrative_client: Any = None,
+    scenario_config: Any = None,
+) -> Any:
+    """Run simulation in live mode with WebSocket server."""
+    from chronicler.main import execute_run
+    from chronicler.models import TurnSnapshot, Event, NamedEvent
+
+    port = getattr(args, "live_port", 8765) or 8765
+    pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
+    total_turns = args.turns or 50
+    output_dir = Path(args.output).parent
+
+    server = LiveServer(port=port)
+    server.start()
+    actual_port = server._actual_port or port
+    print(f"Live server ready on ws://localhost:{actual_port}")
+    print(f"Open viewer: http://localhost:5173?ws=ws://localhost:{actual_port}")
+
+    init_sent = [False]
+    world_ref = [None]
+
+    def _serialize_snapshot(snapshot, chronicle_text, events, named_events):
+        """Serialize turn data to a dict for the WebSocket protocol."""
+        snap_dict = snapshot.model_dump()
+        snap_dict["type"] = "turn"
+        snap_dict["chronicle_text"] = chronicle_text
+        snap_dict["events"] = [e.model_dump() for e in events]
+        snap_dict["named_events"] = [ne.model_dump() for ne in named_events]
+        return snap_dict
+
+    def on_turn_cb(
+        snapshot: TurnSnapshot,
+        chronicle_text: str,
+        events: list[Event],
+        named_events: list[NamedEvent],
+    ) -> None:
+        # On first turn, send init message with the world state
+        if not init_sent[0]:
+            init_sent[0] = True
+            if world_ref[0] is not None:
+                world = world_ref[0]
+                init_msg = {
+                    "type": "init",
+                    "total_turns": total_turns,
+                    "pause_every": pause_every,
+                    "current_turn": 0,
+                    "world_state": world.model_dump(),
+                    "history": [],
+                    "chronicle_entries": {},
+                    "events_timeline": [],
+                    "named_events": [],
+                    "era_reflections": {},
+                    "metadata": {
+                        "seed": world.seed,
+                        "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
+                        "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
+                    },
+                    "speed": server.speed,
+                }
+                server.snapshot_queue.put(init_msg)
+
+        snap_dict = _serialize_snapshot(snapshot, chronicle_text, events, named_events)
+        server.snapshot_queue.put(snap_dict)
+
+        # Pace simulation
+        spd = server.speed
+        if spd > 0:
+            time.sleep(1.0 / spd)
+
+    pending_injections: list[tuple[str, str]] = []
+    pause_fn = make_live_pause(
+        server.command_queue,
+        server.status_queue,
+        output_dir=output_dir,
+    )
+
+    # Generate world first so we can capture it for init message
+    from chronicler.world_gen import generate_world
+    world = generate_world(
+        seed=args.seed,
+        num_regions=args.regions,
+        num_civs=args.civs,
+    )
+    if scenario_config:
+        from chronicler.scenario import apply_scenario
+        apply_scenario(world, scenario_config)
+    world_ref[0] = world
+
+    result = execute_run(
+        args,
+        sim_client=sim_client,
+        narrative_client=narrative_client,
+        world=world,
+        on_pause=pause_fn,
+        pause_every=pause_every,
+        pending_injections=pending_injections,
+        scenario_config=scenario_config,
+        on_turn=on_turn_cb,
+        quit_check=lambda: server.quit_event.is_set(),
+    )
+
+    # Send completed
+    server.status_queue.put({
+        "type": "completed",
+        "total_turns": result.total_turns,
+        "bundle_path": str(output_dir / "chronicle_bundle.json"),
+    })
+
+    # Give the server a moment to drain
+    time.sleep(0.5)
+    server.stop()
+
+    return result
