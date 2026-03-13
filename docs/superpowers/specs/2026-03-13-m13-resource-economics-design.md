@@ -529,6 +529,7 @@ Example (Minnesota — Iron Range):
 - Trade routes form between adjacent friendly civs, not between embargoed pairs
 - EMBARGO cuts routes and applies stability penalty
 - `--simulate-only` completes 500 turns in < 5s
+- `infrastructure_level` field present on Region but unused (defaults to 0, incremented by BUILD in M13b-1)
 - Existing scenarios still produce valid runs
 
 ---
@@ -700,8 +701,8 @@ last_income: int = 0
 ```
 
 **Spawn trigger:** Civ where `military > last_income` for 3 consecutive turns.
-- `last_income` accumulated across Phase 2 and Phase 3: trade income (from `apply_automatic_effects`) is added first, then base income (from `phase_production`) is added. Set `last_income = 0` at the start of Phase 2 each turn, then increment as each income source applies.
-- `merc_pressure_turns` incremented in `apply_automatic_effects` when `military > last_income`, reset to 0 otherwise
+- `last_income` accumulated across Phase 2 and Phase 3: trade income (from `apply_automatic_effects`) is added first, then base income (from `phase_production`) is added. At the end of Phase 3, `last_income` is finalized for the current turn.
+- `merc_pressure_turns` checked in `apply_automatic_effects` using **previous turn's** `last_income` (which is already fully computed from both phases). Incremented when `military > last_income`, reset to 0 otherwise. The mercenary spawn fires when `merc_pressure_turns >= 3`. After the spawn check, `last_income` is reset to 0 and re-accumulated during the current turn's Phase 2 and Phase 3.
 - Spawn fires when `merc_pressure_turns >= 3`
 - Spawn: strength = `civ.military // 5`. Spawning civ: `military -= strength * 5`
 - Location: one of the civ's controlled regions (random)
