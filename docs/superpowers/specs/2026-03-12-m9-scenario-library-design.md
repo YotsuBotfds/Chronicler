@@ -198,7 +198,7 @@ Two additions to the existing `apply_scenario` flow:
 **Farmer Co-ops**
 - Stats: population 6, military 3, economy 7, culture 4, stability 7
 - Tech era: tribal | Domains: agriculture, community | Values: pragmatism, self-reliance
-- Goal: cautious | Leader: Elder Johansson (trait: pragmatic)
+- Goal: cautious | Leader: Elder Johansson (trait: cautious)
 - Leader name pool: Johansson, Larsen, Olson, Henning, Bakke, Dahl, Lundquist, Pedersen, Thorson, Halverson, Erikson, Lindgren, Nyquist, Bergstrom, Engstrom
 
 **River Towns Alliance**
@@ -210,7 +210,7 @@ Two additions to the existing `apply_scenario` flow:
 **National Guard Remnant**
 - Stats: population 4, military 8, economy 3, culture 2, stability 6
 - Tech era: tribal | Domains: warfare, discipline | Values: order, duty
-- Goal: aggressive | Leader: Colonel Voss (trait: disciplined)
+- Goal: aggressive | Leader: Colonel Voss (trait: calculating)
 - Leader name pool: Voss, Reeves, Harding, Kessler, Brandt, Marsh, Caldwell, Eriksen, Tanner, Novak, Schaefer, Albrecht, Kowalski, Dietrich, Meier
 
 **Prepper Networks**

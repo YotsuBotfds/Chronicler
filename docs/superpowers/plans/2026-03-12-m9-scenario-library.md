@@ -932,9 +932,13 @@ git commit -m "feat(m9): event flavor swap, narrative style injection, Narrative
 - Create: `scenarios/post_collapse_minnesota.yaml`
 - Test: `tests/test_scenario.py`
 
+**IMPORTANT — Trait mapping:** The spec uses `trait: pragmatic` (Elder Johansson) and `trait: disciplined` (Colonel Voss), but neither exists in `ALL_TRAITS` in `leaders.py`. The valid traits are: ambitious, cautious, aggressive, calculating, zealous, opportunistic, stubborn, bold, shrewd, visionary. Invalid traits cause the action engine to fall through to default weights (all actions equally likely), defeating the personality system. Map in the YAML:
+- `pragmatic` → `cautious` (same strategic behavior: risk-averse, stability-focused)
+- `disciplined` → `calculating` (same strategic behavior: methodical, controlled)
+
 - [ ] **Step 1: Write the scenario YAML**
 
-Create `scenarios/post_collapse_minnesota.yaml` with the full content from the spec (Section: Scenario 1). All regions, civs, relationships, event_flavor, starting_conditions, and narrative_style as specified.
+Create `scenarios/post_collapse_minnesota.yaml` with the full content from the spec (Section: Scenario 1). All regions, civs, relationships, event_flavor, starting_conditions, and narrative_style as specified. **Use `cautious` instead of `pragmatic` for Elder Johansson and `calculating` instead of `disciplined` for Colonel Voss.**
 
 - [ ] **Step 2: Write the smoke test**
 
