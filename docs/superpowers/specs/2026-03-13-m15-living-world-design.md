@@ -240,9 +240,10 @@ def scorched_earth_check(
 ) -> list[Event]:
     """
     Triggered when defender loses a region in war.
-    Probability of scorching = (1.0 - stability/100).
+    Probability of scorching = min(1.0 - stability/100 + trait_bonus, 1.0).
     Low stability → more likely to destroy rather than let the enemy have it.
-    Aggressive trait: +0.2 probability.
+    Aggressive trait: trait_bonus = 0.2, others = 0.0.
+    Clamped to [0.0, 1.0] after trait modification.
 
     Binary: destroys ALL infrastructure if triggered (sets active=False).
     No cherry-picking. A desperate civ burns everything.
@@ -269,7 +270,7 @@ def tick_infrastructure(world: WorldState) -> list[Event]:
 
 - **Trade income (phase 2):** Roads add +2 to trade routes between connected regions (both endpoints or either endpoint has roads). Ports add +3 and enable sea trade for the region. These modify the existing trade income calculation in `apply_automatic_effects`.
 - **Combat (action phase):** Fortifications add +15 defense, stacking with `terrain_defense_bonus()` and role defense from M15a.
-- **Fertility (phase 9):** Irrigation raises terrain fertility cap by +0.15 for that region. Mine degradation (-0.03/turn) is a **flat rate unaffected by climate multipliers** — mines degrade at the same speed regardless of climate phase. This makes mines consistently predictable. Phase 9 order: mine degradation (flat -0.03) → standard fertility tick (degradation × climate_multiplier / recovery) → cap to `terrain_fertility_cap + irrigation_bonus`.
+- **Fertility (phase 9):** Irrigation raises terrain fertility cap by +0.15 for that region. Mine degradation (-0.03/turn) is a **flat rate unaffected by climate multipliers** — mines degrade at the same speed regardless of climate phase. This makes mines consistently predictable. Phase 9 order: mine degradation (flat -0.03) → standard fertility tick (degradation × climate_multiplier / recovery) → cap to effective ceiling. **Effective fertility ceiling formula:** `min(terrain_fertility_cap(region) × climate_cap_modifier + irrigation_bonus, 1.0)`. Climate cap modifier applies to base terrain cap *before* irrigation is added. Example: tundra (cap 0.2) with irrigation (+0.15) during warming (×2.0 cap modifier) = `min(0.2 × 2.0 + 0.15, 1.0) = 0.55`. Same region during temperate = `min(0.2 × 1.0 + 0.15, 1.0) = 0.35`.
 - **Famine (phase 10):** Irrigated regions are less likely to hit the 0.3 famine threshold. Infrastructure as famine prevention.
 
 ### Testing
@@ -447,7 +448,7 @@ def process_migration(world: WorldState) -> list[Event]:
     Runs after all fertility modifications for the turn."""
 ```
 
-**Trigger:** `effective_capacity(region) < region_pop × 0.5`, where `region_pop = civ.population // len(civ.regions)` (same per-region population proxy as M13's fertility system).
+**Trigger:** For each **controlled** region (regions with `controller is not None`): `effective_capacity(region) < region_pop × 0.5`, where `region_pop = civ.population // len(civ.regions)` (same per-region population proxy as M13's fertility system). **Uncontrolled regions are never migration sources** — they have no civ population proxy to compute surplus from.
 
 This can be triggered by:
 - Fertility degradation from overpopulation (M13)
@@ -543,6 +544,16 @@ ruin_quality: int = 0                   # peak active infrastructure count at ti
 **`WorldState` (models.py):**
 ```python
 fog_of_war: bool = False
+```
+
+**`Relationship` (models.py):**
+```python
+trade_contact_turns: int = 0  # turns of active trade; drives fog-of-war sharing radius
+```
+
+**`ActionType` enum (models.py):**
+```python
+EXPLORE = "explore"  # added alongside existing BUILD, EMBARGO from M13
 ```
 
 **`ScenarioConfig` (scenario.py):**
