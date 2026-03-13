@@ -9,17 +9,17 @@
 **Refactor in `main.py`:** Extract the core run logic (world gen → turn loop → compile chronicle → write output) into a callable function:
 
 ```python
-def _execute_run(
+def execute_run(
     args,
     world: WorldState | None = None,        # None = generate fresh; set for fork/resume
     memories: dict[str, MemoryStream] | None = None,  # None = create fresh; set for fork/resume
-    on_pause: Callable[[WorldState, dict[str, MemoryStream], list], None] | None = None,
+    on_pause: Callable[[WorldState, dict[str, MemoryStream], list], bool] | None = None,
     pause_every: int | None = None,
     pending_injections: list[tuple[str, str]] | None = None,  # mutable list shared with on_pause callback
 ) -> RunResult
 ```
 
-The existing `run_chronicle()` becomes a thin wrapper. Batch, fork, and interactive all call `_execute_run` with different setup and teardown. The `pending_injections` list is a mutable shared object: the `on_pause` callback appends to it, and `_execute_run()` drains it at the start of each turn (before calling `run_turn()`). Injections are processed by `_execute_run()` directly, not inside `run_turn()` — this keeps `run_turn()` pure and unchanged.
+The existing `run_chronicle()` becomes a thin wrapper. Batch, fork, and interactive all call `execute_run` with different setup and teardown. The `pending_injections` list is a mutable shared object: the `on_pause` callback appends to it, and `execute_run()` drains it at the start of each turn (before calling `run_turn()`). Injections are processed by `execute_run()` directly, not inside `run_turn()` — this keeps `run_turn()` pure and unchanged.
 
 ---
 
@@ -54,7 +54,7 @@ output/batch_{base_seed}/
 ### Module Internals
 
 - `run_batch(args) -> Path` — Top-level entry point. Creates the batch directory, builds a list of per-run arg copies (each with its own seed and output dir), dispatches either sequentially or via `multiprocessing.Pool`.
-- `_run_single(args) -> RunResult` — Wrapper that calls `_execute_run()`. Returns a `RunResult` with aggregate stats only (not the full WorldState — avoids holding N states in memory simultaneously for large batches).
+- `_run_single(args) -> RunResult` — Wrapper that calls `execute_run()`. Returns a `RunResult` with aggregate stats only (not the full WorldState — avoids holding N states in memory simultaneously for large batches).
 - `_write_summary(batch_dir, results: list[RunResult], scenario_config: ScenarioConfig | None)` — Generates `summary.md` sorted by interestingness score. Columns: rank, seed, score, boring civs, top-line stats (dominant faction, wars, collapses, tech advancements).
 
 ### RunResult Dataclass
@@ -89,7 +89,7 @@ class RunResult:
 - `dominant_faction`: Civ with highest total stat sum at run end.
 - `boring_civs`: Populated by `find_boring_civs()`, which checks each civ's `action_distribution` for any single action >60%.
 
-`_execute_run()` computes these aggregate stats internally and returns only the `RunResult`. Full state is on disk in `state.json`.
+`execute_run()` computes these aggregate stats internally and returns only the `RunResult`. Full state is on disk in `state.json`.
 
 ### Parallel Implementation
 
@@ -157,7 +157,7 @@ def find_boring_civs(result: RunResult, threshold: float = 0.6) -> list[str]
 
 Checks each civ's `action_distribution` independently. A civ is "boring" if any single action type accounts for more than 60% of its total actions. Returns a list of boring civ names (empty if none).
 
-The `boring_civs` field on `RunResult` is populated by calling `find_boring_civs()` inside `_execute_run()`.
+The `boring_civs` field on `RunResult` is populated by calling `find_boring_civs()` inside `execute_run()`.
 
 In `summary.md`, boring civs are reported per-run with the offending action: `Boring: Farmer Co-ops (develop 72%)`.
 
@@ -176,7 +176,7 @@ chronicler --fork output/seed_42/state.json --seed 999 --turns 50 [--scenario pa
 - `--fork PATH` — Path to a saved `state.json`. Loads WorldState at whatever turn it was saved.
 - `--seed` — New RNG seed for the forked future. Required with `--fork`.
 - `--turns` — Additional turns to run from the fork point. Required with `--fork`.
-- `--scenario` — Optional. Pass explicitly if the parent run used a scenario (for narrative style and event flavor). Not auto-detected. Note: `event_probabilities` are already persisted in `WorldState` and survive the fork automatically. However, `event_flavor` and `narrative_style` live on `ScenarioConfig` and are passed to `NarrativeEngine` — without `--scenario`, the forked run loses flavor and style while keeping probability overrides. If the fork state directory contains scenario-derived artifacts (e.g., non-default event probabilities) but no `--scenario` is passed, print a warning: "Note: forking without --scenario; event flavor and narrative style from the parent run will not be applied."
+- `--scenario` — Optional. Pass explicitly if the parent run used a scenario (for narrative style and event flavor). Not auto-detected. Note: `event_probabilities` are already persisted in `WorldState` and survive the fork automatically. However, `event_flavor` and `narrative_style` live on `ScenarioConfig` and are passed to `NarrativeEngine` — without `--scenario`, the forked run loses flavor and style while keeping probability overrides. Detection heuristic for the warning: add a `scenario_name: str | None = None` field to `WorldState` (set during `apply_scenario()`). When forking, if `world.scenario_name is not None` and `--scenario` is not passed, print: "Note: parent run used scenario '{name}'; forking without --scenario means event flavor and narrative style will not be applied. Pass --scenario to preserve them."
 - Mutually exclusive with: `--batch`, `--interactive`, `--resume`.
 
 ### Module Internals
@@ -189,7 +189,7 @@ def run_fork(args) -> RunResult
 2. Load memory stream files (`memories_{sanitized_civ_name}.json`) from the same directory as the fork state file.
 3. Set `world.seed = new_seed`, re-initialize RNG.
 4. Create output directory: `output/fork_{parent_seed}_t{fork_turn}_s{new_seed}/`.
-5. Call `_execute_run()` with `start_turn = world.turn`, loaded state, and loaded memory streams.
+5. Call `execute_run()` with `start_turn = world.turn`, loaded state, and loaded memory streams.
 6. Return `RunResult`.
 
 ### Chronicle Provenance
@@ -207,6 +207,10 @@ The fork produces a clean chronicle document — no parent history carried over.
 Fork carries WorldState and all memory streams (entries + reflections). Civs "remember" everything up to the fork point, so post-fork era reflections have full context.
 
 Memory streams do NOT carry forward chronicle entries — those are narrative output, not simulation state.
+
+### Events Timeline in Fork Mode
+
+`WorldState.events_timeline` accumulates all events across all turns. When forking, the loaded state includes the parent's full event timeline. To avoid double-counting parent events in `RunResult` metrics, `execute_run()` records `start_turn` and only counts events from `start_turn` onward when computing `war_count`, `collapse_count`, `tech_advancement_count`, etc. The full timeline remains intact on `WorldState` for narrative context, but `RunResult` reflects only the forked run's events.
 
 ### Memory Stream Persistence (New Requirement)
 
@@ -245,7 +249,7 @@ chronicler --interactive [--pause-every N] --seed 42 --turns 100 [--scenario pat
 
 ### Pause Mechanism
 
-`_execute_run()` accepts optional interactive parameters (see signature in Architecture section):
+`execute_run()` accepts optional interactive parameters (see signature in Architecture section):
 - `on_pause` callback — called at pause boundaries (`turn % pause_every == 0`)
 - `pause_every` — interval in turns
 - `pending_injections` — mutable list shared between callback and turn loop
@@ -297,7 +301,7 @@ The `help` command prints this full list. No friendly-name mapping — these are
 
 ### Injection Queue
 
-`inject` does not execute the event immediately. It adds a `(event_type, target_civ_name)` tuple to a `pending_injections` list (the mutable list shared with `_execute_run()` via the `pending_injections` parameter). At the start of the next turn (before the environment phase), `_execute_run()` drains the list and fires each injection through the standard event effect handlers. Multiple injections can be queued at a single pause.
+`inject` does not execute the event immediately. It adds a `(event_type, target_civ_name)` tuple to a `pending_injections` list (the mutable list shared with `execute_run()` via the `pending_injections` parameter). At the start of the next turn (before the environment phase), `execute_run()` drains the list and fires each injection through the standard event effect handlers. Multiple injections can be queued at a single pause.
 
 **Target resolution:** Injected events affect *only* the named civ, overriding the normal random selection. For environment events (`drought`, `plague`, `earthquake`) that normally affect `max(1, len(civs) // 2)` civilizations, injection narrows the effect to the single specified target. This is an intentional deviation — the point of `inject` is precise, directed intervention.
 
@@ -317,7 +321,7 @@ Simple `input(">>> ")` loop in `interactive.py`. Split on whitespace, respecting
 | `--fork` | `--batch`, `--interactive`, `--resume` |
 | `--interactive` | `--batch`, `--fork`, `--resume` |
 | `--parallel` | `--llm-actions` |
-| `--resume` | `--batch`, `--fork` |
+| `--resume` | `--batch`, `--fork`, `--interactive` |
 
 These are enforced via argparse mutual exclusion groups or custom validation in the argument parsing stage.
 
@@ -346,7 +350,7 @@ Adding `MemoryStream.save()`/`.load()` and saving every turn changes the existin
 
 | File | Changes |
 |---|---|
-| `src/chronicler/main.py` | Extract `_execute_run()`, add CLI flags, dispatch to batch/fork/interactive |
+| `src/chronicler/main.py` | Extract `execute_run()`, add CLI flags, dispatch to batch/fork/interactive |
 | `src/chronicler/memory.py` | Add `MemoryStream.save(path)` / `MemoryStream.load(path)` |
 | `src/chronicler/scenario.py` | Add `interestingness_weights` field to `ScenarioConfig`, validation |
-| `src/chronicler/models.py` | No changes expected — WorldState persistence already works |
+| `src/chronicler/models.py` | Add `scenario_name: str | None = None` field to `WorldState` (for fork scenario detection) |
