@@ -53,6 +53,8 @@ def execute_run(
     pending_injections: list[tuple[str, str]] | None = None,
     scenario_config: Any | None = None,
     provenance_header: str | None = None,
+    on_turn: Callable | None = None,
+    quit_check: Callable[[], bool] | None = None,
 ) -> RunResult:
     """Shared entry point for single runs, batch, fork, and interactive modes.
 
@@ -172,6 +174,8 @@ def execute_run(
             injected_events = apply_injected_event(event_type, target_civ, world)
             world.events_timeline.extend(injected_events)
 
+        named_events_before = len(world.named_events)
+
         # Create action engine fresh each turn (needs current world state)
         action_engine = ActionEngine(world)
 
@@ -237,6 +241,12 @@ def execute_run(
             text=chronicle_text,
         ))
 
+        # on_turn callback — fires after each turn's data is captured
+        if on_turn is not None:
+            turn_events = [e for e in world.events_timeline if e.turn == world.turn - 1]
+            turn_named = world.named_events[named_events_before:]
+            on_turn(snapshot, chronicle_text, turn_events, turn_named)
+
         # Update memory streams with this turn's events
         turn_events = [e for e in world.events_timeline if e.turn == world.turn - 1]
         for event in turn_events:
@@ -283,6 +293,10 @@ def execute_run(
             should_continue = on_pause(world, memories, _pending)
             if not should_continue:
                 break
+
+        # quit_check — for graceful mid-run shutdown (e.g., live mode quit)
+        if quit_check is not None and quit_check():
+            break
 
         # Progress indicator
         if world.turn % 10 == 0:

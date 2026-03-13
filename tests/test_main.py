@@ -337,6 +337,62 @@ class TestNewCLIFlags:
         assert args.pause_every == 5
 
 
+def test_on_turn_callback_fires_each_turn(tmp_path):
+    """on_turn callback receives snapshot, chronicle text, events, named_events each turn."""
+    import argparse
+    from chronicler.main import execute_run
+
+    turns_received = []
+
+    def on_turn_cb(snapshot, chronicle_text, events, named_events):
+        turns_received.append({
+            "turn": snapshot.turn,
+            "chronicle_text": chronicle_text,
+            "event_count": len(events),
+            "named_event_count": len(named_events),
+        })
+
+    args = argparse.Namespace(
+        seed=42, turns=5, civs=2, regions=4,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None,
+    )
+    execute_run(args, on_turn=on_turn_cb)
+
+    assert len(turns_received) == 5
+    for entry in turns_received:
+        assert isinstance(entry["chronicle_text"], str)
+        assert entry["event_count"] >= 0
+        assert entry["named_event_count"] >= 0
+
+
+def test_quit_check_stops_simulation_early(tmp_path):
+    """quit_check returning True stops the simulation gracefully."""
+    import argparse
+    from chronicler.main import execute_run
+
+    call_count = 0
+
+    def quit_at_turn_3():
+        nonlocal call_count
+        call_count += 1
+        return call_count >= 3
+
+    args = argparse.Namespace(
+        seed=42, turns=50, civs=2, regions=4,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None,
+    )
+    result = execute_run(args, quit_check=quit_at_turn_3)
+
+    assert result.total_turns == 3
+    assert (tmp_path / "chronicle_bundle.json").exists()
+
+
 class TestMutualExclusions:
     def test_parallel_and_llm_actions_rejected(self, capsys):
         """--parallel and --llm-actions should error out."""
