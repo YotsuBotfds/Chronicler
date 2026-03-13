@@ -158,3 +158,34 @@ class WorldState(BaseModel):
         if not path.exists():
             raise FileNotFoundError(f"No state file at {path}")
         return cls.model_validate_json(path.read_text())
+
+
+# --- Snapshot models (for viewer bundle — never persisted to state.json) ---
+
+class CivSnapshot(BaseModel):
+    """Per-turn snapshot of a civilization's stats."""
+    population: int
+    military: int
+    economy: int
+    culture: int
+    stability: int
+    treasury: int
+    asabiya: float
+    tech_era: TechEra
+    trait: str
+    regions: list[str]
+    leader_name: str
+    alive: bool
+
+
+class RelationshipSnapshot(BaseModel):
+    """Per-turn snapshot of disposition between two civs."""
+    disposition: str
+
+
+class TurnSnapshot(BaseModel):
+    """Complete snapshot of world state at a single turn."""
+    turn: int
+    civ_stats: dict[str, CivSnapshot]
+    region_control: dict[str, str | None]
+    relationships: dict[str, dict[str, RelationshipSnapshot]]
