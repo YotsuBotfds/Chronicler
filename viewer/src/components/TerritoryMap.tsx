@@ -98,6 +98,7 @@ function buildEdges(
       if (!groups.has(ctrl)) groups.set(ctrl, []);
       groups.get(ctrl)!.push(r.name);
     }
+    // Intra-faction edges: connect all regions within the same faction
     for (const names of groups.values()) {
       for (let i = 0; i < names.length; i++) {
         for (let j = i + 1; j < names.length; j++) {
@@ -106,6 +107,20 @@ function buildEdges(
             seen.add(key);
             edges.push({ source: names[i], target: names[j] });
           }
+        }
+      }
+    }
+    // Cross-faction boundary edges: connect one region from each faction pair
+    // so the map reads as a connected world rather than isolated islands
+    const groupKeys = [...groups.keys()];
+    for (let i = 0; i < groupKeys.length; i++) {
+      for (let j = i + 1; j < groupKeys.length; j++) {
+        const a = groups.get(groupKeys[i])![0];
+        const b = groups.get(groupKeys[j])![0];
+        const key = [a, b].sort().join("--");
+        if (!seen.has(key)) {
+          seen.add(key);
+          edges.push({ source: a, target: b });
         }
       }
     }
@@ -159,7 +174,7 @@ export function TerritoryMap({
       return {
         id: r.name,
         region: r,
-        controller: currentSnapshot?.region_control[r.name] ?? r.controller,
+        controller: initialControl[r.name] ?? r.controller,
         x,
         y,
         fx: pinned ? x : undefined,
@@ -188,7 +203,7 @@ export function TerritoryMap({
 
     setNodes([...newNodes]);
     setLinks(newLinks);
-  }, [regions, history, initialControl, currentSnapshot]);
+  }, [regions, history, initialControl]);
 
   useEffect(() => {
     if (!currentSnapshot) return;

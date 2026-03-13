@@ -130,6 +130,8 @@ export function FactionDashboard({
 
             <div className="grid grid-cols-4 gap-1 text-xs">
               {STAT_KEYS.map((key) => {
+                // TODO(P1-stat-scale): maxVal assumes Phase 2 ranges (0-10 stats, 0-50 treasury).
+                // Update when Phase 3 scales stats to 0-100.
                 const maxVal = key === "treasury" ? 50 : key === "asabiya" ? 1 : 10;
                 return (
                   <div key={key} className="flex flex-col items-center">
