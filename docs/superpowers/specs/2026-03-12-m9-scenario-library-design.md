@@ -7,10 +7,10 @@
 
 ## Overview
 
-M9 delivers three themed scenario YAML files plus three small schema extensions that enable richer scenario authoring. The M8 infrastructure (scenario.py, YAML loading, validation, apply pipeline) handles all heavy lifting — M9 adds minimal new code and substantial new content.
+M9 delivers three themed scenario YAML files plus small schema extensions that enable richer scenario authoring. The M8 infrastructure (scenario.py, YAML loading, validation, apply pipeline) handles all heavy lifting — M9 adds minimal new code and substantial new content.
 
 **Deliverables:**
-1. Three new ScenarioConfig fields: `event_flavor`, `leader_name_pool` (on CivOverride), `narrative_style`
+1. Schema extensions: `event_flavor`, `leader_name_pool` (on CivOverride), `narrative_style`, `controller` (on RegionOverride)
 2. Three integration points: leader succession, narrative prompt, event display
 3. Three scenario YAMLs: Post-Collapse Minnesota, Sentient Vehicle World, Dead Miles / Port Junction
 
@@ -23,6 +23,8 @@ M9 delivers three themed scenario YAML files plus three small schema extensions 
 | Leader succession names | Custom name pools per civ in YAML | Keeps naming control in scenario author's hands. Domain-based cultural pools in `leaders.py` are fantasy-themed and would produce immersion-breaking names in post-apocalyptic/vehicle scenarios. |
 | Narrative tone | Single freeform string injected into LLM system prompt | Maximum creative control, trivial implementation. Structured tone controls (vocabulary allow/deny lists) are brittle and overengineered for this purpose. |
 | Presentation-layer data location | On ScenarioConfig / NarrativeEngine, NOT WorldState | `event_flavor` and `narrative_style` are presentation concerns. WorldState is simulation state that serializes to `state.json`. Narrative engine is the natural boundary. |
+| Region controller assignment | `controller` field on RegionOverride | Dead Miles requires explicit region-to-civ assignments (including uncontrolled zones). The existing `apply_scenario` flow assigns regions by slot position, which can't express specific controller mappings. |
+| New terrain types | "river" and "hills" added as valid terrain strings | Existing vocabulary (plains, mountains, coast, forest, desert, tundra) doesn't cover river valleys or bluff country adequately. Since `terrain` is a freeform string and only `HARSH_TERRAINS = {"tundra", "desert"}` uses terrain mechanically, new types are non-harsh by default. No code changes needed. |
 
 ## Schema Extensions
 
@@ -44,6 +46,13 @@ event_flavor: dict[str, EventFlavor] | None = None
 narrative_style: str | None = None
 ```
 
+### RegionOverride Addition
+
+```python
+# Explicit controller assignment; None or omitted = inherit from generate_world
+controller: str | None = None
+```
+
 ### CivOverride Addition
 
 ```python
@@ -60,36 +69,48 @@ leader_name_pool: list[str] | None = None
 
 ### Validation Rules
 
-- `event_flavor` keys must exist in `DEFAULT_EVENT_PROBABILITIES` (same validation as `event_probability_overrides`). Invalid keys raise `ValueError` with the bad key name.
+- `event_flavor` keys must exist in `VALID_EVENT_OVERRIDE_KEYS` (the same constant used by `event_probability_overrides` validation, derived from `DEFAULT_EVENT_PROBABILITIES.keys()`). Invalid keys raise `ValueError` with the bad key name.
 - `leader_name_pool` must contain at least 5 names if provided. Empty list rejected.
+- **Cross-pool uniqueness:** Within a single scenario, the same name must not appear in multiple civs' `leader_name_pool` lists. Duplicates raise `ValueError` identifying the repeated name and the civs involved.
 - `narrative_style`: no validation beyond non-empty if present.
+- `controller` on RegionOverride: if set, must match a civ name defined in the scenario's `civilizations` list (validated in `load_scenario` after all fields are parsed). Use the literal string `"none"` or omit the field for uncontrolled regions.
 
 ## Integration Points
 
-Three leaf-level modifications. No architectural changes. The simulation engine, action engine, tech system, world_gen, events processing, and memory/reflection system are untouched.
+Three leaf-level modifications plus one small addition to `apply_scenario`. No architectural changes. The simulation engine, action engine, tech system, world_gen, events processing, and memory/reflection system are untouched.
+
+**Terrain note:** Scenarios introduce "river" and "hills" as new terrain strings. These are non-harsh (not in `HARSH_TERRAINS`), so they are freely expandable by any tech era. No simulation code changes. If future milestones add terrain-specific mechanics (e.g., defensive bonuses for hills), they will need to account for these new types.
 
 ### 1. Leader Succession (`leaders.py` — `_pick_name`)
 
-If `civ.leader_name_pool` is non-empty, draw from it before falling back to cultural pools.
+If `civ.leader_name_pool` is non-empty, draw from it before falling back to cultural pools. The custom pool check must use the same `used_bases` extraction logic as the existing code (which strips title prefixes like "Emperor" from `used_leader_names` entries) to prevent duplication.
 
 ```python
 def _pick_name(civ, world, rng):
+    # Build used_bases set — same logic as existing code (lines 155-159)
+    used_bases = set()
+    for used in world.used_leader_names:
+        parts = used.split(" ", 1)
+        used_bases.add(parts[-1] if len(parts) > 1 else parts[0])
+        used_bases.add(used)
+
     if civ.leader_name_pool:
-        available = [n for n in civ.leader_name_pool if n not in world.used_leader_names]
+        available = [n for n in civ.leader_name_pool if n not in used_bases]
         if available:
-            name = rng.choice(available)
-            # name gets added to world.used_leader_names by existing caller flow
-            return name
+            return rng.choice(available)
     # existing cultural pool logic unchanged
 ```
 
-**Critical:** Must use the `rng` parameter (seeded deterministic RNG), not `random.choice`. The picked name must be added to `world.used_leader_names` to prevent cross-civ duplication. Both behaviors are already handled by the existing caller flow — the custom pool path must not bypass them.
+**Critical details:**
+- Must use the `rng` parameter (seeded deterministic RNG), not `random.choice`, to preserve simulation reproducibility.
+- Custom pool names are returned as bare names. The existing caller flow in `_pick_name` adds a title prefix (e.g., "Elder", "Warchief") and appends the full titled name to `world.used_leader_names`. The custom pool path must not bypass this.
+- The `used_bases` check ensures that if "Warchief Torque" is already used, bare "Torque" is excluded from the available pool.
 
-When the custom pool is exhausted, fallback to the existing cultural pool logic. The generic fallback may produce names like "Axle III" (dynasty-style numbering), which is acceptable.
+When the custom pool is exhausted, fallback to the existing cultural pool logic. The generic fallback may produce dynasty-style names (e.g., "Axle III"), which is acceptable and thematically appropriate for long runs.
 
 ### 2. Event Flavor Swap (`narrative.py`)
 
-Before event data reaches the LLM prompt, check the narrative engine's `event_flavor` dict. If the event type has a flavor entry, substitute the display name and description in the prompt context. The simulation output is unchanged.
+Before event data reaches the LLM prompt, check for a flavor mapping and substitute the display name and description. The simulation output is unchanged — only the prompt input to the narrative LLM is modified.
 
 ```python
 # In narrative prompt construction
@@ -101,24 +122,52 @@ if self.event_flavor and event_type in self.event_flavor:
     display_desc = self.event_flavor[event_type].description
 ```
 
-The `NarrativeEngine` receives `event_flavor: dict[str, EventFlavor] | None` and `narrative_style: str | None` at initialization when a scenario is loaded. These are instance attributes on the engine, not WorldState fields.
+**Narrative engine wiring:** `NarrativeEngine.__init__` gains two optional kwargs:
+
+```python
+def __init__(self, sim_client, narrative_client,
+             event_flavor: dict[str, EventFlavor] | None = None,
+             narrative_style: str | None = None):
+```
+
+In `main.py`, these are extracted from `scenario_config` (if present) and passed at engine construction:
+
+```python
+event_flavor = scenario_config.event_flavor if scenario_config else None
+narrative_style = scenario_config.narrative_style if scenario_config else None
+engine = NarrativeEngine(sim_client, narrative_client,
+                         event_flavor=event_flavor,
+                         narrative_style=narrative_style)
+```
+
+The `build_chronicle_prompt` function (currently a module-level free function) needs access to `event_flavor` and `narrative_style`. Two options: (a) convert it to a method on `NarrativeEngine`, or (b) pass them as parameters. Option (a) is cleaner since both values are instance state. **Implementation should convert `build_chronicle_prompt` to a method on `NarrativeEngine`.**
 
 ### 3. Narrative Style Injection (`narrative.py` — system prompt)
 
-If `self.narrative_style` is set, inject it into the system prompt after the historian role line:
+The current hardcoded role line reads: `"You are a mythic historian chronicling the world of {world.name}."` This conflicts with non-mythic scenario styles (e.g., Minnesota's "terse, pragmatic" or Dead Miles' "noir-inflected"). **Change the hardcoded line to a neutral framing:**
 
 ```
-You are a mythic historian chronicling the world of {world_name}.
+You are a historian chronicling the world of {world.name}.
+```
+
+If `self.narrative_style` is set, inject it immediately after:
+
+```
+You are a historian chronicling the world of {world.name}.
 
 NARRATIVE STYLE: {self.narrative_style}
 ```
 
-When no scenario is loaded (or scenario has no `narrative_style`), the prompt is unchanged.
+When no scenario is loaded (or scenario has no `narrative_style`), the prompt uses only the neutral role line. The existing default behavior still works — the LLM naturally adopts a mythic tone when given fantasy faction names and medieval tech eras.
+
+**Scope:** `narrative_style` is injected into the chronicle prompt only, NOT into action selection prompts (`build_action_prompt`). Action selection returns a single action type keyword and does not benefit from narrative tone direction.
 
 ### apply_scenario Changes
 
-One addition to the existing `apply_scenario` flow:
-- During civ injection, copy `civ_override.leader_name_pool` to the matched `Civilization.leader_name_pool`.
+Two additions to the existing `apply_scenario` flow:
+
+1. During civ injection, copy `civ_override.leader_name_pool` to the matched `Civilization.leader_name_pool`.
+2. After region injection, if a `RegionOverride` has `controller` set, update the injected region's `controller` field. If `controller` references a civ name that was renamed during civ injection, use the new name. Also update the civ's `regions` list accordingly. For uncontrolled regions (`controller` omitted or set to `"none"`), set `region.controller = None` and ensure no civ's `regions` list includes it.
 
 `event_flavor` and `narrative_style` stay on `ScenarioConfig` and are passed to the narrative engine at initialization — they do not flow through `apply_scenario`.
 
@@ -131,18 +180,18 @@ One addition to the existing `apply_scenario` flow:
 
 ### Regions (10)
 
-| Region | Terrain | Capacity | Notes |
-|--------|---------|----------|-------|
-| Northern Prairies | plains | 6 | Open farmland, exposed |
-| Red River Valley | river | 8 | Fertile floodplain |
-| Iron Range | forest | 4 | Mining country, low agriculture |
-| Boundary Waters | forest | 3 | Wilderness, hard to sustain |
-| Twin Cities Ruins | plains | 5 | Scavengeable but dangerous |
-| Mississippi Corridor | river | 7 | Trade artery |
-| Bluff Country | hills | 5 | Defensible terrain |
-| Lake Country | forest | 6 | Fishing, timber |
-| Willmar | plains | 9 | Prime agricultural zone |
-| Benson | plains | 8 | Farming community, river access |
+| Region | Terrain | Capacity | Resources | Notes |
+|--------|---------|----------|-----------|-------|
+| Northern Prairies | plains | 6 | fertile | Open farmland, exposed |
+| Red River Valley | river | 8 | fertile | Fertile floodplain |
+| Iron Range | forest | 4 | mineral | Mining country, low agriculture |
+| Boundary Waters | forest | 3 | timber | Wilderness, hard to sustain |
+| Twin Cities Ruins | plains | 5 | mineral | Scavengeable materials |
+| Mississippi Corridor | river | 7 | maritime | Trade artery |
+| Bluff Country | hills | 5 | timber | Defensible terrain |
+| Lake Country | forest | 6 | timber | Fishing, timber |
+| Willmar | plains | 9 | fertile | Prime agricultural zone |
+| Benson | plains | 8 | fertile | Farming community, river access |
 
 ### Civilizations (6)
 
@@ -174,13 +223,13 @@ One addition to the existing `apply_scenario` flow:
 - Stats: population 5, military 2, economy 4, culture 7, stability 7
 - Tech era: tribal | Domains: faith, diplomacy | Values: compassion, unity
 - Goal: cautious | Leader: Pastor Lindahl (trait: visionary)
-- Leader name pool: Lindahl, Engstrom, Sorensen, Arneson, Fjelstad, Haugen, Solberg, Nordstrom, Lund, Bjornson, Nygaard, Dalen, Strand, Hagen, Vik
+- Leader name pool: Lindahl, Ekberg, Sorensen, Arneson, Fjelstad, Haugen, Solberg, Nordstrom, Lund, Bjornson, Nygaard, Dalen, Strand, Hagen, Vik
 
 **Carleton Enclave**
 - Stats: population 3, military 2, economy 5, culture 8, stability 5
 - Tech era: classical | Domains: knowledge, preservation | Values: learning, reason
 - Goal: calculating | Leader: Dean Alderman (trait: visionary)
-- Leader name pool: Alderman, Thorne, Whitfield, Lowell, Pemberton, Ashworth, Marlowe, Kingsley, Sinclair, Harwood, Prescott, Elsworth, Fairbanks, Winslow, Cartwright
+- Leader name pool: Alderman, Thorne, Whitfield, Lowell, Pemberton, Ashworth, Marlowe, Kingsley, Sinclair, Harwood, Elsworth, Fairbanks, Winslow, Cartwright, Holbrook
 
 **Note:** Carleton Enclave starts at classical era while all others are tribal. This creates immediate tech asymmetry — the Enclave hits tech war multipliers from turn 1, but their low military and population make them vulnerable. The knowledge-preservation angle generates "protect vs. hoard" narrative tension.
 
@@ -233,18 +282,18 @@ Think Cormac McCarthy on the prairie.
 
 ### Regions (10)
 
-| Region | Terrain | Capacity | Notes |
-|--------|---------|----------|-------|
-| The Proving Grounds | plains | 6 | Open testing terrain |
-| Rust Flats | plains | 3 | Harsh, corrosive environment |
-| The Interchange | river | 7 | Crossroads, high traffic |
-| Fuel Springs | forest | 9 | Abundant fuel deposits |
-| The Long Straight | plains | 5 | Open highway territory |
-| Axle Mountains | hills | 4 | Defensible, resource-poor |
-| The Scrapyard Wastes | forest | 3 | Parts salvage, dangerous |
-| Chrome Valley | river | 7 | Prosperous, scenic |
-| The Terminal Plains | plains | 6 | Gateway region |
-| Oil Delta | river | 8 | Rich fuel estuary |
+| Region | Terrain | Capacity | Resources | Notes |
+|--------|---------|----------|-----------|-------|
+| The Proving Grounds | plains | 6 | barren | Open testing terrain |
+| Rust Flats | plains | 3 | barren | Harsh, corrosive environment |
+| The Interchange | river | 7 | maritime | Crossroads, high traffic |
+| Fuel Springs | forest | 9 | mineral | Abundant fuel deposits |
+| The Long Straight | plains | 5 | barren | Open highway territory |
+| Axle Mountains | hills | 4 | mineral | Defensible, resource-poor |
+| The Scrapyard Wastes | forest | 3 | mineral | Parts salvage, dangerous |
+| Chrome Valley | river | 7 | fertile | Prosperous, scenic |
+| The Terminal Plains | plains | 6 | barren | Gateway region |
+| Oil Delta | river | 8 | mineral | Rich fuel estuary |
 
 ### Civilizations (5)
 
@@ -331,18 +380,20 @@ The Dead Miles YAML shares the five faction names from the Vehicle World (Geargr
 
 ### Regions (10)
 
-| Region | Terrain | Capacity | Notes |
-|--------|---------|----------|-------|
-| Gasoline Alley | plains | 5 | Geargrinder territory, fuel storage |
-| The Terminal | river | 9 | Major port infrastructure |
-| The Gulch | hills | 3 | Decayed lowland zone |
-| Dockside | river | 8 | Port operations, Chrome Council |
-| The Interchange | river | 7 | Traffic nexus, contested |
-| Scrap Row | forest | 4 | Salvage district, Rustborn turf |
-| Chrome Heights | hills | 6 | Elevated, affluent district |
-| Voltage Park | plains | 5 | Electrics' innovation quarter |
-| The Long Haul | plains | 6 | Freight corridor |
-| Rust Narrows | forest | 3 | Cramped, corroded passages |
+| Region | Terrain | Capacity | Resources | Controller | Notes |
+|--------|---------|----------|-----------|-----------|-------|
+| Gasoline Alley | plains | 5 | mineral | Geargrinders | Fuel storage district |
+| The Terminal | river | 9 | maritime | Haulers Union | Major port infrastructure |
+| The Gulch | hills | 3 | barren | (none) | Decayed contested zone |
+| Dockside | river | 8 | maritime | Chrome Council | Port operations |
+| The Interchange | river | 7 | maritime | (none) | Traffic nexus, contested |
+| Scrap Row | forest | 4 | mineral | Rustborn | Salvage district |
+| Chrome Heights | hills | 6 | fertile | Chrome Council | Affluent district |
+| Voltage Park | plains | 5 | mineral | Electrics | Innovation quarter |
+| The Long Haul | plains | 6 | barren | Haulers Union | Freight corridor |
+| Rust Narrows | forest | 3 | barren | Rustborn | Corroded passages |
+
+The Gulch and The Interchange are contested neutral zones. The Geargrinders (1 region, high military, aggressive goal) will face heavy `expand` weight pressure from the action engine's situational modifiers, creating an early crisis point.
 
 ### Civilizations (5)
 
@@ -350,53 +401,31 @@ The Dead Miles YAML shares the five faction names from the Vehicle World (Geargr
 - Stats: population 5, military 8, economy 5, culture 2, stability 4
 - Tech era: iron | Domains: warfare, engineering | Values: strength, dominance
 - Goal: aggressive | Leader: Warboss Torque (trait: aggressive)
-- Regions: Gasoline Alley (1 region — territorially squeezed, high expand pressure)
 - Leader name pool: Axle, Torque, Piston, Crankshaw, Diesel, Camber, Ratchet, Wrench, Sprocket, Burnout, Clutch, Gasket, Flywheel, Crank, Bore
 
 **Haulers Union**
 - Stats: population 6, military 4, economy 8, culture 4, stability 7
 - Tech era: iron | Domains: commerce, logistics | Values: trade, solidarity
 - Goal: calculating | Leader: Guildmaster Freight (trait: shrewd)
-- Regions: The Terminal, The Long Haul (2 regions — controls freight infrastructure)
 - Leader name pool: Convoy, Haul, Rig, Freight, Payload, Overpass, Junction, Tarmac, Blacktop, Roadway, Flatbed, Tanker, Chassis, Hitch, Kingpin
 
 **Chrome Council**
 - Stats: population 4, military 4, economy 7, culture 8, stability 5
 - Tech era: iron | Domains: governance, art | Values: beauty, authority
 - Goal: cautious | Leader: High Polisher Gleam (trait: visionary)
-- Regions: Chrome Heights, Dockside (2 regions — cultural and economic power)
 - Leader name pool: Sterling, Gleam, Polish, Lustre, Brilliance, Mirror, Sheen, Radiance, Lacquer, Platinum, Gloss, Luster, Veneer, Enamel, Gilt
 
 **Rustborn**
 - Stats: population 6, military 3, economy 4, culture 3, stability 8
 - Tech era: iron | Domains: survival, community | Values: endurance, solidarity
-- Regions: Rust Narrows, Scrap Row (2 regions — marginal but defensible)
 - Goal: cautious | Leader: Elder Salvage (trait: pragmatic)
 - Leader name pool: Patina, Corrode, Flake, Oxide, Weather, Dent, Scratch, Bondo, Primer, Salvage, Rivet, Weld, Slag, Scrap, Galvanize
 
 **Electrics**
 - Stats: population 3, military 2, economy 6, culture 7, stability 5
 - Tech era: iron | Domains: innovation, philosophy | Values: progress, enlightenment
-- Regions: Voltage Park (1 region — small but culturally influential)
 - Goal: calculating | Leader: Archon Spark (trait: visionary)
 - Leader name pool: Volt, Ampere, Watt, Ohm, Tesla, Farad, Joule, Coulomb, Hertz, Lumen, Charge, Spark, Dynamo, Capacitor, Relay
-
-### Starting Region Assignments
-
-| Region | Controller |
-|--------|-----------|
-| Gasoline Alley | Geargrinders |
-| The Terminal | Haulers Union |
-| The Long Haul | Haulers Union |
-| Chrome Heights | Chrome Council |
-| Dockside | Chrome Council |
-| Rust Narrows | Rustborn |
-| Scrap Row | Rustborn |
-| Voltage Park | Electrics |
-| The Gulch | (uncontrolled) |
-| The Interchange | (uncontrolled) |
-
-The Gulch and The Interchange are contested neutral zones. The Geargrinders (1 region, high military, aggressive goal) will face heavy `expand` weight pressure from the action engine's situational modifiers, creating an early crisis point.
 
 ### Relationships
 
@@ -444,21 +473,26 @@ a trade war between sentient trucks.
 ### Schema Extension Tests (unit)
 
 - `EventFlavor` model validation: valid construction, required fields
-- `event_flavor` key validation: keys must exist in `DEFAULT_EVENT_PROBABILITIES`. Invalid keys (e.g., `"tech_advancement"`, `"nonexistent_event"`) raise `ValueError`
+- `event_flavor` key validation: keys must exist in `VALID_EVENT_OVERRIDE_KEYS`. Invalid keys (e.g., `"tech_advancement"`, `"nonexistent_event"`) raise `ValueError`
 - `leader_name_pool` validation: minimum 5 names enforced, empty list rejected, `None` accepted (optional field)
+- **Cross-pool uniqueness:** scenario with same name in two different civ pools raises `ValueError`
 - `narrative_style` round-trips through `ScenarioConfig` (present when set, absent when `None`)
-- `load_scenario` correctly parses all three new fields from YAML
+- `controller` on RegionOverride: valid civ name accepted, invalid name rejected, `None`/omitted accepted
+- `load_scenario` correctly parses all new fields from YAML
 - `apply_scenario` copies `leader_name_pool` from `CivOverride` to matched `Civilization`
+- `apply_scenario` sets region controllers from `RegionOverride.controller`
 
 ### Integration Point Tests
 
 - `_pick_name` draws from custom pool before cultural pool, using deterministic `rng` parameter
-- `_pick_name` adds custom pool picks to `world.used_leader_names` (cross-civ dedup)
+- `_pick_name` checks custom pool names against `used_bases` set (title-stripped), not raw `used_leader_names`
+- `_pick_name` custom pool picks are added to `world.used_leader_names` (cross-civ dedup) via existing caller flow
 - `_pick_name` falls back to cultural pool when custom pool is exhausted
 - **Deterministic succession test:** Run a scenario with custom name pool, set `leader_death` probability to 1.0 via test-specific override, verify successor name is identical across two runs with the same seed. Confirms custom pool draws go through deterministic RNG.
 - Event flavor swap produces correct display name/description in narrative prompt context
 - Event flavor swap is a no-op when `event_flavor` is `None`
 - Narrative style string appears in system prompt when set, absent when not
+- Neutral role line ("You are a historian...") used instead of "mythic historian" regardless of scenario
 
 ### Scenario Smoke Tests
 
@@ -477,7 +511,7 @@ Per roadmap criteria, each of the 3 scenarios:
 
 | Milestone | Scope | Parallelizable |
 |-----------|-------|---------------|
-| M9.1: Schema extensions | New fields, validation, wiring (leader succession, narrative prompt, event flavor swap) | No (foundation) |
+| M9.1: Schema extensions | New fields, validation, wiring (leader succession, narrative prompt, event flavor swap, region controller) | No (foundation) |
 | M9.2: Post-Collapse Minnesota | YAML file + 20-turn smoke test | Yes (after M9.1) |
 | M9.3: Sentient Vehicle World | YAML file + 20-turn smoke test | Yes (after M9.1) |
 | M9.4: Dead Miles | YAML file + 20-turn smoke test (written after M9.3 for naming consistency review) | After M9.3 |
@@ -490,4 +524,7 @@ M9.2 and M9.3 are independent and can be parallelized. M9.4 depends on M9.3 only
 - `CIV_TEMPLATES` pool (6 entries) is not a constraint — all scenarios define all civs explicitly.
 - `leader_name_pool` sizes: 15 names for Minnesota and Dead Miles factions, 20 for Vehicle World (longer run). Exhaustion falls back to cultural pools.
 - `event_flavor` covers all 10 `DEFAULT_EVENT_PROBABILITIES` keys in each scenario — complete thematic coverage.
-- No changes to simulation engine, action engine, tech system, or memory/reflection system.
+- New terrain types "river" and "hills" are non-harsh (freely expandable). No simulation code changes needed.
+- `build_chronicle_prompt` must be converted from free function to `NarrativeEngine` method to access `event_flavor` and `narrative_style` instance state.
+- `narrative_style` applies to chronicle prompts only, not action selection prompts.
+- The existing `build_chronicle_prompt` rule 1 ("Write in the style of a mythic history...") must be generalized to a neutral framing (e.g., "Write in the style of a history — evocative, literary...") so it doesn't contradict non-mythic `narrative_style` directives. Let the `NARRATIVE STYLE` injection carry all tone-specific direction.
