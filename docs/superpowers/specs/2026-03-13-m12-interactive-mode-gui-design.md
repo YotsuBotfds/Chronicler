@@ -36,11 +36,13 @@
 
 The daemon thread ensures the process exits cleanly on Ctrl-C or simulation crash — no hanging event loops.
 
-### Shared State (Thread-Safe Queues)
+### Shared State (Thread-Safe)
 
 - `snapshot_queue: queue.Queue[dict]` — simulation puts turn snapshots + events after each turn. WebSocket thread drains and broadcasts.
 - `command_queue: queue.Queue[dict]` — WebSocket thread puts parsed commands from the viewer. Simulation's `on_pause` blocks on `get()`.
-- `status_queue: queue.Queue[dict]` — simulation puts status messages (started, paused, completed, error). WebSocket thread forwards to viewer.
+- `status_queue: queue.Queue[dict]` — simulation puts status messages (`paused`, `ack`, `forked`, `completed`, `error`). WebSocket thread drains and sends to viewer. This is the delivery mechanism for all server-initiated messages during a pause — `live_pause()` is a closure that captures `status_queue` and puts `ack`/`forked`/`error` responses directly onto it as it processes each command.
+- `quit_event: threading.Event` — WebSocket thread sets this when a `quit` message arrives. The simulation loop checks `quit_event.is_set()` after each turn to support graceful mid-run quit. This is necessary because `command_queue` is only read at pause boundaries.
+- `speed: float` — shared mutable float protected by `threading.Lock`. Default 1.0. WebSocket thread updates it on `speed` messages. Simulation loop reads it each turn to determine `time.sleep(1.0 / speed)` delay. Lock contention is negligible — one read and at most one write per turn.
 
 ### New Module: `src/chronicler/live.py`
 
@@ -58,9 +60,21 @@ Contains:
 5. Viewer connects, receives snapshots, shows intervention UI at pause, sends commands.
 6. On simulation complete: sends `completed` status, server shuts down.
 
-### No Changes to `execute_run()`
+### Minimal Changes to `execute_run()`
 
-It already accepts `on_pause`, `pending_injections`, and `pause_every`. The live mode provides different implementations of these callbacks.
+`execute_run()` already accepts `on_pause`, `pending_injections`, and `pause_every`. The live mode provides different implementations of these callbacks.
+
+Two small additions:
+
+1. **`on_turn` callback** (optional, default `None`): called after each turn's snapshot is captured and appended to `history`, before `on_pause`. Signature: `on_turn(snapshot: TurnSnapshot, chronicle_text: str, events: list[Event], named_events: list[NamedEvent]) -> None`. The live mode uses this to push turn data to `snapshot_queue`. Non-live modes ignore it. This is the cleanest injection point — it avoids the live server needing access to internals of the simulation loop.
+
+2. **`quit_check` callback** (optional, default `None`): called after each turn, returns `bool`. If it returns `True`, the simulation breaks out of the loop gracefully (same as `on_pause` returning `False`). The live mode passes `lambda: quit_event.is_set()`.
+
+Both are backward-compatible — existing callers pass nothing and behavior is unchanged.
+
+### Thread Safety Note
+
+`live_pause()` runs on the main thread (called from `execute_run()`), so modifying `world` state via `set` commands is safe — the simulation loop is blocked at that point. Never apply `set` from the WebSocket thread directly.
 
 ### Dependency
 
@@ -74,7 +88,7 @@ All messages are JSON. Every message has a `type` field. Server-to-client and cl
 
 ### Server -> Client Messages
 
-**`init`** — sent once on connection. Provides full accumulated state so a late-connecting viewer can render the complete timeline:
+**`init`** — sent once on connection. Provides the full accumulated state so a late-connecting viewer can render the complete timeline, sparklines, event dots, and chronicle text. This is equivalent to a partial `chronicle_bundle.json`:
 
 ```json
 {
@@ -82,15 +96,23 @@ All messages are JSON. Every message has a `type` field. Server-to-client and cl
   "world_name": "Ashkari Dominion",
   "total_turns": 50,
   "pause_every": 10,
+  "current_turn": 20,
   "civs": ["Kethani Empire", "Dorrathi Clans"],
   "regions": [{"name": "Iron Peaks", "terrain": "mountains", "x": 3.2, "y": 7.1}],
-  "current_turn": 20,
-  "history": [ ...full array of TurnSnapshot-shaped objects for turns 1-20... ],
-  "chronicle_entries": [ ...full array of {turn, text} for turns 1-20... ]
+  "history": [ "...full array of TurnSnapshot-shaped objects for turns 1-20..." ],
+  "chronicle_entries": { "1": "The world began...", "2": "Tensions rose...", "...": "..." },
+  "events_timeline": [ "...all Event objects accumulated so far..." ],
+  "named_events": [ "...all NamedEvent objects accumulated so far..." ],
+  "era_reflections": { "10": "## Era: Turns 1-10\n\n...", "20": "## Era: Turns 11-20\n\n..." },
+  "metadata": { "seed": 42, "sim_model": "local", "narrative_model": "local" }
 }
 ```
 
-The `history` and `chronicle_entries` arrays are the same data accumulated in `execute_run`'s `history` list and `chronicle_entries` list.
+**`chronicle_entries` is a `Record<string, string>`** (turn number as string key -> text), matching the existing bundle format in `bundle.py` and the viewer's `Bundle` type. The `useLiveConnection` hook converts each `turn` message's `chronicle_text` into this format: `entries[String(turn)] = chronicle_text`.
+
+**`init` size for long runs:** For a 500-turn run with 10 civs, `init` may be several megabytes. The `websockets` library default max message size (1MB in newer versions) may need to be increased via `max_size` parameter on the server. This is a configuration detail, not an architecture concern.
+
+The server should also configure periodic WebSocket pings (e.g., every 20 seconds) so that stale connections are detected promptly rather than waiting for the OS TCP timeout. The `websockets` library supports this via the `ping_interval` parameter.
 
 **`turn`** — sent after each turn completes:
 
@@ -123,35 +145,49 @@ Both `events` (timeline events) and `named_events` (battles, treaties, cultural 
 }
 ```
 
-**`resumed`** — acknowledgment after a command is processed:
+**`ack`** — acknowledgment after a command is processed. Named `ack` (not `resumed`) because the simulation does NOT resume after `inject`/`set`/`fork` — it stays paused. Only `continue` causes actual resumption:
 
 ```json
 {
-  "type": "resumed",
-  "after_command": "inject",
-  "detail": "Queued plague -> Kethani Empire"
+  "type": "ack",
+  "command": "inject",
+  "detail": "Queued plague -> Kethani Empire",
+  "still_paused": true
 }
 ```
 
-For `set` commands, `detail` includes the new value so the viewer can update immediately:
+For `set` commands, the response includes the new value so the viewer can patch the latest snapshot immediately. Note: `set` applies to `world` state directly (safe because `live_pause()` runs on the main thread while the simulation is blocked), but the turn snapshot already captured for the current turn still shows the old value. The viewer patches its local copy of the latest snapshot using the `civ`/`stat`/`value` fields:
 
 ```json
 {
-  "type": "resumed",
-  "after_command": "set",
+  "type": "ack",
+  "command": "set",
   "detail": "Set Kethani Empire.military = 9",
+  "still_paused": true,
   "civ": "Kethani Empire",
   "stat": "military",
   "value": 9
 }
 ```
 
-**`forked`** — response to a fork command:
+For `continue`, `still_paused` is `false` — this is what the viewer uses to clear the `paused` state:
+
+```json
+{
+  "type": "ack",
+  "command": "continue",
+  "detail": "Simulation resumed",
+  "still_paused": false
+}
+```
+
+**`forked`** — response to a fork command. Includes the save path and a CLI command the user can copy to run the fork:
 
 ```json
 {
   "type": "forked",
-  "save_path": "output/fork_save_t20"
+  "save_path": "output/fork_save_t20",
+  "cli_hint": "python -m chronicler --fork output/fork_save_t20/state.json --seed 999 --turns 50"
 }
 ```
 
@@ -187,8 +223,8 @@ For `set` commands, `detail` includes the new value so the viewer can update imm
 
 ### Protocol Rules
 
-1. **Commands only while paused.** Commands sent while the simulation is running get an `error` response: `"Simulation is running. Wait for pause."` Exception: `quit` and `speed` are always accepted.
-2. **Multiple commands per pause.** The viewer can send several `inject`/`set` commands before sending `continue`. Each gets a `resumed` acknowledgment. `set` applies immediately to world state. `inject` queues for next turn. The simulation only unblocks when it receives `continue` or `quit`.
+1. **Commands only while paused.** Commands sent while the simulation is running get an `error` response: `"Simulation is running. Wait for pause."` Exception: `quit` and `speed` are always accepted. `quit` while running sets `quit_event`, which the simulation checks after completing the current turn — the turn finishes, bundle is written, `completed` is sent. No mid-turn abort.
+2. **Multiple commands per pause.** The viewer can send several `inject`/`set` commands before sending `continue`. Each gets an `ack` response with `still_paused: true`. `set` applies immediately to world state. `inject` queues for next turn. The simulation only unblocks when it receives `continue` (which sends `ack` with `still_paused: false`) or `quit`.
 3. **Single client.** Only one viewer connection at a time. Second connection gets an `error` and is closed.
 4. **Reconnection.** If a client disconnects and reconnects, it receives an `init` with full history up to `current_turn`. If the simulation is paused, it also gets a `paused` message immediately after `init`.
 
@@ -221,7 +257,9 @@ useLiveConnection(wsUrl: string) -> {
 }
 ```
 
-As `turn` messages arrive, the hook appends to internal `history` and `chronicle_entries` arrays, building a `ChronicleBundle`-shaped object incrementally. On `init`, it seeds with the full history. All downstream components receive the same `ChronicleBundle` type — they don't know whether data came from a file or a WebSocket.
+As `turn` messages arrive, the hook appends to internal `history` array and converts `chronicle_text` into the `Record<string, string>` format (keyed by turn number as string), building a `ChronicleBundle`-shaped object incrementally. It also accumulates `events_timeline`, `named_events`, and `era_reflections`. On `init`, it seeds with the full state. All downstream components receive the same `ChronicleBundle` type — they don't know whether data came from a file or a WebSocket.
+
+The hook clears `paused` state only when it receives an `ack` with `still_paused: false` (i.e., after a `continue` command). `ack` responses for `inject`/`set`/`fork` keep `paused: true`.
 
 **Auto-reconnect:** On WebSocket close, the hook attempts reconnection with exponential backoff (1s, 2s, 4s, cap 10s). On reconnect, `init` provides full history and the bundle is patched. A "Reconnecting..." indicator appears in the header.
 
@@ -253,10 +291,15 @@ Added to `useTimeline` (or as a companion to it):
 - **Enabled by default** in live mode. New turns auto-advance `currentTurn` to the latest.
 - **Disabled** when the user manually scrubs backward to review history. New turns do not yank the view forward.
 - **Re-enabled** when the user scrubs to the latest turn or clicks a "Follow" toggle button on the scrubber.
+- **Pause modal is independent of follow mode.** When the simulation pauses, the `InterventionPanel` appears regardless of whether follow mode is on or off. Interventions are time-critical — the user needs to see the pause even if they're reviewing turn 5 while the simulation paused at turn 20.
 
 ### Speed Control
 
-Added to the `Header` component next to existing play/pause controls. In static mode it controls playback speed (existing behavior). In live mode it sends a `speed` message to the simulation. Same UI element, different effect based on mode.
+Added to the `Header` component next to existing play/pause controls. Two independent concerns:
+
+- **In live mode**: sends a `speed` message to the simulation server, controlling how fast turns execute (server-side pacing via `time.sleep(1.0 / speed)`).
+- **In static mode**: controls local playback speed through recorded turns (existing behavior, client-side only).
+- **In live mode with follow off**: the user is reviewing past history locally. The speed control affects server-side simulation speed only. Local history scrubbing/playback uses the existing `useTimeline` play/pause/speed mechanism independently. These are separate — the user might want the simulation running at 5x while they slowly review turn 12.
 
 ### New Component: `InterventionPanel`
 
@@ -264,11 +307,11 @@ Renders as a modal overlay when `paused === true`. Not a permanent layout elemen
 
 **Contents:**
 - **Event injection**: dropdown of `pauseContext.injectable_events` + dropdown of `pauseContext.civs` + "Inject" button.
-- **Stat override**: dropdown of civs, dropdown of stats, number input, "Set" button. On successful `set`, the current-turn display updates immediately (the `resumed` response carries the new value, hook patches the latest snapshot).
+- **Stat override**: dropdown of civs, dropdown of stats, number input, "Set" button. On successful `set`, the current-turn display updates immediately (the `ack` response carries the new value, hook patches the latest snapshot).
 - **Pending actions queue**: list of staged and sent commands.
   - **Staged** (not yet sent to server): removable via X button. These are `inject` commands assembled in the UI but not yet dispatched.
   - **Sent** (acknowledged by server): not removable, shown with a checkmark. `set` commands move to "sent" immediately since they apply to world state on acknowledgment. `inject` commands move to "sent" on acknowledgment but are queued for next turn.
-- **Fork button**: saves state, shows the fork path from the `forked` response.
+- **Fork button**: saves state, shows the fork path and a copyable CLI command from the `forked` response.
 - **Continue button**: prominent, resumes simulation. Sends any remaining staged commands, then sends `continue`.
 - **Quit button**: secondary/danger style, stops simulation.
 
@@ -281,8 +324,10 @@ Renders as a modal overlay when `paused === true`. Not a permanent layout elemen
 Queue protocol tests — no actual WebSocket connections:
 
 - `live_pause` puts a `paused` message on `status_queue`, blocks on `command_queue.get()`, returns `True` for `continue`, `False` for `quit`.
-- Command validation: `inject` with invalid civ name -> error dict. `set` with out-of-range value -> error dict. `set` applies immediately to world state. `inject` appends to `pending_injections`.
-- Speed control: `speed` message updates the delay value.
+- `live_pause` puts `ack` messages on `status_queue` for each `inject`/`set`/`fork` command, with `still_paused: true`. `ack` for `continue` has `still_paused: false`.
+- Command validation: `inject` with invalid civ name -> error dict on `status_queue`. `set` with out-of-range value -> error dict. `set` applies immediately to world state. `inject` appends to `pending_injections`.
+- Speed control: `speed` message updates the lock-protected shared float.
+- `quit_event`: setting it causes `quit_check()` to return `True`.
 - Snapshot serialization: `TurnSnapshot` + events + named_events + chronicle_text serialize to expected JSON shape.
 - Lifecycle: `LiveServer.start()` and `LiveServer.stop()` don't hang, daemon thread exits cleanly.
 
@@ -293,11 +338,11 @@ Actual WebSocket connections using `websockets` client:
 - **Connect and receive init**: start `LiveServer`, connect, assert `init` message with expected fields.
 - **Turn streaming**: run 5 turns, assert 5 `turn` messages with incrementing turn numbers.
 - **Pause and command round-trip**: `pause_every=3`, run until pause, assert `paused` message, send `continue`, assert next `turn` arrives.
-- **Inject round-trip**: at pause, send `inject`, assert `resumed` acknowledgment, send `continue`, assert injected event appears in next turn's events.
-- **Set round-trip**: at pause, send `set`, assert `resumed` includes new value, assert civ stat changed in subsequent turn snapshots.
-- **Fork round-trip**: at pause, send `fork`, assert `forked` response with path, assert fork directory exists on disk.
-- **Quit while paused**: send `quit`, assert `completed` message, assert chronicle file written.
-- **Quit while running (graceful shutdown)**: send `quit` during turn execution, assert current turn completes, `completed` message sent, `chronicle_bundle.json` written with all turns completed so far. Quit at turn 23 of 50 -> bundle with 23 turns of history.
+- **Inject round-trip**: at pause, send `inject`, assert `ack` with `still_paused: true`, send `continue`, assert `ack` with `still_paused: false`, assert injected event appears in next turn's events.
+- **Set round-trip**: at pause, send `set`, assert `ack` includes `civ`/`stat`/`value` and `still_paused: true`, assert civ stat changed in subsequent turn snapshots.
+- **Fork round-trip**: at pause, send `fork`, assert `forked` response with `save_path` and `cli_hint`, assert fork directory exists on disk.
+- **Quit while paused**: send `quit`, assert `completed` message, assert chronicle file and bundle written.
+- **Quit while running (graceful shutdown)**: send `quit` during turn execution, assert `quit_event` is set, current turn completes, `completed` message sent, `chronicle_bundle.json` written with all turns completed so far. Quit at turn 23 of 50 -> bundle with 23 turns of history, not a crash.
 - **Reconnection**: connect, receive turns, disconnect, reconnect, assert `init` contains full history up to current turn. If paused, also receives `paused` immediately after `init`.
 - **Single client enforcement**: connect client A, connect client B, assert client B gets error and is closed.
 - **Commands while running rejected**: send `inject` while not paused, assert `error` response.
@@ -308,10 +353,12 @@ All integration tests: short runs (5-10 turns, 2 civs, 3 regions), deterministic
 
 **`useLiveConnection.test.ts`** — mock WebSocket:
 
-- `init` received -> `bundle` non-null, `connected` true.
-- `turn` received -> `bundle.history` grows by one, chronicle text appends.
+- `init` received -> `bundle` non-null with `chronicle_entries` as `Record<string, string>`, `events_timeline`, `named_events`, `era_reflections` populated. `connected` true.
+- `turn` received -> `bundle.history` grows by one, `chronicle_entries[turn]` added, `events_timeline` and `named_events` extended.
 - `paused` received -> `paused` true, `pauseContext` populated.
-- `sendCommand('continue')` -> `paused` becomes false after `resumed`.
+- `sendCommand('inject')` -> `paused` stays true after `ack` with `still_paused: true`.
+- `sendCommand('continue')` -> `paused` becomes false after `ack` with `still_paused: false`.
+- `ack` for `set` -> latest snapshot patched with new `civ`/`stat`/`value`.
 - `error` received -> `error` state populated.
 - WebSocket close -> `connected` false, reconnect attempts begin.
 - Reconnect succeeds -> `init` with history patches bundle.
@@ -322,7 +369,8 @@ All integration tests: short runs (5-10 turns, 2 civs, 3 regions), deterministic
 - Event injection: select type + civ, click Inject, `sendCommand` called with correct payload.
 - Stat override: select civ + stat, enter value, click Set, `sendCommand` called.
 - Pending queue: inject two events, both appear as staged. Click remove on one, it disappears. Click Continue, remaining staged commands sent, then `continue` sent.
-- Sent commands not removable: inject, receive `resumed`, assert item shows checkmark and no remove button.
+- Sent commands not removable: inject, receive `ack`, assert item shows checkmark and no remove button.
+- Already-sent not removable: inject an event, get `ack`, try to remove from queue — assert it remains (cannot undo a sent command, especially `set` which already mutated world state).
 - Fork button calls `sendCommand({ type: 'fork' })`.
 - Quit button calls `sendCommand({ type: 'quit' })`.
 
