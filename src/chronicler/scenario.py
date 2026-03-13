@@ -40,6 +40,8 @@ class RegionOverride(BaseModel):
     carrying_capacity: int | None = Field(default=None, ge=1, le=10)
     resources: str | None = None
     controller: str | None = None
+    x: float | None = None
+    y: float | None = None
 
 
 class CivOverride(BaseModel):
@@ -240,6 +242,10 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         if reg_override.resources is not None:
             world.regions[target_idx].resources = reg_override.resources
         world.regions[target_idx].name = new_name
+        if reg_override.x is not None:
+            world.regions[target_idx].x = reg_override.x
+        if reg_override.y is not None:
+            world.regions[target_idx].y = reg_override.y
 
         # Update civ.regions list entries and region.controller
         if old_name != new_name:

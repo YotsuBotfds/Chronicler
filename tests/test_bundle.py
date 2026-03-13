@@ -2,8 +2,10 @@
 import json
 import pytest
 from chronicler.models import (
-    CivSnapshot, RelationshipSnapshot, TurnSnapshot, TechEra,
+    CivSnapshot, RelationshipSnapshot, TurnSnapshot, TechEra, Region,
 )
+from chronicler.scenario import RegionOverride, ScenarioConfig, apply_scenario
+from chronicler.models import WorldState, Leader, Civilization, Relationship, Disposition
 
 
 class TestSnapshotModels:
@@ -53,3 +55,42 @@ class TestSnapshotModels:
         assert restored.civ_stats["Kethani Empire"].population == 7
         assert restored.region_control["Thornwood"] is None
         assert restored.relationships["Kethani Empire"]["Dorrathi Clans"].disposition == "suspicious"
+
+
+class TestRegionCoordinates:
+    def test_region_defaults_to_no_coordinates(self):
+        r = Region(name="Plains", terrain="plains", carrying_capacity=5, resources="fertile")
+        assert r.x is None
+        assert r.y is None
+
+    def test_region_with_coordinates(self):
+        r = Region(name="Plains", terrain="plains", carrying_capacity=5, resources="fertile",
+                    x=0.3, y=0.7)
+        assert r.x == 0.3
+        assert r.y == 0.7
+
+
+class TestRegionCoordinatePropagation:
+    def test_apply_scenario_copies_coordinates(self, sample_world):
+        config = ScenarioConfig(
+            name="coord_test",
+            regions=[
+                RegionOverride(name="Verdant Plains", x=0.2, y=0.8),
+            ],
+        )
+        apply_scenario(sample_world, config)
+        region = next(r for r in sample_world.regions if r.name == "Verdant Plains")
+        assert region.x == 0.2
+        assert region.y == 0.8
+
+    def test_apply_scenario_leaves_coords_none_when_absent(self, sample_world):
+        config = ScenarioConfig(
+            name="no_coord_test",
+            regions=[
+                RegionOverride(name="Verdant Plains", terrain="desert"),
+            ],
+        )
+        apply_scenario(sample_world, config)
+        region = next(r for r in sample_world.regions if r.name == "Verdant Plains")
+        assert region.x is None
+        assert region.y is None

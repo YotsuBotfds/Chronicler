@@ -48,6 +48,8 @@ class Region(BaseModel):
     carrying_capacity: int = Field(ge=1, le=10)
     resources: str  # fertile, mineral, timber, maritime, barren
     controller: Optional[str] = None
+    x: float | None = None
+    y: float | None = None
 
 
 class Leader(BaseModel):
