@@ -10,6 +10,7 @@ from chronicler.models import (
     Relationship,
     HistoricalFigure,
     Event,
+    NamedEvent,
     ActiveCondition,
     WorldState,
 )
@@ -103,3 +104,68 @@ class TestWorldStatePersistence:
     def test_load_nonexistent_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             WorldState.load(tmp_path / "nope.json")
+
+
+def test_named_event_model():
+    ne = NamedEvent(
+        name="The Siege of Thornwood",
+        event_type="battle",
+        turn=5,
+        actors=["Kethani Empire"],
+        region="Thornwood",
+        description="A decisive victory",
+    )
+    assert ne.name == "The Siege of Thornwood"
+    assert ne.region == "Thornwood"
+
+
+def test_named_event_optional_region():
+    ne = NamedEvent(
+        name="The Iron Accord",
+        event_type="treaty",
+        turn=3,
+        actors=["Kethani Empire", "Dorrathi Clans"],
+        description="A peace treaty",
+    )
+    assert ne.region is None
+
+
+def test_leader_new_fields():
+    leader = Leader(name="Test", trait="bold", reign_start=0)
+    assert leader.succession_type == "founder"
+    assert leader.predecessor_name is None
+    assert leader.rival_leader is None
+    assert leader.rival_civ is None
+    assert leader.secondary_trait is None
+
+
+def test_civilization_new_fields():
+    leader = Leader(name="Test", trait="bold", reign_start=0)
+    civ = Civilization(
+        name="Test Civ",
+        population=5, military=5, economy=5, culture=5, stability=5,
+        leader=leader, regions=["Region A"],
+    )
+    assert civ.cultural_milestones == []
+    assert civ.action_counts == {}
+
+
+def test_world_state_new_fields():
+    ws = WorldState(name="Test", seed=42)
+    assert ws.named_events == []
+    assert ws.used_leader_names == []
+    assert ws.action_history == {}
+
+
+def test_named_event_serialization():
+    ne = NamedEvent(
+        name="The Siege of Thornwood",
+        event_type="battle",
+        turn=5,
+        actors=["Kethani Empire"],
+        region="Thornwood",
+        description="A decisive victory",
+    )
+    data = ne.model_dump()
+    restored = NamedEvent.model_validate(data)
+    assert restored == ne

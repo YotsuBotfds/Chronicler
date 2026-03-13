@@ -55,6 +55,11 @@ class Leader(BaseModel):
     trait: str
     reign_start: int
     alive: bool = True
+    succession_type: str = "founder"
+    predecessor_name: str | None = None
+    rival_leader: str | None = None
+    rival_civ: str | None = None
+    secondary_trait: str | None = None
 
 
 class Civilization(BaseModel):
@@ -76,6 +81,8 @@ class Civilization(BaseModel):
     goal: str = ""
     regions: list[str] = Field(default_factory=list)
     asabiya: float = Field(default=0.5, ge=0.0, le=1.0)
+    cultural_milestones: list[str] = Field(default_factory=list)
+    action_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class Relationship(BaseModel):
@@ -103,6 +110,17 @@ class Event(BaseModel):
     importance: int = Field(default=5, ge=1, le=10)
 
 
+class NamedEvent(BaseModel):
+    """A historically significant event with a generated name."""
+    name: str
+    event_type: str  # battle, treaty, cultural_work, tech_breakthrough, coup, legacy, rival_fall
+    turn: int
+    actors: list[str]
+    region: str | None = None
+    description: str
+    importance: int = Field(default=5, ge=1, le=10)
+
+
 class ActiveCondition(BaseModel):
     condition_type: str
     affected_civs: list[str]
@@ -123,6 +141,9 @@ class WorldState(BaseModel):
     events_timeline: list[Event] = Field(default_factory=list)
     active_conditions: list[ActiveCondition] = Field(default_factory=list)
     event_probabilities: dict[str, float] = Field(default_factory=dict)
+    named_events: list[NamedEvent] = Field(default_factory=list)
+    used_leader_names: list[str] = Field(default_factory=list)
+    action_history: dict[str, list[str]] = Field(default_factory=dict)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
