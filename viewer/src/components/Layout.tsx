@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { Bundle } from "../types";
+import type { Bundle, PauseContext, Command } from "../types";
 import { Header } from "./Header";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { ChroniclePanel } from "./ChroniclePanel";
@@ -7,6 +7,7 @@ import { EventLog } from "./EventLog";
 import { FactionDashboard } from "./FactionDashboard";
 import { TerritoryMap } from "./TerritoryMap";
 import { StatGraphs } from "./StatGraphs";
+import { InterventionPanel } from "./InterventionPanel";
 
 interface LayoutProps {
   bundle: Bundle;
@@ -17,6 +18,14 @@ interface LayoutProps {
   onPlay: () => void;
   onPause: () => void;
   onSetSpeed: (speed: number) => void;
+  // Live mode (all optional)
+  liveConnected?: boolean;
+  livePaused?: boolean;
+  livePauseContext?: PauseContext | null;
+  liveSendCommand?: (cmd: Command) => void;
+  liveForkedPath?: string | null;
+  liveForkedHint?: string | null;
+  liveReconnecting?: boolean;
 }
 
 export function Layout({
@@ -28,6 +37,13 @@ export function Layout({
   onPlay,
   onPause,
   onSetSpeed,
+  liveConnected,
+  livePaused,
+  livePauseContext,
+  liveSendCommand,
+  liveForkedPath,
+  liveForkedHint,
+  liveReconnecting,
 }: LayoutProps) {
   const [darkMode, setDarkMode] = useState(true);
   const [leftTab, setLeftTab] = useState<"chronicle" | "events">("chronicle");
@@ -45,6 +61,10 @@ export function Layout({
         currentTurn={currentTurn}
         darkMode={darkMode}
         onToggleDarkMode={() => setDarkMode(!darkMode)}
+        liveConnected={liveConnected}
+        livePaused={livePaused}
+        livePauseTurn={livePauseContext?.turn}
+        liveReconnecting={liveReconnecting}
       />
       <TimelineScrubber
         currentTurn={currentTurn}
@@ -127,6 +147,14 @@ export function Layout({
           </div>
         </div>
       </div>
+      {livePaused && livePauseContext && liveSendCommand && (
+        <InterventionPanel
+          pauseContext={livePauseContext}
+          sendCommand={liveSendCommand}
+          forkedPath={liveForkedPath}
+          forkedHint={liveForkedHint}
+        />
+      )}
     </div>
   );
 }

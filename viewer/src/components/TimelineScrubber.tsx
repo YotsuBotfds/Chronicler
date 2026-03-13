@@ -14,6 +14,8 @@ interface TimelineScrubberProps {
   onPlay: () => void;
   onPause: () => void;
   onSetSpeed: (speed: number) => void;
+  followMode?: boolean;
+  onToggleFollowMode?: () => void;
 }
 
 /** Find the first turn any civ reaches each era. */
@@ -68,6 +70,8 @@ export function TimelineScrubber({
   onPlay,
   onPause,
   onSetSpeed,
+  followMode,
+  onToggleFollowMode,
 }: TimelineScrubberProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -154,6 +158,19 @@ export function TimelineScrubber({
         <span className="text-sm font-mono text-gray-300 w-10 text-right">
           {currentTurn}
         </span>
+        {followMode !== undefined && onToggleFollowMode && (
+          <button
+            onClick={onToggleFollowMode}
+            className={`px-2 py-1 rounded text-xs ${
+              followMode
+                ? "bg-green-700 text-green-200"
+                : "bg-gray-700 text-gray-400 hover:text-gray-200"
+            }`}
+            title={followMode ? "Following latest turn" : "Click to follow latest turn"}
+          >
+            {followMode ? "Following" : "Follow"}
+          </button>
+        )}
       </div>
     </div>
   );
