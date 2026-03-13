@@ -145,7 +145,20 @@ class LiveServer:
                 try:
                     while True:
                         snapshot = self.snapshot_queue.get_nowait()
-                        self._init_data = snapshot
+                        # Only store init messages as reconnect data;
+                        # turn messages update the existing init data below
+                        if snapshot.get("type") == "init":
+                            self._init_data = snapshot
+                        elif snapshot.get("type") == "turn" and self._init_data is not None:
+                            # Append turn data to init for reconnect
+                            self._init_data["history"].append({
+                                k: v for k, v in snapshot.items() if k != "type"
+                            })
+                            turn_str = str(snapshot["turn"])
+                            self._init_data["chronicle_entries"][turn_str] = snapshot.get("chronicle_text", "")
+                            self._init_data["events_timeline"].extend(snapshot.get("events", []))
+                            self._init_data["named_events"].extend(snapshot.get("named_events", []))
+                            self._init_data["current_turn"] = snapshot["turn"]
                         async with client_lock:
                             if client_ws is not None:
                                 try:
