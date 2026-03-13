@@ -869,30 +869,31 @@ class TestExecuteRun:
         assert result.total_turns == 2
 
     def test_counts_events_from_start_turn(self, tmp_path):
-        """Fork scenario: events from before start_turn are not counted."""
+        """Fork scenario: pre-fork events must NOT appear in RunResult counts."""
         from chronicler.world_gen import generate_world
-        from chronicler.models import Event
-        sim = self._mock_llm("WAR")
-        narr = self._mock_llm("Battle story.")
+        from chronicler.models import Event, Disposition, Relationship
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Peace reigned.")
         world = generate_world(seed=42, num_regions=4, num_civs=2)
         world.turn = 3
-        # Inject a pre-fork war event
-        world.events_timeline.append(Event(
-            turn=1, event_type="war", actors=["Civ A"],
-            description="Old war", importance=5,
-        ))
+        # Inject 3 pre-fork war events that should be excluded from counts
+        for t in range(3):
+            world.events_timeline.append(Event(
+                turn=t, event_type="war", actors=[world.civilizations[0].name],
+                description=f"Old war {t}", importance=5,
+            ))
+        # Make all relationships ALLIED so no new wars happen
+        for src in world.relationships:
+            for dst in world.relationships[src]:
+                world.relationships[src][dst].disposition = Disposition.ALLIED
         memories = {c.name: MemoryStream(c.name) for c in world.civilizations}
         args = self._make_args(tmp_path, turns=5)
         result = execute_run(
             args, sim_client=sim, narrative_client=narr,
             world=world, memories=memories,
         )
-        # The pre-fork war event should NOT be counted
-        # (only events from turn 3+ are counted)
-        # We can't assert exact war_count due to simulation randomness,
-        # but we verify the old event isn't double-counted by checking
-        # war_count is based on new events only
-        assert result.war_count >= 0  # Sanity check, no negative
+        # 3 pre-fork wars must be excluded; with ALLIED + DEVELOP, no new wars
+        assert result.war_count == 0
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
