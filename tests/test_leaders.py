@@ -292,3 +292,38 @@ class TestCustomNamePool:
         count_before = len(leader_world.used_leader_names)
         _pick_name(civ, leader_world, random.Random(42))
         assert len(leader_world.used_leader_names) == count_before + 1
+
+    def test_deterministic_succession_with_custom_pool(self):
+        """Two runs with same seed produce identical successor names."""
+        from chronicler.leaders import generate_successor
+        from chronicler.world_gen import generate_world
+
+        def make_world():
+            world = generate_world(seed=77, num_regions=4, num_civs=2)
+            civ = world.civilizations[0]
+            civ.leader_name_pool = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon",
+                                    "Zeta", "Eta", "Theta", "Iota", "Kappa"]
+            world.event_probabilities["leader_death"] = 1.0
+            return world
+
+        # Run 1
+        world1 = make_world()
+        names1 = []
+        for i in range(5):
+            civ = world1.civilizations[0]
+            new_leader = generate_successor(civ, world1, seed=77)
+            names1.append(new_leader.name)
+            civ.leader = new_leader
+            world1.turn += 1
+
+        # Run 2
+        world2 = make_world()
+        names2 = []
+        for i in range(5):
+            civ = world2.civilizations[0]
+            new_leader = generate_successor(civ, world2, seed=77)
+            names2.append(new_leader.name)
+            civ.leader = new_leader
+            world2.turn += 1
+
+        assert names1 == names2
