@@ -550,6 +550,45 @@ class TestApplyScenario:
         with pytest.raises(ValueError, match="unknown civ"):
             apply_scenario(generated_world, config)
 
+    def test_leader_name_pool_copied_to_civ(self, generated_world):
+        pool = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]
+        config = ScenarioConfig(
+            name="Test",
+            civilizations=[CivOverride(name="Pooled Civ", leader_name_pool=pool)],
+        )
+        apply_scenario(generated_world, config)
+        assert generated_world.civilizations[0].leader_name_pool == pool
+
+    def test_leader_name_pool_none_when_not_set(self, generated_world):
+        config = ScenarioConfig(
+            name="Test",
+            civilizations=[CivOverride(name="No Pool Civ")],
+        )
+        apply_scenario(generated_world, config)
+        assert generated_world.civilizations[0].leader_name_pool is None
+
+    def test_controller_override_sets_region_controller(self, generated_world):
+        civ_name = generated_world.civilizations[0].name
+        config = ScenarioConfig(
+            name="Test",
+            civilizations=[CivOverride(name="Controller Civ")],
+            regions=[RegionOverride(name="Controlled Region", controller="Controller Civ")],
+        )
+        apply_scenario(generated_world, config)
+        region = next(r for r in generated_world.regions if r.name == "Controlled Region")
+        assert region.controller == "Controller Civ"
+        civ = next(c for c in generated_world.civilizations if c.name == "Controller Civ")
+        assert "Controlled Region" in civ.regions
+
+    def test_controller_none_makes_region_uncontrolled(self, generated_world):
+        config = ScenarioConfig(
+            name="Test",
+            regions=[RegionOverride(name="Neutral Zone", controller="none")],
+        )
+        apply_scenario(generated_world, config)
+        region = next(r for r in generated_world.regions if r.name == "Neutral Zone")
+        assert region.controller is None
+
 
 class TestResolveScenarioParams:
     def _cli_args(self, **kwargs):

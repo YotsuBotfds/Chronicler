@@ -201,6 +201,7 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     """
     # --- Step 1: Region injection ---
     replaced_region_indices: set[int] = set()
+    region_override_map: list[tuple[int, RegionOverride]] = []
     for reg_override in config.regions:
         target_idx = None
         for i, region in enumerate(world.regions):
@@ -211,6 +212,7 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
             continue
 
         replaced_region_indices.add(target_idx)
+        region_override_map.append((target_idx, reg_override))
         old_name = world.regions[target_idx].name
         new_name = reg_override.name
 
@@ -251,6 +253,36 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
 
         replaced_civ_indices.add(target_idx)
         _apply_civ_override(world, target_idx, civ_override, rename=True)
+
+    # --- Step 2b: Region controller overrides ---
+    # Build a set of all region names currently in region_override_map (being reassigned)
+    reassigned_region_names = {world.regions[i].name for i, _ in region_override_map}
+    for target_idx, reg_override in region_override_map:
+        if reg_override.controller is None:
+            continue
+        region = world.regions[target_idx]
+        old_controller = region.controller
+
+        # Remove region from old controller's region list
+        if old_controller:
+            for civ in world.civilizations:
+                if civ.name == old_controller:
+                    civ.regions = [r for r in civ.regions if r != region.name]
+                    # If old controller now has no regions, give it a fallback uncontrolled region
+                    if not civ.regions:
+                        for fallback in world.regions:
+                            if fallback.controller is None and fallback.name not in reassigned_region_names:
+                                fallback.controller = civ.name
+                                civ.regions.append(fallback.name)
+                                break
+
+        if reg_override.controller == "none":
+            region.controller = None
+        else:
+            region.controller = reg_override.controller
+            for civ in world.civilizations:
+                if civ.name == reg_override.controller and region.name not in civ.regions:
+                    civ.regions.append(region.name)
 
     # --- Step 3: Relationship overrides ---
     explicit_pairs: set[tuple[str, str]] = set()
@@ -361,6 +393,10 @@ def _apply_civ_override(
                 world.used_leader_names.append(override.leader.name)
         if override.leader.trait is not None:
             civ.leader.trait = override.leader.trait
+
+    # Leader name pool
+    if override.leader_name_pool is not None:
+        civ.leader_name_pool = override.leader_name_pool
 
     # Rename civ if needed
     if rename:
