@@ -390,11 +390,11 @@ def run_live(
 
     def _serialize_snapshot(snapshot, chronicle_text, events, named_events):
         """Serialize turn data to a dict for the WebSocket protocol."""
-        snap_dict = snapshot.model_dump()
+        snap_dict = snapshot.model_dump(mode="json")
         snap_dict["type"] = "turn"
         snap_dict["chronicle_text"] = chronicle_text
-        snap_dict["events"] = [e.model_dump() for e in events]
-        snap_dict["named_events"] = [ne.model_dump() for ne in named_events]
+        snap_dict["events"] = [e.model_dump(mode="json") for e in events]
+        snap_dict["named_events"] = [ne.model_dump(mode="json") for ne in named_events]
         return snap_dict
 
     def on_turn_cb(
@@ -413,7 +413,7 @@ def run_live(
                     "total_turns": total_turns,
                     "pause_every": pause_every,
                     "current_turn": 0,
-                    "world_state": world.model_dump(),
+                    "world_state": world.model_dump(mode="json"),
                     "history": [],
                     "chronicle_entries": {},
                     "events_timeline": [],
@@ -421,8 +421,12 @@ def run_live(
                     "era_reflections": {},
                     "metadata": {
                         "seed": world.seed,
+                        "total_turns": total_turns,
+                        "generated_at": "",
                         "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
                         "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
+                        "scenario_name": getattr(world, "scenario_name", None),
+                        "interestingness_score": None,
                     },
                     "speed": server.speed,
                 }

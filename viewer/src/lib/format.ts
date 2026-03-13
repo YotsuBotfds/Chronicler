@@ -24,7 +24,7 @@ export function formatTurn(current: number, total: number): string {
   return `Turn ${current} / ${total}`;
 }
 
-export function formatScore(score: number | null): string {
-  if (score === null) return "";
+export function formatScore(score: number | null | undefined): string {
+  if (score == null) return "";
   return `Score: ${score.toFixed(1)}`;
 }
