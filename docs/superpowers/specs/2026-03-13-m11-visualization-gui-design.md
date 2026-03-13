@@ -39,21 +39,28 @@ class CivSnapshot(BaseModel):
     leader_name: str
     alive: bool          # explicit flag; dead civs stay in every snapshot with final stats frozen
 
+class RelationshipSnapshot(BaseModel):
+    disposition: str  # serialized Disposition enum value
+
 class TurnSnapshot(BaseModel):
     turn: int
     civ_stats: dict[str, CivSnapshot]  # keyed by civ name
     region_control: dict[str, str | None]  # region name → controller name or None
+    relationships: dict[str, dict[str, RelationshipSnapshot]]  # civ_a → civ_b → disposition
 ```
 
+`RelationshipSnapshot` captures only the `disposition` field (not treaties/grievances/trade_volume) to keep snapshot size small. The full `Relationship` objects are available in `world_state` for the final turn.
+
 **Key rules:**
-- Every civilization appears in every snapshot, even after absorption. Dead civs have `alive: false` with their final stats preserved (not zeroed).
-- The death-turn snapshot must capture `alive: false` with the civ's final non-zero stats. Snapshot capture happens *after* simulation but *before* any post-death cleanup.
+- Every civilization appears in every snapshot, always. The `alive` field is currently always `True` — there is no absorption/elimination mechanic yet (population floors at 1 via `_clamp`). The field is included so the viewer is ready when civ elimination is added in a future milestone. For now, all civs are alive for all turns.
+- When a civ elimination mechanic is eventually added: the death-turn snapshot must capture `alive: false` with the civ's final non-zero stats (not zeroed). Snapshot capture must happen *after* simulation but *before* any post-death cleanup.
 
 ### 1.2 Snapshot Capture
 
-In `execute_run`, after each turn's simulation phase completes (after consequences, before chronicle generation):
+**Insertion point:** In `execute_run` (M10's refactored entry point in `main.py`), inside the main turn loop. The loop calls `run_turn` (in `simulation.py`) which returns chronicle text. The snapshot must be captured **after** `run_turn` returns (all simulation phases complete, world state mutated) and **before** the chronicle entry is stored. This ensures the snapshot reflects the post-simulation state for that turn.
 
 ```python
+# Inside execute_run's turn loop, after run_turn() returns:
 snapshot = TurnSnapshot(
     turn=world.turn,
     civ_stats={
@@ -69,13 +76,20 @@ snapshot = TurnSnapshot(
             trait=civ.leader.trait,
             regions=list(civ.regions),
             leader_name=civ.leader.name,
-            alive=civ.population > 0,  # or whatever the absorption condition is
+            alive=True,  # always True until civ elimination is added
         )
         for civ in world.civilizations
     },
     region_control={
         region.name: region.controller
         for region in world.regions
+    },
+    relationships={
+        civ_a: {
+            civ_b: RelationshipSnapshot(disposition=rel.disposition.value)
+            for civ_b, rel in inner.items()
+        }
+        for civ_a, inner in world.relationships.items()
     },
 )
 history.append(snapshot)
@@ -97,7 +111,8 @@ At the end of a completed run (after chronicle compilation), write `chronicle_bu
     "seed": 42,
     "total_turns": 100,
     "generated_at": "2026-03-13T14:30:00Z",
-    "model_name": "LFM2-24B",
+    "sim_model": "LFM2-24B",
+    "narrative_model": "LFM2-24B",
     "scenario_name": "post_collapse_minnesota"
   }
 }
@@ -106,10 +121,10 @@ At the end of a completed run (after chronicle compilation), write `chronicle_bu
 **Key rules:**
 - `world_state` is the full final WorldState (same content as `state.json`).
 - `history` is the list of `TurnSnapshot` objects.
-- `chronicle_entries` is keyed by turn number (string). Values are the raw prose strings from `execute_run`'s `chronicle_entries` dict.
+- `chronicle_entries` is a **transform** from the runtime data: `execute_run` accumulates chronicle entries as a list/dict keyed by turn number. The bundle serializes this as `{ "1": "prose...", "2": "prose..." }` — a dict with string keys (turn numbers) and string values (prose text). This is a serialization transform, not a direct dump of the runtime structure.
 - `era_reflections` is keyed by the turn number at which the reflection was generated.
-- `metadata.model_name` comes from the LLM client configuration at runtime.
-- `metadata.scenario_name` comes from `world.scenario_name` (may be null).
+- `metadata.sim_model` and `metadata.narrative_model` come from the two LLM client configurations at runtime (simulation and narrative may use different models). If only one model is used, both fields have the same value.
+- `metadata.scenario_name` comes from `world.scenario_name` (added in M10, may be null for non-scenario runs).
 - Bundle is written **once** at completion. Not written on early termination or crash.
 - Existing outputs unchanged: `state.json` (crash-recovery checkpoint, overwritten each turn, no history) and `chronicle.md` (standalone readable prose) continue to be written exactly as before.
 
@@ -212,14 +227,15 @@ viewer/
 **Right column (~65%)** — visual/data, stacked vertically:
 - **Faction Dashboard** (top): One card per civilization.
   - Shows: name, leader name + trait, tech era badge, domains, values.
-  - Dead civs: muted card with "Absorbed turn X" label and final stats.
+  - **Domains and values** are static (set at world generation, never mutated by the simulation). The viewer reads these from `world_state.civilizations`, not from per-turn snapshots. No need to snapshot them.
+  - Dead civs: muted card with "Absorbed turn X" label and final stats. (Note: currently all civs are always alive — see Section 1.1. The viewer should still support the muted-card rendering so it's ready when elimination is added.)
   - Sparklines for all 7 stats (population, military, economy, culture, stability, treasury, asabiya).
   - **Sparklines always show full run history** (all turns, not truncated to current turn). Vertical marker at the current scrubber position. This lets the user see "where is this civ headed" while scrubbing.
 - **Territory Map** (middle): D3-force node graph.
   - Regions as circles, sized by `carrying_capacity`, colored by controlling faction. Uncontrolled = gray.
-  - Default edges: adjacency (inferred or from scenario coordinates).
-  - **Relationship matrix toggle**: switches edge rendering from adjacency to diplomatic disposition between factions. Edge color follows the disposition enum: red (hostile), yellow (suspicious), gray (neutral), green (friendly), blue (allied).
-  - Click a region node: tooltip with terrain, resources, carrying capacity, control history (list of controller changes with turn numbers).
+  - Default edges: adjacency. **Adjacency inference rule:** two regions are adjacent if they share a controlling faction at any point during the run OR if both have `x`/`y` coordinates within a threshold distance (0.25 in normalized space). When no coordinates exist and no shared control history exists, all regions start fully connected and the force layout naturally clusters them. Scenario configs can optionally add an `adjacency` list to `RegionOverride` in a future milestone for explicit control, but M11 uses inference only.
+  - **Relationship matrix toggle**: switches edge rendering from adjacency to diplomatic disposition between factions. Edge color follows the disposition enum: red (hostile), yellow (suspicious), gray (neutral), green (friendly), blue (allied). **Relationships are snapshotted per turn** — see Section 1.1 addendum below. When the user scrubs to turn 30, the relationship edges reflect turn-30 dispositions.
+  - Click a region node: tooltip with terrain, resources, carrying capacity, control history (list of controller changes with turn numbers, derived from `history` snapshots).
   - When scenario provides `x`/`y` coordinates: nodes pinned to those positions. Otherwise: force-directed layout.
   - Animated during playback: nodes recolor as control changes between turns.
 - **Stat Graphs** (bottom): Recharts line chart.
@@ -245,9 +261,8 @@ Toggle in header. Default: dark (fits the mythic tone of the chronicles). Tailwi
 
 - **Snapshot model tests**: `CivSnapshot` and `TurnSnapshot` construction + serialization round-trip.
 - **Snapshot capture test**: Run 5 turns, verify `history` list has 5 entries with correct civ stats at each turn.
-- **Dead civ boundary test**: Run a scenario where a civ gets absorbed. Verify:
-  - The death-turn snapshot has `alive: false` AND non-zero final stats (not zeroed).
-  - All subsequent snapshots include the dead civ with `alive: false` and frozen stats.
+- **All civs present test**: Run 5 turns with 4 civs, verify every snapshot contains all 4 civs with `alive: true`. (Dead civ boundary testing deferred until a civ elimination mechanic exists. The `alive` field and muted-card rendering are structurally ready.)
+- **Relationship snapshot test**: Run 5 turns, verify each snapshot's `relationships` dict has the correct disposition values matching the world state at that turn.
 - **Bundle assembly test**: Verify `chronicle_bundle.json` contains all required top-level keys (`world_state`, `history`, `chronicle_entries`, `era_reflections`, `metadata`).
 - **Bundle not written on crash**: Verify bundle is only written on completed runs, not on crash-recovery saves or early termination.
 - **Bundle size sanity test**: Run 500 turns with 5 civs, write the bundle, assert file size < 5MB. Guards against bloat from redundant serialization.
@@ -261,7 +276,7 @@ Toggle in header. Default: dark (fits the mythic tone of the chronicles). Tailwi
 - **Component rendering**: Each panel renders without crashing given a fixture bundle. Faction cards show correct count. Stat graph renders SVG. Territory map renders correct number of region nodes.
 - **No E2E/browser tests** in M11 scope — M12 territory.
 
-**Fixture rule**: The fixture bundle used by Vitest is **generated by the Python side** (run chronicler → capture output), not hand-written. Single source of truth. A script or test generates the fixture and commits it. This prevents fixture drift from the actual bundle format.
+**Fixture rule**: The fixture bundle used by Vitest is **generated by the Python side**, not hand-written. A pytest fixture or standalone script (`scripts/generate_viewer_fixture.py`) runs the chronicler for 10 turns with a deterministic seed and scenario, writes `chronicle_bundle.json`, and copies it to `viewer/src/__fixtures__/sample_bundle.json`. This file is committed to the repo. Regenerate it whenever the bundle schema changes. This prevents fixture drift from the actual bundle format.
 
 ### 3.3 Integration Test
 
