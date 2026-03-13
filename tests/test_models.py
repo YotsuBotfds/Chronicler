@@ -1,5 +1,4 @@
 """Tests for core data models — validation, serialization, and invariants."""
-import json
 import pytest
 from chronicler.models import (
     TechEra,

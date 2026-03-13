@@ -1,6 +1,6 @@
 """Tests for LLM client protocol and implementations."""
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from chronicler.llm import LLMClient, LocalClient, AnthropicClient, create_clients
 
 
