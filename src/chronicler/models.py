@@ -83,6 +83,7 @@ class Civilization(BaseModel):
     asabiya: float = Field(default=0.5, ge=0.0, le=1.0)
     cultural_milestones: list[str] = Field(default_factory=list)
     action_counts: dict[str, int] = Field(default_factory=dict)
+    leader_name_pool: list[str] | None = None
 
 
 class Relationship(BaseModel):

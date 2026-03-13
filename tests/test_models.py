@@ -169,3 +169,19 @@ def test_named_event_serialization():
     data = ne.model_dump()
     restored = NamedEvent.model_validate(data)
     assert restored == ne
+
+
+def test_civilization_leader_name_pool_default_none():
+    civ = Civilization(
+        name="Test", population=5, military=5, economy=5, culture=5, stability=5,
+        leader=Leader(name="Test Leader", trait="bold", reign_start=0),
+    )
+    assert civ.leader_name_pool is None
+
+def test_civilization_leader_name_pool_set():
+    civ = Civilization(
+        name="Test", population=5, military=5, economy=5, culture=5, stability=5,
+        leader=Leader(name="Test Leader", trait="bold", reign_start=0),
+        leader_name_pool=["A", "B", "C"],
+    )
+    assert civ.leader_name_pool == ["A", "B", "C"]
