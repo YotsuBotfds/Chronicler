@@ -4,6 +4,7 @@
 **Branch:** (to be created from main after M11/M12 merge)
 **Depends on:** M11 (viewer bundle), M10 (workflow features)
 **Scope:** Prerequisites P1-P3 + M13a + M13b (six sequential phases)
+**Note:** This spec supersedes the Phase 3 roadmap (`chronicler-phase3-roadmap.md`) for all M13 details. Where the roadmap and this spec disagree (resource generation algorithm, black market distance, mercenary dissolution threshold), this spec is authoritative.
 
 ## Overview
 
@@ -68,6 +69,54 @@ STAT_FLOOR: dict[str, int] = {
 
 All `clamp()` callsites reference `STAT_FLOOR[stat_name]` for the lower bound instead of hardcoding. This gives exactly one place to audit floors.
 
+### `ActiveCondition.severity` Scaling
+
+`ActiveCondition.severity` currently has `Field(ge=1, le=10)`. Scale to `Field(ge=1, le=100)` (×10). The production phase formula `c.severity // 3` for condition penalties becomes `c.severity` directly (at the 0-100 scale, severity IS the penalty amount). Starting condition severities in scenario YAMLs also scale ×10.
+
+### `clamp()` Callsite Inventory
+
+Every `clamp()` call must be updated. The rule: use `clamp(x, STAT_FLOOR[stat], 100)` for civ stats, `clamp(x, 1, 100)` for carrying_capacity. Complete list:
+
+**`simulation.py` — `phase_environment`:**
+- `civ.stability = clamp(...)` — floor: `STAT_FLOOR["stability"]` (0)
+- `civ.economy = clamp(...)` — floor: `STAT_FLOOR["economy"]` (0)
+- `civ.population = clamp(...)` — floor: `STAT_FLOOR["population"]` (1)
+
+**`simulation.py` — `phase_production`:**
+- `civ.population = clamp(...)` (growth) — floor: `STAT_FLOOR["population"]` (1)
+- `civ.population = clamp(...)` (decline) — floor: `STAT_FLOOR["population"]` (1)
+
+**`simulation.py` — `_resolve_develop`:**
+- `civ.economy = clamp(...)` — floor: `STAT_FLOOR["economy"]` (0)
+- `civ.culture = clamp(...)` — floor: `STAT_FLOOR["culture"]` (0)
+
+**`simulation.py` — `_resolve_expand`:**
+- `civ.military = clamp(...)` — floor: `STAT_FLOOR["military"]` (0)
+
+**`simulation.py` — `resolve_war`:**
+- `attacker.military = clamp(...)` — floor: `STAT_FLOOR["military"]` (0)
+- `defender.military = clamp(...)` — floor: `STAT_FLOOR["military"]` (0)
+- `defender.stability = clamp(...)` — floor: `STAT_FLOOR["stability"]` (0)
+- `attacker.stability = clamp(...)` — floor: `STAT_FLOOR["stability"]` (0)
+
+**`simulation.py` — `phase_consequences`:**
+- `civ.stability = clamp(...)` (condition tick) — floor: `STAT_FLOOR["stability"]` (0)
+- `civ.military = clamp(...)` (collapse) — floor: `STAT_FLOOR["military"]` (0)
+- `civ.economy = clamp(...)` (collapse) — floor: `STAT_FLOOR["economy"]` (0)
+
+**`simulation.py` — `_apply_event_effects`:**
+- All stat modifications (leader_death, rebellion, discovery, etc.) — use respective `STAT_FLOOR` entries
+
+**`action_engine.py` — `_apply_situational`:**
+- No `clamp()` calls (uses weight multipliers, not stat mutations)
+
+**`tech.py` — `apply_era_bonus`:**
+- `setattr(civ, stat, clamp(current + amount, STAT_FLOOR[stat], 100))`
+
+**`scenario.py` — model bounds:**
+- `RegionOverride.carrying_capacity`: `Field(default=None, ge=1, le=100)`
+- `CivOverride` stats: `population` `Field(default=None, ge=1, le=100)`, all others `Field(default=None, ge=0, le=100)`
+
 ### Threshold Migration
 
 All hardcoded thresholds scale ×10:
@@ -81,6 +130,8 @@ All hardcoded thresholds scale ×10:
 - `civ.culture >= 8` / `>= 10` → `>= 80` / `>= 100`
 - Population growth/decline increments: `+1`/`-1` → `+5`/`-5`
 - Stat modifications from events: `+1`/`-1` → `+10`/`-10`, `+2`/`-2` → `+20`/`-20`
+- Collapse thresholds: `asabiya < 0.1 and stability <= 2` → `asabiya < 0.1 and stability <= 20`
+- Collapse effects: `military // 2`, `economy // 2` → same formula (proportional at any scale)
 
 **`action_engine.py`:**
 - `civ.stability <= 2` → `<= 20`
@@ -96,11 +147,13 @@ All hardcoded thresholds scale ×10:
 
 ### Production Phase Updates
 
-- Income: `civ.economy + len(civ.regions) * 10`
-- Military maintenance: `civ.military // 2` (proportional at new scale)
-- Treasury cap: **removed entirely**
-- Population growth: `+5` when conditions met (was `+1`)
-- Population decline: `-5` when stability <= 20 (was `-1` at stability <= 2)
+**Temporary — replaced in M13b-1.** These formulas are straight ×10 migrations of the current logic, not final economic balance. M13b-1 rewrites the production phase with proper treasury economics. P1's goal is a working simulation at the new scale, not economic realism.
+
+- Income: `civ.economy + len(civ.regions) * 10` *(temporary; M13b-1 replaces with `economy // 5 + len(civ.regions) * 2`)*
+- Military maintenance: `civ.military // 2` *(temporary; P3 replaces with tiered system in `apply_automatic_effects`)*
+- Treasury cap: **removed entirely** (permanent)
+- Population growth: `+5` when conditions met (was `+1`) *(permanent)*
+- Population decline: `-5` when stability <= 20 (was `-1` at stability <= 2) *(M13b-1 tightens threshold to stability <= 10)*
 
 ### Scenario YAML Migration
 
@@ -246,9 +299,9 @@ Add `BUILD` and `EMBARGO` to `ActionType`. Both tagged as `DELIBERATE`. The enum
 
 New function `apply_automatic_effects(world: WorldState) -> list[Event]`:
 
-Runs as its own phase (Phase 2 in the new turn order, before Production). P3 implements:
+Runs as its own phase (Phase 2 in the new turn order, before Production — see turn phase order below). P3 implements:
 - **Trade income:** `+2 treasury/turn` per active trade route to each partner (requires M13a trade routes — this line is a no-op until M13a lands, since no trade routes exist yet)
-- **Military maintenance:** `military > 30` costs `(military - 30) // 10` treasury/turn
+- **Military maintenance:** `military > 30` costs `(military - 30) // 10` treasury/turn. **This replaces the temporary `military // 2` from P1's production phase.** When P3 ships, remove the maintenance line from `phase_production` — maintenance now lives in `apply_automatic_effects` permanently.
 
 Extension points for later milestones:
 - Fertility recovery/degradation (M13a)
@@ -265,6 +318,23 @@ Extension points for later milestones:
 `get_eligible_actions` gains:
 - `BUILD`: eligible when `treasury >= 10` and civ has at least 1 region
 - `EMBARGO`: eligible when civ has at least 1 trade route and a HOSTILE/SUSPICIOUS neighbor
+
+### Turn Phase Order at P3 Completion (10 phases)
+
+The phase order established in P3 persists through the rest of M13:
+
+1. Environment — natural events
+2. **Automatic Effects** (new) — military maintenance; trade income is a no-op until M13a
+3. Production — base income, condition penalties, population (P1 formulas, no treasury cap)
+4. Technology — advancement checks
+5. Action — deliberate actions via registry
+6. Cultural Milestones — cultural threshold checks
+7. Random Events — cascading probability table
+8. Leader Dynamics — trait evolution
+9. **Fertility** (new, no-op until M13a) — degradation/recovery tick
+10. Consequences — condition durations, asabiya, collapse checks
+
+Phases 2 and 9 are structurally present but contain no-op paths until M13a populates them.
 
 ### Verification
 
@@ -303,6 +373,7 @@ class Resource(str, Enum):
 specialized_resources: list[Resource] = Field(default_factory=list)
 fertility: float = Field(default=0.8, ge=0.0, le=1.0)
 infrastructure_level: int = Field(default=0, ge=0)
+famine_cooldown: int = Field(default=0, ge=0)  # turns until famine can trigger again
 ```
 
 - Old `resources: str` field: **kept but deprecated.** Narrative engine may reference it. Both fields coexist through M13. Clean up in a later milestone.
@@ -336,15 +407,17 @@ Terrain → resource probability table (each resource rolled independently):
 
 Added as a gate in `check_tech_advancement`:
 
-| Era | Resource Requirements |
-|-----|----------------------|
-| BRONZE | iron + timber (2 unique across all controlled regions) |
-| IRON | iron + timber + grain (3 unique) |
-| CLASSICAL | 3 unique + economy >= 40 |
-| MEDIEVAL | 4 unique + economy >= 50 |
-| RENAISSANCE | 4 unique + culture >= 60 |
-| INDUSTRIAL | 5 unique + economy >= 70 |
-| INFORMATION | 5 unique + economy >= 80 + culture >= 90 |
+| Era | Required Resources | Additional Stat Requirements |
+|-----|-------------------|------------------------------|
+| BRONZE | iron AND timber (specific types required) | — |
+| IRON | iron AND timber AND grain (specific types required) | — |
+| CLASSICAL | any 3 unique resources | economy >= 40 |
+| MEDIEVAL | any 4 unique resources | economy >= 50 |
+| RENAISSANCE | any 4 unique resources | culture >= 60 |
+| INDUSTRIAL | any 5 unique resources (must include fuel) | economy >= 70 |
+| INFORMATION | any 5 unique resources | economy >= 80, culture >= 90 |
+
+Early eras (BRONZE through IRON) require specific resource types — you need actual iron to enter the Iron Age. Later eras require resource diversity (count) rather than specific types, except INDUSTRIAL which requires fuel to represent industrialization.
 
 A civ's available resources = union of `specialized_resources` across all controlled regions.
 
@@ -365,6 +438,8 @@ TechEra.INFORMATION = "information"
 **Region field:** `fertility: float = Field(default=0.8, ge=0.0, le=1.0)`
 
 **Effective capacity:** `int(region.carrying_capacity * region.fertility)`, minimum 1.
+
+Note: The field remains named `carrying_capacity` (not renamed to `base_capacity`). The name is slightly misleading since actual capacity = `carrying_capacity * fertility`, but renaming would touch every callsite across the codebase for no functional benefit. A docstring on the field clarifies: "Base carrying capacity before fertility modifier."
 
 **Per-turn tick** (new Phase 9: Fertility, runs after Leader Dynamics):
 - **Degradation:** For each region with a controller, compute `avg_population = civ.population / len(civ.regions)`. If `avg_population > effective_capacity`: `fertility -= 0.02`
@@ -405,9 +480,11 @@ Registered with `@register_action(ActionType.EMBARGO)` in this phase.
 - Target: `stability -= 5` (economic shock)
 - Embargoing civ also loses trade income from those routes
 
-**Lifting:** Embargo removed when:
-- Embargoing civ takes DIPLOMACY action targeting the embargoed civ and disposition reaches FRIENDLY+
-- Or: embargoed civ is absorbed (loses all regions)
+**Lifting:** Embargo removed automatically when:
+- Disposition between the pair reaches FRIENDLY+ (regardless of which civ's DIPLOMACY action caused the improvement — the current `_resolve_diplomacy` targets the most hostile neighbor, so natural diplomatic recovery eventually lifts embargoes)
+- Or: either civ loses all regions
+
+Checked once per turn at the start of `apply_automatic_effects` before trade route computation.
 
 **Embargo persists across turns** — it's a standing policy, not a one-turn action.
 
@@ -509,14 +586,14 @@ Registered with `@register_action(ActionType.BUILD)`.
 
 ### Production Phase Consolidation
 
-Replaces the current production logic with P1 scaling + M13b economics:
+Replaces the P1 production formulas (which were temporary ×10 migrations) with proper economic balance:
 
-- **Base income:** `economy // 5 + len(civ.regions) * 2`
+- **Base income:** `economy // 5 + len(civ.regions) * 2` *(replaces P1's `economy + regions * 10` — dramatic reduction to make treasury management meaningful)*
 - **Trade income:** handled by `apply_automatic_effects` (separate phase)
 - **Condition penalty:** `sum(severity for active conditions affecting civ)`
-- **Treasury cap:** none (removed in P1)
+- **Treasury cap:** none (removed in P1, permanent)
 - **Population growth:** `+5` when `economy > population` AND `stability > 20` AND population < sum of effective capacities
-- **Population decline:** `-5` when `stability <= 10`
+- **Population decline:** `-5` when `stability <= 10` *(tightened from P1's `<= 20` — M13b-1's treasury/war pressure creates enough instability that the threshold can be stricter without losing the mechanic)*
 
 ### Turn Phase Order (10 phases)
 
@@ -579,7 +656,7 @@ Layered on stable treasury mechanics. Famine, black markets, and mercenaries cre
 
 **Named event:** Famine generates a named event with importance 8.
 
-**Rate limit:** At most 1 famine check per region per turn.
+**Rate limit:** At most 1 famine check per region per turn. Additionally, a region that triggers famine enters a **5-turn cooldown** before it can trigger another famine (tracked as `famine_cooldown: int = 0` on Region, decremented each turn). Without this, a region at fertility 0.25 would trigger famine every single turn until population drops — rapid-fire famines rather than one devastating event followed by a recovery window.
 
 ### Black Markets
 
@@ -611,13 +688,21 @@ class MercenaryCompany(BaseModel):
 mercenary_companies: list[MercenaryCompany] = Field(default_factory=list)
 ```
 
+**New `Civilization` fields** (for mercenary spawn tracking):
+```python
+last_income: int = 0          # base + trade income from previous turn
+merc_pressure_turns: int = 0  # consecutive turns where military > last_income
+```
+
 **CivSnapshot field:**
 ```python
 last_income: int = 0
 ```
 
 **Spawn trigger:** Civ where `military > last_income` for 3 consecutive turns.
-- `last_income` = base income + trade income from previous turn (tracked on `Civilization`)
+- `last_income` updated at end of production phase each turn (base income + trade income)
+- `merc_pressure_turns` incremented in `apply_automatic_effects` when `military > last_income`, reset to 0 otherwise
+- Spawn fires when `merc_pressure_turns >= 3`
 - Spawn: strength = `civ.military // 5`. Spawning civ: `military -= strength * 5`
 - Location: one of the civ's controlled regions (random)
 - **Cap:** 3 active mercenary companies world-wide. If cap reached, spawn is blocked.
@@ -640,6 +725,8 @@ last_income: int = 0
 - If > 60% of a civ's trade routes involve regions containing the primary resource:
   - Bonus: `economy * 0.15` added to treasury income (flat amount, not stat modification)
   - Vulnerability: if those routes get embargoed, penalty of `economy * 0.20` from treasury income
+
+Both bonus and penalty are truncated to integers (treasury is int). At economy=70: bonus = +10, penalty = -14. The asymmetry is intentional — losing specialized trade hurts more than having it helps.
 
 This creates a natural tension — specialization is profitable but fragile.
 
