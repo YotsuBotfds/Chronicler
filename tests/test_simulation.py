@@ -11,6 +11,7 @@ from chronicler.simulation import (
     resolve_trade,
     apply_asabiya_dynamics,
 )
+from chronicler.simulation import apply_injected_event
 from chronicler.models import (
     WorldState,
     Civilization,
@@ -457,3 +458,35 @@ def test_medieval_defender_asabiya_bonus(sample_world):
             defender_wins += 1
     # With the asabiya bonus, defender should win more often than without
     assert defender_wins > 30, f"MEDIEVAL defender bonus not effective: {defender_wins}/100 wins"
+
+
+class TestApplyInjectedEvent:
+    def test_plague_reduces_pop_and_stability(self, sample_world):
+        civ = sample_world.civilizations[0]
+        old_pop = civ.population
+        old_stb = civ.stability
+        events = apply_injected_event("plague", civ.name, sample_world)
+        assert len(events) == 1
+        assert events[0].event_type == "plague"
+        assert events[0].actors == [civ.name]
+        assert civ.population <= old_pop
+        assert civ.stability <= old_stb
+
+    def test_discovery_boosts_culture_and_economy(self, sample_world):
+        civ = sample_world.civilizations[1]
+        old_culture = civ.culture
+        old_economy = civ.economy
+        events = apply_injected_event("discovery", civ.name, sample_world)
+        assert civ.culture >= old_culture
+        assert civ.economy >= old_economy
+
+    def test_unknown_civ_returns_empty(self, sample_world):
+        events = apply_injected_event("plague", "Nonexistent Civ", sample_world)
+        assert events == []
+
+    def test_creates_active_condition_for_drought(self, sample_world):
+        civ = sample_world.civilizations[0]
+        old_conditions = len(sample_world.active_conditions)
+        apply_injected_event("drought", civ.name, sample_world)
+        # drought handler creates an ActiveCondition
+        assert len(sample_world.active_conditions) > old_conditions

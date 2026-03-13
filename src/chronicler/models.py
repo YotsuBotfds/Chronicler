@@ -145,6 +145,7 @@ class WorldState(BaseModel):
     named_events: list[NamedEvent] = Field(default_factory=list)
     used_leader_names: list[str] = Field(default_factory=list)
     action_history: dict[str, list[str]] = Field(default_factory=dict)
+    scenario_name: str | None = None
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""

@@ -10,15 +10,17 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from chronicler.chronicle import ChronicleEntry, compile_chronicle
+from chronicler.interestingness import find_boring_civs
 from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
-from chronicler.memory import MemoryStream, generate_reflection, should_reflect
+from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import Event, WorldState
 from chronicler.action_engine import ActionEngine
 from chronicler.narrative import NarrativeEngine
-from chronicler.simulation import run_turn
+from chronicler.simulation import apply_injected_event, run_turn
+from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
 
 DEFAULT_CONFIG = {
@@ -31,39 +33,90 @@ DEFAULT_CONFIG = {
 }
 
 
-def run_chronicle(
-    seed: int = 42,
-    num_turns: int = 50,
-    num_civs: int = 4,
-    num_regions: int = 8,
-    output_path: Path = Path("output/chronicle.md"),
-    state_path: Path | None = None,
+class _DummyClient:
+    """Fallback LLM client for deterministic-only runs (no API calls)."""
+    model = "dummy"
+
+    def complete(self, prompt: str, max_tokens: int = 100, system: str | None = None) -> str:
+        return "DEVELOP"
+
+
+def execute_run(
+    args: argparse.Namespace,
     sim_client: LLMClient | None = None,
     narrative_client: LLMClient | None = None,
-    reflection_interval: int = 10,
-    resume_path: Path | None = None,
-    use_llm_actions: bool = False,
-    scenario_config: "ScenarioConfig | None" = None,
-) -> None:
-    """Run the full chronicle generation pipeline.
+    world: WorldState | None = None,
+    memories: dict[str, MemoryStream] | None = None,
+    on_pause: Callable[[WorldState, dict[str, MemoryStream], list], bool] | None = None,
+    pause_every: int | None = None,
+    pending_injections: list[tuple[str, str]] | None = None,
+    scenario_config: Any | None = None,
+    provenance_header: str | None = None,
+) -> RunResult:
+    """Shared entry point for single runs, batch, fork, and interactive modes.
 
-    Accepts two separate LLM clients:
-    - sim_client: handles action selection (local model, low temperature)
-    - narrative_client: handles chronicle prose + reflections (local model, high temperature)
+    Accepts an args namespace plus optional pre-loaded world, memories, and
+    callbacks. Returns a RunResult with aggregate stats.
 
-    If resume_path is provided, loads saved state and continues from that turn.
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Must contain: seed, turns, civs, regions, output, state, resume,
+        reflection_interval, llm_actions, scenario (and optionally pause_every).
+    sim_client, narrative_client : LLMClient or None
+        LLM clients for simulation and narration. Falls back to _DummyClient.
+    world : WorldState or None
+        Pre-loaded world state (for fork/resume). Generated if None.
+    memories : dict or None
+        Pre-loaded memory streams. Initialized fresh if None.
+    on_pause : callable or None
+        Called every pause_every turns with (world, memories).
+    pause_every : int or None
+        Turn interval for on_pause callback. Overrides args.pause_every.
+    pending_injections : list or None
+        List of (event_type, target_civ_name) tuples to drain before turns.
+    scenario_config : ScenarioConfig or None
+        Scenario overrides to apply to the world.
+    provenance_header : str or None
+        Optional header text prepended to the compiled chronicle.
     """
+    # Fallback clients
+    _sim = sim_client or _DummyClient()
+    _narr = narrative_client or _DummyClient()
+
+    # Extract run parameters from args
+    seed = args.seed
+    num_turns = args.turns
+    num_civs = args.civs
+    num_regions = args.regions
+    output_path = Path(args.output)
+    state_path = Path(args.state) if args.state else None
+    resume_path = Path(args.resume) if getattr(args, "resume", None) else None
+    reflection_interval = getattr(args, "reflection_interval", 10) or 10
+    use_llm_actions = getattr(args, "llm_actions", False)
+    _pause_every = pause_every or getattr(args, "pause_every", None)
+
+    # Use scenario_config from arg if not passed directly
+    if scenario_config is None:
+        sc_path = getattr(args, "scenario", None)
+        if sc_path:
+            from chronicler.scenario import load_scenario
+            scenario_config = load_scenario(Path(sc_path))
+
     # Extract presentation-layer config for narrative engine
     event_flavor = scenario_config.event_flavor if scenario_config else None
     narrative_style = scenario_config.narrative_style if scenario_config else None
     engine = NarrativeEngine(
-        sim_client=sim_client,
-        narrative_client=narrative_client,
+        sim_client=_sim,
+        narrative_client=_narr,
         event_flavor=event_flavor,
         narrative_style=narrative_style,
     )
 
-    if resume_path:
+    # World setup
+    if world is not None:
+        start_turn = world.turn
+    elif resume_path:
         world = WorldState.load(resume_path)
         start_turn = world.turn
         print(f"Resuming from {resume_path} at turn {start_turn}")
@@ -90,23 +143,33 @@ def run_chronicle(
             except Exception:
                 pass  # Goals remain empty on failure — non-fatal
 
-    # Initialize memory streams for each civilization
-    memories: dict[str, MemoryStream] = {
-        civ.name: MemoryStream(civilization_name=civ.name)
-        for civ in world.civilizations
-    }
+    # Initialize memory streams if not provided
+    if memories is None:
+        memories = {
+            civ.name: MemoryStream(civilization_name=civ.name)
+            for civ in world.civilizations
+        }
 
     # Run simulation
     chronicle_entries: list[ChronicleEntry] = []
     era_reflections: dict[int, str] = {}
 
     remaining = num_turns - start_turn
-    sim_model = getattr(sim_client, "model", "unknown") or "LM Studio default"
-    narr_model = getattr(narrative_client, "model", "unknown") or "LM Studio default"
+    sim_model = getattr(_sim, "model", "unknown") or "LM Studio default"
+    narr_model = getattr(_narr, "model", "unknown") or "LM Studio default"
     print(f"Generating chronicle for '{world.name}' — {remaining} turns, {len(world.civilizations)} civs")
     print(f"  Sim model: {sim_model} | Narrative model: {narr_model} [local inference]")
 
+    # Pending injections list — shared mutable object with on_pause callback
+    _pending = pending_injections if pending_injections is not None else []
+
     for turn_num in range(start_turn, num_turns):
+        # Drain pending injections before each turn
+        while _pending:
+            event_type, target_civ = _pending.pop(0)
+            injected_events = apply_injected_event(event_type, target_civ, world)
+            world.events_timeline.extend(injected_events)
+
         # Create action engine fresh each turn (needs current world state)
         action_engine = ActionEngine(world)
 
@@ -149,6 +212,13 @@ def run_chronicle(
                         importance=event.importance,
                     )
 
+        # Save memory streams every turn
+        output_dir = output_path.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for civ_name, stream in memories.items():
+            safe_name = sanitize_civ_name(civ_name)
+            stream.save(output_dir / f"memories_{safe_name}.json")
+
         # Generate era reflections at intervals
         if should_reflect(world.turn, interval=reflection_interval):
             era_start = world.turn - reflection_interval + 1
@@ -160,7 +230,7 @@ def run_chronicle(
                     stream,
                     era_start=era_start,
                     era_end=era_end,
-                    client=narrative_client,
+                    client=_narr,
                 )
                 reflection_texts.append(reflection)
 
@@ -172,17 +242,32 @@ def run_chronicle(
         if state_path:
             world.save(state_path)
 
+        # on_pause callback — returns False to quit early
+        if _pause_every and on_pause and world.turn % _pause_every == 0:
+            should_continue = on_pause(world, memories, _pending)
+            if not should_continue:
+                break
+
         # Progress indicator
         if world.turn % 10 == 0:
             print(f"  Turn {world.turn}/{num_turns} complete")
 
     # Compile final chronicle
+    actual_turns = world.turn - start_turn
+    if world.turn < num_turns:
+        epilogue = f"> Chronicle ended early at turn {world.turn} of {num_turns}."
+    else:
+        epilogue = f"Thus concludes the chronicle of {world.name}, spanning {actual_turns} turns of history."
     output_text = compile_chronicle(
         world_name=world.name,
         entries=chronicle_entries,
         era_reflections=era_reflections,
-        epilogue=f"Thus concludes the chronicle of {world.name}, spanning {num_turns} turns of history.",
+        epilogue=epilogue,
     )
+
+    # Prepend provenance header if provided
+    if provenance_header:
+        output_text = provenance_header + "\n\n" + output_text
 
     # Write output
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -193,6 +278,123 @@ def run_chronicle(
     if state_path:
         world.save(state_path)
         print(f"Final world state saved to {state_path}")
+
+    # --- Compute RunResult ---
+    output_dir = output_path.parent
+
+    # Count events from start_turn onward only
+    war_count = sum(
+        1 for e in world.events_timeline
+        if e.turn >= start_turn and e.event_type == "war"
+    )
+    collapse_count = sum(
+        1 for e in world.events_timeline
+        if e.turn >= start_turn and e.event_type == "collapse"
+    )
+    tech_advancement_count = sum(
+        1 for e in world.events_timeline
+        if e.turn >= start_turn and e.event_type == "tech_advancement"
+    )
+    named_event_count = sum(
+        1 for ne in world.named_events
+        if ne.turn >= start_turn
+    )
+
+    # Count reflections from start_turn onward
+    reflection_count = 0
+    for stream in memories.values():
+        reflection_count += sum(
+            1 for r in stream.reflections if r.turn >= start_turn
+        )
+
+    # Action distribution from civ.action_counts
+    action_distribution: dict[str, dict[str, int]] = {}
+    all_action_types: set[str] = set()
+    for civ in world.civilizations:
+        action_distribution[civ.name] = dict(civ.action_counts)
+        all_action_types.update(civ.action_counts.keys())
+    distinct_action_count = len(all_action_types)
+
+    # Max stat swing: variance of total stats across civs
+    if world.civilizations:
+        totals = [
+            civ.population + civ.military + civ.economy + civ.culture + civ.stability
+            for civ in world.civilizations
+        ]
+        mean_total = sum(totals) / len(totals)
+        variance = sum((t - mean_total) ** 2 for t in totals) / len(totals)
+        max_stat_swing = float(variance)
+    else:
+        max_stat_swing = 0.0
+
+    # Dominant faction: civ with highest total stats
+    if world.civilizations:
+        dominant_civ = max(
+            world.civilizations,
+            key=lambda c: c.population + c.military + c.economy + c.culture + c.stability,
+        )
+        dominant_faction = dominant_civ.name
+    else:
+        dominant_faction = ""
+
+    total_turns = world.turn - start_turn
+
+    result = RunResult(
+        seed=seed,
+        output_dir=output_dir,
+        war_count=war_count,
+        collapse_count=collapse_count,
+        named_event_count=named_event_count,
+        distinct_action_count=distinct_action_count,
+        reflection_count=reflection_count,
+        tech_advancement_count=tech_advancement_count,
+        max_stat_swing=max_stat_swing,
+        action_distribution=action_distribution,
+        dominant_faction=dominant_faction,
+        total_turns=total_turns,
+    )
+    result.boring_civs = find_boring_civs(result)
+
+    return result
+
+
+def run_chronicle(
+    seed: int = 42,
+    num_turns: int = 50,
+    num_civs: int = 4,
+    num_regions: int = 8,
+    output_path: Path = Path("output/chronicle.md"),
+    state_path: Path | None = None,
+    sim_client: LLMClient | None = None,
+    narrative_client: LLMClient | None = None,
+    reflection_interval: int = 10,
+    resume_path: Path | None = None,
+    use_llm_actions: bool = False,
+    scenario_config: "ScenarioConfig | None" = None,
+) -> None:
+    """Legacy wrapper — delegates to execute_run().
+
+    Preserves the original API for backward compatibility.
+    """
+    args = argparse.Namespace(
+        seed=seed,
+        turns=num_turns,
+        civs=num_civs,
+        regions=num_regions,
+        output=str(output_path),
+        state=str(state_path) if state_path else None,
+        resume=str(resume_path) if resume_path else None,
+        reflection_interval=reflection_interval,
+        llm_actions=use_llm_actions,
+        scenario=None,  # Pass scenario_config directly
+        pause_every=None,
+    )
+    execute_run(
+        args,
+        sim_client=sim_client,
+        narrative_client=narrative_client,
+        scenario_config=scenario_config,
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -218,6 +420,18 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Use LLM for action selection (default: deterministic engine)")
     parser.add_argument("--scenario", type=str, default=None,
                         help="Path to a YAML scenario file")
+    # --- M10 workflow flags ---
+    parser.add_argument("--batch", type=int, default=None,
+                        help="Run N chronicles with sequential seeds")
+    parser.add_argument("--parallel", type=int, nargs="?", const=-1, default=None,
+                        help="Parallel workers for batch mode (default: cpu_count-1). "
+                             "Mutually exclusive with --llm-actions.")
+    parser.add_argument("--fork", type=str, default=None,
+                        help="Fork from a saved state.json with a new seed")
+    parser.add_argument("--interactive", action="store_true", default=False,
+                        help="Interactive mode: pause at intervals for commands")
+    parser.add_argument("--pause-every", type=int, default=None,
+                        help="Pause interval in turns for interactive mode (default: reflection_interval)")
     return parser
 
 
@@ -226,47 +440,86 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
+    # --- Mutual exclusion validation ---
+    mode_flags = []
+    if args.batch:
+        mode_flags.append("--batch")
+    if args.fork:
+        mode_flags.append("--fork")
+    if args.interactive:
+        mode_flags.append("--interactive")
+    if args.resume:
+        mode_flags.append("--resume")
+    if len(mode_flags) > 1:
+        print(f"Error: {' and '.join(mode_flags)} are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
+
+    if args.parallel is not None and args.llm_actions:
+        print("Error: Cannot use --parallel with --llm-actions", file=sys.stderr)
+        sys.exit(1)
+
     sim_client, narrative_client = create_clients(
         local_url=args.local_url,
         sim_model=args.sim_model,
         narrative_model=args.narrative_model,
     )
 
-    # Validate mutual exclusion
-    if args.scenario and args.resume:
-        print("Error: --scenario and --resume are mutually exclusive", file=sys.stderr)
-        sys.exit(1)
-
-    # Resolve params: scenario → CLI → defaults
+    # Resolve scenario
     scenario_config = None
     if args.scenario:
         from chronicler.scenario import load_scenario, resolve_scenario_params
         scenario_config = load_scenario(Path(args.scenario))
         params = resolve_scenario_params(scenario_config, args)
+        args.seed = params["seed"]
+        args.turns = params["num_turns"]
+        args.civs = params["num_civs"]
+        args.regions = params["num_regions"]
+        args.reflection_interval = params["reflection_interval"]
     else:
-        # No scenario — apply hardcoded defaults for any None sentinel values
-        params = {
-            "seed": args.seed if args.seed is not None else DEFAULT_CONFIG.get("seed", 42),
-            "num_turns": args.turns if args.turns is not None else DEFAULT_CONFIG["num_turns"],
-            "num_civs": args.civs if args.civs is not None else DEFAULT_CONFIG["num_civs"],
-            "num_regions": args.regions if args.regions is not None else DEFAULT_CONFIG["num_regions"],
-            "reflection_interval": args.reflection_interval if args.reflection_interval is not None else DEFAULT_CONFIG["reflection_interval"],
-        }
+        args.seed = args.seed if args.seed is not None else DEFAULT_CONFIG.get("seed", 42)
+        args.turns = args.turns if args.turns is not None else DEFAULT_CONFIG["num_turns"]
+        args.civs = args.civs if args.civs is not None else DEFAULT_CONFIG["num_civs"]
+        args.regions = args.regions if args.regions is not None else DEFAULT_CONFIG["num_regions"]
+        args.reflection_interval = args.reflection_interval if args.reflection_interval is not None else DEFAULT_CONFIG["reflection_interval"]
 
-    run_chronicle(
-        seed=params["seed"],
-        num_turns=params["num_turns"],
-        num_civs=params["num_civs"],
-        num_regions=params["num_regions"],
-        output_path=Path(args.output),
-        state_path=Path(args.state),
-        sim_client=sim_client,
-        narrative_client=narrative_client,
-        reflection_interval=params["reflection_interval"],
-        resume_path=Path(args.resume) if args.resume else None,
-        use_llm_actions=args.llm_actions,
-        scenario_config=scenario_config,
-    )
+    # --- Dispatch ---
+    if args.batch:
+        from chronicler.batch import run_batch
+        batch_dir = run_batch(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        print(f"\nBatch complete: {batch_dir}")
+
+    elif args.fork:
+        from chronicler.fork import run_fork
+        result = run_fork(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        print(f"\nFork complete: {result.output_dir}")
+
+    elif args.interactive:
+        from chronicler.interactive import run_interactive
+        result = run_interactive(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        print(f"\nInteractive session complete: {result.output_dir}")
+
+    else:
+        # Single run (default) or resume
+        world = None
+        memories = None
+        if args.resume:
+            resume_path = Path(args.resume)
+            world = WorldState.load(resume_path)
+            memories = {}
+            for mem_file in resume_path.parent.glob("memories_*.json"):
+                stream = MemoryStream.load(mem_file)
+                memories[stream.civilization_name] = stream
+            print(f"Resuming from {resume_path} at turn {world.turn}")
+
+        result = execute_run(
+            args,
+            sim_client=sim_client,
+            narrative_client=narrative_client,
+            world=world,
+            memories=memories,
+            scenario_config=scenario_config,
+        )
+        print(f"\nChronicle complete: {result.output_dir}")
 
 
 if __name__ == "__main__":

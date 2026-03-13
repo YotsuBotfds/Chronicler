@@ -543,6 +543,65 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         civ.stability = clamp(civ.stability - 1, 1, 10)
 
 
+def apply_injected_event(
+    event_type: str, target_civ_name: str, world: WorldState
+) -> list[Event]:
+    """Process a manually injected event targeting a single civ.
+
+    Unlike natural events which randomly select affected civs,
+    injected events affect only the named target. Returns a list
+    containing the event (or empty if target civ not found).
+    """
+    civ = _get_civ(world, target_civ_name)
+    if civ is None:
+        return []
+
+    event = Event(
+        turn=world.turn,
+        event_type=event_type,
+        actors=[target_civ_name],
+        description=f"[Injected] {event_type} strikes {target_civ_name}",
+        importance=7,
+    )
+
+    # Environment events (drought/plague/earthquake) have special handling
+    # that creates ActiveConditions. Replicate that logic for the single target.
+    if event_type == "drought":
+        civ.stability = clamp(civ.stability - 1, 1, 10)
+        civ.economy = clamp(civ.economy - 1, 1, 10)
+        world.active_conditions.append(
+            ActiveCondition(
+                condition_type="drought",
+                affected_civs=[target_civ_name],
+                duration=3,
+                severity=5,
+            )
+        )
+    elif event_type == "plague":
+        civ.population = clamp(civ.population - 1, 1, 10)
+        civ.stability = clamp(civ.stability - 1, 1, 10)
+        world.active_conditions.append(
+            ActiveCondition(
+                condition_type="plague",
+                affected_civs=[target_civ_name],
+                duration=4,
+                severity=6,
+            )
+        )
+    elif event_type == "earthquake":
+        civ.economy = clamp(civ.economy - 1, 1, 10)
+    else:
+        # Non-environment events use the standard effect handler
+        _apply_event_effects(event_type, civ, world)
+
+    # Apply cascading probabilities
+    world.event_probabilities = apply_probability_cascade(
+        event_type, world.event_probabilities
+    )
+
+    return [event]
+
+
 # --- Phase 5: Consequences ---
 
 def phase_consequences(world: WorldState) -> list[Event]:

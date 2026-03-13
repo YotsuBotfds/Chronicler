@@ -94,3 +94,67 @@ class TestReflectionGeneration:
             stream, era_start=1, era_end=10, client=mock_client
         )
         assert "Kethani" in text or "Expansion" in text or len(text) > 0
+
+
+import json
+from chronicler.memory import sanitize_civ_name
+
+
+class TestMemoryPersistence:
+    def test_round_trip_entries_and_reflections(self, tmp_path):
+        """Save a MemoryStream, load it back, verify all fields match."""
+        stream = MemoryStream(civilization_name="Kethani Empire")
+        for i in range(10):
+            stream.add(text=f"Event {i} occurred", turn=i, importance=i % 10 + 1)
+        stream.add_reflection("The Age of Iron", turn=10)
+        stream.add_reflection("The Age of Sorrow", turn=20)
+
+        path = tmp_path / "memories_kethani_empire.json"
+        stream.save(path)
+        assert path.exists()
+
+        loaded = MemoryStream.load(path)
+        assert loaded.civilization_name == "Kethani Empire"
+        assert len(loaded.entries) == 10
+        assert len(loaded.reflections) == 2
+
+        for orig, loaded_e in zip(stream.entries, loaded.entries):
+            assert orig.turn == loaded_e.turn
+            assert orig.text == loaded_e.text
+            assert orig.importance == loaded_e.importance
+            assert orig.entry_type == loaded_e.entry_type
+
+        for orig, loaded_r in zip(stream.reflections, loaded.reflections):
+            assert orig.turn == loaded_r.turn
+            assert orig.text == loaded_r.text
+            assert orig.importance == loaded_r.importance
+
+    def test_round_trip_empty_stream(self, tmp_path):
+        stream = MemoryStream(civilization_name="Empty Civ")
+        path = tmp_path / "memories_empty_civ.json"
+        stream.save(path)
+        loaded = MemoryStream.load(path)
+        assert loaded.civilization_name == "Empty Civ"
+        assert loaded.entries == []
+        assert loaded.reflections == []
+
+    def test_save_creates_valid_json(self, tmp_path):
+        stream = MemoryStream(civilization_name="Test")
+        stream.add("An event", turn=1, importance=5)
+        path = tmp_path / "memories_test.json"
+        stream.save(path)
+        data = json.loads(path.read_text())
+        assert data["civilization_name"] == "Test"
+        assert len(data["entries"]) == 1
+        assert data["entries"][0]["turn"] == 1
+
+
+class TestSanitizeCivName:
+    def test_spaces_to_underscores(self):
+        assert sanitize_civ_name("Kethani Empire") == "kethani_empire"
+
+    def test_special_characters_stripped(self):
+        assert sanitize_civ_name("Dorrathi's Clans!") == "dorrathis_clans"
+
+    def test_already_clean(self):
+        assert sanitize_civ_name("rustborn") == "rustborn"

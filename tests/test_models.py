@@ -185,3 +185,15 @@ def test_civilization_leader_name_pool_set():
         leader_name_pool=["A", "B", "C"],
     )
     assert civ.leader_name_pool == ["A", "B", "C"]
+
+
+def test_world_state_scenario_name_default_none(sample_world):
+    assert sample_world.scenario_name is None
+
+
+def test_world_state_scenario_name_persists(sample_world, tmp_path):
+    sample_world.scenario_name = "Dead Miles"
+    path = tmp_path / "state.json"
+    sample_world.save(path)
+    loaded = WorldState.load(path)
+    assert loaded.scenario_name == "Dead Miles"
