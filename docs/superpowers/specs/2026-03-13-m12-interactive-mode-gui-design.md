@@ -102,11 +102,14 @@ All messages are JSON. Every message has a `type` field. Server-to-client and cl
   "events_timeline": [ "...all Event objects accumulated so far..." ],
   "named_events": [ "...all NamedEvent objects accumulated so far..." ],
   "era_reflections": { "10": "## Era: Turns 1-10\n\n...", "20": "## Era: Turns 11-20\n\n..." },
-  "metadata": { "seed": 42, "sim_model": "local", "narrative_model": "local" }
+  "metadata": { "seed": 42, "sim_model": "local", "narrative_model": "local" },
+  "speed": 5.0
 }
 ```
 
 **`world_state`** is the full `WorldState` serialization (same as the `world_state` field in `chronicle_bundle.json`). This gives the viewer access to civilizations (leaders, traits, domains, values, tech eras), regions (terrain, coordinates, controllers), relationships, and all other world data that downstream components need. No separate `world_name`, `civs`, or `regions` fields — they're all inside `world_state`.
+
+**`speed`** is the current simulation speed (from the lock-protected shared float). On reconnect, the viewer's speed control reflects the actual simulation pace immediately rather than defaulting to 1x.
 
 **`chronicle_entries` is a `Record<string, string>`** (turn number as string key -> text), matching the existing bundle format in `bundle.py` and the viewer's `Bundle` type. The `useLiveConnection` hook converts each `turn` message's `chronicle_text` into this format: `entries[String(turn)] = chronicle_text`.
 
@@ -131,6 +134,8 @@ The server should also configure periodic WebSocket pings (e.g., every 20 second
 
 Both `events` (timeline events) and `named_events` (battles, treaties, cultural works) are included separately. The viewer's scrubber and stat graphs use named events for adaptive event dots and reference lines.
 
+**Note on `on_turn` implementation:** The `named_events` parameter requires computing the delta — named events added this turn — since `world.named_events` is cumulative. The implementer should capture `len(world.named_events)` before `run_turn()` and slice afterward to extract new entries for that turn.
+
 **`paused`** — sent at era boundaries when simulation blocks:
 
 ```json
@@ -139,11 +144,13 @@ Both `events` (timeline events) and `named_events` (battles, treaties, cultural 
   "turn": 20,
   "reason": "era_boundary",
   "valid_commands": ["continue", "inject", "set", "fork", "quit"],
-  "injectable_events": ["plague", "famine", "migration"],
+  "injectable_events": ["plague", "famine", "migration", "..."],
   "settable_stats": ["population", "military", "economy", "culture", "stability", "treasury"],
   "civs": ["Kethani Empire", "Dorrathi Clans"]
 }
 ```
+
+**`injectable_events` is derived at runtime**, not hardcoded. Add a `get_injectable_event_types() -> list[str]` function to `simulation.py` that returns `sorted(DEFAULT_EVENT_PROBABILITIES.keys())`. Both `live.py` and `interactive.py` call this instead of independently importing `DEFAULT_EVENT_PROBABILITIES`. As Phase 3 adds new event types (proxy war, embargo, natural disaster), the list grows automatically.
 
 **`ack`** — acknowledgment after a command is processed. Named `ack` (not `resumed`) because the simulation does NOT resume after `inject`/`set`/`fork` — it stays paused. Only `continue` causes actual resumption:
 
