@@ -151,3 +151,63 @@ export interface Bundle {
   era_reflections: Record<string, string>;
   metadata: BundleMetadata;
 }
+
+// --- Live mode types ---
+
+export interface PauseContext {
+  turn: number;
+  reason: string;
+  valid_commands: string[];
+  injectable_events: string[];
+  settable_stats: string[];
+  civs: string[];
+}
+
+export type CommandType = "continue" | "inject" | "set" | "fork" | "quit" | "speed";
+
+export interface InjectCommand {
+  type: "inject";
+  event_type: string;
+  civ: string;
+}
+
+export interface SetCommand {
+  type: "set";
+  civ: string;
+  stat: string;
+  value: number;
+}
+
+export interface SimpleCommand {
+  type: "continue" | "fork" | "quit";
+}
+
+export interface SpeedCommand {
+  type: "speed";
+  value: number;
+}
+
+export type Command = InjectCommand | SetCommand | SimpleCommand | SpeedCommand;
+
+export interface PendingAction {
+  id: string;
+  command: Command;
+  status: "staged" | "sent";
+  detail?: string;
+}
+
+export interface AckMessage {
+  type: "ack";
+  command: string;
+  detail: string;
+  still_paused: boolean;
+  civ?: string;
+  stat?: string;
+  value?: number;
+}
+
+export interface ForkedMessage {
+  type: "forked";
+  save_path: string;
+  cli_hint: string;
+}
