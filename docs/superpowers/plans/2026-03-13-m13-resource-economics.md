@@ -501,17 +501,29 @@ def graph_distance(
 
 
 def is_chokepoint(regions: list[Region], name: str) -> bool:
-    """True if removing this region disconnects the graph (articulation point)."""
-    remaining = [r for r in regions if r.name != name]
-    if len(remaining) <= 1:
+    """True if removing this region disconnects the graph (articulation point).
+
+    Builds adjacency map manually excluding the target — never mutates Region objects.
+    """
+    if len(regions) <= 2:
         return False
-    # Remove edges to the removed region
-    for r in remaining:
-        r_copy = r.model_copy()
-        r_copy.adjacencies = [a for a in r.adjacencies if a != name]
-        remaining[remaining.index(r)] = r_copy
-    comps = connected_components(remaining)
-    return len(comps) > 1
+    # Build adj map without the target node
+    adj: dict[str, set[str]] = {}
+    for r in regions:
+        if r.name == name:
+            continue
+        adj[r.name] = {a for a in r.adjacencies if a != name}
+    # BFS from first remaining node
+    remaining_names = list(adj.keys())
+    visited: set[str] = {remaining_names[0]}
+    queue: deque[str] = deque([remaining_names[0]])
+    while queue:
+        current = queue.popleft()
+        for neighbor in adj.get(current, set()):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return len(visited) < len(remaining_names)
 
 
 def connected_components(regions: list[Region]) -> list[list[str]]:
@@ -1366,17 +1378,20 @@ def test_tech_allowed_with_resources(sample_world):
 
 ```python
 # In tech.py, add resource requirements table:
-from chronicler.resources import Resource
+from chronicler.models import Resource
 
+# Keys = CURRENT era (what civ is in now). Values = resources needed to advance OUT of it.
+# e.g., TechEra.TRIBAL means "to advance FROM Tribal TO Bronze, need iron + timber"
+# This matches TECH_REQUIREMENTS convention where key = current era, not target era.
 RESOURCE_REQUIREMENTS: dict[TechEra, tuple[set[Resource] | None, int]] = {
     # (required_specific_resources, min_unique_count)
-    TechEra.TRIBAL: ({Resource.IRON, Resource.TIMBER}, 2),
-    TechEra.BRONZE: ({Resource.IRON, Resource.TIMBER, Resource.GRAIN}, 3),
-    TechEra.IRON: (None, 3),       # any 3 unique
-    TechEra.CLASSICAL: (None, 4),   # any 4 unique
-    TechEra.MEDIEVAL: (None, 4),    # any 4 unique
-    TechEra.RENAISSANCE: (None, 5), # any 5 unique
-    TechEra.INDUSTRIAL: ({Resource.FUEL}, 5),  # must include fuel + 5 unique
+    TechEra.TRIBAL: ({Resource.IRON, Resource.TIMBER}, 2),      # → Bronze
+    TechEra.BRONZE: ({Resource.IRON, Resource.TIMBER, Resource.GRAIN}, 3),  # → Iron
+    TechEra.IRON: (None, 3),       # → Classical: any 3 unique
+    TechEra.CLASSICAL: (None, 4),   # → Medieval: any 4 unique
+    TechEra.MEDIEVAL: (None, 4),    # → Renaissance: any 4 unique
+    TechEra.RENAISSANCE: (None, 5), # → Industrial: any 5 unique
+    TechEra.INDUSTRIAL: ({Resource.FUEL}, 5),  # → Information: must include fuel + 5 unique
 }
 
 def _get_civ_resources(civ, world) -> set[Resource]:
