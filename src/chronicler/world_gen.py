@@ -123,7 +123,7 @@ def assign_civilizations(
                 economy=rng.randint(3, 7),
                 culture=rng.randint(2, 7),
                 stability=rng.randint(4, 7),
-                tech_era=TechEra.IRON,
+                tech_era=TechEra.TRIBAL,
                 treasury=rng.randint(3, 15),
                 leader=Leader(name=leader_name, trait=t["trait"], reign_start=0),
                 domains=t["domains"],

@@ -89,3 +89,10 @@ class TestLLMWorldGeneration:
         # After LLM enrichment, goals should be set
         assert any(c.goal != "" for c in world.civilizations)
         mock_client.complete.assert_called_once()
+
+
+def test_civilizations_start_at_tribal():
+    regions = generate_regions(count=8, seed=42)
+    civs = assign_civilizations(regions, civ_count=4, seed=42)
+    for civ in civs:
+        assert civ.tech_era == TechEra.TRIBAL, f"{civ.name} started at {civ.tech_era}"
