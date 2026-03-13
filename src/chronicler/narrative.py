@@ -83,6 +83,15 @@ Respond with ONLY the action name (one word, all caps). Nothing else."""
 
 
 def build_chronicle_prompt(world: WorldState, events: list[Event]) -> str:
+    """Backward-compatible wrapper — delegates to a no-flavor, no-style build."""
+    return _build_chronicle_prompt_impl(world, events, event_flavor=None, narrative_style=None)
+
+
+def _build_chronicle_prompt_impl(
+    world: WorldState, events: list[Event],
+    event_flavor: dict | None = None,
+    narrative_style: str | None = None,
+) -> str:
     """Build the prompt for LLM chronicle narration."""
     # Build civilization summaries
     civ_summaries = ""
@@ -94,10 +103,15 @@ def build_chronicle_prompt(world: WorldState, events: list[Event]) -> str:
         civ_summaries += f"\n  Leader: {civ.leader.name} ({civ.leader.trait})"
         civ_summaries += f"\n  Regions: {', '.join(civ.regions)}"
 
-    # Build event list
+    # Build event list with flavor substitution
     event_text = ""
     for e in events:
-        event_text += f"\n- [{e.event_type}] {e.description} (actors: {', '.join(e.actors)}, importance: {e.importance}/10)"
+        display_type = e.event_type
+        display_desc = e.description
+        if event_flavor and e.event_type in event_flavor:
+            display_type = event_flavor[e.event_type].name
+            display_desc = event_flavor[e.event_type].description
+        event_text += f"\n- [{display_type}] {display_desc} (actors: {', '.join(e.actors)}, importance: {e.importance}/10)"
 
     # Named events context for historical callbacks
     named_context = ""
@@ -125,7 +139,12 @@ def build_chronicle_prompt(world: WorldState, events: list[Event]) -> str:
             rivalry_context += f"- {r}\n"
         rivalry_context += "Weave these personal rivalries into the narrative when relevant.\n"
 
-    return f"""You are a mythic historian chronicling the world of {world.name}.
+    # Role line and narrative style
+    role_line = f"You are a historian chronicling the world of {world.name}."
+    if narrative_style:
+        role_line += f"\n\nNARRATIVE STYLE: {narrative_style}"
+
+    return f"""{role_line}
 
 TURN {world.turn}:
 
@@ -134,7 +153,7 @@ CIVILIZATIONS:{civ_summaries}
 EVENTS THIS TURN:{event_text}{named_context}{rivalry_context}
 
 Write a chronicle entry for this turn. Rules:
-1. Write in the style of a mythic history — evocative, literary, as if written by a scholar looking back on these events centuries later.
+1. Write in the style of a history — evocative, literary, as if written by a scholar looking back on these events centuries later.
 2. For each civilization mentioned, weave their cultural DOMAINS into the prose. A maritime culture's trade dispute involves harbors and currents; a mountain culture's crisis involves peaks and stone. This is critical for thematic coherence.
 3. Focus on events with importance >= 5. Mention lower-importance events briefly or skip them.
 4. Reference specific leader names, region names, and cultural values where relevant.
@@ -153,9 +172,13 @@ class NarrativeEngine:
     calls (chronicle prose — lower volume, benefits from higher quality).
     """
 
-    def __init__(self, sim_client: LLMClient, narrative_client: LLMClient):
+    def __init__(self, sim_client: LLMClient, narrative_client: LLMClient,
+                 event_flavor: dict | None = None,
+                 narrative_style: str | None = None):
         self.sim_client = sim_client
         self.narrative_client = narrative_client
+        self.event_flavor = event_flavor
+        self.narrative_style = narrative_style
 
     def select_action(self, civ: Civilization, world: WorldState) -> ActionType:
         """Ask the LLM to choose an action for a civilization.
@@ -185,7 +208,9 @@ class NarrativeEngine:
         Routes to narrative_client for prose quality.
         Falls back to a mechanical summary on any LLM error.
         """
-        prompt = build_chronicle_prompt(world, events)
+        prompt = _build_chronicle_prompt_impl(world, events,
+                                              event_flavor=self.event_flavor,
+                                              narrative_style=self.narrative_style)
         try:
             return self.narrative_client.complete(prompt, max_tokens=1000)
         except Exception:

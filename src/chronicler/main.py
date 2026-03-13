@@ -22,6 +22,7 @@ from chronicler.simulation import run_turn
 from chronicler.world_gen import enrich_with_llm, generate_world
 
 DEFAULT_CONFIG = {
+    "seed": 42,
     "num_turns": 50,
     "num_civs": 4,
     "num_regions": 8,
@@ -42,6 +43,7 @@ def run_chronicle(
     reflection_interval: int = 10,
     resume_path: Path | None = None,
     use_llm_actions: bool = False,
+    scenario_config: "ScenarioConfig | None" = None,
 ) -> None:
     """Run the full chronicle generation pipeline.
 
@@ -51,7 +53,15 @@ def run_chronicle(
 
     If resume_path is provided, loads saved state and continues from that turn.
     """
-    engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
+    # Extract presentation-layer config for narrative engine
+    event_flavor = scenario_config.event_flavor if scenario_config else None
+    narrative_style = scenario_config.narrative_style if scenario_config else None
+    engine = NarrativeEngine(
+        sim_client=sim_client,
+        narrative_client=narrative_client,
+        event_flavor=event_flavor,
+        narrative_style=narrative_style,
+    )
 
     if resume_path:
         world = WorldState.load(resume_path)
@@ -64,6 +74,14 @@ def run_chronicle(
             num_civs=num_civs,
         )
         start_turn = 0
+
+        # Apply scenario overrides if provided
+        if scenario_config:
+            from chronicler.scenario import apply_scenario
+            apply_scenario(world, scenario_config)
+            print(f"  Scenario: {scenario_config.name}")
+            if scenario_config.description:
+                print(f"    {scenario_config.description}")
 
         # Enrich civs with LLM-generated goals
         if sim_client:
@@ -182,14 +200,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate an AI-driven civilization chronicle (local inference via LM Studio)",
     )
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--turns", type=int, default=DEFAULT_CONFIG["num_turns"], help="Number of simulation turns")
-    parser.add_argument("--civs", type=int, default=DEFAULT_CONFIG["num_civs"], help="Number of civilizations")
-    parser.add_argument("--regions", type=int, default=DEFAULT_CONFIG["num_regions"], help="Number of regions")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed")
+    parser.add_argument("--turns", type=int, default=None, help="Number of simulation turns")
+    parser.add_argument("--civs", type=int, default=None, help="Number of civilizations")
+    parser.add_argument("--regions", type=int, default=None, help="Number of regions")
     parser.add_argument("--output", type=str, default="output/chronicle.md", help="Output file path")
     parser.add_argument("--state", type=str, default="output/state.json", help="State file path")
     parser.add_argument("--resume", type=str, default=None, help="Resume from a saved state JSON file")
-    parser.add_argument("--reflection-interval", type=int, default=DEFAULT_CONFIG["reflection_interval"])
+    parser.add_argument("--reflection-interval", type=int, default=None)
     parser.add_argument("--local-url", type=str, default=DEFAULT_CONFIG["local_url"],
                         help="LM Studio / local model API URL (OpenAI-compatible)")
     parser.add_argument("--sim-model", type=str, default=None,
@@ -198,6 +216,8 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Model name for narrative generation (default: LM Studio's loaded model)")
     parser.add_argument("--llm-actions", action="store_true", default=False,
                         help="Use LLM for action selection (default: deterministic engine)")
+    parser.add_argument("--scenario", type=str, default=None,
+                        help="Path to a YAML scenario file")
     return parser
 
 
@@ -212,18 +232,40 @@ def main() -> None:
         narrative_model=args.narrative_model,
     )
 
+    # Validate mutual exclusion
+    if args.scenario and args.resume:
+        print("Error: --scenario and --resume are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
+
+    # Resolve params: scenario → CLI → defaults
+    scenario_config = None
+    if args.scenario:
+        from chronicler.scenario import load_scenario, resolve_scenario_params
+        scenario_config = load_scenario(Path(args.scenario))
+        params = resolve_scenario_params(scenario_config, args)
+    else:
+        # No scenario — apply hardcoded defaults for any None sentinel values
+        params = {
+            "seed": args.seed if args.seed is not None else DEFAULT_CONFIG.get("seed", 42),
+            "num_turns": args.turns if args.turns is not None else DEFAULT_CONFIG["num_turns"],
+            "num_civs": args.civs if args.civs is not None else DEFAULT_CONFIG["num_civs"],
+            "num_regions": args.regions if args.regions is not None else DEFAULT_CONFIG["num_regions"],
+            "reflection_interval": args.reflection_interval if args.reflection_interval is not None else DEFAULT_CONFIG["reflection_interval"],
+        }
+
     run_chronicle(
-        seed=args.seed,
-        num_turns=args.turns,
-        num_civs=args.civs,
-        num_regions=args.regions,
+        seed=params["seed"],
+        num_turns=params["num_turns"],
+        num_civs=params["num_civs"],
+        num_regions=params["num_regions"],
         output_path=Path(args.output),
         state_path=Path(args.state),
         sim_client=sim_client,
         narrative_client=narrative_client,
-        reflection_interval=args.reflection_interval,
+        reflection_interval=params["reflection_interval"],
         resume_path=Path(args.resume) if args.resume else None,
         use_llm_actions=args.llm_actions,
+        scenario_config=scenario_config,
     )
 
 

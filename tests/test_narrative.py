@@ -148,3 +148,75 @@ def test_chronicle_prompt_includes_rivalries(sample_world):
     events = []
     prompt = build_chronicle_prompt(sample_world, events)
     assert "rival" in prompt.lower() or "Gorath" in prompt
+
+
+class TestEventFlavor:
+    def test_event_flavor_substitutes_name(self, sample_world):
+        from chronicler.scenario import EventFlavor
+        sim_client = MagicMock()
+        sim_client.complete.return_value = "DEVELOP"
+        sim_client.model = "test"
+        narrative_client = MagicMock()
+        narrative_client.complete.return_value = "Chronicle text."
+        narrative_client.model = "test"
+        flavor = {"drought": EventFlavor(name="Harsh Winter", description="Cold winds blow")}
+        engine = NarrativeEngine(sim_client, narrative_client, event_flavor=flavor)
+        events = [Event(turn=0, event_type="drought", actors=["Civ A"],
+                       description="A drought struck.", importance=5)]
+        engine.generate_chronicle(sample_world, events)
+        call_args = narrative_client.complete.call_args[0][0]
+        assert "Harsh Winter" in call_args
+        assert "Cold winds blow" in call_args
+
+    def test_no_event_flavor_uses_original(self, sample_world):
+        sim_client = MagicMock()
+        sim_client.model = "test"
+        narrative_client = MagicMock()
+        narrative_client.complete.return_value = "Chronicle text."
+        narrative_client.model = "test"
+        engine = NarrativeEngine(sim_client, narrative_client)
+        events = [Event(turn=0, event_type="drought", actors=["Civ A"],
+                       description="A drought struck.", importance=5)]
+        engine.generate_chronicle(sample_world, events)
+        call_args = narrative_client.complete.call_args[0][0]
+        assert "drought" in call_args.lower()
+
+
+class TestNarrativeStyle:
+    def test_narrative_style_in_prompt(self, sample_world):
+        sim_client = MagicMock()
+        sim_client.model = "test"
+        narrative_client = MagicMock()
+        narrative_client.complete.return_value = "Chronicle text."
+        narrative_client.model = "test"
+        engine = NarrativeEngine(sim_client, narrative_client,
+                                narrative_style="Terse and pragmatic.")
+        events = []
+        engine.generate_chronicle(sample_world, events)
+        call_args = narrative_client.complete.call_args[0][0]
+        assert "NARRATIVE STYLE: Terse and pragmatic." in call_args
+
+    def test_no_narrative_style_no_injection(self, sample_world):
+        sim_client = MagicMock()
+        sim_client.model = "test"
+        narrative_client = MagicMock()
+        narrative_client.complete.return_value = "Chronicle text."
+        narrative_client.model = "test"
+        engine = NarrativeEngine(sim_client, narrative_client)
+        events = []
+        engine.generate_chronicle(sample_world, events)
+        call_args = narrative_client.complete.call_args[0][0]
+        assert "NARRATIVE STYLE" not in call_args
+
+    def test_neutral_historian_role(self, sample_world):
+        sim_client = MagicMock()
+        sim_client.model = "test"
+        narrative_client = MagicMock()
+        narrative_client.complete.return_value = "Chronicle text."
+        narrative_client.model = "test"
+        engine = NarrativeEngine(sim_client, narrative_client)
+        events = []
+        engine.generate_chronicle(sample_world, events)
+        call_args = narrative_client.complete.call_args[0][0]
+        assert "You are a historian chronicling" in call_args
+        assert "mythic historian" not in call_args
