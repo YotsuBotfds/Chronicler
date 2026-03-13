@@ -47,7 +47,7 @@ def execute_run(
     narrative_client: LLMClient | None = None,
     world: WorldState | None = None,
     memories: dict[str, MemoryStream] | None = None,
-    on_pause: Callable[[WorldState, dict[str, MemoryStream]], None] | None = None,
+    on_pause: Callable[[WorldState, dict[str, MemoryStream], list], bool] | None = None,
     pause_every: int | None = None,
     pending_injections: list[tuple[str, str]] | None = None,
     scenario_config: Any | None = None,
@@ -160,14 +160,15 @@ def execute_run(
     print(f"Generating chronicle for '{world.name}' — {remaining} turns, {len(world.civilizations)} civs")
     print(f"  Sim model: {sim_model} | Narrative model: {narr_model} [local inference]")
 
-    # Pending injections list (mutable, drained as we go)
-    _pending = list(pending_injections) if pending_injections else []
+    # Pending injections list — shared mutable object with on_pause callback
+    _pending = pending_injections if pending_injections is not None else []
 
     for turn_num in range(start_turn, num_turns):
         # Drain pending injections before each turn
         while _pending:
             event_type, target_civ = _pending.pop(0)
-            apply_injected_event(event_type, target_civ, world)
+            injected_events = apply_injected_event(event_type, target_civ, world)
+            world.events_timeline.extend(injected_events)
 
         # Create action engine fresh each turn (needs current world state)
         action_engine = ActionEngine(world)
@@ -241,16 +242,22 @@ def execute_run(
         if state_path:
             world.save(state_path)
 
-        # on_pause callback
+        # on_pause callback — returns False to quit early
         if _pause_every and on_pause and world.turn % _pause_every == 0:
-            on_pause(world, memories)
+            should_continue = on_pause(world, memories, _pending)
+            if not should_continue:
+                break
 
         # Progress indicator
         if world.turn % 10 == 0:
             print(f"  Turn {world.turn}/{num_turns} complete")
 
     # Compile final chronicle
-    epilogue = f"Thus concludes the chronicle of {world.name}, spanning {num_turns} turns of history."
+    actual_turns = world.turn - start_turn
+    if world.turn < num_turns:
+        epilogue = f"> Chronicle ended early at turn {world.turn} of {num_turns}."
+    else:
+        epilogue = f"Thus concludes the chronicle of {world.name}, spanning {actual_turns} turns of history."
     output_text = compile_chronicle(
         world_name=world.name,
         entries=chronicle_entries,
@@ -330,7 +337,7 @@ def execute_run(
     else:
         dominant_faction = ""
 
-    total_turns = num_turns - start_turn
+    total_turns = world.turn - start_turn
 
     result = RunResult(
         seed=seed,
@@ -345,17 +352,8 @@ def execute_run(
         action_distribution=action_distribution,
         dominant_faction=dominant_faction,
         total_turns=total_turns,
-        boring_civs=find_boring_civs(
-            RunResult(
-                seed=seed, output_dir=output_dir, war_count=war_count,
-                collapse_count=collapse_count, named_event_count=named_event_count,
-                distinct_action_count=distinct_action_count, reflection_count=reflection_count,
-                tech_advancement_count=tech_advancement_count, max_stat_swing=max_stat_swing,
-                action_distribution=action_distribution, dominant_faction=dominant_faction,
-                total_turns=total_turns,
-            )
-        ),
     )
+    result.boring_civs = find_boring_civs(result)
 
     return result
 

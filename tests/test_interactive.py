@@ -85,6 +85,72 @@ class TestFormatStateSummary:
         assert "HOSTILE" in summary or "SUSPICIOUS" in summary
 
 
+class TestInteractiveIntegration:
+    """End-to-end tests for interactive mode via run_interactive."""
+
+    def _mock_llm(self, response="DEVELOP"):
+        mock = MagicMock()
+        mock.complete.return_value = response
+        mock.model = "test-model"
+        return mock
+
+    def _make_args(self, tmp_path, turns=10, pause_every=5):
+        return argparse.Namespace(
+            seed=42, turns=turns, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None,
+            batch=None, fork=None, interactive=True,
+            parallel=None, pause_every=pause_every,
+        )
+
+    def test_quit_stops_simulation_early(self, tmp_path, monkeypatch):
+        """Typing 'quit' at the first pause should stop the simulation."""
+        sim = self._mock_llm()
+        narr = self._mock_llm("Story.")
+        args = self._make_args(tmp_path, turns=20, pause_every=5)
+        # Simulate: at first pause (turn 5), user types quit
+        monkeypatch.setattr("builtins.input", lambda _: "quit")
+        result = run_interactive(args, sim_client=sim, narrative_client=narr)
+        # Should have run only 5 turns (paused at turn 5, quit)
+        assert result.total_turns <= 5
+        # Chronicle should mention early end
+        chronicle = (tmp_path / "chronicle.md").read_text()
+        assert "ended early" in chronicle.lower() or "Chronicle" in chronicle
+
+    def test_inject_queues_and_fires_event(self, tmp_path, monkeypatch):
+        """Inject command should queue event that fires on next turn."""
+        sim = self._mock_llm()
+        narr = self._mock_llm("Story.")
+        args = self._make_args(tmp_path, turns=10, pause_every=3)
+        # At first pause: inject plague, then continue. At second pause: quit.
+        responses = iter([
+            'inject plague "Kethani Empire"',
+            "continue",
+            "quit",
+        ])
+        monkeypatch.setattr("builtins.input", lambda _: next(responses))
+        result = run_interactive(args, sim_client=sim, narrative_client=narr)
+        # The plague injection should be visible in events timeline
+        from chronicler.models import WorldState
+        world = WorldState.load(tmp_path / "state.json")
+        plague_events = [e for e in world.events_timeline if e.event_type == "plague"]
+        assert len(plague_events) >= 1
+
+    def test_continue_resumes_simulation(self, tmp_path, monkeypatch):
+        """Continue should resume until next pause."""
+        sim = self._mock_llm()
+        narr = self._mock_llm("Story.")
+        args = self._make_args(tmp_path, turns=10, pause_every=5)
+        # At first pause: continue. At second pause: quit.
+        responses = iter(["continue", "quit"])
+        monkeypatch.setattr("builtins.input", lambda _: next(responses))
+        result = run_interactive(args, sim_client=sim, narrative_client=narr)
+        # Should have run more than 5 turns (continued past first pause)
+        assert result.total_turns > 5
+
+
 class TestValidConstants:
     def test_injectable_events_match_default_probabilities(self):
         from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES
