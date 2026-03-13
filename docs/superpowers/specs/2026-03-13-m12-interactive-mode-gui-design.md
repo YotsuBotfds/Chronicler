@@ -88,17 +88,15 @@ All messages are JSON. Every message has a `type` field. Server-to-client and cl
 
 ### Server -> Client Messages
 
-**`init`** — sent once on connection. Provides the full accumulated state so a late-connecting viewer can render the complete timeline, sparklines, event dots, and chronicle text. This is equivalent to a partial `chronicle_bundle.json`:
+**`init`** — sent once on connection. Provides the full accumulated state so a late-connecting viewer can render the complete timeline, sparklines, event dots, and chronicle text. The shape mirrors `chronicle_bundle.json` so the `useLiveConnection` hook can directly construct a `ChronicleBundle` from it:
 
 ```json
 {
   "type": "init",
-  "world_name": "Ashkari Dominion",
   "total_turns": 50,
   "pause_every": 10,
   "current_turn": 20,
-  "civs": ["Kethani Empire", "Dorrathi Clans"],
-  "regions": [{"name": "Iron Peaks", "terrain": "mountains", "x": 3.2, "y": 7.1}],
+  "world_state": { "...full WorldState serialization matching bundle's world_state field..." },
   "history": [ "...full array of TurnSnapshot-shaped objects for turns 1-20..." ],
   "chronicle_entries": { "1": "The world began...", "2": "Tensions rose...", "...": "..." },
   "events_timeline": [ "...all Event objects accumulated so far..." ],
@@ -107,6 +105,8 @@ All messages are JSON. Every message has a `type` field. Server-to-client and cl
   "metadata": { "seed": 42, "sim_model": "local", "narrative_model": "local" }
 }
 ```
+
+**`world_state`** is the full `WorldState` serialization (same as the `world_state` field in `chronicle_bundle.json`). This gives the viewer access to civilizations (leaders, traits, domains, values, tech eras), regions (terrain, coordinates, controllers), relationships, and all other world data that downstream components need. No separate `world_name`, `civs`, or `regions` fields — they're all inside `world_state`.
 
 **`chronicle_entries` is a `Record<string, string>`** (turn number as string key -> text), matching the existing bundle format in `bundle.py` and the viewer's `Bundle` type. The `useLiveConnection` hook converts each `turn` message's `chronicle_text` into this format: `entries[String(turn)] = chronicle_text`.
 
@@ -335,7 +335,7 @@ Queue protocol tests — no actual WebSocket connections:
 
 Actual WebSocket connections using `websockets` client:
 
-- **Connect and receive init**: start `LiveServer`, connect, assert `init` message with expected fields.
+- **Connect and receive init**: start `LiveServer`, connect, assert `init` message with `world_state`, `history`, `chronicle_entries`, `events_timeline`, `named_events`, `era_reflections`, `metadata`.
 - **Turn streaming**: run 5 turns, assert 5 `turn` messages with incrementing turn numbers.
 - **Pause and command round-trip**: `pause_every=3`, run until pause, assert `paused` message, send `continue`, assert next `turn` arrives.
 - **Inject round-trip**: at pause, send `inject`, assert `ack` with `still_paused: true`, send `continue`, assert `ack` with `still_paused: false`, assert injected event appears in next turn's events.
@@ -353,7 +353,7 @@ All integration tests: short runs (5-10 turns, 2 civs, 3 regions), deterministic
 
 **`useLiveConnection.test.ts`** — mock WebSocket:
 
-- `init` received -> `bundle` non-null with `chronicle_entries` as `Record<string, string>`, `events_timeline`, `named_events`, `era_reflections` populated. `connected` true.
+- `init` received -> `bundle` non-null with `world_state`, `chronicle_entries` as `Record<string, string>`, `events_timeline`, `named_events`, `era_reflections`, `metadata` all populated. `connected` true.
 - `turn` received -> `bundle.history` grows by one, `chronicle_entries[turn]` added, `events_timeline` and `named_events` extended.
 - `paused` received -> `paused` true, `pauseContext` populated.
 - `sendCommand('inject')` -> `paused` stays true after `ack` with `still_paused: true`.
