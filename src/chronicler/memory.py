@@ -7,7 +7,10 @@ in the final chronicle.
 """
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -48,6 +51,43 @@ class MemoryStream:
         """Return recent entries + all reflections for LLM context."""
         recent = self.get_recent(recent_count)
         return list(self.reflections) + recent
+
+    def save(self, path: Path) -> None:
+        """Persist memory stream to a JSON file."""
+        data = {
+            "civilization_name": self.civilization_name,
+            "entries": [
+                {"turn": e.turn, "text": e.text, "importance": e.importance, "entry_type": e.entry_type}
+                for e in self.entries
+            ],
+            "reflections": [
+                {"turn": r.turn, "text": r.text, "importance": r.importance, "entry_type": r.entry_type}
+                for r in self.reflections
+            ],
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2))
+
+    @classmethod
+    def load(cls, path: Path) -> MemoryStream:
+        """Load a memory stream from a JSON file."""
+        data = json.loads(path.read_text())
+        stream = cls(civilization_name=data["civilization_name"])
+        stream.entries = [
+            MemoryEntry(turn=e["turn"], text=e["text"], importance=e["importance"], entry_type=e["entry_type"])
+            for e in data["entries"]
+        ]
+        stream.reflections = [
+            MemoryEntry(turn=r["turn"], text=r["text"], importance=r["importance"], entry_type=r["entry_type"])
+            for r in data["reflections"]
+        ]
+        return stream
+
+
+def sanitize_civ_name(name: str) -> str:
+    """Sanitize a civilization name for use in filenames."""
+    name = name.lower().replace(" ", "_")
+    return re.sub(r"[^a-z0-9_]", "", name)
 
 
 def should_reflect(turn: int, interval: int = 10) -> bool:
