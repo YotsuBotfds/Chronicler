@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-13
 **Branch:** (to be created from main after M13/M14 merge)
-**Depends on:** M13b (resources, fertility, trade routes, adjacency graph, BUILD action, famine), M15 can run in parallel with M14
+**Depends on:** M13b (resources, fertility, trade routes, adjacency graph, BUILD action, famine). M15a-M15c can run in parallel with M14. M15d additionally depends on M14 model definitions (M14a secession, M14b vassals/federations, M14d twilight absorption) for edge case handling.
 **Scope:** Four sequential phases: M15a → M15b → M15c → M15d
 **Note:** This spec supersedes the Phase 3 roadmap (`chronicler-phase3-roadmap.md`) for all M15 details. Where the roadmap and this spec disagree, this spec is authoritative.
 
@@ -63,6 +63,8 @@ desert      | +5      | 0.3           | +0        | Rare minerals, harsh
 tundra      | +10     | 0.2           | +0        | Iron/fuel, harsh defense
 ```
 
+**Unknown terrain types** (e.g., `river`, `hills` if introduced by M13a or scenarios): fall through to plains defaults (defense +0, fertility cap 0.9, trade mod +0). This is a safe default — unknown terrain behaves like generic habitable land.
+
 ### Functions Exported
 
 ```python
@@ -75,7 +77,8 @@ def terrain_fertility_cap(region: Region) -> float:
     """Maximum fertility for this terrain type. Hard ceiling."""
 
 def effective_capacity(region: Region) -> int:
-    """int(base_capacity × min(fertility, terrain_fertility_cap)).
+    """max(int(carrying_capacity × min(fertility, terrain_fertility_cap)), 1).
+    Floor of 1 prevents division-by-zero in famine/migration calculations.
     Single source of truth — replaces all inline int(carrying_capacity * fertility) calls."""
 
 def terrain_trade_modifier(region: Region) -> int:
@@ -149,7 +152,7 @@ infrastructure: list[Infrastructure] = Field(default_factory=list)
 pending_build: PendingBuild | None = None
 ```
 
-`infrastructure_level: int` is dropped. It was "tracked but unused" per M13 spec — no migration needed.
+`infrastructure_level: int` is dropped. M13a added it as "tracked for narrative" and M13b-1's BUILD handler increments it. **Migration note:** Remove the `infrastructure_level` field from Region and all M13b-1 references to it (BUILD handler increment, any display code). The typed `infrastructure: list[Infrastructure]` subsumes this entirely.
 
 **New models (models.py):**
 ```python
@@ -229,7 +232,7 @@ Build starts on action turn. Each subsequent turn, `pending_build.turns_remainin
 
 ### Scorched Earth
 
-**First use of the `REACTION_REGISTRY` from P3.** Registered as `REACTION_REGISTRY["region_lost"] = scorched_earth_check`. War resolution fires the `"region_lost"` trigger, the registry dispatches the handler. Validates the reaction architecture before M16 adds more reactions.
+**First use of the `REACTION_REGISTRY` from P3.** P3 created the empty registry; M14's DEFEND reaction was planned but not implemented in the M14 spec. M15b is the first actual consumer. Registered as `REACTION_REGISTRY["region_lost"] = scorched_earth_check`. **Dispatched inline during WAR resolution** (phase 4, action phase), not deferred to phase 10 — the defender scorches before the attacker takes control, same turn. War resolution code fires the `"region_lost"` trigger, the registry dispatches the handler. This validates the reaction architecture before M16 adds more reactions.
 
 ```python
 def scorched_earth_check(
@@ -266,7 +269,7 @@ def tick_infrastructure(world: WorldState) -> list[Event]:
 
 - **Trade income (phase 2):** Roads add +2 to trade routes between connected regions (both endpoints or either endpoint has roads). Ports add +3 and enable sea trade for the region. These modify the existing trade income calculation in `apply_automatic_effects`.
 - **Combat (action phase):** Fortifications add +15 defense, stacking with `terrain_defense_bonus()` and role defense from M15a.
-- **Fertility (phase 9):** Irrigation raises terrain fertility cap by +0.15 for that region. Mine degradation (-0.03/turn) applies before the standard fertility tick. Phase 9 order: mine degradation → standard fertility tick (degradation/recovery) → cap to `terrain_fertility_cap + irrigation_bonus`.
+- **Fertility (phase 9):** Irrigation raises terrain fertility cap by +0.15 for that region. Mine degradation (-0.03/turn) is a **flat rate unaffected by climate multipliers** — mines degrade at the same speed regardless of climate phase. This makes mines consistently predictable. Phase 9 order: mine degradation (flat -0.03) → standard fertility tick (degradation × climate_multiplier / recovery) → cap to `terrain_fertility_cap + irrigation_bonus`.
 - **Famine (phase 10):** Irrigated regions are less likely to hit the 0.3 famine threshold. Infrastructure as famine prevention.
 
 ### Testing
@@ -305,6 +308,11 @@ climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
 ```python
 disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
 # e.g. {"wildfire": 8} — turns remaining before this disaster type can recur
+
+resource_suspensions: dict[str, int] = Field(default_factory=dict)
+# e.g. {"timber": 7, "trade_route": 3} — turns remaining before resource/route resumes
+# Set by wildfire (timber suspended 10t) and sandstorm (trade routes suspended 5t)
+# Decremented each turn in phase 1. Trade income and resource availability checks consult this dict.
 ```
 
 **New models (models.py):**
@@ -348,39 +356,54 @@ No `climate_offset` field — M18 can add one when it needs to mutate the cycle 
 
 Climate modifies the **fertility tick rate**, not just transient reads. Droughts cause lasting damage — topsoil loss, aquifer depletion. The deterministic cycle means civs can prepare (irrigate before drought, reduce population pressure), but failing to prepare has lasting consequences.
 
-**During phase 9 (fertility tick):** degradation rate is multiplied by the inverse of the climate fertility multiplier. Recovery rate stays constant at +0.01/turn (recovering is always slow).
+Climate has two distinct effects: (1) a **degradation rate multiplier** applied during phase 9, and (2) **special rules** for specific terrain/phase combinations. These are separate mechanics and must not be conflated.
+
+#### Degradation Rate Multipliers
+
+**During phase 9 (fertility tick):** the base degradation rate (-0.02/turn) is scaled by a climate multiplier. Values >1.0 mean faster degradation. Recovery rate stays constant at +0.01/turn (recovering is always slow).
 
 ```
-Phase     | Plains | Forest | Coast  | Desert | Tundra | Mountains
-----------|--------|--------|--------|--------|--------|----------
-temperate | ×1.0   | ×1.0   | ×1.0   | ×1.0   | ×1.0   | ×1.0
-warming   | ×1.0   | ×1.0   | ×1.0*  | ×1.0   | ×2.0   | ×1.0**
-drought   | ×0.5   | ×0.7   | ×1.0   | ×1.0   | ×1.0   | ×1.0
-cooling   | ×0.8   | ×0.8   | ×0.8   | ×0.8   | ×0.3   | ×0.8
+Phase     | Plains | Forest | Coast | Desert | Tundra | Mountains
+----------|--------|--------|-------|--------|--------|----------
+temperate | 1.0    | 1.0    | 1.0   | 1.0    | 1.0    | 1.0
+warming   | 1.0    | 1.0    | 1.0   | 1.0    | 0.5*   | 1.0
+drought   | 2.0    | 1.4    | 1.0   | 1.0    | 1.0    | 1.0
+cooling   | 1.25   | 1.25   | 1.25  | 1.25   | 3.3    | 1.25
 ```
 
-\* Coast during warming: flood risk 5%/turn (see disasters), not fertility rate change.
-\*\* Mountains during warming: defense bonus removed (returns +0 instead of +20). Snow melts, passes open. A civ relying on mountain defense gets a ~15-turn window of vulnerability every 75 turns.
+\* Tundra warming: degradation rate ×0.5 (halved) — warmer temperatures are *good* for tundra soil.
+
+**Reading the table:** drought plains = 2.0 means degradation rate = `-0.02 × 2.0 = -0.04/turn`. No inverse math needed — the multiplier is applied directly.
+
+**Severity scaling:** Multiplier deviations from 1.0 are scaled by `config.severity`.
+- Formula: `effective = 1.0 + (base_multiplier - 1.0) × severity`
+- Drought plains at severity 1.0: `1.0 + (2.0 - 1.0) × 1.0 = 2.0` → degradation -0.04/turn.
+- Drought plains at severity 0.5: `1.0 + (2.0 - 1.0) × 0.5 = 1.5` → degradation -0.03/turn.
+- Severity 0: all multipliers become 1.0 (no climate effect).
+
+```python
+def climate_degradation_multiplier(
+    terrain: str, phase: ClimatePhase, severity: float
+) -> float:
+    """Returns multiplier applied directly to degradation rate during phase 9.
+    Values > 1.0 = faster degradation. Values < 1.0 = slower degradation.
+    Recovery rate always stays +0.01 regardless of climate."""
+```
+
+#### Special Climate Rules (Non-Fertility Effects)
+
+These are **not** in the degradation table — they're separate mechanics:
+
+- **Warming + coast:** flood disaster probability ×2 (see disasters section).
+- **Warming + mountains:** defense bonus removed. `terrain_defense_bonus()` returns +0 instead of +20. This override lives in **combat resolution code in simulation.py**, not in terrain.py — keeps terrain.py as a pure function of region properties while the climate interaction is handled at the integration point. Implementation: `defense = terrain_defense_bonus(region) if climate_phase != WARMING or region.terrain != "mountains" else 0`.
+- **Warming + tundra (cap modifier):** terrain fertility cap temporarily doubles to `min(0.2 × 2.0, 1.0) = 0.4`. Implemented as: `effective_cap = terrain_fertility_cap(region) × tundra_warming_multiplier` where the multiplier is 2.0 during warming, 1.0 otherwise.
+- **Cooling + tundra (cap modifier):** terrain fertility cap drops to `0.2 × 0.3 = 0.06`. The 3.3× degradation rate in the table plus the cap crash makes cooling devastating for tundra.
 
 **Warming fertility is intentionally ×1.0 for plains/forest/coast.** Warming's pressure comes from flood risk and the tundra trap, not crop stress. Warming is a coastal/tundra phase, not a fertility phase.
 
-**Severity scaling:** All multiplier deviations from 1.0 are scaled by `config.severity`.
-- Drought plains: multiplier = `1.0 + (0.5 - 1.0) × severity`. At severity 1.0 → 0.5. At severity 0.5 → 0.75. At severity 0 → 1.0 (no effect).
-- Degradation rate during drought on plains (severity 1.0): `-0.02 × (1/0.5)` = -0.04/turn.
-- Degradation rate during drought on plains (severity 0.5): `-0.02 × (1/0.75)` ≈ -0.027/turn.
+**Cooling mildly accelerates degradation for most terrains (×1.25 = 25% faster).** Cold periods stress crops slightly — shorter growing seasons, frost damage. Tundra at ×3.3 is the extreme case: cooling is devastating for already-marginal land. This is historically consistent: little ice ages cause agricultural decline.
 
-```python
-def climate_fertility_multiplier(
-    terrain: str, phase: ClimatePhase, severity: float
-) -> float:
-    """Returns multiplier for the terrain's fertility behavior this phase.
-    Applied to degradation rate during phase 9: rate = base_rate × (1 / multiplier).
-    Recovery rate always stays +0.01."""
-```
-
-**Cooling asymmetry (documented as intentional):** During cooling, degradation rate = `-0.02 × (1/0.8)` = -0.025, but recovery stays +0.01. Cooling slows degradation slightly but doesn't accelerate recovery. Cold periods are mildly protective of soil health — less activity means less damage. Tundra at ×0.3 is the exception: cooling is devastating for already-marginal land.
-
-**Tundra warming trap:** Tundra fertility cap effectively doubles to 0.4 during warming. Tundra regions bloom. Civilizations that expand into tundra during warming get burned when cooling hits and the effective cap drops to `0.2 × 0.3 = 0.06`. Population that grew during the warm spell now far exceeds capacity → migration cascade.
+**Tundra warming trap:** Tundra fertility cap effectively doubles to 0.4 during warming. Tundra regions bloom — degradation slows (×0.5), cap rises. Civilizations that expand into tundra during warming get burned when cooling hits: cap drops to 0.06, degradation spikes to ×3.3, population that grew during the warm spell now far exceeds capacity → migration cascade.
 
 ### Natural Disasters
 
@@ -406,7 +429,7 @@ sandstorm  | desert     | 3%/turn   | —                  | trade routes throug
 
 **Severity scaling:** Base probabilities multiplied by `config.severity`. At severity 0.5, earthquake = 1%/turn. At severity 2.0, earthquake = 4%/turn. Severity 0 disables disasters entirely.
 
-**Probability is deterministic from seed.** Each region+turn+disaster_type combination produces a deterministic random value from `hash(world.seed, region.name, turn, disaster_type) % 10000 / 10000`. No `random.random()` calls.
+**Probability is deterministic from seed.** Each region+turn+disaster_type combination produces a deterministic random value. Use `hashlib.sha256` for cross-process stability (Python's built-in `hash()` is randomized per process since 3.3): `int(hashlib.sha256(f"{world.seed}:{region.name}:{turn}:{disaster_type}".encode()).hexdigest(), 16) % 10000 / 10000`. No `random.random()` calls. This ensures identical seeds produce identical disaster sequences across runs.
 
 **Infrastructure interaction (intentional cascading failures):**
 - **Earthquake** destroys 1 random active infrastructure. An earthquake destroying irrigation in a mine-degraded region is disproportionately devastating — the mine keeps degrading fertility, famine hits ~8 turns later. This cascade is intended behavior, not a balance issue.
@@ -449,7 +472,7 @@ This can be triggered by:
 ### Phase 1 Execution Order
 
 The environment phase becomes:
-1. Decrement disaster cooldowns for all regions
+1. Decrement disaster cooldowns and resource suspensions for all regions
 2. Compute current climate phase: `get_climate_phase(world.turn, world.climate_config)`
 3. Check and apply disasters (terrain-dependent probabilities × climate modifiers × severity)
 4. Process migration (reads post-disaster effective capacity via `terrain.effective_capacity`)
@@ -469,7 +492,7 @@ Missing `climate` block → defaults above (period 75, severity 1.0, temperate s
 
 ### Testing
 
-- Climate phase: "turn 0, period 75 → temperate. Turn 30 → temperate. Turn 31 → warming. Turn 45 → warming. Turn 46 → drought. Turn 60 → drought. Turn 61 → cooling."
+- Climate phase: "turn 0, period 75 → temperate. Turn 29 → temperate. Turn 30 → warming (30/75=0.4). Turn 44 → warming. Turn 45 → drought (45/75=0.6). Turn 59 → drought. Turn 60 → cooling (60/75=0.8)."
 - Fertility multiplier: "plains in drought, severity 1.0 → degradation rate doubled to -0.04/turn."
 - Severity scaling: "severity 0.5, drought plains → degradation rate ≈ -0.027/turn."
 - Mountain defense in warming: "warming phase → terrain_defense_bonus(mountain_region) returns 0."
@@ -480,12 +503,15 @@ Missing `climate` block → defaults above (period 75, severity 1.0, temperate s
 - Earthquake-irrigation cascade: "earthquake destroys irrigation in mined region → fertility degrades unchecked → famine within 10 turns."
 - Flood-port: "flood in coastal region with port → port.active = False."
 - Climate-disaster interaction: "drought + forest region → wildfire probability 4%/turn."
+- Resource suspension: "wildfire sets resource_suspensions['timber'] = 10, timber unavailable for trade/tech for 10 turns, decremented each turn."
+- Trade route suspension: "sandstorm sets resource_suspensions['trade_route'] = 5, trade routes through region yield no income for 5 turns."
 - Severity 0: "severity 0.0 → no disasters fire, climate multipliers all 1.0."
 - Migration trigger: "region effective_capacity 20, region_pop 50 → migration fires, surplus 30."
 - Migration distribution: "surplus 30, 3 eligible adjacent regions → each receiving civ gets +10 population, -3 stability."
 - Migration hostile border: "all adjacent regions HOSTILE → no migration, population drops, famine event."
 - Migration cascade: "drought causes migration from A→B, B already near capacity → B migrates to C next turn."
 - Migration to uncontrolled region: "refugees to uncontrolled region → population lost to void."
+- Single-region civ migration: "single-region civ with devastated region → population drops to effective_capacity, civ survives with minimum population (floor 1). Eventually enters twilight via M14d if stats keep declining."
 - End-to-end climate cycle: "run 75 turns, verify phase transitions at correct turns, fertility tracks expected degradation/recovery curves per terrain type."
 
 ---
@@ -541,7 +567,7 @@ If `fog_of_war` is false, `known_regions` stays `None` (omniscient).
 
 2. **Expansion** — conquering or colonizing a region reveals all its adjacencies. Added to `known_regions` during war/expansion resolution.
 
-3. **Trade contact** — when a trade route activates between two civs, they share regions **within 2 hops of the trade route endpoints**, not their full known sets. Each subsequent turn of active trading shares 1 additional hop outward. Gradual cartographic exchange through sustained trade — more interesting than instant omniscience from a single contact.
+3. **Trade contact** — when a trade route activates between two civs, they share regions **within 2 hops of the trade route endpoints**, not their full known sets. Each subsequent 3 turns of active trading shares 1 additional hop outward, capped at 5 hops maximum. Gradual cartographic exchange through sustained trade — more interesting than instant omniscience from a single contact. On a 20-region map, reaching the 5-hop cap takes 9 turns of active trading.
 
 4. **Migration from unknown regions** — when migration pushes population from an undiscovered region into a civ's known region, the source region is added to `known_regions`. Refugees arriving reveal where they fled from: "people fleeing drought in the western wastes" is a discovery event.
 
@@ -625,10 +651,12 @@ def discover_ruins(
 ) -> Event | None:
     """
     Culture boost with diminishing returns based on discoverer's current culture:
-    boost = ruin_quality × 5 × (1.0 - civ.culture / 100)
+    boost = int(ruin_quality × 5 × (1.0 - civ.culture / 100))
+    civ.culture = min(civ.culture + boost, 100)
 
-    A tribal civ at culture 20 finding quality-5 ruins: 25 × 0.8 = 20 culture.
-    An advanced civ at culture 80 finding quality-5 ruins: 25 × 0.2 = 5 culture.
+    Truncated to int, clamped to [0, 100] stat range.
+    A tribal civ at culture 20 finding quality-5 ruins: int(25 × 0.8) = 20 culture.
+    An advanced civ at culture 80 finding quality-5 ruins: int(25 × 0.2) = 5 culture.
     Primitives learn more from ruins than sophisticates.
 
     Region stops being ruins: depopulated_since = None, ruin_quality = 0.
@@ -665,7 +693,7 @@ def discover_ruins(
 - EXPLORE action: "civ explores unknown adjacent region → region + its adjacencies added to known_regions, 5 treasury spent."
 - EXPLORE eligibility: "civ with no unknown adjacent regions → EXPLORE ineligible."
 - EXPLORE ineligible without fog: "fog_of_war=false → EXPLORE never eligible."
-- Trade contact gradual sharing: "civ A trades with civ B → both learn regions within 2 hops of trade endpoints. Next turn: 3 hops. Turn after: 4 hops."
+- Trade contact gradual sharing: "civ A trades with civ B → both learn regions within 2 hops of trade endpoints. After 3 more turns: 3 hops. After 6 more turns: 4 hops. After 9 more turns: 5 hops (capped)."
 - First contact: "two isolated civs, A explores into B's territory → importance 8 event, relationship created at NEUTRAL, symmetric region sharing within 2 hops of contact point."
 - Migration discovery: "drought causes migration from unknown region X into civ's known region Y → X added to civ's known_regions."
 - Ruin formation: "region depopulated at turn 50, checked at turn 70 → ruin (20 turns elapsed)."
@@ -706,7 +734,7 @@ M11 viewer's panel architecture extends incrementally:
 All new mechanics have sensible defaults. Existing scenarios work without modification:
 - Missing `role` → computed at world gen from adjacency graph
 - Missing `infrastructure`/`pending_build` → empty list / None
-- Missing `disaster_cooldowns` → empty dict
+- Missing `disaster_cooldowns` / `resource_suspensions` → empty dict
 - Missing `climate` config → period 75, severity 1.0, temperate start
 - Missing `fog_of_war` → false for < 15 regions, true for ≥ 15
 - Missing `known_regions` → None (omniscient)
