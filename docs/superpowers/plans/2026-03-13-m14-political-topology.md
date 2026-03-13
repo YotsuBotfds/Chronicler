@@ -726,13 +726,17 @@ def check_secession(world: WorldState) -> list[Event]:
             leader_name = f"{breakaway_name} Leader"
         world.used_leader_names.append(leader_name)
 
-        # Swap one value from parent's values
+        # Swap one value from parent's values (pick a different value, not string reversal)
         new_values = list(civ.values)
         if new_values:
+            _VALUE_POOL = [
+                "freedom", "order", "tradition", "progress", "honor",
+                "wealth", "knowledge", "faith", "unity", "independence",
+            ]
             swap_idx = rng.randint(0, len(new_values) - 1)
-            # Just shuffle that one value position with a random pick
-            # (simple approach: reverse the value string as a "swap")
-            new_values[swap_idx] = new_values[swap_idx][::-1] if len(new_values[swap_idx]) > 1 else new_values[swap_idx]
+            available_values = [v for v in _VALUE_POOL if v not in new_values]
+            if available_values:
+                new_values[swap_idx] = rng.choice(available_values)
 
         # Capital: breakaway region closest to parent's remaining regions
         def _min_dist_to_parent(rn: str) -> int:
@@ -953,12 +957,15 @@ git commit -m "feat(m14a): register MOVE_CAPITAL action with eligibility and res
 def test_simulation_calls_governing_costs():
     """Verify governing costs are applied during simulation turn."""
     from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
     adj = {"A": ["B"], "B": ["A", "C"], "C": ["B", "D"], "D": ["C"]}
     world = _make_world_with_regions(["A", "B", "C", "D"], capital="A", adjacencies=adj)
     civ = world.civilizations[0]
     initial_stability = civ.stability
     initial_treasury = civ.treasury
-    run_turn(world)
+    engine = ActionEngine(world)
+    selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+    run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
     # After governing costs, stability and treasury should decrease
     assert civ.stability < initial_stability or civ.treasury < initial_treasury
 ```
@@ -1016,6 +1023,7 @@ git commit -m "feat(m14a): integrate governing costs, capital loss, and secessio
 def test_m14a_smoke_50_turns():
     """50-turn run with large empire — should not crash, secession may occur."""
     from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
     world = generate_world(seed=42)
     # Give one civ extra regions to trigger governing costs
     big_civ = world.civilizations[0]
@@ -1026,7 +1034,9 @@ def test_m14a_smoke_50_turns():
     big_civ.capital_region = big_civ.regions[0]
 
     for turn in range(50):
-        run_turn(world)
+        engine = ActionEngine(world)
+        selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+        run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
 
     # Should not crash — that's the main assertion
     assert world.turn == 50
@@ -1642,6 +1652,7 @@ git commit -m "feat(m14b): implement federation defense and vassal WAR restricti
 def test_tribute_collected_during_simulation():
     """Verify tribute is collected during simulation turn."""
     from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
     adj = {"A": ["B"], "B": ["A"]}
     world = _make_world_with_regions(["A"], capital="A", adjacencies=adj)
     # Add a second civ as vassal
@@ -1654,7 +1665,9 @@ def test_tribute_collected_during_simulation():
                                 resources="fertile", adjacencies=["A"]))
     world.vassal_relations = [VassalRelation(overlord="Empire", vassal="Vassal")]
     initial_empire_treasury = world.civilizations[0].treasury
-    run_turn(world)
+    engine = ActionEngine(world)
+    selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+    run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
     # Empire should have gained tribute
     # (exact amount depends on other income/costs, but tribute was collected)
     assert world.vassal_relations[0].turns_active >= 1
@@ -2335,6 +2348,7 @@ git commit -m "feat(m14d): integrate systemic dynamics into simulation and updat
 def test_m14_integration_200_turns():
     """200-turn run with all M14 mechanics — verify emergent political events."""
     from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
     world = generate_world(seed=42)
 
     # Give civs extra regions to make governing costs relevant
@@ -2351,7 +2365,9 @@ def test_m14_integration_200_turns():
     federation_count = 0
 
     for turn in range(200):
-        run_turn(world)
+        engine = ActionEngine(world)
+        selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+        run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
         secession_count += sum(1 for e in world.events_timeline if e.event_type == "secession" and e.turn == world.turn)
         vassal_count = len(world.vassal_relations)
         federation_count = len(world.federations)
@@ -2974,6 +2990,7 @@ def test_all_scenarios_run_with_m14():
     """Each existing scenario YAML loads and runs 10 turns without crash."""
     from chronicler.scenario import load_scenario, apply_scenario
     from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
     from pathlib import Path
     scenario_dir = Path("scenarios")
     if not scenario_dir.exists():
@@ -2986,6 +3003,8 @@ def test_all_scenarios_run_with_m14():
             if civ.capital_region is None and civ.regions:
                 civ.capital_region = civ.regions[0]
         for _ in range(10):
-            run_turn(world)
+            engine = ActionEngine(world)
+            selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+            run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
         # No crash is the assertion
 ```
