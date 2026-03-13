@@ -1,8 +1,11 @@
 """Tests for the main entry point — end-to-end with mocked LLM."""
+import argparse
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from chronicler.main import run_chronicle, DEFAULT_CONFIG
+from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG
+from chronicler.types import RunResult
+from chronicler.memory import MemoryStream
 
 
 def test_llm_actions_flag_in_parser():
@@ -185,3 +188,167 @@ def test_scenario_and_resume_mutually_exclusive():
     args = p.parse_args(["--scenario", "test.yaml", "--resume", "state.json"])
     assert args.scenario == "test.yaml"
     assert args.resume == "state.json"
+
+
+class TestExecuteRun:
+    def _mock_llm(self, response: str = "DEVELOP"):
+        mock = MagicMock()
+        mock.complete.return_value = response
+        mock.model = "test-model"
+        return mock
+
+    def _make_args(self, tmp_path, seed=42, turns=5, civs=2, regions=4):
+        """Build a minimal args namespace for execute_run."""
+        return argparse.Namespace(
+            seed=seed,
+            turns=turns,
+            civs=civs,
+            regions=regions,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None,
+            reflection_interval=10,
+            local_url="http://localhost:1234/v1",
+            sim_model=None,
+            narrative_model=None,
+            llm_actions=False,
+            scenario=None,
+            batch=None,
+            fork=None,
+            interactive=False,
+            parallel=None,
+            pause_every=None,
+        )
+
+    def test_returns_run_result(self, tmp_path):
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Things happened.")
+        args = self._make_args(tmp_path, turns=3)
+        result = execute_run(args, sim_client=sim, narrative_client=narr)
+        assert isinstance(result, RunResult)
+        assert result.seed == 42
+        assert result.total_turns == 3
+        assert result.output_dir == tmp_path
+
+    def test_saves_memory_streams(self, tmp_path):
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Events occurred.")
+        args = self._make_args(tmp_path, turns=3)
+        execute_run(args, sim_client=sim, narrative_client=narr)
+        # Memory files should exist for each civ
+        memory_files = list(tmp_path.glob("memories_*.json"))
+        assert len(memory_files) >= 1  # At least one civ
+
+    def test_populates_action_distribution(self, tmp_path):
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Story.")
+        args = self._make_args(tmp_path, turns=5)
+        result = execute_run(args, sim_client=sim, narrative_client=narr)
+        assert len(result.action_distribution) > 0
+        for civ_name, actions in result.action_distribution.items():
+            assert isinstance(actions, dict)
+
+    def test_computes_max_stat_swing(self, tmp_path):
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Story.")
+        args = self._make_args(tmp_path, turns=3)
+        result = execute_run(args, sim_client=sim, narrative_client=narr)
+        assert isinstance(result.max_stat_swing, float)
+
+    def test_accepts_preloaded_world_and_memories(self, tmp_path):
+        """Fork/resume path: pass in existing world and memories."""
+        from chronicler.world_gen import generate_world
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Story.")
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        world.turn = 3  # Simulate mid-run state
+        memories = {c.name: MemoryStream(c.name) for c in world.civilizations}
+        args = self._make_args(tmp_path, turns=5)
+        result = execute_run(
+            args, sim_client=sim, narrative_client=narr,
+            world=world, memories=memories,
+        )
+        # Should only run turns 3-4 (2 turns), not 0-4
+        assert result.total_turns == 2
+
+    def test_counts_events_from_start_turn(self, tmp_path):
+        """Fork scenario: pre-fork events must NOT appear in RunResult counts."""
+        from chronicler.world_gen import generate_world
+        from chronicler.models import Event, Disposition, Relationship
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Peace reigned.")
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        world.turn = 3
+        # Inject 3 pre-fork war events that should be excluded from counts
+        for t in range(3):
+            world.events_timeline.append(Event(
+                turn=t, event_type="war", actors=[world.civilizations[0].name],
+                description=f"Old war {t}", importance=5,
+            ))
+        # Make all relationships ALLIED so no new wars happen
+        for src in world.relationships:
+            for dst in world.relationships[src]:
+                world.relationships[src][dst].disposition = Disposition.ALLIED
+        memories = {c.name: MemoryStream(c.name) for c in world.civilizations}
+        args = self._make_args(tmp_path, turns=5)
+        result = execute_run(
+            args, sim_client=sim, narrative_client=narr,
+            world=world, memories=memories,
+        )
+        # 3 pre-fork wars must be excluded; with ALLIED + DEVELOP, no new wars
+        assert result.war_count == 0
+
+
+class TestNewCLIFlags:
+    def test_batch_flag(self):
+        from chronicler.main import _build_parser
+        p = _build_parser()
+        args = p.parse_args(["--batch", "5"])
+        assert args.batch == 5
+
+    def test_parallel_flag_bare(self):
+        from chronicler.main import _build_parser
+        p = _build_parser()
+        args = p.parse_args(["--batch", "5", "--parallel"])
+        assert args.parallel == -1  # const value for bare --parallel
+
+    def test_parallel_flag_with_count(self):
+        from chronicler.main import _build_parser
+        p = _build_parser()
+        args = p.parse_args(["--batch", "5", "--parallel", "4"])
+        assert args.parallel == 4
+
+    def test_fork_flag(self):
+        from chronicler.main import _build_parser
+        p = _build_parser()
+        args = p.parse_args(["--fork", "output/state.json", "--seed", "999", "--turns", "50"])
+        assert args.fork == "output/state.json"
+
+    def test_interactive_flag(self):
+        from chronicler.main import _build_parser
+        p = _build_parser()
+        args = p.parse_args(["--interactive"])
+        assert args.interactive is True
+
+    def test_pause_every_flag(self):
+        from chronicler.main import _build_parser
+        p = _build_parser()
+        args = p.parse_args(["--interactive", "--pause-every", "5"])
+        assert args.pause_every == 5
+
+
+class TestMutualExclusions:
+    def test_parallel_and_llm_actions_rejected(self, capsys):
+        """--parallel and --llm-actions should error out."""
+        import sys
+        from chronicler.main import main
+        sys.argv = ["chronicler", "--batch", "3", "--parallel", "--llm-actions"]
+        with pytest.raises(SystemExit):
+            main()
+
+    def test_batch_and_fork_rejected(self, capsys):
+        import sys
+        from chronicler.main import main
+        sys.argv = ["chronicler", "--batch", "3", "--fork", "state.json"]
+        with pytest.raises(SystemExit):
+            main()
