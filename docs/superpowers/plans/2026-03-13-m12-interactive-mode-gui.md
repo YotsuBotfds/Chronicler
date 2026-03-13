@@ -813,6 +813,8 @@ def make_live_pause(
                     continue
 
                 value = int(value)
+                # TODO: When P1 stat scale migration lands (M13), update to 0-100
+                # range, or better: read constraints from the model's field validators.
                 if stat in core_stats and not (1 <= value <= 10):
                     status_queue.put({
                         "type": "error",
@@ -1095,7 +1097,14 @@ def _make_args(tmp_path, turns=5, pause_every=None):
 
 @pytest.fixture
 def live_env(tmp_path):
-    """Set up a LiveServer with a running simulation in a background thread."""
+    """Set up a LiveServer with a running simulation in a background thread.
+
+    NOTE: This is a bare server fixture — it pushes turn messages but does NOT
+    send an init message. The init message is handled by run_live() which
+    pre-generates the world and sends init on the first on_turn call.
+    These tests verify queue plumbing and protocol behavior, not the full
+    init-then-turns sequence (that's covered by the manual E2E smoke test).
+    """
     from chronicler.live import LiveServer, make_live_pause, run_live
 
     class Env:
@@ -1845,6 +1854,9 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
   useEffect(() => {
     let unmounted = false;
 
+    // No-op when wsUrl is empty (static mode — hook is always called per Rules of Hooks)
+    if (!wsUrl) return;
+
     function connect() {
       if (unmounted) return;
       const ws = new WebSocket(wsUrl);
@@ -2317,7 +2329,7 @@ export function InterventionPanel({
   }, [injectEvent, injectCiv]);
 
   const removePending = useCallback((id: string) => {
-    setPendingActions((prev) => prev.filter((a) => a.id !== id && a.status === "staged" ? a.id !== id : true));
+    setPendingActions((prev) => prev.filter((a) => a.status !== "staged" || a.id !== id));
   }, []);
 
   const handleContinue = useCallback(() => {
