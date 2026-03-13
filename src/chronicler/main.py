@@ -12,11 +12,12 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
+from chronicler.bundle import assemble_bundle, write_bundle
 from chronicler.chronicle import ChronicleEntry, compile_chronicle
 from chronicler.interestingness import find_boring_civs
 from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
-from chronicler.models import Event, WorldState
+from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
 from chronicler.narrative import NarrativeEngine
 from chronicler.simulation import apply_injected_event, run_turn
@@ -153,6 +154,7 @@ def execute_run(
     # Run simulation
     chronicle_entries: list[ChronicleEntry] = []
     era_reflections: dict[int, str] = {}
+    history: list[TurnSnapshot] = []
 
     remaining = num_turns - start_turn
     sim_model = getattr(_sim, "model", "unknown") or "LM Studio default"
@@ -194,6 +196,40 @@ def execute_run(
             narrator=engine.narrator,
             seed=seed + turn_num,
         )
+
+        # Capture per-turn snapshot for viewer bundle
+        snapshot = TurnSnapshot(
+            turn=world.turn,
+            civ_stats={
+                civ.name: CivSnapshot(
+                    population=civ.population,
+                    military=civ.military,
+                    economy=civ.economy,
+                    culture=civ.culture,
+                    stability=civ.stability,
+                    treasury=civ.treasury,
+                    asabiya=civ.asabiya,
+                    tech_era=civ.tech_era,
+                    trait=civ.leader.trait,
+                    regions=list(civ.regions),
+                    leader_name=civ.leader.name,
+                    alive=True,
+                )
+                for civ in world.civilizations
+            },
+            region_control={
+                region.name: region.controller
+                for region in world.regions
+            },
+            relationships={
+                civ_a: {
+                    civ_b: RelationshipSnapshot(disposition=rel.disposition.value)
+                    for civ_b, rel in inner.items()
+                }
+                for civ_a, inner in world.relationships.items()
+            },
+        )
+        history.append(snapshot)
 
         # Record chronicle entry
         chronicle_entries.append(ChronicleEntry(
@@ -354,6 +390,26 @@ def execute_run(
         total_turns=total_turns,
     )
     result.boring_civs = find_boring_civs(result)
+
+    # Write viewer bundle
+    from chronicler.interestingness import score_run
+    sim_model_name = getattr(_sim, "model", "unknown") or "unknown"
+    narr_model_name = getattr(_narr, "model", "unknown") or "unknown"
+    interestingness_weights = None
+    if scenario_config and hasattr(scenario_config, "interestingness_weights"):
+        interestingness_weights = scenario_config.interestingness_weights
+    bundle = assemble_bundle(
+        world=world,
+        history=history,
+        chronicle_entries=chronicle_entries,
+        era_reflections=era_reflections,
+        sim_model=sim_model_name,
+        narrative_model=narr_model_name,
+        interestingness_score=score_run(result, interestingness_weights),
+    )
+    bundle_path = output_path.parent / "chronicle_bundle.json"
+    write_bundle(bundle, bundle_path)
+    print(f"Viewer bundle written to {bundle_path}")
 
     return result
 

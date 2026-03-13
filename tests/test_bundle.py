@@ -1,4 +1,5 @@
 """Tests for snapshot models and bundle assembly."""
+import argparse
 import json
 import pytest
 from chronicler.models import (
@@ -221,3 +222,87 @@ class TestWriteBundle:
         path = tmp_path / "deep" / "nested" / "bundle.json"
         write_bundle({"test": True}, path)
         assert path.exists()
+
+
+class TestSnapshotCapture:
+    def _make_args(self, tmp_path, seed=42, turns=5):
+        return argparse.Namespace(
+            seed=seed,
+            turns=turns,
+            civs=2,
+            regions=5,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None,
+            reflection_interval=10,
+            llm_actions=False,
+            scenario=None,
+            pause_every=None,
+        )
+
+    def test_bundle_written_on_completion(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=5)
+        execute_run(args)
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        assert bundle_path.exists()
+
+    def test_bundle_contains_correct_history_length(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=5)
+        execute_run(args)
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        bundle = json.loads(bundle_path.read_text())
+        assert len(bundle["history"]) == 5
+
+    def test_bundle_history_has_all_civs(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=3)
+        execute_run(args)
+        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        for snapshot in bundle["history"]:
+            assert len(snapshot["civ_stats"]) == 2
+            for civ_data in snapshot["civ_stats"].values():
+                assert civ_data["alive"] is True
+
+    def test_bundle_history_has_relationships(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=3)
+        execute_run(args)
+        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        for snapshot in bundle["history"]:
+            assert "relationships" in snapshot
+            assert len(snapshot["relationships"]) > 0
+
+    def test_bundle_has_events_timeline(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=5)
+        execute_run(args)
+        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        assert "events_timeline" in bundle
+        assert isinstance(bundle["events_timeline"], list)
+
+    def test_bundle_has_named_events(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=5)
+        execute_run(args)
+        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        assert "named_events" in bundle
+        assert isinstance(bundle["named_events"], list)
+
+    def test_bundle_metadata_has_models(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=3)
+        execute_run(args)
+        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        meta = bundle["metadata"]
+        assert "sim_model" in meta
+        assert "narrative_model" in meta
+        assert "interestingness_score" in meta
+
+    def test_existing_outputs_unchanged(self, tmp_path):
+        from chronicler.main import execute_run
+        args = self._make_args(tmp_path, turns=3)
+        execute_run(args)
+        assert (tmp_path / "state.json").exists()
+        assert (tmp_path / "chronicle.md").exists()
