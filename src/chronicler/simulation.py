@@ -751,3 +751,12 @@ def run_turn(
     world.turn += 1
 
     return chronicle_text
+
+
+def get_injectable_event_types() -> list[str]:
+    """Return sorted list of event types that can be injected.
+
+    Single source of truth for both interactive.py and live.py.
+    """
+    from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES
+    return sorted(DEFAULT_EVENT_PROBABILITIES.keys())

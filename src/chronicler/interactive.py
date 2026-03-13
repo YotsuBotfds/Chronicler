@@ -9,10 +9,9 @@ from typing import Any
 from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.types import RunResult
-from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES
+from chronicler.simulation import get_injectable_event_types
 
-
-VALID_INJECTABLE_EVENTS = set(DEFAULT_EVENT_PROBABILITIES.keys())
+VALID_INJECTABLE_EVENTS = set(get_injectable_event_types())
 VALID_STATS = {"population", "military", "economy", "culture", "stability", "treasury"}
 CORE_STATS = {"population", "military", "economy", "culture", "stability"}
 
