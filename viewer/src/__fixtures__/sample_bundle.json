@@ -1,0 +1,3093 @@
+{
+  "world_state": {
+    "name": "Aetheris",
+    "seed": 42,
+    "turn": 10,
+    "regions": [
+      {
+        "name": "Frostholm Tundra",
+        "terrain": "tundra",
+        "carrying_capacity": 2,
+        "resources": "barren",
+        "controller": "Kethani Empire",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Iron Peaks",
+        "terrain": "mountains",
+        "carrying_capacity": 4,
+        "resources": "mineral",
+        "controller": "Thornwall Confederacy",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Verdant Plains",
+        "terrain": "plains",
+        "carrying_capacity": 8,
+        "resources": "fertile",
+        "controller": "Thornwall Confederacy",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Ashara Desert",
+        "terrain": "desert",
+        "carrying_capacity": 3,
+        "resources": "barren",
+        "controller": "Selurian Republic",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Thornwood",
+        "terrain": "forest",
+        "carrying_capacity": 5,
+        "resources": "timber",
+        "controller": "Selurian Republic",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Amber Valley",
+        "terrain": "plains",
+        "carrying_capacity": 7,
+        "resources": "fertile",
+        "controller": "Kethani Empire",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Stormbreak Cliffs",
+        "terrain": "mountains",
+        "carrying_capacity": 3,
+        "resources": "mineral",
+        "controller": "Kethani Empire",
+        "x": null,
+        "y": null
+      },
+      {
+        "name": "Obsidian Shore",
+        "terrain": "coast",
+        "carrying_capacity": 5,
+        "resources": "maritime",
+        "controller": "Ashkari Nomads",
+        "x": null,
+        "y": null
+      }
+    ],
+    "civilizations": [
+      {
+        "name": "Ashkari Nomads",
+        "population": 1,
+        "military": 2,
+        "economy": 4,
+        "culture": 4,
+        "stability": 1,
+        "tech_era": "bronze",
+        "treasury": 27,
+        "domains": [
+          "desert",
+          "adaptability"
+        ],
+        "values": [
+          "Freedom",
+          "Cunning"
+        ],
+        "leader": {
+          "name": "Chancellor Zhara",
+          "trait": "opportunistic",
+          "reign_start": 0,
+          "alive": true,
+          "succession_type": "founder",
+          "predecessor_name": null,
+          "rival_leader": "Warchief Seren",
+          "rival_civ": "Thornwall Confederacy",
+          "secondary_trait": null
+        },
+        "goal": "",
+        "regions": [
+          "Obsidian Shore"
+        ],
+        "asabiya": 0.3771,
+        "cultural_milestones": [],
+        "action_counts": {
+          "war": 2,
+          "diplomacy": 4,
+          "develop": 1,
+          "trade": 3
+        },
+        "leader_name_pool": null
+      },
+      {
+        "name": "Kethani Empire",
+        "population": 1,
+        "military": 4,
+        "economy": 5,
+        "culture": 4,
+        "stability": 1,
+        "tech_era": "tribal",
+        "treasury": 23,
+        "domains": [
+          "maritime",
+          "commerce"
+        ],
+        "values": [
+          "Trade",
+          "Order"
+        ],
+        "leader": {
+          "name": "Archon Ulveth",
+          "trait": "calculating",
+          "reign_start": 0,
+          "alive": true,
+          "succession_type": "founder",
+          "predecessor_name": null,
+          "rival_leader": null,
+          "rival_civ": null,
+          "secondary_trait": null
+        },
+        "goal": "",
+        "regions": [
+          "Amber Valley",
+          "Frostholm Tundra",
+          "Stormbreak Cliffs"
+        ],
+        "asabiya": 0.484,
+        "cultural_milestones": [],
+        "action_counts": {
+          "diplomacy": 6,
+          "war": 1,
+          "expand": 1,
+          "develop": 2
+        },
+        "leader_name_pool": null
+      },
+      {
+        "name": "Thornwall Confederacy",
+        "population": 1,
+        "military": 4,
+        "economy": 7,
+        "culture": 8,
+        "stability": 1,
+        "tech_era": "medieval",
+        "treasury": 9,
+        "domains": [
+          "forest",
+          "resilience"
+        ],
+        "values": [
+          "Tradition",
+          "Self-reliance"
+        ],
+        "leader": {
+          "name": "Warchief Seren",
+          "trait": "stubborn",
+          "reign_start": 0,
+          "alive": true,
+          "succession_type": "founder",
+          "predecessor_name": null,
+          "rival_leader": "Chancellor Zhara",
+          "rival_civ": "Ashkari Nomads",
+          "secondary_trait": null
+        },
+        "goal": "",
+        "regions": [
+          "Verdant Plains",
+          "Iron Peaks"
+        ],
+        "asabiya": 0.3922,
+        "cultural_milestones": [
+          "culture_8"
+        ],
+        "action_counts": {
+          "diplomacy": 3,
+          "expand": 1,
+          "trade": 5,
+          "develop": 1
+        },
+        "leader_name_pool": null
+      },
+      {
+        "name": "Selurian Republic",
+        "population": 1,
+        "military": 5,
+        "economy": 7,
+        "culture": 7,
+        "stability": 2,
+        "tech_era": "classical",
+        "treasury": 3,
+        "domains": [
+          "scholarship",
+          "diplomacy"
+        ],
+        "values": [
+          "Knowledge",
+          "Liberty"
+        ],
+        "leader": {
+          "name": "Tribune Garrison",
+          "trait": "cautious",
+          "reign_start": 4,
+          "alive": true,
+          "succession_type": "heir",
+          "predecessor_name": "Khan Aelindra",
+          "rival_leader": null,
+          "rival_civ": null,
+          "secondary_trait": null
+        },
+        "goal": "",
+        "regions": [
+          "Thornwood",
+          "Ashara Desert"
+        ],
+        "asabiya": 0.4167,
+        "cultural_milestones": [],
+        "action_counts": {
+          "diplomacy": 2,
+          "develop": 2,
+          "trade": 1
+        },
+        "leader_name_pool": null
+      }
+    ],
+    "relationships": {
+      "Ashkari Nomads": {
+        "Kethani Empire": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 3
+        },
+        "Thornwall Confederacy": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 5
+        },
+        "Selurian Republic": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 1
+        }
+      },
+      "Kethani Empire": {
+        "Ashkari Nomads": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 3
+        },
+        "Thornwall Confederacy": {
+          "disposition": "friendly",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 0
+        },
+        "Selurian Republic": {
+          "disposition": "friendly",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 0
+        }
+      },
+      "Thornwall Confederacy": {
+        "Ashkari Nomads": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 5
+        },
+        "Kethani Empire": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 0
+        },
+        "Selurian Republic": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 0
+        }
+      },
+      "Selurian Republic": {
+        "Ashkari Nomads": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 1
+        },
+        "Kethani Empire": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 0
+        },
+        "Thornwall Confederacy": {
+          "disposition": "allied",
+          "treaties": [],
+          "grievances": [],
+          "trade_volume": 0
+        }
+      }
+    },
+    "historical_figures": [],
+    "events_timeline": [
+      {
+        "turn": 0,
+        "event_type": "plague",
+        "actors": [
+          "Ashkari Nomads",
+          "Kethani Empire"
+        ],
+        "description": "",
+        "consequences": [],
+        "importance": 5
+      },
+      {
+        "turn": 0,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy advances to the bronze era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 0,
+        "event_type": "war",
+        "actors": [
+          "Ashkari Nomads",
+          "Thornwall Confederacy"
+        ],
+        "description": "Ashkari Nomads attacked Thornwall Confederacy: defender_wins.",
+        "consequences": [],
+        "importance": 8
+      },
+      {
+        "turn": 0,
+        "event_type": "diplomacy",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "Kethani Empire attempted diplomacy without success.",
+        "consequences": [],
+        "importance": 2
+      },
+      {
+        "turn": 0,
+        "event_type": "diplomacy",
+        "actors": [
+          "Thornwall Confederacy",
+          "Selurian Republic"
+        ],
+        "description": "Thornwall Confederacy improved relations with Selurian Republic.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 0,
+        "event_type": "diplomacy",
+        "actors": [
+          "Selurian Republic",
+          "Ashkari Nomads"
+        ],
+        "description": "Selurian Republic improved relations with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 1,
+        "event_type": "war",
+        "actors": [
+          "Ashkari Nomads",
+          "Thornwall Confederacy"
+        ],
+        "description": "Ashkari Nomads attacked Thornwall Confederacy: defender_wins.",
+        "consequences": [],
+        "importance": 8
+      },
+      {
+        "turn": 1,
+        "event_type": "war",
+        "actors": [
+          "Kethani Empire",
+          "Thornwall Confederacy"
+        ],
+        "description": "Kethani Empire attacked Thornwall Confederacy: stalemate.",
+        "consequences": [],
+        "importance": 8
+      },
+      {
+        "turn": 1,
+        "event_type": "diplomacy",
+        "actors": [
+          "Thornwall Confederacy",
+          "Ashkari Nomads"
+        ],
+        "description": "Thornwall Confederacy improved relations with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 1,
+        "event_type": "develop",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic invested in economy.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 2,
+        "event_type": "plague",
+        "actors": [
+          "Thornwall Confederacy",
+          "Kethani Empire"
+        ],
+        "description": "",
+        "consequences": [],
+        "importance": 5
+      },
+      {
+        "turn": 2,
+        "event_type": "diplomacy",
+        "actors": [
+          "Ashkari Nomads",
+          "Kethani Empire"
+        ],
+        "description": "Ashkari Nomads improved relations with Kethani Empire.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 2,
+        "event_type": "diplomacy",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "Kethani Empire attempted diplomacy without success.",
+        "consequences": [],
+        "importance": 2
+      },
+      {
+        "turn": 2,
+        "event_type": "expand",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy expanded into Iron Peaks.",
+        "consequences": [],
+        "importance": 6
+      },
+      {
+        "turn": 2,
+        "event_type": "diplomacy",
+        "actors": [
+          "Selurian Republic",
+          "Ashkari Nomads"
+        ],
+        "description": "Selurian Republic improved relations with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 2,
+        "event_type": "migration",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "",
+        "consequences": [],
+        "importance": 5
+      },
+      {
+        "turn": 3,
+        "event_type": "diplomacy",
+        "actors": [
+          "Ashkari Nomads",
+          "Thornwall Confederacy"
+        ],
+        "description": "Ashkari Nomads improved relations with Thornwall Confederacy.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 3,
+        "event_type": "expand",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "Kethani Empire expanded into Stormbreak Cliffs.",
+        "consequences": [],
+        "importance": 6
+      },
+      {
+        "turn": 3,
+        "event_type": "diplomacy",
+        "actors": [
+          "Thornwall Confederacy",
+          "Kethani Empire"
+        ],
+        "description": "Thornwall Confederacy improved relations with Kethani Empire.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 3,
+        "event_type": "develop",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic invested in culture.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 4,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy advances to the iron era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 4,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic advances to the bronze era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 4,
+        "event_type": "develop",
+        "actors": [
+          "Ashkari Nomads"
+        ],
+        "description": "Ashkari Nomads invested in culture.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 4,
+        "event_type": "diplomacy",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "Kethani Empire attempted diplomacy without success.",
+        "consequences": [],
+        "importance": 2
+      },
+      {
+        "turn": 4,
+        "event_type": "trade",
+        "actors": [
+          "Thornwall Confederacy",
+          "Ashkari Nomads"
+        ],
+        "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 4,
+        "event_type": "diplomacy",
+        "actors": [
+          "Selurian Republic",
+          "Thornwall Confederacy"
+        ],
+        "description": "Selurian Republic improved relations with Thornwall Confederacy.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 4,
+        "event_type": "leader_death",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "",
+        "consequences": [],
+        "importance": 5
+      },
+      {
+        "turn": 5,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Ashkari Nomads"
+        ],
+        "description": "Ashkari Nomads advances to the bronze era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 5,
+        "event_type": "diplomacy",
+        "actors": [
+          "Ashkari Nomads",
+          "Kethani Empire"
+        ],
+        "description": "Ashkari Nomads improved relations with Kethani Empire.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 5,
+        "event_type": "develop",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "Kethani Empire invested in culture.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 5,
+        "event_type": "develop",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy invested in economy.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 5,
+        "event_type": "diplomacy",
+        "actors": [
+          "Selurian Republic",
+          "Ashkari Nomads"
+        ],
+        "description": "Selurian Republic improved relations with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 6,
+        "event_type": "diplomacy",
+        "actors": [
+          "Ashkari Nomads",
+          "Thornwall Confederacy"
+        ],
+        "description": "Ashkari Nomads improved relations with Thornwall Confederacy.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 6,
+        "event_type": "diplomacy",
+        "actors": [
+          "Kethani Empire",
+          "Selurian Republic"
+        ],
+        "description": "Kethani Empire improved relations with Selurian Republic.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 6,
+        "event_type": "trade",
+        "actors": [
+          "Thornwall Confederacy",
+          "Ashkari Nomads"
+        ],
+        "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 6,
+        "event_type": "diplomacy",
+        "actors": [
+          "Selurian Republic",
+          "Thornwall Confederacy"
+        ],
+        "description": "Selurian Republic improved relations with Thornwall Confederacy.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 7,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy advances to the classical era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 7,
+        "event_type": "trade",
+        "actors": [
+          "Ashkari Nomads",
+          "Kethani Empire"
+        ],
+        "description": "Ashkari Nomads traded with Kethani Empire.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 7,
+        "event_type": "diplomacy",
+        "actors": [
+          "Kethani Empire",
+          "Thornwall Confederacy"
+        ],
+        "description": "Kethani Empire improved relations with Thornwall Confederacy.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 7,
+        "event_type": "trade",
+        "actors": [
+          "Thornwall Confederacy",
+          "Ashkari Nomads"
+        ],
+        "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 7,
+        "event_type": "develop",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic invested in economy.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 7,
+        "event_type": "cultural_work",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy produces a cultural masterwork",
+        "consequences": [],
+        "importance": 6
+      },
+      {
+        "turn": 7,
+        "event_type": "discovery",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "",
+        "consequences": [],
+        "importance": 5
+      },
+      {
+        "turn": 8,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic advances to the iron era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 8,
+        "event_type": "trade",
+        "actors": [
+          "Ashkari Nomads",
+          "Kethani Empire"
+        ],
+        "description": "Ashkari Nomads traded with Kethani Empire.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 8,
+        "event_type": "diplomacy",
+        "actors": [
+          "Kethani Empire",
+          "Selurian Republic"
+        ],
+        "description": "Kethani Empire improved relations with Selurian Republic.",
+        "consequences": [],
+        "importance": 4
+      },
+      {
+        "turn": 8,
+        "event_type": "trade",
+        "actors": [
+          "Thornwall Confederacy",
+          "Ashkari Nomads"
+        ],
+        "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 8,
+        "event_type": "develop",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic invested in culture.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 9,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "description": "Thornwall Confederacy advances to the medieval era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 9,
+        "event_type": "tech_advancement",
+        "actors": [
+          "Selurian Republic"
+        ],
+        "description": "Selurian Republic advances to the classical era",
+        "consequences": [],
+        "importance": 7
+      },
+      {
+        "turn": 9,
+        "event_type": "trade",
+        "actors": [
+          "Ashkari Nomads",
+          "Kethani Empire"
+        ],
+        "description": "Ashkari Nomads traded with Kethani Empire.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 9,
+        "event_type": "develop",
+        "actors": [
+          "Kethani Empire"
+        ],
+        "description": "Kethani Empire invested in culture.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 9,
+        "event_type": "trade",
+        "actors": [
+          "Thornwall Confederacy",
+          "Ashkari Nomads"
+        ],
+        "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 3
+      },
+      {
+        "turn": 9,
+        "event_type": "trade",
+        "actors": [
+          "Selurian Republic",
+          "Ashkari Nomads"
+        ],
+        "description": "Selurian Republic traded with Ashkari Nomads.",
+        "consequences": [],
+        "importance": 3
+      }
+    ],
+    "active_conditions": [],
+    "event_probabilities": {
+      "drought": 0.05,
+      "plague": 0.03,
+      "earthquake": 0.02,
+      "religious_movement": 0.04,
+      "discovery": 0.06,
+      "leader_death": 0.07,
+      "rebellion": 0.15999999999999998,
+      "migration": 0.11,
+      "cultural_renaissance": 0.04,
+      "border_incident": 0.16
+    },
+    "named_events": [
+      {
+        "name": "The Forging of Bronze",
+        "event_type": "tech_breakthrough",
+        "turn": 0,
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "region": null,
+        "description": "Thornwall Confederacy advances to the bronze era",
+        "importance": 7
+      },
+      {
+        "name": "The Raid on Verdant Plains",
+        "event_type": "battle",
+        "turn": 0,
+        "actors": [
+          "Ashkari Nomads",
+          "Thornwall Confederacy"
+        ],
+        "region": "Verdant Plains",
+        "description": "Ashkari Nomads vs Thornwall Confederacy: defender_wins",
+        "importance": 7
+      },
+      {
+        "name": "The Second Raid on Verdant Plains",
+        "event_type": "battle",
+        "turn": 1,
+        "actors": [
+          "Ashkari Nomads",
+          "Thornwall Confederacy"
+        ],
+        "region": "Verdant Plains",
+        "description": "Ashkari Nomads vs Thornwall Confederacy: defender_wins",
+        "importance": 7
+      },
+      {
+        "name": "The Mastery of Iron",
+        "event_type": "tech_breakthrough",
+        "turn": 4,
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "region": null,
+        "description": "Thornwall Confederacy advances to the iron era",
+        "importance": 7
+      },
+      {
+        "name": "The Forging of Bronze",
+        "event_type": "tech_breakthrough",
+        "turn": 4,
+        "actors": [
+          "Selurian Republic"
+        ],
+        "region": null,
+        "description": "Selurian Republic advances to the bronze era",
+        "importance": 7
+      },
+      {
+        "name": "The Forging of Bronze",
+        "event_type": "tech_breakthrough",
+        "turn": 5,
+        "actors": [
+          "Ashkari Nomads"
+        ],
+        "region": null,
+        "description": "Ashkari Nomads advances to the bronze era",
+        "importance": 7
+      },
+      {
+        "name": "The Codification of Law",
+        "event_type": "tech_breakthrough",
+        "turn": 7,
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "region": null,
+        "description": "Thornwall Confederacy advances to the classical era",
+        "importance": 7
+      },
+      {
+        "name": "The Cathedral of Thornwall Valor",
+        "event_type": "cultural_work",
+        "turn": 7,
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "region": null,
+        "description": "Thornwall Confederacy produces a cultural masterwork",
+        "importance": 6
+      },
+      {
+        "name": "The Mastery of Iron",
+        "event_type": "tech_breakthrough",
+        "turn": 8,
+        "actors": [
+          "Selurian Republic"
+        ],
+        "region": null,
+        "description": "Selurian Republic advances to the iron era",
+        "importance": 7
+      },
+      {
+        "name": "The Age of Fortification",
+        "event_type": "tech_breakthrough",
+        "turn": 9,
+        "actors": [
+          "Thornwall Confederacy"
+        ],
+        "region": null,
+        "description": "Thornwall Confederacy advances to the medieval era",
+        "importance": 7
+      },
+      {
+        "name": "The Codification of Law",
+        "event_type": "tech_breakthrough",
+        "turn": 9,
+        "actors": [
+          "Selurian Republic"
+        ],
+        "region": null,
+        "description": "Selurian Republic advances to the classical era",
+        "importance": 7
+      }
+    ],
+    "used_leader_names": [
+      "Chancellor Zhara",
+      "Archon Ulveth",
+      "Warchief Seren",
+      "Khan Aelindra",
+      "Tribune Garrison"
+    ],
+    "action_history": {
+      "Ashkari Nomads": [
+        "diplomacy",
+        "diplomacy",
+        "trade",
+        "trade",
+        "trade"
+      ],
+      "Kethani Empire": [
+        "develop",
+        "diplomacy",
+        "diplomacy",
+        "diplomacy",
+        "develop"
+      ],
+      "Thornwall Confederacy": [
+        "develop",
+        "trade",
+        "trade",
+        "trade",
+        "trade"
+      ],
+      "Selurian Republic": [
+        "diplomacy",
+        "diplomacy",
+        "develop",
+        "develop",
+        "trade"
+      ]
+    },
+    "scenario_name": null
+  },
+  "history": [
+    {
+      "turn": 1,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 4,
+          "military": 2,
+          "economy": 4,
+          "culture": 3,
+          "stability": 3,
+          "treasury": 3,
+          "asabiya": 0.4523,
+          "tech_era": "tribal",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 5,
+          "military": 6,
+          "economy": 5,
+          "culture": 2,
+          "stability": 5,
+          "treasury": 13,
+          "asabiya": 0.4624,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 4,
+          "military": 6,
+          "economy": 5,
+          "culture": 7,
+          "stability": 6,
+          "treasury": 4,
+          "asabiya": 0.4704,
+          "tech_era": "bronze",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 4,
+          "military": 4,
+          "economy": 3,
+          "culture": 3,
+          "stability": 4,
+          "treasury": 12,
+          "asabiya": 0.4998,
+          "tech_era": "tribal",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Khan Aelindra",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": null,
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": null,
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "neutral"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "suspicious"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "neutral"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "suspicious"
+          },
+          "Selurian Republic": {
+            "disposition": "suspicious"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "friendly"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "neutral"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          }
+        }
+      }
+    },
+    {
+      "turn": 2,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 4,
+          "military": 1,
+          "economy": 4,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 3,
+          "asabiya": 0.4433,
+          "tech_era": "tribal",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 5,
+          "military": 5,
+          "economy": 5,
+          "culture": 2,
+          "stability": 4,
+          "treasury": 13,
+          "asabiya": 0.4748,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 5,
+          "military": 4,
+          "economy": 5,
+          "culture": 7,
+          "stability": 6,
+          "treasury": 5,
+          "asabiya": 0.461,
+          "tech_era": "bronze",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 4,
+          "military": 4,
+          "economy": 4,
+          "culture": 3,
+          "stability": 4,
+          "treasury": 12,
+          "asabiya": 0.4898,
+          "tech_era": "tribal",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Khan Aelindra",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": null,
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": null,
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "neutral"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "neutral"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "suspicious"
+          },
+          "Selurian Republic": {
+            "disposition": "suspicious"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "friendly"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "neutral"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          }
+        }
+      }
+    },
+    {
+      "turn": 3,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 3,
+          "military": 1,
+          "economy": 4,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 6,
+          "asabiya": 0.4344,
+          "tech_era": "tribal",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 5,
+          "military": 5,
+          "economy": 5,
+          "culture": 2,
+          "stability": 1,
+          "treasury": 14,
+          "asabiya": 0.4873,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 5,
+          "military": 3,
+          "economy": 5,
+          "culture": 7,
+          "stability": 4,
+          "treasury": 7,
+          "asabiya": 0.4518,
+          "tech_era": "bronze",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 4,
+          "military": 4,
+          "economy": 4,
+          "culture": 3,
+          "stability": 4,
+          "treasury": 16,
+          "asabiya": 0.48,
+          "tech_era": "tribal",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Khan Aelindra",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": null,
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "suspicious"
+          },
+          "Selurian Republic": {
+            "disposition": "suspicious"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "friendly"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          }
+        }
+      }
+    },
+    {
+      "turn": 4,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 2,
+          "military": 1,
+          "economy": 4,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 9,
+          "asabiya": 0.4257,
+          "tech_era": "tribal",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 4,
+          "military": 4,
+          "economy": 5,
+          "culture": 2,
+          "stability": 1,
+          "treasury": 15,
+          "asabiya": 0.4998,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 5,
+          "military": 3,
+          "economy": 5,
+          "culture": 7,
+          "stability": 3,
+          "treasury": 11,
+          "asabiya": 0.4428,
+          "tech_era": "bronze",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 4,
+          "military": 4,
+          "economy": 4,
+          "culture": 4,
+          "stability": 4,
+          "treasury": 17,
+          "asabiya": 0.4704,
+          "tech_era": "tribal",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Khan Aelindra",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          },
+          "Selurian Republic": {
+            "disposition": "suspicious"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "friendly"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          }
+        }
+      }
+    },
+    {
+      "turn": 5,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 1,
+          "military": 1,
+          "economy": 4,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 13,
+          "asabiya": 0.4172,
+          "tech_era": "tribal",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 3,
+          "military": 4,
+          "economy": 5,
+          "culture": 2,
+          "stability": 1,
+          "treasury": 19,
+          "asabiya": 0.5123,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 5,
+          "military": 3,
+          "economy": 6,
+          "culture": 7,
+          "stability": 2,
+          "treasury": 4,
+          "asabiya": 0.4339,
+          "tech_era": "iron",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 4,
+          "military": 5,
+          "economy": 4,
+          "culture": 4,
+          "stability": 2,
+          "treasury": 11,
+          "asabiya": 0.461,
+          "tech_era": "bronze",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Tribune Garrison",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          },
+          "Selurian Republic": {
+            "disposition": "suspicious"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "friendly"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          }
+        }
+      }
+    },
+    {
+      "turn": 6,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 1,
+          "military": 2,
+          "economy": 4,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 8,
+          "asabiya": 0.4089,
+          "tech_era": "bronze",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 2,
+          "military": 4,
+          "economy": 5,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 20,
+          "asabiya": 0.5248,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 4,
+          "military": 3,
+          "economy": 7,
+          "culture": 7,
+          "stability": 1,
+          "treasury": 6,
+          "asabiya": 0.4252,
+          "tech_era": "iron",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 3,
+          "military": 5,
+          "economy": 4,
+          "culture": 4,
+          "stability": 2,
+          "treasury": 15,
+          "asabiya": 0.4518,
+          "tech_era": "bronze",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Tribune Garrison",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          },
+          "Selurian Republic": {
+            "disposition": "suspicious"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "friendly"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          }
+        }
+      }
+    },
+    {
+      "turn": 7,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 1,
+          "military": 2,
+          "economy": 4,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 14,
+          "asabiya": 0.4007,
+          "tech_era": "bronze",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 1,
+          "military": 4,
+          "economy": 5,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 25,
+          "asabiya": 0.5143,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 3,
+          "military": 3,
+          "economy": 7,
+          "culture": 7,
+          "stability": 1,
+          "treasury": 15,
+          "asabiya": 0.4167,
+          "tech_era": "iron",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 2,
+          "military": 5,
+          "economy": 4,
+          "culture": 4,
+          "stability": 2,
+          "treasury": 19,
+          "asabiya": 0.4428,
+          "tech_era": "bronze",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Tribune Garrison",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "neutral"
+          },
+          "Selurian Republic": {
+            "disposition": "neutral"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          }
+        }
+      }
+    },
+    {
+      "turn": 8,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 1,
+          "military": 2,
+          "economy": 4,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 21,
+          "asabiya": 0.3927,
+          "tech_era": "bronze",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 1,
+          "military": 4,
+          "economy": 5,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 26,
+          "asabiya": 0.504,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 2,
+          "military": 3,
+          "economy": 7,
+          "culture": 8,
+          "stability": 1,
+          "treasury": 9,
+          "asabiya": 0.4084,
+          "tech_era": "classical",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 1,
+          "military": 5,
+          "economy": 6,
+          "culture": 5,
+          "stability": 2,
+          "treasury": 19,
+          "asabiya": 0.4339,
+          "tech_era": "bronze",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Tribune Garrison",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "neutral"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          }
+        }
+      }
+    },
+    {
+      "turn": 9,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 1,
+          "military": 2,
+          "economy": 4,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 25,
+          "asabiya": 0.3848,
+          "tech_era": "bronze",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 1,
+          "military": 4,
+          "economy": 5,
+          "culture": 3,
+          "stability": 1,
+          "treasury": 26,
+          "asabiya": 0.4939,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 1,
+          "military": 3,
+          "economy": 7,
+          "culture": 8,
+          "stability": 1,
+          "treasury": 18,
+          "asabiya": 0.4002,
+          "tech_era": "classical",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 1,
+          "military": 5,
+          "economy": 7,
+          "culture": 6,
+          "stability": 2,
+          "treasury": 10,
+          "asabiya": 0.4252,
+          "tech_era": "iron",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Tribune Garrison",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "friendly"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          }
+        }
+      }
+    },
+    {
+      "turn": 10,
+      "civ_stats": {
+        "Ashkari Nomads": {
+          "population": 1,
+          "military": 2,
+          "economy": 4,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 27,
+          "asabiya": 0.3771,
+          "tech_era": "bronze",
+          "trait": "opportunistic",
+          "regions": [
+            "Obsidian Shore"
+          ],
+          "leader_name": "Chancellor Zhara",
+          "alive": true
+        },
+        "Kethani Empire": {
+          "population": 1,
+          "military": 4,
+          "economy": 5,
+          "culture": 4,
+          "stability": 1,
+          "treasury": 23,
+          "asabiya": 0.484,
+          "tech_era": "tribal",
+          "trait": "calculating",
+          "regions": [
+            "Amber Valley",
+            "Frostholm Tundra",
+            "Stormbreak Cliffs"
+          ],
+          "leader_name": "Archon Ulveth",
+          "alive": true
+        },
+        "Thornwall Confederacy": {
+          "population": 1,
+          "military": 4,
+          "economy": 7,
+          "culture": 8,
+          "stability": 1,
+          "treasury": 9,
+          "asabiya": 0.3922,
+          "tech_era": "medieval",
+          "trait": "stubborn",
+          "regions": [
+            "Verdant Plains",
+            "Iron Peaks"
+          ],
+          "leader_name": "Warchief Seren",
+          "alive": true
+        },
+        "Selurian Republic": {
+          "population": 1,
+          "military": 5,
+          "economy": 7,
+          "culture": 7,
+          "stability": 2,
+          "treasury": 3,
+          "asabiya": 0.4167,
+          "tech_era": "classical",
+          "trait": "cautious",
+          "regions": [
+            "Thornwood",
+            "Ashara Desert"
+          ],
+          "leader_name": "Tribune Garrison",
+          "alive": true
+        }
+      },
+      "region_control": {
+        "Frostholm Tundra": "Kethani Empire",
+        "Iron Peaks": "Thornwall Confederacy",
+        "Verdant Plains": "Thornwall Confederacy",
+        "Ashara Desert": "Selurian Republic",
+        "Thornwood": "Selurian Republic",
+        "Amber Valley": "Kethani Empire",
+        "Stormbreak Cliffs": "Kethani Empire",
+        "Obsidian Shore": "Ashkari Nomads"
+      },
+      "relationships": {
+        "Ashkari Nomads": {
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Kethani Empire": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "friendly"
+          },
+          "Selurian Republic": {
+            "disposition": "friendly"
+          }
+        },
+        "Thornwall Confederacy": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Selurian Republic": {
+            "disposition": "allied"
+          }
+        },
+        "Selurian Republic": {
+          "Ashkari Nomads": {
+            "disposition": "allied"
+          },
+          "Kethani Empire": {
+            "disposition": "allied"
+          },
+          "Thornwall Confederacy": {
+            "disposition": "allied"
+          }
+        }
+      }
+    }
+  ],
+  "events_timeline": [
+    {
+      "turn": 0,
+      "event_type": "plague",
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "description": "",
+      "consequences": [],
+      "importance": 5
+    },
+    {
+      "turn": 0,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy advances to the bronze era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 0,
+      "event_type": "war",
+      "actors": [
+        "Ashkari Nomads",
+        "Thornwall Confederacy"
+      ],
+      "description": "Ashkari Nomads attacked Thornwall Confederacy: defender_wins.",
+      "consequences": [],
+      "importance": 8
+    },
+    {
+      "turn": 0,
+      "event_type": "diplomacy",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "Kethani Empire attempted diplomacy without success.",
+      "consequences": [],
+      "importance": 2
+    },
+    {
+      "turn": 0,
+      "event_type": "diplomacy",
+      "actors": [
+        "Thornwall Confederacy",
+        "Selurian Republic"
+      ],
+      "description": "Thornwall Confederacy improved relations with Selurian Republic.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 0,
+      "event_type": "diplomacy",
+      "actors": [
+        "Selurian Republic",
+        "Ashkari Nomads"
+      ],
+      "description": "Selurian Republic improved relations with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 1,
+      "event_type": "war",
+      "actors": [
+        "Ashkari Nomads",
+        "Thornwall Confederacy"
+      ],
+      "description": "Ashkari Nomads attacked Thornwall Confederacy: defender_wins.",
+      "consequences": [],
+      "importance": 8
+    },
+    {
+      "turn": 1,
+      "event_type": "war",
+      "actors": [
+        "Kethani Empire",
+        "Thornwall Confederacy"
+      ],
+      "description": "Kethani Empire attacked Thornwall Confederacy: stalemate.",
+      "consequences": [],
+      "importance": 8
+    },
+    {
+      "turn": 1,
+      "event_type": "diplomacy",
+      "actors": [
+        "Thornwall Confederacy",
+        "Ashkari Nomads"
+      ],
+      "description": "Thornwall Confederacy improved relations with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 1,
+      "event_type": "develop",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic invested in economy.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 2,
+      "event_type": "plague",
+      "actors": [
+        "Thornwall Confederacy",
+        "Kethani Empire"
+      ],
+      "description": "",
+      "consequences": [],
+      "importance": 5
+    },
+    {
+      "turn": 2,
+      "event_type": "diplomacy",
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "description": "Ashkari Nomads improved relations with Kethani Empire.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 2,
+      "event_type": "diplomacy",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "Kethani Empire attempted diplomacy without success.",
+      "consequences": [],
+      "importance": 2
+    },
+    {
+      "turn": 2,
+      "event_type": "expand",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy expanded into Iron Peaks.",
+      "consequences": [],
+      "importance": 6
+    },
+    {
+      "turn": 2,
+      "event_type": "diplomacy",
+      "actors": [
+        "Selurian Republic",
+        "Ashkari Nomads"
+      ],
+      "description": "Selurian Republic improved relations with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 2,
+      "event_type": "migration",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "",
+      "consequences": [],
+      "importance": 5
+    },
+    {
+      "turn": 3,
+      "event_type": "diplomacy",
+      "actors": [
+        "Ashkari Nomads",
+        "Thornwall Confederacy"
+      ],
+      "description": "Ashkari Nomads improved relations with Thornwall Confederacy.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 3,
+      "event_type": "expand",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "Kethani Empire expanded into Stormbreak Cliffs.",
+      "consequences": [],
+      "importance": 6
+    },
+    {
+      "turn": 3,
+      "event_type": "diplomacy",
+      "actors": [
+        "Thornwall Confederacy",
+        "Kethani Empire"
+      ],
+      "description": "Thornwall Confederacy improved relations with Kethani Empire.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 3,
+      "event_type": "develop",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic invested in culture.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 4,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy advances to the iron era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 4,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic advances to the bronze era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 4,
+      "event_type": "develop",
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "description": "Ashkari Nomads invested in culture.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 4,
+      "event_type": "diplomacy",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "Kethani Empire attempted diplomacy without success.",
+      "consequences": [],
+      "importance": 2
+    },
+    {
+      "turn": 4,
+      "event_type": "trade",
+      "actors": [
+        "Thornwall Confederacy",
+        "Ashkari Nomads"
+      ],
+      "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 4,
+      "event_type": "diplomacy",
+      "actors": [
+        "Selurian Republic",
+        "Thornwall Confederacy"
+      ],
+      "description": "Selurian Republic improved relations with Thornwall Confederacy.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 4,
+      "event_type": "leader_death",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "",
+      "consequences": [],
+      "importance": 5
+    },
+    {
+      "turn": 5,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "description": "Ashkari Nomads advances to the bronze era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 5,
+      "event_type": "diplomacy",
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "description": "Ashkari Nomads improved relations with Kethani Empire.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 5,
+      "event_type": "develop",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "Kethani Empire invested in culture.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 5,
+      "event_type": "develop",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy invested in economy.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 5,
+      "event_type": "diplomacy",
+      "actors": [
+        "Selurian Republic",
+        "Ashkari Nomads"
+      ],
+      "description": "Selurian Republic improved relations with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 6,
+      "event_type": "diplomacy",
+      "actors": [
+        "Ashkari Nomads",
+        "Thornwall Confederacy"
+      ],
+      "description": "Ashkari Nomads improved relations with Thornwall Confederacy.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 6,
+      "event_type": "diplomacy",
+      "actors": [
+        "Kethani Empire",
+        "Selurian Republic"
+      ],
+      "description": "Kethani Empire improved relations with Selurian Republic.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 6,
+      "event_type": "trade",
+      "actors": [
+        "Thornwall Confederacy",
+        "Ashkari Nomads"
+      ],
+      "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 6,
+      "event_type": "diplomacy",
+      "actors": [
+        "Selurian Republic",
+        "Thornwall Confederacy"
+      ],
+      "description": "Selurian Republic improved relations with Thornwall Confederacy.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 7,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy advances to the classical era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 7,
+      "event_type": "trade",
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "description": "Ashkari Nomads traded with Kethani Empire.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 7,
+      "event_type": "diplomacy",
+      "actors": [
+        "Kethani Empire",
+        "Thornwall Confederacy"
+      ],
+      "description": "Kethani Empire improved relations with Thornwall Confederacy.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 7,
+      "event_type": "trade",
+      "actors": [
+        "Thornwall Confederacy",
+        "Ashkari Nomads"
+      ],
+      "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 7,
+      "event_type": "develop",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic invested in economy.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 7,
+      "event_type": "cultural_work",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy produces a cultural masterwork",
+      "consequences": [],
+      "importance": 6
+    },
+    {
+      "turn": 7,
+      "event_type": "discovery",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "",
+      "consequences": [],
+      "importance": 5
+    },
+    {
+      "turn": 8,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic advances to the iron era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 8,
+      "event_type": "trade",
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "description": "Ashkari Nomads traded with Kethani Empire.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 8,
+      "event_type": "diplomacy",
+      "actors": [
+        "Kethani Empire",
+        "Selurian Republic"
+      ],
+      "description": "Kethani Empire improved relations with Selurian Republic.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 8,
+      "event_type": "trade",
+      "actors": [
+        "Thornwall Confederacy",
+        "Ashkari Nomads"
+      ],
+      "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 8,
+      "event_type": "develop",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic invested in culture.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 9,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "description": "Thornwall Confederacy advances to the medieval era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 9,
+      "event_type": "tech_advancement",
+      "actors": [
+        "Selurian Republic"
+      ],
+      "description": "Selurian Republic advances to the classical era",
+      "consequences": [],
+      "importance": 7
+    },
+    {
+      "turn": 9,
+      "event_type": "trade",
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "description": "Ashkari Nomads traded with Kethani Empire.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 9,
+      "event_type": "develop",
+      "actors": [
+        "Kethani Empire"
+      ],
+      "description": "Kethani Empire invested in culture.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 9,
+      "event_type": "trade",
+      "actors": [
+        "Thornwall Confederacy",
+        "Ashkari Nomads"
+      ],
+      "description": "Thornwall Confederacy traded with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 3
+    },
+    {
+      "turn": 9,
+      "event_type": "trade",
+      "actors": [
+        "Selurian Republic",
+        "Ashkari Nomads"
+      ],
+      "description": "Selurian Republic traded with Ashkari Nomads.",
+      "consequences": [],
+      "importance": 3
+    }
+  ],
+  "named_events": [
+    {
+      "name": "The Forging of Bronze",
+      "event_type": "tech_breakthrough",
+      "turn": 0,
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "region": null,
+      "description": "Thornwall Confederacy advances to the bronze era",
+      "importance": 7
+    },
+    {
+      "name": "The Raid on Verdant Plains",
+      "event_type": "battle",
+      "turn": 0,
+      "actors": [
+        "Ashkari Nomads",
+        "Thornwall Confederacy"
+      ],
+      "region": "Verdant Plains",
+      "description": "Ashkari Nomads vs Thornwall Confederacy: defender_wins",
+      "importance": 7
+    },
+    {
+      "name": "The Second Raid on Verdant Plains",
+      "event_type": "battle",
+      "turn": 1,
+      "actors": [
+        "Ashkari Nomads",
+        "Thornwall Confederacy"
+      ],
+      "region": "Verdant Plains",
+      "description": "Ashkari Nomads vs Thornwall Confederacy: defender_wins",
+      "importance": 7
+    },
+    {
+      "name": "The Mastery of Iron",
+      "event_type": "tech_breakthrough",
+      "turn": 4,
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "region": null,
+      "description": "Thornwall Confederacy advances to the iron era",
+      "importance": 7
+    },
+    {
+      "name": "The Forging of Bronze",
+      "event_type": "tech_breakthrough",
+      "turn": 4,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "region": null,
+      "description": "Selurian Republic advances to the bronze era",
+      "importance": 7
+    },
+    {
+      "name": "The Forging of Bronze",
+      "event_type": "tech_breakthrough",
+      "turn": 5,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "region": null,
+      "description": "Ashkari Nomads advances to the bronze era",
+      "importance": 7
+    },
+    {
+      "name": "The Codification of Law",
+      "event_type": "tech_breakthrough",
+      "turn": 7,
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "region": null,
+      "description": "Thornwall Confederacy advances to the classical era",
+      "importance": 7
+    },
+    {
+      "name": "The Cathedral of Thornwall Valor",
+      "event_type": "cultural_work",
+      "turn": 7,
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "region": null,
+      "description": "Thornwall Confederacy produces a cultural masterwork",
+      "importance": 6
+    },
+    {
+      "name": "The Mastery of Iron",
+      "event_type": "tech_breakthrough",
+      "turn": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "region": null,
+      "description": "Selurian Republic advances to the iron era",
+      "importance": 7
+    },
+    {
+      "name": "The Age of Fortification",
+      "event_type": "tech_breakthrough",
+      "turn": 9,
+      "actors": [
+        "Thornwall Confederacy"
+      ],
+      "region": null,
+      "description": "Thornwall Confederacy advances to the medieval era",
+      "importance": 7
+    },
+    {
+      "name": "The Codification of Law",
+      "event_type": "tech_breakthrough",
+      "turn": 9,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "region": null,
+      "description": "Selurian Republic advances to the classical era",
+      "importance": 7
+    }
+  ],
+  "chronicle_entries": {
+    "1": "DEVELOP",
+    "2": "DEVELOP",
+    "3": "DEVELOP",
+    "4": "DEVELOP",
+    "5": "DEVELOP",
+    "6": "DEVELOP",
+    "7": "DEVELOP",
+    "8": "DEVELOP",
+    "9": "DEVELOP",
+    "10": "DEVELOP"
+  },
+  "era_reflections": {
+    "10": "## Era: Turns 1\u201310\n\nDEVELOP\n\nDEVELOP\n\nDEVELOP\n\nDEVELOP"
+  },
+  "metadata": {
+    "seed": 42,
+    "total_turns": 10,
+    "generated_at": "2026-03-13T21:03:47.585874+00:00",
+    "sim_model": "dummy",
+    "narrative_model": "dummy",
+    "scenario_name": null,
+    "interestingness_score": 66.25
+  }
+}
