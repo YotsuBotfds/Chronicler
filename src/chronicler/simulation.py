@@ -27,6 +27,7 @@ from chronicler.models import (
     Civilization,
     Disposition,
     Event,
+    Leader,
     WorldState,
 )
 
@@ -35,6 +36,31 @@ from chronicler.models import (
 
 ActionSelector = Callable[[Civilization, WorldState], ActionType]
 Narrator = Callable[[WorldState, list[Event]], str]
+
+# --- Constants ---
+
+DISPOSITION_ORDER: dict[Disposition, int] = {
+    Disposition.HOSTILE: 0, Disposition.SUSPICIOUS: 1,
+    Disposition.NEUTRAL: 2, Disposition.FRIENDLY: 3, Disposition.ALLIED: 4,
+}
+
+DISPOSITION_UPGRADE: dict[Disposition, Disposition] = {
+    Disposition.HOSTILE: Disposition.SUSPICIOUS,
+    Disposition.SUSPICIOUS: Disposition.NEUTRAL,
+    Disposition.NEUTRAL: Disposition.FRIENDLY,
+    Disposition.FRIENDLY: Disposition.ALLIED,
+    Disposition.ALLIED: Disposition.ALLIED,
+}
+
+SUCCESSOR_NAMES: list[str] = [
+    "Vaelith II", "Gorath the Younger", "Seren", "Thaldric", "Mirael",
+    "Kassander", "Ulveth", "Zhara", "Fenrik", "Aelindra",
+]
+
+SUCCESSOR_TRAITS: list[str] = [
+    "ambitious", "cautious", "aggressive", "calculating", "zealous",
+    "opportunistic", "stubborn", "bold", "shrewd", "visionary",
+]
 
 
 # --- Helpers ---
@@ -200,10 +226,11 @@ def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
 
 
 def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
-    """Claim an uncontrolled adjacent region."""
+    """Claim an uncontrolled region."""
+    rng = random.Random(world.turn * 1000 + hash(civ.name) % 1000)
     unclaimed = [r for r in world.regions if r.controller is None]
     if unclaimed and civ.military >= 3:
-        target = unclaimed[0]
+        target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
         civ.military = _clamp(civ.military - 1, 1, 10)  # Expansion stretches forces
@@ -222,13 +249,9 @@ def _resolve_trade_action(civ: Civilization, world: WorldState) -> Event:
     """Initiate trade with the friendliest neighbor."""
     best_partner = None
     best_disp = -1
-    disp_order = {
-        Disposition.HOSTILE: 0, Disposition.SUSPICIOUS: 1,
-        Disposition.NEUTRAL: 2, Disposition.FRIENDLY: 3, Disposition.ALLIED: 4,
-    }
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
-            d = disp_order.get(rel.disposition, 0)
+            d = DISPOSITION_ORDER.get(rel.disposition, 0)
             if d > best_disp:
                 best_disp = d
                 best_partner = _get_civ(world, other_name)
@@ -249,20 +272,9 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
     """Attempt to improve relations with the most hostile neighbor."""
     worst_name = None
     worst_disp = 5
-    disp_order = {
-        Disposition.HOSTILE: 0, Disposition.SUSPICIOUS: 1,
-        Disposition.NEUTRAL: 2, Disposition.FRIENDLY: 3, Disposition.ALLIED: 4,
-    }
-    disp_upgrade = {
-        Disposition.HOSTILE: Disposition.SUSPICIOUS,
-        Disposition.SUSPICIOUS: Disposition.NEUTRAL,
-        Disposition.NEUTRAL: Disposition.FRIENDLY,
-        Disposition.FRIENDLY: Disposition.ALLIED,
-        Disposition.ALLIED: Disposition.ALLIED,
-    }
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
-            d = disp_order.get(rel.disposition, 2)
+            d = DISPOSITION_ORDER.get(rel.disposition, 2)
             if d < worst_disp:
                 worst_disp = d
                 worst_name = other_name
@@ -270,10 +282,10 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
     if worst_name and civ.culture >= 3:
         # Improve relationship in both directions
         rel_out = world.relationships[civ.name][worst_name]
-        rel_out.disposition = disp_upgrade[rel_out.disposition]
+        rel_out.disposition = DISPOSITION_UPGRADE[rel_out.disposition]
         if worst_name in world.relationships and civ.name in world.relationships[worst_name]:
             rel_in = world.relationships[worst_name][civ.name]
-            rel_in.disposition = disp_upgrade[rel_in.disposition]
+            rel_in.disposition = DISPOSITION_UPGRADE[rel_in.disposition]
         return Event(
             turn=world.turn, event_type="diplomacy", actors=[civ.name, worst_name],
             description=f"{civ.name} improved relations with {worst_name}.", importance=4,
@@ -287,14 +299,10 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
 def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
     """Declare war on the most hostile neighbor."""
     target_name = None
-    disp_order = {
-        Disposition.HOSTILE: 0, Disposition.SUSPICIOUS: 1,
-        Disposition.NEUTRAL: 2, Disposition.FRIENDLY: 3, Disposition.ALLIED: 4,
-    }
     worst_disp = 5
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
-            d = disp_order.get(rel.disposition, 2)
+            d = DISPOSITION_ORDER.get(rel.disposition, 2)
             if d < worst_disp:
                 worst_disp = d
                 target_name = other_name
@@ -441,6 +449,13 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
     if event_type == "leader_death":
         civ.leader.alive = False
         civ.stability = _clamp(civ.stability - 2, 1, 10)
+        # Succession: new leader takes over
+        rng = random.Random(world.turn * 100 + hash(civ.name) % 100)
+        civ.leader = Leader(
+            name=rng.choice(SUCCESSOR_NAMES),
+            trait=rng.choice(SUCCESSOR_TRAITS),
+            reign_start=world.turn,
+        )
     elif event_type == "rebellion":
         civ.stability = _clamp(civ.stability - 2, 1, 10)
         civ.military = _clamp(civ.military - 1, 1, 10)

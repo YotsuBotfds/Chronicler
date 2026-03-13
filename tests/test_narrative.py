@@ -1,6 +1,6 @@
 """Tests for the narrative engine — LLM interaction is mocked."""
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from chronicler.narrative import (
     NarrativeEngine,
     build_action_prompt,
@@ -94,3 +94,21 @@ class TestNarrativeEngine:
         assert isinstance(text, str)
         assert len(text) > 0
         narrative_client.complete.assert_called_once()
+
+    def test_adapter_methods_work_with_run_turn(self, sample_world):
+        """NarrativeEngine adapters integrate with simulation's run_turn."""
+        from chronicler.simulation import run_turn
+
+        sim_client = self._mock_llm_client("DEVELOP")
+        narrative_client = self._mock_llm_client("The age continued.")
+        engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
+
+        text = run_turn(
+            sample_world,
+            action_selector=engine.action_selector,
+            narrator=engine.narrator,
+            seed=42,
+        )
+        assert isinstance(text, str)
+        assert sample_world.turn == 1
+        assert sim_client.complete.call_count == len(sample_world.civilizations)

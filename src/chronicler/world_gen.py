@@ -177,8 +177,12 @@ def generate_world(
     )
 
 
-def enrich_with_llm(world: WorldState, client: Any, model: str = "claude-haiku-4-5-20251001") -> None:
-    """Use the LLM to generate creative goals and backstory details."""
+def enrich_with_llm(world: WorldState, client: Any) -> None:
+    """Use the LLM to generate creative goals and backstory details.
+
+    Accepts any LLMClient (LocalClient or AnthropicClient). Uses the
+    client.complete() protocol, not raw SDK calls.
+    """
     civ_summaries = "\n".join(
         f"- {c.name}: domains={c.domains}, values={c.values}, "
         f"leader={c.leader.name} ({c.leader.trait}), regions={c.regions}"
@@ -194,13 +198,9 @@ achievable within 50 turns, and reflect the civilization's domains and values.
 
 Respond as JSON: {{"goals": ["goal for civ 1", "goal for civ 2", ...]}}"""
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=500,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    response_text = client.complete(prompt, max_tokens=500)
     try:
-        data = json.loads(response.content[0].text)
+        data = json.loads(response_text)
         goals = data.get("goals", [])
         for i, civ in enumerate(world.civilizations):
             if i < len(goals):

@@ -58,6 +58,10 @@ class Leader(BaseModel):
 
 
 class Civilization(BaseModel):
+    # NOTE: Field constraints (ge/le) are enforced at construction time only.
+    # The simulation engine mutates stats via direct assignment with _clamp()
+    # to keep values in-bounds. Do NOT enable validate_assignment=True without
+    # updating all mutation sites in simulation.py.
     name: str
     population: int = Field(ge=1, le=10)
     military: int = Field(ge=1, le=10)
