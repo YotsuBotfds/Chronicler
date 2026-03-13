@@ -303,6 +303,8 @@ The `help` command prints this full list. No friendly-name mapping — these are
 
 `inject` does not execute the event immediately. It adds a `(event_type, target_civ_name)` tuple to a `pending_injections` list (the mutable list shared with `execute_run()` via the `pending_injections` parameter). At the start of the next turn (before the environment phase), `execute_run()` drains the list and fires each injection through the standard event effect handlers. Multiple injections can be queued at a single pause.
 
+**Implementation note:** Injection processing in `execute_run()` needs to call `_apply_event_effects()` from `simulation.py`, which is currently a private function. Either rename it to `apply_event_effects()` (public) or add a thin public wrapper like `apply_injected_event(event_type, civ, world)` that calls the private function internally. The wrapper approach is cleaner — it can handle the single-target semantics of injections without exposing the full internal event handler.
+
 **Target resolution:** Injected events affect *only* the named civ, overriding the normal random selection. For environment events (`drought`, `plague`, `earthquake`) that normally affect `max(1, len(civs) // 2)` civilizations, injection narrows the effect to the single specified target. This is an intentional deviation — the point of `inject` is precise, directed intervention.
 
 ### Command Parsing
@@ -333,7 +335,7 @@ Adding `MemoryStream.save()`/`.load()` and saving every turn changes the existin
 
 - **Batch:** `--batch 3` produces 3 output directories with correct seeds. Summary file exists and is sorted by score. Parallel mode completes without errors.
 - **Interestingness:** Score function returns expected values for known inputs. Scenario weight overrides merge correctly. Boring-civ detection identifies civs with >60% same action.
-- **Fork:** Fork loads state + memory streams from a prior run. Chronicle starts fresh with provenance header. Memory streams carry forward (post-fork reflections reference pre-fork events).
+- **Fork:** Fork loads state + memory streams from a prior run. Chronicle starts fresh with provenance header. Memory streams carry forward (post-fork reflections reference pre-fork events). Memory stream round-trip test: save a MemoryStream with 10 entries and 2 reflections, load it back, verify all fields match (turn, text, importance, entry_type) — this is the foundation fork mode relies on.
 - **Interactive:** `continue` resumes. `inject` queues and fires events. `set` modifies stats with bounds checking. `fork` saves state. `quit` compiles partial chronicle. Invalid input prints error, does not crash.
 
 ### New Files
@@ -353,4 +355,5 @@ Adding `MemoryStream.save()`/`.load()` and saving every turn changes the existin
 | `src/chronicler/main.py` | Extract `execute_run()`, add CLI flags, dispatch to batch/fork/interactive |
 | `src/chronicler/memory.py` | Add `MemoryStream.save(path)` / `MemoryStream.load(path)` |
 | `src/chronicler/scenario.py` | Add `interestingness_weights` field to `ScenarioConfig`, validation |
+| `src/chronicler/simulation.py` | Add public `apply_injected_event()` wrapper for injection processing |
 | `src/chronicler/models.py` | Add `scenario_name: str | None = None` field to `WorldState` (for fork scenario detection) |
