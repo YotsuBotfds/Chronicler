@@ -945,3 +945,42 @@ def test_apply_scenario_sets_scenario_name(sample_world):
     config = ScenarioConfig(name="Test Scenario")
     apply_scenario(sample_world, config)
     assert sample_world.scenario_name == "Test Scenario"
+
+
+class TestInterestingnessWeights:
+    def test_scenario_config_accepts_weights(self):
+        from chronicler.scenario import ScenarioConfig
+        config = ScenarioConfig(
+            name="Weighted",
+            interestingness_weights={"war_count": 5, "collapse_count": 10},
+        )
+        assert config.interestingness_weights["war_count"] == 5
+
+    def test_scenario_config_weights_default_none(self):
+        from chronicler.scenario import ScenarioConfig
+        config = ScenarioConfig(name="No Weights")
+        assert config.interestingness_weights is None
+
+    def test_invalid_weight_key_raises(self, tmp_path):
+        from chronicler.scenario import load_scenario
+        scenario_yaml = tmp_path / "bad_weights.yaml"
+        scenario_yaml.write_text(
+            "name: Bad Weights\n"
+            "interestingness_weights:\n"
+            "  bogus_metric: 5\n"
+        )
+        with pytest.raises(ValueError, match="Invalid interestingness weight key"):
+            load_scenario(scenario_yaml)
+
+    def test_valid_weight_keys_accepted(self, tmp_path):
+        from chronicler.scenario import load_scenario
+        scenario_yaml = tmp_path / "good_weights.yaml"
+        scenario_yaml.write_text(
+            "name: Good Weights\n"
+            "interestingness_weights:\n"
+            "  war_count: 5\n"
+            "  collapse_count: 10\n"
+            "  reflection_count: 0\n"
+        )
+        config = load_scenario(scenario_yaml)
+        assert config.interestingness_weights["war_count"] == 5
