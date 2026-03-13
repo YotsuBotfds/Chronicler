@@ -1,0 +1,289 @@
+name: Post-Collapse Minnesota
+description: Grid-down survival in real Minnesota geography — six factions compete for calories, shelter, and territory
+world_name: Minnesota
+seed: 1814
+num_civs: 6
+num_regions: 10
+num_turns: 80
+reflection_interval: 10
+
+regions:
+  - name: Northern Prairies
+    terrain: plains
+    carrying_capacity: 6
+    resources: fertile
+  - name: Red River Valley
+    terrain: river
+    carrying_capacity: 8
+    resources: fertile
+  - name: Iron Range
+    terrain: forest
+    carrying_capacity: 4
+    resources: mineral
+  - name: Boundary Waters
+    terrain: forest
+    carrying_capacity: 3
+    resources: timber
+  - name: Twin Cities Ruins
+    terrain: plains
+    carrying_capacity: 5
+    resources: mineral
+  - name: Mississippi Corridor
+    terrain: river
+    carrying_capacity: 7
+    resources: maritime
+  - name: Bluff Country
+    terrain: hills
+    carrying_capacity: 5
+    resources: timber
+  - name: Lake Country
+    terrain: forest
+    carrying_capacity: 6
+    resources: timber
+  - name: Willmar
+    terrain: plains
+    carrying_capacity: 9
+    resources: fertile
+  - name: Benson
+    terrain: plains
+    carrying_capacity: 8
+    resources: fertile
+
+civilizations:
+  - name: Farmer Co-ops
+    population: 6
+    military: 3
+    economy: 7
+    culture: 4
+    stability: 7
+    tech_era: tribal
+    domains: [agriculture, community]
+    values: [pragmatism, self-reliance]
+    goal: cautious
+    leader:
+      name: Elder Johansson
+      trait: cautious
+    leader_name_pool:
+      - Johansson
+      - Larsen
+      - Olson
+      - Henning
+      - Bakke
+      - Dahl
+      - Lundquist
+      - Pedersen
+      - Thorson
+      - Halverson
+      - Erikson
+      - Lindgren
+      - Nyquist
+      - Bergstrom
+      - Engstrom
+
+  - name: River Towns Alliance
+    population: 5
+    military: 4
+    economy: 6
+    culture: 5
+    stability: 5
+    tech_era: tribal
+    domains: [commerce, navigation]
+    values: [trade, cooperation]
+    goal: calculating
+    leader:
+      name: Captain Mercer
+      trait: shrewd
+    leader_name_pool:
+      - Mercer
+      - Lockwood
+      - Braddock
+      - Stillwater
+      - Redwing
+      - Hastings
+      - Winona
+      - Dubuque
+      - Prescott
+      - LaCrosse
+      - Wabasha
+      - Frontenac
+      - Tremaine
+      - Pepin
+      - Albion
+
+  - name: National Guard Remnant
+    population: 4
+    military: 8
+    economy: 3
+    culture: 2
+    stability: 6
+    tech_era: tribal
+    domains: [warfare, discipline]
+    values: [order, duty]
+    goal: aggressive
+    leader:
+      name: Colonel Voss
+      trait: calculating
+    leader_name_pool:
+      - Voss
+      - Reeves
+      - Harding
+      - Kessler
+      - Brandt
+      - Marsh
+      - Caldwell
+      - Eriksen
+      - Tanner
+      - Novak
+      - Schaefer
+      - Albrecht
+      - Kowalski
+      - Dietrich
+      - Meier
+
+  - name: Prepper Networks
+    population: 3
+    military: 5
+    economy: 4
+    culture: 2
+    stability: 8
+    tech_era: tribal
+    domains: [survival, fortification]
+    values: [independence, preparedness]
+    goal: cautious
+    leader:
+      name: Elder Crandall
+      trait: cautious
+    leader_name_pool:
+      - Crandall
+      - Whitmore
+      - Duggan
+      - Falk
+      - Bremer
+      - Stoltz
+      - Gruber
+      - Harlan
+      - Ecklund
+      - Renner
+      - Bauer
+      - Selvig
+      - Kramer
+      - Ohlsen
+      - Engel
+
+  - name: Church Communities
+    population: 5
+    military: 2
+    economy: 4
+    culture: 7
+    stability: 7
+    tech_era: tribal
+    domains: [faith, diplomacy]
+    values: [compassion, unity]
+    goal: cautious
+    leader:
+      name: Pastor Lindahl
+      trait: visionary
+    leader_name_pool:
+      - Lindahl
+      - Ekberg
+      - Sorensen
+      - Arneson
+      - Fjelstad
+      - Haugen
+      - Solberg
+      - Nordstrom
+      - Lund
+      - Bjornson
+      - Nygaard
+      - Dalen
+      - Strand
+      - Hagen
+      - Vik
+
+  - name: Carleton Enclave
+    population: 3
+    military: 2
+    economy: 5
+    culture: 8
+    stability: 5
+    tech_era: classical
+    domains: [knowledge, preservation]
+    values: [learning, reason]
+    goal: calculating
+    leader:
+      name: Dean Alderman
+      trait: visionary
+    leader_name_pool:
+      - Alderman
+      - Thorne
+      - Whitfield
+      - Lowell
+      - Pemberton
+      - Ashworth
+      - Marlowe
+      - Kingsley
+      - Sinclair
+      - Harwood
+      - Elsworth
+      - Fairbanks
+      - Winslow
+      - Cartwright
+      - Holbrook
+
+relationships:
+  Farmer Co-ops:
+    Church Communities: friendly
+  Carleton Enclave:
+    Church Communities: friendly
+    National Guard Remnant: suspicious
+  National Guard Remnant:
+    Prepper Networks: suspicious
+
+event_flavor:
+  drought:
+    name: Harsh Winter
+    description: Supply lines freeze across the river valleys
+  discovery:
+    name: Supply Cache Discovery
+    description: A pre-collapse warehouse is found intact
+  migration:
+    name: Refugee Column
+    description: Displaced survivors arrive seeking shelter
+  rebellion:
+    name: Food Riot
+    description: Hungry citizens turn on their own leadership
+  cultural_renaissance:
+    name: Harvest Festival
+    description: A successful growing season brings rare celebration
+  border_incident:
+    name: Territorial Standoff
+    description: Armed patrols meet at a disputed boundary
+  plague:
+    name: Sickness Outbreak
+    description: Disease spreads through crowded shelters
+  religious_movement:
+    name: Revival Movement
+    description: A charismatic preacher draws followers across faction lines
+  earthquake:
+    name: Bridge Collapse
+    description: Critical infrastructure fails without warning
+  leader_death:
+    name: Winter Took Them
+    description: A leader succumbs to the harsh conditions
+
+starting_conditions:
+  - type: grid-down
+    affected:
+      - Farmer Co-ops
+      - River Towns Alliance
+      - National Guard Remnant
+      - Prepper Networks
+      - Church Communities
+      - Carleton Enclave
+    duration: 999
+    severity: 4
+
+narrative_style: >-
+  Terse, pragmatic tone. Midwestern understatement. Focus on weather, crops, community
+  survival, and the hard math of calories and firewood. No high fantasy language.
+  Think Cormac McCarthy on the prairie.

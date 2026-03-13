@@ -1,0 +1,261 @@
+name: Dead Miles
+description: Urban post-collapse faction politics in a decaying port city — same factions as Vehicle World, centuries later
+world_name: Port Junction
+seed: 3300
+num_civs: 5
+num_regions: 10
+num_turns: 300
+reflection_interval: 10
+
+regions:
+  - name: Gasoline Alley
+    terrain: plains
+    carrying_capacity: 5
+    resources: mineral
+    controller: Geargrinders
+  - name: The Terminal
+    terrain: river
+    carrying_capacity: 9
+    resources: maritime
+    controller: Haulers Union
+  - name: The Gulch
+    terrain: hills
+    carrying_capacity: 3
+    resources: barren
+    controller: "none"
+  - name: Dockside
+    terrain: river
+    carrying_capacity: 8
+    resources: maritime
+    controller: Chrome Council
+  - name: The Interchange
+    terrain: river
+    carrying_capacity: 7
+    resources: maritime
+    controller: "none"
+  - name: Scrap Row
+    terrain: forest
+    carrying_capacity: 4
+    resources: mineral
+    controller: Rustborn
+  - name: Chrome Heights
+    terrain: hills
+    carrying_capacity: 6
+    resources: fertile
+    controller: Chrome Council
+  - name: Voltage Park
+    terrain: plains
+    carrying_capacity: 5
+    resources: mineral
+    controller: Electrics
+  - name: The Long Haul
+    terrain: plains
+    carrying_capacity: 6
+    resources: barren
+    controller: Haulers Union
+  - name: Rust Narrows
+    terrain: forest
+    carrying_capacity: 3
+    resources: barren
+    controller: Rustborn
+
+civilizations:
+  - name: Geargrinders
+    population: 5
+    military: 8
+    economy: 5
+    culture: 2
+    stability: 4
+    tech_era: iron
+    domains: [warfare, engineering]
+    values: [strength, dominance]
+    goal: aggressive
+    leader:
+      name: Warboss Torque
+      trait: aggressive
+    leader_name_pool:
+      - Axle
+      - Torque
+      - Piston
+      - Crankshaw
+      - Diesel
+      - Camber
+      - Ratchet
+      - Wrench
+      - Sprocket
+      - Burnout
+      - Clutch
+      - Gasket
+      - Flywheel
+      - Crank
+      - Bore
+
+  - name: Haulers Union
+    population: 6
+    military: 4
+    economy: 8
+    culture: 4
+    stability: 7
+    tech_era: iron
+    domains: [commerce, logistics]
+    values: [trade, solidarity]
+    goal: calculating
+    leader:
+      name: Guildmaster Freight
+      trait: shrewd
+    leader_name_pool:
+      - Convoy
+      - Haul
+      - Rig
+      - Freight
+      - Payload
+      - Overpass
+      - Junction
+      - Tarmac
+      - Blacktop
+      - Roadway
+      - Flatbed
+      - Tanker
+      - Chassis
+      - Hitch
+      - Kingpin
+
+  - name: Chrome Council
+    population: 4
+    military: 4
+    economy: 7
+    culture: 8
+    stability: 5
+    tech_era: iron
+    domains: [governance, art]
+    values: [beauty, authority]
+    goal: cautious
+    leader:
+      name: High Polisher Gleam
+      trait: visionary
+    leader_name_pool:
+      - Sterling
+      - Gleam
+      - Polish
+      - Lustre
+      - Brilliance
+      - Mirror
+      - Sheen
+      - Radiance
+      - Lacquer
+      - Platinum
+      - Gloss
+      - Luster
+      - Veneer
+      - Enamel
+      - Gilt
+
+  - name: Rustborn
+    population: 6
+    military: 3
+    economy: 4
+    culture: 3
+    stability: 8
+    tech_era: iron
+    domains: [survival, community]
+    values: [endurance, solidarity]
+    goal: cautious
+    leader:
+      name: Elder Salvage
+      trait: cautious
+    leader_name_pool:
+      - Patina
+      - Corrode
+      - Flake
+      - Oxide
+      - Weather
+      - Dent
+      - Scratch
+      - Bondo
+      - Primer
+      - Salvage
+      - Rivet
+      - Weld
+      - Slag
+      - Scrap
+      - Galvanize
+
+  - name: Electrics
+    population: 3
+    military: 2
+    economy: 6
+    culture: 7
+    stability: 5
+    tech_era: iron
+    domains: [innovation, philosophy]
+    values: [progress, enlightenment]
+    goal: calculating
+    leader:
+      name: Archon Spark
+      trait: visionary
+    leader_name_pool:
+      - Volt
+      - Ampere
+      - Watt
+      - Ohm
+      - Tesla
+      - Farad
+      - Joule
+      - Coulomb
+      - Hertz
+      - Lumen
+      - Charge
+      - Spark
+      - Dynamo
+      - Capacitor
+      - Relay
+
+relationships:
+  Geargrinders:
+    Rustborn: hostile
+    Chrome Council: suspicious
+    Haulers Union: suspicious
+  Chrome Council:
+    Electrics: friendly
+  Haulers Union:
+    Chrome Council: friendly
+  Rustborn:
+    Electrics: friendly
+
+event_flavor:
+  drought:
+    name: Parts Shortage
+    description: Critical components become impossible to source
+  plague:
+    name: Rust Plague
+    description: Corrosion spreads through the crowded districts
+  discovery:
+    name: Salvage Find
+    description: A valuable cache of pre-collapse technology surfaces
+  rebellion:
+    name: Dock Strike
+    description: Haulers refuse to move freight until demands are met
+  migration:
+    name: The Recall
+    description: A mass summons draws vehicles from across the city
+  cultural_renaissance:
+    name: Showroom Revival
+    description: A burst of aesthetic innovation transforms the culture
+  religious_movement:
+    name: Cult of the Open Road
+    description: A spiritual movement yearning for life beyond the city
+  earthquake:
+    name: Infrastructure Collapse
+    description: Overloaded roads and bridges give way
+  border_incident:
+    name: Checkpoint Standoff
+    description: Armed vehicles block a disputed crossing
+  leader_death:
+    name: Final Breakdown
+    description: "A leader's systems fail beyond repair"
+
+narrative_style: >-
+  Noir-inflected political chronicle. Hard-boiled, cynical, focused on power, territory,
+  and loyalty. Vehicles are people in a decaying city — they scheme, betray, negotiate,
+  and occasionally do the right thing at the wrong time. Think Raymond Chandler narrating
+  a trade war between sentient trucks.

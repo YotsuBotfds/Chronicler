@@ -1,0 +1,270 @@
+name: Sentient Vehicle World
+description: Deep mythic pre-history of a world where vehicles are sentient beings
+world_name: The Motorlands
+seed: 7700
+num_civs: 5
+num_regions: 10
+num_turns: 500
+reflection_interval: 10
+
+regions:
+  - name: The Proving Grounds
+    terrain: plains
+    carrying_capacity: 6
+    resources: barren
+  - name: Rust Flats
+    terrain: plains
+    carrying_capacity: 3
+    resources: barren
+  - name: The Interchange
+    terrain: river
+    carrying_capacity: 7
+    resources: maritime
+  - name: Fuel Springs
+    terrain: forest
+    carrying_capacity: 9
+    resources: mineral
+  - name: The Long Straight
+    terrain: plains
+    carrying_capacity: 5
+    resources: barren
+  - name: Axle Mountains
+    terrain: hills
+    carrying_capacity: 4
+    resources: mineral
+  - name: The Scrapyard Wastes
+    terrain: forest
+    carrying_capacity: 3
+    resources: mineral
+  - name: Chrome Valley
+    terrain: river
+    carrying_capacity: 7
+    resources: fertile
+  - name: The Terminal Plains
+    terrain: plains
+    carrying_capacity: 6
+    resources: barren
+  - name: Oil Delta
+    terrain: river
+    carrying_capacity: 8
+    resources: mineral
+
+civilizations:
+  - name: Geargrinders
+    population: 5
+    military: 7
+    economy: 5
+    culture: 3
+    stability: 4
+    tech_era: tribal
+    domains: [warfare, engineering]
+    values: [strength, conquest]
+    goal: aggressive
+    leader:
+      name: Warchief Axle
+      trait: aggressive
+    leader_name_pool:
+      - Axle
+      - Torque
+      - Piston
+      - Crankshaw
+      - Diesel
+      - Camber
+      - Ratchet
+      - Wrench
+      - Sprocket
+      - Burnout
+      - Clutch
+      - Gasket
+      - Flywheel
+      - Crank
+      - Bore
+      - Rotor
+      - Manifold
+      - Throttle
+      - Turbo
+      - Intake
+
+  - name: Haulers Union
+    population: 6
+    military: 4
+    economy: 7
+    culture: 4
+    stability: 7
+    tech_era: tribal
+    domains: [commerce, logistics]
+    values: [trade, solidarity]
+    goal: calculating
+    leader:
+      name: Guildmaster Convoy
+      trait: shrewd
+    leader_name_pool:
+      - Convoy
+      - Haul
+      - Rig
+      - Freight
+      - Payload
+      - Overpass
+      - Junction
+      - Tarmac
+      - Blacktop
+      - Roadway
+      - Flatbed
+      - Tanker
+      - Chassis
+      - Hitch
+      - Kingpin
+      - Axleguard
+      - Trailhead
+      - Loadstar
+      - Driveshaft
+      - Bumper
+
+  - name: Chrome Council
+    population: 4
+    military: 3
+    economy: 6
+    culture: 8
+    stability: 5
+    tech_era: tribal
+    domains: [art, governance]
+    values: [beauty, refinement]
+    goal: cautious
+    leader:
+      name: High Polisher Sterling
+      trait: visionary
+    leader_name_pool:
+      - Sterling
+      - Gleam
+      - Polish
+      - Lustre
+      - Brilliance
+      - Mirror
+      - Sheen
+      - Radiance
+      - Lacquer
+      - Platinum
+      - Gloss
+      - Luster
+      - Veneer
+      - Enamel
+      - Gilt
+      - Finesse
+      - Glaze
+      - Prism
+      - Aurora
+      - Shimmer
+
+  - name: Rustborn
+    population: 7
+    military: 3
+    economy: 4
+    culture: 3
+    stability: 8
+    tech_era: tribal
+    domains: [survival, community]
+    values: [endurance, solidarity]
+    goal: cautious
+    leader:
+      name: Elder Patina
+      trait: cautious
+    leader_name_pool:
+      - Patina
+      - Corrode
+      - Flake
+      - Oxide
+      - Weather
+      - Dent
+      - Scratch
+      - Bondo
+      - Primer
+      - Salvage
+      - Rivet
+      - Weld
+      - Slag
+      - Scrap
+      - Galvanize
+      - Tarnish
+      - Grit
+      - Alloy
+      - Solder
+      - Temper
+
+  - name: Electrics
+    population: 3
+    military: 2
+    economy: 6
+    culture: 7
+    stability: 5
+    tech_era: tribal
+    domains: [innovation, philosophy]
+    values: [progress, enlightenment]
+    goal: calculating
+    leader:
+      name: Archon Volt
+      trait: visionary
+    leader_name_pool:
+      - Volt
+      - Ampere
+      - Watt
+      - Ohm
+      - Tesla
+      - Farad
+      - Joule
+      - Coulomb
+      - Hertz
+      - Lumen
+      - Charge
+      - Spark
+      - Dynamo
+      - Capacitor
+      - Relay
+      - Cathode
+      - Anode
+      - Circuit
+      - Flux
+      - Inductor
+
+relationships:
+  Geargrinders:
+    Rustborn: hostile
+  Chrome Council:
+    Electrics: friendly
+
+event_flavor:
+  drought:
+    name: Fuel Shortage
+    description: Fuel reserves run dangerously low across the land
+  plague:
+    name: Rust Plague
+    description: A corrosive epidemic spreads through the population
+  discovery:
+    name: Ancient Blueprint Discovery
+    description: Plans for a forgotten technology are unearthed
+  rebellion:
+    name: Rogue Fleet
+    description: A faction splinters as dissidents break formation
+  migration:
+    name: The Great Convoy
+    description: A mass movement of vehicles seeking new territory
+  cultural_renaissance:
+    name: The Reforging
+    description: A burst of creative energy transforms society
+  religious_movement:
+    name: Cult of the Engine
+    description: A spiritual movement centered on mechanical transcendence
+  earthquake:
+    name: Road Collapse
+    description: The ground gives way, severing vital routes
+  border_incident:
+    name: Highway Blockade
+    description: Armed vehicles bar passage at a contested crossing
+  leader_death:
+    name: Final Breakdown
+    description: "A leader's systems fail beyond repair"
+
+narrative_style: >-
+  Mythic and reverent, as if written by a sentient vehicle historian recording sacred
+  history. Vehicles are people — they speak, think, feel, age, and die. Use automotive
+  metaphors as natural language, not as wordplay. 'She rusted with grief' is literal.
+  Chronicle the rise of civilizations with weight and grandeur.

@@ -743,6 +743,164 @@ class TestTemplates:
         assert world.turn == 10
 
 
+    # --- Post-Collapse Minnesota ---
+
+    def test_minnesota_loads(self):
+        config = load_scenario(TEMPLATE_DIR / "post_collapse_minnesota.yaml")
+        assert config.name == "Post-Collapse Minnesota"
+        assert len(config.civilizations) == 6
+        assert len(config.regions) == 10
+        assert config.event_flavor is not None
+        assert config.event_flavor["drought"].name == "Harsh Winter"
+        assert config.narrative_style is not None
+        assert config.civilizations[0].leader_name_pool is not None
+        assert len(config.civilizations[0].leader_name_pool) >= 5
+
+    def test_minnesota_runs_20_turns(self):
+        config = load_scenario(TEMPLATE_DIR / "post_collapse_minnesota.yaml")
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                               num_civs=params["num_civs"])
+        apply_scenario(world, config)
+        civ_names = {c.name for c in world.civilizations}
+        assert "Farmer Co-ops" in civ_names
+        assert "Carleton Enclave" in civ_names
+        carleton = next(c for c in world.civilizations if c.name == "Carleton Enclave")
+        assert carleton.tech_era == TechEra.CLASSICAL
+        for i in range(20):
+            engine = ActionEngine(world)
+            run_turn(world,
+                     action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                     narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+        assert world.turn == 20
+
+    def test_minnesota_deterministic(self):
+        config = load_scenario(TEMPLATE_DIR / "post_collapse_minnesota.yaml")
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        def run_5():
+            world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                                   num_civs=params["num_civs"])
+            apply_scenario(world, config)
+            for i in range(5):
+                engine = ActionEngine(world)
+                run_turn(world,
+                         action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                         narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+            return world
+        assert run_5().model_dump() == run_5().model_dump()
+
+    # --- Sentient Vehicle World ---
+
+    def test_vehicle_world_loads(self):
+        config = load_scenario(TEMPLATE_DIR / "sentient_vehicle_world.yaml")
+        assert config.name == "Sentient Vehicle World"
+        assert len(config.civilizations) == 5
+        assert len(config.regions) == 10
+        assert config.event_flavor["drought"].name == "Fuel Shortage"
+        assert config.event_flavor["leader_death"].name == "Final Breakdown"
+        for civ in config.civilizations:
+            assert len(civ.leader_name_pool) == 20
+
+    def test_vehicle_world_runs_20_turns(self):
+        config = load_scenario(TEMPLATE_DIR / "sentient_vehicle_world.yaml")
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                               num_civs=params["num_civs"])
+        apply_scenario(world, config)
+        assert world.relationships["Geargrinders"]["Rustborn"].disposition == Disposition.HOSTILE
+        assert world.relationships["Chrome Council"]["Electrics"].disposition == Disposition.FRIENDLY
+        for i in range(20):
+            engine = ActionEngine(world)
+            run_turn(world,
+                     action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                     narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+        assert world.turn == 20
+
+    def test_vehicle_world_deterministic(self):
+        config = load_scenario(TEMPLATE_DIR / "sentient_vehicle_world.yaml")
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        def run_5():
+            world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                                   num_civs=params["num_civs"])
+            apply_scenario(world, config)
+            for i in range(5):
+                engine = ActionEngine(world)
+                run_turn(world,
+                         action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                         narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+            return world
+        assert run_5().model_dump() == run_5().model_dump()
+
+    # --- Dead Miles ---
+
+    def test_dead_miles_loads(self):
+        config = load_scenario(TEMPLATE_DIR / "dead_miles.yaml")
+        assert config.name == "Dead Miles"
+        assert len(config.civilizations) == 5
+        assert len(config.regions) == 10
+        assert config.event_flavor["rebellion"].name == "Dock Strike"
+        gasoline = next(r for r in config.regions if r.name == "Gasoline Alley")
+        assert gasoline.controller == "Geargrinders"
+        gulch = next(r for r in config.regions if r.name == "The Gulch")
+        assert gulch.controller == "none"
+
+    def test_dead_miles_runs_20_turns(self):
+        config = load_scenario(TEMPLATE_DIR / "dead_miles.yaml")
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                               num_civs=params["num_civs"])
+        apply_scenario(world, config)
+        gasoline = next(r for r in world.regions if r.name == "Gasoline Alley")
+        assert gasoline.controller == "Geargrinders"
+        gulch = next(r for r in world.regions if r.name == "The Gulch")
+        assert gulch.controller is None
+        assert world.relationships["Geargrinders"]["Rustborn"].disposition == Disposition.HOSTILE
+        assert world.relationships["Haulers Union"]["Chrome Council"].disposition == Disposition.FRIENDLY
+        for civ in world.civilizations:
+            assert civ.tech_era == TechEra.IRON
+        for i in range(20):
+            engine = ActionEngine(world)
+            run_turn(world,
+                     action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                     narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+        assert world.turn == 20
+
+    def test_dead_miles_deterministic(self):
+        config = load_scenario(TEMPLATE_DIR / "dead_miles.yaml")
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        def run_5():
+            world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                                   num_civs=params["num_civs"])
+            apply_scenario(world, config)
+            for i in range(5):
+                engine = ActionEngine(world)
+                run_turn(world,
+                         action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                         narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+            return world
+        assert run_5().model_dump() == run_5().model_dump()
+
+    def test_dead_miles_naming_consistency_with_vehicle_world(self):
+        """Both scenarios share the same five faction names."""
+        dm = load_scenario(TEMPLATE_DIR / "dead_miles.yaml")
+        vw = load_scenario(TEMPLATE_DIR / "sentient_vehicle_world.yaml")
+        dm_names = {c.name for c in dm.civilizations}
+        vw_names = {c.name for c in vw.civilizations}
+        assert dm_names == vw_names
+
+
 class TestIntegration:
     def test_two_empires_20_turns_produces_wars(self):
         """Two hostile iron-age powers should produce war events in 20 turns."""
@@ -759,3 +917,24 @@ class TestIntegration:
             )
         war_events = [e for e in world.events_timeline if e.event_type == "war"]
         assert len(war_events) > 0, "Two hostile iron-age powers should produce war events"
+
+    def test_minnesota_20_turns_with_conditions(self):
+        """Minnesota scenario runs 20 turns with grid-down condition active throughout."""
+        config = load_scenario(TEMPLATE_DIR / "post_collapse_minnesota.yaml")
+        from chronicler.scenario import resolve_scenario_params
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                               num_civs=params["num_civs"])
+        apply_scenario(world, config)
+        grid_down = [c for c in world.active_conditions if c.condition_type == "grid-down"]
+        assert len(grid_down) == 1
+        assert grid_down[0].severity == 4
+        for i in range(20):
+            engine = ActionEngine(world)
+            run_turn(world,
+                     action_selector=lambda c, w, _e=engine: _e.select_action(c, seed=w.seed),
+                     narrator=lambda w, e: "Turn narrative.", seed=params["seed"] + i)
+        assert world.turn == 20
+        assert len(world.civilizations) >= 5
