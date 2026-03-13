@@ -6,6 +6,7 @@ modules read from and write to WorldState, which serializes to JSON.
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -118,3 +119,14 @@ class WorldState(BaseModel):
     events_timeline: list[Event] = Field(default_factory=list)
     active_conditions: list[ActiveCondition] = Field(default_factory=list)
     event_probabilities: dict[str, float] = Field(default_factory=dict)
+
+    def save(self, path: Path) -> None:
+        """Persist world state to a JSON file."""
+        path.write_text(self.model_dump_json(indent=2))
+
+    @classmethod
+    def load(cls, path: Path) -> WorldState:
+        """Load world state from a JSON file."""
+        if not path.exists():
+            raise FileNotFoundError(f"No state file at {path}")
+        return cls.model_validate_json(path.read_text())

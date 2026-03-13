@@ -86,3 +86,21 @@ class TestWorldState:
         loaded = WorldState.model_validate_json(path.read_text())
         assert loaded.name == sample_world.name
         assert loaded.civilizations[0].name == sample_world.civilizations[0].name
+
+
+class TestWorldStatePersistence:
+    def test_save_creates_file(self, sample_world, tmp_path):
+        path = tmp_path / "state.json"
+        sample_world.save(path)
+        assert path.exists()
+
+    def test_load_restores_state(self, sample_world, tmp_path):
+        path = tmp_path / "state.json"
+        sample_world.save(path)
+        loaded = WorldState.load(path)
+        assert loaded.name == sample_world.name
+        assert len(loaded.civilizations) == 2
+
+    def test_load_nonexistent_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            WorldState.load(tmp_path / "nope.json")
