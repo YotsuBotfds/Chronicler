@@ -148,3 +148,62 @@ class TestRunTurn:
 
         run_turn(sample_world, action_selector=stub_selector, narrator=stub_narrator, seed=42)
         assert len(sample_world.events_timeline) > 0
+
+
+class TestFiveTurnValidation:
+    """Critical gate: run 5 turns with stubs and verify the simulation loop is sound."""
+
+    def test_five_turns_no_crash(self, sample_world, tmp_path):
+        def stub_selector(civ, world):
+            return ActionType.DEVELOP
+
+        def stub_narrator(world, turn_events):
+            return f"Turn {world.turn}: {len(turn_events)} events occurred."
+
+        for i in range(5):
+            text = run_turn(sample_world, stub_selector, stub_narrator, seed=i)
+            assert isinstance(text, str)
+            # Save state after every turn (crash recovery pattern)
+            sample_world.save(tmp_path / f"state_turn_{sample_world.turn}.json")
+
+        assert sample_world.turn == 5
+        assert len(sample_world.events_timeline) > 0
+
+    def test_five_turns_state_files_loadable(self, sample_world, tmp_path):
+        """Every per-turn state file should deserialize back to a valid WorldState."""
+        def stub_selector(civ, world):
+            return ActionType.DEVELOP
+
+        def stub_narrator(world, turn_events):
+            return "ok"
+
+        for i in range(5):
+            run_turn(sample_world, stub_selector, stub_narrator, seed=i)
+            path = tmp_path / f"state_turn_{sample_world.turn}.json"
+            sample_world.save(path)
+            # Verify round-trip
+            loaded = WorldState.load(path)
+            assert loaded.turn == sample_world.turn
+            assert len(loaded.civilizations) == len(sample_world.civilizations)
+
+    def test_five_turns_stats_stay_bounded(self, sample_world):
+        """All civilization stats must remain within [1, 10] after 5 turns."""
+        def stub_selector(civ, world):
+            # Mix of actions to stress-test bounds
+            actions = [ActionType.DEVELOP, ActionType.WAR, ActionType.EXPAND,
+                       ActionType.TRADE, ActionType.DIPLOMACY]
+            return actions[world.turn % len(actions)]
+
+        def stub_narrator(world, turn_events):
+            return "ok"
+
+        for i in range(5):
+            run_turn(sample_world, stub_selector, stub_narrator, seed=i)
+
+        for civ in sample_world.civilizations:
+            assert 1 <= civ.population <= 10
+            assert 1 <= civ.military <= 10
+            assert 1 <= civ.economy <= 10
+            assert 1 <= civ.culture <= 10
+            assert 1 <= civ.stability <= 10
+            assert 0.0 <= civ.asabiya <= 1.0
