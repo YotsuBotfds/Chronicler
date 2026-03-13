@@ -364,7 +364,7 @@ Chronicle the rise of civilizations with weight and grandeur.
 ### Known Concerns
 
 - **500 turns = 50 era reflections.** The reflection prompt summarizes recent events against all prior reflections. By turn 400, the context fed to the LLM includes 40 era summaries. Monitor for coherence degradation during manual test runs. A sliding window (last 5 summaries + key highlights from earlier eras) may be needed as a future enhancement, but is out of M9 scope.
-- **Leader name pool exhaustion.** 20 names per faction across 500 turns with `leader_death` probability + 15-turn legacy system will likely exhaust pools. The fallback to cultural pool logic (which may produce dynasty-style "Axle III" names) is acceptable and thematically appropriate.
+- **Leader name pool exhaustion and the dynasty shift.** 20 names per faction will last roughly 100-150 turns depending on `leader_death` frequency and the 15-turn legacy system. After exhaustion, the fallback produces dynasty-style names ("Axle III", "Torque II"). This means the last 350+ turns will have a noticeably different naming character than the first 150 — early history reads as a parade of unique individuals, late history reads as dynastic succession. This could be a feature ("the age of dynasties") and is thematically appropriate for a civilization that has run out of fresh mythology. Worth monitoring during manual test runs to see if the transition feels natural or jarring. If jarring, expanding pools to 30-40 names in a follow-up pass is trivial.
 
 ## Scenario 3: Dead Miles / Port Junction
 
