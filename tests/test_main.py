@@ -127,3 +127,61 @@ class TestRunChronicle:
         assert output_path2.exists()
         # Should only run 2 more turns (3→5), so 2 narrator calls
         assert narrative_client2.complete.call_count == 2
+
+
+class TestRunChronicleWithScenario:
+    def _mock_llm(self, response: str = "DEVELOP"):
+        mock = MagicMock()
+        mock.complete.return_value = response
+        mock.model = "test-model"
+        return mock
+
+    def test_scenario_config_applies_overrides(self, tmp_path):
+        """run_chronicle with scenario_config should apply overrides to world."""
+        from chronicler.scenario import ScenarioConfig, CivOverride, LeaderOverride
+        sim_client = self._mock_llm("DEVELOP")
+        narrative_client = self._mock_llm("Scenario narrative.")
+
+        output_path = tmp_path / "chronicle.md"
+        state_path = tmp_path / "state.json"
+        config = ScenarioConfig(
+            name="Test Scenario",
+            world_name="Test World",
+            civilizations=[CivOverride(name="Test Empire", military=9)],
+        )
+        run_chronicle(
+            seed=42,
+            num_turns=3,
+            num_civs=2,
+            num_regions=4,
+            output_path=output_path,
+            state_path=state_path,
+            sim_client=sim_client,
+            narrative_client=narrative_client,
+            reflection_interval=10,
+            scenario_config=config,
+        )
+        assert output_path.exists()
+        # Verify overrides took effect via saved state
+        from chronicler.models import WorldState
+        world = WorldState.load(state_path)
+        assert world.name == "Test World"
+        assert any(c.name == "Test Empire" for c in world.civilizations)
+        test_empire = next(c for c in world.civilizations if c.name == "Test Empire")
+        assert test_empire.military >= 1  # May have changed during simulation
+
+
+def test_scenario_flag_in_parser():
+    from chronicler.main import _build_parser
+    p = _build_parser()
+    args = p.parse_args(["--scenario", "scenarios/test.yaml"])
+    assert args.scenario == "scenarios/test.yaml"
+
+
+def test_scenario_and_resume_mutually_exclusive():
+    from chronicler.main import _build_parser
+    p = _build_parser()
+    # Both flags should parse fine (mutual exclusion is checked at runtime)
+    args = p.parse_args(["--scenario", "test.yaml", "--resume", "state.json"])
+    assert args.scenario == "test.yaml"
+    assert args.resume == "state.json"

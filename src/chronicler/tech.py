@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from chronicler.models import Civilization, Event, TechEra, WorldState
-
-
-def _clamp(value: int, low: int, high: int) -> int:
-    return max(low, min(high, value))
+from chronicler.utils import clamp
 
 
 _ERA_ORDER = list(TechEra)
@@ -65,7 +62,7 @@ def apply_era_bonus(civ: Civilization, era: TechEra) -> None:
     for stat, amount in bonuses.items():
         if isinstance(amount, int) and hasattr(civ, stat):
             current = getattr(civ, stat)
-            setattr(civ, stat, _clamp(current + amount, 1, 10))
+            setattr(civ, stat, clamp(current + amount, 1, 10))
 
 
 def tech_war_multiplier(attacker_era: TechEra, defender_era: TechEra) -> float:

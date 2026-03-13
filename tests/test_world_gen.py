@@ -51,6 +51,16 @@ class TestAssignCivilizations:
             assert civ.leader.trait
 
 
+class TestGenerateRegionsValidation:
+    def test_exceeding_template_pool_raises(self):
+        with pytest.raises(ValueError, match="region templates are available"):
+            generate_regions(count=13, seed=42)
+
+    def test_exact_pool_size_works(self):
+        regions = generate_regions(count=12, seed=42)
+        assert len(regions) == 12
+
+
 class TestGenerateWorld:
     def test_produces_valid_world_state(self):
         world = generate_world(seed=42, num_regions=8, num_civs=4)
@@ -73,6 +83,13 @@ class TestGenerateWorld:
         world = generate_world(seed=42, num_regions=8, num_civs=4)
         assert len(world.event_probabilities) > 0
         assert all(0 < p < 1 for p in world.event_probabilities.values())
+
+    def test_used_leader_names_seeded(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        assert len(world.used_leader_names) == len(world.civilizations)
+        for civ in world.civilizations:
+            assert civ.leader.name in world.used_leader_names
+        assert len(world.used_leader_names) == len(set(world.used_leader_names))
 
 
 class TestLLMWorldGeneration:

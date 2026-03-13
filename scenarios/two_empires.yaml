@@ -1,0 +1,28 @@
+name: Two Empires
+description: Two matched powers locked in a cold war across contested borderlands
+world_name: The Divided Realm
+seed: 99
+num_civs: 2
+num_regions: 6
+
+civilizations:
+  - name: Dominion of Ashar
+    military: 7
+    economy: 6
+    stability: 6
+    tech_era: iron
+    domains: [warfare, conquest]
+    leader:
+      trait: aggressive
+  - name: Thalassic League
+    military: 6
+    economy: 7
+    culture: 6
+    tech_era: iron
+    domains: [maritime, commerce]
+    leader:
+      trait: calculating
+
+relationships:
+  Dominion of Ashar:
+    Thalassic League: hostile

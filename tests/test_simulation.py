@@ -292,7 +292,7 @@ def test_leader_dynamics_phase(sample_world):
     """Leader dynamics phase handles trait evolution."""
     civ = sample_world.civilizations[0]
     civ.leader.reign_start = 0
-    civ.action_counts = {"WAR": 15}
+    civ.action_counts = {"war": 15}
     sample_world.turn = 15
 
     def stub_selector(c, w):
@@ -368,3 +368,92 @@ def test_backward_compat_old_state(tmp_path, sample_world):
         return "Turn narrative."
 
     run_turn(loaded, stub_selector, stub_narrator, seed=42)
+
+
+def test_diplomacy_treaty_requires_classical_era(sample_world):
+    """Named treaties should only be generated at CLASSICAL+ era."""
+    from chronicler.simulation import _resolve_diplomacy
+    from chronicler.models import Relationship
+    civ = sample_world.civilizations[0]
+    other = sample_world.civilizations[1]
+    civ.tech_era = TechEra.BRONZE  # Below CLASSICAL
+    civ.culture = 5
+    # Set relationship to NEUTRAL so diplomacy upgrades to FRIENDLY (treaty-worthy)
+    sample_world.relationships[civ.name][other.name] = Relationship(disposition=Disposition.NEUTRAL)
+    sample_world.relationships[other.name][civ.name] = Relationship(disposition=Disposition.NEUTRAL)
+    _resolve_diplomacy(civ, sample_world)
+    treaties = [ne for ne in sample_world.named_events if ne.event_type == "treaty"]
+    assert len(treaties) == 0, "BRONZE era should not generate named treaties"
+
+
+def test_diplomacy_treaty_generated_at_classical(sample_world):
+    """Named treaties should be generated at CLASSICAL+ era."""
+    from chronicler.simulation import _resolve_diplomacy
+    from chronicler.models import Relationship
+    civ = sample_world.civilizations[0]
+    other = sample_world.civilizations[1]
+    civ.tech_era = TechEra.CLASSICAL
+    civ.culture = 5
+    sample_world.relationships[civ.name][other.name] = Relationship(disposition=Disposition.NEUTRAL)
+    sample_world.relationships[other.name][civ.name] = Relationship(disposition=Disposition.NEUTRAL)
+    _resolve_diplomacy(civ, sample_world)
+    treaties = [ne for ne in sample_world.named_events if ne.event_type == "treaty"]
+    assert len(treaties) == 1, "CLASSICAL era should generate named treaties on FRIENDLY upgrade"
+
+
+def test_expand_harsh_terrain_requires_iron(sample_world):
+    """Pre-IRON civs should not expand into desert/tundra regions."""
+    from chronicler.simulation import _resolve_expand
+    from chronicler.models import Region
+    civ = sample_world.civilizations[0]
+    civ.tech_era = TechEra.BRONZE
+    civ.military = 5
+    # Remove all unclaimed regions, add only a desert one
+    for r in sample_world.regions:
+        r.controller = "someone"
+    sample_world.regions.append(
+        Region(name="Burning Wastes", terrain="desert", carrying_capacity=3, resources="sparse")
+    )
+    event = _resolve_expand(civ, sample_world)
+    assert "could not expand" in event.description
+
+
+def test_expand_harsh_terrain_allowed_at_iron(sample_world):
+    """IRON+ civs can expand into desert/tundra regions."""
+    from chronicler.simulation import _resolve_expand
+    from chronicler.models import Region
+    civ = sample_world.civilizations[0]
+    civ.tech_era = TechEra.IRON
+    civ.military = 5
+    for r in sample_world.regions:
+        r.controller = "someone"
+    sample_world.regions.append(
+        Region(name="Burning Wastes", terrain="desert", carrying_capacity=3, resources="sparse")
+    )
+    event = _resolve_expand(civ, sample_world)
+    assert "expanded into" in event.description
+
+
+def test_medieval_defender_asabiya_bonus(sample_world):
+    """MEDIEVAL+ defenders should get +0.2 asabiya bonus in war."""
+    attacker = sample_world.civilizations[0]
+    defender = sample_world.civilizations[1]
+    # Both have equal military, but defender has MEDIEVAL era advantage
+    attacker.military = 5
+    defender.military = 5
+    attacker.tech_era = TechEra.CLASSICAL
+    defender.tech_era = TechEra.MEDIEVAL
+    attacker.asabiya = 0.5
+    defender.asabiya = 0.5  # Effective 0.7 with bonus
+    # Run many trials to confirm statistical edge
+    defender_wins = 0
+    for seed in range(100):
+        attacker.military = 5
+        defender.military = 5
+        attacker.treasury = 10
+        defender.treasury = 10
+        result = resolve_war(attacker, defender, sample_world, seed=seed)
+        if result == "defender_wins":
+            defender_wins += 1
+    # With the asabiya bonus, defender should win more often than without
+    assert defender_wins > 30, f"MEDIEVAL defender bonus not effective: {defender_wins}/100 wins"

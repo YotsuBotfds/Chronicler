@@ -71,9 +71,18 @@ DEFAULT_EVENT_PROBABILITIES: dict[str, float] = {
 
 
 def generate_regions(count: int = 8, seed: int = 42) -> list[Region]:
-    """Generate a set of named regions from the template pool."""
+    """Generate a set of named regions from the template pool.
+
+    If *count* exceeds the template pool size (currently 12), a ValueError
+    is raised rather than silently capping the result.
+    """
+    if count > len(REGION_TEMPLATES):
+        raise ValueError(
+            f"Requested {count} regions but only {len(REGION_TEMPLATES)} "
+            f"region templates are available"
+        )
     rng = random.Random(seed)
-    templates = rng.sample(REGION_TEMPLATES, k=min(count, len(REGION_TEMPLATES)))
+    templates = rng.sample(REGION_TEMPLATES, k=count)
     return [
         Region(
             name=t["name"],
@@ -163,6 +172,9 @@ def generate_world(
     civ_names = [c.name for c in civs]
     relationships = _build_relationships(civ_names, seed=seed + 1)
 
+    # Seed used_leader_names so succession can't duplicate initial leaders
+    used_leader_names = [c.leader.name for c in civs]
+
     return WorldState(
         name=world_name,
         seed=seed,
@@ -174,6 +186,7 @@ def generate_world(
         events_timeline=[],
         active_conditions=[],
         event_probabilities=dict(DEFAULT_EVENT_PROBABILITIES),
+        used_leader_names=used_leader_names,
     )
 
 

@@ -31,9 +31,11 @@ from chronicler.models import (
     Event,
     Leader,
     NamedEvent,
+    TechEra,
     WorldState,
 )
 from chronicler.tech import check_tech_advancement, tech_war_multiplier
+from chronicler.utils import clamp
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
     check_rival_fall, update_rivalries,
@@ -61,21 +63,15 @@ DISPOSITION_UPGRADE: dict[Disposition, Disposition] = {
     Disposition.ALLIED: Disposition.ALLIED,
 }
 
-SUCCESSOR_NAMES: list[str] = [
-    "Vaelith II", "Gorath the Younger", "Seren", "Thaldric", "Mirael",
-    "Kassander", "Ulveth", "Zhara", "Fenrik", "Aelindra",
-]
-
-SUCCESSOR_TRAITS: list[str] = [
-    "ambitious", "cautious", "aggressive", "calculating", "zealous",
-    "opportunistic", "stubborn", "bold", "shrewd", "visionary",
-]
-
-
 # --- Helpers ---
 
-def _clamp(value: int, low: int, high: int) -> int:
-    return max(low, min(high, value))
+
+
+_ERA_ORDER = list(TechEra)
+
+
+def _era_at_least(era: TechEra, minimum: TechEra) -> bool:
+    return _ERA_ORDER.index(era) >= _ERA_ORDER.index(minimum)
 
 
 def _get_civ(world: WorldState, name: str) -> Civilization | None:
@@ -108,8 +104,8 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 
     if event.event_type == "drought":
         for civ in affected:
-            civ.stability = _clamp(civ.stability - 1, 1, 10)
-            civ.economy = _clamp(civ.economy - 1, 1, 10)
+            civ.stability = clamp(civ.stability - 1, 1, 10)
+            civ.economy = clamp(civ.economy - 1, 1, 10)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="drought",
@@ -120,8 +116,8 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         )
     elif event.event_type == "plague":
         for civ in affected:
-            civ.population = _clamp(civ.population - 1, 1, 10)
-            civ.stability = _clamp(civ.stability - 1, 1, 10)
+            civ.population = clamp(civ.population - 1, 1, 10)
+            civ.stability = clamp(civ.stability - 1, 1, 10)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="plague",
@@ -132,7 +128,7 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         )
     elif event.event_type == "earthquake":
         for civ in affected:
-            civ.economy = _clamp(civ.economy - 1, 1, 10)
+            civ.economy = clamp(civ.economy - 1, 1, 10)
 
     # Cascade probabilities
     world.event_probabilities = apply_probability_cascade(
@@ -172,10 +168,10 @@ def phase_production(world: WorldState) -> None:
         )
         max_pop = min(10, region_capacity)
         if civ.economy > civ.population and civ.stability > 3 and civ.population < max_pop:
-            civ.population = _clamp(civ.population + 1, 1, 10)
+            civ.population = clamp(civ.population + 1, 1, 10)
         # Population decline if stability very low
         elif civ.stability <= 2 and civ.population > 1:
-            civ.population = _clamp(civ.population - 1, 1, 10)
+            civ.population = clamp(civ.population - 1, 1, 10)
 
 
 # --- Phase 3: Action ---
@@ -233,10 +229,10 @@ def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
     if civ.treasury >= cost:
         civ.treasury -= cost
         if civ.economy <= civ.culture:
-            civ.economy = _clamp(civ.economy + 1, 1, 10)
+            civ.economy = clamp(civ.economy + 1, 1, 10)
             target = "economy"
         else:
-            civ.culture = _clamp(civ.culture + 1, 1, 10)
+            civ.culture = clamp(civ.culture + 1, 1, 10)
             target = "culture"
         return Event(
             turn=world.turn, event_type="develop", actors=[civ.name],
@@ -248,16 +244,22 @@ def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
     )
 
 
+HARSH_TERRAINS = {"tundra", "desert"}
+
+
 def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
     """Claim an uncontrolled region."""
     civ_index = next((i for i, c in enumerate(world.civilizations) if c.name == civ.name), 0)
     rng = random.Random(world.turn * 1000 + civ_index)
     unclaimed = [r for r in world.regions if r.controller is None]
+    # Filter out harsh terrain if below IRON era
+    if not _era_at_least(civ.tech_era, TechEra.IRON):
+        unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
     if unclaimed and civ.military >= 3:
         target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
-        civ.military = _clamp(civ.military - 1, 1, 10)  # Expansion stretches forces
+        civ.military = clamp(civ.military - 1, 1, 10)  # Expansion stretches forces
         return Event(
             turn=world.turn, event_type="expand", actors=[civ.name],
             description=f"{civ.name} expanded into {target.name}.", importance=6,
@@ -311,8 +313,8 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
             rel_in = world.relationships[worst_name][civ.name]
             rel_in.disposition = DISPOSITION_UPGRADE[rel_in.disposition]
         new_disp = rel_out.disposition
-        # Generate named treaty for significant upgrades
-        if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED):
+        # Generate named treaty for significant upgrades (requires CLASSICAL+ era)
+        if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED) and _era_at_least(civ.tech_era, TechEra.CLASSICAL):
             treaty_name = generate_treaty_name(civ.name, worst_name, world, seed=world.seed)
             world.named_events.append(NamedEvent(
                 name=treaty_name, event_type="treaty", turn=world.turn,
@@ -343,6 +345,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
                 target_name = other_name
 
     if target_name is None:
+        # No HOSTILE/SUSPICIOUS target exists — fall back to peaceful action
         return _resolve_develop(civ, world)
 
     defender = _get_civ(world, target_name)
@@ -387,8 +390,15 @@ def resolve_war(
     rng = random.Random(seed)
 
     # Lanchester-inspired: effective power = military^2 * asabiya + random factor
-    att_power = (attacker.military ** 2) * attacker.asabiya + rng.uniform(0, 3)
-    def_power = (defender.military ** 2) * defender.asabiya + rng.uniform(0, 3)
+    att_asabiya = attacker.asabiya
+    def_asabiya = defender.asabiya
+
+    # MEDIEVAL+ defender bonus: +0.2 asabiya (capped at 1.0)
+    if _era_at_least(defender.tech_era, TechEra.MEDIEVAL):
+        def_asabiya = min(def_asabiya + 0.2, 1.0)
+
+    att_power = (attacker.military ** 2) * att_asabiya + rng.uniform(0, 3)
+    def_power = (defender.military ** 2) * def_asabiya + rng.uniform(0, 3)
 
     # Apply tech disparity multiplier
     att_power *= tech_war_multiplier(attacker.tech_era, defender.tech_era)
@@ -406,20 +416,20 @@ def resolve_war(
             seized.controller = attacker.name
             attacker.regions.append(seized.name)
             defender.regions = [r for r in defender.regions if r != seized.name]
-        attacker.military = _clamp(attacker.military - 1, 1, 10)
-        defender.military = _clamp(defender.military - 2, 1, 10)
-        defender.stability = _clamp(defender.stability - 1, 1, 10)
+        attacker.military = clamp(attacker.military - 1, 1, 10)
+        defender.military = clamp(defender.military - 2, 1, 10)
+        defender.stability = clamp(defender.stability - 1, 1, 10)
         return "attacker_wins"
     elif def_power > att_power * 1.3:
         # Defender wins
-        attacker.military = _clamp(attacker.military - 2, 1, 10)
-        defender.military = _clamp(defender.military - 1, 1, 10)
-        attacker.stability = _clamp(attacker.stability - 1, 1, 10)
+        attacker.military = clamp(attacker.military - 2, 1, 10)
+        defender.military = clamp(defender.military - 1, 1, 10)
+        attacker.stability = clamp(attacker.stability - 1, 1, 10)
         return "defender_wins"
     else:
         # Stalemate — both sides lose
-        attacker.military = _clamp(attacker.military - 1, 1, 10)
-        defender.military = _clamp(defender.military - 1, 1, 10)
+        attacker.military = clamp(attacker.military - 1, 1, 10)
+        defender.military = clamp(defender.military - 1, 1, 10)
         return "stalemate"
 
 
@@ -506,7 +516,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
     if event_type == "leader_death":
         old_leader = civ.leader
         old_leader.alive = False
-        civ.stability = _clamp(civ.stability - 2, 1, 10)
+        civ.stability = clamp(civ.stability - 2, 1, 10)
         # Apply legacy if long reign
         apply_leader_legacy(civ, old_leader, world)
         # Check rival fall
@@ -515,22 +525,22 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         new_leader = generate_successor(civ, world, seed=world.turn * 100)
         civ.leader = new_leader
     elif event_type == "rebellion":
-        civ.stability = _clamp(civ.stability - 2, 1, 10)
-        civ.military = _clamp(civ.military - 1, 1, 10)
+        civ.stability = clamp(civ.stability - 2, 1, 10)
+        civ.military = clamp(civ.military - 1, 1, 10)
     elif event_type == "discovery":
-        civ.culture = _clamp(civ.culture + 1, 1, 10)
-        civ.economy = _clamp(civ.economy + 1, 1, 10)
+        civ.culture = clamp(civ.culture + 1, 1, 10)
+        civ.economy = clamp(civ.economy + 1, 1, 10)
     elif event_type == "religious_movement":
-        civ.culture = _clamp(civ.culture + 1, 1, 10)
-        civ.stability = _clamp(civ.stability - 1, 1, 10)
+        civ.culture = clamp(civ.culture + 1, 1, 10)
+        civ.stability = clamp(civ.stability - 1, 1, 10)
     elif event_type == "cultural_renaissance":
-        civ.culture = _clamp(civ.culture + 2, 1, 10)
-        civ.stability = _clamp(civ.stability + 1, 1, 10)
+        civ.culture = clamp(civ.culture + 2, 1, 10)
+        civ.stability = clamp(civ.stability + 1, 1, 10)
     elif event_type == "migration":
-        civ.population = _clamp(civ.population + 1, 1, 10)
-        civ.stability = _clamp(civ.stability - 1, 1, 10)
+        civ.population = clamp(civ.population + 1, 1, 10)
+        civ.stability = clamp(civ.stability - 1, 1, 10)
     elif event_type == "border_incident":
-        civ.stability = _clamp(civ.stability - 1, 1, 10)
+        civ.stability = clamp(civ.stability - 1, 1, 10)
 
 
 # --- Phase 5: Consequences ---
@@ -544,7 +554,7 @@ def phase_consequences(world: WorldState) -> list[Event]:
         for civ_name in condition.affected_civs:
             civ = _get_civ(world, civ_name)
             if civ and condition.severity >= 5:
-                civ.stability = _clamp(civ.stability - 1, 1, 10)
+                civ.stability = clamp(civ.stability - 1, 1, 10)
 
     # Remove expired conditions
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
@@ -563,8 +573,8 @@ def phase_consequences(world: WorldState) -> list[Event]:
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
-                civ.military = _clamp(civ.military // 2, 1, 10)
-                civ.economy = _clamp(civ.economy // 2, 1, 10)
+                civ.military = clamp(civ.military // 2, 1, 10)
+                civ.economy = clamp(civ.economy // 2, 1, 10)
                 collapse_events.append(Event(
                     turn=world.turn,
                     event_type="collapse",
@@ -620,7 +630,13 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
     """Phase 7: Handle trait evolution for all living leaders."""
     events = []
     for civ in world.civilizations:
-        check_trait_evolution(civ, world)
+        secondary = check_trait_evolution(civ, world)
+        if secondary:
+            events.append(Event(
+                turn=world.turn, event_type="trait_evolution", actors=[civ.name],
+                description=f"{civ.leader.name} of {civ.name} has become known as a {secondary}",
+                importance=4,
+            ))
     return events
 
 
