@@ -306,3 +306,20 @@ class TestSnapshotCapture:
         execute_run(args)
         assert (tmp_path / "state.json").exists()
         assert (tmp_path / "chronicle.md").exists()
+
+
+class TestBundleSize:
+    @pytest.mark.slow
+    def test_500_turn_bundle_under_5mb(self, tmp_path):
+        from chronicler.main import execute_run
+        args = argparse.Namespace(
+            seed=1, turns=500, civs=5, regions=10,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=50,
+            llm_actions=False, scenario=None, pause_every=None,
+        )
+        execute_run(args)
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        size_mb = bundle_path.stat().st_size / (1024 * 1024)
+        assert size_mb < 5, f"Bundle is {size_mb:.2f}MB, expected < 5MB"
