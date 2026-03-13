@@ -105,6 +105,8 @@ At the end of a completed run (after chronicle compilation), write `chronicle_bu
 {
   "world_state": { ... },
   "history": [ ... ],
+  "events_timeline": [ ... ],
+  "named_events": [ ... ],
   "chronicle_entries": { "1": "prose...", "2": "prose...", ... },
   "era_reflections": { "10": "## Era: Turns 1–10\n\n...", ... },
   "metadata": {
@@ -113,7 +115,8 @@ At the end of a completed run (after chronicle compilation), write `chronicle_bu
     "generated_at": "2026-03-13T14:30:00Z",
     "sim_model": "LFM2-24B",
     "narrative_model": "LFM2-24B",
-    "scenario_name": "post_collapse_minnesota"
+    "scenario_name": "post_collapse_minnesota",
+    "interestingness_score": 47.5
   }
 }
 ```
@@ -121,10 +124,13 @@ At the end of a completed run (after chronicle compilation), write `chronicle_bu
 **Key rules:**
 - `world_state` is the full final WorldState (same content as `state.json`).
 - `history` is the list of `TurnSnapshot` objects.
+- `events_timeline` is a direct serialization of `world.events_timeline` — the list of `Event` objects with `turn`, `event_type`, `actors`, `description`, `consequences`, `importance`. This is the structured data that powers the Event Log tab and the adaptive event dots on the scrubber.
+- `named_events` is a direct serialization of `world.named_events` — the list of `NamedEvent` objects with `name`, `event_type`, `turn`, `actors`, `region`, `description`, `importance`. These are the high-significance events (battles, treaties, cultural works) displayed as labeled dots on the scrubber and as event markers on stat graphs.
 - `chronicle_entries` is a **transform** from the runtime data: `execute_run` accumulates chronicle entries as a list/dict keyed by turn number. The bundle serializes this as `{ "1": "prose...", "2": "prose..." }` — a dict with string keys (turn numbers) and string values (prose text). This is a serialization transform, not a direct dump of the runtime structure.
 - `era_reflections` is keyed by the turn number at which the reflection was generated.
 - `metadata.sim_model` and `metadata.narrative_model` come from the two LLM client configurations at runtime (simulation and narrative may use different models). If only one model is used, both fields have the same value.
 - `metadata.scenario_name` comes from `world.scenario_name` (added in M10, may be null for non-scenario runs).
+- `metadata.interestingness_score` is the score computed by M10's `score_run()` if available (batch mode, or any run where scoring was performed). Null if not computed. The viewer displays it in the header when present.
 - Bundle is written **once** at completion. Not written on early termination or crash.
 - Existing outputs unchanged: `state.json` (crash-recovery checkpoint, overwritten each turn, no history) and `chronicle.md` (standalone readable prose) continue to be written exactly as before.
 
@@ -207,7 +213,7 @@ viewer/
 
 **Header** (full width, fixed):
 - Left: World name, scenario name (if any), "Turn 47 / 100"
-- Right: Seed, model name, dark/light toggle
+- Right: Seed, model name, interestingness score (if present), dark/light toggle
 
 **Timeline Scrubber** (full width, below header):
 - Horizontal bar with turn markers. Era boundaries as labeled dividers.
@@ -215,14 +221,14 @@ viewer/
   - Per-civ era is shown on individual faction cards, not on the scrubber.
 - Drag to seek, click to jump.
 - Play/pause button, speed selector (1x, 2x, 5x, 10x turns per second).
-- Named event dots on the bar — **adaptive density**: show the top N events by importance that fit without overlapping, rather than a hard importance threshold. Keeps the scrubber useful at any run length (20 turns or 500). Hover for tooltip with event name + turn.
+- Named event dots on the bar from `named_events` — **adaptive density**: show the top N events by importance that fit without overlapping, rather than a hard importance threshold. Keeps the scrubber useful at any run length (20 turns or 500). Hover for tooltip with event name + turn.
 - Current turn number displayed on the scrubber thumb.
 
 **Body** (two columns below scrubber):
 
 **Left column (~35%)** — text-heavy:
 - **Chronicle tab**: Rendered markdown for the current turn's entry. Auto-scrolls to current turn on scrub. Era reflections shown inline at their boundary turns.
-- **Event Log tab**: Table of all events. Columns: turn, type, actors, importance. Filterable by type, civilization, importance threshold. Click a row → scrubber jumps to that turn.
+- **Event Log tab**: Table of all events from `events_timeline`. Columns: turn, type, actors, importance. Filterable by type, civilization, importance threshold. Click a row → scrubber jumps to that turn.
 
 **Right column (~65%)** — visual/data, stacked vertically:
 - **Faction Dashboard** (top): One card per civilization.
@@ -233,7 +239,10 @@ viewer/
   - **Sparklines always show full run history** (all turns, not truncated to current turn). Vertical marker at the current scrubber position. This lets the user see "where is this civ headed" while scrubbing.
 - **Territory Map** (middle): D3-force node graph.
   - Regions as circles, sized by `carrying_capacity`, colored by controlling faction. Uncontrolled = gray.
-  - Default edges: adjacency. **Adjacency inference rule:** two regions are adjacent if they share a controlling faction at any point during the run OR if both have `x`/`y` coordinates within a threshold distance (0.25 in normalized space). When no coordinates exist and no shared control history exists, all regions start fully connected and the force layout naturally clusters them. Scenario configs can optionally add an `adjacency` list to `RegionOverride` in a future milestone for explicit control, but M11 uses inference only.
+  - Default edges: adjacency. **Adjacency layout rules:**
+    - **If scenario provides `x`/`y` coordinates:** nodes pinned to those positions. Edges drawn between regions within a threshold distance (0.25 in normalized space). Layout is stable and deterministic.
+    - **If no coordinates:** regions laid out in a **circle grouped by initial controller**. Regions belonging to the same faction at turn 0 are placed adjacent to each other in the circle. Uncontrolled regions fill the gaps. No inference, no time-dependent adjacency — just a dumb, stable default that gives the graph readable structure. Edges connect regions within the same faction group.
+    - **Explicit adjacency lists** in scenario configs can come in a future milestone. M11 uses the two rules above only.
   - **Relationship matrix toggle**: switches edge rendering from adjacency to diplomatic disposition between factions. Edge color follows the disposition enum: red (hostile), yellow (suspicious), gray (neutral), green (friendly), blue (allied). **Relationships are snapshotted per turn** — see Section 1.1 addendum below. When the user scrubs to turn 30, the relationship edges reflect turn-30 dispositions.
   - Click a region node: tooltip with terrain, resources, carrying capacity, control history (list of controller changes with turn numbers, derived from `history` snapshots).
   - When scenario provides `x`/`y` coordinates: nodes pinned to those positions. Otherwise: force-directed layout.
@@ -263,7 +272,7 @@ Toggle in header. Default: dark (fits the mythic tone of the chronicles). Tailwi
 - **Snapshot capture test**: Run 5 turns, verify `history` list has 5 entries with correct civ stats at each turn.
 - **All civs present test**: Run 5 turns with 4 civs, verify every snapshot contains all 4 civs with `alive: true`. (Dead civ boundary testing deferred until a civ elimination mechanic exists. The `alive` field and muted-card rendering are structurally ready.)
 - **Relationship snapshot test**: Run 5 turns, verify each snapshot's `relationships` dict has the correct disposition values matching the world state at that turn.
-- **Bundle assembly test**: Verify `chronicle_bundle.json` contains all required top-level keys (`world_state`, `history`, `chronicle_entries`, `era_reflections`, `metadata`).
+- **Bundle assembly test**: Verify `chronicle_bundle.json` contains all required top-level keys (`world_state`, `history`, `events_timeline`, `named_events`, `chronicle_entries`, `era_reflections`, `metadata`). Verify `metadata` contains `interestingness_score` (may be null).
 - **Bundle not written on crash**: Verify bundle is only written on completed runs, not on crash-recovery saves or early termination.
 - **Bundle size sanity test**: Run 500 turns with 5 civs, write the bundle, assert file size < 5MB. Guards against bloat from redundant serialization.
 - **Region coordinates test**: Verify `x`/`y` propagate from `RegionOverride` through `apply_scenario` to `Region` model and into the bundle.
