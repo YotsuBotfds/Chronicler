@@ -6,7 +6,9 @@ thematic coherence without requiring LLM calls during generation.
 """
 from __future__ import annotations
 
+import json
 import random
+from typing import Any
 
 from chronicler.models import (
     Civilization,
@@ -173,3 +175,35 @@ def generate_world(
         active_conditions=[],
         event_probabilities=dict(DEFAULT_EVENT_PROBABILITIES),
     )
+
+
+def enrich_with_llm(world: WorldState, client: Any, model: str = "claude-haiku-4-5-20251001") -> None:
+    """Use the LLM to generate creative goals and backstory details."""
+    civ_summaries = "\n".join(
+        f"- {c.name}: domains={c.domains}, values={c.values}, "
+        f"leader={c.leader.name} ({c.leader.trait}), regions={c.regions}"
+        for c in world.civilizations
+    )
+
+    prompt = f"""Given these civilizations in the world of {world.name}:
+
+{civ_summaries}
+
+Generate a strategic goal for each civilization. Goals should be specific,
+achievable within 50 turns, and reflect the civilization's domains and values.
+
+Respond as JSON: {{"goals": ["goal for civ 1", "goal for civ 2", ...]}}"""
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    try:
+        data = json.loads(response.content[0].text)
+        goals = data.get("goals", [])
+        for i, civ in enumerate(world.civilizations):
+            if i < len(goals):
+                civ.goal = goals[i]
+    except (json.JSONDecodeError, KeyError):
+        pass  # Keep empty goals on parse failure

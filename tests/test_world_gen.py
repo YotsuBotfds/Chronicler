@@ -1,6 +1,6 @@
 """Tests for initial world generation."""
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from chronicler.world_gen import generate_world, generate_regions, assign_civilizations
 from chronicler.models import WorldState, TechEra
 
@@ -73,3 +73,19 @@ class TestGenerateWorld:
         world = generate_world(seed=42, num_regions=8, num_civs=4)
         assert len(world.event_probabilities) > 0
         assert all(0 < p < 1 for p in world.event_probabilities.values())
+
+
+class TestLLMWorldGeneration:
+    def test_llm_generates_goals(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = MagicMock(
+            content=[MagicMock(text='{"goals": ["Dominate the eastern trade routes", "Unite the mountain clans", "Spread the faith to all shores", "Preserve the ancient knowledge"]}')]
+        )
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        # Without LLM, goals are empty
+        assert all(c.goal == "" for c in world.civilizations)
+
+        from chronicler.world_gen import enrich_with_llm
+        enrich_with_llm(world, client=mock_client)
+        # After LLM enrichment, goals should be set
+        assert any(c.goal != "" for c in world.civilizations)
