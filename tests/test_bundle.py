@@ -6,6 +6,8 @@ from chronicler.models import (
 )
 from chronicler.scenario import RegionOverride, ScenarioConfig, apply_scenario
 from chronicler.models import WorldState, Leader, Civilization, Relationship, Disposition
+from chronicler.bundle import assemble_bundle, write_bundle
+from chronicler.chronicle import ChronicleEntry
 
 
 class TestSnapshotModels:
@@ -94,3 +96,128 @@ class TestRegionCoordinatePropagation:
         region = next(r for r in sample_world.regions if r.name == "Verdant Plains")
         assert region.x is None
         assert region.y is None
+
+
+class TestBundleAssembly:
+    def test_assemble_bundle_has_all_keys(self, sample_world):
+        history = [
+            TurnSnapshot(
+                turn=1,
+                civ_stats={
+                    "Kethani Empire": CivSnapshot(
+                        population=7, military=5, economy=8, culture=6,
+                        stability=6, treasury=12, asabiya=0.6,
+                        tech_era=TechEra.IRON, trait="calculating",
+                        regions=["Verdant Plains"], leader_name="Empress Vaelith",
+                        alive=True,
+                    ),
+                    "Dorrathi Clans": CivSnapshot(
+                        population=4, military=7, economy=3, culture=5,
+                        stability=4, treasury=5, asabiya=0.8,
+                        tech_era=TechEra.IRON, trait="aggressive",
+                        regions=["Iron Peaks"], leader_name="Warchief Gorath",
+                        alive=True,
+                    ),
+                },
+                region_control={"Verdant Plains": "Kethani Empire", "Iron Peaks": "Dorrathi Clans"},
+                relationships={
+                    "Kethani Empire": {"Dorrathi Clans": RelationshipSnapshot(disposition="suspicious")},
+                    "Dorrathi Clans": {"Kethani Empire": RelationshipSnapshot(disposition="hostile")},
+                },
+            ),
+        ]
+        chronicle_entries = [ChronicleEntry(turn=1, text="The empires clashed.")]
+        era_reflections = {10: "## Era: Turns 1-10\n\nReflection text."}
+
+        bundle = assemble_bundle(
+            world=sample_world,
+            history=history,
+            chronicle_entries=chronicle_entries,
+            era_reflections=era_reflections,
+            sim_model="test-model",
+            narrative_model="test-model",
+            interestingness_score=None,
+        )
+
+        assert "world_state" in bundle
+        assert "history" in bundle
+        assert "events_timeline" in bundle
+        assert "named_events" in bundle
+        assert "chronicle_entries" in bundle
+        assert "era_reflections" in bundle
+        assert "metadata" in bundle
+
+    def test_chronicle_entries_keyed_by_turn_string(self, sample_world):
+        history = []
+        entries = [
+            ChronicleEntry(turn=1, text="Turn one prose."),
+            ChronicleEntry(turn=2, text="Turn two prose."),
+        ]
+        bundle = assemble_bundle(
+            world=sample_world, history=history,
+            chronicle_entries=entries, era_reflections={},
+            sim_model="m", narrative_model="m",
+            interestingness_score=None,
+        )
+        assert bundle["chronicle_entries"]["1"] == "Turn one prose."
+        assert bundle["chronicle_entries"]["2"] == "Turn two prose."
+
+    def test_metadata_fields(self, sample_world):
+        bundle = assemble_bundle(
+            world=sample_world, history=[], chronicle_entries=[],
+            era_reflections={}, sim_model="sim-v1", narrative_model="narr-v2",
+            interestingness_score=42.5,
+        )
+        meta = bundle["metadata"]
+        assert meta["seed"] == 42
+        assert meta["sim_model"] == "sim-v1"
+        assert meta["narrative_model"] == "narr-v2"
+        assert meta["interestingness_score"] == 42.5
+        assert meta["scenario_name"] is None
+        assert "generated_at" in meta
+        assert "total_turns" in meta
+
+    def test_events_timeline_serialized(self, sample_world):
+        from chronicler.models import Event
+        sample_world.events_timeline = [
+            Event(turn=1, event_type="war", actors=["A", "B"],
+                  description="A attacked B", importance=7),
+        ]
+        bundle = assemble_bundle(
+            world=sample_world, history=[], chronicle_entries=[],
+            era_reflections={}, sim_model="m", narrative_model="m",
+            interestingness_score=None,
+        )
+        assert len(bundle["events_timeline"]) == 1
+        assert bundle["events_timeline"][0]["event_type"] == "war"
+        assert bundle["events_timeline"][0]["importance"] == 7
+
+    def test_named_events_serialized(self, sample_world):
+        from chronicler.models import NamedEvent
+        sample_world.named_events = [
+            NamedEvent(name="Battle of Iron Peaks", event_type="battle",
+                       turn=3, actors=["A", "B"], region="Iron Peaks",
+                       description="A great battle", importance=8),
+        ]
+        bundle = assemble_bundle(
+            world=sample_world, history=[], chronicle_entries=[],
+            era_reflections={}, sim_model="m", narrative_model="m",
+            interestingness_score=None,
+        )
+        assert len(bundle["named_events"]) == 1
+        assert bundle["named_events"][0]["name"] == "Battle of Iron Peaks"
+
+
+class TestWriteBundle:
+    def test_write_bundle_creates_file(self, tmp_path):
+        bundle = {"world_state": {}, "metadata": {"seed": 42}}
+        path = tmp_path / "output" / "chronicle_bundle.json"
+        write_bundle(bundle, path)
+        assert path.exists()
+        loaded = json.loads(path.read_text())
+        assert loaded["metadata"]["seed"] == 42
+
+    def test_write_bundle_creates_parent_dirs(self, tmp_path):
+        path = tmp_path / "deep" / "nested" / "bundle.json"
+        write_bundle({"test": True}, path)
+        assert path.exists()
