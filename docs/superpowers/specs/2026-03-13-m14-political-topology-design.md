@@ -44,6 +44,16 @@ capital_region: str | None = None  # set during world_gen; scenario can override
 
 Defaults to `None`, set to the civ's first region in placement order during world generation (seed-deterministic but not semantically meaningful — just the first region assigned). Scenario YAML can specify `capital: "Region Name"` on a civ override.
 
+**`WorldState`:**
+```python
+war_start_turns: dict[str, int] = Field(default_factory=dict)
+    # key = "civ_a:civ_b" (alphabetically sorted pair), value = start turn
+    # populated when wars added to active_wars, cleaned when wars end
+    # helper: def war_key(a: str, b: str) -> str: return ":".join(sorted([a, b]))
+```
+
+Introduced in M14a (not M14c) because M14b's federation defense needs it. If M13b-1 is already implemented, patch `war_start_turns` into M13b-1's war tracking at this point. All code that adds to `active_wars` must also populate `war_start_turns` using the sorted key convention.
+
 **`ScenarioConfig` (scenario.py):**
 ```python
 secession_pool: list[CivOverride] = Field(default_factory=list)
@@ -66,8 +76,8 @@ For each civ with region_count > 2:
     treasury_cost = (region_count - 2) * 2  # flat treasury drain
 
     stability_cost = 0
-    for region in civ.regions (excluding capital):
-        dist = graph_distance(capital_region, region)
+    for region_name in civ.regions (excluding capital_region):
+        dist = graph_distance(world.regions, capital_region, region_name)
         treasury_cost += dist * 2
         stability_cost += dist * 1
 
@@ -128,9 +138,9 @@ Added to `ActionType` enum. Registered via `@register_action(ActionType.MOVE_CAP
    - **Leader:** Generated from parent's `leader_name_pool` (cultural consistency). New leader with the swapped trait.
    - **Domains/values:** Parent's domains with one random value swap (ideological divergence that motivated the split)
    - **Asabiya:** `0.7` (revolutionary vigor)
-   - **Capital:** Set to the breakaway's first region (closest to parent border — the "new capital")
+   - **Capital:** Set to the breakaway region with minimum `graph_distance` to any region still controlled by the parent (the border region — the "new capital")
    - **Disposition:** HOSTILE toward parent. NEUTRAL toward everyone else.
-4. Parent civ: loses those regions, stats reduced per formula above, `stability -= 10` additional shock
+4. Parent civ: loses those regions, stats reduced per formula above, `stability -= 10` additional shock. Parent's asabiya is not directly adjusted — the existing asabiya drift mechanics (low stability → declining asabiya) handle the parent's cohesion decay naturally. The stability shock is the primary punishment; asabiya follows.
 5. Named event: "The Secession of [Breakaway Name]" (importance 9)
 
 ### Integration Points
@@ -223,7 +233,7 @@ For each VassalRelation:
     tribute = floor(vassal.economy * relation.tribute_rate)
     vassal.treasury -= tribute
     overlord.treasury += tribute
-    relation.turns_active += 1
+    relation.turns_active += 1  # tracked for narrative/future use, not consumed by any M14 mechanic
 ```
 
 **Vassal rebellion** (checked via `politics.check_vassal_rebellion(world)` in phase 10, after secession):
@@ -257,7 +267,7 @@ Named event: "Formation of [Federation Name]" (importance 7)
 
 **Federation mechanics:**
 
-- **Shared defense:** When any member is *attacked* (WAR action targets them), all other members automatically enter war against the attacker. Added to `active_wars` and `war_start_turns`. Called via `politics.trigger_federation_defense(attacker, defender, world)` during action resolution.
+- **Shared defense:** When any member is *attacked* (WAR action targets them), all other members automatically enter war against the attacker. Added to `active_wars` and `war_start_turns` with `start_turn = world.turn` (the turn the federation defense triggers, not the original war declaration turn). Called via `politics.trigger_federation_defense(attacker, defender, world)` during action resolution.
   - **One layer deep:** Federation defense only triggers when a member is attacked, NOT when a member is the aggressor. If Civ A (in Federation X) attacks Civ B (in Federation Y), Federation Y members join against A. Federation X members do NOT auto-join to help A — A started the fight. X members only trigger if their territory is subsequently attacked.
 - **Shared trade network:** All member pairs get trade routes regardless of adjacency. Computed in `get_active_trade_routes` — federation membership bypasses the adjacency requirement.
 - **Attack restriction:** Members cannot target each other with WAR. Filtered in `get_eligible_actions`.
@@ -328,14 +338,9 @@ class ExileModifier(BaseModel):
 ```python
 proxy_wars: list[ProxyWar] = Field(default_factory=list)
 exile_modifiers: list[ExileModifier] = Field(default_factory=list)
-war_start_turns: dict[str, int] = Field(default_factory=dict)
-    # key = "civ_a:civ_b" (alphabetically sorted pair), value = start turn
-    # populated when wars added to active_wars, cleaned when wars end
 ```
 
-**`war_start_turns` key mapping:** `active_wars` stores `(attacker, defender)` tuples where attacker comes first (ordered by who declared). `war_start_turns` uses alphabetically sorted keys (`":".join(sorted([civ_a, civ_b]))`) for canonical lookup regardless of who attacked first. All code that populates or queries `war_start_turns` must use this sorting convention. Helper: `def war_key(a: str, b: str) -> str: return ":".join(sorted([a, b]))`.
-
-Note: `war_start_turns` should be introduced alongside the first code that populates `active_wars` (M13b-1 or M14a, whichever ships first). If M13b-1 is already implemented by M14c, add `war_start_turns` as a patch to M13b-1's war tracking.
+Note: `war_start_turns` is defined in M14a's model changes (see above) and is already available by M14c.
 
 ### Proxy Wars
 
@@ -427,7 +432,7 @@ The `+0.05` secession probability boost for the targeted region is applied durin
    ExileModifier(
        original_civ_name=eliminated_civ.name,
        absorber_civ=conquering_civ.name,
-       conquered_regions=[...regions that were the eliminated civ's],
+       conquered_regions=[...regions controlled by eliminated civ at moment of elimination],
        turns_remaining=20
    )
    ```
