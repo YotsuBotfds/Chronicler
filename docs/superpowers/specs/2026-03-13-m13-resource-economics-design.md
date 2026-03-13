@@ -576,7 +576,7 @@ Registered with `@register_action(ActionType.BUILD)`.
 **Resolution:**
 - Cost: 10 treasury
 - Target: one of the civ's controlled regions (chosen by engine)
-- Effect: increase `carrying_capacity += 10` OR `fertility += 0.1`
+- Effect: increase `carrying_capacity += 10` (clamped to 100) OR `fertility += 0.1` (clamped to 1.0)
 - **Choice logic:** Trait weights influence the decision. Default tiebreaker: if `fertility < 0.5`, restore fertility; else increase capacity. But personality modifies this:
   - `cautious`, `visionary`: bias toward fertility restoration
   - `ambitious`, `bold`, `aggressive`: bias toward capacity expansion
@@ -700,7 +700,7 @@ last_income: int = 0
 ```
 
 **Spawn trigger:** Civ where `military > last_income` for 3 consecutive turns.
-- `last_income` updated at end of production phase each turn (base income + trade income)
+- `last_income` accumulated across Phase 2 and Phase 3: trade income (from `apply_automatic_effects`) is added first, then base income (from `phase_production`) is added. Set `last_income = 0` at the start of Phase 2 each turn, then increment as each income source applies.
 - `merc_pressure_turns` incremented in `apply_automatic_effects` when `military > last_income`, reset to 0 otherwise
 - Spawn fires when `merc_pressure_turns >= 3`
 - Spawn: strength = `civ.military // 5`. Spawning civ: `military -= strength * 5`
