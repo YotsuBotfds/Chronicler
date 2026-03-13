@@ -697,6 +697,7 @@ def discover_ruins(
 - **Secession (M14):** Breakaway civ inherits parent's `known_regions` copy. They remember what the empire knew.
 - **Vassal (M14):** Vassal and overlord share `known_regions` — overlord sees what vassal sees and vice versa.
 - **Federation (M14):** All federation members share `known_regions`.
+- **M14 parallel implementation note:** Since M15 can run in parallel with M14, M15d may start before all M14 fields exist. Implement M14 edge cases as conditional checks — guard on `hasattr(world, 'vassal_relations')` or equivalent so M15d doesn't hard-fail if M14b/M14d fields aren't present yet. Alternatively, ensure M15d starts after M14a at minimum (secession and `capital_region` are the most load-bearing M14 dependencies).
 
 ### Testing
 
