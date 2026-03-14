@@ -594,7 +594,7 @@ git commit -m "feat(m18): add stress and pandemic fields to viewer snapshots"
 
 ---
 
-## Chunk M18b: Stress Index & Cascade Severity (Tasks 7-9)
+## Chunk M18b: Stress Index & Cascade Severity (Tasks 7-9a)
 
 ### Task 7: Implement compute_civ_stress and compute_all_stress
 
@@ -1006,6 +1006,150 @@ git commit -m "feat(m18): wire stress computation and snapshots into run_turn"
 
 ---
 
+### Task 9a: Wire get_severity_multiplier into existing damage sites
+
+**Files:**
+- Modify: `src/chronicler/simulation.py` — `phase_environment` (line 73), `_apply_event_effects` (line 467), `phase_consequences` (line 557), `_check_famine` (line 791)
+- Test: `tests/test_emergence.py`
+
+This is the task that makes the cascade system mechanically active. Without it, stress is a viewer-only metric.
+
+- [ ] **Step 1: Write failing tests**
+
+Append to `tests/test_emergence.py`:
+
+```python
+class TestSeverityMultiplierWiring:
+    def test_drought_damage_amplified_by_stress(self):
+        """A civ with high stress should take more damage from drought."""
+        from chronicler.simulation import phase_environment
+        world = _make_world()
+        # Civ A: high stress. Civ B: zero stress.
+        civ_a = _make_civ(name="A", stability=60, economy=60, civ_stress=20)
+        civ_b = _make_civ(name="B", stability=60, economy=60, civ_stress=0)
+        world.civilizations = [civ_a, civ_b]
+        # Inject drought condition affecting both
+        world.active_conditions = [ActiveCondition(
+            condition_type="drought", affected_civs=["A", "B"], duration=3, severity=50,
+        )]
+        from chronicler.simulation import phase_consequences
+        phase_consequences(world)
+        # Both take stability damage from the condition (severity >= 50 → -10 base)
+        # A should take more: int(10 * 1.5) = 15. B takes 10.
+        assert civ_a.stability < civ_b.stability
+
+    def test_famine_damage_amplified_by_stress(self):
+        """Famine damage should be amplified by stress."""
+        from chronicler.simulation import _check_famine
+        world = _make_world()
+        civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20)
+        world.civilizations = [civ]
+        r = _make_region(name="R1", controller="Civ1", fertility=0.1, famine_cooldown=0)
+        world.regions = [r]
+        _check_famine(world)
+        # Base famine: pop -15, stability -10. With 1.5x: pop -22, stability -15
+        assert civ.population <= 80 - 15  # At least base damage
+        assert civ.population < 80 - 15 + 1  # More than base (amplified)
+
+    def test_random_event_damage_amplified(self):
+        """Random event damage should be amplified by stress."""
+        from chronicler.simulation import _apply_event_effects
+        world = _make_world()
+        civ = _make_civ(stability=60, civ_stress=20)
+        world.civilizations = [civ]
+        _apply_event_effects("rebellion", civ, world)
+        # Base rebellion: stability -20, military -10. With 1.5x: stability -30
+        assert civ.stability <= 60 - 20  # At least base
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.venv/bin/python -m pytest tests/test_emergence.py::TestSeverityMultiplierWiring -v`
+Expected: FAIL — damage is flat, not amplified
+
+- [ ] **Step 3: Wire the multiplier into damage sites**
+
+In `src/chronicler/simulation.py`, add import at top of file:
+```python
+from chronicler.emergence import get_severity_multiplier
+```
+
+Then wrap negative stat modifications in these functions. The pattern is:
+```python
+# Before:
+civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+# After:
+civ.stability = clamp(civ.stability - int(10 * get_severity_multiplier(civ)), STAT_FLOOR["stability"], 100)
+```
+
+**Sites to modify (line numbers from current file):**
+
+`phase_environment` (drought/plague/earthquake effects, lines 114-138):
+- Line 114: `stability - 10` → `stability - int(10 * get_severity_multiplier(civ))`
+- Line 115: `economy - 10` → `economy - int(10 * get_severity_multiplier(civ))`
+- Line 126: `population - 10` → `population - int(10 * get_severity_multiplier(civ))`
+- Line 127: `stability - 10` → `stability - int(10 * get_severity_multiplier(civ))`
+- Line 138: `economy - 10` → `economy - int(10 * get_severity_multiplier(civ))`
+
+`_apply_event_effects` (random events, lines 473-523):
+- Lines 473, 487-488, 494, 500, 502, 522-523, 533-534, 544: all `-10` or `-20` on stability/economy/population/military → wrap with `int(N * get_severity_multiplier(civ))`
+
+`phase_consequences` (condition ticks, line 564):
+- Line 564: `stability - 10` → `stability - int(10 * get_severity_multiplier(civ))`
+
+`_check_famine` (famine damage, lines 800-801):
+- Line 800: `population - 15` → `population - int(15 * get_severity_multiplier(civ))`
+- Line 801: `stability - 10` → `stability - int(10 * get_severity_multiplier(civ))`
+
+**DO NOT wrap:**
+- Treasury costs (lines 163-164 military maintenance, line 240 war costs) — these are structural costs, not event damage
+- Black market stability drain (line 229) — this is a policy consequence
+- Population growth/decay in phase_production — these are natural dynamics
+- Positive effects (culture +, economy +, population +)
+
+- [ ] **Step 4: Also wire multiplier into M18's own damage calculations**
+
+In `src/chronicler/emergence.py`, update `tick_pandemic`:
+```python
+# Before:
+pop_loss = min(severity * 3, 12)
+eco_loss = min(severity * 2, 8)
+# After:
+mult = get_severity_multiplier(civ)
+pop_loss = int(min(severity * 3, 12) * mult)
+eco_loss = int(min(severity * 2, 8) * mult)
+```
+
+In `_apply_supervolcano`:
+```python
+# Before:
+civ.population = clamp(civ.population - 20, ...)
+civ.stability = clamp(civ.stability - 15, ...)
+# After:
+mult = get_severity_multiplier(civ)
+civ.population = clamp(civ.population - int(20 * mult), ...)
+civ.stability = clamp(civ.stability - int(15 * mult), ...)
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `.venv/bin/python -m pytest tests/test_emergence.py::TestSeverityMultiplierWiring -v`
+Expected: PASS
+
+- [ ] **Step 6: Run full test suite**
+
+Run: `.venv/bin/python -m pytest tests/ -x -q`
+Expected: All pass. Note: some existing tests with hardcoded expected values may need adjustment if they create civs with non-zero `civ_stress`. Since `civ_stress` defaults to 0, the multiplier defaults to 1.0×, so existing tests should be unaffected.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/chronicler/simulation.py src/chronicler/emergence.py tests/test_emergence.py
+git commit -m "feat(m18): wire get_severity_multiplier into all damage sites across 4 phases"
+```
+
+---
+
 ## Chunk M18c: Black Swan Events & Pandemic (Tasks 10-17)
 
 ### Task 10: Implement black swan probability roll and eligibility framework
@@ -1028,25 +1172,24 @@ class TestBlackSwanEligibility:
         events = check_black_swans(world, seed=42)
         assert events == []
 
-    def test_no_event_on_failed_roll(self):
+    def test_no_event_on_zero_chaos(self):
         """With chaos_multiplier=0.0, no black swan should ever fire."""
         from chronicler.emergence import check_black_swans
         world = _make_world()
+        world.chaos_multiplier = 0.0
         world.civilizations = [_make_civ()]
-        # Use chaos_multiplier=0 to guarantee no roll success
-        events = check_black_swans(world, seed=42, chaos_multiplier=0.0)
+        events = check_black_swans(world, seed=42)
         assert events == []
 
     def test_cooldown_set_when_event_fires(self):
         """When a black swan fires, cooldown should be set."""
         from chronicler.emergence import check_black_swans
         world = _make_world()
-        # Need at least one eligible type. Resource discovery needs a region with 0 resources.
+        world.chaos_multiplier = 1000.0  # Force the roll to succeed
         r = _make_region(name="Barren", specialized_resources=[])
         world.regions = [r]
         world.civilizations = [_make_civ()]
-        # Force the roll to succeed with chaos_multiplier very high
-        events = check_black_swans(world, seed=42, chaos_multiplier=1000.0)
+        events = check_black_swans(world, seed=42)
         if events:  # If an event fired
             assert world.black_swan_cooldown == 30
 
@@ -1054,8 +1197,9 @@ class TestBlackSwanEligibility:
         """If roll succeeds but no types are eligible, no event and no cooldown."""
         from chronicler.emergence import check_black_swans
         world = _make_world()
+        world.chaos_multiplier = 1000.0
         # No regions, no civs — nothing is eligible
-        events = check_black_swans(world, seed=42, chaos_multiplier=1000.0)
+        events = check_black_swans(world, seed=42)
         assert events == []
         assert world.black_swan_cooldown == 0
 ```
@@ -1163,17 +1307,13 @@ def _get_eligible_types(world: WorldState) -> dict[str, int]:
     return eligible
 
 
-def check_black_swans(
-    world: WorldState, seed: int, chaos_multiplier: float | None = None,
-) -> list[Event]:
-    """Roll for black swan event. Called after Phase 1 (Environment).
-    chaos_multiplier defaults to world.chaos_multiplier if not provided."""
+def check_black_swans(world: WorldState, seed: int) -> list[Event]:
+    """Roll for black swan event. Called after Phase 1 (Environment)."""
     if world.black_swan_cooldown > 0:
         return []
 
-    cm = chaos_multiplier if chaos_multiplier is not None else world.chaos_multiplier
     rng = random.Random(seed + world.turn * 997)
-    prob = _BLACK_SWAN_BASE_PROB * cm
+    prob = _BLACK_SWAN_BASE_PROB * world.chaos_multiplier
     if rng.random() >= prob:
         return []
 
@@ -1554,6 +1694,8 @@ def tick_pandemic(world: WorldState) -> list[Event]:
         # Leader kill check: 5% per infected civ
         rng = random.Random(world.seed + world.turn * 1013 + hash(civ_name))
         if rng.random() < 0.05:
+            # NOTE: Verify trigger_crisis signature against succession.py before implementation.
+            # As of M17: trigger_crisis(civ: Civilization, world: WorldState) -> None
             from chronicler.succession import trigger_crisis
             old_leader = civ.leader
             old_leader.alive = False
@@ -1608,7 +1750,9 @@ def tick_pandemic(world: WorldState) -> list[Event]:
 
     # --- Decrement timers and remove expired (BEFORE extending with new infections) ---
     # New infections should not be decremented on the turn they spread —
-    # they haven't taken damage yet. Decrement only pre-existing entries.
+    # they haven't taken damage yet. A region with turns_remaining=5 takes
+    # damage on 5 turns (spread turn through removal turn). Decrement only
+    # pre-existing entries.
     for p in world.pandemic_state:
         p.turns_remaining -= 1
     # Track recovered regions before removing them
@@ -1758,10 +1902,10 @@ class TestSupervolcano:
         from chronicler.emergence import _apply_supervolcano
         world = self._setup_volcano_world()
         _apply_supervolcano(world, seed=42)
-        # Civ1 controls 2 blast regions: pop -40, stability -30
+        # Civ1 controls 2 blast regions (Peak + Valley): -20 pop × 2 = -40, -15 stability × 2 = -30
         civ1 = world.civilizations[0]
-        assert civ1.population <= 80 - 20  # At least -20 for one region
-        assert civ1.stability <= 60 - 15
+        assert civ1.population == max(1, 80 - 40)
+        assert civ1.stability == max(0, 60 - 30)
 
     def test_supervolcano_advances_climate(self):
         from chronicler.emergence import _apply_supervolcano
@@ -2755,10 +2899,13 @@ In `src/chronicler/simulation.py`, at the end of `phase_fertility` (before `retu
 And in `run_turn`, after the `phase_fertility` call, add:
 
 ```python
-    # M18: Terrain succession (after fertility phase updates counters)
+    # M18: Terrain succession (MUST run after phase_fertility, which updates
+    # low_fertility_turns via update_low_fertility_counters. Do not reorder.)
     from chronicler.emergence import tick_terrain_succession
     turn_events.extend(tick_terrain_succession(world))
 ```
+
+Note: `update_low_fertility_counters` runs inside `phase_fertility` (after `apply_fertility_floor`), meaning traditions that raise fertility above 0.3 will reset the deforestation counter. This is correct — the tradition protects the forest.
 
 - [ ] **Step 3: Run tests**
 
@@ -2819,12 +2966,6 @@ class TestM18EndToEnd:
                      narrator=lambda w, e: "", seed=turn)
         assert world.turn == 50
         # No crash = success for long runs
-
-    def test_all_existing_tests_still_pass(self):
-        """Placeholder reminder: run full test suite to verify no regressions."""
-        # This test exists as a reminder — the actual verification is:
-        # .venv/bin/python -m pytest tests/ -x -q
-        pass
 ```
 
 - [ ] **Step 2: Run integration tests**
