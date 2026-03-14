@@ -262,8 +262,11 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         civ.last_income = 0
 
     from chronicler.politics import apply_governing_costs, collect_tribute
+    from chronicler.politics import apply_proxy_wars, apply_exile_effects
     events.extend(apply_governing_costs(world))
     events.extend(collect_tribute(world))
+    events.extend(apply_proxy_wars(world))
+    events.extend(apply_exile_effects(world))
 
     return events
 
@@ -349,6 +352,7 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
 
 def phase_random_events(world: WorldState, seed: int) -> list[Event]:
     """Roll for 0-1 random external events (non-environment)."""
+    events: list[Event] = []
     non_env = [k for k in world.event_probabilities if k not in ENVIRONMENT_EVENTS]
     event = roll_for_event(
         world.event_probabilities,
@@ -356,21 +360,23 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
         seed=seed,
         allowed_types=non_env,
     )
-    if event is None:
-        return []
+    if event is not None:
+        rng = random.Random(seed + 2)
+        event.actors = [rng.choice(world.civilizations).name]
 
-    rng = random.Random(seed + 2)
-    event.actors = [rng.choice(world.civilizations).name]
+        world.event_probabilities = apply_probability_cascade(
+            event.event_type, world.event_probabilities
+        )
 
-    world.event_probabilities = apply_probability_cascade(
-        event.event_type, world.event_probabilities
-    )
+        affected_civ = _get_civ(world, event.actors[0])
+        if affected_civ:
+            _apply_event_effects(event.event_type, affected_civ, world)
 
-    affected_civ = _get_civ(world, event.actors[0])
-    if affected_civ:
-        _apply_event_effects(event.event_type, affected_civ, world)
+        events.append(event)
 
-    return [event]
+    from chronicler.politics import check_congress
+    events.extend(check_congress(world))
+    return events
 
 
 def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) -> None:
@@ -478,6 +484,9 @@ def phase_consequences(world: WorldState) -> list[Event]:
     collapse_events.extend(check_vassal_rebellion(world))
     collapse_events.extend(check_federation_formation(world))
     collapse_events.extend(check_federation_dissolution(world))
+    from chronicler.politics import check_proxy_detection, check_restoration
+    collapse_events.extend(check_proxy_detection(world))
+    collapse_events.extend(check_restoration(world))
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:

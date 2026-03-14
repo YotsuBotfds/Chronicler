@@ -294,6 +294,12 @@ def _resolve_move_capital(civ: Civilization, world: WorldState) -> Event:
     return resolve_move_capital(civ, world)
 
 
+@register_action(ActionType.FUND_INSTABILITY)
+def _resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:
+    from chronicler.politics import resolve_fund_instability
+    return resolve_fund_instability(civ, world)
+
+
 # --- Combat resolution (simplified Lanchester) ---
 
 def resolve_war(
@@ -376,15 +382,15 @@ def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> 
 # --- Weight profiles ---
 
 TRAIT_WEIGHTS: dict[str, dict[ActionType, float]] = {
-    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2, ActionType.MOVE_CAPITAL: 0.1},
-    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5, ActionType.MOVE_CAPITAL: 0.3},
-    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1},
-    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1},
-    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1},
-    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3, ActionType.MOVE_CAPITAL: 0.1},
-    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3, ActionType.MOVE_CAPITAL: 0.3},
-    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1},
-    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5, ActionType.MOVE_CAPITAL: 0.1},
+    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2},
+    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 1.2},
+    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5},
+    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5},
+    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5},
+    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5},
+    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 0.5},
+    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2},
+    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5},
     "stubborn":     {},
 }
 
@@ -432,6 +438,9 @@ class ActionEngine:
         is_vassal = any(vr.vassal == civ.name for vr in self.world.vassal_relations)
         if is_vassal:
             eligible = [a for a in eligible if a != ActionType.WAR]
+        # FUND_INSTABILITY: treasury >= 8, has hostile neighbor, not vassal
+        if civ.treasury >= 8 and has_hostile and not is_vassal:
+            eligible.append(ActionType.FUND_INSTABILITY)
         return eligible
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:

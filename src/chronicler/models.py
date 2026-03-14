@@ -51,6 +51,7 @@ class ActionType(str, Enum):
     BUILD = "build"
     EMBARGO = "embargo"
     MOVE_CAPITAL = "move_capital"
+    FUND_INSTABILITY = "fund_instability"
 
 
 class ActionCategory(str, Enum):
@@ -172,6 +173,23 @@ class Federation(BaseModel):
     founded_turn: int
 
 
+class ProxyWar(BaseModel):
+    sponsor: str
+    target_civ: str
+    target_region: str
+    treasury_per_turn: int = 8
+    turns_active: int = 0
+    detected: bool = False
+
+
+class ExileModifier(BaseModel):
+    original_civ_name: str
+    absorber_civ: str
+    conquered_regions: list[str]
+    turns_remaining: int = 20
+    recognized_by: list[str] = Field(default_factory=list)
+
+
 # --- Top-level state ---
 
 class WorldState(BaseModel):
@@ -195,6 +213,8 @@ class WorldState(BaseModel):
     mercenary_companies: list[dict] = Field(default_factory=list)
     vassal_relations: list[VassalRelation] = Field(default_factory=list)
     federations: list[Federation] = Field(default_factory=list)
+    proxy_wars: list[ProxyWar] = Field(default_factory=list)
+    exile_modifiers: list[ExileModifier] = Field(default_factory=list)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""

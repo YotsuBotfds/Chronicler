@@ -555,3 +555,171 @@ def test_tribute_collected_during_simulation():
     selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
     run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
     assert world.vassal_relations[0].turns_active >= 1
+
+
+# --- Task 17: ProxyWar and ExileModifier models ---
+
+from chronicler.models import ProxyWar, ExileModifier
+
+
+def test_proxy_war_model():
+    pw = ProxyWar(sponsor="A", target_civ="B", target_region="R1")
+    assert pw.treasury_per_turn == 8
+    assert pw.detected is False
+
+
+def test_exile_modifier_model():
+    em = ExileModifier(original_civ_name="Fallen", absorber_civ="Victor",
+                       conquered_regions=["R1", "R2"])
+    assert em.turns_remaining == 20
+    assert em.recognized_by == []
+
+
+def test_worldstate_has_proxy_and_exile_fields():
+    ws = WorldState(name="test", seed=42)
+    assert ws.proxy_wars == []
+    assert ws.exile_modifiers == []
+
+
+# --- Task 18: Proxy war mechanics ---
+
+from chronicler.politics import apply_proxy_wars, check_proxy_detection
+
+
+def test_proxy_war_drains_sponsor_and_target():
+    world = _make_world_with_regions(["A", "B"], capital="A")
+    civ = world.civilizations[0]
+    civ.treasury = 50
+    civ.stability = 50
+    civ.economy = 40
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    target = Civilization(name="Target", population=30, military=20, economy=30,
+                          culture=60, stability=40, treasury=50, leader=l2,
+                          regions=["B"], capital_region="B")
+    world.civilizations.append(target)
+    world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+    apply_proxy_wars(world)
+    assert civ.treasury == 50 - 8
+    assert target.stability == 40 - 3
+    assert target.economy == 30 - 2
+
+
+def test_proxy_war_auto_cancels_on_bankruptcy():
+    world = _make_world_with_regions(["A"], capital="A")
+    civ = world.civilizations[0]
+    civ.treasury = 5
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    target = Civilization(name="Target", population=30, military=20, economy=30,
+                          culture=60, stability=40, treasury=50, leader=l2,
+                          regions=["B"], capital_region="B")
+    world.civilizations.append(target)
+    world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+    apply_proxy_wars(world)
+    assert len(world.proxy_wars) == 0
+
+
+def test_proxy_detection_scales_with_culture():
+    from chronicler.models import Relationship, Disposition
+    world = _make_world_with_regions(["A"], capital="A")
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    target = Civilization(name="Target", population=30, military=20, economy=30,
+                          culture=80, stability=40, treasury=50, leader=l2,
+                          regions=["B"], capital_region="B")
+    world.civilizations.append(target)
+    world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+    world.relationships = {
+        "Empire": {"Target": Relationship(disposition=Disposition.HOSTILE)},
+        "Target": {"Empire": Relationship(disposition=Disposition.HOSTILE)},
+    }
+    detected = False
+    for seed in range(20):
+        world.seed = seed
+        world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+        events = check_proxy_detection(world)
+        if world.proxy_wars[0].detected:
+            detected = True
+            break
+    assert detected
+
+
+# --- Task 19: Diplomatic congress ---
+
+from chronicler.politics import check_congress
+
+
+def test_congress_does_not_trigger_below_3_war_participants():
+    world = _make_world_with_regions(["A"], capital="A")
+    world.active_wars = [("A", "B")]
+    events = check_congress(world)
+    assert all(e.event_type != "congress" for e in events)
+
+
+def test_congress_can_trigger_with_3_plus_participants():
+    from chronicler.models import Region, Relationship, Disposition
+    regions = [Region(name=n, terrain="plains", carrying_capacity=50, resources="fertile")
+               for n in ["A", "B", "C", "D"]]
+    civs = []
+    for i, name in enumerate(["Civ1", "Civ2", "Civ3", "Civ4"]):
+        l = Leader(name=f"L_{name}", trait="bold", reign_start=0)
+        c = Civilization(name=name, population=50, military=30, economy=40,
+                         culture=30, stability=50, treasury=100, leader=l,
+                         regions=[["A","B","C","D"][i]], capital_region=["A","B","C","D"][i])
+        civs.append(c)
+    world = WorldState(name="test", seed=42, regions=regions, civilizations=civs)
+    world.active_wars = [("Civ1", "Civ2"), ("Civ3", "Civ4"), ("Civ1", "Civ3")]
+    world.war_start_turns = {
+        war_key("Civ1", "Civ2"): 1, war_key("Civ3", "Civ4"): 2, war_key("Civ1", "Civ3"): 3,
+    }
+    triggered = False
+    for seed in range(200):
+        world.seed = seed
+        world.turn = seed
+        events = check_congress(world)
+        if any(e.event_type in ("congress_peace", "congress_ceasefire", "congress_collapse") for e in events):
+            triggered = True
+            break
+    assert triggered
+
+
+# --- Task 20: Governments in exile ---
+
+from chronicler.politics import create_exile, apply_exile_effects, check_restoration
+
+
+def test_exile_created_on_civ_elimination():
+    world = _make_world_with_regions(["A", "B"], capital="A")
+    eliminated = world.civilizations[0]
+    eliminated.regions = ["B"]
+    l2 = Leader(name="Conqueror", trait="bold", reign_start=0)
+    conqueror = Civilization(name="Victor", population=50, military=40, economy=50,
+                             culture=40, stability=50, treasury=100, leader=l2,
+                             regions=["A"], capital_region="A")
+    world.civilizations.append(conqueror)
+    exile = create_exile(eliminated, conqueror, world)
+    assert exile.original_civ_name == "Empire"
+    assert exile.absorber_civ == "Victor"
+    assert exile.turns_remaining == 20
+    assert "B" in exile.conquered_regions
+
+
+def test_exile_drains_absorber_stability():
+    world = _make_world_with_regions(["A"], capital="A")
+    civ = world.civilizations[0]
+    civ.stability = 50
+    world.exile_modifiers = [
+        ExileModifier(original_civ_name="Fallen", absorber_civ="Empire",
+                      conquered_regions=["A"], turns_remaining=15)
+    ]
+    apply_exile_effects(world)
+    assert civ.stability == 50 - 5
+    assert world.exile_modifiers[0].turns_remaining == 14
+
+
+def test_exile_removed_when_expired():
+    world = _make_world_with_regions(["A"], capital="A")
+    world.exile_modifiers = [
+        ExileModifier(original_civ_name="Fallen", absorber_civ="Empire",
+                      conquered_regions=["A"], turns_remaining=1)
+    ]
+    apply_exile_effects(world)
+    assert len(world.exile_modifiers) == 0

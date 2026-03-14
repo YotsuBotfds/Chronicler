@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from chronicler.adjacency import graph_distance
 from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent,
-    Relationship, VassalRelation, WorldState,
+    ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
 )
 from chronicler.utils import clamp, STAT_FLOOR
 
@@ -560,3 +560,332 @@ def trigger_federation_defense(attacker: str, defender: str, world: WorldState) 
             ))
 
     return events
+
+
+# --- Proxy war mechanics ---
+
+def apply_proxy_wars(world: WorldState) -> list[Event]:
+    """Phase 2: Apply ongoing proxy war costs and effects."""
+    events: list[Event] = []
+    civ_map = {c.name: c for c in world.civilizations}
+    to_remove = []
+
+    for pw in world.proxy_wars:
+        sponsor = civ_map.get(pw.sponsor)
+        target = civ_map.get(pw.target_civ)
+        if sponsor is None or target is None:
+            to_remove.append(pw)
+            continue
+
+        sponsor.treasury -= pw.treasury_per_turn
+        pw.turns_active += 1
+        target.stability = clamp(target.stability - 3, STAT_FLOOR["stability"], 100)
+        target.economy = clamp(target.economy - 2, STAT_FLOOR["economy"], 100)
+
+        if sponsor.treasury < 0:
+            to_remove.append(pw)
+            continue
+
+        if pw.target_region not in target.regions:
+            to_remove.append(pw)
+            continue
+
+        rel = world.relationships.get(pw.sponsor, {}).get(pw.target_civ)
+        if rel and rel.disposition in (Disposition.FRIENDLY, Disposition.ALLIED):
+            to_remove.append(pw)
+            continue
+
+        if not sponsor.regions:
+            to_remove.append(pw)
+
+    for pw in to_remove:
+        if pw in world.proxy_wars:
+            world.proxy_wars.remove(pw)
+
+    return events
+
+
+def check_proxy_detection(world: WorldState) -> list[Event]:
+    """Phase 10: Check if proxy wars are detected by target civs."""
+    events: list[Event] = []
+    civ_map = {c.name: c for c in world.civilizations}
+
+    for pw in world.proxy_wars:
+        if pw.detected:
+            continue
+        target = civ_map.get(pw.target_civ)
+        if target is None:
+            continue
+
+        rng = random.Random(world.seed + world.turn + hash(pw.sponsor) + hash(pw.target_civ))
+        detection_prob = target.culture / 100
+        if rng.random() < detection_prob:
+            pw.detected = True
+            target.stability = clamp(target.stability + 5, STAT_FLOOR["stability"], 100)
+
+            rels = world.relationships.get(pw.sponsor, {})
+            if pw.target_civ in rels:
+                rels[pw.target_civ].disposition = Disposition.HOSTILE
+
+            events.append(Event(
+                turn=world.turn,
+                event_type="proxy_detected",
+                actors=[pw.sponsor, pw.target_civ],
+                description=f"{pw.sponsor} exposed funding separatists in {pw.target_region}",
+                importance=7,
+            ))
+
+    return events
+
+
+# --- Diplomatic congress ---
+
+def check_congress(world: WorldState) -> list[Event]:
+    """Phase 7: Check for diplomatic congress when 3+ civs at war."""
+    events: list[Event] = []
+
+    participants = set()
+    for a, b in world.active_wars:
+        participants.add(a)
+        participants.add(b)
+    if len(participants) < 3:
+        return events
+
+    rng = random.Random(world.seed + world.turn)
+    if rng.random() >= 0.05:
+        return events
+
+    civ_map = {c.name: c for c in world.civilizations}
+
+    powers: dict[str, float] = {}
+    for name in participants:
+        civ = civ_map.get(name)
+        if civ is None:
+            continue
+        matching_starts = [
+            world.war_start_turns[key] for key in world.war_start_turns
+            if name in key.split(":")
+        ]
+        longest_war = world.turn - min(matching_starts) if matching_starts else 1
+        fed = _civ_in_federation(name, world)
+        fed_allies = len(fed.members) - 1 if fed else 0
+        powers[name] = (civ.military + civ.economy + fed_allies * 10) / max(longest_war, 1)
+
+    roll = rng.random()
+    if roll < 0.40:
+        # Full peace
+        world.active_wars = [
+            w for w in world.active_wars
+            if w[0] not in participants or w[1] not in participants
+        ]
+        for key in list(world.war_start_turns):
+            parts = key.split(":")
+            if parts[0] in participants or parts[1] in participants:
+                del world.war_start_turns[key]
+
+        for a in participants:
+            for b in participants:
+                if a != b and a in world.relationships and b in world.relationships.get(a, {}):
+                    world.relationships[a][b].disposition = Disposition.NEUTRAL
+
+        highest_culture_civ = max(
+            (civ_map[n] for n in participants if n in civ_map),
+            key=lambda c: c.culture, default=None,
+        )
+        location = highest_culture_civ.capital_region if highest_culture_civ else "unknown"
+        events.append(Event(
+            turn=world.turn, event_type="congress_peace",
+            actors=list(participants),
+            description=f"The Congress of {location}",
+            importance=9,
+        ))
+    elif roll < 0.75:
+        # Partial ceasefire
+        sorted_powers = sorted(powers.items(), key=lambda x: x[1], reverse=True)
+        if len(sorted_powers) >= 2:
+            a, b = sorted_powers[0][0], sorted_powers[1][0]
+            world.active_wars = [
+                w for w in world.active_wars
+                if not (set(w) == {a, b})
+            ]
+            world.war_start_turns.pop(war_key(a, b), None)
+            if a in world.relationships and b in world.relationships.get(a, {}):
+                world.relationships[a][b].disposition = Disposition.NEUTRAL
+            if b in world.relationships and a in world.relationships.get(b, {}):
+                world.relationships[b][a].disposition = Disposition.NEUTRAL
+        events.append(Event(
+            turn=world.turn, event_type="congress_ceasefire",
+            actors=list(participants),
+            description="Partial ceasefire achieved at diplomatic congress",
+            importance=7,
+        ))
+    else:
+        # Collapse
+        for name in participants:
+            civ = civ_map.get(name)
+            if civ:
+                civ.stability = clamp(civ.stability - 5, STAT_FLOOR["stability"], 100)
+        events.append(Event(
+            turn=world.turn, event_type="congress_collapse",
+            actors=list(participants),
+            description="The Failed Congress",
+            importance=6,
+        ))
+
+    return events
+
+
+# --- Governments in exile ---
+
+def create_exile(eliminated: Civilization, conqueror: Civilization, world: WorldState) -> ExileModifier:
+    """Create an exile modifier when a civ is eliminated."""
+    exile = ExileModifier(
+        original_civ_name=eliminated.name,
+        absorber_civ=conqueror.name,
+        conquered_regions=list(eliminated.regions),
+        turns_remaining=20,
+    )
+    world.exile_modifiers.append(exile)
+    return exile
+
+
+def apply_exile_effects(world: WorldState) -> list[Event]:
+    """Phase 2: Drain absorber stability for each active exile modifier."""
+    events: list[Event] = []
+    civ_map = {c.name: c for c in world.civilizations}
+    to_remove = []
+
+    for exile in world.exile_modifiers:
+        absorber = civ_map.get(exile.absorber_civ)
+        if absorber:
+            absorber.stability = clamp(absorber.stability - 5, STAT_FLOOR["stability"], 100)
+        exile.turns_remaining -= 1
+        if exile.turns_remaining <= 0:
+            to_remove.append(exile)
+
+    for exile in to_remove:
+        world.exile_modifiers.remove(exile)
+
+    return events
+
+
+def check_restoration(world: WorldState) -> list[Event]:
+    """Phase 10: Check if any exiled civs can be restored."""
+    events: list[Event] = []
+    civ_map = {c.name: c for c in world.civilizations}
+    region_map = {r.name: r for r in world.regions}
+    to_remove = []
+
+    for exile in world.exile_modifiers:
+        absorber = civ_map.get(exile.absorber_civ)
+        if absorber is None or absorber.stability >= 20 or exile.turns_remaining <= 0:
+            continue
+
+        available = [r for r in exile.conquered_regions
+                     if r in region_map and region_map[r].controller == exile.absorber_civ]
+        if not available:
+            continue
+
+        prob = 0.05 + 0.03 * len(exile.recognized_by)
+        rng = random.Random(world.seed + world.turn + hash(exile.original_civ_name))
+        if rng.random() >= prob:
+            continue
+
+        # Restoration fires
+        target_region = max(available,
+                           key=lambda rn: region_map[rn].carrying_capacity * getattr(region_map[rn], "fertility", 0.8))
+
+        from chronicler.models import TechEra
+        era_order = list(TechEra)
+        absorber_idx = era_order.index(absorber.tech_era)
+        restored_era = era_order[max(0, absorber_idx - 1)]
+
+        leader_name = f"{exile.original_civ_name} Restorer"
+        rng_trait = random.Random(world.seed + world.turn)
+        new_trait = rng_trait.choice(_TRAIT_POOL)
+
+        restored_civ = Civilization(
+            name=exile.original_civ_name,
+            population=30, military=20, economy=20,
+            culture=30, stability=50, treasury=0,
+            tech_era=restored_era, asabiya=0.8,
+            leader=Leader(name=leader_name, trait=new_trait, reign_start=world.turn),
+            regions=[target_region], capital_region=target_region,
+        )
+        world.civilizations.append(restored_civ)
+
+        if target_region in absorber.regions:
+            absorber.regions.remove(target_region)
+        region_map[target_region].controller = exile.original_civ_name
+
+        world.relationships[exile.original_civ_name] = {}
+        for c in world.civilizations:
+            if c.name == exile.original_civ_name:
+                continue
+            if c.name == exile.absorber_civ:
+                disp = Disposition.HOSTILE
+            elif c.name in exile.recognized_by:
+                disp = Disposition.FRIENDLY
+            else:
+                disp = Disposition.NEUTRAL
+            world.relationships[exile.original_civ_name][c.name] = Relationship(disposition=disp)
+            if c.name not in world.relationships:
+                world.relationships[c.name] = {}
+            world.relationships[c.name][exile.original_civ_name] = Relationship(disposition=disp)
+
+        to_remove.append(exile)
+        events.append(Event(
+            turn=world.turn, event_type="restoration",
+            actors=[exile.original_civ_name, exile.absorber_civ],
+            description=f"Restoration of {exile.original_civ_name}",
+            importance=9,
+        ))
+
+    for exile in to_remove:
+        world.exile_modifiers.remove(exile)
+    return events
+
+
+# --- FUND_INSTABILITY resolution ---
+
+def resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:
+    """Resolve FUND_INSTABILITY action: start covert destabilization."""
+    civ_map = {c.name: c for c in world.civilizations}
+
+    # Find most hostile neighbor with regions
+    target = None
+    rels = world.relationships.get(civ.name, {})
+    candidates = []
+    for other_name, rel in rels.items():
+        if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+            other = civ_map.get(other_name)
+            if other and len(other.regions) >= 2:
+                candidates.append(other)
+    if not candidates:
+        # Fallback: any hostile neighbor
+        for other_name, rel in rels.items():
+            if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                other = civ_map.get(other_name)
+                if other and other.regions:
+                    candidates.append(other)
+
+    if not candidates:
+        return Event(turn=world.turn, event_type="fund_instability_failed",
+                     actors=[civ.name], description=f"{civ.name} found no viable target", importance=3)
+
+    target = candidates[0]
+
+    # Pick most distant region from target's capital
+    target_region = target.regions[0]
+    if target.capital_region and len(target.regions) > 1:
+        from chronicler.adjacency import graph_distance
+        target_region = max(target.regions,
+                           key=lambda rn: graph_distance(world.regions, target.capital_region, rn))
+
+    civ.treasury -= 8
+    world.proxy_wars.append(ProxyWar(
+        sponsor=civ.name, target_civ=target.name, target_region=target_region,
+    ))
+
+    return Event(turn=world.turn, event_type="fund_instability",
+                 actors=[civ.name], description="Covert operation initiated", importance=3)
