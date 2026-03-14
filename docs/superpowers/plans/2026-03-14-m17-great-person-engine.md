@@ -116,6 +116,7 @@ class GreatPerson(BaseModel):
     hostage_turns: int = 0
     cultural_identity: str | None = None
     movement_id: int | None = None
+    recognized_by: list[str] = []  # for exiles: civs recognizing this pretender
 ```
 
 - [ ] **Step 4: Add new fields to Civilization model**
@@ -517,12 +518,13 @@ def _enforce_cap(civ: Civilization, world: WorldState) -> None:
 
 
 def _retire_person(gp: GreatPerson, civ: Civilization, world: WorldState) -> None:
-    """Archive a great person as retired."""
+    """Archive a great person as retired. Keeps alive=True — retirement is peaceful."""
     gp.active = False
-    gp.alive = False
     gp.fate = "retired"
-    gp.death_turn = world.turn
-    civ.great_persons.remove(gp)
+    # alive stays True — retired characters are conceptually alive, just inactive.
+    # death_turn NOT set — only set on actual death via kill_great_person.
+    if gp in civ.great_persons:
+        civ.great_persons.remove(gp)
     world.retired_persons.append(gp)
 
 
@@ -534,8 +536,8 @@ def _create_great_person(
     seed = world.seed + world.turn + hash(name)
     lifespan = 20 + (seed % 11)  # 20-30 turns
 
-    trait_idx = (world.seed + world.turn + hash(role)) % len(ALL_TRAITS)
     from chronicler.leaders import ALL_TRAITS
+    trait_idx = (world.seed + world.turn + hash(role)) % len(ALL_TRAITS)
     trait = ALL_TRAITS[trait_idx]
 
     gp = GreatPerson(
@@ -656,6 +658,8 @@ def test_retirement_on_lifespan_expiry(make_world):
     assert len(retired) == 1
     assert retired[0].fate == "retired"
     assert retired[0].active is False
+    assert retired[0].alive is True  # retirement != death
+    assert retired[0].death_turn is None  # not dead
     assert gp not in civ.great_persons
     assert gp in world.retired_persons
 
@@ -1217,7 +1221,7 @@ def resolve_crisis(civ: Civilization, world: WorldState) -> list[Event]:
                 name=ascended_gp.name,
                 trait=ascended_gp.trait,
                 reign_start=world.turn,
-                succession_type="general",
+                succession_type=ascended_gp.role,  # "merchant", "prophet", etc.
             )
 
     if new_leader is None:
@@ -1270,7 +1274,23 @@ if event.event_type == "leader_death":
             civ.leader = generate_successor(civ, world)
 ```
 
-- [ ] **Step 5: Add crisis tick to Phase 8**
+- [ ] **Step 5: Wire crisis action effectiveness halving**
+
+In `src/chronicler/action_engine.py`, within `resolve_action()` or the individual action handlers, add a check after stat changes are computed:
+
+```python
+from chronicler.succession import is_in_crisis
+
+# In resolve_action or at the end of each action handler that modifies stats:
+if is_in_crisis(civ):
+    # Halve all stat changes made by this action
+    # Implementation: wrap stat modifications or apply a post-action multiplier
+    # Simplest: check before each stat change and halve the delta
+```
+
+The exact wiring depends on how stat changes are structured in each action handler. The implementer should audit each `_resolve_*` function and apply the `×0.5` multiplier to stat deltas when `is_in_crisis(civ)` is True.
+
+- [ ] **Step 6: Add crisis tick to Phase 8**
 
 In `src/chronicler/simulation.py`, within `phase_leader_dynamics()` (~line 638-649):
 
@@ -1405,7 +1425,23 @@ for g in civ.leader.grudges:
             weights[ActionType.WAR] *= (1.0 + 0.5 * g["intensity"])
 ```
 
-- [ ] **Step 5: Wire grudge inheritance into succession**
+- [ ] **Step 5: Wire grudge decay into Phase 8 (leader dynamics)**
+
+In `src/chronicler/simulation.py`, within `phase_leader_dynamics()`:
+
+```python
+from chronicler.succession import decay_grudges
+
+for civ in world.civilizations:
+    if civ.leader and civ.leader.grudges:
+        for g in civ.leader.grudges:
+            # Check if rival leader is still alive
+            rival_civ = next((c for c in world.civilizations if c.name == g["rival_civ"]), None)
+            rival_alive = rival_civ is not None and rival_civ.leader.name == g["rival_name"]
+        decay_grudges(civ.leader, current_turn=world.turn, rival_alive=rival_alive)
+```
+
+- [ ] **Step 6: Wire grudge inheritance into succession**
 
 In `src/chronicler/leaders.py`, within `generate_successor()` (~line 187-227), before returning the new leader:
 
@@ -1414,15 +1450,15 @@ from chronicler.succession import inherit_grudges
 inherit_grudges(civ.leader, new_leader)
 ```
 
-- [ ] **Step 6: Run tests**
+- [ ] **Step 7: Run tests**
 
 Run: `python -m pytest tests/test_succession.py -v --tb=short`
 Then: `python -m pytest tests/ -x --tb=short 2>&1 | tail -20`
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/chronicler/succession.py src/chronicler/action_engine.py src/chronicler/leaders.py tests/test_succession.py
+git add src/chronicler/succession.py src/chronicler/action_engine.py src/chronicler/leaders.py src/chronicler/simulation.py tests/test_succession.py
 git commit -m "feat(m17b): implement personal grudges with decay, inheritance, and WAR weight bias"
 ```
 
@@ -1504,7 +1540,7 @@ def create_exiled_leader(
         if civ.name == origin_civ.name or not civ.regions:
             continue
         rel = world.relationships.get(origin_civ.name, {}).get(civ.name)
-        if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+        if rel and rel.disposition in (Disposition.HOSTILE, Disposition.UNFRIENDLY):
             continue
         disp_val = DISPOSITION_ORDER.get(rel.disposition, 0) if rel else 2
         if disp_val > best_disp:
@@ -1558,8 +1594,8 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                 continue  # origin eliminated — exile becomes inert
             if origin.stability >= 20:
                 continue  # origin stable — no restoration
-            # Restoration probability
-            recognized_count = 0  # TODO: track recognized_by on exile
+            # Restoration probability — recognized_by tracked on GreatPerson model
+            recognized_count = len(gp.recognized_by)
             base_prob = 0.05 + (0.03 * recognized_count)
             rng = random.Random(world.seed + world.turn + hash(gp.name))
             if rng.random() < base_prob:
@@ -1830,6 +1866,8 @@ def check_rivalry_formation(world: WorldState) -> list[dict]:
         if r["type"] == "rivalry"
     }
 
+    # NOTE: verify world.active_wars exists — it's on WorldState (models.py ~line 276).
+    # If the field name differs, adapt accordingly.
     for war_pair in world.active_wars:
         civ1_name, civ2_name = war_pair
         civ1 = next((c for c in world.civilizations if c.name == civ1_name), None)
@@ -2285,6 +2323,9 @@ def update_event_counts(world: WorldState) -> None:
         if not civ:
             continue
 
+        # NOTE: parsing "attacker_wins" from description is fragile. Verify how
+        # war outcomes are recorded — prefer a structured field if available.
+        # If not, this string check matches the format in _resolve_war_action().
         if event.event_type == "war" and "attacker_wins" in event.description:
             civ.event_counts["wars_won"] = civ.event_counts.get("wars_won", 0) + 1
             civ.war_win_turns.append(world.turn)
@@ -2457,14 +2498,14 @@ def apply_tradition_effects(world: WorldState) -> None:
     for civ in world.civilizations:
         if not civ.regions:
             continue
-        if "martial" in civ.traditions:
-            # Permanent +5 military (applied once — need to track if already applied)
-            # Better: apply as a modifier check in combat rather than permanent stat
-            # For simplicity: check if military bonus already baked in
-            pass  # Applied via action weight modifiers and combat modifiers
+        # Martial +5 military is applied as a combat modifier in resolve_war(),
+        # not as a permanent stat mutation. See Task 20 Step 3b below.
 
         if "martial" in civ.traditions and world.turn % 10 == 0:
             # Fear: neighbors disposition drift -1 level
+            # NOTE: verify _downgrade_disposition exists in culture.py (~line 28).
+            # If not exported or named differently, implement inline:
+            # DISPOSITION_ORDER = [HOSTILE, UNFRIENDLY, NEUTRAL, FRIENDLY, ALLIED]
             from chronicler.culture import _downgrade_disposition
             for other_name in world.relationships.get(civ.name, {}):
                 rel = world.relationships[civ.name][other_name]
@@ -2488,6 +2529,35 @@ def apply_fertility_floor(world: WorldState) -> None:
 Phase 2: `apply_tradition_effects(world)`
 Phase 9 (end of `phase_fertility`): `apply_fertility_floor(world)`
 Phase 10: `check_tradition_acquisition(world)`
+
+- [ ] **Step 3b: Add Martial +5 combat modifier to resolve_war**
+
+In `src/chronicler/action_engine.py`, within `resolve_war()`, add martial tradition bonus to military power calculation:
+
+```python
+# After computing attacker/defender military power:
+if "martial" in attacker.traditions:
+    attacker_power += 5
+if "martial" in defender.traditions:
+    defender_power += 5
+```
+
+- [ ] **Step 3c: Add tradition action weight biases to compute_weights**
+
+In `src/chronicler/action_engine.py`, within `compute_weights()` (~line 504-545), after existing weight computation and alongside the grudge bias:
+
+```python
+# Tradition action weight biases
+from chronicler.models import ActionType
+if "martial" in civ.traditions and ActionType.WAR in weights:
+    weights[ActionType.WAR] *= 1.2
+if "diplomatic" in civ.traditions and ActionType.DIPLOMACY in weights:
+    weights[ActionType.DIPLOMACY] *= 1.2
+if "resilience" in civ.traditions and ActionType.DEVELOP in weights:
+    weights[ActionType.DEVELOP] *= 1.1
+if "food_stockpiling" in civ.traditions and ActionType.BUILD in weights:
+    weights[ActionType.BUILD] *= 1.1
+```
 
 - [ ] **Step 4: Run tests, commit**
 
