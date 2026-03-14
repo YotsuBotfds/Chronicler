@@ -1086,6 +1086,9 @@ from chronicler.resources import get_active_trade_routes
 _BLACK_SWAN_BASE_PROB = 0.005  # 0.5% per turn
 _DEFAULT_COOLDOWN = 30
 
+# Event type names (shared constant for detection in simulation.py)
+BLACK_SWAN_EVENT_TYPES = frozenset({"pandemic", "supervolcano", "resource_discovery", "tech_accident"})
+
 # Weights for event type selection
 _EVENT_WEIGHTS = {
     "pandemic": 3,
@@ -2472,23 +2475,19 @@ Append to `tests/test_emergence.py`:
 
 ```python
 class TestRegressionIntegration:
-    def test_regression_checked_during_turn(self):
+    def test_regression_wired_into_turn(self):
+        """Verify snapshots are set and regression hook runs during turn."""
         from chronicler.simulation import run_turn
         from chronicler.world_gen import generate_world
         from chronicler.models import ActionType
         world = generate_world(seed=42, num_regions=8, num_civs=4)
-        # Force twilight entry to trigger regression check
         civ = world.civilizations[0]
-        civ.tech_era = TechEra.IRON
-        civ.decline_turns = 0
-        civ.was_in_twilight = False
-        # After the turn, was_in_twilight should have been set
+        initial_regions = len(civ.regions)
         run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
                  narrator=lambda w, e: "", seed=1)
-        # Snapshot should have captured pre-turn state
-        # (we can't easily test regression fired without controlling randomness,
-        # but we can verify the hooks are wired)
-        assert civ.was_in_twilight is False or civ.decline_turns > 0
+        # Verify start-of-turn snapshot was set (proves wiring works)
+        assert civ.regions_start_of_turn == initial_regions
+        assert civ.capital_start_of_turn is not None
 ```
 
 - [ ] **Step 2: Wire into run_turn**
@@ -2498,8 +2497,8 @@ In `src/chronicler/simulation.py`, in the M18 section at the end of `run_turn`, 
 ```python
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression
-    black_swan_this_turn = any(e.event_type in ("pandemic", "supervolcano", "resource_discovery", "tech_accident")
-                               for e in turn_events)
+    from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
+    black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
     turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn))
 ```
 
