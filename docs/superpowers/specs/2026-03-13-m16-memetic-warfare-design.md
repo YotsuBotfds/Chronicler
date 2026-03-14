@@ -281,7 +281,7 @@ compatibility = 100 if movement.value_affinity in target.values
                else 50
 
 adoption_probability = trade_volume * compatibility / 100
-rng = random.Random(seed + world.turn + hash_str(movement.id + target.name))  # deterministic per-civ-per-movement
+rng = random.Random(seed + world.turn + _hash_str(movement.id + target.name))  # deterministic per-civ-per-movement
 roll = rng.randint(0, 99)
 if roll < adoption_probability and target.name not in movement.adherents:
     movement.adherents[target.name] = _seeded_offset(target.name, movement.id)
@@ -315,7 +315,7 @@ After variant increment, check all adherent pairs:
 for each pair (A, B) in movement.adherents:
     divergence = abs(adherents[A] - adherents[B])
     if divergence >= SCHISM_DIVERGENCE_THRESHOLD:
-        # Fire-once guard: check events_timeline
+        # Fire-once guard: check named_events
         if not any(
             e.event_type == "movement_schism"
             and A in e.actors and B in e.actors
