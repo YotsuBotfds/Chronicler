@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage } from "../types";
+import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage, LobbyInit, StartCommand } from "../types";
+
+type ServerState = "connecting" | "lobby" | "starting" | "running" | "completed";
 
 interface LiveConnectionState {
   bundle: Bundle | null;
@@ -12,6 +14,9 @@ interface LiveConnectionState {
   setSpeed: (s: number) => void;
   lastAck: AckMessage | null;
   lastForked: ForkedMessage | null;
+  serverState: ServerState;
+  lobbyInit: LobbyInit | null;
+  sendStart: (params: Omit<StartCommand, "type">) => void;
 }
 
 export function useLiveConnection(wsUrl: string): LiveConnectionState {
@@ -23,9 +28,12 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
   const [speed, setSpeedState] = useState(1);
   const [lastAck, setLastAck] = useState<AckMessage | null>(null);
   const [lastForked, setLastForked] = useState<ForkedMessage | null>(null);
+  const [serverState, setServerState] = useState<ServerState>("connecting");
+  const [lobbyInit, setLobbyInit] = useState<LobbyInit | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelayRef = useRef(1000);
+  const serverStateRef = useRef<ServerState>("connecting");
 
   const sendCommand = useCallback((cmd: Command) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -37,6 +45,16 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     setSpeedState(s);
     sendCommand({ type: "speed", value: s });
   }, [sendCommand]);
+
+  const sendStart = useCallback((params: Omit<StartCommand, "type">) => {
+    if (serverStateRef.current !== "lobby") return;  // prevent double-submission
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      setServerState("starting");
+      serverStateRef.current = "starting";
+      setError(null);
+      wsRef.current.send(JSON.stringify({ type: "start", ...params }));
+    }
+  }, []);
 
   useEffect(() => {
     let unmounted = false;
@@ -77,17 +95,35 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
 
         switch (msg.type) {
           case "init":
-            setBundle({
-              world_state: msg.world_state,
-              history: msg.history || [],
-              events_timeline: msg.events_timeline || [],
-              named_events: msg.named_events || [],
-              chronicle_entries: msg.chronicle_entries || {},
-              era_reflections: msg.era_reflections || {},
-              metadata: msg.metadata,
-            });
-            if (msg.speed !== undefined) {
-              setSpeedState(msg.speed);
+            if (msg.state === "lobby") {
+              setServerState("lobby");
+              serverStateRef.current = "lobby";
+              setLobbyInit({
+                scenarios: msg.scenarios,
+                models: msg.models,
+                defaults: msg.defaults,
+              });
+            } else if (msg.state === "starting") {
+              setServerState("starting");
+              serverStateRef.current = "starting";
+            } else {
+              // "running" or absent (backward compat: pre-lobby servers
+              // don't send state field; treat absence as running)
+              setServerState("running");
+              serverStateRef.current = "running";
+              setError(null);
+              setBundle({
+                world_state: msg.world_state,
+                history: msg.history || [],
+                events_timeline: msg.events_timeline || [],
+                named_events: msg.named_events || [],
+                chronicle_entries: msg.chronicle_entries || {},
+                era_reflections: msg.era_reflections || {},
+                metadata: msg.metadata,
+              });
+              if (msg.speed !== undefined) {
+                setSpeedState(msg.speed);
+              }
             }
             break;
 
@@ -156,12 +192,19 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             break;
 
           case "completed":
+            setServerState("completed");
+            serverStateRef.current = "completed";
             setPaused(false);
             setPauseContext(null);
             break;
 
           case "error":
             setError(msg.message);
+            // Revert to lobby if we were in "starting" state
+            if (serverStateRef.current === "starting") {
+              setServerState("lobby");
+              serverStateRef.current = "lobby";
+            }
             break;
         }
       };
@@ -187,5 +230,8 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     setSpeed,
     lastAck,
     lastForked,
+    serverState,
+    lobbyInit,
+    sendStart,
   };
 }

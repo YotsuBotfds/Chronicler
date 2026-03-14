@@ -220,3 +220,134 @@ describe("useLiveConnection", () => {
     expect(JSON.parse(ws.sent[0])).toEqual({ type: "continue" });
   });
 });
+
+const SAMPLE_LOBBY_INIT = {
+  type: "init",
+  state: "lobby",
+  scenarios: [
+    {
+      file: "test.yaml",
+      name: "Test Scenario",
+      description: "A test",
+      world_name: "TestWorld",
+      civs: [{ name: "TestCiv", values: ["Honor"] }],
+      regions: [{ name: "TestRegion", terrain: "plains", x: null, y: null }],
+    },
+  ],
+  models: ["test-model"],
+  defaults: { turns: 50, civs: 4, regions: 8, seed: null },
+};
+
+describe("lobby state", () => {
+  it("sets serverState to lobby on lobby init", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+
+    act(() => ws.simulateMessage(SAMPLE_LOBBY_INIT));
+
+    expect(result.current.serverState).toBe("lobby");
+    expect(result.current.lobbyInit).not.toBeNull();
+    expect(result.current.lobbyInit?.scenarios.length).toBe(1);
+    expect(result.current.bundle).toBeNull();
+  });
+
+  it("treats init without state field as running (backward compat)", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+
+    expect(result.current.serverState).toBe("running");
+    expect(result.current.bundle).not.toBeNull();
+  });
+
+  it("sendStart transitions to starting and sends start command", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_LOBBY_INIT));
+
+    act(() => {
+      result.current.sendStart({
+        scenario: "test.yaml",
+        turns: 50,
+        seed: 42,
+        civs: 4,
+        regions: 8,
+        sim_model: "test-model",
+        narrative_model: "test-model",
+        resume_state: null,
+      });
+    });
+
+    expect(result.current.serverState).toBe("starting");
+    expect(ws.sent.length).toBe(1);
+    const sent = JSON.parse(ws.sent[0]);
+    expect(sent.type).toBe("start");
+    expect(sent.scenario).toBe("test.yaml");
+  });
+
+  it("reverts to lobby on error during starting", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_LOBBY_INIT));
+
+    act(() => {
+      result.current.sendStart({
+        scenario: "bad.yaml", turns: 50, seed: 42, civs: 4, regions: 8,
+        sim_model: "m", narrative_model: "m", resume_state: null,
+      });
+    });
+    expect(result.current.serverState).toBe("starting");
+
+    act(() => ws.simulateMessage({ type: "error", message: "Scenario not found" }));
+    expect(result.current.serverState).toBe("lobby");
+    expect(result.current.error).toBe("Scenario not found");
+  });
+
+  it("full retry: starting → error → lobby → retry → starting → running", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_LOBBY_INIT));
+
+    // First attempt fails
+    act(() => {
+      result.current.sendStart({
+        scenario: "bad.yaml", turns: 50, seed: 42, civs: 4, regions: 8,
+        sim_model: "m", narrative_model: "m", resume_state: null,
+      });
+    });
+    expect(result.current.serverState).toBe("starting");
+
+    act(() => ws.simulateMessage({ type: "error", message: "Not found" }));
+    expect(result.current.serverState).toBe("lobby");
+
+    // Second attempt succeeds
+    act(() => {
+      result.current.sendStart({
+        scenario: "test.yaml", turns: 50, seed: 42, civs: 4, regions: 8,
+        sim_model: "m", narrative_model: "m", resume_state: null,
+      });
+    });
+    expect(result.current.serverState).toBe("starting");
+    expect(ws.sent.length).toBe(2);
+
+    act(() => ws.simulateMessage({ ...SAMPLE_INIT, state: "running" }));
+    expect(result.current.serverState).toBe("running");
+    expect(result.current.bundle).not.toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("handles server-sent starting state during world gen", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+
+    act(() => ws.simulateMessage({ type: "init", state: "starting" }));
+    expect(result.current.serverState).toBe("starting");
+  });
+});
