@@ -424,6 +424,12 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
         else:
             s = s - delta * s
 
+        # Folk hero asabiya bonus: permanent +0.03 per hero, applied as a floor
+        from chronicler.traditions import compute_folk_hero_asabiya_bonus
+        folk_bonus = compute_folk_hero_asabiya_bonus(civ)
+        if folk_bonus > 0:
+            s = s + folk_bonus * 0.1  # scale per-turn contribution
+
         civ.asabiya = round(max(0.0, min(1.0, s)), 4)
 
 
@@ -649,6 +655,8 @@ def phase_technology(world: WorldState) -> list[Event]:
         event = check_tech_advancement(civ, world)
         if event:
             events.append(event)
+            # Increment tech_advanced so great person generation can detect era advance
+            civ.event_counts["tech_advanced"] = civ.event_counts.get("tech_advanced", 0) + 1
             name = generate_tech_breakthrough_name(civ.tech_era)
             world.named_events.append(NamedEvent(
                 name=name, event_type="tech_breakthrough", turn=world.turn,
@@ -719,16 +727,9 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
                 crisis_events = resolve_crisis(civ, world)
                 events.extend(crisis_events)
 
-        # Grudge decay — rival alive check via world state
+        # Grudge decay — per-grudge rival alive status handled inside decay_grudges
         if civ.leader.grudges:
-            for grudge in list(civ.leader.grudges):
-                rival_civ_name = grudge.get("rival_civ")
-                rival_alive = any(
-                    c.name == rival_civ_name and c.leader.alive
-                    for c in world.civilizations
-                )
-                decay_grudges(civ.leader, current_turn=world.turn, rival_alive=rival_alive)
-                break  # decay_grudges processes all grudges internally; call once
+            decay_grudges(civ.leader, current_turn=world.turn, world=world)
 
     return events
 

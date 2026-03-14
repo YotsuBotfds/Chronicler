@@ -245,6 +245,7 @@ def check_secession(world: WorldState) -> list[Event]:
             description=f"The Secession of {breakaway_name} from {civ.name}",
             importance=9,
         ))
+        civ.event_counts["secession_occurred"] = civ.event_counts.get("secession_occurred", 0) + 1
 
     world.civilizations.extend(new_civs)
     return events
@@ -282,6 +283,7 @@ def check_capital_loss(world: WorldState) -> list[Event]:
             description=f"{civ.name} lost capital {old_capital}, relocated to {best_region}",
             importance=8,
         ))
+        civ.event_counts["capital_lost"] = civ.event_counts.get("capital_lost", 0) + 1
     return events
 
 

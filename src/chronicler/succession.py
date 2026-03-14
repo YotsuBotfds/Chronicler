@@ -156,13 +156,26 @@ def add_grudge(leader: Leader, rival_name: str, rival_civ: str, turn: int) -> No
     })
 
 
-def decay_grudges(leader: Leader, current_turn: int, rival_alive: bool = True) -> None:
-    """Decay grudge intensity every 5 turns. Removes grudges that drop to near zero."""
+def decay_grudges(leader: Leader, current_turn: int, rival_alive: bool = True, world=None) -> None:
+    """Decay grudge intensity every 5 turns. Removes grudges that drop to near zero.
+
+    If *world* is provided, rival alive status is determined per-grudge from world state.
+    Otherwise, the *rival_alive* parameter applies to all grudges.
+    """
     to_remove = []
     for g in leader.grudges:
         turns_since = current_turn - g["origin_turn"]
         if turns_since > 0 and turns_since % 5 == 0:
-            decay = 0.2 if not rival_alive else 0.1
+            # Determine per-grudge rival alive status when world is available
+            if world is not None:
+                rival_civ_name = g.get("rival_civ")
+                g_rival_alive = any(
+                    c.name == rival_civ_name and c.leader.alive
+                    for c in world.civilizations
+                )
+            else:
+                g_rival_alive = rival_alive
+            decay = 0.2 if not g_rival_alive else 0.1
             g["intensity"] = max(0, g["intensity"] - decay)
         if g["intensity"] < 0.01:
             to_remove.append(g)

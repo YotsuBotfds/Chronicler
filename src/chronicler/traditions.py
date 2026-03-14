@@ -22,9 +22,9 @@ def update_event_counts(world: WorldState) -> None:
         elif event.event_type == "famine":
             civ.event_counts["famines_survived"] = civ.event_counts.get("famines_survived", 0) + 1
 
-    # Prune old war wins (only keep last 15 turns)
+    # Prune old war wins (only keep last 20 turns — matches _WAR_WIN_WINDOW in great_persons.py)
     for civ in world.civilizations:
-        civ.war_win_turns = [t for t in civ.war_win_turns if t >= world.turn - 15]
+        civ.war_win_turns = [t for t in civ.war_win_turns if t >= world.turn - 20]
 
     # Track high economy turns
     for civ in world.civilizations:
@@ -43,6 +43,21 @@ def update_event_counts(world: WorldState) -> None:
             civ.event_counts["high_trade_route_turns"] = civ.event_counts.get("high_trade_route_turns", 0) + 1
         else:
             civ.event_counts["high_trade_route_turns"] = 0
+
+    # Track federation membership turns
+    for fed in world.federations:
+        for member_name in fed.members:
+            civ = next((c for c in world.civilizations if c.name == member_name), None)
+            if civ:
+                civ.event_counts["federation_turns"] = civ.event_counts.get("federation_turns", 0) + 1
+
+    # Track capital recovery: a civ that previously lost their capital and now wins a war
+    for event in turn_events:
+        if event.event_type == "war" and "attacker_wins" in event.description and event.actors:
+            civ_name = event.actors[0]
+            civ = next((c for c in world.civilizations if c.name == civ_name), None)
+            if civ and civ.event_counts.get("capital_lost", 0) > 0:
+                civ.event_counts["capital_recovered"] = civ.event_counts.get("capital_recovered", 0) + 1
 
 
 # --- Task 20: Traditions ---

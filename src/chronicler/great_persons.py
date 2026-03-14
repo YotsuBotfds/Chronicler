@@ -66,14 +66,17 @@ _GREAT_PERSON_CAP = 50
 
 def _is_on_cooldown(civ_name: str, role: str, world: WorldState) -> bool:
     cooldowns = world.great_person_cooldowns.get(civ_name, {})
-    remaining = cooldowns.get(role, 0)
-    return remaining > 0
+    last_spawn_turn = cooldowns.get(role)
+    if last_spawn_turn is None:
+        return False
+    cooldown_duration = ROLE_COOLDOWNS.get(role, 20)
+    return (world.turn - last_spawn_turn) < cooldown_duration
 
 
 def _set_cooldown(civ_name: str, role: str, world: WorldState) -> None:
     if civ_name not in world.great_person_cooldowns:
         world.great_person_cooldowns[civ_name] = {}
-    world.great_person_cooldowns[civ_name][role] = ROLE_COOLDOWNS.get(role, 20)
+    world.great_person_cooldowns[civ_name][role] = world.turn  # store spawn turn, not duration
 
 
 def _total_great_persons(world: WorldState) -> int:
@@ -157,6 +160,33 @@ def check_great_person_generation(civ: Civilization, world: WorldState) -> list[
             _set_cooldown(civ.name, "scientist", world)
             spawned.append(gp)
 
+    # ------------------------------------------------------------------
+    # Threshold 3: Merchant — 4+ active trade routes for 10 consecutive turns
+    # ------------------------------------------------------------------
+    if not _is_on_cooldown(civ.name, "merchant", world):
+        threshold_turns = 10
+        if apply_discount:
+            threshold_turns = int(threshold_turns * CATCH_UP_DISCOUNT)
+        consecutive = civ.event_counts.get("high_trade_route_turns", 0)
+        if consecutive >= threshold_turns:
+            _enforce_cap(civ, world)
+            gp = _create_great_person("merchant", civ, world)
+            _set_cooldown(civ.name, "merchant", world)
+            spawned.append(gp)
+            civ.event_counts["high_trade_route_turns"] = 0
+
+    # ------------------------------------------------------------------
+    # Threshold 4: Prophet — first non-origin adoption OR origin with 3+ adherents
+    # ------------------------------------------------------------------
+    if not _is_on_cooldown(civ.name, "prophet", world):
+        prophet_triggered = civ.event_counts.get("prophet_trigger", 0) > 0
+        if prophet_triggered:
+            _enforce_cap(civ, world)
+            gp = _create_great_person("prophet", civ, world)
+            _set_cooldown(civ.name, "prophet", world)
+            spawned.append(gp)
+            civ.event_counts["prophet_trigger"] = 0
+
     return spawned
 
 
@@ -203,4 +233,7 @@ def kill_great_person(
     if gp in civ.great_persons:
         civ.great_persons.remove(gp)
     world.retired_persons.append(gp)
+    # Check for folk hero elevation
+    from chronicler.traditions import check_folk_hero
+    check_folk_hero(gp, civ, world, context=context)
     return gp

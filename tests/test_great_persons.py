@@ -206,6 +206,16 @@ def test_cooldown_blocks_spawn(make_world):
     assert len(spawned) == 0
 
 
+def test_cooldown_expires_after_duration(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ = world.civilizations[0]
+    civ.war_win_turns = [25, 28, 30]  # 3 wins in window
+    world.great_person_cooldowns = {civ.name: {"general": 5}}  # spawned at turn 5
+    world.turn = 30  # 25 turns since last spawn, cooldown is 20 → expired
+    spawned = check_great_person_generation(civ, world)
+    assert any(s.role == "general" for s in spawned)
+
+
 def test_scientist_spawns_on_era_advance(make_world):
     world = make_world(num_civs=2, seed=42)
     civ = world.civilizations[0]
