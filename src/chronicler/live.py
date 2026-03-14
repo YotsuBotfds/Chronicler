@@ -492,7 +492,6 @@ def resolve_start_seed(seed: int | None) -> int:
 
 def run_live(
     args: Any,
-    scenario_config: Any = None,
 ) -> Any:
     """Run simulation in live mode with WebSocket server.
 
