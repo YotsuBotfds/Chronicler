@@ -515,7 +515,10 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
 
-    # M16a: Cultural effects
+    # M16b: Movement lifecycle (must run FIRST — see spec, Task 13)
+    # tick_movements(world)  — wired in M16b
+
+    # M16a: Cultural effects (order matters — assimilation drain feeds asabiya)
     apply_value_drift(world)
     tick_cultural_assimilation(world)
 
