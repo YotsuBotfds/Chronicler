@@ -552,3 +552,47 @@ class TestNameGenerators:
         )
         assert isinstance(name, str)
         assert len(name) > 0
+
+
+from chronicler.simulation import run_turn
+from chronicler.world_gen import generate_world
+
+
+class TestM16EndToEnd:
+    def test_5_turn_simulation_with_culture(self):
+        world = generate_world(seed=42, num_civs=4)
+
+        def dummy_narrator(world, events):
+            return "Turn narration."
+
+        for _ in range(5):
+            from chronicler.action_engine import ActionEngine
+            engine = ActionEngine(world)
+            run_turn(
+                world,
+                action_selector=lambda civ, w: engine.select_action(civ, seed=w.seed + w.turn),
+                narrator=dummy_narrator,
+                seed=world.seed,
+            )
+
+        assert world.turn == 5
+        assert all(r.cultural_identity is not None for r in world.regions if r.controller is not None)
+
+    def test_31_turn_simulation_produces_movement(self):
+        world = generate_world(seed=42, num_civs=4)
+
+        def dummy_narrator(world, events):
+            return "Turn narration."
+
+        for _ in range(31):
+            from chronicler.action_engine import ActionEngine
+            engine = ActionEngine(world)
+            run_turn(
+                world,
+                action_selector=lambda civ, w: engine.select_action(civ, seed=w.seed + w.turn),
+                narrator=dummy_narrator,
+                seed=world.seed,
+            )
+
+        assert world.turn == 31
+        assert len(world.movements) >= 1, "At least one movement should emerge by turn 31"
