@@ -482,29 +482,82 @@ def build_lobby_init(args: Any, scenario_dir: Path | None = None) -> dict:
     }
 
 
+def resolve_start_seed(seed: int | None) -> int:
+    """Resolve seed from start command. None means server-generated random."""
+    import random
+    if seed is None:
+        return random.randint(0, 2**31 - 1)
+    return seed
+
+
 def run_live(
     args: Any,
-    sim_client: Any = None,
-    narrative_client: Any = None,
     scenario_config: Any = None,
 ) -> Any:
-    """Run simulation in live mode with WebSocket server."""
+    """Run simulation in live mode with WebSocket server.
+
+    Phase 1: Start WebSocket server in lobby state, wait for client to send start.
+    Phase 2: Generate world from client params, run simulation.
+    """
+    import random
     from chronicler.main import execute_run
     from chronicler.models import TurnSnapshot, Event, NamedEvent
+    from chronicler.llm import create_clients
 
     port = getattr(args, "live_port", 8765) or 8765
-    pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
-    total_turns = args.turns or 50
-    output_dir = Path(args.output).parent
 
+    # --- Phase 1: Lobby ---
     server = LiveServer(port=port)
+    server._lobby_init = build_lobby_init(args)
     server.start()
     actual_port = server._actual_port or port
-    print(f"Live server ready on ws://localhost:{actual_port}")
+    print(f"Lobby ready on ws://localhost:{actual_port}")
     print(f"Open viewer: http://localhost:5173?ws=ws://localhost:{actual_port}")
+    print("Waiting for client to launch simulation...")
+
+    # Block until client sends start (interruptible via Ctrl+C)
+    while not server.start_event.wait(timeout=1.0):
+        pass
+
+    params = server._start_params
+    if params is None:
+        raise RuntimeError("start_event set but no _start_params")
+
+    # --- Phase 2: Simulation ---
+
+    # Resolve world and scenario from client params
+    scenario_config = None
+    if params.get("resume_state"):
+        world = WorldState.model_validate(params["resume_state"])
+    else:
+        seed = resolve_start_seed(params.get("seed"))
+
+        from chronicler.world_gen import generate_world
+        world = generate_world(
+            seed=seed,
+            num_regions=params.get("regions", 8),
+            num_civs=params.get("civs", 4),
+        )
+        if params.get("scenario"):
+            from chronicler.scenario import load_scenario, apply_scenario
+            scenario_config = load_scenario(Path("scenarios") / params["scenario"])
+            apply_scenario(world, scenario_config)
+
+    # Construct LLM clients from client-selected models
+    sim_model = params.get("sim_model") or getattr(args, "sim_model", None)
+    narrative_model = params.get("narrative_model") or getattr(args, "narrative_model", None)
+    sim_client, narrative_client = create_clients(
+        local_url=getattr(args, "local_url", "http://localhost:1234/v1"),
+        sim_model=sim_model,
+        narrative_model=narrative_model,
+    )
+
+    pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
+    total_turns = params.get("turns") or args.turns or 50
+    output_dir = Path(args.output).parent
 
     init_sent = [False]
-    world_ref = [None]
+    world_ref = [world]
 
     def _serialize_snapshot(snapshot, chronicle_text, events, named_events):
         """Serialize turn data to a dict for the WebSocket protocol."""
@@ -521,39 +574,37 @@ def run_live(
         events: list[Event],
         named_events: list[NamedEvent],
     ) -> None:
-        # On first turn, send init message with the world state
         if not init_sent[0]:
             init_sent[0] = True
-            if world_ref[0] is not None:
-                world = world_ref[0]
-                init_msg = {
-                    "type": "init",
+            w = world_ref[0]
+            init_msg = {
+                "type": "init",
+                "state": "running",
+                "total_turns": total_turns,
+                "pause_every": pause_every,
+                "current_turn": 0,
+                "world_state": w.model_dump(mode="json"),
+                "history": [],
+                "chronicle_entries": {},
+                "events_timeline": [],
+                "named_events": [],
+                "era_reflections": {},
+                "metadata": {
+                    "seed": w.seed,
                     "total_turns": total_turns,
-                    "pause_every": pause_every,
-                    "current_turn": 0,
-                    "world_state": world.model_dump(mode="json"),
-                    "history": [],
-                    "chronicle_entries": {},
-                    "events_timeline": [],
-                    "named_events": [],
-                    "era_reflections": {},
-                    "metadata": {
-                        "seed": world.seed,
-                        "total_turns": total_turns,
-                        "generated_at": "",
-                        "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
-                        "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
-                        "scenario_name": getattr(world, "scenario_name", None),
-                        "interestingness_score": None,
-                    },
-                    "speed": server.speed,
-                }
-                server.snapshot_queue.put(init_msg)
+                    "generated_at": "",
+                    "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
+                    "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
+                    "scenario_name": getattr(w, "scenario_name", None),
+                    "interestingness_score": None,
+                },
+                "speed": server.speed,
+            }
+            server.snapshot_queue.put(init_msg)
 
         snap_dict = _serialize_snapshot(snapshot, chronicle_text, events, named_events)
         server.snapshot_queue.put(snap_dict)
 
-        # Pace simulation
         spd = server.speed
         if spd > 0:
             time.sleep(1.0 / spd)
@@ -565,17 +616,9 @@ def run_live(
         output_dir=output_dir,
     )
 
-    # Generate world first so we can capture it for init message
-    from chronicler.world_gen import generate_world
-    world = generate_world(
-        seed=args.seed,
-        num_regions=args.regions,
-        num_civs=args.civs,
-    )
-    if scenario_config:
-        from chronicler.scenario import apply_scenario
-        apply_scenario(world, scenario_config)
-    world_ref[0] = world
+    # Override args with client params for execute_run
+    args.turns = total_turns
+    args.seed = world.seed
 
     result = execute_run(
         args,
@@ -590,14 +633,12 @@ def run_live(
         quit_check=lambda: server.quit_event.is_set(),
     )
 
-    # Send completed
     server.status_queue.put({
         "type": "completed",
         "total_turns": result.total_turns,
         "bundle_path": str(output_dir / "chronicle_bundle.json"),
     })
 
-    # Give the server a moment to drain
     time.sleep(0.5)
     server.stop()
 

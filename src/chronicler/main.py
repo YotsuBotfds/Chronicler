@@ -534,29 +534,36 @@ def main() -> None:
         print("Error: Cannot use --parallel with --llm-actions", file=sys.stderr)
         sys.exit(1)
 
-    sim_client, narrative_client = create_clients(
-        local_url=args.local_url,
-        sim_model=args.sim_model,
-        narrative_model=args.narrative_model,
-    )
+    # Skip LLM client and scenario resolution for live mode — run_live
+    # handles both after receiving params from the client's start command
+    if not args.live:
+        sim_client, narrative_client = create_clients(
+            local_url=args.local_url,
+            sim_model=args.sim_model,
+            narrative_model=args.narrative_model,
+        )
 
-    # Resolve scenario
-    scenario_config = None
-    if args.scenario:
-        from chronicler.scenario import load_scenario, resolve_scenario_params
-        scenario_config = load_scenario(Path(args.scenario))
-        params = resolve_scenario_params(scenario_config, args)
-        args.seed = params["seed"]
-        args.turns = params["num_turns"]
-        args.civs = params["num_civs"]
-        args.regions = params["num_regions"]
-        args.reflection_interval = params["reflection_interval"]
+        # Resolve scenario
+        scenario_config = None
+        if args.scenario:
+            from chronicler.scenario import load_scenario, resolve_scenario_params
+            scenario_config = load_scenario(Path(args.scenario))
+            params = resolve_scenario_params(scenario_config, args)
+            args.seed = params["seed"]
+            args.turns = params["num_turns"]
+            args.civs = params["num_civs"]
+            args.regions = params["num_regions"]
+            args.reflection_interval = params["reflection_interval"]
+        else:
+            args.seed = args.seed if args.seed is not None else DEFAULT_CONFIG.get("seed", 42)
+            args.turns = args.turns if args.turns is not None else DEFAULT_CONFIG["num_turns"]
+            args.civs = args.civs if args.civs is not None else DEFAULT_CONFIG["num_civs"]
+            args.regions = args.regions if args.regions is not None else DEFAULT_CONFIG["num_regions"]
+            args.reflection_interval = args.reflection_interval if args.reflection_interval is not None else DEFAULT_CONFIG["reflection_interval"]
     else:
-        args.seed = args.seed if args.seed is not None else DEFAULT_CONFIG.get("seed", 42)
-        args.turns = args.turns if args.turns is not None else DEFAULT_CONFIG["num_turns"]
-        args.civs = args.civs if args.civs is not None else DEFAULT_CONFIG["num_civs"]
-        args.regions = args.regions if args.regions is not None else DEFAULT_CONFIG["num_regions"]
-        args.reflection_interval = args.reflection_interval if args.reflection_interval is not None else DEFAULT_CONFIG["reflection_interval"]
+        sim_client = None
+        narrative_client = None
+        scenario_config = None
 
     # --- Dispatch ---
     if args.batch:
@@ -576,7 +583,7 @@ def main() -> None:
 
     elif args.live:
         from chronicler.live import run_live
-        result = run_live(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        result = run_live(args)
         print(f"\nLive session complete: {result.output_dir}")
 
     else:

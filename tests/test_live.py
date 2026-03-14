@@ -400,3 +400,20 @@ def test_build_lobby_init_missing_fields(tmp_path):
     assert s["civs"] == []
     assert s["regions"] == []
     assert s["description"] == ""
+
+
+def test_resolve_start_seed_generates_when_none():
+    """resolve_start_seed returns a valid random int when seed is None."""
+    from chronicler.live import resolve_start_seed
+
+    seed = resolve_start_seed(None)
+    assert isinstance(seed, int)
+    assert 0 <= seed < 2**31
+
+
+def test_resolve_start_seed_passes_through_int():
+    """resolve_start_seed returns the seed unchanged when it's an int."""
+    from chronicler.live import resolve_start_seed
+
+    assert resolve_start_seed(42) == 42
+    assert resolve_start_seed(0) == 0
