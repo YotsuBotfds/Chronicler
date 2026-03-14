@@ -515,3 +515,40 @@ class TestSnapshotChanges:
             regions=["R1"], leader_name="L", alive=True, prestige=10,
         )
         assert snap.prestige == 10
+
+
+from chronicler.named_events import (
+    generate_movement_name, generate_schism_name,
+    generate_propaganda_name, generate_cultural_milestone_name,
+)
+
+
+class TestNameGenerators:
+    def test_generate_movement_name_returns_string(self, drift_world):
+        name = generate_movement_name(drift_world.civilizations[0], drift_world, seed=42)
+        assert isinstance(name, str)
+        assert len(name) > 0
+
+    def test_generate_movement_name_deterministic(self, drift_world):
+        a = generate_movement_name(drift_world.civilizations[0], drift_world, seed=42)
+        b = generate_movement_name(drift_world.civilizations[0], drift_world, seed=42)
+        assert a == b
+
+    def test_generate_schism_name_returns_string(self, drift_world):
+        name = generate_schism_name(["CivA", "CivB"], drift_world, seed=42)
+        assert isinstance(name, str)
+        assert len(name) > 0
+
+    def test_generate_propaganda_name_returns_string(self, drift_world):
+        name = generate_propaganda_name(
+            drift_world.civilizations[0], drift_world.regions[0], drift_world, seed=42,
+        )
+        assert isinstance(name, str)
+        assert len(name) > 0
+
+    def test_generate_cultural_milestone_name_returns_string(self, drift_world):
+        name = generate_cultural_milestone_name(
+            drift_world.civilizations[0], "hegemony", drift_world, seed=42,
+        )
+        assert isinstance(name, str)
+        assert len(name) > 0

@@ -91,6 +91,75 @@ def generate_tech_breakthrough_name(era: TechEra) -> str:
     return TECH_BREAKTHROUGH_NAMES.get(era, f"The Advance to {era.value}")
 
 
+MOVEMENT_PREFIXES = [
+    "The Way of", "The School of", "The Path of", "The Doctrine of",
+    "The Fellowship of", "The Order of", "The Brotherhood of", "The Covenant of",
+    "The Teaching of", "The Circle of", "The Creed of", "The Vision of",
+]
+
+MOVEMENT_THEMES = [
+    "Enlightenment", "Unity", "Liberation", "Harmony", "Justice",
+    "Wisdom", "Renewal", "Awakening", "Transcendence", "Redemption",
+    "Truth", "Virtue", "Grace", "Resolve", "Fortitude",
+]
+
+SCHISM_PREFIXES = [
+    "The Great Schism", "The Sundering", "The Division", "The Rift",
+    "The Fracture", "The Split", "The Parting", "The Divergence",
+]
+
+
+def generate_movement_name(civ, world, seed: int) -> str:
+    rng = _seed_rng(seed, world.turn, civ.name + "movement")
+    prefix = rng.choice(MOVEMENT_PREFIXES)
+    theme = rng.choice(MOVEMENT_THEMES)
+    name = f"{prefix} {theme}"
+    existing = [ne.name for ne in world.named_events]
+    return deduplicate_name(name, existing)
+
+
+def generate_schism_name(actors: list[str], world, seed: int) -> str:
+    rng = _seed_rng(seed, world.turn, "".join(sorted(actors)))
+    prefix = rng.choice(SCHISM_PREFIXES)
+    name = f"{prefix} of {actors[0]} and {actors[1]}"
+    existing = [ne.name for ne in world.named_events]
+    return deduplicate_name(name, existing)
+
+
+PROPAGANDA_ADJECTIVES = [
+    "Grand", "Subtle", "Relentless", "Cunning", "Glorious",
+    "Insidious", "Magnificent", "Silent", "Brazen", "Calculated",
+]
+
+PROPAGANDA_NOUNS = [
+    "Campaign", "Influence", "Proclamation", "Initiative", "Crusade",
+    "Offensive", "Mandate", "Projection", "Outreach", "Gambit",
+]
+
+MILESTONE_PREFIXES = {
+    "hegemony": ["The Age of", "The Dominion of", "The Supremacy of", "The Reign of"],
+    "enlightenment": ["The Great Awakening", "The Universal Accord", "The Age of Light", "The Grand Convergence"],
+}
+
+
+def generate_propaganda_name(civ, region, world, seed: int) -> str:
+    rng = _seed_rng(seed, world.turn, civ.name + region.name)
+    adj = rng.choice(PROPAGANDA_ADJECTIVES)
+    noun = rng.choice(PROPAGANDA_NOUNS)
+    name = f"The {adj} {noun} of {region.name}"
+    existing = [ne.name for ne in world.named_events]
+    return deduplicate_name(name, existing)
+
+
+def generate_cultural_milestone_name(civ, milestone_type: str, world, seed: int) -> str:
+    rng = _seed_rng(seed, world.turn, civ.name + milestone_type)
+    prefixes = MILESTONE_PREFIXES.get(milestone_type, ["The Rise of"])
+    prefix = rng.choice(prefixes)
+    name = f"{prefix} {civ.name}" if milestone_type == "hegemony" else prefix
+    existing = [ne.name for ne in world.named_events]
+    return deduplicate_name(name, existing)
+
+
 def deduplicate_name(name: str, existing: list[str]) -> str:
     if name not in existing:
         return name
