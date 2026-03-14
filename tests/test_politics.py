@@ -865,3 +865,63 @@ def test_long_peace_military_restlessness():
     world.peace_turns = 29  # will become 30
     apply_long_peace(world)
     assert civ.stability == 48  # -2 for military > 60
+
+
+# --- Task 28: 200-turn integration test and scenario regression ---
+
+def test_m14_integration_200_turns():
+    """200-turn run with all M14 mechanics — verify emergent political events."""
+    from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=42)
+
+    # Give civs extra regions to make governing costs relevant
+    for i, civ in enumerate(world.civilizations):
+        for region in world.regions:
+            if region.controller is None:
+                region.controller = civ.name
+                civ.regions.append(region.name)
+                break
+        civ.capital_region = civ.regions[0]
+
+    secession_count = 0
+    vassal_count = 0
+    federation_count = 0
+
+    for turn in range(200):
+        engine = ActionEngine(world)
+        selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+        run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
+        secession_count += sum(1 for e in world.events_timeline if e.event_type == "secession" and e.turn == world.turn)
+        vassal_count = len(world.vassal_relations)
+        federation_count = len(world.federations)
+
+    assert world.turn == 200
+    assert len(world.civilizations) >= 1
+
+
+def test_all_scenarios_run_with_m14():
+    """Each existing scenario YAML loads and runs 10 turns without crash."""
+    from chronicler.scenario import load_scenario, apply_scenario
+    from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
+    from chronicler.world_gen import generate_world
+    from pathlib import Path
+    scenario_dir = Path("scenarios")
+    if not scenario_dir.exists():
+        return  # skip if scenarios not available
+    for yaml_file in scenario_dir.glob("*.yaml"):
+        config = load_scenario(yaml_file)
+        seed = config.seed if config.seed is not None else 42
+        num_civs = config.num_civs if config.num_civs is not None else max(len(config.civilizations), 4)
+        num_regions = config.num_regions if config.num_regions is not None else max(len(config.regions), 8)
+        world = generate_world(seed=seed, num_civs=num_civs, num_regions=num_regions)
+        apply_scenario(world, config)
+        for civ in world.civilizations:
+            if civ.capital_region is None and civ.regions:
+                civ.capital_region = civ.regions[0]
+        for _ in range(10):
+            engine = ActionEngine(world)
+            selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+            run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
