@@ -195,29 +195,36 @@ Add to `tests/test_live.py`:
 
 ```python
 def test_connect_init_returns_lobby_when_in_lobby():
-    """Server returns lobby init on connect when in lobby state."""
+    """Server has correct state for lobby init on connect.
+
+    Note: This verifies the preconditions for the handler's branching logic
+    (lobby state + lobby_init populated). The actual WebSocket send behavior
+    is covered by the integration tests in test_live_integration.py.
+    """
     from chronicler.live import LiveServer
 
     server = LiveServer(port=0)
     server._lobby_init = {"type": "init", "state": "lobby", "scenarios": [], "models": [], "defaults": {}}
 
-    # Server is in lobby state by default
     assert server._server_state == "lobby"
-    # The connect handler should send _lobby_init (not _init_data)
     assert server._lobby_init is not None
     assert server._init_data is None
 
 
 def test_connect_init_returns_starting_during_world_gen():
-    """Server returns starting ack when running but init_data not yet populated."""
+    """Server has correct state for starting ack during world generation.
+
+    Note: Verifies preconditions for the handler's reconnect-during-worldgen
+    branch. The handler sends {"type": "init", "state": "starting"} when
+    _server_state is "running" but _init_data is None. Actual send behavior
+    covered by integration tests.
+    """
     from chronicler.live import LiveServer
 
     server = LiveServer(port=0)
     server._server_state = "running"
-    server._init_data = None  # World gen in progress
+    server._init_data = None
 
-    # Handler should send {"type": "init", "state": "starting"}
-    # (verified by the handler branching logic — no _init_data available)
     assert server._server_state == "running"
     assert server._init_data is None
 ```
@@ -281,6 +288,51 @@ def test_build_lobby_init_scans_scenarios(tmp_path):
     assert result["defaults"]["turns"] == 50
     assert result["defaults"]["seed"] is None
     assert isinstance(result["models"], list)
+
+
+def test_get_available_models_with_cli_args():
+    """_get_available_models returns CLI-specified models."""
+    import argparse
+    from chronicler.live import _get_available_models
+
+    args = argparse.Namespace(
+        local_url="http://localhost:1234/v1",
+        sim_model="model-a",
+        narrative_model="model-b",
+    )
+    result = _get_available_models(args)
+    assert "model-a" in result
+    assert "model-b" in result
+
+
+def test_get_available_models_deduplicates():
+    """_get_available_models does not duplicate when sim and narrative are the same."""
+    import argparse
+    from chronicler.live import _get_available_models
+
+    args = argparse.Namespace(
+        local_url="http://localhost:1234/v1",
+        sim_model="same-model",
+        narrative_model="same-model",
+    )
+    result = _get_available_models(args)
+    assert result.count("same-model") == 1
+
+
+def test_get_available_models_unreachable_lm_studio():
+    """_get_available_models falls back gracefully when LM Studio is unreachable."""
+    import argparse
+    from chronicler.live import _get_available_models
+
+    args = argparse.Namespace(
+        local_url="http://localhost:99999/v1",  # unreachable
+        sim_model=None,
+        narrative_model=None,
+    )
+    result = _get_available_models(args)
+    # Should return fallback, not crash
+    assert isinstance(result, list)
+    assert len(result) >= 1
 
 
 def test_build_lobby_init_empty_scenario_dir(tmp_path):
@@ -742,7 +794,7 @@ export interface StartCommand {
 }
 ```
 
-Note: `StartCommand` is NOT added to the `Command` union — it stays separate.
+Note: `StartCommand` is NOT added to the `Command` union — it stays separate. `WorldState` is already defined at line 121 of `types.ts`, so `resume_state: WorldState | null` compiles without additional imports.
 
 - [ ] **Step 2: Verify TypeScript compiles**
 
@@ -907,7 +959,9 @@ Expected: FAIL — `serverState`, `lobbyInit`, `sendStart` don't exist on the ho
 
 - [ ] **Step 3: Update useLiveConnection hook**
 
-Replace `viewer/src/hooks/useLiveConnection.ts` with the updated version that adds `serverState`, `lobbyInit`, and `sendStart`:
+**Important:** If the current file differs from the baseline read during plan creation (e.g., due to M12 bug fixes), apply the lobby additions as incremental changes rather than wholesale replacement. The key changes are: (a) new state variables, (b) `sendStart` method, (c) branching the `init` handler on `msg.state`, (d) `"starting"` revert on error, (e) `"completed"` sets serverState.
+
+Full replacement for reference (apply incrementally if file has diverged):
 
 ```typescript
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -1173,7 +1227,9 @@ git commit -m "feat(m12c): add lobby state, sendStart, and error recovery to use
 
 - [ ] **Step 1: Update App.tsx to gate on serverState**
 
-Replace `viewer/src/App.tsx`:
+**Important:** If the current file differs from the baseline read during plan creation, apply changes incrementally: (a) add `SetupLobby` import, (b) add the `serverState` switch block for live mode, (c) keep existing static mode unchanged.
+
+Full replacement for reference (apply incrementally if file has diverged):
 
 ```typescript
 import { useCallback } from "react";
