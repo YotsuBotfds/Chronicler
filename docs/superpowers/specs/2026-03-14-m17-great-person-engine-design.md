@@ -38,7 +38,7 @@ class GreatPerson(BaseModel):
     is_hostage: bool = False
     hostage_turns: int = 0                 # turns held as hostage
     cultural_identity: str | None = None   # gains captor's identity after 10 hostage turns
-    movement_id: int | None = None         # for prophets: which movement they champion
+    movement_id: str | None = None          # for prophets: which movement they champion (e.g. "movement_0")
 ```
 
 **Storage**:
@@ -48,6 +48,7 @@ class GreatPerson(BaseModel):
 **Role types**:
 - `"general"`, `"merchant"`, `"prophet"`, `"scientist"` — achievement-triggered, participate in modifier registry
 - `"exile"` — special lifecycle role created when a leader is deposed. Does NOT participate in modifier registry, does NOT count against per-type cooldowns, follows capture-exemption logic for cap purposes. Completely different mechanics (pretender drain, restoration, extradition).
+- `"hostage"` — generic hostage created when a losing civ has no great persons to surrender. Minimal mechanical effect (culture +1/turn for captor instead of +3). Does NOT participate in modifier registry or cooldowns.
 
 ### 1.2 Domain-Tagged Modifier Registry
 
@@ -75,10 +76,10 @@ Great persons emerge when a civ crosses specific behavioral thresholds. Active c
 |------|-------------------|----------|
 | General | Win 3 wars within a 15-turn rolling window | 20 turns (per-type, per-civ) |
 | Merchant | Maintain 4+ active trade routes for 10 consecutive turns | 20 turns |
-| Prophet | First civ to adopt a movement (one-shot, once per movement), OR civ is movement origin and movement reaches 3+ adherents | 25 turns |
+| Prophet | First *non-origin* civ to adopt a movement (one-shot, once per movement), OR civ is movement origin and movement reaches 3+ adherents | 25 turns |
 | Scientist | Advance a tech era, OR maintain economy ≥ 80 for 15 consecutive turns | 20 turns |
 
-**Catch-up discount**: civs with zero active great persons get all thresholds reduced by 25% (e.g., general requires 2 wars instead of 3, merchant requires 3 routes instead of 4). Prevents permanent have/have-not divergence without guaranteeing characters to inactive civs.
+**Catch-up discount**: civs with zero active great persons get all thresholds reduced by 25%, using `floor()` for rounding (e.g., `floor(3 × 0.75) = 2` wars for general, `floor(4 × 0.75) = 3` routes for merchant, `floor(15 × 0.75) = 11` turns for scientist economy). Prevents permanent have/have-not divergence without guaranteeing characters to inactive civs.
 
 **Scientist dual trigger**: era advancement is a discrete event (4-5 times per 500 turns). The economy threshold provides a repeatable achievement path — a rich civ that never advances eras can still produce scientists through sustained investment.
 
@@ -86,7 +87,11 @@ Great persons emerge when a civ crosses specific behavioral thresholds. Active c
 
 **Cooldown tracking**: `WorldState.great_person_cooldowns: dict[str, dict[str, int]]` — maps `{civ_name: {role: last_spawn_turn}}`. A spawn is blocked if `current_turn - last_spawn_turn < cooldown`.
 
+**Rolling window tracking**: the general trigger needs a record of recent war wins. Add `Civilization.war_win_turns: list[int]` — appended on each war win, pruned to last 15 entries during Phase 10 event counts update. The threshold check is `len([t for t in war_win_turns if t >= current_turn - 15]) >= 3`. Other triggers (merchant trade routes, scientist economy) use existing per-turn state and don't need history.
+
 **Name generation**: drawn from existing cultural name pools (maritime, steppe, mountain, forest, desert, scholarly, military) based on the civ's cultural group. Names added to `WorldState.used_leader_names` to prevent reuse.
+
+**Role distribution when multiple thresholds fire**: base probability is equal 25% per role, modified by folk hero bias — each folk hero of a given role applies ×1.3 to that role's selection probability, then renormalized. Example: 2 military folk heroes → general probability = `25% × 1.3 × 1.3 = 42.25%`, renormalized across all four roles. In practice this is rare — normally the specific threshold that was crossed determines the role directly.
 
 ### 1.4 Lifecycle States
 
@@ -96,7 +101,7 @@ active → dead      (killed by war, disaster, succession crisis)
 active → ascended  (general becomes leader during succession crisis)
 ```
 
-**Lifespan**: 20-30 turns, deterministic from `seed + born_turn + hash(name)`. On expiry: retirement. Lifespan expiry is ALWAYS retirement, never death. A character whose lifespan expires on the same turn as a battle still retires — they are not retroactively killed by the battle.
+**Lifespan**: 20-30 turns, deterministic: `20 + ((seed + born_turn + hash(name)) % 11)`. On expiry: retirement. Lifespan expiry is ALWAYS retirement, never death. A character whose lifespan expires on the same turn as a battle still retires — they are not retroactively killed by the battle.
 
 **Retirement**: archived to `WorldState.retired_persons`, removed from active roster and modifier registry. No downstream triggers. Narrative engine can reference historically.
 
@@ -107,20 +112,11 @@ active → ascended  (general becomes leader during succession crisis)
 
 **Dramatic death** (clear boolean, no judgment call): death occurred during war resolution (Phase 5), natural disaster event (Phase 7), or succession crisis (Phase 8). Anything else is non-dramatic.
 
-**50-character global cap**: safety valve, not a gameplay mechanic. When a 51st character would spawn, force-retire the oldest character *of the spawning civ* — the cost stays local. Log a warning when the cap triggers; if it fires regularly, spawn rate or lifespan is miscalibrated and needs tuning.
+**50-character global cap**: safety valve, not a gameplay mechanic. When a 51st character would spawn, force-retire the oldest character *of the spawning civ* — the cost stays local. If the spawning civ has no existing characters to retire (they're adding their first), the spawn succeeds and the global count exceeds 50 temporarily — the cap is a soft limit that prevents runaway growth, not a hard ceiling. Log a warning when the cap triggers; if it fires regularly, spawn rate or lifespan is miscalibrated and needs tuning.
 
 **Recapture**: when a civ reconquers a region holding their captured character, the character reverts to `origin_civilization`. This is a war outcome — only triggers if the specific region containing the character is recaptured, not automatic.
 
 **Capture placement**: captured characters are placed in the contested region where they were captured (the front), not teleported to the captor's capital. This makes recapture require retaking specific territory — more strategic and narratively interesting.
-
-### 1.5 Base Role Distribution for Spawning
-
-When a great person spawns and the role is determined by threshold, the base probability of each role is equal (25% each), modified by folk hero bias:
-- Each folk hero of a given role applies ×1.3 to that role's selection probability
-- Probabilities renormalized after bias application
-- Example: 2 military folk heroes → general probability = `25% × 1.3 × 1.3 = 42.25%`, renormalized across all four roles
-
-Note: this distribution only matters when multiple thresholds fire simultaneously on the same turn (rare). Normally, the specific threshold that was crossed determines the role directly.
 
 ---
 
@@ -132,20 +128,23 @@ On leader death (not retirement — leaders don't retire, they die or get depose
 
 ```python
 base = 0.15
+region_count = len(civ.regions)
 region_factor = region_count / 5
-instability_factor = 1 - (stability / 100)
+instability_factor = 1 - (civ.stability / 100)
+leader_reign = world.turn - civ.leader.reign_start
+has_active_vassals = any(vr.overlord == civ.name for vr in world.vassal_relations)
 modifiers = 1.0
 
 # Escalation (multiplicative)
-if succession_type != "heir":    modifiers *= 1.5   # no clear line of succession
-if has_active_vassals:           modifiers *= 1.3   # vassals back rival candidates
-if leader_reign < 5:            modifiers *= 1.2   # never consolidated power
+if civ.leader.succession_type != "heir":  modifiers *= 1.5   # no clear line of succession
+if has_active_vassals:                     modifiers *= 1.3   # vassals back rival candidates
+if leader_reign < 5:                       modifiers *= 1.2   # never consolidated power
 
 # Suppression (multiplicative)
-if asabiya > 0.7:               modifiers *= 0.6   # unified identity
-if "martial" in traditions:     modifiers *= 0.8   # institutional discipline
-if "resilience" in traditions:  modifiers *= 0.8   # learned to weather transitions
-if leader_reign > 15:           modifiers *= 0.7   # established legitimacy
+if civ.asabiya > 0.7:                     modifiers *= 0.6   # unified identity
+if "martial" in civ.traditions:           modifiers *= 0.8   # institutional discipline
+if "resilience" in civ.traditions:        modifiers *= 0.8   # learned to weather transitions
+if leader_reign > 15:                      modifiers *= 0.7   # established legitimacy
 
 crisis_chance = clamp(base * region_factor * instability_factor * modifiers, 0.05, 0.40)
 ```
@@ -199,6 +198,14 @@ During a succession crisis, any great person (not just generals) can enter the s
 - Same `fate="ascended"` archival and Leader creation process as generals
 
 ### 2.4 Exiled Leaders
+
+**Distinction from M14's ExileModifier system**: M14 implements `ExileModifier` for *governments in exile* — when an entire civ is eliminated (loses all regions), the absorbing civ gets a stability drain and the conquered people can potentially restore their nation. M17's exiled leader system is conceptually different: a *deposed individual* from a civ that still exists. The civ continues under new leadership while the deposed leader plots a return from abroad.
+
+These are parallel, non-overlapping systems:
+- **M14 ExileModifier**: fires when a civ is fully absorbed (0 regions). Stored on `WorldState.exile_modifiers`. Drains the *absorber*. Restoration recreates the eliminated civ.
+- **M17 Exiled Leader**: fires when a leader is deposed but the civ persists. Stored as a `GreatPerson` on the host civ. Drains the *origin civ* (pretender legitimacy challenge). Restoration replaces the current leader.
+
+**Edge case — deposed leader's civ later eliminated**: if the origin civ is fully absorbed while an M17 exile still lives, the exile's pretender drain stops (no civ to drain). The exile remains on the host civ's roster but becomes inert — they can still die and trigger folk hero checks, but restoration is no longer possible (no civ to restore to). The M14 ExileModifier fires independently on the absorbing civ as normal.
 
 When a leader is deposed (civil war, succession crisis where external candidate wins, coup):
 
@@ -298,7 +305,7 @@ character_relationships: list[dict] = []
 - **Max 1 mentorship per leader**
 
 #### Marriage Alliance
-- **Formation**: two civs ALLIED for 10+ turns AND both have at least one great person. One-shot check per alliance, 30% chance.
+- **Formation**: two civs ALLIED for 10+ turns (tracked by existing `Relationship.allied_turns` field, updated by `update_allied_turns()` in `politics.py`) AND both have at least one great person. One-shot check per alliance, 30% chance.
 - **Effect**: disposition floor at NEUTRAL between the two civs (can't drop below NEUTRAL while both persons live). Prevents hostility but doesn't lock in perpetual friendship.
 - **Dissolution**: WAR action auto-dissolves the marriage. Manual dissolution costs stability -3 for the initiator.
 - **Death of either spouse**: floor removed, disposition drifts normally. Named event generated.
@@ -328,7 +335,7 @@ After a peace treaty where the attacker lost, the losing civ sends a named chara
 - If they later become a leader through succession (using the 20% any-great-person entry from Section 2.3): disposition +1 level toward former captor, trait influenced by captor's cultural values (50% chance of gaining a trait aligned with captor's values instead of normal succession pool)
 - This is the "raised by the enemy" pipeline — cross-cultural pollination through the mechanism historically designed to prevent it
 
-**Capture/hostage hook location**: these are war consequences, processed in Phase 5 immediately after `resolve_war` returns `attacker_wins`/`defender_wins`, alongside territorial changes and vassalization decisions.
+**Capture/hostage hook location**: these are war consequences, processed inside `_resolve_war_action()` in `action_engine.py`, immediately after the `resolve_war()` call returns its outcome. Currently `resolve_war()` returns only a string (`"attacker_wins"`, `"defender_wins"`, `"stalemate"`). M17 requires the contested region for capture placement. **Implementation change**: expand `resolve_war()`'s return type to a `WarResult` namedtuple or dataclass containing `outcome: str` and `contested_region: str | None`. This is a minimal change — callers that only check the outcome string can access `result.outcome`. The capture and hostage logic hooks into `_resolve_war_action()` after the outcome is known, using `result.contested_region` for character placement.
 
 ---
 
@@ -358,6 +365,8 @@ event_counts: dict[str, int] = {}      # tracks raw event counts (war_wins, fami
 
 **Two-path acquisition**: direct triggers fire from cumulative events; crystallization fires from repeated legacy conditions across leader generations. Whichever fires first grants the tradition. No double-granting.
 
+Note: some crystallization paths reach the same tradition through conceptually opposite experiences. Diplomatic tradition via federation membership (direct) vs. via repeated secessions (crystallization) represents two paths to the same wisdom: a civ can learn consensus-building through success (sustained alliances) or through failure (breakups that taught them negotiation matters). Both are historically valid — the spec does not require the path to be narratively consistent, only mechanically precise.
+
 ### 4.3 Tradition Interactions
 
 **With succession crises**: Martial and Resilience both suppress crisis probability (×0.8 multiplicative, as specified in Section 2.1).
@@ -373,7 +382,8 @@ event_counts: dict[str, int] = {}      # tracks raw event counts (war_wins, fami
 - Max 4 traditions per civ (one of each type). No duplicates.
 - Traditions are **permanent** — once earned, never lost.
 - **Inheritance through secession**: breakaway civs inherit the parent's traditions (they share the cultural memory).
-- Tradition checks run in Phase 10 (consequences), only when a relevant event has occurred that turn. Not every turn.
+- **Tradition acquisition checks** run in Phase 10 (consequences), only when a relevant event has occurred that turn. Not every turn.
+- **Ongoing tradition effects** are separate from acquisition. Effects like Martial's fear (neighbor disposition drift -1 level per 10 turns) run in Phase 2 (Automatic Effects) alongside other passive per-turn processing, regardless of whether any event fired. The distinction: *acquiring* a tradition is event-gated; *applying* a tradition's effects is continuous.
 
 ---
 
@@ -428,9 +438,9 @@ No new phases. M17 hooks into existing phases:
 
 | Phase | M17 Work | Rationale |
 |-------|----------|-----------|
-| **Phase 2: Automatic Effects** | Hostage turn counter increment. Exile pretender stability drain (-2/turn, found by scanning all civs for `role="exile"`). Hostage cultural identity shift check (10 turns). | Passive per-turn effects alongside military maintenance, trade income. |
+| **Phase 2: Automatic Effects** | Hostage turn counter increment. Exile pretender stability drain (-2/turn, found by scanning all civs for `role="exile"`). Hostage cultural identity shift check (10 turns). Ongoing tradition effects (Martial fear: neighbor disposition drift -1 level per 10 turns; Food Stockpiling fertility floor enforcement; Resilience stability recovery multiplier). | Passive per-turn effects alongside military maintenance, trade income. |
 | **Phase 5: Action Resolution** | Great person modifiers consumed during action selection (grudge WAR weight, tradition biases) and resolution (general +10, merchant +3, scientist -30%). Candidate backing during succession crisis (DIPLOMACY sub-action). Extradition demand (DIPLOMACY sub-action). **Character capture and hostage exchange** as war consequences, immediately after `resolve_war` returns outcome. | Action selection applies weight biases first, then resolution applies modifiers. Both happen within Phase 5. |
-| **Phase 8: Leader Dynamics** | Succession crisis trigger and resolution. General-to-leader conversion. Any-great-person succession entry. Exiled leader creation. Legacy condition firing → `legacy_counts` increment. Mentorship formation check. | Extends existing leader dynamics. Crisis is multi-turn state. |
+| **Phase 8: Leader Dynamics** | Succession crisis trigger and resolution. General-to-leader conversion. Any-great-person succession entry. Exiled leader creation. Legacy condition firing → `legacy_counts` increment. Mentorship formation check. **Requires modifying existing Phase 7 `leader_death` handling**: currently `_apply_event_effects` in `simulation.py` immediately calls `generate_successor` on leader death. M17 must change this to: (1) check if succession crisis triggers, (2) if yes, set crisis state and defer successor creation to Phase 8 resolution, (3) if no, proceed with normal `generate_successor` as before. | Extends existing leader dynamics. Crisis is multi-turn state. |
 | **Phase 10: Consequences** | Great person generation, lifespan expiry, folk hero checks, relationship checks, exile restoration, tradition checks. | Achievement checks need full turn state. Death/retirement at end of turn prevents mid-turn modifier inconsistency. |
 
 ### 6.2 Phase 10 Internal Ordering
@@ -445,6 +455,8 @@ Within Phase 10, M17 consequences execute in this specific order:
 6. **Lifespan expiry** — retire characters past their lifespan (always retirement, never death)
 7. **Folk hero check** — runs on dramatic deaths from earlier phases only (war Phase 5, disasters Phase 7, succession Phase 8). NOT on retirements from step 6.
 8. **Tradition checks** — crystallization from `legacy_counts`, direct triggers from `event_counts`
+
+**Function decomposition**: each sub-step should be a separate helper function called from the Phase 10 orchestrator. The existing `phase_consequences` in `simulation.py` will roughly double in complexity — decomposing into `_update_event_counts()`, `_check_great_person_generation()`, `_process_prophet_acceleration()`, etc. keeps each function focused and testable independently.
 
 ### 6.3 Succession Crisis as Multi-Turn State
 
@@ -470,6 +482,7 @@ great_persons: list[GreatPerson] = []
 traditions: list[str] = []
 legacy_counts: dict[str, int] = {}
 event_counts: dict[str, int] = {}
+war_win_turns: list[int] = []       # turn numbers of war wins, for rolling window checks
 folk_heroes: list[dict] = []
 succession_crisis_turns_remaining: int = 0
 succession_candidates: list[dict] = []
@@ -496,7 +509,7 @@ great_person_cooldowns: dict[str, dict[str, int]] = {}  # {civ_name: {role: last
 ```python
 great_persons: list[dict] = []   # active roster summary
 traditions: list[str] = []
-folk_heroes: list[str] = []      # names only
+folk_heroes: list[dict] = []     # [{"name": str, "role": str}] — role needed for name pool bias
 active_crisis: bool = False
 ```
 
