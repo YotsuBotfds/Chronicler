@@ -317,6 +317,10 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     # M17b: Exile pretender stability drain
     apply_exile_pretender_drain(world)
 
+    # M17c: Hostage turn ticking
+    from chronicler.relationships import tick_hostages
+    tick_hostages(world)
+
     return events
 
 
@@ -617,6 +621,12 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     # M17b: Exile restoration checks
     collapse_events.extend(check_exile_restoration(world))
+
+    # M17c: Character relationship formation
+    from chronicler.relationships import check_rivalry_formation, check_mentorship_formation, check_marriage_formation
+    check_rivalry_formation(world)
+    check_mentorship_formation(world)
+    check_marriage_formation(world)
 
     return collapse_events
 

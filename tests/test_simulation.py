@@ -76,7 +76,7 @@ class TestResolveWar:
         defender = sample_world.civilizations[0]  # Kethani: military=50
         attacker_mil_before = attacker.military
         result = resolve_war(attacker, defender, sample_world, seed=42)
-        assert result in ("attacker_wins", "defender_wins", "stalemate")
+        assert result.outcome in ("attacker_wins", "defender_wins", "stalemate")
 
     def test_war_costs_treasury(self, sample_world):
         attacker = sample_world.civilizations[1]
@@ -352,7 +352,7 @@ def test_war_uses_tech_disparity(sample_world):
         defender.treasury = 100
         result = resolve_war(attacker, defender, sample_world, seed=seed)
         results.append(result)
-    attacker_wins = sum(1 for r in results if r == "attacker_wins")
+    attacker_wins = sum(1 for r in results if r.outcome == "attacker_wins")
     assert attacker_wins > 25, f"Tech advantage not reflected: {attacker_wins}/50 wins"
 
 
@@ -458,7 +458,7 @@ def test_medieval_defender_asabiya_bonus(sample_world):
         attacker.treasury = 100
         defender.treasury = 100
         result = resolve_war(attacker, defender, sample_world, seed=seed)
-        if result == "defender_wins":
+        if result.outcome == "defender_wins":
             defender_wins += 1
     # With the asabiya bonus, defender should win more often than without
     assert defender_wins > 30, f"MEDIEVAL defender bonus not effective: {defender_wins}/100 wins"

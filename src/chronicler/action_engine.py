@@ -7,12 +7,17 @@ through resolve_action() — one direction only, no circular imports.
 from __future__ import annotations
 
 import random
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent, TechEra, WorldState,
 )
 from chronicler.utils import clamp, STAT_FLOOR
+
+
+class WarResult(NamedTuple):
+    outcome: str  # "attacker_wins", "defender_wins", "stalemate"
+    contested_region: str | None
 
 # --- Registration pattern ---
 
@@ -209,7 +214,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
         if pair not in world.active_wars and pair_rev not in world.active_wars:
             world.active_wars.append(pair)
         # Generate named battle for decisive outcomes
-        if result in ("attacker_wins", "defender_wins"):
+        if result.outcome in ("attacker_wins", "defender_wins"):
             battle_region = None
             if defender.regions:
                 battle_region = defender.regions[0]
@@ -220,12 +225,19 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
                 world.named_events.append(NamedEvent(
                     name=battle_name, event_type="battle", turn=world.turn,
                     actors=[civ.name, target_name], region=battle_region,
-                    description=f"{civ.name} vs {target_name}: {result}", importance=7,
+                    description=f"{civ.name} vs {target_name}: {result.outcome}", importance=7,
                 ))
             update_rivalries(civ, defender, world)
+        # Hostage capture on decisive outcomes
+        if result.outcome == "defender_wins":
+            from chronicler.relationships import capture_hostage
+            capture_hostage(civ, defender, world, contested_region=result.contested_region)
+        elif result.outcome == "attacker_wins":
+            from chronicler.relationships import capture_hostage
+            capture_hostage(defender, civ, world, contested_region=result.contested_region)
         return Event(
             turn=world.turn, event_type="war", actors=[civ.name, target_name],
-            description=f"{civ.name} attacked {target_name}: {result}.", importance=8,
+            description=f"{civ.name} attacked {target_name}: {result.outcome}.", importance=8,
         )
     return Event(
         turn=world.turn, event_type="war", actors=[civ.name],
@@ -289,8 +301,8 @@ def resolve_war(
     defender: Civilization,
     world: WorldState,
     seed: int = 0,
-) -> str:
-    """Resolve combat between two civilizations. Returns outcome string."""
+) -> WarResult:
+    """Resolve combat between two civilizations. Returns WarResult namedtuple."""
     from chronicler.tech import tech_war_multiplier
     from chronicler.terrain import total_defense_bonus, ROLE_EFFECTS
     from chronicler.climate import get_climate_phase
@@ -356,16 +368,16 @@ def resolve_war(
         attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
         defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
         defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
-        return "attacker_wins"
+        return WarResult("attacker_wins", contested.name if contested else None)
     elif def_power > att_power * 1.3:
         attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
         defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
         attacker.stability = clamp(attacker.stability - 10, STAT_FLOOR["stability"], 100)
-        return "defender_wins"
+        return WarResult("defender_wins", contested.name if contested else None)
     else:
         attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
         defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
-        return "stalemate"
+        return WarResult("stalemate", None)
 
 
 # --- Trade resolution ---
