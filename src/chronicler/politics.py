@@ -46,6 +46,40 @@ def apply_governing_costs(world: WorldState) -> list[Event]:
     return events
 
 
+def resolve_move_capital(civ: Civilization, world: WorldState) -> Event:
+    """Resolve MOVE_CAPITAL action: relocate capital to most central region."""
+    from chronicler.models import ActiveCondition
+    civ.treasury -= 15
+
+    def avg_distance(candidate: str) -> float:
+        distances = []
+        for rn in civ.regions:
+            if rn != candidate:
+                d = graph_distance(world.regions, candidate, rn)
+                distances.append(d if d >= 0 else 1)
+        return sum(distances) / max(len(distances), 1)
+
+    target = min(civ.regions, key=avg_distance)
+    old_capital = civ.capital_region
+    civ.capital_region = target
+
+    condition = ActiveCondition(
+        condition_type="capital_relocation",
+        affected_civs=[civ.name],
+        duration=5,
+        severity=10,
+    )
+    world.active_conditions.append(condition)
+
+    return Event(
+        turn=world.turn,
+        event_type="move_capital",
+        actors=[civ.name],
+        description=f"{civ.name} relocated capital from {old_capital} to {target}",
+        importance=6,
+    )
+
+
 _SECESSION_PREFIXES = [
     "Free", "Eastern", "Western", "Northern", "Southern",
     "New", "Upper", "Lower", "Greater",

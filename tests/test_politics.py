@@ -225,6 +225,74 @@ def test_secession_fires_at_zero_stability():
     assert breakaway.stability == 40
 
 
+# --- Task 8: MOVE_CAPITAL action handler ---
+
+def test_move_capital_eligibility():
+    """MOVE_CAPITAL requires treasury >= 15 and regions >= 2."""
+    from chronicler.action_engine import ActionEngine
+    from chronicler.models import ActionType
+    adj = {"A": ["B", "C"], "B": ["A", "C"], "C": ["A", "B"]}
+    world = _make_world_with_regions(["A", "B", "C"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.treasury = 20
+    engine = ActionEngine(world)
+    eligible = engine.get_eligible_actions(civ)
+    assert ActionType.MOVE_CAPITAL in eligible
+
+
+def test_move_capital_not_eligible_low_treasury():
+    from chronicler.action_engine import ActionEngine
+    from chronicler.models import ActionType
+    adj = {"A": ["B"], "B": ["A"]}
+    world = _make_world_with_regions(["A", "B"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.treasury = 10  # below 15
+    engine = ActionEngine(world)
+    eligible = engine.get_eligible_actions(civ)
+    assert ActionType.MOVE_CAPITAL not in eligible
+
+
+# --- Task 9: Simulation integration ---
+
+def test_simulation_calls_governing_costs():
+    """Verify governing costs are applied during simulation turn."""
+    from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
+    adj = {"A": ["B"], "B": ["A", "C"], "C": ["B", "D"], "D": ["C"]}
+    world = _make_world_with_regions(["A", "B", "C", "D"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    initial_stability = civ.stability
+    initial_treasury = civ.treasury
+    engine = ActionEngine(world)
+    selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+    run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
+    assert civ.stability < initial_stability or civ.treasury < initial_treasury
+
+
+# --- Task 10: M14a smoke test ---
+
+def test_m14a_smoke_50_turns():
+    """50-turn run with large empire — should not crash, secession may occur."""
+    from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=42)
+    big_civ = world.civilizations[0]
+    for region in world.regions:
+        if region.controller is None:
+            region.controller = big_civ.name
+            big_civ.regions.append(region.name)
+    big_civ.capital_region = big_civ.regions[0]
+
+    for turn in range(50):
+        engine = ActionEngine(world)
+        selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+        run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
+
+    assert world.turn == 50
+    assert len(world.civilizations) >= 1
+
+
 def test_secession_stat_split_conserves_stats():
     """Total stats before and after secession are conserved."""
     adj = {"A": ["B"], "B": ["A", "C"], "C": ["B"]}
