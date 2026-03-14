@@ -362,3 +362,77 @@ class TestInvestCultureAction:
         weights = engine.compute_weights(drift_world.civilizations[0])
         assert ActionType.INVEST_CULTURE in weights
         assert weights[ActionType.INVEST_CULTURE] > 0
+
+
+from chronicler.culture import (
+    resolve_invest_culture, PROPAGANDA_COST, PROPAGANDA_ACCELERATION,
+    COUNTER_PROPAGANDA_COST,
+)
+
+
+@pytest.fixture
+def propaganda_world():
+    regions = [
+        Region(name="Home", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="CivA", cultural_identity="CivA", adjacencies=["Target"]),
+        Region(name="Target", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="CivB", cultural_identity="CivB", adjacencies=["Home"]),
+    ]
+    civs = [
+        Civilization(
+            name="CivA", population=50, military=50, economy=50, culture=70,
+            stability=50, treasury=20,
+            leader=Leader(name="LA", trait="visionary", reign_start=0),
+            domains=["trade"], values=["Trade"], regions=["Home"],
+        ),
+        Civilization(
+            name="CivB", population=50, military=50, economy=50, culture=30,
+            stability=50, treasury=20,
+            leader=Leader(name="LB", trait="aggressive", reign_start=0),
+            domains=["warfare"], values=["Honor"], regions=["Target"],
+        ),
+    ]
+    return WorldState(
+        name="test", seed=42, regions=regions, civilizations=civs,
+        relationships={
+            "CivA": {"CivB": Relationship()},
+            "CivB": {"CivA": Relationship()},
+        },
+    )
+
+
+class TestInvestCultureResolution:
+    def test_propaganda_costs_treasury(self, propaganda_world):
+        initial = propaganda_world.civilizations[0].treasury
+        resolve_invest_culture(propaganda_world.civilizations[0], propaganda_world)
+        assert propaganda_world.civilizations[0].treasury == initial - PROPAGANDA_COST
+
+    def test_propaganda_accelerates_assimilation(self, propaganda_world):
+        initial_fct = propaganda_world.regions[1].foreign_control_turns
+        resolve_invest_culture(propaganda_world.civilizations[0], propaganda_world)
+        expected = initial_fct + PROPAGANDA_ACCELERATION
+        if propaganda_world.civilizations[1].treasury >= COUNTER_PROPAGANDA_COST:
+            expected = initial_fct
+        assert propaganda_world.regions[1].foreign_control_turns == expected
+
+    def test_defender_counter_spend_deducts_treasury(self, propaganda_world):
+        initial_def_treasury = propaganda_world.civilizations[1].treasury
+        resolve_invest_culture(propaganda_world.civilizations[0], propaganda_world)
+        assert propaganda_world.civilizations[1].treasury == initial_def_treasury - COUNTER_PROPAGANDA_COST
+
+    def test_defender_no_counter_when_broke(self, propaganda_world):
+        propaganda_world.civilizations[1].treasury = 0
+        resolve_invest_culture(propaganda_world.civilizations[0], propaganda_world)
+        assert propaganda_world.regions[1].foreign_control_turns == PROPAGANDA_ACCELERATION
+
+    def test_cannot_target_own_cultural_region(self, propaganda_world):
+        propaganda_world.regions[1].cultural_identity = "CivA"
+        event = resolve_invest_culture(propaganda_world.civilizations[0], propaganda_world)
+        assert propaganda_world.civilizations[0].treasury == 20
+
+    def test_generates_named_event(self, propaganda_world):
+        resolve_invest_culture(propaganda_world.civilizations[0], propaganda_world)
+        assert any(
+            ne.event_type == "propaganda_campaign"
+            for ne in propaganda_world.named_events
+        )

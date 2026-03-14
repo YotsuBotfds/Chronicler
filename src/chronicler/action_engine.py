@@ -276,6 +276,12 @@ def _resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:
     return resolve_fund_instability(civ, world)
 
 
+@register_action(ActionType.INVEST_CULTURE)
+def _resolve_invest_culture(civ: Civilization, world: WorldState) -> Event:
+    from chronicler.culture import resolve_invest_culture
+    return resolve_invest_culture(civ, world)
+
+
 # --- Combat resolution (simplified Lanchester) ---
 
 def resolve_war(

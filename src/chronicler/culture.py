@@ -123,6 +123,87 @@ def tick_cultural_assimilation(world: WorldState) -> None:
                 )
 
 
+PROPAGANDA_COST = 5
+PROPAGANDA_ACCELERATION = 3
+COUNTER_PROPAGANDA_COST = 3
+CULTURE_PROJECTION_THRESHOLD = 60
+
+
+def _counter_propaganda_reaction(world: WorldState, defender, region, seed: int) -> int:
+    if defender.treasury >= COUNTER_PROPAGANDA_COST:
+        defender.treasury -= COUNTER_PROPAGANDA_COST
+        return -PROPAGANDA_ACCELERATION
+    return 0
+
+
+def resolve_invest_culture(civ, world: WorldState):
+    """Resolve INVEST_CULTURE action: project propaganda into a rival region."""
+    import hashlib
+    from chronicler.models import Event, NamedEvent
+    from chronicler.tech import get_era_bonus
+
+    projection_range = get_era_bonus(civ.tech_era, "culture_projection_range", default=1)
+    global_projection = projection_range == -1
+
+    candidates = [
+        r for r in world.regions
+        if r.controller is not None
+        and r.controller != civ.name
+        and r.cultural_identity != civ.name
+    ]
+
+    if global_projection:
+        targets = candidates
+    else:
+        civ_regions = {r.name for r in world.regions if r.controller == civ.name}
+        adjacent = set()
+        for r in world.regions:
+            if r.name in civ_regions:
+                adjacent.update(r.adjacencies)
+        targets = [r for r in candidates if r.name in adjacent]
+
+    if not targets or civ.treasury < PROPAGANDA_COST:
+        return Event(
+            turn=world.turn, event_type="action", actors=[civ.name],
+            description=f"{civ.name} attempts cultural influence but finds no valid target.",
+            importance=1,
+        )
+
+    targets.sort(key=lambda r: r.foreign_control_turns, reverse=True)
+    max_fct = targets[0].foreign_control_turns
+    tied = [r for r in targets if r.foreign_control_turns == max_fct]
+    if len(tied) > 1:
+        salt = f"{world.seed}:{world.turn}:propaganda:{civ.name}"
+        tied.sort(key=lambda r: hashlib.sha256(f"{salt}:{r.name}".encode()).hexdigest())
+    target = tied[0]
+
+    civ.treasury -= PROPAGANDA_COST
+
+    defender = next((c for c in world.civilizations if c.name == target.controller), None)
+    adjustment = 0
+    if defender:
+        adjustment = _counter_propaganda_reaction(world, defender, target, world.seed)
+
+    net_acceleration = PROPAGANDA_ACCELERATION + adjustment
+    target.foreign_control_turns += net_acceleration
+
+    world.named_events.append(NamedEvent(
+        name=f"Propaganda in {target.name}",
+        event_type="propaganda_campaign",
+        turn=world.turn,
+        actors=[civ.name],
+        region=target.name,
+        description=f"{civ.name} projects cultural influence into {target.name}.",
+        importance=5,
+    ))
+
+    return Event(
+        turn=world.turn, event_type="invest_culture", actors=[civ.name],
+        description=f"{civ.name} projects cultural influence into {target.name}.",
+        importance=5,
+    )
+
+
 def tick_prestige(world: WorldState) -> None:
     """Decay prestige and award trade income bonus."""
     for civ in world.civilizations:
