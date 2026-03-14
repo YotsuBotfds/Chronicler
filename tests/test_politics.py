@@ -164,3 +164,95 @@ def test_no_capital_loss_when_capital_in_regions():
     events = check_capital_loss(world)
     assert civ.stability == 50  # unchanged
     assert len(events) == 0
+
+
+# --- Task 7: check_secession ---
+
+from chronicler.politics import check_secession
+
+
+def test_secession_does_not_fire_above_threshold():
+    adj = {"A": ["B", "C", "D"], "B": ["A"], "C": ["A"], "D": ["A"]}
+    world = _make_world_with_regions(["A", "B", "C", "D"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 50  # well above 20
+    events = check_secession(world)
+    assert len(world.civilizations) == 1  # no secession
+
+
+def test_secession_does_not_fire_with_too_few_regions():
+    adj = {"A": ["B"], "B": ["A"]}
+    world = _make_world_with_regions(["A", "B"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 5  # below 20 but only 2 regions
+    events = check_secession(world)
+    assert len(world.civilizations) == 1
+
+
+def test_secession_fires_at_zero_stability():
+    """At stability 0, probability is 20%. With a favorable seed, secession fires."""
+    adj = {"A": ["B"], "B": ["A", "C"], "C": ["B", "D"], "D": ["C", "E"], "E": ["D"]}
+    world = _make_world_with_regions(["A", "B", "C", "D", "E"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 0
+    civ.population = 50
+    civ.military = 30
+    civ.economy = 40
+    civ.treasury = 100
+    civ.leader_name_pool = ["Name1", "Name2", "Name3"]
+    fired = False
+    for seed in range(100):
+        world.seed = seed
+        world.turn = seed
+        civ.regions = ["A", "B", "C", "D", "E"]
+        civ.stability = 0
+        civ.population = 50
+        civ.military = 30
+        civ.economy = 40
+        civ.treasury = 100
+        world.civilizations = [civ]
+        for r in world.regions:
+            r.controller = civ.name
+        events = check_secession(world)
+        if len(world.civilizations) > 1:
+            fired = True
+            break
+    assert fired, "Secession should fire at stability 0 within 100 seed attempts"
+    breakaway = world.civilizations[1]
+    assert breakaway.name != civ.name
+    assert breakaway.tech_era == civ.tech_era
+    assert breakaway.asabiya == 0.7
+    assert breakaway.stability == 40
+
+
+def test_secession_stat_split_conserves_stats():
+    """Total stats before and after secession are conserved."""
+    adj = {"A": ["B"], "B": ["A", "C"], "C": ["B"]}
+    world = _make_world_with_regions(["A", "B", "C"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 0
+    civ.population = 60
+    civ.military = 30
+    civ.economy = 45
+    civ.treasury = 90
+    civ.leader_name_pool = ["N1", "N2"]
+    for seed in range(200):
+        world.seed = seed
+        world.turn = seed
+        civ.regions = ["A", "B", "C"]
+        civ.stability = 0
+        civ.population = 60
+        civ.military = 30
+        civ.economy = 45
+        civ.treasury = 90
+        world.civilizations = [civ]
+        for r in world.regions:
+            r.controller = civ.name
+        events = check_secession(world)
+        if len(world.civilizations) > 1:
+            parent = world.civilizations[0]
+            breakaway = world.civilizations[1]
+            for stat in ["population", "military", "economy", "treasury"]:
+                original = {"population": 60, "military": 30, "economy": 45, "treasury": 90}
+                assert getattr(parent, stat) + getattr(breakaway, stat) == original[stat]
+            break
