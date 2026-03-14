@@ -211,3 +211,37 @@ export interface ForkedMessage {
   save_path: string;
   cli_hint: string;
 }
+
+// --- Setup lobby types ---
+
+export interface ScenarioInfo {
+  file: string;
+  name: string;
+  description: string;
+  world_name: string;
+  civs: { name: string; values: string[] }[];
+  regions: { name: string; terrain: string; x: number | null; y: number | null }[];
+}
+
+export interface LobbyInit {
+  scenarios: ScenarioInfo[];
+  models: string[];
+  defaults: {
+    turns: number;
+    civs: number;
+    regions: number;
+    seed: number | null;
+  };
+}
+
+export interface StartCommand {
+  type: "start";
+  scenario: string | null;
+  turns: number;
+  seed: number | null;
+  civs: number;
+  regions: number;
+  sim_model: string;
+  narrative_model: string;
+  resume_state: WorldState | null;
+}
