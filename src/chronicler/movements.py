@@ -77,5 +77,41 @@ def _check_emergence(world: WorldState) -> None:
     ))
 
 
+def _process_spread(world: WorldState) -> None:
+    for movement in world.movements:
+        current_adherents = list(movement.adherents.keys())
+        for adopter_name in current_adherents:
+            for civ in world.civilizations:
+                if civ.name == adopter_name or civ.name in movement.adherents:
+                    continue
+                rel = world.relationships.get(adopter_name, {}).get(civ.name)
+                if rel is None or rel.trade_volume <= 0:
+                    continue
+
+                if movement.value_affinity in civ.values:
+                    compatibility = 100
+                elif VALUE_OPPOSITIONS.get(movement.value_affinity) in civ.values:
+                    compatibility = 0
+                else:
+                    compatibility = 50
+
+                adoption_probability = rel.trade_volume * compatibility / 100
+                roll = int(hashlib.sha256(
+                    f"{world.seed}:{world.turn}:{movement.id}:{civ.name}:spread".encode()
+                ).hexdigest(), 16) % 100
+
+                if roll < adoption_probability:
+                    movement.adherents[civ.name] = _seeded_offset(civ.name, movement.id)
+                    world.named_events.append(NamedEvent(
+                        name=f"{civ.name} adopts {movement.id.replace('_', ' ')}",
+                        event_type="movement_adoption",
+                        turn=world.turn,
+                        actors=[civ.name, movement.origin_civ],
+                        description=f"{civ.name} adopts a {movement.value_affinity}-aligned movement from {movement.origin_civ}.",
+                        importance=5,
+                    ))
+
+
 def tick_movements(world: WorldState) -> None:
     _check_emergence(world)
+    _process_spread(world)
