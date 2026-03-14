@@ -205,3 +205,19 @@ class TestPrestige:
         initial_treasury = drift_world.civilizations[0].treasury
         tick_prestige(drift_world)
         assert drift_world.civilizations[0].treasury == initial_treasury + 2
+
+
+class TestCulturalWorksEnhancement:
+    def test_cultural_work_boosts_prestige(self, drift_world):
+        drift_world.civilizations[0].culture = 80
+        initial_prestige = drift_world.civilizations[0].prestige
+        from chronicler.simulation import phase_cultural_milestones
+        phase_cultural_milestones(drift_world)
+        assert drift_world.civilizations[0].prestige == initial_prestige + 2
+
+    def test_cultural_work_boosts_asabiya(self, drift_world):
+        drift_world.civilizations[0].culture = 80
+        initial_asabiya = drift_world.civilizations[0].asabiya
+        from chronicler.simulation import phase_cultural_milestones
+        phase_cultural_milestones(drift_world)
+        assert drift_world.civilizations[0].asabiya == pytest.approx(initial_asabiya + 0.05)

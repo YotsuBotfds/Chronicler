@@ -593,6 +593,10 @@ def phase_cultural_milestones(world: WorldState) -> list[Event]:
                     importance=6,
                 )
                 world.named_events.append(ne)
+                # M16a: Cultural works enhancement
+                civ.asabiya = min(1.0, civ.asabiya + 0.05)
+                civ.culture = clamp(civ.culture + 5, STAT_FLOOR["culture"], 100)
+                civ.prestige += 2
                 events.append(Event(
                     turn=world.turn, event_type="cultural_work", actors=[civ.name],
                     description=ne.description, importance=6,
