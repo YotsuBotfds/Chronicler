@@ -241,6 +241,15 @@ class ExileModifier(BaseModel):
     recognized_by: list[str] = Field(default_factory=list)
 
 
+class Movement(BaseModel):
+    """M16b: An ideological movement that spreads between civilizations."""
+    id: str
+    origin_civ: str
+    origin_turn: int
+    value_affinity: str
+    adherents: dict[str, int] = Field(default_factory=dict)
+
+
 # --- Top-level state ---
 
 class WorldState(BaseModel):
@@ -266,6 +275,8 @@ class WorldState(BaseModel):
     federations: list[Federation] = Field(default_factory=list)
     proxy_wars: list[ProxyWar] = Field(default_factory=list)
     exile_modifiers: list[ExileModifier] = Field(default_factory=list)
+    movements: list[Movement] = Field(default_factory=list)
+    next_movement_id: int = 0
     peace_turns: int = 0
     balance_of_power_turns: int = 0
     climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
