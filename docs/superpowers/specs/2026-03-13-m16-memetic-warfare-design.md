@@ -281,8 +281,9 @@ compatibility = 100 if movement.value_affinity in target.values
                else 50
 
 adoption_probability = trade_volume * compatibility / 100
-rng = random.Random(seed + world.turn + _hash_str(movement.id + target.name))  # deterministic per-civ-per-movement
-roll = rng.randint(0, 99)
+roll = int(hashlib.sha256(
+    f"{world.seed}:{world.turn}:{movement.id}:{target.name}:spread".encode()
+).hexdigest(), 16) % 100
 if roll < adoption_probability and target.name not in movement.adherents:
     movement.adherents[target.name] = _seeded_offset(target.name, movement.id)
     generate NamedEvent(event_type="movement_adoption", importance=5)
@@ -427,13 +428,15 @@ Registered as `REACTION_REGISTRY["INVEST_CULTURE"] = counter_propaganda_reaction
 
 ```python
 # Defender = current controller of the targeted region
-def counter_propaganda_reaction(world, defender, region, seed):
+def counter_propaganda_reaction(world, defender, region, seed) -> int:
+    """Returns adjustment to propaganda acceleration (0 or -PROPAGANDA_ACCELERATION)."""
     if defender.treasury >= COUNTER_PROPAGANDA_COST:  # 3
         defender.treasury -= COUNTER_PROPAGANDA_COST
-        # Negate the propaganda acceleration (net effect: +0 from propaganda, +1 from natural tick)
-    else:
-        # Defender cannot counter — full propaganda effect applies
-        pass
+        return -PROPAGANDA_ACCELERATION  # negates the +3, net effect: +0 from propaganda
+    return 0  # defender cannot counter — full propaganda effect applies
+```
+
+`resolve_invest_culture` applies `PROPAGANDA_ACCELERATION + counter_propaganda_reaction(...)` to the target region's `foreign_control_turns`. When the defender can counter-spend, the net acceleration is 0 (the +3 is fully negated). When they can't, the full +3 applies.
 ```
 
 Auto-fires, no action slot consumed by defender. Defender bleeds treasury passively. Attacker pays action slot + treasury; defender pays treasury only. This asymmetry makes propaganda oppressive to defend against without being free to project.
