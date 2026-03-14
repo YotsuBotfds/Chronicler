@@ -118,3 +118,49 @@ def test_governing_cost_distant_regions_cost_more():
     assert civ.treasury == 100 - 16
     # stability: 1 + 2 + 3 = 6
     assert civ.stability == 50 - 6
+
+
+# --- Task 6: check_capital_loss ---
+
+from chronicler.politics import check_capital_loss
+
+
+def test_capital_loss_triggers_stability_penalty():
+    """When capital not in civ.regions, stability -20 and capital reassigned."""
+    adj = {"B": ["C"], "C": ["B"]}
+    world = _make_world_with_regions(["B", "C"], capital="A", adjacencies=adj)
+    # Capital "A" is not in regions ["B", "C"]
+    civ = world.civilizations[0]
+    civ.stability = 50
+    events = check_capital_loss(world)
+    assert civ.stability <= 30  # -20
+    assert civ.capital_region in civ.regions  # reassigned
+    assert len(events) > 0
+
+
+def test_capital_loss_picks_best_remaining_region():
+    """Capital reassignment picks highest carrying_capacity * fertility."""
+    regions = [
+        Region(name="B", terrain="plains", carrying_capacity=30, resources="fertile", fertility=0.5),
+        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile", fertility=0.8),
+    ]
+    leader = Leader(name="L", trait="bold", reign_start=0)
+    civ = Civilization(
+        name="E", population=50, military=30, economy=40,
+        culture=30, stability=50, treasury=100, leader=leader,
+        regions=["B", "C"], capital_region="A",
+    )
+    world = WorldState(name="test", seed=42, regions=regions, civilizations=[civ])
+    check_capital_loss(world)
+    # C has 50*0.8=40, B has 30*0.5=15 — C wins
+    assert civ.capital_region == "C"
+
+
+def test_no_capital_loss_when_capital_in_regions():
+    adj = {"A": ["B"], "B": ["A"]}
+    world = _make_world_with_regions(["A", "B"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 50
+    events = check_capital_loss(world)
+    assert civ.stability == 50  # unchanged
+    assert len(events) == 0

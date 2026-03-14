@@ -43,3 +43,37 @@ def apply_governing_costs(world: WorldState) -> list[Event]:
         civ.treasury -= treasury_cost
         civ.stability = clamp(civ.stability - stability_cost, STAT_FLOOR["stability"], 100)
     return events
+
+
+def check_capital_loss(world: WorldState) -> list[Event]:
+    """Phase 10: Check if any civ lost its capital and handle reassignment."""
+    events: list[Event] = []
+    for civ in world.civilizations:
+        if civ.capital_region is None or civ.capital_region in civ.regions:
+            continue
+        if not civ.regions:
+            continue
+
+        # Capital lost
+        civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
+
+        # Pick best remaining region (highest carrying_capacity * fertility)
+        region_map = {r.name: r for r in world.regions}
+        best_region = max(
+            civ.regions,
+            key=lambda rn: (
+                region_map[rn].carrying_capacity * getattr(region_map[rn], "fertility", 0.8)
+                if rn in region_map else 0
+            ),
+        )
+        old_capital = civ.capital_region
+        civ.capital_region = best_region
+
+        events.append(Event(
+            turn=world.turn,
+            event_type="capital_loss",
+            actors=[civ.name],
+            description=f"{civ.name} lost capital {old_capital}, relocated to {best_region}",
+            importance=8,
+        ))
+    return events
