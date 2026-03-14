@@ -50,6 +50,7 @@ class ActionType(str, Enum):
     WAR = "war"
     BUILD = "build"
     EMBARGO = "embargo"
+    MOVE_CAPITAL = "move_capital"
 
 
 class ActionCategory(str, Enum):
@@ -109,6 +110,7 @@ class Civilization(BaseModel):
     cultural_milestones: list[str] = Field(default_factory=list)
     action_counts: dict[str, int] = Field(default_factory=dict)
     leader_name_pool: list[str] | None = None
+    capital_region: str | None = None
     last_income: int = 0
     merc_pressure_turns: int = 0
 
@@ -172,6 +174,7 @@ class WorldState(BaseModel):
     named_events: list[NamedEvent] = Field(default_factory=list)
     used_leader_names: list[str] = Field(default_factory=list)
     action_history: dict[str, list[str]] = Field(default_factory=dict)
+    war_start_turns: dict[str, int] = Field(default_factory=dict)
     scenario_name: str | None = None
     embargoes: list[tuple[str, str]] = Field(default_factory=list)
     active_wars: list[tuple[str, str]] = Field(default_factory=list)

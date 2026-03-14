@@ -62,6 +62,7 @@ class CivOverride(BaseModel):
     goal: str | None = None
     leader: LeaderOverride | None = None
     leader_name_pool: list[str] | None = None
+    capital: str | None = None
 
 
 class ConditionConfig(BaseModel):
@@ -88,6 +89,7 @@ class ScenarioConfig(BaseModel):
     event_flavor: dict[str, EventFlavor] | None = None
     narrative_style: str | None = None
     interestingness_weights: dict[str, float] | None = None
+    secession_pool: list[CivOverride] = Field(default_factory=list)
 
 
 def load_scenario(path: Path) -> ScenarioConfig:
@@ -442,6 +444,10 @@ def _apply_civ_override(
     # Leader name pool
     if override.leader_name_pool is not None:
         civ.leader_name_pool = override.leader_name_pool
+
+    # Capital override
+    if override.capital is not None:
+        civ.capital_region = override.capital
 
     # Rename civ if needed
     if rename:

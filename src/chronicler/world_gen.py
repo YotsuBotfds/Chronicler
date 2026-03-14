@@ -173,6 +173,9 @@ def generate_world(
     from chronicler.resources import assign_resources
     assign_resources(regions, seed=seed)
     civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
+    for civ in civs:
+        if civ.regions and civ.capital_region is None:
+            civ.capital_region = civ.regions[0]
     civ_names = [c.name for c in civs]
     relationships = _build_relationships(civ_names, seed=seed + 1)
 
