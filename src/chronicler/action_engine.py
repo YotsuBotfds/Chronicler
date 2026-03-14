@@ -65,7 +65,7 @@ def _get_civ(world: WorldState, name: str) -> Civilization | None:
 @register_action(ActionType.DEVELOP)
 def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
     """Invest in infrastructure: spend treasury to boost economy or culture."""
-    cost = 30
+    cost = 5 + civ.economy // 10
     if civ.treasury >= cost:
         civ.treasury -= cost
         if civ.economy <= civ.culture:
@@ -155,6 +155,12 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
             rel_in = world.relationships[worst_name][civ.name]
             rel_in.disposition = DISPOSITION_UPGRADE[rel_in.disposition]
         new_disp = rel_out.disposition
+        # Clear active war if disposition reaches FRIENDLY+
+        if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED):
+            world.active_wars = [
+                w for w in world.active_wars
+                if not ({civ.name, worst_name} == {w[0], w[1]})
+            ]
         # Generate named treaty for significant upgrades (requires CLASSICAL+ era)
         if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED) and _era_at_least(civ.tech_era, TechEra.CLASSICAL):
             treaty_name = generate_treaty_name(civ.name, worst_name, world, seed=world.seed)
@@ -197,6 +203,11 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
     defender = _get_civ(world, target_name)
     if defender:
         result = resolve_war(civ, defender, world, seed=world.turn)
+        # Track active war (both orderings)
+        pair = (civ.name, target_name)
+        pair_rev = (target_name, civ.name)
+        if pair not in world.active_wars and pair_rev not in world.active_wars:
+            world.active_wars.append(pair)
         # Generate named battle for decisive outcomes
         if result in ("attacker_wins", "defender_wins"):
             battle_region = None
@@ -246,6 +257,35 @@ def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
         turn=world.turn, event_type="embargo", actors=[civ.name],
         description=f"{civ.name} sought to embargo but found no target.", importance=2,
     )
+
+
+@register_action(ActionType.BUILD)
+def _resolve_build(civ: Civilization, world: WorldState) -> Event:
+    """Build infrastructure in a controlled region."""
+    cost = 10
+    if civ.treasury < cost or not civ.regions:
+        return Event(turn=world.turn, event_type="build", actors=[civ.name],
+                     description=f"{civ.name} lacks funds or territory to build.", importance=2)
+    civ.treasury -= cost
+    controlled = [r for r in world.regions if r.controller == civ.name]
+    target = min(controlled, key=lambda r: int(r.carrying_capacity * r.fertility))
+    fertility_bias_traits = {"cautious", "visionary"}
+    capacity_bias_traits = {"ambitious", "bold", "aggressive"}
+    if civ.leader.trait in fertility_bias_traits and target.fertility < 0.8:
+        restore_fertility = True
+    elif civ.leader.trait in capacity_bias_traits:
+        restore_fertility = target.fertility < 0.3
+    else:
+        restore_fertility = target.fertility < 0.5
+    if restore_fertility:
+        target.fertility = min(1.0, round(target.fertility + 0.1, 4))
+        action = "restored fertility"
+    else:
+        target.carrying_capacity = min(100, target.carrying_capacity + 10)
+        action = "expanded capacity"
+    target.infrastructure_level += 1
+    return Event(turn=world.turn, event_type="build", actors=[civ.name],
+                 description=f"{civ.name} {action} in {target.name}.", importance=4)
 
 
 # --- Combat resolution (simplified Lanchester) ---

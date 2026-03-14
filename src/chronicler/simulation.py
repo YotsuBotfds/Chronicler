@@ -142,6 +142,14 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         c = _get_civ(world, civ_name)
         if c:
             c.treasury += 3
+    # Ongoing war costs: -3/turn per active war
+    for war in world.active_wars:
+        for civ_name in war:
+            c = _get_civ(world, civ_name)
+            if c:
+                c.treasury -= 3
+                if c.treasury <= 0:
+                    c.stability = clamp(c.stability - 5, STAT_FLOOR["stability"], 100)
     return events
 
 
@@ -150,34 +158,22 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 def phase_production(world: WorldState) -> None:
     """Generate income and adjust population for each civilization."""
     for civ in world.civilizations:
-        # Income: base from economy, bonus from trade, penalty from conditions
-        income = civ.economy + len(civ.regions) * 10
-        condition_penalty = sum(
-            c.severity
-            for c in world.active_conditions
-            if civ.name in c.affected_civs
-        )
-        civ.treasury += max(0, income - condition_penalty)
-
-        # Military maintenance
-        maintenance = civ.military // 2
-        civ.treasury = max(0, civ.treasury - maintenance)
-
-        # Treasury cap: scales with economy to preserve tension
-        treasury_cap = 100 + civ.economy * 3
-        civ.treasury = min(civ.treasury, treasury_cap)
-
-        # Population growth: if economy > population and stability > 30
+        # Base income
+        income = civ.economy // 5 + len(civ.regions) * 2
+        # Condition penalty
+        penalty = sum(c.severity for c in world.active_conditions if civ.name in c.affected_civs)
+        civ.treasury += max(0, income - penalty)
+        # Track last_income for mercenary spawn
+        civ.last_income = max(0, income - penalty)
+        # Population
         region_capacity = sum(
             max(1, int(r.carrying_capacity * r.fertility))
-            for r in world.regions
-            if r.controller == civ.name
+            for r in world.regions if r.controller == civ.name
         )
         max_pop = min(100, region_capacity)
-        if civ.economy > civ.population and civ.stability > 30 and civ.population < max_pop:
+        if civ.economy > civ.population and civ.stability > 20 and civ.population < max_pop:
             civ.population = clamp(civ.population + 5, STAT_FLOOR["population"], 100)
-        # Population decline if stability very low
-        elif civ.stability <= 20 and civ.population > 1:
+        elif civ.stability <= 10 and civ.population > 1:
             civ.population = clamp(civ.population - 5, STAT_FLOOR["population"], 100)
 
 

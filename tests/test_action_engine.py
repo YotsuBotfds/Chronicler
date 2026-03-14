@@ -136,6 +136,7 @@ class TestSelection:
         civ = engine_world.civilizations[0]
         civ.military = 10
         civ.tech_era = TechEra.TRIBAL
+        civ.treasury = 5  # Below BUILD threshold of 10
         for r in engine_world.regions:
             r.controller = "Civ A"
         engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.FRIENDLY
