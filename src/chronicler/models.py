@@ -22,6 +22,16 @@ class TechEra(str, Enum):
     MEDIEVAL = "medieval"
     RENAISSANCE = "renaissance"
     INDUSTRIAL = "industrial"
+    INFORMATION = "information"
+
+
+class Resource(str, Enum):
+    GRAIN = "grain"
+    TIMBER = "timber"
+    IRON = "iron"
+    FUEL = "fuel"
+    STONE = "stone"
+    RARE_MINERALS = "rare_minerals"
 
 
 class Disposition(str, Enum):
@@ -59,6 +69,10 @@ class Region(BaseModel):
     x: float | None = None
     y: float | None = None
     adjacencies: list[str] = Field(default_factory=list)
+    specialized_resources: list[Resource] = Field(default_factory=list)
+    fertility: float = Field(default=0.8, ge=0.0, le=1.0)
+    infrastructure_level: int = Field(default=0, ge=0)
+    famine_cooldown: int = Field(default=0, ge=0)
 
 
 class Leader(BaseModel):
@@ -95,6 +109,8 @@ class Civilization(BaseModel):
     cultural_milestones: list[str] = Field(default_factory=list)
     action_counts: dict[str, int] = Field(default_factory=dict)
     leader_name_pool: list[str] | None = None
+    last_income: int = 0
+    merc_pressure_turns: int = 0
 
 
 class Relationship(BaseModel):
@@ -157,6 +173,9 @@ class WorldState(BaseModel):
     used_leader_names: list[str] = Field(default_factory=list)
     action_history: dict[str, list[str]] = Field(default_factory=dict)
     scenario_name: str | None = None
+    embargoes: list[tuple[str, str]] = Field(default_factory=list)
+    active_wars: list[tuple[str, str]] = Field(default_factory=list)
+    mercenary_companies: list[dict] = Field(default_factory=list)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -187,6 +206,8 @@ class CivSnapshot(BaseModel):
     regions: list[str]
     leader_name: str
     alive: bool
+    last_income: int = 0
+    active_trade_routes: int = 0
 
 
 class RelationshipSnapshot(BaseModel):
@@ -200,3 +221,8 @@ class TurnSnapshot(BaseModel):
     civ_stats: dict[str, CivSnapshot]
     region_control: dict[str, str | None]
     relationships: dict[str, dict[str, RelationshipSnapshot]]
+    trade_routes: list[tuple[str, str]] = Field(default_factory=list)
+    active_wars: list[tuple[str, str]] = Field(default_factory=list)
+    embargoes: list[tuple[str, str]] = Field(default_factory=list)
+    fertility: dict[str, float] = Field(default_factory=dict)
+    mercenary_companies: list[dict] = Field(default_factory=list)

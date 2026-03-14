@@ -122,13 +122,26 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 
 def apply_automatic_effects(world: WorldState) -> list[Event]:
     """Phase 2: Automatic per-turn effects — maintenance, trade income."""
+    from chronicler.resources import get_active_trade_routes, get_self_trade_civs
     events: list[Event] = []
     for civ in world.civilizations:
         # Military maintenance: free up to 30, then (mil-30)//10 per turn
         if civ.military > 30:
             cost = (civ.military - 30) // 10
             civ.treasury -= cost
-    # Trade income placeholder — no-op until M13a provides get_active_trade_routes
+    # Trade income
+    cross_routes = get_active_trade_routes(world)
+    for civ_a, civ_b in cross_routes:
+        a = _get_civ(world, civ_a)
+        b = _get_civ(world, civ_b)
+        if a:
+            a.treasury += 2
+        if b:
+            b.treasury += 2
+    for civ_name in get_self_trade_civs(world):
+        c = _get_civ(world, civ_name)
+        if c:
+            c.treasury += 3
     return events
 
 
@@ -156,7 +169,7 @@ def phase_production(world: WorldState) -> None:
 
         # Population growth: if economy > population and stability > 30
         region_capacity = sum(
-            r.carrying_capacity
+            max(1, int(r.carrying_capacity * r.fertility))
             for r in world.regions
             if r.controller == civ.name
         )
@@ -421,9 +434,23 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
 
 # --- Phase 9: Fertility ---
 
-def phase_fertility(world: WorldState) -> None:
-    """Phase 9: Fertility tick — no-op until M13a."""
-    pass
+def phase_fertility(world: WorldState) -> list[Event]:
+    """Phase 9: Fertility degradation and recovery."""
+    for region in world.regions:
+        if region.controller is None:
+            continue
+        civ = _get_civ(world, region.controller)
+        if civ is None or not civ.regions:
+            continue
+        effective_cap = max(1, int(region.carrying_capacity * region.fertility))
+        avg_pop = civ.population / len(civ.regions)
+        if avg_pop > effective_cap:
+            region.fertility = max(0.0, round(region.fertility - 0.02, 4))
+        elif avg_pop < effective_cap * 0.5:
+            region.fertility = min(1.0, round(region.fertility + 0.01, 4))
+        if region.famine_cooldown > 0:
+            region.famine_cooldown -= 1
+    return []
 
 
 # --- Turn orchestrator ---
@@ -461,8 +488,8 @@ def run_turn(
     # Phase 8: Leader Dynamics
     turn_events.extend(phase_leader_dynamics(world, seed=seed))
 
-    # Phase 9: Fertility (NEW — no-op until M13a)
-    phase_fertility(world)
+    # Phase 9: Fertility
+    turn_events.extend(phase_fertility(world))
 
     # Phase 10: Consequences
     turn_events.extend(phase_consequences(world))

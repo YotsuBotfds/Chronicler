@@ -43,6 +43,8 @@ class RegionOverride(BaseModel):
     x: float | None = None
     y: float | None = None
     adjacencies: list[str] | None = None
+    specialized_resources: list[str] | None = None
+    fertility: float | None = None
 
 
 class CivOverride(BaseModel):
@@ -249,6 +251,11 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
             world.regions[target_idx].y = reg_override.y
         if reg_override.adjacencies is not None:
             world.regions[target_idx].adjacencies = reg_override.adjacencies
+        if reg_override.specialized_resources is not None:
+            from chronicler.models import Resource
+            world.regions[target_idx].specialized_resources = [Resource(r) for r in reg_override.specialized_resources]
+        if reg_override.fertility is not None:
+            world.regions[target_idx].fertility = reg_override.fertility
 
         # Update civ.regions list entries and region.controller
         if old_name != new_name:
@@ -351,6 +358,8 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         if not any(ro.name == region.name and ro.adjacencies is not None for ro in config.regions):
             region.adjacencies = []
     compute_adjacencies(world.regions)
+    from chronicler.resources import assign_resources
+    assign_resources(world.regions, seed=world.seed)
 
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}

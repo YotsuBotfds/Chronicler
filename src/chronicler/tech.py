@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from chronicler.models import Civilization, Event, TechEra, WorldState
+from chronicler.models import Civilization, Event, Resource, TechEra, WorldState
 from chronicler.utils import clamp, STAT_FLOOR
 
 
@@ -27,6 +27,7 @@ TECH_REQUIREMENTS: dict[TechEra, tuple[int, int, int]] = {
     TechEra.CLASSICAL: (70, 70, 180),
     TechEra.MEDIEVAL: (80, 80, 220),
     TechEra.RENAISSANCE: (90, 90, 280),
+    TechEra.INDUSTRIAL: (90, 80, 350),
 }
 
 ERA_BONUSES: dict[TechEra, dict[str, int | float]] = {
@@ -36,12 +37,47 @@ ERA_BONUSES: dict[TechEra, dict[str, int | float]] = {
     TechEra.MEDIEVAL: {"military": 10},
     TechEra.RENAISSANCE: {"economy": 20, "culture": 10},
     TechEra.INDUSTRIAL: {"economy": 20, "military": 20},
+    TechEra.INFORMATION: {"culture": 10, "economy": 5},
 }
+
+
+RESOURCE_REQUIREMENTS: dict[TechEra, tuple[set[Resource] | None, int]] = {
+    TechEra.TRIBAL: ({Resource.IRON, Resource.TIMBER}, 2),
+    TechEra.BRONZE: ({Resource.IRON, Resource.TIMBER, Resource.GRAIN}, 3),
+    TechEra.IRON: (None, 3),
+    TechEra.CLASSICAL: (None, 4),
+    TechEra.MEDIEVAL: (None, 4),
+    TechEra.RENAISSANCE: (None, 5),
+    TechEra.INDUSTRIAL: ({Resource.FUEL}, 5),
+}
+
+
+def _get_civ_resources(civ: Civilization, world: WorldState) -> set[Resource]:
+    resources: set[Resource] = set()
+    for r in world.regions:
+        if r.controller == civ.name:
+            resources.update(r.specialized_resources)
+    return resources
+
+
+def _check_resource_requirements(civ: Civilization, world: WorldState) -> bool:
+    reqs = RESOURCE_REQUIREMENTS.get(civ.tech_era)
+    if reqs is None:
+        return True
+    required_types, min_count = reqs
+    civ_resources = _get_civ_resources(civ, world)
+    if required_types and not required_types.issubset(civ_resources):
+        return False
+    if len(civ_resources) < min_count:
+        return False
+    return True
 
 
 def check_tech_advancement(civ: Civilization, world: WorldState) -> Event | None:
     reqs = TECH_REQUIREMENTS.get(civ.tech_era)
     if reqs is None:
+        return None
+    if not _check_resource_requirements(civ, world):
         return None
     min_culture, min_economy, cost = reqs
     if civ.culture < min_culture or civ.economy < min_economy or civ.treasury < cost:

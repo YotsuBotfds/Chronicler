@@ -1,5 +1,5 @@
 import pytest
-from chronicler.models import Civilization, Leader, TechEra, Event, WorldState, Region
+from chronicler.models import Civilization, Leader, Resource, TechEra, Event, WorldState, Region
 from chronicler.tech import TECH_REQUIREMENTS, ERA_BONUSES, check_tech_advancement, apply_era_bonus, tech_war_multiplier
 
 
@@ -15,13 +15,13 @@ def tribal_civ():
 def tech_world(tribal_civ):
     return WorldState(
         name="Test", seed=42, turn=5,
-        regions=[Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile")],
+        regions=[Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile", controller="Test Civ", specialized_resources=[Resource.IRON, Resource.TIMBER])],
         civilizations=[tribal_civ],
     )
 
 def test_tech_requirements_defined_for_all_transitions():
     for era in TechEra:
-        if era != TechEra.INDUSTRIAL:
+        if era != TechEra.INFORMATION:
             assert era in TECH_REQUIREMENTS
 
 def test_advancement_tribal_to_bronze(tribal_civ, tech_world):
@@ -47,8 +47,8 @@ def test_no_advancement_insufficient_treasury(tribal_civ, tech_world):
     assert check_tech_advancement(tribal_civ, tech_world) is None
     assert tribal_civ.tech_era == TechEra.TRIBAL
 
-def test_no_advancement_at_industrial(tribal_civ, tech_world):
-    tribal_civ.tech_era = TechEra.INDUSTRIAL
+def test_no_advancement_at_information(tribal_civ, tech_world):
+    tribal_civ.tech_era = TechEra.INFORMATION
     tribal_civ.culture = 100
     tribal_civ.economy = 100
     tribal_civ.treasury = 500
@@ -122,3 +122,32 @@ def test_tech_war_multiplier_gap_4():
 def test_tech_war_multiplier_defender_advantage():
     mult = tech_war_multiplier(TechEra.IRON, TechEra.MEDIEVAL)
     assert mult == pytest.approx(1 / 1.5, rel=0.01)
+
+
+def test_tech_blocked_without_resources(sample_world):
+    from chronicler.models import Resource
+    civ = sample_world.civilizations[0]
+    civ.tech_era = TechEra.TRIBAL
+    civ.culture = 40
+    civ.economy = 40
+    civ.treasury = 100
+    for r in sample_world.regions:
+        if r.controller == civ.name:
+            r.specialized_resources = [Resource.GRAIN]
+    event = check_tech_advancement(civ, sample_world)
+    assert event is None
+
+
+def test_tech_allowed_with_resources(sample_world):
+    from chronicler.models import Resource
+    civ = sample_world.civilizations[0]
+    civ.tech_era = TechEra.TRIBAL
+    civ.culture = 40
+    civ.economy = 40
+    civ.treasury = 100
+    for r in sample_world.regions:
+        if r.controller == civ.name:
+            r.specialized_resources = [Resource.IRON, Resource.TIMBER]
+            break
+    event = check_tech_advancement(civ, sample_world)
+    assert event is not None

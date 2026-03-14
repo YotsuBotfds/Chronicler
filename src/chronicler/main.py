@@ -116,6 +116,13 @@ def execute_run(
         narrative_style=narrative_style,
     )
 
+    # In simulate-only mode, replace narrator with a no-op
+    _simulate_only = getattr(args, "simulate_only", False)
+    if _simulate_only:
+        _noop_narrator = lambda world, events: ""
+    else:
+        _noop_narrator = None
+
     # World setup
     if world is not None:
         start_turn = world.turn
@@ -197,7 +204,7 @@ def execute_run(
         chronicle_text = run_turn(
             world,
             action_selector=action_selector,
-            narrator=engine.narrator,
+            narrator=_noop_narrator or engine.narrator,
             seed=seed + turn_num,
         )
 
@@ -506,6 +513,8 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Live mode: start WebSocket server for viewer connection")
     parser.add_argument("--live-port", type=int, default=8765,
                         help="WebSocket server port for live mode (default: 8765)")
+    parser.add_argument("--simulate-only", action="store_true",
+                        help="Run simulation without LLM narrative generation")
     return parser
 
 
@@ -537,11 +546,15 @@ def main() -> None:
     # Skip LLM client and scenario resolution for live mode — run_live
     # handles both after receiving params from the client's start command
     if not args.live:
-        sim_client, narrative_client = create_clients(
-            local_url=args.local_url,
-            sim_model=args.sim_model,
-            narrative_model=args.narrative_model,
-        )
+        if getattr(args, "simulate_only", False):
+            sim_client = _DummyClient()
+            narrative_client = _DummyClient()
+        else:
+            sim_client, narrative_client = create_clients(
+                local_url=args.local_url,
+                sim_model=args.sim_model,
+                narrative_model=args.narrative_model,
+            )
 
         # Resolve scenario
         scenario_config = None

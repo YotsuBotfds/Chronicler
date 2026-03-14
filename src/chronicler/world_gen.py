@@ -170,6 +170,8 @@ def generate_world(
     regions = generate_regions(count=num_regions, seed=seed)
     from chronicler.adjacency import compute_adjacencies
     compute_adjacencies(regions)
+    from chronicler.resources import assign_resources
+    assign_resources(regions, seed=seed)
     civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
     civ_names = [c.name for c in civs]
     relationships = _build_relationships(civ_names, seed=seed + 1)

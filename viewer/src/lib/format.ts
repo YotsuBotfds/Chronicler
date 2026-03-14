@@ -8,6 +8,7 @@ export const ERA_LABELS: Record<TechEra, string> = {
   medieval: "Medieval",
   renaissance: "Renaissance",
   industrial: "Industrial",
+  information: "Information",
 };
 
 export const ERA_ORDER: TechEra[] = [
@@ -18,6 +19,7 @@ export const ERA_ORDER: TechEra[] = [
   "medieval",
   "renaissance",
   "industrial",
+  "information",
 ];
 
 export function formatTurn(current: number, total: number): string {

@@ -270,11 +270,16 @@ def test_nine_phase_run_turn(sample_world):
 
 def test_tech_phase_runs(sample_world):
     """Tech advancement should happen during the tech phase."""
+    from chronicler.models import Resource
     for civ in sample_world.civilizations:
         civ.tech_era = TechEra.TRIBAL
         civ.economy = 40
         civ.culture = 40
         civ.treasury = 100
+    # Give controlled regions the resources needed for TRIBAL→BRONZE
+    for r in sample_world.regions:
+        if r.controller:
+            r.specialized_resources = [Resource.IRON, Resource.TIMBER]
 
     def stub_selector(civ, world):
         return ActionType.DEVELOP

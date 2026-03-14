@@ -7,7 +7,8 @@ export type TechEra =
   | "classical"
   | "medieval"
   | "renaissance"
-  | "industrial";
+  | "industrial"
+  | "information";
 
 export type Disposition =
   | "hostile"

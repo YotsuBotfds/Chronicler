@@ -222,6 +222,32 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
     )
 
 
+@register_action(ActionType.EMBARGO)
+def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
+    """Impose trade embargo on most hostile neighbor."""
+    target_name = None
+    if civ.name in world.relationships:
+        for other, rel in world.relationships[civ.name].items():
+            if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                if (civ.name, other) not in world.embargoes:
+                    target_name = other
+                    break
+    if target_name:
+        world.embargoes.append((civ.name, target_name))
+        target = _get_civ(world, target_name)
+        if target:
+            target.stability = clamp(target.stability - 5, STAT_FLOOR["stability"], 100)
+        return Event(
+            turn=world.turn, event_type="embargo", actors=[civ.name, target_name],
+            description=f"{civ.name} imposed a trade embargo on {target_name}.",
+            importance=6,
+        )
+    return Event(
+        turn=world.turn, event_type="embargo", actors=[civ.name],
+        description=f"{civ.name} sought to embargo but found no target.", importance=2,
+    )
+
+
 # --- Combat resolution (simplified Lanchester) ---
 
 def resolve_war(
@@ -348,9 +374,10 @@ class ActionEngine:
         # BUILD: treasury >= 10 and has regions
         if civ.treasury >= 10 and civ.regions:
             eligible.append(ActionType.BUILD)
-        # EMBARGO: placeholder — no trade routes until M13a
-        has_trade_routes = False
-        if has_trade_routes and has_hostile:
+        # EMBARGO: has trade route and hostile neighbor
+        from chronicler.resources import get_active_trade_routes
+        civ_routes = [r for r in get_active_trade_routes(self.world) if civ.name in r]
+        if civ_routes and has_hostile:
             eligible.append(ActionType.EMBARGO)
         return eligible
 
