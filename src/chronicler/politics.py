@@ -201,6 +201,9 @@ def check_secession(world: WorldState) -> list[Event]:
             leader_name_pool=list(civ.leader_name_pool or []),
         )
 
+        # M17d: Tradition inheritance through secession
+        breakaway_civ.traditions = list(civ.traditions)
+
         civ.population = max(civ.population - split_pop, 1)
         civ.military = max(civ.military - split_mil, 0)
         civ.economy = max(civ.economy - split_eco, 0)

@@ -317,6 +317,10 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     # M17b: Exile pretender stability drain
     apply_exile_pretender_drain(world)
 
+    # M17d: Tradition ongoing effects
+    from chronicler.traditions import apply_tradition_effects
+    apply_tradition_effects(world)
+
     # M17c: Hostage turn ticking
     from chronicler.relationships import tick_hostages
     tick_hostages(world)
@@ -611,6 +615,11 @@ def phase_consequences(world: WorldState) -> list[Event]:
             region.depopulated_since = None
             region.ruin_quality = 0
 
+    # --- M17d: Event counts and tradition acquisition (runs before great person generation) ---
+    from chronicler.traditions import update_event_counts, check_tradition_acquisition
+    update_event_counts(world)
+    check_tradition_acquisition(world)
+
     # --- M17: Great Person Consequences ---
     from chronicler.great_persons import check_great_person_generation, check_lifespan_expiry
     for civ in world.civilizations:
@@ -769,7 +778,13 @@ def phase_fertility(world: WorldState) -> list[Event]:
 
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
-    return _check_famine(world)
+    famine_events = _check_famine(world)
+
+    # M17d: Apply fertility floor for food_stockpiling tradition
+    from chronicler.traditions import apply_fertility_floor
+    apply_fertility_floor(world)
+
+    return famine_events
 
 
 def _check_famine(world: WorldState) -> list[Event]:

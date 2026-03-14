@@ -344,6 +344,12 @@ def resolve_war(
                 break
         def_power += defense_bonus + fort_bonus
 
+    # M17d: Martial tradition combat modifier
+    if "martial" in attacker.traditions:
+        att_power += 5
+    if "martial" in defender.traditions:
+        def_power += 5
+
     # War costs treasury regardless of outcome
     attacker.treasury = max(0, attacker.treasury - 20)
     defender.treasury = max(0, defender.treasury - 10)
@@ -558,6 +564,12 @@ class ActionEngine:
                         rel = self.world.relationships[civ.name].get(rival_civ)
                         if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                             weights[ActionType.WAR] *= (1.0 + intensity * 0.5)
+        # M17d: Tradition weight biases
+        if "martial" in civ.traditions and ActionType.WAR in weights:
+            weights[ActionType.WAR] *= 1.2
+        if "diplomatic" in civ.traditions and ActionType.DIPLOMACY in weights:
+            weights[ActionType.DIPLOMACY] *= 1.2
+
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3
         if len(history) >= streak_limit:
