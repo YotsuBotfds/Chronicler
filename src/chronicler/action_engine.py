@@ -535,6 +535,17 @@ class ActionEngine:
                 rival_rel = self.world.relationships[civ.name].get(civ.leader.rival_civ)
                 if rival_rel and rival_rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                     weights[ActionType.WAR] *= 1.5
+        # Grudge bias: each high-intensity grudge boosts WAR weight toward the rival civ
+        if civ.leader.grudges and weights[ActionType.WAR] > 0:
+            for grudge in civ.leader.grudges:
+                intensity = grudge.get("intensity", 0.0)
+                if intensity >= 0.5:
+                    # Check whether the grudge target is still a hostile neighbor
+                    rival_civ = grudge.get("rival_civ")
+                    if rival_civ and civ.name in self.world.relationships:
+                        rel = self.world.relationships[civ.name].get(rival_civ)
+                        if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                            weights[ActionType.WAR] *= (1.0 + intensity * 0.5)
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3
         if len(history) >= streak_limit:

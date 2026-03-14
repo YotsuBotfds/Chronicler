@@ -211,6 +211,9 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
     if stype == "heir" and old_leader.rival_leader:
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ
+    # Inherit grudges from predecessor
+    from chronicler.succession import inherit_grudges
+    inherit_grudges(old_leader, new_leader)
     if stype == "general":
         civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)

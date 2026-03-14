@@ -44,6 +44,10 @@ from chronicler.leaders import (
 )
 from chronicler.named_events import generate_tech_breakthrough_name
 from chronicler.action_engine import resolve_action
+from chronicler.succession import (
+    compute_crisis_probability, trigger_crisis, tick_crisis,
+    resolve_crisis, is_in_crisis, decay_grudges,
+)
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
 
@@ -342,6 +346,9 @@ def phase_production(world: WorldState) -> None:
 
 # --- Phase 5: Action ---
 
+_CRISIS_HALVED_STATS = ("economy", "culture", "military", "stability", "population")
+
+
 def phase_action(
     world: WorldState,
     action_selector: ActionSelector,
@@ -350,8 +357,23 @@ def phase_action(
     events: list[Event] = []
 
     for civ in world.civilizations:
+        # Snapshot stat values before action (for crisis halving)
+        in_crisis = is_in_crisis(civ)
+        pre_stats: dict[str, int] = {}
+        if in_crisis:
+            pre_stats = {s: getattr(civ, s) for s in _CRISIS_HALVED_STATS}
+
         action = action_selector(civ, world)
         event = resolve_action(civ, action, world)
+
+        # Crisis halving: reduce positive stat gains by 50%
+        if in_crisis:
+            for stat in _CRISIS_HALVED_STATS:
+                before = pre_stats[stat]
+                after = getattr(civ, stat)
+                if after > before:
+                    halved = before + (after - before) // 2
+                    setattr(civ, stat, max(halved, STAT_FLOOR.get(stat, 0)))
 
         # Track action in history (for streak breaker)
         history = world.action_history.setdefault(civ.name, [])
@@ -427,13 +449,22 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
 def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) -> None:
     """Apply mechanical stat changes for a random event."""
     if event_type == "leader_death":
+        import random as _random
         old_leader = civ.leader
         old_leader.alive = False
         civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
         check_rival_fall(civ, old_leader.name, world)
-        new_leader = generate_successor(civ, world, seed=world.turn * 100)
-        civ.leader = new_leader
+        # Check whether death triggers a succession crisis instead of immediate succession
+        crisis_prob = compute_crisis_probability(civ, world)
+        rng = _random.Random(world.seed + world.turn + hash(civ.name))
+        if crisis_prob > 0.0 and rng.random() < crisis_prob and not is_in_crisis(civ):
+            trigger_crisis(civ, world)
+        else:
+            new_leader = generate_successor(civ, world, seed=world.turn * 100)
+            from chronicler.succession import inherit_grudges
+            inherit_grudges(old_leader, new_leader)
+            civ.leader = new_leader
     elif event_type == "rebellion":
         civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
         civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
@@ -644,7 +675,7 @@ def phase_cultural_milestones(world: WorldState) -> list[Event]:
 
 
 def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
-    """Phase 8: Handle trait evolution for all living leaders."""
+    """Phase 8: Handle trait evolution, crisis ticks, grudge decay for all living leaders."""
     events = []
     for civ in world.civilizations:
         secondary = check_trait_evolution(civ, world)
@@ -654,6 +685,25 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
                 description=f"{civ.leader.name} of {civ.name} has become known as a {secondary}",
                 importance=4,
             ))
+
+        # Crisis state machine: tick and auto-resolve when timer hits 0
+        if is_in_crisis(civ):
+            tick_crisis(civ, world)
+            if civ.succession_crisis_turns_remaining == 0:
+                crisis_events = resolve_crisis(civ, world)
+                events.extend(crisis_events)
+
+        # Grudge decay — rival alive check via world state
+        if civ.leader.grudges:
+            for grudge in list(civ.leader.grudges):
+                rival_civ_name = grudge.get("rival_civ")
+                rival_alive = any(
+                    c.name == rival_civ_name and c.leader.alive
+                    for c in world.civilizations
+                )
+                decay_grudges(civ.leader, current_turn=world.turn, rival_alive=rival_alive)
+                break  # decay_grudges processes all grudges internally; call once
+
     return events
 
 

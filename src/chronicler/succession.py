@@ -1,0 +1,163 @@
+"""Succession crisis mechanics, exiled leaders, legacy expansion."""
+from __future__ import annotations
+
+import random
+
+from chronicler.models import Civilization, Event, Leader, WorldState
+
+
+# ---------------------------------------------------------------------------
+# Task 8: Crisis probability formula
+# ---------------------------------------------------------------------------
+
+def compute_crisis_probability(civ: Civilization, world: WorldState) -> float:
+    """Return probability [0.05, 0.40] of succession crisis, or 0.0 if ineligible."""
+    if len(civ.regions) < 3:
+        return 0.0
+
+    base = 0.15
+    region_factor = len(civ.regions) / 5
+    instability_factor = 1 - (civ.stability / 100)
+
+    leader_reign = world.turn - civ.leader.reign_start
+    has_active_vassals = any(vr.overlord == civ.name for vr in world.vassal_relations)
+
+    modifiers = 1.0
+    if civ.leader.succession_type != "heir":
+        modifiers *= 1.5
+    if has_active_vassals:
+        modifiers *= 1.3
+    if leader_reign < 5:
+        modifiers *= 1.2
+    if civ.asabiya > 0.7:
+        modifiers *= 0.6
+    if "martial" in civ.traditions:
+        modifiers *= 0.8
+    if "resilience" in civ.traditions:
+        modifiers *= 0.8
+    if leader_reign > 15:
+        modifiers *= 0.7
+
+    return max(0.05, min(0.40, base * region_factor * instability_factor * modifiers))
+
+
+# ---------------------------------------------------------------------------
+# Task 9: Multi-turn crisis state machine
+# ---------------------------------------------------------------------------
+
+def is_in_crisis(civ: Civilization) -> bool:
+    """Return True if the civilization is currently in a succession crisis."""
+    return civ.succession_crisis_turns_remaining > 0
+
+
+def trigger_crisis(civ: Civilization, world: WorldState) -> None:
+    """Begin a succession crisis. Duration scales with region count (1-5 turns)."""
+    rng = random.Random(world.seed + world.turn + hash(civ.name))
+    duration = min(5, max(1, len(civ.regions) // 2 + rng.randint(1, 2)))
+    civ.succession_crisis_turns_remaining = duration
+
+    # Build candidate list from neighboring civs
+    civ.succession_candidates = []
+    for other in world.civilizations:
+        if other.name == civ.name:
+            continue
+        civ.succession_candidates.append({
+            "backer_civ": other.name,
+            "type": "diplomatic",
+        })
+
+
+def tick_crisis(civ: Civilization, world: WorldState) -> None:
+    """Decrement crisis timer by 1 (does not resolve — call resolve_crisis when ready)."""
+    if civ.succession_crisis_turns_remaining > 0:
+        civ.succession_crisis_turns_remaining -= 1
+
+
+def resolve_crisis(civ: Civilization, world: WorldState) -> list[Event]:
+    """End the crisis, generate a successor, and return narrative events."""
+    from chronicler.leaders import generate_successor, apply_leader_legacy
+
+    events: list[Event] = []
+
+    old_leader = civ.leader
+    old_leader.alive = False
+
+    # Apply legacy if earned
+    legacy_event = apply_leader_legacy(civ, old_leader, world)
+    if legacy_event:
+        events.append(legacy_event)
+
+    # Determine succession type from candidates if available
+    force_type: str | None = None
+    if civ.succession_candidates:
+        rng = random.Random(world.seed + world.turn + hash(civ.name))
+        candidate = rng.choice(civ.succession_candidates)
+        candidate_type = candidate.get("type", "")
+        if candidate_type == "military":
+            force_type = "general"
+        elif candidate_type == "usurper":
+            force_type = "usurper"
+
+    new_leader = generate_successor(civ, world, seed=world.seed, force_type=force_type)
+
+    # Inherit grudges from old to new leader
+    inherit_grudges(old_leader, new_leader)
+
+    civ.leader = new_leader
+    civ.succession_crisis_turns_remaining = 0
+    civ.succession_candidates = []
+
+    events.append(Event(
+        turn=world.turn,
+        event_type="succession_crisis_resolved",
+        actors=[civ.name],
+        description=(
+            f"The succession crisis in {civ.name} ends: "
+            f"{new_leader.name} rises to power after the fall of {old_leader.name}."
+        ),
+        importance=8,
+    ))
+
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Task 10: Personal grudges
+# ---------------------------------------------------------------------------
+
+def add_grudge(leader: Leader, rival_name: str, rival_civ: str, turn: int) -> None:
+    """Add or refresh a grudge against a rival. Refreshes intensity if already tracked."""
+    for g in leader.grudges:
+        if g["rival_civ"] == rival_civ:
+            g["intensity"] = 1.0
+            g["origin_turn"] = turn
+            g["rival_name"] = rival_name
+            return
+    leader.grudges.append({
+        "rival_name": rival_name,
+        "rival_civ": rival_civ,
+        "intensity": 1.0,
+        "origin_turn": turn,
+    })
+
+
+def decay_grudges(leader: Leader, current_turn: int, rival_alive: bool = True) -> None:
+    """Decay grudge intensity every 5 turns. Removes grudges that drop to near zero."""
+    to_remove = []
+    for g in leader.grudges:
+        turns_since = current_turn - g["origin_turn"]
+        if turns_since > 0 and turns_since % 5 == 0:
+            decay = 0.2 if not rival_alive else 0.1
+            g["intensity"] = max(0, g["intensity"] - decay)
+        if g["intensity"] < 0.01:
+            to_remove.append(g)
+    for g in to_remove:
+        leader.grudges.remove(g)
+
+
+def inherit_grudges(old_leader: Leader, new_leader: Leader) -> None:
+    """Transfer grudges from old leader to new leader at 50% intensity."""
+    for g in old_leader.grudges:
+        inherited_intensity = g["intensity"] * 0.5
+        if inherited_intensity >= 0.01:
+            new_leader.grudges.append({**g, "intensity": inherited_intensity})
