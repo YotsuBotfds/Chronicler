@@ -132,6 +132,7 @@ class Leader(BaseModel):
     rival_leader: str | None = None
     rival_civ: str | None = None
     secondary_trait: str | None = None
+    grudges: list[dict] = Field(default_factory=list)
 
 
 class Civilization(BaseModel):
@@ -164,6 +165,14 @@ class Civilization(BaseModel):
     decline_turns: int = 0
     stats_sum_history: list[int] = Field(default_factory=list)
     known_regions: list[str] | None = None
+    great_persons: list[GreatPerson] = Field(default_factory=list)
+    traditions: list[str] = Field(default_factory=list)
+    legacy_counts: dict[str, int] = Field(default_factory=dict)
+    event_counts: dict[str, int] = Field(default_factory=dict)
+    war_win_turns: list[int] = Field(default_factory=list)
+    folk_heroes: list[dict] = Field(default_factory=list)
+    succession_crisis_turns_remaining: int = 0
+    succession_candidates: list[dict] = Field(default_factory=list)
 
 
 class Relationship(BaseModel):
@@ -183,6 +192,27 @@ class HistoricalFigure(BaseModel):
     civilization: str
     alive: bool = True
     deeds: list[str] = Field(default_factory=list)
+
+
+class GreatPerson(BaseModel):
+    name: str
+    role: str  # "general", "merchant", "prophet", "scientist", "exile", "hostage"
+    trait: str
+    civilization: str
+    origin_civilization: str
+    alive: bool = True
+    active: bool = True
+    fate: str = "active"  # "active", "retired", "dead", "ascended"
+    born_turn: int
+    death_turn: int | None = None
+    deeds: list[str] = Field(default_factory=list)
+    region: str | None = None
+    captured_by: str | None = None
+    is_hostage: bool = False
+    hostage_turns: int = 0
+    cultural_identity: str | None = None
+    movement_id: str | None = None  # NOTE: Movement.id is str, not int
+    recognized_by: list[str] = Field(default_factory=list)
 
 
 class Event(BaseModel):
@@ -282,6 +312,9 @@ class WorldState(BaseModel):
     balance_of_power_turns: int = 0
     climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
     fog_of_war: bool = False
+    retired_persons: list[GreatPerson] = Field(default_factory=list)
+    character_relationships: list[dict] = Field(default_factory=list)
+    great_person_cooldowns: dict[str, dict[str, int]] = Field(default_factory=dict)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -320,6 +353,10 @@ class CivSnapshot(BaseModel):
     federation_name: str | None = None
     prestige: int = 0
     capital_region: str | None = None
+    great_persons: list[dict] = Field(default_factory=list)
+    traditions: list[str] = Field(default_factory=list)
+    folk_heroes: list[dict] = Field(default_factory=list)
+    active_crisis: bool = False
 
 
 class RelationshipSnapshot(BaseModel):

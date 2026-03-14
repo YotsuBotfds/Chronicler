@@ -211,6 +211,9 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
     if stype == "heir" and old_leader.rival_leader:
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ
+    # Inherit grudges from predecessor
+    from chronicler.succession import inherit_grudges
+    inherit_grudges(old_leader, new_leader)
     if stype == "general":
         civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)
@@ -245,6 +248,20 @@ def apply_leader_legacy(civ: Civilization, leader: Leader, world: WorldState) ->
         name=f"The Legacy of {leader.name} {epithet}", event_type="legacy", turn=world.turn,
         actors=[civ.name], description=f"{leader.name}'s {reign_length}-turn reign leaves a lasting mark",
     ))
+
+    # --- Legacy memory tracking ---
+    # Golden age: long reign with high economy
+    if reign_length >= 20 and civ.economy >= 70:
+        civ.legacy_counts["golden_age"] = civ.legacy_counts.get("golden_age", 0) + 1
+
+    # Shame: capital lost during reign
+    if civ.event_counts.get("capital_lost", 0) > 0:
+        civ.legacy_counts["shame"] = civ.legacy_counts.get("shame", 0) + 1
+
+    # Fracture: secession occurred during reign
+    if civ.event_counts.get("secession_occurred", 0) > 0:
+        civ.legacy_counts["fracture"] = civ.legacy_counts.get("fracture", 0) + 1
+
     return Event(turn=world.turn, event_type="legacy", actors=[civ.name],
         description=f"The legacy of {leader.name} {epithet} endures", importance=6)
 

@@ -201,6 +201,9 @@ def check_secession(world: WorldState) -> list[Event]:
             leader_name_pool=list(civ.leader_name_pool or []),
         )
 
+        # M17d: Tradition inheritance through secession
+        breakaway_civ.traditions = list(civ.traditions)
+
         civ.population = max(civ.population - split_pop, 1)
         civ.military = max(civ.military - split_mil, 0)
         civ.economy = max(civ.economy - split_eco, 0)
@@ -242,6 +245,7 @@ def check_secession(world: WorldState) -> list[Event]:
             description=f"The Secession of {breakaway_name} from {civ.name}",
             importance=9,
         ))
+        civ.event_counts["secession_occurred"] = civ.event_counts.get("secession_occurred", 0) + 1
 
     world.civilizations.extend(new_civs)
     return events
@@ -279,6 +283,7 @@ def check_capital_loss(world: WorldState) -> list[Event]:
             description=f"{civ.name} lost capital {old_capital}, relocated to {best_region}",
             importance=8,
         ))
+        civ.event_counts["capital_lost"] = civ.event_counts.get("capital_lost", 0) + 1
     return events
 
 

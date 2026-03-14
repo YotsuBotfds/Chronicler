@@ -44,6 +44,11 @@ from chronicler.leaders import (
 )
 from chronicler.named_events import generate_tech_breakthrough_name
 from chronicler.action_engine import resolve_action
+from chronicler.succession import (
+    compute_crisis_probability, trigger_crisis, tick_crisis,
+    resolve_crisis, is_in_crisis, decay_grudges,
+    apply_exile_pretender_drain, check_exile_restoration,
+)
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
 
@@ -309,6 +314,17 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     knowledge_events = tick_trade_knowledge_sharing(world)
     events.extend(knowledge_events)
 
+    # M17b: Exile pretender stability drain
+    apply_exile_pretender_drain(world)
+
+    # M17d: Tradition ongoing effects
+    from chronicler.traditions import apply_tradition_effects
+    apply_tradition_effects(world)
+
+    # M17c: Hostage turn ticking
+    from chronicler.relationships import tick_hostages
+    tick_hostages(world)
+
     return events
 
 
@@ -342,6 +358,9 @@ def phase_production(world: WorldState) -> None:
 
 # --- Phase 5: Action ---
 
+_CRISIS_HALVED_STATS = ("economy", "culture", "military", "stability", "population")
+
+
 def phase_action(
     world: WorldState,
     action_selector: ActionSelector,
@@ -350,8 +369,23 @@ def phase_action(
     events: list[Event] = []
 
     for civ in world.civilizations:
+        # Snapshot stat values before action (for crisis halving)
+        in_crisis = is_in_crisis(civ)
+        pre_stats: dict[str, int] = {}
+        if in_crisis:
+            pre_stats = {s: getattr(civ, s) for s in _CRISIS_HALVED_STATS}
+
         action = action_selector(civ, world)
         event = resolve_action(civ, action, world)
+
+        # Crisis halving: reduce positive stat gains by 50%
+        if in_crisis:
+            for stat in _CRISIS_HALVED_STATS:
+                before = pre_stats[stat]
+                after = getattr(civ, stat)
+                if after > before:
+                    halved = before + (after - before) // 2
+                    setattr(civ, stat, max(halved, STAT_FLOOR.get(stat, 0)))
 
         # Track action in history (for streak breaker)
         history = world.action_history.setdefault(civ.name, [])
@@ -390,6 +424,12 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
         else:
             s = s - delta * s
 
+        # Folk hero asabiya bonus: permanent +0.03 per hero, applied as a floor
+        from chronicler.traditions import compute_folk_hero_asabiya_bonus
+        folk_bonus = compute_folk_hero_asabiya_bonus(civ)
+        if folk_bonus > 0:
+            s = s + folk_bonus * 0.1  # scale per-turn contribution
+
         civ.asabiya = round(max(0.0, min(1.0, s)), 4)
 
 
@@ -427,13 +467,22 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
 def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) -> None:
     """Apply mechanical stat changes for a random event."""
     if event_type == "leader_death":
+        import random as _random
         old_leader = civ.leader
         old_leader.alive = False
         civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
         check_rival_fall(civ, old_leader.name, world)
-        new_leader = generate_successor(civ, world, seed=world.turn * 100)
-        civ.leader = new_leader
+        # Check whether death triggers a succession crisis instead of immediate succession
+        crisis_prob = compute_crisis_probability(civ, world)
+        rng = _random.Random(world.seed + world.turn + hash(civ.name))
+        if crisis_prob > 0.0 and rng.random() < crisis_prob and not is_in_crisis(civ):
+            trigger_crisis(civ, world)
+        else:
+            new_leader = generate_successor(civ, world, seed=world.turn * 100)
+            from chronicler.succession import inherit_grudges
+            inherit_grudges(old_leader, new_leader)
+            civ.leader = new_leader
     elif event_type == "rebellion":
         civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
         civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
@@ -572,6 +621,28 @@ def phase_consequences(world: WorldState) -> list[Event]:
             region.depopulated_since = None
             region.ruin_quality = 0
 
+    # --- M17d: Event counts and tradition acquisition (runs before great person generation) ---
+    from chronicler.traditions import update_event_counts, check_tradition_acquisition
+    update_event_counts(world)
+    check_tradition_acquisition(world)
+
+    # --- M17: Great Person Consequences ---
+    from chronicler.great_persons import check_great_person_generation, check_lifespan_expiry
+    for civ in world.civilizations:
+        if not civ.regions:
+            continue
+        check_great_person_generation(civ, world)
+        check_lifespan_expiry(civ, world)
+
+    # M17b: Exile restoration checks
+    collapse_events.extend(check_exile_restoration(world))
+
+    # M17c: Character relationship formation
+    from chronicler.relationships import check_rivalry_formation, check_mentorship_formation, check_marriage_formation
+    check_rivalry_formation(world)
+    check_mentorship_formation(world)
+    check_marriage_formation(world)
+
     return collapse_events
 
 
@@ -584,6 +655,8 @@ def phase_technology(world: WorldState) -> list[Event]:
         event = check_tech_advancement(civ, world)
         if event:
             events.append(event)
+            # Increment tech_advanced so great person generation can detect era advance
+            civ.event_counts["tech_advanced"] = civ.event_counts.get("tech_advanced", 0) + 1
             name = generate_tech_breakthrough_name(civ.tech_era)
             world.named_events.append(NamedEvent(
                 name=name, event_type="tech_breakthrough", turn=world.turn,
@@ -636,7 +709,7 @@ def phase_cultural_milestones(world: WorldState) -> list[Event]:
 
 
 def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
-    """Phase 8: Handle trait evolution for all living leaders."""
+    """Phase 8: Handle trait evolution, crisis ticks, grudge decay for all living leaders."""
     events = []
     for civ in world.civilizations:
         secondary = check_trait_evolution(civ, world)
@@ -646,6 +719,18 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
                 description=f"{civ.leader.name} of {civ.name} has become known as a {secondary}",
                 importance=4,
             ))
+
+        # Crisis state machine: tick and auto-resolve when timer hits 0
+        if is_in_crisis(civ):
+            tick_crisis(civ, world)
+            if civ.succession_crisis_turns_remaining == 0:
+                crisis_events = resolve_crisis(civ, world)
+                events.extend(crisis_events)
+
+        # Grudge decay — per-grudge rival alive status handled inside decay_grudges
+        if civ.leader.grudges:
+            decay_grudges(civ.leader, current_turn=world.turn, world=world)
+
     return events
 
 
@@ -694,7 +779,13 @@ def phase_fertility(world: WorldState) -> list[Event]:
 
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
-    return _check_famine(world)
+    famine_events = _check_famine(world)
+
+    # M17d: Apply fertility floor for food_stockpiling tradition
+    from chronicler.traditions import apply_fertility_floor
+    apply_fertility_floor(world)
+
+    return famine_events
 
 
 def _check_famine(world: WorldState) -> list[Event]:

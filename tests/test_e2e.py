@@ -145,3 +145,17 @@ def test_m7_critical_gate_20_turns():
         assert loaded.turn == world.turn
         assert len(loaded.named_events) == len(world.named_events)
         assert len(loaded.civilizations) == len(world.civilizations)
+
+    # M17 assertions
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            assert gp.active is True
+            assert gp.civilization == civ.name
+            assert gp.role in ("general", "merchant", "prophet", "scientist", "exile", "hostage")
+        for t in civ.traditions:
+            assert t in ("martial", "food_stockpiling", "diplomatic", "resilience")
+        assert len(civ.folk_heroes) <= 5
+        assert civ.succession_crisis_turns_remaining >= 0
+    for gp in world.retired_persons:
+        assert gp.active is False
+        assert gp.fate in ("retired", "dead", "ascended")

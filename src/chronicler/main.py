@@ -231,6 +231,10 @@ def execute_run(
                     federation_name=next((f.name for f in world.federations if civ.name in f.members), None),
                     prestige=civ.prestige,
                     capital_region=civ.capital_region,
+                    great_persons=[{"name": gp.name, "role": gp.role, "trait": gp.trait} for gp in civ.great_persons if gp.active],
+                    traditions=list(civ.traditions),
+                    folk_heroes=[{"name": fh["name"], "role": fh["role"]} for fh in civ.folk_heroes],
+                    active_crisis=civ.succession_crisis_turns_remaining > 0,
                 )
                 for civ in world.civilizations
             },
