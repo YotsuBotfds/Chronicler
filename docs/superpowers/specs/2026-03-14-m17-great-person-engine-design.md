@@ -38,7 +38,7 @@ class GreatPerson(BaseModel):
     is_hostage: bool = False
     hostage_turns: int = 0                 # turns held as hostage
     cultural_identity: str | None = None   # gains captor's identity after 10 hostage turns
-    movement_id: str | None = None          # for prophets: which movement they champion (e.g. "movement_0")
+    movement_id: int | None = None           # for prophets: which movement they champion (matches Movement.id: int)
 ```
 
 **Storage**:
@@ -228,7 +228,7 @@ When a leader is deposed (civil war, succession crisis where external candidate 
 - At 0.05/turn with stability stuck below 20: ~64% chance within 20 turns, ~92% within 50
 - On success: exile returns as leader of origin civ, disposition +1 level with all recognizers, stability +15
 
-**Exile lifespan**: 30 turns. If they die before restoration → dramatic death check (dramatic if origin civ had recognizers — "the king who never returned"). Folk hero eligible.
+**Exile lifespan**: 30 turns. If they die before restoration → dramatic death check per Section 5.1 (qualifies as dramatic if `len(recognized_by) > 0`). Folk hero eligible.
 
 ### 2.5 Legacy System Expansion
 
@@ -383,7 +383,11 @@ Note: some crystallization paths reach the same tradition through conceptually o
 - Traditions are **permanent** — once earned, never lost.
 - **Inheritance through secession**: breakaway civs inherit the parent's traditions (they share the cultural memory).
 - **Tradition acquisition checks** run in Phase 10 (consequences), only when a relevant event has occurred that turn. Not every turn.
-- **Ongoing tradition effects** are separate from acquisition. Effects like Martial's fear (neighbor disposition drift -1 level per 10 turns) run in Phase 2 (Automatic Effects) alongside other passive per-turn processing, regardless of whether any event fired. The distinction: *acquiring* a tradition is event-gated; *applying* a tradition's effects is continuous.
+- **Ongoing tradition effects** are separate from acquisition. Effects run in Phase 2 (Automatic Effects) alongside other passive per-turn processing, regardless of whether any event fired. The distinction: *acquiring* a tradition is event-gated; *applying* a tradition's effects is continuous. Phase 2 wiring:
+  - **Martial fear**: checks `world.turn % 10 == 0`; if so, all neighbors of a Martial civ get disposition drift -1 level. No counter needed — the turn clock is the counter.
+  - **Food Stockpiling fertility floor**: applied after all other fertility calculations in Phase 9 (Fertility). Clamp: `region.fertility = max(region.fertility, 0.2)` for each region controlled by a civ with this tradition. Placed at the end of the fertility phase, not Phase 2, since fertility modifications happen in Phase 9.
+  - **Resilience stability recovery**: multiplier applied wherever stability gains from actions are computed (Phase 5). When a Resilience civ gains stability from an action, the gain is doubled.
+  - **Diplomatic federation bonus**: applied during federation stability calculations in Phase 10 (existing federation logic).
 
 ---
 
@@ -397,6 +401,7 @@ When a great person or leader dies dramatically, they have a chance to become a 
 - Death during war resolution (Phase 5)
 - Death during natural disaster event (Phase 7)
 - Death during succession crisis (Phase 8)
+- Exile death where `len(recognized_by) > 0` — an exile dying while foreign powers still championed their cause ("the king who never returned")
 - Non-dramatic: all other deaths. Lifespan expiry is always retirement, never death — these are mutually exclusive fates.
 
 **Folk hero roll**: 20% chance on dramatic death. Deterministic from `seed + death_turn + hash(name)`.
@@ -503,6 +508,14 @@ great_person_cooldowns: dict[str, dict[str, int]] = {}  # {civ_name: {role: last
 ```
 
 ### New model: `GreatPerson` (Section 1.1)
+
+### Existing Code Changes
+
+These are modifications to existing behavior, not just new fields:
+
+1. **`resolve_war()` return type** (`action_engine.py`): expand from `str` to a `WarResult` namedtuple/dataclass with `outcome: str` and `contested_region: str | None`. All callers updated to use `result.outcome` where they previously used the raw string. The contested region is already computed inside `resolve_war()` but currently discarded — this change surfaces it.
+
+2. **Phase 7 leader death deferral** (`simulation.py`): modify `_apply_event_effects` for `leader_death` events. Currently calls `generate_successor()` immediately. M17 changes this to: (1) check if succession crisis triggers via the Section 2.1 formula, (2) if yes, set `succession_crisis_turns_remaining` and defer successor creation to Phase 8 resolution over subsequent turns, (3) if no, proceed with `generate_successor()` as before.
 
 ### On `CivSnapshot` (for viewer/narrative)
 
