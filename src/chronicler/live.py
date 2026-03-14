@@ -349,10 +349,10 @@ def make_live_pause(
                     })
                     continue
 
-                if stat in CORE_STATS and not (1 <= value <= 10):
+                if stat in CORE_STATS and not (1 <= value <= 100):
                     status_queue.put({
                         "type": "error",
-                        "message": f"Value for {stat} must be 1-10, got {value}",
+                        "message": f"Value for {stat} must be 1-100, got {value}",
                     })
                     continue
 

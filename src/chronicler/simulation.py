@@ -35,7 +35,7 @@ from chronicler.models import (
     WorldState,
 )
 from chronicler.tech import check_tech_advancement, tech_war_multiplier
-from chronicler.utils import clamp
+from chronicler.utils import clamp, STAT_FLOOR
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
     check_rival_fall, update_rivalries,
@@ -104,31 +104,31 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 
     if event.event_type == "drought":
         for civ in affected:
-            civ.stability = clamp(civ.stability - 1, 1, 10)
-            civ.economy = clamp(civ.economy - 1, 1, 10)
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="drought",
                 affected_civs=event.actors,
                 duration=3,
-                severity=5,
+                severity=50,
             )
         )
     elif event.event_type == "plague":
         for civ in affected:
-            civ.population = clamp(civ.population - 1, 1, 10)
-            civ.stability = clamp(civ.stability - 1, 1, 10)
+            civ.population = clamp(civ.population - 10, STAT_FLOOR["population"], 100)
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="plague",
                 affected_civs=event.actors,
                 duration=4,
-                severity=6,
+                severity=60,
             )
         )
     elif event.event_type == "earthquake":
         for civ in affected:
-            civ.economy = clamp(civ.economy - 1, 1, 10)
+            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
 
     # Cascade probabilities
     world.event_probabilities = apply_probability_cascade(
@@ -144,9 +144,9 @@ def phase_production(world: WorldState) -> None:
     """Generate income and adjust population for each civilization."""
     for civ in world.civilizations:
         # Income: base from economy, bonus from trade, penalty from conditions
-        income = civ.economy + len(civ.regions)
+        income = civ.economy + len(civ.regions) * 10
         condition_penalty = sum(
-            c.severity // 3
+            c.severity
             for c in world.active_conditions
             if civ.name in c.affected_civs
         )
@@ -157,21 +157,21 @@ def phase_production(world: WorldState) -> None:
         civ.treasury = max(0, civ.treasury - maintenance)
 
         # Treasury cap: scales with economy to preserve tension
-        treasury_cap = 10 + civ.economy * 3
+        treasury_cap = 100 + civ.economy * 3
         civ.treasury = min(civ.treasury, treasury_cap)
 
-        # Population growth: if economy > population and stability > 3
+        # Population growth: if economy > population and stability > 30
         region_capacity = sum(
             r.carrying_capacity
             for r in world.regions
             if r.controller == civ.name
         )
-        max_pop = min(10, region_capacity)
-        if civ.economy > civ.population and civ.stability > 3 and civ.population < max_pop:
-            civ.population = clamp(civ.population + 1, 1, 10)
+        max_pop = min(100, region_capacity)
+        if civ.economy > civ.population and civ.stability > 30 and civ.population < max_pop:
+            civ.population = clamp(civ.population + 5, STAT_FLOOR["population"], 100)
         # Population decline if stability very low
-        elif civ.stability <= 2 and civ.population > 1:
-            civ.population = clamp(civ.population - 1, 1, 10)
+        elif civ.stability <= 20 and civ.population > 1:
+            civ.population = clamp(civ.population - 5, STAT_FLOOR["population"], 100)
 
 
 # --- Phase 3: Action ---
@@ -225,14 +225,14 @@ def _resolve_action(civ: Civilization, action: ActionType, world: WorldState) ->
 
 def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
     """Invest in infrastructure: spend treasury to boost economy or culture."""
-    cost = 3
+    cost = 30
     if civ.treasury >= cost:
         civ.treasury -= cost
         if civ.economy <= civ.culture:
-            civ.economy = clamp(civ.economy + 1, 1, 10)
+            civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
             target = "economy"
         else:
-            civ.culture = clamp(civ.culture + 1, 1, 10)
+            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
             target = "culture"
         return Event(
             turn=world.turn, event_type="develop", actors=[civ.name],
@@ -255,11 +255,11 @@ def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
     # Filter out harsh terrain if below IRON era
     if not _era_at_least(civ.tech_era, TechEra.IRON):
         unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
-    if unclaimed and civ.military >= 3:
+    if unclaimed and civ.military >= 30:
         target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
-        civ.military = clamp(civ.military - 1, 1, 10)  # Expansion stretches forces
+        civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)  # Expansion stretches forces
         return Event(
             turn=world.turn, event_type="expand", actors=[civ.name],
             description=f"{civ.name} expanded into {target.name}.", importance=6,
@@ -305,7 +305,7 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
                 worst_disp = d
                 worst_name = other_name
 
-    if worst_name and civ.culture >= 3:
+    if worst_name and civ.culture >= 30:
         # Improve relationship in both directions
         rel_out = world.relationships[civ.name][worst_name]
         rel_out.disposition = DISPOSITION_UPGRADE[rel_out.disposition]
@@ -405,8 +405,8 @@ def resolve_war(
     def_power *= tech_war_multiplier(defender.tech_era, attacker.tech_era)
 
     # War costs treasury regardless of outcome
-    attacker.treasury = max(0, attacker.treasury - 2)
-    defender.treasury = max(0, defender.treasury - 1)
+    attacker.treasury = max(0, attacker.treasury - 20)
+    defender.treasury = max(0, defender.treasury - 10)
 
     if att_power > def_power * 1.3:
         # Attacker wins — seize a region if possible
@@ -416,20 +416,20 @@ def resolve_war(
             seized.controller = attacker.name
             attacker.regions.append(seized.name)
             defender.regions = [r for r in defender.regions if r != seized.name]
-        attacker.military = clamp(attacker.military - 1, 1, 10)
-        defender.military = clamp(defender.military - 2, 1, 10)
-        defender.stability = clamp(defender.stability - 1, 1, 10)
+        attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
+        defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
+        defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
         return "attacker_wins"
     elif def_power > att_power * 1.3:
         # Defender wins
-        attacker.military = clamp(attacker.military - 2, 1, 10)
-        defender.military = clamp(defender.military - 1, 1, 10)
-        attacker.stability = clamp(attacker.stability - 1, 1, 10)
+        attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
+        defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
+        attacker.stability = clamp(attacker.stability - 10, STAT_FLOOR["stability"], 100)
         return "defender_wins"
     else:
         # Stalemate — both sides lose
-        attacker.military = clamp(attacker.military - 1, 1, 10)
-        defender.military = clamp(defender.military - 1, 1, 10)
+        attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
+        defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
         return "stalemate"
 
 
@@ -516,7 +516,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
     if event_type == "leader_death":
         old_leader = civ.leader
         old_leader.alive = False
-        civ.stability = clamp(civ.stability - 2, 1, 10)
+        civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
         # Apply legacy if long reign
         apply_leader_legacy(civ, old_leader, world)
         # Check rival fall
@@ -525,22 +525,22 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         new_leader = generate_successor(civ, world, seed=world.turn * 100)
         civ.leader = new_leader
     elif event_type == "rebellion":
-        civ.stability = clamp(civ.stability - 2, 1, 10)
-        civ.military = clamp(civ.military - 1, 1, 10)
+        civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
+        civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
     elif event_type == "discovery":
-        civ.culture = clamp(civ.culture + 1, 1, 10)
-        civ.economy = clamp(civ.economy + 1, 1, 10)
+        civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+        civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
     elif event_type == "religious_movement":
-        civ.culture = clamp(civ.culture + 1, 1, 10)
-        civ.stability = clamp(civ.stability - 1, 1, 10)
+        civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
     elif event_type == "cultural_renaissance":
-        civ.culture = clamp(civ.culture + 2, 1, 10)
-        civ.stability = clamp(civ.stability + 1, 1, 10)
+        civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
+        civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
-        civ.population = clamp(civ.population + 1, 1, 10)
-        civ.stability = clamp(civ.stability - 1, 1, 10)
+        civ.population = clamp(civ.population + 10, STAT_FLOOR["population"], 100)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
     elif event_type == "border_incident":
-        civ.stability = clamp(civ.stability - 1, 1, 10)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
 
 
 def apply_injected_event(
@@ -567,29 +567,29 @@ def apply_injected_event(
     # Environment events (drought/plague/earthquake) have special handling
     # that creates ActiveConditions. Replicate that logic for the single target.
     if event_type == "drought":
-        civ.stability = clamp(civ.stability - 1, 1, 10)
-        civ.economy = clamp(civ.economy - 1, 1, 10)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="drought",
                 affected_civs=[target_civ_name],
                 duration=3,
-                severity=5,
+                severity=50,
             )
         )
     elif event_type == "plague":
-        civ.population = clamp(civ.population - 1, 1, 10)
-        civ.stability = clamp(civ.stability - 1, 1, 10)
+        civ.population = clamp(civ.population - 10, STAT_FLOOR["population"], 100)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="plague",
                 affected_civs=[target_civ_name],
                 duration=4,
-                severity=6,
+                severity=60,
             )
         )
     elif event_type == "earthquake":
-        civ.economy = clamp(civ.economy - 1, 1, 10)
+        civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
     else:
         # Non-environment events use the standard effect handler
         _apply_event_effects(event_type, civ, world)
@@ -612,8 +612,8 @@ def phase_consequences(world: WorldState) -> list[Event]:
         # Ongoing damage from conditions
         for civ_name in condition.affected_civs:
             civ = _get_civ(world, civ_name)
-            if civ and condition.severity >= 5:
-                civ.stability = clamp(civ.stability - 1, 1, 10)
+            if civ and condition.severity >= 50:
+                civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
 
     # Remove expired conditions
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
@@ -624,7 +624,7 @@ def phase_consequences(world: WorldState) -> list[Event]:
     # Check for civilization collapse (asabiya < 0.1 and stability <= 2)
     collapse_events: list[Event] = []
     for civ in world.civilizations:
-        if civ.asabiya < 0.1 and civ.stability <= 2:
+        if civ.asabiya < 0.1 and civ.stability <= 20:
             # Collapse: lose all but one region, stats halved
             if len(civ.regions) > 1:
                 lost = civ.regions[1:]
@@ -632,8 +632,8 @@ def phase_consequences(world: WorldState) -> list[Event]:
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
-                civ.military = clamp(civ.military // 2, 1, 10)
-                civ.economy = clamp(civ.economy // 2, 1, 10)
+                civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
+                civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
                 collapse_events.append(Event(
                     turn=world.turn,
                     event_type="collapse",
@@ -667,7 +667,7 @@ def phase_cultural_milestones(world: WorldState) -> list[Event]:
     from chronicler.named_events import generate_cultural_work
     events = []
     for civ in world.civilizations:
-        for threshold in [8, 10]:
+        for threshold in [80, 100]:
             marker = f"culture_{threshold}"
             if civ.culture >= threshold and marker not in civ.cultural_milestones:
                 civ.cultural_milestones.append(marker)

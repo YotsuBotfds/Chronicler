@@ -37,7 +37,7 @@ class LeaderOverride(BaseModel):
 class RegionOverride(BaseModel):
     name: str
     terrain: str | None = None
-    carrying_capacity: int | None = Field(default=None, ge=1, le=10)
+    carrying_capacity: int | None = Field(default=None, ge=1, le=100)
     resources: str | None = None
     controller: str | None = None
     x: float | None = None
@@ -46,11 +46,11 @@ class RegionOverride(BaseModel):
 
 class CivOverride(BaseModel):
     name: str
-    population: int | None = Field(default=None, ge=1, le=10)
-    military: int | None = Field(default=None, ge=1, le=10)
-    economy: int | None = Field(default=None, ge=1, le=10)
-    culture: int | None = Field(default=None, ge=1, le=10)
-    stability: int | None = Field(default=None, ge=1, le=10)
+    population: int | None = Field(default=None, ge=1, le=100)
+    military: int | None = Field(default=None, ge=0, le=100)
+    economy: int | None = Field(default=None, ge=0, le=100)
+    culture: int | None = Field(default=None, ge=0, le=100)
+    stability: int | None = Field(default=None, ge=0, le=100)
     treasury: int | None = Field(default=None, ge=0)
     asabiya: float | None = Field(default=None, ge=0.0, le=1.0)
     tech_era: str | None = None
@@ -65,7 +65,7 @@ class ConditionConfig(BaseModel):
     type: str
     affected: list[str]
     duration: int = Field(ge=1)
-    severity: int = Field(ge=1, le=10)
+    severity: int = Field(ge=1, le=100)
 
 
 class ScenarioConfig(BaseModel):

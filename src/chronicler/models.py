@@ -45,7 +45,7 @@ class ActionType(str, Enum):
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
-    carrying_capacity: int = Field(ge=1, le=10)
+    carrying_capacity: int = Field(ge=1, le=100)
     resources: str  # fertile, mineral, timber, maritime, barren
     controller: Optional[str] = None
     x: float | None = None
@@ -70,11 +70,11 @@ class Civilization(BaseModel):
     # to keep values in-bounds. Do NOT enable validate_assignment=True without
     # updating all mutation sites in simulation.py.
     name: str
-    population: int = Field(ge=1, le=10)
-    military: int = Field(ge=1, le=10)
-    economy: int = Field(ge=1, le=10)
-    culture: int = Field(ge=1, le=10)
-    stability: int = Field(ge=1, le=10)
+    population: int = Field(ge=1, le=100)
+    military: int = Field(ge=0, le=100)
+    economy: int = Field(ge=0, le=100)
+    culture: int = Field(ge=0, le=100)
+    stability: int = Field(ge=0, le=100)
     tech_era: TechEra = TechEra.TRIBAL
     treasury: int = 0
     domains: list[str] = Field(default_factory=list)
@@ -128,7 +128,7 @@ class ActiveCondition(BaseModel):
     condition_type: str
     affected_civs: list[str]
     duration: int
-    severity: int = Field(ge=1, le=10)
+    severity: int = Field(ge=1, le=100)
 
 
 # --- Top-level state ---

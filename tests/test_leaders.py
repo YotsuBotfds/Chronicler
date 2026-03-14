@@ -12,8 +12,8 @@ from chronicler.leaders import (
 @pytest.fixture
 def leader_civ():
     return Civilization(
-        name="Kethani Empire", population=5, military=5, economy=5, culture=6, stability=5,
-        tech_era=TechEra.CLASSICAL, treasury=15,
+        name="Kethani Empire", population=50, military=50, economy=50, culture=60, stability=50,
+        tech_era=TechEra.CLASSICAL, treasury=150,
         leader=Leader(name="Vaelith", trait="bold", reign_start=0),
         regions=["Region A"], domains=["maritime", "commerce"], values=["Trade", "Order"],
     )
@@ -21,16 +21,16 @@ def leader_civ():
 @pytest.fixture
 def leader_world(leader_civ):
     civ2 = Civilization(
-        name="Dorrathi Clans", population=5, military=5, economy=5, culture=5, stability=5,
-        tech_era=TechEra.IRON, treasury=10,
+        name="Dorrathi Clans", population=50, military=50, economy=50, culture=50, stability=50,
+        tech_era=TechEra.IRON, treasury=100,
         leader=Leader(name="Gorath", trait="aggressive", reign_start=0),
         regions=["Region B"], domains=["warfare", "conquest"],
     )
     return WorldState(
         name="Test", seed=42, turn=20,
         regions=[
-            Region(name="Region A", terrain="plains", carrying_capacity=8, resources="fertile"),
-            Region(name="Region B", terrain="mountains", carrying_capacity=5, resources="mineral"),
+            Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile"),
+            Region(name="Region B", terrain="mountains", carrying_capacity=50, resources="mineral"),
         ],
         civilizations=[leader_civ, civ2],
         relationships={
@@ -72,33 +72,33 @@ class TestSuccession:
         new = generate_successor(leader_civ, leader_world, seed=100, force_type="general")
         assert new.succession_type == "general"
         assert new.trait in ["aggressive", "bold", "ambitious"]
-        assert leader_civ.stability == old_s - 1
-        assert leader_civ.military == min(old_m + 1, 10)
+        assert leader_civ.stability == old_s - 10
+        assert leader_civ.military == min(old_m + 10, 100)
 
     def test_usurper_succession_effects(self, leader_civ, leader_world):
         old_s, old_a = leader_civ.stability, leader_civ.asabiya
         leader_civ.leader.alive = False
         new = generate_successor(leader_civ, leader_world, seed=100, force_type="usurper")
         assert new.succession_type == "usurper"
-        assert leader_civ.stability == max(old_s - 3, 1)
+        assert leader_civ.stability == max(old_s - 30, 1)
         assert leader_civ.asabiya == min(old_a + 0.1, 1.0)
 
     def test_elected_succession_requires_culture(self, leader_civ, leader_world):
-        leader_civ.culture = 4
+        leader_civ.culture = 40
         leader_civ.tech_era = TechEra.BRONZE
         leader_civ.leader.alive = False
         new = generate_successor(leader_civ, leader_world, seed=100, force_type="elected")
         assert new.succession_type != "elected"
 
     def test_elected_succession_with_culture(self, leader_civ, leader_world):
-        leader_civ.culture = 6
+        leader_civ.culture = 60
         leader_civ.leader.alive = False
         new = generate_successor(leader_civ, leader_world, seed=100, force_type="elected")
         assert new.succession_type == "elected"
-        assert leader_civ.stability >= 5
+        assert leader_civ.stability >= 50
 
     def test_elected_succession_with_classical_era(self, leader_civ, leader_world):
-        leader_civ.culture = 3
+        leader_civ.culture = 30
         leader_civ.tech_era = TechEra.CLASSICAL
         leader_civ.leader.alive = False
         new = generate_successor(leader_civ, leader_world, seed=100, force_type="elected")
@@ -150,7 +150,7 @@ class TestLegacy:
         conds = [c for c in leader_world.active_conditions if c.condition_type == "military_legacy"]
         assert len(conds) == 1
         assert conds[0].duration == 10
-        assert conds[0].severity == 1
+        assert conds[0].severity == 10
 
     def test_legacy_cautious_leader(self, leader_civ, leader_world):
         leader_civ.leader.trait = "cautious"
@@ -161,7 +161,7 @@ class TestLegacy:
     def test_no_duplicate_legacy(self, leader_civ, leader_world):
         leader_civ.leader.reign_start = 0
         leader_world.active_conditions.append(
-            ActiveCondition(condition_type="military_legacy", affected_civs=["Kethani Empire"], duration=5, severity=1)
+            ActiveCondition(condition_type="military_legacy", affected_civs=["Kethani Empire"], duration=5, severity=10)
         )
         assert apply_leader_legacy(leader_civ, leader_civ.leader, leader_world) is None
 
@@ -184,7 +184,7 @@ class TestRivalFall:
         old_c = other.culture
         event = check_rival_fall(leader_civ, "Vaelith", leader_world)
         assert event is not None
-        assert other.culture == old_c + 1
+        assert other.culture == old_c + 10
 
     def test_rival_fall_generates_named_event(self, leader_civ, leader_world):
         from chronicler.leaders import check_rival_fall

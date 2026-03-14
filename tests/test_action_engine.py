@@ -8,24 +8,24 @@ from chronicler.action_engine import ActionEngine
 @pytest.fixture
 def engine_world():
     civ1 = Civilization(
-        name="Civ A", population=5, military=5, economy=5, culture=5,
-        stability=5, tech_era=TechEra.IRON, treasury=15,
+        name="Civ A", population=50, military=50, economy=50, culture=50,
+        stability=50, tech_era=TechEra.IRON, treasury=150,
         leader=Leader(name="Vaelith", trait="aggressive", reign_start=0),
         regions=["Region A", "Region B"], domains=["warfare"],
     )
     civ2 = Civilization(
-        name="Civ B", population=5, military=5, economy=5, culture=5,
-        stability=5, tech_era=TechEra.IRON, treasury=15,
+        name="Civ B", population=50, military=50, economy=50, culture=50,
+        stability=50, tech_era=TechEra.IRON, treasury=150,
         leader=Leader(name="Gorath", trait="cautious", reign_start=0),
         regions=["Region C"], domains=["commerce"],
     )
     return WorldState(
         name="Test", seed=42, turn=5,
         regions=[
-            Region(name="Region A", terrain="plains", carrying_capacity=8, resources="fertile", controller="Civ A"),
-            Region(name="Region B", terrain="forest", carrying_capacity=6, resources="timber", controller="Civ A"),
-            Region(name="Region C", terrain="coast", carrying_capacity=7, resources="maritime", controller="Civ B"),
-            Region(name="Region D", terrain="plains", carrying_capacity=5, resources="fertile"),
+            Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile", controller="Civ A"),
+            Region(name="Region B", terrain="forest", carrying_capacity=60, resources="timber", controller="Civ A"),
+            Region(name="Region C", terrain="coast", carrying_capacity=70, resources="maritime", controller="Civ B"),
+            Region(name="Region D", terrain="plains", carrying_capacity=50, resources="fertile"),
         ],
         civilizations=[civ1, civ2],
         relationships={
@@ -44,7 +44,7 @@ class TestEligibility:
 
     def test_expand_requires_military(self, engine_world):
         engine = ActionEngine(engine_world)
-        engine_world.civilizations[0].military = 2
+        engine_world.civilizations[0].military = 20
         assert ActionType.EXPAND not in engine.get_eligible_actions(engine_world.civilizations[0])
 
     def test_war_requires_hostile_neighbor(self, engine_world):
@@ -89,19 +89,19 @@ class TestPersonalityWeights:
 class TestSituationalOverrides:
     def test_low_stability_boosts_diplomacy(self, engine_world):
         civ = engine_world.civilizations[0]
-        civ.stability = 2
+        civ.stability = 20
         w = ActionEngine(engine_world).compute_weights(civ)
         assert w[ActionType.DIPLOMACY] > w[ActionType.WAR]
 
     def test_high_military_hostile_boosts_war(self, engine_world):
         civ = engine_world.civilizations[0]
-        civ.military = 8
+        civ.military = 80
         w = ActionEngine(engine_world).compute_weights(civ)
         assert w[ActionType.WAR] > w[ActionType.DIPLOMACY]
 
     def test_low_treasury_suppresses_develop(self, engine_world):
         civ = engine_world.civilizations[0]
-        civ.treasury = 2
+        civ.treasury = 20
         w = ActionEngine(engine_world).compute_weights(civ)
         assert w[ActionType.DEVELOP] < 0.2 * 0.5
 
@@ -134,7 +134,7 @@ class TestSelection:
 
     def test_all_ineligible_falls_back_to_develop(self, engine_world):
         civ = engine_world.civilizations[0]
-        civ.military = 1
+        civ.military = 10
         civ.tech_era = TechEra.TRIBAL
         for r in engine_world.regions:
             r.controller = "Civ A"

@@ -150,7 +150,7 @@ class TestRunChronicleWithScenario:
         config = ScenarioConfig(
             name="Test Scenario",
             world_name="Test World",
-            civilizations=[CivOverride(name="Test Empire", military=9)],
+            civilizations=[CivOverride(name="Test Empire", military=90)],
         )
         run_chronicle(
             seed=42,

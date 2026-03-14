@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from chronicler.models import Civilization, Event, TechEra, WorldState
-from chronicler.utils import clamp
+from chronicler.utils import clamp, STAT_FLOOR
 
 
 _ERA_ORDER = list(TechEra)
@@ -21,21 +21,21 @@ def _next_era(era: TechEra) -> TechEra | None:
 
 
 TECH_REQUIREMENTS: dict[TechEra, tuple[int, int, int]] = {
-    TechEra.TRIBAL: (4, 4, 10),
-    TechEra.BRONZE: (5, 5, 12),
-    TechEra.IRON: (6, 6, 15),
-    TechEra.CLASSICAL: (7, 7, 18),
-    TechEra.MEDIEVAL: (8, 8, 22),
-    TechEra.RENAISSANCE: (9, 9, 28),
+    TechEra.TRIBAL: (40, 40, 100),
+    TechEra.BRONZE: (50, 50, 120),
+    TechEra.IRON: (60, 60, 150),
+    TechEra.CLASSICAL: (70, 70, 180),
+    TechEra.MEDIEVAL: (80, 80, 220),
+    TechEra.RENAISSANCE: (90, 90, 280),
 }
 
 ERA_BONUSES: dict[TechEra, dict[str, int | float]] = {
-    TechEra.BRONZE: {"military": 1},
-    TechEra.IRON: {"economy": 1},
-    TechEra.CLASSICAL: {"culture": 1},
-    TechEra.MEDIEVAL: {"military": 1},
-    TechEra.RENAISSANCE: {"economy": 2, "culture": 1},
-    TechEra.INDUSTRIAL: {"economy": 2, "military": 2},
+    TechEra.BRONZE: {"military": 10},
+    TechEra.IRON: {"economy": 10},
+    TechEra.CLASSICAL: {"culture": 10},
+    TechEra.MEDIEVAL: {"military": 10},
+    TechEra.RENAISSANCE: {"economy": 20, "culture": 10},
+    TechEra.INDUSTRIAL: {"economy": 20, "military": 20},
 }
 
 
@@ -62,7 +62,7 @@ def apply_era_bonus(civ: Civilization, era: TechEra) -> None:
     for stat, amount in bonuses.items():
         if isinstance(amount, int) and hasattr(civ, stat):
             current = getattr(civ, stat)
-            setattr(civ, stat, clamp(current + amount, 1, 10))
+            setattr(civ, stat, clamp(current + amount, STAT_FLOOR.get(stat, 0), 100))
 
 
 def tech_war_multiplier(attacker_era: TechEra, defender_era: TechEra) -> float:

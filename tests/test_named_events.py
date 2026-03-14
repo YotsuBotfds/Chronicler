@@ -13,14 +13,14 @@ from chronicler.named_events import (
 def named_world():
     leader = Leader(name="Vaelith", trait="bold", reign_start=0)
     civ1 = Civilization(
-        name="Kethani Empire", population=5, military=5, economy=5, culture=5,
-        stability=5, tech_era=TechEra.IRON, treasury=10,
+        name="Kethani Empire", population=50, military=50, economy=50, culture=50,
+        stability=50, tech_era=TechEra.IRON, treasury=100,
         leader=leader, regions=["Thornwood"], domains=["maritime", "commerce"],
         values=["Trade", "Order"],
     )
     civ2 = Civilization(
-        name="Dorrathi Clans", population=5, military=5, economy=5, culture=5,
-        stability=5, tech_era=TechEra.IRON, treasury=10,
+        name="Dorrathi Clans", population=50, military=50, economy=50, culture=50,
+        stability=50, tech_era=TechEra.IRON, treasury=100,
         leader=Leader(name="Gorath", trait="aggressive", reign_start=0),
         regions=["Iron Peaks"], domains=["warfare", "conquest"],
         values=["Honor", "Strength"],
@@ -28,8 +28,8 @@ def named_world():
     return WorldState(
         name="Test", seed=42, turn=10,
         regions=[
-            Region(name="Thornwood", terrain="forest", carrying_capacity=7, resources="timber"),
-            Region(name="Iron Peaks", terrain="mountains", carrying_capacity=5, resources="mineral"),
+            Region(name="Thornwood", terrain="forest", carrying_capacity=70, resources="timber"),
+            Region(name="Iron Peaks", terrain="mountains", carrying_capacity=50, resources="mineral"),
         ],
         civilizations=[civ1, civ2],
     )

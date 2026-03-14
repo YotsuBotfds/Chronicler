@@ -23,18 +23,18 @@ from chronicler.models import (
 # --- Name and trait pools ---
 
 REGION_TEMPLATES: list[dict] = [
-    {"name": "Verdant Plains", "terrain": "plains", "capacity": 8, "resources": "fertile"},
-    {"name": "Iron Peaks", "terrain": "mountains", "capacity": 4, "resources": "mineral"},
-    {"name": "Sapphire Coast", "terrain": "coast", "capacity": 6, "resources": "maritime"},
-    {"name": "Thornwood", "terrain": "forest", "capacity": 5, "resources": "timber"},
-    {"name": "Ashara Desert", "terrain": "desert", "capacity": 3, "resources": "barren"},
-    {"name": "Crystalfen Marsh", "terrain": "plains", "capacity": 4, "resources": "fertile"},
-    {"name": "Stormbreak Cliffs", "terrain": "mountains", "capacity": 3, "resources": "mineral"},
-    {"name": "Sunfire Steppe", "terrain": "plains", "capacity": 6, "resources": "fertile"},
-    {"name": "Mistwood", "terrain": "forest", "capacity": 5, "resources": "timber"},
-    {"name": "Obsidian Shore", "terrain": "coast", "capacity": 5, "resources": "maritime"},
-    {"name": "Frostholm Tundra", "terrain": "tundra", "capacity": 2, "resources": "barren"},
-    {"name": "Amber Valley", "terrain": "plains", "capacity": 7, "resources": "fertile"},
+    {"name": "Verdant Plains", "terrain": "plains", "capacity": 80, "resources": "fertile"},
+    {"name": "Iron Peaks", "terrain": "mountains", "capacity": 40, "resources": "mineral"},
+    {"name": "Sapphire Coast", "terrain": "coast", "capacity": 60, "resources": "maritime"},
+    {"name": "Thornwood", "terrain": "forest", "capacity": 50, "resources": "timber"},
+    {"name": "Ashara Desert", "terrain": "desert", "capacity": 30, "resources": "barren"},
+    {"name": "Crystalfen Marsh", "terrain": "plains", "capacity": 40, "resources": "fertile"},
+    {"name": "Stormbreak Cliffs", "terrain": "mountains", "capacity": 30, "resources": "mineral"},
+    {"name": "Sunfire Steppe", "terrain": "plains", "capacity": 60, "resources": "fertile"},
+    {"name": "Mistwood", "terrain": "forest", "capacity": 50, "resources": "timber"},
+    {"name": "Obsidian Shore", "terrain": "coast", "capacity": 50, "resources": "maritime"},
+    {"name": "Frostholm Tundra", "terrain": "tundra", "capacity": 20, "resources": "barren"},
+    {"name": "Amber Valley", "terrain": "plains", "capacity": 70, "resources": "fertile"},
 ]
 
 CIV_TEMPLATES: list[dict] = [
@@ -127,13 +127,13 @@ def assign_civilizations(
         civs.append(
             Civilization(
                 name=t["name"],
-                population=rng.randint(3, 7),
-                military=rng.randint(2, 7),
-                economy=rng.randint(3, 7),
-                culture=rng.randint(2, 7),
-                stability=rng.randint(4, 7),
+                population=rng.randint(30, 70),
+                military=rng.randint(20, 70),
+                economy=rng.randint(30, 70),
+                culture=rng.randint(20, 70),
+                stability=rng.randint(40, 70),
                 tech_era=TechEra.TRIBAL,
-                treasury=rng.randint(3, 15),
+                treasury=rng.randint(30, 150),
                 leader=Leader(name=leader_name, trait=t["trait"], reign_start=0),
                 domains=t["domains"],
                 values=t["values"],

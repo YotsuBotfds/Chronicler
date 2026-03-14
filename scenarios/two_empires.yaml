@@ -7,17 +7,17 @@ num_regions: 6
 
 civilizations:
   - name: Dominion of Ashar
-    military: 7
-    economy: 6
-    stability: 6
+    military: 70
+    economy: 60
+    stability: 60
     tech_era: iron
     domains: [warfare, conquest]
     leader:
       trait: aggressive
   - name: Thalassic League
-    military: 6
-    economy: 7
-    culture: 6
+    military: 60
+    economy: 70
+    culture: 60
     tech_era: iron
     domains: [maritime, commerce]
     leader:

@@ -85,9 +85,9 @@ def test_m7_critical_gate_20_turns():
     world = generate_world(seed=42, num_regions=8, num_civs=4)
 
     for civ in world.civilizations:
-        civ.economy = 5
-        civ.culture = 5
-        civ.treasury = 12
+        civ.economy = 50
+        civ.culture = 50
+        civ.treasury = 120
 
     def stub_narrator(w, events):
         return "Turn narrative."
@@ -119,11 +119,11 @@ def test_m7_critical_gate_20_turns():
 
     # Criterion 5: All stats bounded
     for civ in world.civilizations:
-        assert 1 <= civ.population <= 10
-        assert 1 <= civ.military <= 10
-        assert 1 <= civ.economy <= 10
-        assert 1 <= civ.culture <= 10
-        assert 1 <= civ.stability <= 10
+        assert 1 <= civ.population <= 100
+        assert 0 <= civ.military <= 100
+        assert 0 <= civ.economy <= 100
+        assert 0 <= civ.culture <= 100
+        assert 0 <= civ.stability <= 100
         assert 0.0 <= civ.asabiya <= 1.0
         assert civ.treasury >= 0
 

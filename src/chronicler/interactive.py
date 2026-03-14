@@ -52,8 +52,8 @@ def parse_command(raw: str) -> tuple[str, Any]:
             value = int(tokens[3])
         except ValueError:
             return ("error", f"Value must be an integer, got '{tokens[3]}'")
-        if stat in CORE_STATS and not (1 <= value <= 10):
-            return ("error", f"Value for {stat} must be 1-10, got {value}")
+        if stat in CORE_STATS and not (1 <= value <= 100):
+            return ("error", f"Value for {stat} must be 1-100, got {value}")
         if stat == "treasury" and value < 0:
             return ("error", f"Treasury must be >= 0, got {value}")
         return ("set", (civ_name, stat, value))
@@ -119,7 +119,7 @@ def _print_help() -> None:
     print("  quit                             — Compile chronicle and exit")
     print("  help                             — Show this message")
     print(f"\nValid event types: {sorted(VALID_INJECTABLE_EVENTS)}")
-    print(f"Valid stats: {sorted(VALID_STATS)} (1-10 for core stats, 0+ for treasury)")
+    print(f"Valid stats: {sorted(VALID_STATS)} (1-100 for core stats, 0+ for treasury)")
     print()
 
 

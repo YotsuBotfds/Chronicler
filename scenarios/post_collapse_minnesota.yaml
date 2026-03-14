@@ -10,52 +10,52 @@ reflection_interval: 10
 regions:
   - name: Northern Prairies
     terrain: plains
-    carrying_capacity: 6
+    carrying_capacity: 60
     resources: fertile
   - name: Red River Valley
     terrain: river
-    carrying_capacity: 8
+    carrying_capacity: 80
     resources: fertile
   - name: Iron Range
     terrain: forest
-    carrying_capacity: 4
+    carrying_capacity: 40
     resources: mineral
   - name: Boundary Waters
     terrain: forest
-    carrying_capacity: 3
+    carrying_capacity: 30
     resources: timber
   - name: Twin Cities Ruins
     terrain: plains
-    carrying_capacity: 5
+    carrying_capacity: 50
     resources: mineral
   - name: Mississippi Corridor
     terrain: river
-    carrying_capacity: 7
+    carrying_capacity: 70
     resources: maritime
   - name: Bluff Country
     terrain: hills
-    carrying_capacity: 5
+    carrying_capacity: 50
     resources: timber
   - name: Lake Country
     terrain: forest
-    carrying_capacity: 6
+    carrying_capacity: 60
     resources: timber
   - name: Willmar
     terrain: plains
-    carrying_capacity: 9
+    carrying_capacity: 90
     resources: fertile
   - name: Benson
     terrain: plains
-    carrying_capacity: 8
+    carrying_capacity: 80
     resources: fertile
 
 civilizations:
   - name: Farmer Co-ops
-    population: 6
-    military: 3
-    economy: 7
-    culture: 4
-    stability: 7
+    population: 60
+    military: 30
+    economy: 70
+    culture: 40
+    stability: 70
     tech_era: tribal
     domains: [agriculture, community]
     values: [pragmatism, self-reliance]
@@ -81,11 +81,11 @@ civilizations:
       - Engstrom
 
   - name: River Towns Alliance
-    population: 5
-    military: 4
-    economy: 6
-    culture: 5
-    stability: 5
+    population: 50
+    military: 40
+    economy: 60
+    culture: 50
+    stability: 50
     tech_era: tribal
     domains: [commerce, navigation]
     values: [trade, cooperation]
@@ -111,11 +111,11 @@ civilizations:
       - Albion
 
   - name: National Guard Remnant
-    population: 4
-    military: 8
-    economy: 3
-    culture: 2
-    stability: 6
+    population: 40
+    military: 80
+    economy: 30
+    culture: 20
+    stability: 60
     tech_era: tribal
     domains: [warfare, discipline]
     values: [order, duty]
@@ -141,11 +141,11 @@ civilizations:
       - Meier
 
   - name: Prepper Networks
-    population: 3
-    military: 5
-    economy: 4
-    culture: 2
-    stability: 8
+    population: 30
+    military: 50
+    economy: 40
+    culture: 20
+    stability: 80
     tech_era: tribal
     domains: [survival, fortification]
     values: [independence, preparedness]
@@ -171,11 +171,11 @@ civilizations:
       - Engel
 
   - name: Church Communities
-    population: 5
-    military: 2
-    economy: 4
-    culture: 7
-    stability: 7
+    population: 50
+    military: 20
+    economy: 40
+    culture: 70
+    stability: 70
     tech_era: tribal
     domains: [faith, diplomacy]
     values: [compassion, unity]
@@ -201,11 +201,11 @@ civilizations:
       - Vik
 
   - name: Carleton Enclave
-    population: 3
-    military: 2
-    economy: 5
-    culture: 8
-    stability: 5
+    population: 30
+    military: 20
+    economy: 50
+    culture: 80
+    stability: 50
     tech_era: classical
     domains: [knowledge, preservation]
     values: [learning, reason]
@@ -281,7 +281,7 @@ starting_conditions:
       - Church Communities
       - Carleton Enclave
     duration: 999
-    severity: 4
+    severity: 40
 
 narrative_style: >-
   Terse, pragmatic tone. Midwestern understatement. Focus on weather, crops, community

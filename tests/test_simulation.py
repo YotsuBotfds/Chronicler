@@ -56,9 +56,9 @@ class TestPhaseProduction:
 
     def test_population_bounded(self, sample_world):
         # Set population to max
-        sample_world.civilizations[0].population = 10
+        sample_world.civilizations[0].population = 100
         phase_production(sample_world)
-        assert sample_world.civilizations[0].population <= 10
+        assert sample_world.civilizations[0].population <= 100
 
 
 class TestPhaseAction:
@@ -73,8 +73,8 @@ class TestPhaseAction:
 
 class TestResolveWar:
     def test_attacker_wins_if_stronger(self, sample_world):
-        attacker = sample_world.civilizations[1]  # Dorrathi: military=7
-        defender = sample_world.civilizations[0]  # Kethani: military=5
+        attacker = sample_world.civilizations[1]  # Dorrathi: military=70
+        defender = sample_world.civilizations[0]  # Kethani: military=50
         attacker_mil_before = attacker.military
         result = resolve_war(attacker, defender, sample_world, seed=42)
         assert result in ("attacker_wins", "defender_wins", "stalemate")
@@ -118,14 +118,14 @@ class TestAsabiyaDynamics:
 class TestPhaseConsequences:
     def test_conditions_tick_down(self, sample_world):
         sample_world.active_conditions.append(
-            ActiveCondition(condition_type="drought", affected_civs=["Kethani Empire"], duration=3, severity=5)
+            ActiveCondition(condition_type="drought", affected_civs=["Kethani Empire"], duration=3, severity=50)
         )
         phase_consequences(sample_world)
         assert sample_world.active_conditions[0].duration == 2
 
     def test_expired_conditions_removed(self, sample_world):
         sample_world.active_conditions.append(
-            ActiveCondition(condition_type="drought", affected_civs=["Kethani Empire"], duration=1, severity=5)
+            ActiveCondition(condition_type="drought", affected_civs=["Kethani Empire"], duration=1, severity=50)
         )
         phase_consequences(sample_world)
         assert len(sample_world.active_conditions) == 0
@@ -134,7 +134,7 @@ class TestPhaseConsequences:
         """Collapse events must be returned so the narrator can see them."""
         civ = sample_world.civilizations[0]
         civ.asabiya = 0.05  # Below 0.1 threshold
-        civ.stability = 1   # Below 2 threshold
+        civ.stability = 10  # Below 20 threshold
         # Give civ multiple regions so collapse actually fires
         civ.regions = [r.name for r in sample_world.regions[:3]]
         for r in sample_world.regions[:3]:
@@ -172,7 +172,7 @@ class TestRunTurn:
         # Force a collapse for the first civ
         civ = sample_world.civilizations[0]
         civ.asabiya = 0.05
-        civ.stability = 1
+        civ.stability = 10
         civ.regions = [r.name for r in sample_world.regions[:3]]
         for r in sample_world.regions[:3]:
             r.controller = civ.name
@@ -228,7 +228,7 @@ class TestFiveTurnValidation:
             assert len(loaded.civilizations) == len(sample_world.civilizations)
 
     def test_five_turns_stats_stay_bounded(self, sample_world):
-        """All civilization stats must remain within [1, 10] after 5 turns."""
+        """All civilization stats must remain within [0, 100] after 5 turns."""
         def stub_selector(civ, world):
             # Mix of actions to stress-test bounds
             actions = [ActionType.DEVELOP, ActionType.WAR, ActionType.EXPAND,
@@ -242,11 +242,11 @@ class TestFiveTurnValidation:
             run_turn(sample_world, stub_selector, stub_narrator, seed=i)
 
         for civ in sample_world.civilizations:
-            assert 1 <= civ.population <= 10
-            assert 1 <= civ.military <= 10
-            assert 1 <= civ.economy <= 10
-            assert 1 <= civ.culture <= 10
-            assert 1 <= civ.stability <= 10
+            assert 1 <= civ.population <= 100
+            assert 0 <= civ.military <= 100
+            assert 0 <= civ.economy <= 100
+            assert 0 <= civ.culture <= 100
+            assert 0 <= civ.stability <= 100
             assert 0.0 <= civ.asabiya <= 1.0
 
 
@@ -254,9 +254,9 @@ def test_nine_phase_run_turn(sample_world):
     """run_turn executes all 9 phases without error."""
     for civ in sample_world.civilizations:
         civ.tech_era = TechEra.TRIBAL
-        civ.economy = 5
-        civ.culture = 5
-        civ.treasury = 15
+        civ.economy = 50
+        civ.culture = 50
+        civ.treasury = 150
 
     def stub_selector(civ, world):
         return ActionType.DEVELOP
@@ -273,9 +273,9 @@ def test_tech_phase_runs(sample_world):
     """Tech advancement should happen during the tech phase."""
     for civ in sample_world.civilizations:
         civ.tech_era = TechEra.TRIBAL
-        civ.economy = 4
-        civ.culture = 4
-        civ.treasury = 10
+        civ.economy = 40
+        civ.culture = 40
+        civ.treasury = 100
 
     def stub_selector(civ, world):
         return ActionType.DEVELOP
@@ -342,10 +342,10 @@ def test_war_uses_tech_disparity(sample_world):
     defender.tech_era = TechEra.TRIBAL
     results = []
     for seed in range(50):
-        attacker.military = 5
-        defender.military = 5
-        attacker.treasury = 10
-        defender.treasury = 10
+        attacker.military = 50
+        defender.military = 50
+        attacker.treasury = 100
+        defender.treasury = 100
         result = resolve_war(attacker, defender, sample_world, seed=seed)
         results.append(result)
     attacker_wins = sum(1 for r in results if r == "attacker_wins")
@@ -378,7 +378,7 @@ def test_diplomacy_treaty_requires_classical_era(sample_world):
     civ = sample_world.civilizations[0]
     other = sample_world.civilizations[1]
     civ.tech_era = TechEra.BRONZE  # Below CLASSICAL
-    civ.culture = 5
+    civ.culture = 50
     # Set relationship to NEUTRAL so diplomacy upgrades to FRIENDLY (treaty-worthy)
     sample_world.relationships[civ.name][other.name] = Relationship(disposition=Disposition.NEUTRAL)
     sample_world.relationships[other.name][civ.name] = Relationship(disposition=Disposition.NEUTRAL)
@@ -394,7 +394,7 @@ def test_diplomacy_treaty_generated_at_classical(sample_world):
     civ = sample_world.civilizations[0]
     other = sample_world.civilizations[1]
     civ.tech_era = TechEra.CLASSICAL
-    civ.culture = 5
+    civ.culture = 50
     sample_world.relationships[civ.name][other.name] = Relationship(disposition=Disposition.NEUTRAL)
     sample_world.relationships[other.name][civ.name] = Relationship(disposition=Disposition.NEUTRAL)
     _resolve_diplomacy(civ, sample_world)
@@ -408,12 +408,12 @@ def test_expand_harsh_terrain_requires_iron(sample_world):
     from chronicler.models import Region
     civ = sample_world.civilizations[0]
     civ.tech_era = TechEra.BRONZE
-    civ.military = 5
+    civ.military = 50
     # Remove all unclaimed regions, add only a desert one
     for r in sample_world.regions:
         r.controller = "someone"
     sample_world.regions.append(
-        Region(name="Burning Wastes", terrain="desert", carrying_capacity=3, resources="sparse")
+        Region(name="Burning Wastes", terrain="desert", carrying_capacity=30, resources="sparse")
     )
     event = _resolve_expand(civ, sample_world)
     assert "could not expand" in event.description
@@ -425,11 +425,11 @@ def test_expand_harsh_terrain_allowed_at_iron(sample_world):
     from chronicler.models import Region
     civ = sample_world.civilizations[0]
     civ.tech_era = TechEra.IRON
-    civ.military = 5
+    civ.military = 50
     for r in sample_world.regions:
         r.controller = "someone"
     sample_world.regions.append(
-        Region(name="Burning Wastes", terrain="desert", carrying_capacity=3, resources="sparse")
+        Region(name="Burning Wastes", terrain="desert", carrying_capacity=30, resources="sparse")
     )
     event = _resolve_expand(civ, sample_world)
     assert "expanded into" in event.description
@@ -440,8 +440,8 @@ def test_medieval_defender_asabiya_bonus(sample_world):
     attacker = sample_world.civilizations[0]
     defender = sample_world.civilizations[1]
     # Both have equal military, but defender has MEDIEVAL era advantage
-    attacker.military = 5
-    defender.military = 5
+    attacker.military = 50
+    defender.military = 50
     attacker.tech_era = TechEra.CLASSICAL
     defender.tech_era = TechEra.MEDIEVAL
     attacker.asabiya = 0.5
@@ -449,10 +449,10 @@ def test_medieval_defender_asabiya_bonus(sample_world):
     # Run many trials to confirm statistical edge
     defender_wins = 0
     for seed in range(100):
-        attacker.military = 5
-        defender.military = 5
-        attacker.treasury = 10
-        defender.treasury = 10
+        attacker.military = 50
+        defender.military = 50
+        attacker.treasury = 100
+        defender.treasury = 100
         result = resolve_war(attacker, defender, sample_world, seed=seed)
         if result == "defender_wins":
             defender_wins += 1

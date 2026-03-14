@@ -46,7 +46,7 @@ class TestScenarioModels:
         assert lo.trait is None
 
     def test_condition_config_fields(self):
-        cc = ConditionConfig(type="drought", affected=["Civ A"], duration=3, severity=4)
+        cc = ConditionConfig(type="drought", affected=["Civ A"], duration=3, severity=40)
         assert cc.type == "drought"
         assert cc.affected == ["Civ A"]
 
@@ -63,14 +63,14 @@ class TestScenarioModels:
             reflection_interval=10,
             regions=[RegionOverride(name="Region A", terrain="plains")],
             civilizations=[CivOverride(
-                name="Civ A", economy=8, leader=LeaderOverride(trait="cautious"),
+                name="Civ A", economy=80, leader=LeaderOverride(trait="cautious"),
             )],
             relationships={"Civ A": {"Civ B": "hostile"}},
             event_probability_overrides={"drought": 0.1},
-            starting_conditions=[ConditionConfig(type="drought", affected=["Civ A"], duration=3, severity=4)],
+            starting_conditions=[ConditionConfig(type="drought", affected=["Civ A"], duration=3, severity=40)],
         )
         assert config.seed == 42
-        assert config.civilizations[0].economy == 8
+        assert config.civilizations[0].economy == 80
         assert config.civilizations[0].leader.trait == "cautious"
 
     def test_event_flavor_field(self):
@@ -137,7 +137,7 @@ class TestLoadScenario:
     def test_load_stat_out_of_range(self, tmp_path):
         path = self._write_yaml(tmp_path, {
             "name": "Test",
-            "civilizations": [{"name": "Civ A", "population": 15}],
+            "civilizations": [{"name": "Civ A", "population": 150}],
         })
         with pytest.raises(ValueError):
             load_scenario(path)
@@ -204,7 +204,7 @@ class TestLoadScenario:
     def test_load_zero_duration(self, tmp_path):
         path = self._write_yaml(tmp_path, {
             "name": "Test",
-            "starting_conditions": [{"type": "drought", "affected": ["A"], "duration": 0, "severity": 3}],
+            "starting_conditions": [{"type": "drought", "affected": ["A"], "duration": 0, "severity": 30}],
         })
         with pytest.raises(ValueError):
             load_scenario(path)
@@ -218,18 +218,18 @@ class TestLoadScenario:
             "num_regions": 6,
             "num_turns": 50,
             "civilizations": [
-                {"name": "Civ A", "economy": 8, "tech_era": "iron", "leader": {"trait": "cautious"}},
-                {"name": "Civ B", "military": 7},
+                {"name": "Civ A", "economy": 80, "tech_era": "iron", "leader": {"trait": "cautious"}},
+                {"name": "Civ B", "military": 70},
             ],
-            "regions": [{"name": "Region X", "terrain": "plains", "carrying_capacity": 9}],
+            "regions": [{"name": "Region X", "terrain": "plains", "carrying_capacity": 90}],
             "relationships": {"Civ A": {"Civ B": "hostile"}},
             "event_probability_overrides": {"drought": 0.12},
-            "starting_conditions": [{"type": "drought", "affected": ["Civ A"], "duration": 3, "severity": 4}],
+            "starting_conditions": [{"type": "drought", "affected": ["Civ A"], "duration": 3, "severity": 40}],
         }
         path = self._write_yaml(tmp_path, data)
         config = load_scenario(path)
         assert config.name == "Full Test"
-        assert config.civilizations[0].economy == 8
+        assert config.civilizations[0].economy == 80
         assert config.civilizations[0].leader.trait == "cautious"
         assert config.relationships == {"Civ A": {"Civ B": "hostile"}}
 
@@ -340,12 +340,12 @@ class TestApplyScenario:
     def test_civ_injection_overrides_stats(self, generated_world):
         config = ScenarioConfig(
             name="Test",
-            civilizations=[CivOverride(name="Strong Civ", military=9, economy=8)],
+            civilizations=[CivOverride(name="Strong Civ", military=90, economy=80)],
         )
         apply_scenario(generated_world, config)
         civ = generated_world.civilizations[0]
-        assert civ.military == 9
-        assert civ.economy == 8
+        assert civ.military == 90
+        assert civ.economy == 80
 
     def test_civ_injection_retains_defaults(self, generated_world):
         old_pop = generated_world.civilizations[0].population
@@ -384,12 +384,12 @@ class TestApplyScenario:
         old_name = generated_world.regions[0].name
         config = ScenarioConfig(
             name="Test",
-            regions=[RegionOverride(name="Willmar", terrain="plains", carrying_capacity=9)],
+            regions=[RegionOverride(name="Willmar", terrain="plains", carrying_capacity=90)],
         )
         apply_scenario(generated_world, config)
         assert generated_world.regions[0].name == "Willmar"
         assert generated_world.regions[0].terrain == "plains"
-        assert generated_world.regions[0].carrying_capacity == 9
+        assert generated_world.regions[0].carrying_capacity == 90
 
     def test_region_rename_updates_civ_regions(self, generated_world):
         """Critical: civ.regions list must be updated when region is renamed."""
@@ -476,7 +476,7 @@ class TestApplyScenario:
         config = ScenarioConfig(
             name="Test",
             starting_conditions=[
-                ConditionConfig(type="drought", affected=[civ_name], duration=3, severity=4),
+                ConditionConfig(type="drought", affected=[civ_name], duration=3, severity=40),
             ],
         )
         apply_scenario(generated_world, config)
@@ -484,7 +484,7 @@ class TestApplyScenario:
         assert len(conds) == 1
         assert conds[0].affected_civs == [civ_name]
         assert conds[0].duration == 3
-        assert conds[0].severity == 4
+        assert conds[0].severity == 40
 
     def test_world_name_override(self, generated_world):
         config = ScenarioConfig(name="Test", world_name="The River Valleys")
@@ -514,12 +514,12 @@ class TestApplyScenario:
         existing_name = generated_world.civilizations[1].name
         config = ScenarioConfig(
             name="Test",
-            civilizations=[CivOverride(name=existing_name, military=10)],
+            civilizations=[CivOverride(name=existing_name, military=100)],
         )
         apply_scenario(generated_world, config)
         matched = [c for c in generated_world.civilizations if c.name == existing_name]
         assert len(matched) == 1
-        assert matched[0].military == 10
+        assert matched[0].military == 100
 
     def test_tech_era_override(self, generated_world):
         config = ScenarioConfig(
@@ -544,7 +544,7 @@ class TestApplyScenario:
         config = ScenarioConfig(
             name="Test",
             starting_conditions=[
-                ConditionConfig(type="drought", affected=["Nonexistent Civ"], duration=3, severity=4),
+                ConditionConfig(type="drought", affected=["Nonexistent Civ"], duration=3, severity=40),
             ],
         )
         with pytest.raises(ValueError, match="unknown civ"):
@@ -679,7 +679,7 @@ class TestTemplates:
         assert config.name == "Two Empires"
         assert len(config.civilizations) == 2
         assert config.civilizations[0].name == "Dominion of Ashar"
-        assert config.civilizations[0].military == 7
+        assert config.civilizations[0].military == 70
 
     def test_golden_age_loads(self):
         config = load_scenario(TEMPLATE_DIR / "golden_age.yaml")
@@ -710,7 +710,7 @@ class TestTemplates:
         assert "Dominion of Ashar" in civ_names
         assert "Thalassic League" in civ_names
         ashar = next(c for c in world.civilizations if c.name == "Dominion of Ashar")
-        assert ashar.military == 7
+        assert ashar.military == 70
         assert ashar.tech_era == TechEra.IRON
         assert world.relationships["Dominion of Ashar"]["Thalassic League"].disposition == Disposition.HOSTILE
         # Run 10 turns
@@ -930,7 +930,7 @@ class TestIntegration:
         apply_scenario(world, config)
         grid_down = [c for c in world.active_conditions if c.condition_type == "grid-down"]
         assert len(grid_down) == 1
-        assert grid_down[0].severity == 4
+        assert grid_down[0].severity == 40
         for i in range(20):
             engine = ActionEngine(world)
             run_turn(world,

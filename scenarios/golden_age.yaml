@@ -6,28 +6,28 @@ num_regions: 8
 
 civilizations:
   - name: Aureate Republic
-    culture: 8
-    economy: 7
-    military: 3
+    culture: 80
+    economy: 70
+    military: 30
     domains: [knowledge, culture]
     leader:
       trait: visionary
   - name: Jade Consortium
-    economy: 8
-    culture: 6
+    economy: 80
+    culture: 60
     domains: [commerce, maritime]
     leader:
       trait: shrewd
   - name: Silverpeak Accord
-    culture: 7
-    stability: 8
+    culture: 70
+    stability: 80
     domains: [highland, mining]
     leader:
       trait: cautious
   - name: Verdant Communion
-    culture: 7
-    economy: 6
-    stability: 7
+    culture: 70
+    economy: 60
+    stability: 70
     domains: [woodland, nature]
     leader:
       trait: visionary

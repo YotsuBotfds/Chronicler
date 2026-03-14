@@ -39,7 +39,7 @@ class ActionEngine:
     def get_eligible_actions(self, civ: Civilization) -> list[ActionType]:
         eligible = [ActionType.DEVELOP, ActionType.DIPLOMACY]
         unclaimed = [r for r in self.world.regions if r.controller is None]
-        if civ.military >= 3 and unclaimed:
+        if civ.military >= 30 and unclaimed:
             eligible.append(ActionType.EXPAND)
         has_hostile = False
         if civ.name in self.world.relationships:
@@ -101,7 +101,7 @@ class ActionEngine:
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
-        if civ.stability <= 2:
+        if civ.stability <= 20:
             weights[ActionType.DIPLOMACY] *= 3.0
             weights[ActionType.WAR] *= 0.1
         has_hostile = False
@@ -110,17 +110,17 @@ class ActionEngine:
                 if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                     has_hostile = True
                     break
-        if civ.military >= 7 and has_hostile:
+        if civ.military >= 70 and has_hostile:
             weights[ActionType.WAR] *= 2.5
-        if civ.treasury >= 20:
+        if civ.treasury >= 200:
             weights[ActionType.EXPAND] *= 2.0
             weights[ActionType.TRADE] *= 1.5
-        if civ.treasury <= 3:
+        if civ.treasury <= 30:
             weights[ActionType.DEVELOP] *= 0.3
             weights[ActionType.EXPAND] *= 0.2
-        if civ.population >= 8 and len(civ.regions) <= 2:
+        if civ.population >= 80 and len(civ.regions) <= 2:
             weights[ActionType.EXPAND] *= 3.0
-        if civ.economy <= 3:
+        if civ.economy <= 30:
             weights[ActionType.DEVELOP] *= 2.0
             weights[ActionType.TRADE] *= 1.5
         if not has_hostile:

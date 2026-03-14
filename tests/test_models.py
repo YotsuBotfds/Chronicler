@@ -18,7 +18,7 @@ from chronicler.models import (
 
 class TestRegion:
     def test_create_valid_region(self):
-        r = Region(name="Verdant Plains", terrain="plains", carrying_capacity=7, resources="fertile")
+        r = Region(name="Verdant Plains", terrain="plains", carrying_capacity=70, resources="fertile")
         assert r.name == "Verdant Plains"
         assert r.controller is None
 
@@ -26,7 +26,7 @@ class TestRegion:
         with pytest.raises(Exception):
             Region(name="X", terrain="plains", carrying_capacity=0, resources="fertile")
         with pytest.raises(Exception):
-            Region(name="X", terrain="plains", carrying_capacity=11, resources="fertile")
+            Region(name="X", terrain="plains", carrying_capacity=101, resources="fertile")
 
 
 class TestCivilization:
@@ -34,11 +34,11 @@ class TestCivilization:
         leader = Leader(name="Kael", trait="ambitious", reign_start=0)
         civ = Civilization(
             name="Kethani Empire",
-            population=5,
-            military=4,
-            economy=6,
-            culture=7,
-            stability=5,
+            population=50,
+            military=40,
+            economy=60,
+            culture=70,
+            stability=50,
             leader=leader,
             domains=["maritime", "commerce"],
             values=["Honor", "Trade"],
@@ -51,13 +51,13 @@ class TestCivilization:
         leader = Leader(name="X", trait="bold", reign_start=0)
         with pytest.raises(Exception):
             Civilization(
-                name="Bad", population=0, military=1, economy=1,
-                culture=1, stability=1, leader=leader,
+                name="Bad", population=0, military=10, economy=10,
+                culture=10, stability=10, leader=leader,
             )
         with pytest.raises(Exception):
             Civilization(
-                name="Bad", population=11, military=1, economy=1,
-                culture=1, stability=1, leader=leader,
+                name="Bad", population=101, military=10, economy=10,
+                culture=10, stability=10, leader=leader,
             )
 
 
@@ -143,7 +143,7 @@ def test_civilization_new_fields():
     leader = Leader(name="Test", trait="bold", reign_start=0)
     civ = Civilization(
         name="Test Civ",
-        population=5, military=5, economy=5, culture=5, stability=5,
+        population=50, military=50, economy=50, culture=50, stability=50,
         leader=leader, regions=["Region A"],
     )
     assert civ.cultural_milestones == []
@@ -173,14 +173,14 @@ def test_named_event_serialization():
 
 def test_civilization_leader_name_pool_default_none():
     civ = Civilization(
-        name="Test", population=5, military=5, economy=5, culture=5, stability=5,
+        name="Test", population=50, military=50, economy=50, culture=50, stability=50,
         leader=Leader(name="Test Leader", trait="bold", reign_start=0),
     )
     assert civ.leader_name_pool is None
 
 def test_civilization_leader_name_pool_set():
     civ = Civilization(
-        name="Test", population=5, military=5, economy=5, culture=5, stability=5,
+        name="Test", population=50, military=50, economy=50, culture=50, stability=50,
         leader=Leader(name="Test Leader", trait="bold", reign_start=0),
         leader_name_pool=["A", "B", "C"],
     )

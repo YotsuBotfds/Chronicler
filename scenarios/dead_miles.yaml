@@ -10,62 +10,62 @@ reflection_interval: 10
 regions:
   - name: Gasoline Alley
     terrain: plains
-    carrying_capacity: 5
+    carrying_capacity: 50
     resources: mineral
     controller: Geargrinders
   - name: The Terminal
     terrain: river
-    carrying_capacity: 9
+    carrying_capacity: 90
     resources: maritime
     controller: Haulers Union
   - name: The Gulch
     terrain: hills
-    carrying_capacity: 3
+    carrying_capacity: 30
     resources: barren
     controller: "none"
   - name: Dockside
     terrain: river
-    carrying_capacity: 8
+    carrying_capacity: 80
     resources: maritime
     controller: Chrome Council
   - name: The Interchange
     terrain: river
-    carrying_capacity: 7
+    carrying_capacity: 70
     resources: maritime
     controller: "none"
   - name: Scrap Row
     terrain: forest
-    carrying_capacity: 4
+    carrying_capacity: 40
     resources: mineral
     controller: Rustborn
   - name: Chrome Heights
     terrain: hills
-    carrying_capacity: 6
+    carrying_capacity: 60
     resources: fertile
     controller: Chrome Council
   - name: Voltage Park
     terrain: plains
-    carrying_capacity: 5
+    carrying_capacity: 50
     resources: mineral
     controller: Electrics
   - name: The Long Haul
     terrain: plains
-    carrying_capacity: 6
+    carrying_capacity: 60
     resources: barren
     controller: Haulers Union
   - name: Rust Narrows
     terrain: forest
-    carrying_capacity: 3
+    carrying_capacity: 30
     resources: barren
     controller: Rustborn
 
 civilizations:
   - name: Geargrinders
-    population: 5
-    military: 8
-    economy: 5
-    culture: 2
-    stability: 4
+    population: 50
+    military: 80
+    economy: 50
+    culture: 20
+    stability: 40
     tech_era: iron
     domains: [warfare, engineering]
     values: [strength, dominance]
@@ -91,11 +91,11 @@ civilizations:
       - Bore
 
   - name: Haulers Union
-    population: 6
-    military: 4
-    economy: 8
-    culture: 4
-    stability: 7
+    population: 60
+    military: 40
+    economy: 80
+    culture: 40
+    stability: 70
     tech_era: iron
     domains: [commerce, logistics]
     values: [trade, solidarity]
@@ -121,11 +121,11 @@ civilizations:
       - Kingpin
 
   - name: Chrome Council
-    population: 4
-    military: 4
-    economy: 7
-    culture: 8
-    stability: 5
+    population: 40
+    military: 40
+    economy: 70
+    culture: 80
+    stability: 50
     tech_era: iron
     domains: [governance, art]
     values: [beauty, authority]
@@ -151,11 +151,11 @@ civilizations:
       - Gilt
 
   - name: Rustborn
-    population: 6
-    military: 3
-    economy: 4
-    culture: 3
-    stability: 8
+    population: 60
+    military: 30
+    economy: 40
+    culture: 30
+    stability: 80
     tech_era: iron
     domains: [survival, community]
     values: [endurance, solidarity]
@@ -181,11 +181,11 @@ civilizations:
       - Galvanize
 
   - name: Electrics
-    population: 3
-    military: 2
-    economy: 6
-    culture: 7
-    stability: 5
+    population: 30
+    military: 20
+    economy: 60
+    culture: 70
+    stability: 50
     tech_era: iron
     domains: [innovation, philosophy]
     values: [progress, enlightenment]

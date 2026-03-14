@@ -14,14 +14,14 @@ from chronicler.chronicle import ChronicleEntry
 class TestSnapshotModels:
     def test_civ_snapshot_round_trip(self):
         snap = CivSnapshot(
-            population=7, military=5, economy=8, culture=6, stability=6,
-            treasury=12, asabiya=0.6, tech_era=TechEra.IRON,
+            population=70, military=50, economy=80, culture=60, stability=60,
+            treasury=120, asabiya=0.6, tech_era=TechEra.IRON,
             trait="calculating", regions=["Verdant Plains", "Sapphire Coast"],
             leader_name="Empress Vaelith", alive=True,
         )
         data = json.loads(snap.model_dump_json())
         restored = CivSnapshot.model_validate(data)
-        assert restored.population == 7
+        assert restored.population == 70
         assert restored.tech_era == TechEra.IRON
         assert restored.trait == "calculating"
         assert restored.alive is True
@@ -38,8 +38,8 @@ class TestSnapshotModels:
             turn=5,
             civ_stats={
                 "Kethani Empire": CivSnapshot(
-                    population=7, military=5, economy=8, culture=6,
-                    stability=6, treasury=12, asabiya=0.6,
+                    population=70, military=50, economy=80, culture=60,
+                    stability=60, treasury=120, asabiya=0.6,
                     tech_era=TechEra.IRON, trait="calculating",
                     regions=["Verdant Plains"], leader_name="Empress Vaelith",
                     alive=True,
@@ -55,19 +55,19 @@ class TestSnapshotModels:
         data = json.loads(snap.model_dump_json())
         restored = TurnSnapshot.model_validate(data)
         assert restored.turn == 5
-        assert restored.civ_stats["Kethani Empire"].population == 7
+        assert restored.civ_stats["Kethani Empire"].population == 70
         assert restored.region_control["Thornwood"] is None
         assert restored.relationships["Kethani Empire"]["Dorrathi Clans"].disposition == "suspicious"
 
 
 class TestRegionCoordinates:
     def test_region_defaults_to_no_coordinates(self):
-        r = Region(name="Plains", terrain="plains", carrying_capacity=5, resources="fertile")
+        r = Region(name="Plains", terrain="plains", carrying_capacity=50, resources="fertile")
         assert r.x is None
         assert r.y is None
 
     def test_region_with_coordinates(self):
-        r = Region(name="Plains", terrain="plains", carrying_capacity=5, resources="fertile",
+        r = Region(name="Plains", terrain="plains", carrying_capacity=50, resources="fertile",
                     x=0.3, y=0.7)
         assert r.x == 0.3
         assert r.y == 0.7
@@ -106,15 +106,15 @@ class TestBundleAssembly:
                 turn=1,
                 civ_stats={
                     "Kethani Empire": CivSnapshot(
-                        population=7, military=5, economy=8, culture=6,
-                        stability=6, treasury=12, asabiya=0.6,
+                        population=70, military=50, economy=80, culture=60,
+                        stability=60, treasury=120, asabiya=0.6,
                         tech_era=TechEra.IRON, trait="calculating",
                         regions=["Verdant Plains"], leader_name="Empress Vaelith",
                         alive=True,
                     ),
                     "Dorrathi Clans": CivSnapshot(
-                        population=4, military=7, economy=3, culture=5,
-                        stability=4, treasury=5, asabiya=0.8,
+                        population=40, military=70, economy=30, culture=50,
+                        stability=40, treasury=50, asabiya=0.8,
                         tech_era=TechEra.IRON, trait="aggressive",
                         regions=["Iron Peaks"], leader_name="Warchief Gorath",
                         alive=True,

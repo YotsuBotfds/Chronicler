@@ -7,7 +7,7 @@ import random
 from chronicler.models import (
     ActiveCondition, Civilization, Event, Leader, NamedEvent, TechEra, WorldState,
 )
-from chronicler.utils import clamp
+from chronicler.utils import clamp, STAT_FLOOR
 
 
 _DOMAIN_TO_ARCHETYPE: dict[str, str] = {
@@ -193,7 +193,7 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         types = list(SUCCESSION_WEIGHTS.keys())
         weights = list(SUCCESSION_WEIGHTS.values())
         stype = rng.choices(types, weights=weights, k=1)[0]
-    if stype == "elected" and civ.culture < 5 and civ.tech_era.value not in [
+    if stype == "elected" and civ.culture < 50 and civ.tech_era.value not in [
         "classical", "medieval", "renaissance", "industrial"
     ]:
         types = list(_FALLBACK_WEIGHTS.keys())
@@ -212,17 +212,17 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ
     if stype == "general":
-        civ.stability = clamp(civ.stability - 1, 1, 10)
-        civ.military = clamp(civ.military + 1, 1, 10)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)
     elif stype == "usurper":
-        civ.stability = clamp(civ.stability - 3, 1, 10)
+        civ.stability = clamp(civ.stability - 30, STAT_FLOOR["stability"], 100)
         civ.asabiya = min(civ.asabiya + 0.1, 1.0)
         world.named_events.append(NamedEvent(
             name=f"The {civ.name} Coup", event_type="coup", turn=world.turn,
             actors=[civ.name], description=f"{name} seizes power from {old_leader.name}", importance=8,
         ))
     elif stype == "elected":
-        civ.stability = clamp(civ.stability + 1, 1, 10)
+        civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     civ.action_counts = {}
     return new_leader
 
@@ -238,7 +238,7 @@ def apply_leader_legacy(civ: Civilization, leader: Leader, world: WorldState) ->
         if condition.condition_type.endswith("_legacy") and civ.name in condition.affected_civs:
             return None
     world.active_conditions.append(ActiveCondition(
-        condition_type=legacy_type, affected_civs=[civ.name], duration=10, severity=1,
+        condition_type=legacy_type, affected_civs=[civ.name], duration=10, severity=10,
     ))
     epithet = LEGACY_EPITHETS.get(legacy_type, "the Great")
     world.named_events.append(NamedEvent(
@@ -261,7 +261,7 @@ def check_rival_fall(civ: Civilization, dead_leader_name: str, world: WorldState
         if other_civ.name == civ.name:
             continue
         if other_civ.leader.rival_leader == dead_leader_name:
-            other_civ.culture = clamp(other_civ.culture + 1, 1, 10)
+            other_civ.culture = clamp(other_civ.culture + 10, STAT_FLOOR["culture"], 100)
             other_civ.leader.rival_leader = None
             other_civ.leader.rival_civ = None
             world.named_events.append(NamedEvent(

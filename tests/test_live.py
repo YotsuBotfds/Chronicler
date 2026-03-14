@@ -115,12 +115,12 @@ def test_live_pause_set_applies_immediately():
     pending = []
 
     pause_fn = make_live_pause(command_q, status_q)
-    command_q.put({"type": "set", "civ": civ_name, "stat": "military", "value": 9})
+    command_q.put({"type": "set", "civ": civ_name, "stat": "military", "value": 90})
     command_q.put({"type": "continue"})
 
     result = pause_fn(world, memories, pending)
     assert result is True
-    assert civ.military == 9
+    assert civ.military == 90
 
     _ = status_q.get_nowait()  # paused
     set_ack = status_q.get_nowait()
@@ -129,7 +129,7 @@ def test_live_pause_set_applies_immediately():
     assert set_ack["still_paused"] is True
     assert set_ack["civ"] == civ_name
     assert set_ack["stat"] == "military"
-    assert set_ack["value"] == 9
+    assert set_ack["value"] == 90
 
 
 def test_live_pause_inject_invalid_civ():

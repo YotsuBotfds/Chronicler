@@ -14,11 +14,11 @@ from chronicler.models import (
 @pytest.fixture
 def sample_regions():
     return [
-        Region(name="Verdant Plains", terrain="plains", carrying_capacity=8, resources="fertile", controller="Kethani Empire"),
-        Region(name="Iron Peaks", terrain="mountains", carrying_capacity=4, resources="mineral", controller="Dorrathi Clans"),
-        Region(name="Sapphire Coast", terrain="coast", carrying_capacity=6, resources="maritime", controller="Kethani Empire"),
-        Region(name="Thornwood", terrain="forest", carrying_capacity=5, resources="timber"),
-        Region(name="Ashara Desert", terrain="desert", carrying_capacity=3, resources="barren"),
+        Region(name="Verdant Plains", terrain="plains", carrying_capacity=80, resources="fertile", controller="Kethani Empire"),
+        Region(name="Iron Peaks", terrain="mountains", carrying_capacity=40, resources="mineral", controller="Dorrathi Clans"),
+        Region(name="Sapphire Coast", terrain="coast", carrying_capacity=60, resources="maritime", controller="Kethani Empire"),
+        Region(name="Thornwood", terrain="forest", carrying_capacity=50, resources="timber"),
+        Region(name="Ashara Desert", terrain="desert", carrying_capacity=30, resources="barren"),
     ]
 
 
@@ -27,9 +27,9 @@ def sample_civilizations():
     return [
         Civilization(
             name="Kethani Empire",
-            population=7, military=5, economy=8, culture=6, stability=6,
+            population=70, military=50, economy=80, culture=60, stability=60,
             tech_era=TechEra.IRON,
-            treasury=12,
+            treasury=120,
             leader=Leader(name="Empress Vaelith", trait="calculating", reign_start=0),
             domains=["maritime", "commerce"],
             values=["Trade", "Order"],
@@ -39,9 +39,9 @@ def sample_civilizations():
         ),
         Civilization(
             name="Dorrathi Clans",
-            population=4, military=7, economy=3, culture=5, stability=4,
+            population=40, military=70, economy=30, culture=50, stability=40,
             tech_era=TechEra.IRON,
-            treasury=5,
+            treasury=50,
             leader=Leader(name="Warchief Gorath", trait="aggressive", reign_start=0),
             domains=["mountain", "warfare"],
             values=["Honor", "Strength"],

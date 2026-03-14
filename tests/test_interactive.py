@@ -42,19 +42,19 @@ class TestParseCommand:
         assert "Invalid event type" in cmd_args
 
     def test_set(self):
-        cmd, cmd_args = parse_command('set "Kethani Empire" military 9')
+        cmd, cmd_args = parse_command('set "Kethani Empire" military 90')
         assert cmd == "set"
-        assert cmd_args == ("Kethani Empire", "military", 9)
+        assert cmd_args == ("Kethani Empire", "military", 90)
 
     def test_set_invalid_stat(self):
-        cmd, cmd_args = parse_command('set "Kethani Empire" bogus 5')
+        cmd, cmd_args = parse_command('set "Kethani Empire" bogus 50')
         assert cmd == "error"
         assert "Invalid stat" in cmd_args
 
     def test_set_out_of_bounds(self):
-        cmd, cmd_args = parse_command('set "Kethani Empire" military 15')
+        cmd, cmd_args = parse_command('set "Kethani Empire" military 150')
         assert cmd == "error"
-        assert "bounds" in cmd_args.lower() or "1-10" in cmd_args
+        assert "bounds" in cmd_args.lower() or "1-100" in cmd_args
 
     def test_set_treasury_allows_high_values(self):
         cmd, cmd_args = parse_command('set "Kethani Empire" treasury 999')
