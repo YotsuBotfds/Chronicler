@@ -33,6 +33,8 @@ def _downgrade_disposition(current: Disposition) -> Disposition:
 
 def apply_value_drift(world: WorldState) -> None:
     """Accumulate disposition drift from shared/opposing values."""
+    from chronicler.movements import SCHISM_DIVERGENCE_THRESHOLD
+
     civs = world.civilizations
     for i, civ_a in enumerate(civs):
         for civ_b in civs[i + 1:]:
@@ -56,6 +58,19 @@ def apply_value_drift(world: WorldState) -> None:
                 elif rel.disposition_drift <= -10:
                     rel.disposition = _downgrade_disposition(rel.disposition)
                     rel.disposition_drift = 0
+
+    # Movement co-adoption effects (accumulate only — threshold applied next cycle)
+    for movement in world.movements:
+        adherent_names = list(movement.adherents.keys())
+        for idx_a, name_a in enumerate(adherent_names):
+            for name_b in adherent_names[idx_a + 1:]:
+                divergence = abs(movement.adherents[name_a] - movement.adherents[name_b])
+                movement_drift = 5 if divergence < SCHISM_DIVERGENCE_THRESHOLD else -5
+                for a, b in [(name_a, name_b), (name_b, name_a)]:
+                    rel = world.relationships.get(a, {}).get(b)
+                    if rel is None:
+                        continue
+                    rel.disposition_drift += movement_drift
 
 
 ASSIMILATION_THRESHOLD = 15

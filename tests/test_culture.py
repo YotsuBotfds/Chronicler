@@ -253,3 +253,60 @@ class TestM16aPhaseIntegration:
         phase_consequences(drift_world)
         rel = drift_world.relationships["CivA"]["CivB"]
         assert rel.disposition_drift == 4
+
+
+from chronicler.models import Movement
+from chronicler.movements import SCHISM_DIVERGENCE_THRESHOLD
+
+
+class TestMovementDispositionEffects:
+    def test_co_adopters_get_positive_drift(self, drift_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": 1},
+        )
+        drift_world.movements.append(m)
+        drift_world.civilizations[0].values = []
+        drift_world.civilizations[1].values = []
+        apply_value_drift(drift_world)
+        rel = drift_world.relationships["CivA"]["CivB"]
+        assert rel.disposition_drift == 5
+
+    def test_schism_co_adopters_get_negative_drift(self, drift_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": SCHISM_DIVERGENCE_THRESHOLD},
+        )
+        drift_world.movements.append(m)
+        drift_world.civilizations[0].values = []
+        drift_world.civilizations[1].values = []
+        apply_value_drift(drift_world)
+        rel = drift_world.relationships["CivA"]["CivB"]
+        assert rel.disposition_drift == -5
+
+    def test_non_adopter_no_effect(self, drift_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0},
+        )
+        drift_world.movements.append(m)
+        drift_world.civilizations[0].values = []
+        drift_world.civilizations[1].values = []
+        apply_value_drift(drift_world)
+        rel = drift_world.relationships["CivA"]["CivB"]
+        assert rel.disposition_drift == 0
+
+    def test_multiple_movements_stack(self, drift_world):
+        m1 = Movement(id="movement_0", origin_civ="CivA", origin_turn=0,
+                       value_affinity="Trade", adherents={"CivA": 0, "CivB": 0})
+        m2 = Movement(id="movement_1", origin_civ="CivA", origin_turn=0,
+                       value_affinity="Order", adherents={"CivA": 0, "CivB": 0})
+        drift_world.movements.extend([m1, m2])
+        drift_world.civilizations[0].values = []
+        drift_world.civilizations[1].values = []
+        apply_value_drift(drift_world)
+        rel = drift_world.relationships["CivA"]["CivB"]
+        assert rel.disposition_drift == 10
