@@ -109,8 +109,8 @@ black_swan_cooldown_turns: int = 30  # Minimum gap between black swans (global)
 
 | Event | Weight | Eligibility condition |
 |-------|--------|----------------------|
-| **Pandemic** | 3 | Any civ appears in 3+ pairs from `get_active_trade_routes(world)` |
-| **Supervolcano** | 2 | Any cluster of 3+ mutually adjacent *controlled* regions exists |
+| **Pandemic** | 3 | Any civ has 3+ distinct trading partners (unique civ-pair appearances in `get_active_trade_routes(world)`) |
+| **Supervolcano** | 2 | Any cluster of 3 mutually adjacent regions exists where at least one is controlled |
 | **Resource Discovery** | 2 | Any region has 0 specialized resources |
 | **Technological Accident** | 1 | Any civ at INDUSTRIAL+ era |
 
@@ -124,7 +124,7 @@ The stress index does **not** increase black swan probability. Frequency stays a
 
 The most complex black swan — spreads over multiple turns along trade routes.
 
-**Origin:** Select a random region controlled by the civ appearing in the most pairs from `get_active_trade_routes(world)` (i.e., the civ with the most distinct trading partners). The trade-network-as-vector design: the most connected civ is patient zero. M17 interaction (conditional on M17 being implemented — gracefully skip if GreatPerson model does not exist): if a merchant great person exists for that civ, count them as +1 to the civ's trade route count for eligibility purposes (they're passive super-spreaders — the infrastructure they built is the highway the plague travels on).
+**Origin:** Select a random region controlled by the civ with the most distinct trading partners (count unique civ-pair appearances in `get_active_trade_routes(world)` where this civ appears). The trade-network-as-vector design: the most connected civ is patient zero. If a merchant great person exists for that civ, count them as +1 to the civ's trade partner count for eligibility (they're passive super-spreaders — the infrastructure they built is the highway the plague travels on).
 
 **Spread:** Each turn, the pandemic spreads from infected regions to adjacent regions that share a trade route with any infected region's controller. Non-trading neighbors are safe (isolation advantage). No region is infected twice in the same pandemic — the wave passes through and moves on. When all adjacent trade-connected regions are already infected or recovered, spread stops naturally. The pandemic burns out when all `PandemicRegion.turns_remaining` hit 0.
 
@@ -134,25 +134,25 @@ The most complex black swan — spreads over multiple turns along trade routes.
 - Severity per region = `1 + len([i for i in region.infrastructure if i.active]) // 2` (capped at 3). Counts only active (non-destroyed) infrastructure — ruins don't indicate current density. The per-civ severity is the max across their infected regions.
 - Per-region severity reflects active infrastructure density as a proxy for population concentration.
 
-**Duration:** `PandemicRegion.turns_remaining` starts at 4-6 (random per region). M17 interaction: scientist great person in an infected civ reduces duration by 1 turn (knowledge-based containment).
+**Duration:** `PandemicRegion.turns_remaining` starts at 4-6 (random per region) and represents "turns of damage remaining including the current one." Since `check_black_swans` fires after Phase 1 and `tick_pandemic` runs in Phase 2 of the same turn, a new pandemic takes damage on the turn it spawns. `tick_pandemic` checks-then-decrements: apply damage first, then `turns_remaining -= 1`. When `turns_remaining` reaches 0, the region is removed from `pandemic_state`. This means a pandemic with `turns_remaining=4` produces exactly 4 turns of damage. M17 interaction: scientist great person in an infected civ reduces initial duration by 1 turn (knowledge-based containment).
 
-**Leader kill check:** 5% per turn per infected civ (one roll per civ, not per region). If the leader dies, existing succession logic in `leaders.py` fires.
+**Leader kill check:** 5% per turn per infected civ (one roll per civ, not per region). If the leader dies, call the existing leader death pathway which routes through M17's succession crisis state machine in `succession.py` (not the basic replacement in `leaders.py`).
 
 ### 2b. Supervolcano
 
 Instant-impact, geographically concentrated.
 
-**Target:** Select a random cluster of 3 mutually adjacent controlled regions. Implementation: enumerate all region triples where each pair shares an adjacency edge and at least one region has a controller. Filter to triples where at least one region has terrain "mountains" if any such triple exists; otherwise use all valid triples. Select uniformly at random from the resulting set. (With ~8-12 regions, triple enumeration is O(n³) and trivially fast.)
+**Target:** Select a random cluster of 3 mutually adjacent regions where at least one has a controller. Implementation: enumerate all region triples where each pair shares an adjacency edge and at least one region has a controller. Filter to triples where at least one region has terrain "mountains" if any such triple exists; otherwise use all valid triples. Select uniformly at random from the resulting set. (With ~8-12 regions, triple enumeration is O(n³) and trivially fast.)
 
 **Immediate effects on all regions in cluster:**
 - `fertility = 0.1` (devastated)
 - All infrastructure destroyed: `region.infrastructure = []`, `region.pending_build = None`
-- Controlling civ (per affected region): `population -= 20`, `stability -= 15`
+- Controlling civ (per affected region that has a controller): `population -= 20`, `stability -= 15`. Skip regions with no controller — they still get fertility/infrastructure destruction but there's no civ to penalize.
 
 **Secondary effects:**
 - Climate cycle advanced by 1 phase via `climate_config.phase_offset += 1` (volcanic winter)
 - Creates `ActiveCondition(condition_type="volcanic_winter", duration=5, severity=40)` affecting all civs with regions adjacent to the blast zone
-- M17 interaction (conditional on M17 implementation): if a folk hero is associated with a region in the blast zone (via `GreatPerson.region` at time of death, stored in the folk hero dict), the civ gains +0.05 asabiya (rallying around shared trauma). If M17's folk hero data structure does not include region information, degrade to: if the civ has *any* folk hero, grant the asabiya bonus when any of their regions are in the blast zone.
+- M17 interaction: The folk hero dict in `traditions.py` stores `{name, role, death_turn, death_context}` — no region field. Therefore: if the civ has *any* folk hero and any of their controlled regions are in the blast zone, grant +0.05 asabiya (rallying around shared trauma from the destruction of ancestral lands).
 
 ### 2c. Resource Discovery
 
@@ -264,7 +264,7 @@ A fragile civ doesn't attract more events — it suffers more from the events th
 
 ### Trigger conditions
 
-Checked once per turn in Phase 10, after stress computation. Not a random event — a consequence of catastrophic structural failure.
+Checked once per turn in Phase 10, after consequences but **before** stress recomputation. Not a random event — a consequence of catastrophic structural failure. Note: trigger 3's `civ.civ_stress >= 15` reads the value computed at the end of the *previous* turn. This is intentional — the civ was already structurally fragile when the black swan hit. Do not "fix" the ordering by moving stress computation before regression.
 
 | Trigger | Probability | Condition |
 |---------|------------|-----------|
@@ -329,7 +329,7 @@ Stored on `WorldState.terrain_transition_rules` (persists across save/load). Def
 
 **Rewilding:** Plains with no controller for 100+ consecutive turns → Forest
 - Tracked via `world.turn - region.depopulated_since` (existing field, no new counter)
-- Guard: skip if `region.controller is not None` (a civ may have expanded into the region this turn during Phase 5, but `depopulated_since` isn't reset until Phase 10)
+- Guard: skip if `region.controller is not None` (a civ may have expanded into the region this turn during Phase 5, but `depopulated_since` isn't reset until Phase 10). Also skip if `region.depopulated_since is None` (region was never controlled, e.g., uncontrolled since world generation — `world.turn - None` would raise TypeError).
 - On transition: `region.terrain = "forest"`, `region.carrying_capacity -= 10`, `region.fertility = 0.7`
 - Resets `depopulated_since = None`
 
@@ -425,5 +425,5 @@ All M18 logic in `src/chronicler/emergence.py`:
 - **`active_wars` is `list[tuple[str, str]]`:** The stress computation uses `civ.name in w` where `w` is a tuple. This relies on Python's tuple `__contains__` behavior, which is correct but worth a comment in the implementation.
 - **`_prev_era()` helper:** Add to `tech.py` alongside existing `_next_era()`. Mirror implementation: `_ERA_ORDER.index(era) - 1`, returns `None` for TRIBAL.
 - **Severity multiplier insertion points:** The implementer should audit all negative stat modifications in Phase 1 (`phase_environment`), Phase 2 (`apply_automatic_effects` — war costs, governing costs), Phase 5 (`resolve_action` — war outcomes), Phase 7 (`phase_random_events`), and Phase 10 (`phase_consequences` — condition ticks, secession, collapse). Wrap each with `int(base_amount * get_severity_multiplier(civ))`. Do NOT apply to treasury costs (maintenance, tech advancement) — those are fixed structural costs, not event damage.
-- **M17 conditional interactions:** All M17 interactions (merchant trade count, scientist containment, folk hero asabiya) should be guarded with existence checks. If M17 models are not yet present when M18 is implemented, the interaction code should degrade gracefully (skip the check, use base values). This allows M18 to ship independently of M17's implementation status.
+- **M17 interactions are unconditional:** M17 has landed. All M17 interactions (merchant trade count, scientist containment/duration reduction, folk hero asabiya) should be implemented directly — no existence guards or graceful degradation needed. Import from `succession.py`, `traditions.py`, and the great person models directly.
 - **Deforestation capacity increase comment:** When implementing the `carrying_capacity += 20` in deforestation, add an inline comment: `# Cleared forest = arable land, supports larger agricultural populations`.
