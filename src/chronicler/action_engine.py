@@ -1,23 +1,318 @@
-"""Deterministic action selection engine with personality, situational, and streak logic."""
+"""Deterministic action selection engine with personality, situational, and streak logic.
+
+Also hosts all action handlers via a registration pattern. simulation.py dispatches
+through resolve_action() — one direction only, no circular imports.
+"""
 
 from __future__ import annotations
 
 import random
+from typing import Callable
 
 from chronicler.models import (
-    ActionType, Civilization, Disposition, TechEra, WorldState,
+    ActionType, Civilization, Disposition, Event, Leader, NamedEvent, TechEra, WorldState,
 )
+from chronicler.utils import clamp, STAT_FLOOR
+
+# --- Registration pattern ---
+
+ACTION_REGISTRY: dict[ActionType, Callable] = {}
+REACTION_REGISTRY: dict[str, Callable] = {}
+
+
+def register_action(action_type: ActionType):
+    def decorator(fn):
+        ACTION_REGISTRY[action_type] = fn
+        return fn
+    return decorator
+
+
+# --- Constants (moved from simulation.py) ---
+
+DISPOSITION_ORDER: dict[Disposition, int] = {
+    Disposition.HOSTILE: 0, Disposition.SUSPICIOUS: 1,
+    Disposition.NEUTRAL: 2, Disposition.FRIENDLY: 3, Disposition.ALLIED: 4,
+}
+
+DISPOSITION_UPGRADE: dict[Disposition, Disposition] = {
+    Disposition.HOSTILE: Disposition.SUSPICIOUS,
+    Disposition.SUSPICIOUS: Disposition.NEUTRAL,
+    Disposition.NEUTRAL: Disposition.FRIENDLY,
+    Disposition.FRIENDLY: Disposition.ALLIED,
+    Disposition.ALLIED: Disposition.ALLIED,
+}
+
+HARSH_TERRAINS = {"tundra", "desert"}
+
+_ERA_ORDER = list(TechEra)
+
+
+def _era_at_least(era: TechEra, minimum: TechEra) -> bool:
+    return _ERA_ORDER.index(era) >= _ERA_ORDER.index(minimum)
+
+
+# --- Helpers ---
+
+def _get_civ(world: WorldState, name: str) -> Civilization | None:
+    for c in world.civilizations:
+        if c.name == name:
+            return c
+    return None
+
+
+# --- Action handlers ---
+
+@register_action(ActionType.DEVELOP)
+def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
+    """Invest in infrastructure: spend treasury to boost economy or culture."""
+    cost = 30
+    if civ.treasury >= cost:
+        civ.treasury -= cost
+        if civ.economy <= civ.culture:
+            civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
+            target = "economy"
+        else:
+            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+            target = "culture"
+        return Event(
+            turn=world.turn, event_type="develop", actors=[civ.name],
+            description=f"{civ.name} invested in {target}.", importance=3,
+        )
+    return Event(
+        turn=world.turn, event_type="develop", actors=[civ.name],
+        description=f"{civ.name} attempted development but lacked funds.", importance=2,
+    )
+
+
+@register_action(ActionType.EXPAND)
+def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
+    """Claim an uncontrolled region."""
+    civ_index = next((i for i, c in enumerate(world.civilizations) if c.name == civ.name), 0)
+    rng = random.Random(world.turn * 1000 + civ_index)
+    unclaimed = [r for r in world.regions if r.controller is None]
+    # Filter out harsh terrain if below IRON era
+    if not _era_at_least(civ.tech_era, TechEra.IRON):
+        unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
+    if unclaimed and civ.military >= 30:
+        target = rng.choice(unclaimed)
+        target.controller = civ.name
+        civ.regions.append(target.name)
+        civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
+        return Event(
+            turn=world.turn, event_type="expand", actors=[civ.name],
+            description=f"{civ.name} expanded into {target.name}.", importance=6,
+        )
+    return Event(
+        turn=world.turn, event_type="expand", actors=[civ.name],
+        description=f"{civ.name} could not expand — no available territory or insufficient military.",
+        importance=2,
+    )
+
+
+@register_action(ActionType.TRADE)
+def _resolve_trade_action(civ: Civilization, world: WorldState) -> Event:
+    """Initiate trade with the friendliest neighbor."""
+    best_partner = None
+    best_disp = -1
+    if civ.name in world.relationships:
+        for other_name, rel in world.relationships[civ.name].items():
+            d = DISPOSITION_ORDER.get(rel.disposition, 0)
+            if d > best_disp:
+                best_disp = d
+                best_partner = _get_civ(world, other_name)
+
+    if best_partner and best_disp >= 2:  # At least neutral
+        resolve_trade(civ, best_partner, world)
+        return Event(
+            turn=world.turn, event_type="trade", actors=[civ.name, best_partner.name],
+            description=f"{civ.name} traded with {best_partner.name}.", importance=3,
+        )
+    return Event(
+        turn=world.turn, event_type="trade", actors=[civ.name],
+        description=f"{civ.name} found no willing trade partners.", importance=2,
+    )
+
+
+@register_action(ActionType.DIPLOMACY)
+def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
+    """Attempt to improve relations with the most hostile neighbor."""
+    from chronicler.named_events import generate_treaty_name
+
+    worst_name = None
+    worst_disp = 5
+    if civ.name in world.relationships:
+        for other_name, rel in world.relationships[civ.name].items():
+            d = DISPOSITION_ORDER.get(rel.disposition, 2)
+            if d < worst_disp:
+                worst_disp = d
+                worst_name = other_name
+
+    if worst_name and civ.culture >= 30:
+        # Improve relationship in both directions
+        rel_out = world.relationships[civ.name][worst_name]
+        rel_out.disposition = DISPOSITION_UPGRADE[rel_out.disposition]
+        if worst_name in world.relationships and civ.name in world.relationships[worst_name]:
+            rel_in = world.relationships[worst_name][civ.name]
+            rel_in.disposition = DISPOSITION_UPGRADE[rel_in.disposition]
+        new_disp = rel_out.disposition
+        # Generate named treaty for significant upgrades (requires CLASSICAL+ era)
+        if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED) and _era_at_least(civ.tech_era, TechEra.CLASSICAL):
+            treaty_name = generate_treaty_name(civ.name, worst_name, world, seed=world.seed)
+            world.named_events.append(NamedEvent(
+                name=treaty_name, event_type="treaty", turn=world.turn,
+                actors=[civ.name, worst_name],
+                description=f"{civ.name} and {worst_name} sign {treaty_name}", importance=5,
+            ))
+        return Event(
+            turn=world.turn, event_type="diplomacy", actors=[civ.name, worst_name],
+            description=f"{civ.name} improved relations with {worst_name}.", importance=4,
+        )
+    return Event(
+        turn=world.turn, event_type="diplomacy", actors=[civ.name],
+        description=f"{civ.name} attempted diplomacy without success.", importance=2,
+    )
+
+
+@register_action(ActionType.WAR)
+def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
+    """Declare war on the most hostile neighbor."""
+    from chronicler.named_events import generate_battle_name
+    from chronicler.leaders import update_rivalries
+
+    target_name = None
+    worst_disp = None
+    if civ.name in world.relationships:
+        for other_name, rel in world.relationships[civ.name].items():
+            if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                continue
+            d = DISPOSITION_ORDER[rel.disposition]
+            if worst_disp is None or d < worst_disp:
+                worst_disp = d
+                target_name = other_name
+
+    if target_name is None:
+        # No HOSTILE/SUSPICIOUS target exists — fall back to peaceful action
+        return _resolve_develop(civ, world)
+
+    defender = _get_civ(world, target_name)
+    if defender:
+        result = resolve_war(civ, defender, world, seed=world.turn)
+        # Generate named battle for decisive outcomes
+        if result in ("attacker_wins", "defender_wins"):
+            battle_region = None
+            if defender.regions:
+                battle_region = defender.regions[0]
+            elif civ.regions:
+                battle_region = civ.regions[0]
+            if battle_region:
+                battle_name = generate_battle_name(battle_region, civ.tech_era, world, seed=world.seed)
+                world.named_events.append(NamedEvent(
+                    name=battle_name, event_type="battle", turn=world.turn,
+                    actors=[civ.name, target_name], region=battle_region,
+                    description=f"{civ.name} vs {target_name}: {result}", importance=7,
+                ))
+            update_rivalries(civ, defender, world)
+        return Event(
+            turn=world.turn, event_type="war", actors=[civ.name, target_name],
+            description=f"{civ.name} attacked {target_name}: {result}.", importance=8,
+        )
+    return Event(
+        turn=world.turn, event_type="war", actors=[civ.name],
+        description=f"{civ.name} prepared for war but found no target.", importance=3,
+    )
+
+
+# --- Combat resolution (simplified Lanchester) ---
+
+def resolve_war(
+    attacker: Civilization,
+    defender: Civilization,
+    world: WorldState,
+    seed: int = 0,
+) -> str:
+    """Resolve combat between two civilizations. Returns outcome string."""
+    from chronicler.tech import tech_war_multiplier
+
+    rng = random.Random(seed)
+
+    att_asabiya = attacker.asabiya
+    def_asabiya = defender.asabiya
+
+    # MEDIEVAL+ defender bonus: +0.2 asabiya (capped at 1.0)
+    if _era_at_least(defender.tech_era, TechEra.MEDIEVAL):
+        def_asabiya = min(def_asabiya + 0.2, 1.0)
+
+    att_power = (attacker.military ** 2) * att_asabiya + rng.uniform(0, 3)
+    def_power = (defender.military ** 2) * def_asabiya + rng.uniform(0, 3)
+
+    att_power *= tech_war_multiplier(attacker.tech_era, defender.tech_era)
+    def_power *= tech_war_multiplier(defender.tech_era, attacker.tech_era)
+
+    # War costs treasury regardless of outcome
+    attacker.treasury = max(0, attacker.treasury - 20)
+    defender.treasury = max(0, defender.treasury - 10)
+
+    if att_power > def_power * 1.3:
+        defender_regions = [r for r in world.regions if r.controller == defender.name]
+        if defender_regions:
+            seized = rng.choice(defender_regions)
+            seized.controller = attacker.name
+            attacker.regions.append(seized.name)
+            defender.regions = [r for r in defender.regions if r != seized.name]
+        attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
+        defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
+        defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
+        return "attacker_wins"
+    elif def_power > att_power * 1.3:
+        attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
+        defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
+        attacker.stability = clamp(attacker.stability - 10, STAT_FLOOR["stability"], 100)
+        return "defender_wins"
+    else:
+        attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
+        defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
+        return "stalemate"
+
+
+# --- Trade resolution ---
+
+def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> None:
+    """Resolve trade: both sides gain treasury proportional to their economy."""
+    gain1 = max(1, civ2.economy // 3)
+    gain2 = max(1, civ1.economy // 3)
+    civ1.treasury += gain1
+    civ2.treasury += gain2
+    if civ1.name in world.relationships and civ2.name in world.relationships[civ1.name]:
+        world.relationships[civ1.name][civ2.name].trade_volume += 1
+    if civ2.name in world.relationships and civ1.name in world.relationships[civ2.name]:
+        world.relationships[civ2.name][civ1.name].trade_volume += 1
+
+
+# --- Dispatcher ---
+
+def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> Event:
+    """Dispatch an action to its registered handler."""
+    handler = ACTION_REGISTRY.get(action)
+    if handler:
+        return handler(civ, world)
+    return Event(
+        turn=world.turn, event_type="action", actors=[civ.name],
+        description=f"{civ.name} rests.", importance=1,
+    )
+
+
+# --- Weight profiles ---
 
 TRAIT_WEIGHTS: dict[str, dict[ActionType, float]] = {
-    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3},
-    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5},
-    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7},
-    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4},
-    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6},
-    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3},
-    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5},
-    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5},
-    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8},
+    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2},
+    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5},
+    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8},
+    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8},
+    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8},
+    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3},
+    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3},
+    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8},
+    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5},
     "stubborn":     {},
 }
 
@@ -25,11 +320,6 @@ SECONDARY_TRAIT_ACTION: dict[str, ActionType] = {
     "warlike": ActionType.WAR, "builder": ActionType.DEVELOP, "merchant": ActionType.TRADE,
     "conqueror": ActionType.EXPAND, "diplomat": ActionType.DIPLOMACY,
 }
-
-_ERA_ORDER = list(TechEra)
-
-def _era_at_least(era: TechEra, minimum: TechEra) -> bool:
-    return _ERA_ORDER.index(era) >= _ERA_ORDER.index(minimum)
 
 
 class ActionEngine:
@@ -55,6 +345,13 @@ class ActionEngine:
                     if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                         eligible.append(ActionType.TRADE)
                         break
+        # BUILD: treasury >= 10 and has regions
+        if civ.treasury >= 10 and civ.regions:
+            eligible.append(ActionType.BUILD)
+        # EMBARGO: placeholder — no trade routes until M13a
+        has_trade_routes = False
+        if has_trade_routes and has_hostile:
+            eligible.append(ActionType.EMBARGO)
         return eligible
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:

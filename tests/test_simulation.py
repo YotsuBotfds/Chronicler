@@ -7,10 +7,9 @@ from chronicler.simulation import (
     phase_random_events,
     phase_consequences,
     run_turn,
-    resolve_war,
-    resolve_trade,
     apply_asabiya_dynamics,
 )
+from chronicler.action_engine import resolve_war, resolve_trade
 from chronicler.simulation import apply_injected_event
 from chronicler.models import (
     WorldState,
@@ -335,7 +334,7 @@ def test_action_counts_tracked(sample_world):
 
 def test_war_uses_tech_disparity(sample_world):
     """War resolution accounts for tech era gap."""
-    from chronicler.simulation import resolve_war
+    from chronicler.action_engine import resolve_war
     attacker = sample_world.civilizations[0]
     defender = sample_world.civilizations[1]
     attacker.tech_era = TechEra.MEDIEVAL
@@ -373,7 +372,7 @@ def test_backward_compat_old_state(tmp_path, sample_world):
 
 def test_diplomacy_treaty_requires_classical_era(sample_world):
     """Named treaties should only be generated at CLASSICAL+ era."""
-    from chronicler.simulation import _resolve_diplomacy
+    from chronicler.action_engine import _resolve_diplomacy
     from chronicler.models import Relationship
     civ = sample_world.civilizations[0]
     other = sample_world.civilizations[1]
@@ -389,7 +388,7 @@ def test_diplomacy_treaty_requires_classical_era(sample_world):
 
 def test_diplomacy_treaty_generated_at_classical(sample_world):
     """Named treaties should be generated at CLASSICAL+ era."""
-    from chronicler.simulation import _resolve_diplomacy
+    from chronicler.action_engine import _resolve_diplomacy
     from chronicler.models import Relationship
     civ = sample_world.civilizations[0]
     other = sample_world.civilizations[1]
@@ -404,7 +403,7 @@ def test_diplomacy_treaty_generated_at_classical(sample_world):
 
 def test_expand_harsh_terrain_requires_iron(sample_world):
     """Pre-IRON civs should not expand into desert/tundra regions."""
-    from chronicler.simulation import _resolve_expand
+    from chronicler.action_engine import _resolve_expand
     from chronicler.models import Region
     civ = sample_world.civilizations[0]
     civ.tech_era = TechEra.BRONZE
@@ -421,7 +420,7 @@ def test_expand_harsh_terrain_requires_iron(sample_world):
 
 def test_expand_harsh_terrain_allowed_at_iron(sample_world):
     """IRON+ civs can expand into desert/tundra regions."""
-    from chronicler.simulation import _resolve_expand
+    from chronicler.action_engine import _resolve_expand
     from chronicler.models import Region
     civ = sample_world.civilizations[0]
     civ.tech_era = TechEra.IRON

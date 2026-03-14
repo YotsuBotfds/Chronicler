@@ -56,11 +56,11 @@ def build_action_prompt(civ: Civilization, world: WorldState) -> str:
     return f"""You are the strategic advisor for {civ.name}.
 
 CURRENT STATE:
-- Population: {civ.population}/10
-- Military: {civ.military}/10
-- Economy: {civ.economy}/10
-- Culture: {civ.culture}/10
-- Stability: {civ.stability}/10
+- Population: {civ.population}/100
+- Military: {civ.military}/100
+- Economy: {civ.economy}/100
+- Culture: {civ.culture}/100
+- Stability: {civ.stability}/100
 - Tech Era: {civ.tech_era.value}
 - Treasury: {civ.treasury}
 - Asabiya (solidarity): {civ.asabiya}
@@ -75,7 +75,7 @@ RELATIONSHIPS:
 
 ACTIVE CONDITIONS: {cond_text}
 
-Choose exactly ONE action from: EXPAND, DEVELOP, TRADE, DIPLOMACY, WAR
+Choose exactly ONE action from: EXPAND, DEVELOP, TRADE, DIPLOMACY, WAR, BUILD, EMBARGO
 
 Consider: your goal, your stats, your relationships, active threats, and available resources.
 You must respond with exactly one word. Do not explain your reasoning.

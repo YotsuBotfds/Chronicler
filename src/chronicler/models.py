@@ -38,6 +38,14 @@ class ActionType(str, Enum):
     TRADE = "trade"
     DIPLOMACY = "diplomacy"
     WAR = "war"
+    BUILD = "build"
+    EMBARGO = "embargo"
+
+
+class ActionCategory(str, Enum):
+    AUTOMATIC = "automatic"
+    DELIBERATE = "deliberate"
+    REACTION = "reaction"
 
 
 # --- Core entities ---
