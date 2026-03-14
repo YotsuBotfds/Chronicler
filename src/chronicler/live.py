@@ -401,6 +401,87 @@ def make_live_pause(
     return live_pause
 
 
+def _get_available_models(args: Any) -> list[str]:
+    """Return list of available model names for the lobby dropdowns."""
+    models: list[str] = []
+    sim_model = getattr(args, "sim_model", None)
+    narrative_model = getattr(args, "narrative_model", None)
+    if sim_model:
+        models.append(sim_model)
+    if narrative_model and narrative_model not in models:
+        models.append(narrative_model)
+
+    # Try LM Studio /v1/models with 500ms timeout
+    local_url = getattr(args, "local_url", None)
+    if local_url:
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{local_url.rstrip('/')}/models")
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                data = json.loads(resp.read())
+                for m in data.get("data", []):
+                    model_id = m.get("id", "")
+                    if model_id and model_id not in models:
+                        models.append(model_id)
+        except Exception:
+            pass
+
+    # Always include a fallback if nothing found
+    if not models:
+        models.append("")  # empty string = LM Studio uses loaded model
+
+    return models
+
+
+def build_lobby_init(args: Any, scenario_dir: Path | None = None) -> dict:
+    """Build the lobby init message by scanning scenario YAML files.
+
+    Reads scenario data directly from YAML — no world generation.
+    """
+    import yaml
+
+    if scenario_dir is None:
+        scenario_dir = Path("scenarios")
+
+    scenarios: list[dict] = []
+    if scenario_dir.exists():
+        for f in sorted(scenario_dir.glob("*.yaml")):
+            with open(f) as fh:
+                data = yaml.safe_load(fh) or {}
+            scenarios.append({
+                "file": f.name,
+                "name": data.get("name", f.stem),
+                "description": data.get("description", ""),
+                "world_name": data.get("world_name", f.stem),
+                "civs": [
+                    {"name": c["name"], "values": c.get("values", [])}
+                    for c in data.get("civilizations", []) or []
+                ],
+                "regions": [
+                    {
+                        "name": r["name"],
+                        "terrain": r.get("terrain", ""),
+                        "x": r.get("x"),
+                        "y": r.get("y"),
+                    }
+                    for r in data.get("regions", []) or []
+                ],
+            })
+
+    return {
+        "type": "init",
+        "state": "lobby",
+        "scenarios": scenarios,
+        "models": _get_available_models(args),
+        "defaults": {
+            "turns": 50,
+            "civs": 4,
+            "regions": 8,
+            "seed": None,
+        },
+    }
+
+
 def run_live(
     args: Any,
     sim_client: Any = None,
