@@ -204,6 +204,42 @@ def resolve_invest_culture(civ, world: WorldState):
     )
 
 
+def check_cultural_victories(world: WorldState) -> None:
+    """Check for cultural hegemony and universal enlightenment."""
+    for civ in world.civilizations:
+        others_combined = sum(c.culture for c in world.civilizations if c != civ)
+        if civ.culture > others_combined:
+            if not any(
+                ne.event_type == "cultural_hegemony" and civ.name in ne.actors
+                for ne in world.named_events
+            ):
+                world.named_events.append(NamedEvent(
+                    name=f"Cultural Hegemony of {civ.name}",
+                    event_type="cultural_hegemony",
+                    turn=world.turn,
+                    actors=[civ.name],
+                    description=f"{civ.name} achieves cultural hegemony — their culture surpasses all others combined.",
+                    importance=9,
+                ))
+
+    all_civ_names = {c.name for c in world.civilizations}
+    for movement in world.movements:
+        if set(movement.adherents.keys()) == all_civ_names:
+            if not any(
+                ne.event_type == "universal_enlightenment"
+                and movement.id in ne.description
+                for ne in world.named_events
+            ):
+                world.named_events.append(NamedEvent(
+                    name=f"Universal Enlightenment ({movement.id})",
+                    event_type="universal_enlightenment",
+                    turn=world.turn,
+                    actors=list(movement.adherents.keys()),
+                    description=f"[{movement.id}] Universal enlightenment achieved — all civilizations have adopted this movement.",
+                    importance=10,
+                ))
+
+
 def tick_prestige(world: WorldState) -> None:
     """Decay prestige and award trade income bonus."""
     for civ in world.civilizations:

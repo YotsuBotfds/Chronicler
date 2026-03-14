@@ -436,3 +436,59 @@ class TestInvestCultureResolution:
             ne.event_type == "propaganda_campaign"
             for ne in propaganda_world.named_events
         )
+
+
+from chronicler.culture import check_cultural_victories
+
+
+class TestCulturalVictories:
+    def test_hegemony_when_culture_exceeds_all_others(self, drift_world):
+        drift_world.civilizations[0].culture = 90
+        drift_world.civilizations[1].culture = 10
+        check_cultural_victories(drift_world)
+        assert any(
+            ne.event_type == "cultural_hegemony" and "CivA" in ne.actors
+            for ne in drift_world.named_events
+        )
+
+    def test_no_hegemony_when_not_dominant(self, drift_world):
+        drift_world.civilizations[0].culture = 50
+        drift_world.civilizations[1].culture = 50
+        check_cultural_victories(drift_world)
+        assert not any(
+            ne.event_type == "cultural_hegemony"
+            for ne in drift_world.named_events
+        )
+
+    def test_hegemony_fire_once(self, drift_world):
+        drift_world.civilizations[0].culture = 90
+        drift_world.civilizations[1].culture = 10
+        check_cultural_victories(drift_world)
+        count = len(drift_world.named_events)
+        check_cultural_victories(drift_world)
+        assert len(drift_world.named_events) == count
+
+    def test_universal_enlightenment(self, drift_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": 0},
+        )
+        drift_world.movements.append(m)
+        check_cultural_victories(drift_world)
+        assert any(
+            ne.event_type == "universal_enlightenment"
+            for ne in drift_world.named_events
+        )
+
+    def test_universal_enlightenment_fire_once(self, drift_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": 0},
+        )
+        drift_world.movements.append(m)
+        check_cultural_victories(drift_world)
+        count = len(drift_world.named_events)
+        check_cultural_victories(drift_world)
+        assert len(drift_world.named_events) == count
