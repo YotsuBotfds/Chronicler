@@ -5,6 +5,7 @@ from chronicler.models import ActiveCondition
 from chronicler.culture import (
     VALUE_OPPOSITIONS, apply_value_drift,
     tick_cultural_assimilation, ASSIMILATION_THRESHOLD, RECONQUEST_COOLDOWN,
+    tick_prestige,
 )
 
 
@@ -186,3 +187,21 @@ class TestCulturalAssimilation:
         ]
         assert len(restless) == 1
         assert restless[0].duration == RECONQUEST_COOLDOWN
+
+
+class TestPrestige:
+    def test_prestige_decays(self, drift_world):
+        drift_world.civilizations[0].prestige = 10
+        tick_prestige(drift_world)
+        assert drift_world.civilizations[0].prestige == 9
+
+    def test_prestige_minimum_zero(self, drift_world):
+        drift_world.civilizations[0].prestige = 0
+        tick_prestige(drift_world)
+        assert drift_world.civilizations[0].prestige == 0
+
+    def test_prestige_trade_income_bonus(self, drift_world):
+        drift_world.civilizations[0].prestige = 11  # after decay: 10 -> bonus = 2
+        initial_treasury = drift_world.civilizations[0].treasury
+        tick_prestige(drift_world)
+        assert drift_world.civilizations[0].treasury == initial_treasury + 2

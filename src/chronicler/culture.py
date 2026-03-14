@@ -106,3 +106,12 @@ def tick_cultural_assimilation(world: WorldState) -> None:
                 controller.stability = clamp(
                     controller.stability - ASSIMILATION_STABILITY_DRAIN, 0, 100
                 )
+
+
+def tick_prestige(world: WorldState) -> None:
+    """Decay prestige and award trade income bonus."""
+    for civ in world.civilizations:
+        civ.prestige = max(0, civ.prestige - 1)
+        trade_bonus = civ.prestige // 5
+        if trade_bonus > 0:
+            civ.treasury += trade_bonus
