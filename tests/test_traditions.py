@@ -226,3 +226,25 @@ def test_prophet_martyrdom_boosts_movement(make_world):
     apply_prophet_martyrdom(gp, civ, world)
     key = f"martyrdom_bonus_movement_0"
     assert civ.event_counts.get(key, 0) >= 1
+
+
+# --- Task 24: M17d integration test ---
+
+def test_m17d_integration_traditions_and_folk_heroes(make_world):
+    from chronicler.simulation import run_turn
+    from chronicler.models import ActionType
+    world = make_world(num_civs=4, seed=42)
+    for turn in range(30):
+        world.turn = turn
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP, narrator=lambda *a: None, seed=world.seed)
+    # Verify state consistency
+    for civ in world.civilizations:
+        assert len(civ.traditions) <= 4
+        assert len(civ.folk_heroes) <= 5
+        for t in civ.traditions:
+            assert t in ("martial", "food_stockpiling", "diplomatic", "resilience")
+        for gp in civ.great_persons:
+            assert gp.active is True
+    for gp in world.retired_persons:
+        assert gp.active is False
+        assert gp.fate in ("retired", "dead", "ascended")
