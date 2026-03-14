@@ -266,13 +266,13 @@ def apply_value_drift(world: WorldState) -> None:
                 if rel is None:
                     continue
                 rel.disposition_drift += net_drift
-                # Check thresholds with reset
-                while rel.disposition_drift >= 10:
+                # Check thresholds — reset to 0 on trigger (spec: no remainder)
+                if rel.disposition_drift >= 10:
                     rel.disposition = _upgrade_disposition(rel.disposition)
-                    rel.disposition_drift -= 10
-                while rel.disposition_drift <= -10:
+                    rel.disposition_drift = 0
+                elif rel.disposition_drift <= -10:
                     rel.disposition = _downgrade_disposition(rel.disposition)
-                    rel.disposition_drift += 10
+                    rel.disposition_drift = 0
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -725,12 +725,19 @@ In `phase_production` (line ~143), add at the end of the function (after populat
 
 - [ ] **Step 4: Wire apply_value_drift and tick_cultural_assimilation into phase_consequences**
 
-In `phase_consequences` (line ~607), add after `apply_asabiya_dynamics(world)` (line ~622) and before the collapse check (line ~624):
+In `phase_consequences` (line ~607), add BEFORE `apply_asabiya_dynamics(world)` (line ~622). Move `apply_asabiya_dynamics` to run after M16 culture effects:
 
 ```python
+    # M16b: Movement lifecycle (must run FIRST — see spec)
+    # (wired in Task 13, placeholder comment here)
+
     # M16a: Cultural effects (order matters — see spec)
     apply_value_drift(world)
     tick_cultural_assimilation(world)
+
+    # Asabiya dynamics (runs AFTER cultural effects — stability changes from
+    # assimilation drain feed into asabiya calculations)
+    apply_asabiya_dynamics(world)
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -2378,7 +2385,9 @@ def generate_cultural_milestone_name(civ, milestone_type: str, world, seed: int)
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestNameGenerators -v`
-Expected: PASS (3 tests).
+Expected: PASS (5 tests).
+
+**Note:** After this task, update `_check_emergence`, `_process_spread`, `_detect_schisms`, `resolve_invest_culture`, and `check_cultural_victories` to call these name generators instead of inline `f"..."` strings. This wiring is a straightforward search-and-replace — each `name=f"..."` in a NamedEvent constructor should call the appropriate generator.
 
 - [ ] **Step 5: Commit**
 
