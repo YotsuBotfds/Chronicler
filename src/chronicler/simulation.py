@@ -121,15 +121,17 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 # --- Phase 2: Automatic Effects ---
 
 def apply_automatic_effects(world: WorldState) -> list[Event]:
-    """Phase 2: Automatic per-turn effects — maintenance, trade income."""
+    """Phase 2: Automatic per-turn effects — maintenance, trade, specialization, mercs."""
     from chronicler.resources import get_active_trade_routes, get_self_trade_civs
     events: list[Event] = []
+
+    # 1. Military maintenance: free up to 30, then (mil-30)//10 per turn
     for civ in world.civilizations:
-        # Military maintenance: free up to 30, then (mil-30)//10 per turn
         if civ.military > 30:
             cost = (civ.military - 30) // 10
             civ.treasury -= cost
-    # Trade income
+
+    # 2. Trade income
     cross_routes = get_active_trade_routes(world)
     for civ_a, civ_b in cross_routes:
         a = _get_civ(world, civ_a)
@@ -142,7 +144,61 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         c = _get_civ(world, civ_name)
         if c:
             c.treasury += 3
-    # Ongoing war costs: -3/turn per active war
+
+    # Embargo set — used by both specialization and black market sections
+    embargo_set = {(a, b) for a, b in world.embargoes} | {(b, a) for a, b in world.embargoes}
+
+    # 3. Economic specialization
+    for civ in world.civilizations:
+        controlled = [r for r in world.regions if r.controller == civ.name]
+        if not controlled:
+            continue
+        resource_counts: dict = {}
+        for r in controlled:
+            for res in r.specialized_resources:
+                resource_counts[res] = resource_counts.get(res, 0) + 1
+        if not resource_counts:
+            continue
+        from chronicler.models import Resource
+        primary = max(resource_counts, key=lambda r: resource_counts[r])
+        civ_routes = [(a, b) for a, b in cross_routes if civ.name in (a, b)]
+        if not civ_routes:
+            continue
+        primary_routes = 0
+        for a, b in civ_routes:
+            route_regions = [r for r in world.regions
+                            if r.controller in (a, b) and primary in r.specialized_resources]
+            if route_regions:
+                primary_routes += 1
+        if len(civ_routes) > 0 and primary_routes / len(civ_routes) > 0.6:
+            embargoed_routes = [(a, b) for a, b in civ_routes
+                               if (a, b) in embargo_set or (b, a) in embargo_set]
+            if embargoed_routes:
+                penalty = int(civ.economy * 0.20)
+                civ.treasury -= penalty
+            else:
+                bonus = int(civ.economy * 0.15)
+                civ.treasury += bonus
+
+    # 4. Black market leakage for embargoed civs
+    for civ in world.civilizations:
+        if not any(civ.name in pair for pair in embargo_set):
+            continue
+        # Check for adjacent non-embargoed neighbors
+        for r in world.regions:
+            if r.controller != civ.name:
+                continue
+            for adj_name in r.adjacencies:
+                adj = next((ar for ar in world.regions if ar.name == adj_name), None)
+                if adj and adj.controller and adj.controller != civ.name:
+                    pair = tuple(sorted([civ.name, adj.controller]))
+                    if pair not in embargo_set:
+                        civ.treasury += 1  # 30% of normal trade (2), min 1
+                        civ.stability = clamp(civ.stability - 3, STAT_FLOOR["stability"], 100)
+                        break  # Only one black market route per civ per turn
+            break  # Only check first controlled region for simplicity
+
+    # 5. Ongoing war costs: -3/turn per active war
     for war in world.active_wars:
         for civ_name in war:
             c = _get_civ(world, civ_name)
@@ -150,6 +206,61 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
                 c.treasury -= 3
                 if c.treasury <= 0:
                     c.stability = clamp(c.stability - 5, STAT_FLOOR["stability"], 100)
+
+    # 6. Mercenary system
+    MAX_MERCS = 3
+    for civ in world.civilizations:
+        # Check merc pressure: military >> income
+        if civ.military > 30 and civ.last_income > 0 and civ.military > civ.last_income * 3:
+            civ.merc_pressure_turns += 1
+        else:
+            civ.merc_pressure_turns = max(0, civ.merc_pressure_turns - 1)
+        # Spawn mercenary company after 3 turns of pressure
+        if civ.merc_pressure_turns >= 3 and len(world.mercenary_companies) < MAX_MERCS:
+            strength = min(10, civ.military // 5)
+            civ.military = clamp(civ.military - strength, STAT_FLOOR["military"], 100)
+            region = civ.regions[0] if civ.regions else "unknown"
+            world.mercenary_companies.append({
+                "strength": strength, "origin_civ": civ.name,
+                "location": region, "available": True, "hired_by": None,
+            })
+            civ.merc_pressure_turns = 0
+    # Mercenary hiring: underdog priority in active wars
+    for merc in world.mercenary_companies:
+        if not merc["available"] or merc["hired_by"]:
+            continue
+        # Find weakest belligerent with treasury
+        candidates = []
+        for war in world.active_wars:
+            for civ_name in war:
+                c = _get_civ(world, civ_name)
+                if c and c.treasury >= 10:
+                    candidates.append(c)
+        if candidates:
+            candidates.sort(key=lambda c: (c.military, -c.treasury))
+            hirer = candidates[0]
+            hirer.treasury -= 10
+            hirer.military = clamp(hirer.military + merc["strength"], STAT_FLOOR["military"], 100)
+            merc["hired_by"] = hirer.name
+            merc["available"] = False
+    # Decay unhired mercs
+    for merc in world.mercenary_companies:
+        if merc["available"] and not merc["hired_by"]:
+            merc["strength"] -= 2
+    # Disband hired mercs whose war ended
+    for merc in list(world.mercenary_companies):
+        if merc["hired_by"]:
+            still_at_war = any(merc["hired_by"] in w for w in world.active_wars)
+            if not still_at_war:
+                merc["hired_by"] = None
+                merc["available"] = True
+    # Remove dead mercs
+    world.mercenary_companies = [m for m in world.mercenary_companies if m["strength"] > 0]
+
+    # 7. Reset last_income (re-accumulated during Phase 3)
+    for civ in world.civilizations:
+        civ.last_income = 0
+
     return events
 
 
@@ -431,7 +542,7 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
 # --- Phase 9: Fertility ---
 
 def phase_fertility(world: WorldState) -> list[Event]:
-    """Phase 9: Fertility degradation and recovery."""
+    """Phase 9: Fertility degradation, recovery, and famine checks."""
     for region in world.regions:
         if region.controller is None:
             continue
@@ -446,7 +557,34 @@ def phase_fertility(world: WorldState) -> list[Event]:
             region.fertility = min(1.0, round(region.fertility + 0.01, 4))
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
-    return []
+    return _check_famine(world)
+
+
+def _check_famine(world: WorldState) -> list[Event]:
+    """Check for famine in low-fertility regions."""
+    events = []
+    for region in world.regions:
+        if region.controller is None or region.fertility >= 0.3 or region.famine_cooldown > 0:
+            continue
+        civ = _get_civ(world, region.controller)
+        if civ is None:
+            continue
+        civ.population = clamp(civ.population - 15, STAT_FLOOR["population"], 100)
+        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        region.famine_cooldown = 5
+        for adj_name in region.adjacencies:
+            adj = next((r for r in world.regions if r.name == adj_name), None)
+            if adj and adj.controller and adj.controller != civ.name:
+                neighbor = _get_civ(world, adj.controller)
+                if neighbor:
+                    neighbor.population = clamp(neighbor.population + 5, STAT_FLOOR["population"], 100)
+                    neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
+        events.append(Event(
+            turn=world.turn, event_type="famine", actors=[civ.name],
+            description=f"Famine strikes {region.name}, devastating {civ.name}.",
+            importance=8,
+        ))
+    return events
 
 
 # --- Turn orchestrator ---
