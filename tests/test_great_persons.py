@@ -289,3 +289,68 @@ def test_lifespan_deterministic():
     ls2 = _compute_lifespan(seed=42, born_turn=10, name="TestPerson")
     assert ls1 == ls2
     assert 20 <= ls1 <= 30
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Phase 10 great person hooks
+# ---------------------------------------------------------------------------
+
+
+def test_phase10_generates_and_retires_great_persons(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ = world.civilizations[0]
+    civ.war_win_turns = [1, 3, 5]
+    world.turn = 10
+    from chronicler.simulation import phase_consequences
+    phase_consequences(world)
+    generals = [gp for gp in civ.great_persons if gp.role == "general"]
+    assert len(generals) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Task 6: CivSnapshot includes great person fields
+# ---------------------------------------------------------------------------
+
+
+def test_civ_snapshot_includes_great_persons(make_world):
+    """Verify CivSnapshot fields are populated when building snapshots."""
+    from chronicler.models import CivSnapshot, TechEra
+    snap = CivSnapshot(
+        population=50, military=30, economy=40, culture=30, stability=50,
+        treasury=50, asabiya=0.5, tech_era=TechEra.IRON, trait="cautious",
+        regions=["r1"], leader_name="Test",
+        alive=True,
+        great_persons=[{"name": "Gen", "role": "general", "trait": "bold"}],
+        traditions=["martial"],
+        folk_heroes=[{"name": "Hero", "role": "general"}],
+        active_crisis=True,
+    )
+    assert len(snap.great_persons) == 1
+    assert snap.traditions == ["martial"]
+    assert snap.active_crisis is True
+
+
+# ---------------------------------------------------------------------------
+# Task 7: M17a end-to-end integration test
+# ---------------------------------------------------------------------------
+
+
+def test_m17a_integration_5_turn_simulation(make_world):
+    """Run 5 turns and verify great person system doesn't crash."""
+    from chronicler.simulation import run_turn
+    world = make_world(num_civs=3, seed=42)
+    civ = world.civilizations[0]
+    civ.war_win_turns = [0, 1, 2]
+
+    action_selector = lambda c, w: __import__("chronicler.models", fromlist=["ActionType"]).ActionType.DEVELOP
+    narrator = lambda w, events: ""
+
+    for _turn in range(5):
+        run_turn(world, action_selector=action_selector, narrator=narrator, seed=world.seed)
+
+    for c in world.civilizations:
+        for gp in c.great_persons:
+            assert gp.active is True
+            assert gp.civilization == c.name
+    for gp in world.retired_persons:
+        assert gp.active is False

@@ -572,6 +572,14 @@ def phase_consequences(world: WorldState) -> list[Event]:
             region.depopulated_since = None
             region.ruin_quality = 0
 
+    # --- M17: Great Person Consequences ---
+    from chronicler.great_persons import check_great_person_generation, check_lifespan_expiry
+    for civ in world.civilizations:
+        if not civ.regions:
+            continue
+        check_great_person_generation(civ, world)
+        check_lifespan_expiry(civ, world)
+
     return collapse_events
 
 
