@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from chronicler.adjacency import graph_distance
 from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent,
-    Relationship, WorldState,
+    Relationship, VassalRelation, WorldState,
 )
 from chronicler.utils import clamp, STAT_FLOOR
 
@@ -278,4 +278,127 @@ def check_capital_loss(world: WorldState) -> list[Event]:
             description=f"{civ.name} lost capital {old_capital}, relocated to {best_region}",
             importance=8,
         ))
+    return events
+
+
+_ABSORPTION_BIAS_TRAITS = {"ambitious", "aggressive", "zealous"}
+_VASSAL_BIAS_TRAITS = {"cautious", "shrewd", "visionary", "calculating"}
+
+
+def choose_vassalize_or_absorb(
+    winner: Civilization, loser: Civilization, world: WorldState,
+) -> bool:
+    """Return True to vassalize, False to absorb."""
+    if winner.stability <= 40:
+        return False
+    rng = random.Random(world.seed + world.turn + hash(winner.name))
+    trait = winner.leader.trait
+    if trait in _ABSORPTION_BIAS_TRAITS:
+        threshold = 0.3
+    elif trait in _VASSAL_BIAS_TRAITS:
+        threshold = 0.8
+    else:
+        threshold = 0.5
+    return rng.random() < threshold
+
+
+def resolve_vassalization(winner: Civilization, loser: Civilization, world: WorldState) -> list[Event]:
+    """Apply full vassalization resolution steps."""
+    events: list[Event] = []
+
+    # Remove from active_wars and war_start_turns
+    world.active_wars = [
+        w for w in world.active_wars
+        if not (set(w) == {winner.name, loser.name})
+    ]
+    key = war_key(winner.name, loser.name)
+    world.war_start_turns.pop(key, None)
+
+    # Create VassalRelation
+    world.vassal_relations.append(VassalRelation(
+        overlord=winner.name, vassal=loser.name, tribute_rate=0.15,
+    ))
+
+    # Set dispositions
+    if winner.name not in world.relationships:
+        world.relationships[winner.name] = {}
+    if loser.name not in world.relationships:
+        world.relationships[loser.name] = {}
+    world.relationships[winner.name][loser.name] = Relationship(disposition=Disposition.SUSPICIOUS)
+    world.relationships[loser.name][winner.name] = Relationship(disposition=Disposition.HOSTILE)
+
+    events.append(Event(
+        turn=world.turn,
+        event_type="vassalization",
+        actors=[winner.name, loser.name],
+        description=f"The Subjugation of {loser.name}",
+        importance=7,
+    ))
+    return events
+
+
+def collect_tribute(world: WorldState) -> list[Event]:
+    """Phase 2: Collect tribute from vassals to overlords."""
+    events: list[Event] = []
+    civ_map = {c.name: c for c in world.civilizations}
+    for vr in world.vassal_relations:
+        vassal = civ_map.get(vr.vassal)
+        overlord = civ_map.get(vr.overlord)
+        if vassal is None or overlord is None:
+            continue
+        tribute = math.floor(vassal.economy * vr.tribute_rate)
+        vassal.treasury -= tribute
+        overlord.treasury += tribute
+        vr.turns_active += 1
+    return events
+
+
+def check_vassal_rebellion(world: WorldState) -> list[Event]:
+    """Phase 10: Check if vassals rebel against weak overlords."""
+    events: list[Event] = []
+    civ_map = {c.name: c for c in world.civilizations}
+    to_remove: list[VassalRelation] = []
+    rebelled_overlords: set[str] = set()
+
+    for vr in list(world.vassal_relations):
+        overlord = civ_map.get(vr.overlord)
+        vassal = civ_map.get(vr.vassal)
+        if overlord is None or vassal is None:
+            to_remove.append(vr)
+            continue
+
+        if overlord.stability >= 25 and overlord.treasury >= 10:
+            continue
+
+        rng = random.Random(world.seed + world.turn + hash(vr.vassal))
+        prob = 0.05 if vr.overlord in rebelled_overlords else 0.15
+
+        if vr.overlord in rebelled_overlords:
+            rel = world.relationships.get(vr.vassal, {}).get(vr.overlord)
+            if rel is None or rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                continue
+
+        if rng.random() >= prob:
+            continue
+
+        to_remove.append(vr)
+        rebelled_overlords.add(vr.overlord)
+        vassal.stability = clamp(vassal.stability + 10, STAT_FLOOR["stability"], 100)
+        vassal.asabiya = min(vassal.asabiya + 0.2, 1.0)
+
+        if vr.vassal in world.relationships and vr.overlord in world.relationships[vr.vassal]:
+            world.relationships[vr.vassal][vr.overlord].disposition = Disposition.HOSTILE
+
+        events.append(Event(
+            turn=world.turn,
+            event_type="vassal_rebellion",
+            actors=[vr.vassal, vr.overlord],
+            description=f"The {vr.vassal} Rebellion against {vr.overlord}",
+            importance=8,
+        ))
+
+    for vr in to_remove:
+        if vr in world.vassal_relations:
+            world.vassal_relations.remove(vr)
+
     return events

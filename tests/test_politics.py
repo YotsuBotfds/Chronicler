@@ -324,3 +324,116 @@ def test_secession_stat_split_conserves_stats():
                 original = {"population": 60, "military": 30, "economy": 45, "treasury": 90}
                 assert getattr(parent, stat) + getattr(breakaway, stat) == original[stat]
             break
+
+
+# --- Task 11: VassalRelation and Federation models ---
+
+from chronicler.models import VassalRelation, Federation
+
+
+def test_vassal_relation_model():
+    vr = VassalRelation(overlord="Empire", vassal="City", tribute_rate=0.15)
+    assert vr.overlord == "Empire"
+    assert vr.tribute_rate == 0.15
+    assert vr.turns_active == 0
+
+
+def test_federation_model():
+    fed = Federation(name="The Iron Pact", members=["A", "B"], founded_turn=10)
+    assert len(fed.members) == 2
+
+
+def test_worldstate_has_vassal_and_federation_fields():
+    ws = WorldState(name="test", seed=42)
+    assert ws.vassal_relations == []
+    assert ws.federations == []
+
+
+def test_relationship_has_allied_turns():
+    from chronicler.models import Relationship
+    rel = Relationship()
+    assert rel.allied_turns == 0
+
+
+# --- Task 12: vassalization choice and tribute collection ---
+
+from chronicler.politics import choose_vassalize_or_absorb, collect_tribute
+
+
+def _make_two_civ_world(winner_stability=50, winner_trait="cautious"):
+    from chronicler.models import Region, Relationship, Disposition
+    regions = [
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["B"]),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["A"]),
+    ]
+    w_leader = Leader(name="WL", trait=winner_trait, reign_start=0)
+    l_leader = Leader(name="LL", trait="bold", reign_start=0)
+    winner = Civilization(name="Winner", population=50, military=40, economy=50,
+                          culture=30, stability=winner_stability, treasury=100, leader=w_leader,
+                          regions=["A"], capital_region="A")
+    loser = Civilization(name="Loser", population=30, military=10, economy=30,
+                         culture=20, stability=20, treasury=50, leader=l_leader,
+                         regions=["B"], capital_region="B")
+    world = WorldState(name="test", seed=42, turn=5, regions=regions, civilizations=[winner, loser])
+    world.relationships = {
+        "Winner": {"Loser": Relationship(disposition=Disposition.HOSTILE)},
+        "Loser": {"Winner": Relationship(disposition=Disposition.HOSTILE)},
+    }
+    return world, winner, loser
+
+
+def test_vassalize_when_stability_high_and_cautious():
+    world, winner, loser = _make_two_civ_world(winner_stability=50, winner_trait="cautious")
+    result = choose_vassalize_or_absorb(winner, loser, world)
+    assert isinstance(result, bool)
+
+
+def test_no_vassalize_when_stability_low():
+    world, winner, loser = _make_two_civ_world(winner_stability=30, winner_trait="cautious")
+    result = choose_vassalize_or_absorb(winner, loser, world)
+    assert result is False
+
+
+def test_tribute_collection():
+    world, winner, loser = _make_two_civ_world()
+    vr = VassalRelation(overlord="Winner", vassal="Loser", tribute_rate=0.15)
+    world.vassal_relations.append(vr)
+    collect_tribute(world)
+    # tribute = floor(30 * 0.15) = 4
+    assert loser.treasury == 50 - 4
+    assert winner.treasury == 100 + 4
+    assert vr.turns_active == 1
+
+
+# --- Task 13: vassal rebellion ---
+
+from chronicler.politics import check_vassal_rebellion
+
+
+def test_vassal_rebellion_when_overlord_weak():
+    world, winner, loser = _make_two_civ_world()
+    vr = VassalRelation(overlord="Winner", vassal="Loser")
+    world.vassal_relations.append(vr)
+    winner.stability = 20  # below 25
+
+    rebelled = False
+    for seed in range(100):
+        world.seed = seed
+        world.vassal_relations = [VassalRelation(overlord="Winner", vassal="Loser")]
+        loser.stability = 20
+        loser.asabiya = 0.5
+        events = check_vassal_rebellion(world)
+        if len(world.vassal_relations) == 0:
+            rebelled = True
+            break
+    assert rebelled
+
+
+def test_vassal_no_rebellion_when_overlord_strong():
+    world, winner, loser = _make_two_civ_world()
+    vr = VassalRelation(overlord="Winner", vassal="Loser")
+    world.vassal_relations.append(vr)
+    winner.stability = 50
+    winner.treasury = 100
+    events = check_vassal_rebellion(world)
+    assert len(world.vassal_relations) == 1

@@ -120,6 +120,7 @@ class Relationship(BaseModel):
     treaties: list[str] = Field(default_factory=list)
     grievances: list[str] = Field(default_factory=list)
     trade_volume: int = 0
+    allied_turns: int = 0
 
 
 class HistoricalFigure(BaseModel):
@@ -158,6 +159,19 @@ class ActiveCondition(BaseModel):
     severity: int = Field(ge=1, le=100)
 
 
+class VassalRelation(BaseModel):
+    overlord: str
+    vassal: str
+    tribute_rate: float = Field(default=0.15, ge=0.0, le=1.0)
+    turns_active: int = 0
+
+
+class Federation(BaseModel):
+    name: str
+    members: list[str]
+    founded_turn: int
+
+
 # --- Top-level state ---
 
 class WorldState(BaseModel):
@@ -179,6 +193,8 @@ class WorldState(BaseModel):
     embargoes: list[tuple[str, str]] = Field(default_factory=list)
     active_wars: list[tuple[str, str]] = Field(default_factory=list)
     mercenary_companies: list[dict] = Field(default_factory=list)
+    vassal_relations: list[VassalRelation] = Field(default_factory=list)
+    federations: list[Federation] = Field(default_factory=list)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
