@@ -45,6 +45,7 @@ from chronicler.leaders import (
 from chronicler.named_events import generate_tech_breakthrough_name
 from chronicler.action_engine import resolve_action
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation
+from chronicler.movements import tick_movements
 
 
 # --- Type aliases for callbacks ---
@@ -515,8 +516,8 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
 
-    # M16b: Movement lifecycle (must run FIRST — see spec, Task 13)
-    # tick_movements(world)  — wired in M16b
+    # M16b: Movement lifecycle (runs before value drift — movements feed disposition)
+    tick_movements(world)
 
     # M16a: Cultural effects (order matters — assimilation drain feeds asabiya)
     apply_value_drift(world)

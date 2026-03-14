@@ -270,3 +270,11 @@ class TestSchismDetection:
             ne.event_type == "movement_schism"
             for ne in movement_world.named_events
         )
+
+
+class TestM16bPhaseIntegration:
+    def test_tick_movements_runs_in_consequences(self, movement_world):
+        movement_world.turn = MOVEMENT_EMERGENCE_INTERVAL
+        from chronicler.simulation import phase_consequences
+        phase_consequences(movement_world)
+        assert len(movement_world.movements) == 1
