@@ -66,6 +66,15 @@ class LiveServer:
         if self._loop is not None and self._stop_event is not None:
             self._loop.call_soon_threadsafe(self._stop_event.set)
 
+    def _handle_start(self, msg: dict) -> dict | None:
+        """Handle a start command. Returns an error dict if rejected, None on success."""
+        if self._server_state != "lobby":
+            return {"type": "error", "message": "Simulation already running"}
+        self._start_params = msg
+        self._server_state = "running"
+        self.start_event.set()
+        return None
+
     def _run_loop(self, ready: threading.Event) -> None:
         """Entry point for the server thread — creates and runs the event loop."""
         self._loop = asyncio.new_event_loop()
@@ -96,9 +105,14 @@ class LiveServer:
                 client_ws = websocket
 
             try:
-                # Send init data if available
-                if self._init_data is not None:
+                # Send init data based on server state
+                if self._server_state == "lobby" and self._lobby_init is not None:
+                    await websocket.send(json.dumps(self._lobby_init))
+                elif self._server_state == "running" and self._init_data is not None:
                     await websocket.send(json.dumps(self._init_data))
+                elif self._server_state == "running" and self._init_data is None:
+                    # World generation in progress — send minimal ack
+                    await websocket.send(json.dumps({"type": "init", "state": "starting"}))
                 # Send last paused msg if paused
                 if self._paused and self._last_paused_msg is not None:
                     await websocket.send(json.dumps(self._last_paused_msg))
@@ -124,6 +138,12 @@ class LiveServer:
                         self.quit_event.set()
                         if self._paused:
                             self.command_queue.put(msg)
+                        continue
+
+                    if msg_type == "start":
+                        err = self._handle_start(msg)
+                        if err is not None:
+                            await websocket.send(json.dumps(err))
                         continue
 
                     # Other commands only accepted while paused

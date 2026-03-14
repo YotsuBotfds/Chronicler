@@ -224,3 +224,65 @@ def test_live_server_has_lobby_fields():
     assert server._start_params is None
     assert server._lobby_init is None
     assert not server.start_event.is_set()
+
+
+def test_start_command_sets_event():
+    """Start command stores params and sets start_event."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    assert server._server_state == "lobby"
+
+    start_msg = {
+        "type": "start",
+        "scenario": "dead_miles.yaml",
+        "turns": 50,
+        "seed": 42,
+        "civs": 4,
+        "regions": 8,
+        "sim_model": "LFM2-24B",
+        "narrative_model": "LFM2-24B",
+        "resume_state": None,
+    }
+    server._handle_start(start_msg)
+
+    assert server._server_state == "running"
+    assert server.start_event.is_set()
+    assert server._start_params == start_msg
+
+
+def test_start_command_rejected_when_running():
+    """Start command returns error when already running."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    server._server_state = "running"
+
+    result = server._handle_start({"type": "start", "turns": 50})
+    assert result is not None
+    assert result["type"] == "error"
+    assert "already running" in result["message"].lower()
+
+
+def test_connect_init_returns_lobby_when_in_lobby():
+    """Server has correct state for lobby init on connect."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    server._lobby_init = {"type": "init", "state": "lobby", "scenarios": [], "models": [], "defaults": {}}
+
+    assert server._server_state == "lobby"
+    assert server._lobby_init is not None
+    assert server._init_data is None
+
+
+def test_connect_init_returns_starting_during_world_gen():
+    """Server has correct state for starting ack during world generation."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    server._server_state = "running"
+    server._init_data = None
+
+    assert server._server_state == "running"
+    assert server._init_data is None
