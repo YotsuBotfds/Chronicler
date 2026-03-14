@@ -106,6 +106,8 @@ class Region(BaseModel):
     controller: Optional[str] = None
     x: float | None = None
     y: float | None = None
+    cultural_identity: str | None = None
+    foreign_control_turns: int = 0
     adjacencies: list[str] = Field(default_factory=list)
     specialized_resources: list[Resource] = Field(default_factory=list)
     fertility: float = Field(default=0.8, ge=0.0, le=1.0)
@@ -152,6 +154,7 @@ class Civilization(BaseModel):
     asabiya: float = Field(default=0.5, ge=0.0, le=1.0)
     cultural_milestones: list[str] = Field(default_factory=list)
     action_counts: dict[str, int] = Field(default_factory=dict)
+    prestige: int = 0
     leader_name_pool: list[str] | None = None
     capital_region: str | None = None
     last_income: int = 0
@@ -169,6 +172,7 @@ class Relationship(BaseModel):
     trade_volume: int = 0
     allied_turns: int = 0
     trade_contact_turns: int = 0
+    disposition_drift: int = 0
 
 
 class HistoricalFigure(BaseModel):
