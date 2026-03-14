@@ -12,6 +12,49 @@ from chronicler.models import (
 
 
 @pytest.fixture
+def make_civ():
+    """Factory fixture: create a minimal Civilization with defaults."""
+    def _make(name, **overrides):
+        defaults = dict(
+            name=name,
+            population=50, military=30, economy=40, culture=30, stability=50,
+            tech_era=TechEra.IRON,
+            treasury=50,
+            leader=Leader(name=f"Leader of {name}", trait="cautious", reign_start=0),
+            regions=[f"{name}_region"],
+            asabiya=0.5,
+        )
+        defaults.update(overrides)
+        return Civilization(**defaults)
+    return _make
+
+
+@pytest.fixture
+def make_world(make_civ):
+    """Factory fixture: create a WorldState with N civs and relationships."""
+    def _make(num_civs=2, seed=42):
+        names = [f"Civ{i}" for i in range(num_civs)]
+        regions = []
+        for n in names:
+            regions.append(Region(
+                name=f"{n}_region", terrain="plains",
+                carrying_capacity=60, resources="fertile", controller=n,
+            ))
+        civs = [make_civ(n) for n in names]
+        rels = {}
+        for a in names:
+            rels[a] = {}
+            for b in names:
+                if a != b:
+                    rels[a][b] = Relationship()
+        return WorldState(
+            name="TestWorld", seed=seed, turn=0,
+            regions=regions, civilizations=civs, relationships=rels,
+        )
+    return _make
+
+
+@pytest.fixture
 def sample_regions():
     return [
         Region(name="Verdant Plains", terrain="plains", carrying_capacity=80, resources="fertile", controller="Kethani Empire"),
