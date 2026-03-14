@@ -318,6 +318,7 @@ class CivSnapshot(BaseModel):
     is_fallen_empire: bool = False
     in_twilight: bool = False
     federation_name: str | None = None
+    prestige: int = 0
     capital_region: str | None = None
 
 
@@ -343,3 +344,5 @@ class TurnSnapshot(BaseModel):
     exile_modifiers: list[dict] = Field(default_factory=list)
     capitals: dict[str, str] = Field(default_factory=dict)
     peace_turns: int = 0
+    region_cultural_identity: dict[str, str | None] = Field(default_factory=dict)
+    movements_summary: list[dict] = Field(default_factory=list)

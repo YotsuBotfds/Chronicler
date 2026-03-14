@@ -44,7 +44,7 @@ from chronicler.leaders import (
 )
 from chronicler.named_events import generate_tech_breakthrough_name
 from chronicler.action_engine import resolve_action
-from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation
+from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
 
 
@@ -523,6 +523,9 @@ def phase_consequences(world: WorldState) -> list[Event]:
     apply_value_drift(world)
     tick_cultural_assimilation(world)
 
+    # M16c: Cultural victory tracking (runs LAST in culture effects)
+    check_cultural_victories(world)
+
     apply_asabiya_dynamics(world)
 
     from chronicler.politics import (
@@ -586,6 +589,22 @@ def phase_technology(world: WorldState) -> list[Event]:
                 name=name, event_type="tech_breakthrough", turn=world.turn,
                 actors=[civ.name], description=event.description, importance=7,
             ))
+            # M16c: Check for paradigm shift
+            from chronicler.tech import ERA_BONUSES
+            era_bonuses = ERA_BONUSES.get(civ.tech_era, {})
+            has_paradigm_shift = any(
+                k in era_bonuses and era_bonuses[k] != 1.0
+                for k in ("military_multiplier", "fortification_multiplier", "culture_projection_range")
+            )
+            if has_paradigm_shift:
+                world.named_events.append(NamedEvent(
+                    name=f"Paradigm Shift: {civ.tech_era.value.title()} Era",
+                    event_type="paradigm_shift",
+                    turn=world.turn,
+                    actors=[civ.name],
+                    description=f"{civ.name} enters the {civ.tech_era.value.title()} era, fundamentally changing the rules of engagement.",
+                    importance=7,
+                ))
     return events
 
 

@@ -229,6 +229,7 @@ def execute_run(
                     is_fallen_empire=(civ.peak_region_count >= 5 and len(civ.regions) == 1),
                     in_twilight=(civ.decline_turns >= 20 and len(civ.regions) == 1),
                     federation_name=next((f.name for f in world.federations if civ.name in f.members), None),
+                    prestige=civ.prestige,
                     capital_region=civ.capital_region,
                 )
                 for civ in world.civilizations
@@ -250,6 +251,8 @@ def execute_run(
             exile_modifiers=[em.model_dump() for em in world.exile_modifiers],
             capitals={civ.name: civ.capital_region for civ in world.civilizations if civ.capital_region},
             peace_turns=world.peace_turns,
+            region_cultural_identity={r.name: r.cultural_identity for r in world.regions},
+            movements_summary=[{"id": m.id, "value_affinity": m.value_affinity, "adherent_count": len(m.adherents), "origin_civ": m.origin_civ} for m in world.movements],
         )
         history.append(snapshot)
 

@@ -492,3 +492,26 @@ class TestCulturalVictories:
         count = len(drift_world.named_events)
         check_cultural_victories(drift_world)
         assert len(drift_world.named_events) == count
+
+
+class TestM16cIntegration:
+    def test_check_cultural_victories_runs_last_in_phase_10(self, drift_world):
+        drift_world.civilizations[0].culture = 90
+        drift_world.civilizations[1].culture = 10
+        from chronicler.simulation import phase_consequences
+        phase_consequences(drift_world)
+        assert any(
+            ne.event_type == "cultural_hegemony"
+            for ne in drift_world.named_events
+        )
+
+
+class TestSnapshotChanges:
+    def test_civ_snapshot_has_prestige(self):
+        from chronicler.models import CivSnapshot
+        snap = CivSnapshot(
+            population=50, military=50, economy=50, culture=50, stability=50,
+            treasury=10, asabiya=0.5, tech_era=TechEra.IRON, trait="cautious",
+            regions=["R1"], leader_name="L", alive=True, prestige=10,
+        )
+        assert snap.prestige == 10
