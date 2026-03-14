@@ -45,7 +45,11 @@ terrain_transition_rules: list[TerrainTransitionRule] = Field(
 
 # Climate offset for supervolcano phase advancement
 # ClimateConfig addition:
-phase_offset: int = 0  # Added to turn count in get_climate_phase()
+phase_offset: int = 0  # Shifts the climate cycle; 1 = advance by one discrete phase step
+# IMPORTANT: Requires modifying get_climate_phase() in climate.py to incorporate phase_offset.
+# Current formula: position = (turn % config.period) / config.period
+# New formula: position = ((turn + config.phase_offset * (config.period // 4)) % config.period) / config.period
+# Each phase_offset increment advances by 25% of the period (one discrete phase step).
 ```
 
 ### Civilization additions
@@ -54,8 +58,9 @@ phase_offset: int = 0  # Added to turn count in get_climate_phase()
 civ_stress: int = 0  # Per-civ stress, recomputed each turn
 
 # Start-of-turn snapshots for regression trigger detection
-regions_start_of_turn: int = 0  # Set at top of run_turn
-was_in_twilight: bool = False    # Set from decline_turns > 0 at top of run_turn
+regions_start_of_turn: int = 0      # Set at top of run_turn
+was_in_twilight: bool = False        # Set from decline_turns > 0 at top of run_turn
+capital_start_of_turn: str | None = None  # Set from capital_region at top of run_turn
 ```
 
 ### Region additions
@@ -98,13 +103,13 @@ black_swan_cooldown_turns: int = 30  # Minimum gap between black swans (global)
 - **Base probability per turn:** 0.005 (0.5%) × `chaos_multiplier`
 - **Gate:** `world.black_swan_cooldown == 0`
 - **Cooldown:** Global (not per-type). When any black swan fires, `black_swan_cooldown = black_swan_cooldown_turns` (default 30). At 2-3 events per 500 turns, per-type cooldowns add complexity without value. Global cooldown prevents "two simultaneous catastrophes" which are extremely hard to narrate well.
-- **Selection:** Weighted random among eligible event types
+- **Selection:** The 0.5% roll is made first. If it succeeds AND cooldown is 0, filter eligible event types. If no types are eligible, no event fires and the cooldown is NOT set (the roll is wasted, not deferred). Among eligible types, select via weighted random.
 
 ### Event type eligibility and weights
 
 | Event | Weight | Eligibility condition |
 |-------|--------|----------------------|
-| **Pandemic** | 3 | Any civ has 3+ active trade routes |
+| **Pandemic** | 3 | Any civ appears in 3+ pairs from `get_active_trade_routes(world)` |
 | **Supervolcano** | 2 | Any cluster of 3+ mutually adjacent *controlled* regions exists |
 | **Resource Discovery** | 2 | Any region has 0 specialized resources |
 | **Technological Accident** | 1 | Any civ at INDUSTRIAL+ era |
@@ -119,15 +124,15 @@ The stress index does **not** increase black swan probability. Frequency stays a
 
 The most complex black swan — spreads over multiple turns along trade routes.
 
-**Origin:** Select a random region controlled by the civ with the most active trade routes. The trade-network-as-vector design: the most connected civ is patient zero. If a merchant great person exists (M17), their trade routes count toward the total (they're passive super-spreaders — the infrastructure they built is the highway the plague travels on).
+**Origin:** Select a random region controlled by the civ appearing in the most pairs from `get_active_trade_routes(world)` (i.e., the civ with the most distinct trading partners). The trade-network-as-vector design: the most connected civ is patient zero. M17 interaction (conditional on M17 being implemented — gracefully skip if GreatPerson model does not exist): if a merchant great person exists for that civ, count them as +1 to the civ's trade route count for eligibility purposes (they're passive super-spreaders — the infrastructure they built is the highway the plague travels on).
 
 **Spread:** Each turn, the pandemic spreads from infected regions to adjacent regions that share a trade route with any infected region's controller. Non-trading neighbors are safe (isolation advantage). No region is infected twice in the same pandemic — the wave passes through and moves on. When all adjacent trade-connected regions are already infected or recovered, spread stops naturally. The pandemic burns out when all `PandemicRegion.turns_remaining` hit 0.
 
 **Per-civ effects (aggregate, not per-region):** Effects apply once per civ per turn, regardless of how many of their regions are infected. More infected regions increase spread probability to neighbors, not damage.
 - `population -= min(severity × 3, 12)`
 - `economy -= min(severity × 2, 8)`
-- Severity per region = `1 + len(region.infrastructure) // 2` (capped at 3). The per-civ severity is the max across their infected regions.
-- Per-region severity reflects infrastructure density as a proxy for population concentration.
+- Severity per region = `1 + len([i for i in region.infrastructure if i.active]) // 2` (capped at 3). Counts only active (non-destroyed) infrastructure — ruins don't indicate current density. The per-civ severity is the max across their infected regions.
+- Per-region severity reflects active infrastructure density as a proxy for population concentration.
 
 **Duration:** `PandemicRegion.turns_remaining` starts at 4-6 (random per region). M17 interaction: scientist great person in an infected civ reduces duration by 1 turn (knowledge-based containment).
 
@@ -137,7 +142,7 @@ The most complex black swan — spreads over multiple turns along trade routes.
 
 Instant-impact, geographically concentrated.
 
-**Target:** Select a random cluster of 3+ mutually adjacent controlled regions. Prefer clusters containing mountain regions (volcanic association). At least one region in the cluster must have a controller (volcanoes in empty wilderness are narratively boring).
+**Target:** Select a random cluster of 3 mutually adjacent controlled regions. Implementation: enumerate all region triples where each pair shares an adjacency edge and at least one region has a controller. Filter to triples where at least one region has terrain "mountains" if any such triple exists; otherwise use all valid triples. Select uniformly at random from the resulting set. (With ~8-12 regions, triple enumeration is O(n³) and trivially fast.)
 
 **Immediate effects on all regions in cluster:**
 - `fertility = 0.1` (devastated)
@@ -147,7 +152,7 @@ Instant-impact, geographically concentrated.
 **Secondary effects:**
 - Climate cycle advanced by 1 phase via `climate_config.phase_offset += 1` (volcanic winter)
 - Creates `ActiveCondition(condition_type="volcanic_winter", duration=5, severity=40)` affecting all civs with regions adjacent to the blast zone
-- M17 interaction: if a folk hero's origin region is in the blast zone, the civ gains +0.05 asabiya (rallying around shared trauma)
+- M17 interaction (conditional on M17 implementation): if a folk hero is associated with a region in the blast zone (via `GreatPerson.region` at time of death, stored in the folk hero dict), the civ gains +0.05 asabiya (rallying around shared trauma). If M17's folk hero data structure does not include region information, degrade to: if the civ has *any* folk hero, grant the asabiya bonus when any of their regions are in the blast zone.
 
 ### 2c. Resource Discovery
 
@@ -157,7 +162,7 @@ The positive black swan — creates strategic tension without destruction.
 
 **Effect:** Add 1-2 specialized resources chosen from `{Resource.FUEL, Resource.RARE_MINERALS}` (late-game strategic resources). A barren region suddenly gaining FUEL is "you just found oil." FUEL is required for INDUSTRIAL era advancement; RARE_MINERALS are the late-game strategic resource.
 
-**Diplomatic consequence:** All civs controlling regions adjacent to the discovery get `disposition_drift -= 1` toward the controller (jealousy/desire). If the region is uncontrolled, all adjacent controllers get `disposition_drift -= 1` toward each other (competition for unclaimed wealth).
+**Diplomatic consequence:** All civs controlling regions adjacent to the discovery get `disposition_drift -= 5` toward the controller (jealousy/desire — significant enough to produce a noticeable disposition shift within a few events, given drift thresholds of ±10 for one disposition level change). If the region is uncontrolled, all adjacent controllers get `disposition_drift -= 5` toward each other (competition for unclaimed wealth).
 
 ### 2d. Technological Accident
 
@@ -170,7 +175,7 @@ Industrial+ era environmental hazard.
 - All regions within 2 adjacency hops: `fertility -= 0.15`
 - M17 interaction: scientist great person in the responsible civ reduces radius from 2 hops to 1 (containment)
 
-**Diplomatic fallout:** Civs controlling affected neighbor regions get `disposition_drift -= 2` toward the polluter. Creates a "you poisoned our land" grievance.
+**Diplomatic fallout:** Civs controlling affected neighbor regions get `disposition_drift -= 8` toward the polluter. This is an acute diplomatic incident — nearly enough for a full disposition level drop (threshold ±10). Creates a "you poisoned our land" grievance.
 
 ---
 
@@ -263,7 +268,7 @@ Checked once per turn in Phase 10, after stress computation. Not a random event 
 
 | Trigger | Probability | Condition |
 |---------|------------|-----------|
-| **Capital loss + territorial collapse** | 30% | Lost capital this turn AND `civ.regions_start_of_turn > 0` AND `len(civ.regions) / civ.regions_start_of_turn < 0.5` |
+| **Capital loss + territorial collapse** | 30% | `civ.capital_start_of_turn is not None and civ.capital_region != civ.capital_start_of_turn` AND `civ.regions_start_of_turn > 0` AND `len(civ.regions) / civ.regions_start_of_turn < 0.5` |
 | **Entered twilight** | 50% | `civ.decline_turns > 0 and not civ.was_in_twilight` (transitioned this turn) |
 | **Black swan while critically stressed** | 20% | Any black swan fired this turn AND `civ.civ_stress >= 15` |
 
@@ -271,11 +276,11 @@ Checked once per turn in Phase 10, after stress computation. Not a random event 
 
 **Probabilities are flat** — not multiplied by `chaos_multiplier`. The chaos multiplier affects black swan frequency, which indirectly affects trigger 3.
 
-**Start-of-turn snapshots:** `civ.regions_start_of_turn` and `civ.was_in_twilight` are set at the top of `run_turn` before any phases execute. This allows Phase 10 to detect within-turn transitions.
+**Start-of-turn snapshots:** `civ.regions_start_of_turn`, `civ.was_in_twilight`, and `civ.capital_start_of_turn` are set at the top of `run_turn` before any phases execute. This allows Phase 10 to detect within-turn transitions.
 
 ### Regression effect
 
-Step back one tech era. Reverse the stat bonuses granted on advancement:
+Step back one tech era. Requires a `_prev_era(era: TechEra) -> TechEra | None` helper in `tech.py` (mirror of existing `_next_era`). Returns `None` for TRIBAL. Reverse the stat bonuses granted on advancement:
 
 ```python
 def remove_era_bonus(civ: Civilization, era: TechEra) -> None:
@@ -324,6 +329,7 @@ Stored on `WorldState.terrain_transition_rules` (persists across save/load). Def
 
 **Rewilding:** Plains with no controller for 100+ consecutive turns → Forest
 - Tracked via `world.turn - region.depopulated_since` (existing field, no new counter)
+- Guard: skip if `region.controller is not None` (a civ may have expanded into the region this turn during Phase 5, but `depopulated_since` isn't reset until Phase 10)
 - On transition: `region.terrain = "forest"`, `region.carrying_capacity -= 10`, `region.fertility = 0.7`
 - Resets `depopulated_since = None`
 
@@ -333,6 +339,8 @@ Within Phase 9, the explicit order is:
 1. All fertility calculations run (existing logic)
 2. Increment or reset `low_fertility_turns` based on new fertility value
 3. Check terrain transitions via `tick_terrain_succession(world)`
+
+**Timing note:** `depopulated_since` is set/reset in Phase 10 (Consequences), so Phase 9 reads the value from the previous turn's Phase 10. This creates a 1-turn lag between depopulation and the counter starting — negligible at 100-turn thresholds but stated explicitly to prevent confusion during implementation.
 
 ### Narrative value
 
@@ -350,6 +358,7 @@ run_turn():
     for civ in world.civilizations:
         civ.regions_start_of_turn = len(civ.regions)
         civ.was_in_twilight = civ.decline_turns > 0
+        civ.capital_start_of_turn = civ.capital_region
 
     # Phase 1: Environment
     phase_environment(world, seed)
@@ -397,7 +406,7 @@ All M18 logic in `src/chronicler/emergence.py`:
 
 ## 7. Testing Strategy
 
-- **Black swan frequency:** Run 1000-turn simulation with fixed seed, verify 4-6 black swans fire (±1 for randomness). Verify no two black swans within cooldown window.
+- **Black swan frequency:** Run 1000-turn simulation with fixed seed, assert `2 <= black_swan_count <= 8` (expected ~4.6 with variance from eligibility gating). Verify no two black swans within cooldown window.
 - **Eligibility gating:** Verify pandemic doesn't fire before any civ has 3+ trade routes. Verify tech accident doesn't fire before INDUSTRIAL era.
 - **Pandemic spread:** Create a 5-civ scenario with known trade routes. Trigger pandemic. Verify spread follows trade routes, not just adjacency. Verify isolated (no-trade) civs are unaffected.
 - **Pandemic damage caps:** Verify per-civ damage doesn't exceed `min(severity × 3, 12)` population and `min(severity × 2, 8)` economy per turn regardless of infected region count.
@@ -408,3 +417,13 @@ All M18 logic in `src/chronicler/emergence.py`:
 - **Ecological succession:** Run a forest region at fertility 0.1 for 50 turns, verify transition to plains with correct capacity/fertility values. Run a plains region depopulated for 100 turns, verify transition to forest.
 - **Terrain transition rules:** Verify empty rules list disables succession. Verify custom rules are applied correctly.
 - **Integration:** 5-turn smoke test with all systems active. Verify no crashes, state consistency, events logged.
+
+---
+
+## 8. Implementation Notes
+
+- **`active_wars` is `list[tuple[str, str]]`:** The stress computation uses `civ.name in w` where `w` is a tuple. This relies on Python's tuple `__contains__` behavior, which is correct but worth a comment in the implementation.
+- **`_prev_era()` helper:** Add to `tech.py` alongside existing `_next_era()`. Mirror implementation: `_ERA_ORDER.index(era) - 1`, returns `None` for TRIBAL.
+- **Severity multiplier insertion points:** The implementer should audit all negative stat modifications in Phase 1 (`phase_environment`), Phase 2 (`apply_automatic_effects` — war costs, governing costs), Phase 5 (`resolve_action` — war outcomes), Phase 7 (`phase_random_events`), and Phase 10 (`phase_consequences` — condition ticks, secession, collapse). Wrap each with `int(base_amount * get_severity_multiplier(civ))`. Do NOT apply to treasury costs (maintenance, tech advancement) — those are fixed structural costs, not event damage.
+- **M17 conditional interactions:** All M17 interactions (merchant trade count, scientist containment, folk hero asabiya) should be guarded with existence checks. If M17 models are not yet present when M18 is implemented, the interaction code should degrade gracefully (skip the check, use base values). This allows M18 to ship independently of M17's implementation status.
+- **Deforestation capacity increase comment:** When implementing the `carrying_capacity += 20` in deforestation, add an inline comment: `# Cleared forest = arable land, supports larger agricultural populations`.
