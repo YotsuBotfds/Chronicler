@@ -39,6 +39,10 @@ class LiveServer:
         self._paused: bool = False
         self._init_data: dict | None = None
         self._last_paused_msg: dict | None = None
+        self.start_event = threading.Event()
+        self._start_params: dict | None = None
+        self._server_state: str = "lobby"
+        self._lobby_init: dict | None = None
 
     @property
     def speed(self) -> float:

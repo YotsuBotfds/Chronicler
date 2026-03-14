@@ -209,3 +209,18 @@ def test_live_pause_fork(tmp_path):
     from pathlib import Path
     fork_dir = Path(forked["save_path"])
     assert (fork_dir / "state.json").exists()
+
+
+def test_live_server_has_lobby_fields():
+    """LiveServer initializes with lobby state fields."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    assert hasattr(server, "start_event")
+    assert hasattr(server, "_start_params")
+    assert hasattr(server, "_server_state")
+    assert hasattr(server, "_lobby_init")
+    assert server._server_state == "lobby"
+    assert server._start_params is None
+    assert server._lobby_init is None
+    assert not server.start_event.is_set()
