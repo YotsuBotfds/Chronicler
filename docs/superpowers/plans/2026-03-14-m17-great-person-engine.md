@@ -2567,7 +2567,7 @@ def apply_tradition_effects(world: WorldState) -> None:
             from chronicler.culture import _downgrade_disposition
             for other_name in world.relationships.get(civ.name, {}):
                 rel = world.relationships[civ.name][other_name]
-                _downgrade_disposition(rel)
+                rel.disposition = _downgrade_disposition(rel.disposition)
 
 
 def apply_fertility_floor(world: WorldState) -> None:
@@ -2860,7 +2860,7 @@ def apply_prophet_martyrdom(
             continue
         rel = world.relationships.get(other_name, {}).get(civ.name)
         if rel:
-            _upgrade_disposition(rel)
+            rel.disposition = _upgrade_disposition(rel.disposition)
 
     # Named event
     from chronicler.models import NamedEvent
