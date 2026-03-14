@@ -1,7 +1,11 @@
 """Tests for M16a cultural foundations."""
 import pytest
 from chronicler.models import Civilization, Region, Relationship, Leader, TechEra, Disposition, WorldState
-from chronicler.culture import VALUE_OPPOSITIONS, apply_value_drift
+from chronicler.models import ActiveCondition
+from chronicler.culture import (
+    VALUE_OPPOSITIONS, apply_value_drift,
+    tick_cultural_assimilation, ASSIMILATION_THRESHOLD, RECONQUEST_COOLDOWN,
+)
 
 
 class TestModelFields:
@@ -97,3 +101,88 @@ class TestValueDrift:
         apply_value_drift(drift_world)
         rel = drift_world.relationships["CivA"]["CivB"]
         assert rel.disposition_drift == 0
+
+
+@pytest.fixture
+def assimilation_world():
+    regions = [
+        Region(
+            name="Contested", terrain="plains", carrying_capacity=5,
+            resources="fertile", controller="CivB",
+            cultural_identity="CivA", foreign_control_turns=0,
+        ),
+    ]
+    civs = [
+        Civilization(
+            name="CivA", population=50, military=50, economy=50, culture=50,
+            stability=50, leader=Leader(name="LA", trait="cautious", reign_start=0),
+            domains=["trade"], values=["Trade"], regions=[],
+        ),
+        Civilization(
+            name="CivB", population=50, military=50, economy=50, culture=50,
+            stability=50, leader=Leader(name="LB", trait="cautious", reign_start=0),
+            domains=["trade"], values=["Order"], regions=["Contested"],
+        ),
+    ]
+    return WorldState(
+        name="test", seed=42, regions=regions, civilizations=civs,
+        relationships={"CivA": {"CivB": Relationship()}, "CivB": {"CivA": Relationship()}},
+    )
+
+
+class TestCulturalAssimilation:
+    def test_foreign_control_increments(self, assimilation_world):
+        tick_cultural_assimilation(assimilation_world)
+        assert assimilation_world.regions[0].foreign_control_turns == 1
+
+    def test_assimilation_flips_identity_at_threshold(self, assimilation_world):
+        assimilation_world.regions[0].foreign_control_turns = ASSIMILATION_THRESHOLD - 1
+        tick_cultural_assimilation(assimilation_world)
+        assert assimilation_world.regions[0].cultural_identity == "CivB"
+        assert assimilation_world.regions[0].foreign_control_turns == 0
+
+    def test_assimilation_generates_named_event(self, assimilation_world):
+        assimilation_world.regions[0].foreign_control_turns = ASSIMILATION_THRESHOLD - 1
+        tick_cultural_assimilation(assimilation_world)
+        assert any(
+            ne.event_type == "cultural_assimilation"
+            for ne in assimilation_world.named_events
+        )
+
+    def test_stability_drain_per_mismatched_region(self, assimilation_world):
+        assimilation_world.regions[0].foreign_control_turns = RECONQUEST_COOLDOWN
+        initial_stability = assimilation_world.civilizations[1].stability
+        tick_cultural_assimilation(assimilation_world)
+        assert assimilation_world.civilizations[1].stability == initial_stability - 3
+
+    def test_reconquest_cooldown_exempts_drain(self, assimilation_world):
+        assimilation_world.regions[0].foreign_control_turns = 5
+        initial_stability = assimilation_world.civilizations[1].stability
+        tick_cultural_assimilation(assimilation_world)
+        assert assimilation_world.civilizations[1].stability == initial_stability
+
+    def test_first_control_sets_identity_immediately(self, assimilation_world):
+        assimilation_world.regions[0].cultural_identity = None
+        assimilation_world.regions[0].controller = "CivB"
+        tick_cultural_assimilation(assimilation_world)
+        assert assimilation_world.regions[0].cultural_identity == "CivB"
+        assert assimilation_world.regions[0].foreign_control_turns == 0
+
+    def test_matching_identity_resets_counter(self, assimilation_world):
+        assimilation_world.regions[0].controller = "CivA"
+        assimilation_world.regions[0].cultural_identity = "CivA"
+        assimilation_world.regions[0].foreign_control_turns = 10
+        tick_cultural_assimilation(assimilation_world)
+        assert assimilation_world.regions[0].foreign_control_turns == 0
+
+    def test_reconquest_applies_restless_population(self, assimilation_world):
+        assimilation_world.regions[0].cultural_identity = "CivA"
+        assimilation_world.regions[0].controller = "CivA"
+        assimilation_world.regions[0].foreign_control_turns = 5
+        tick_cultural_assimilation(assimilation_world)
+        restless = [
+            c for c in assimilation_world.active_conditions
+            if c.condition_type == "restless_population"
+        ]
+        assert len(restless) == 1
+        assert restless[0].duration == RECONQUEST_COOLDOWN

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from chronicler.models import Disposition, WorldState
+from chronicler.models import ActiveCondition, Disposition, NamedEvent, WorldState
+from chronicler.utils import clamp
 
 VALUE_OPPOSITIONS: dict[str, str] = {
     "Freedom": "Order",
@@ -55,3 +56,53 @@ def apply_value_drift(world: WorldState) -> None:
                 elif rel.disposition_drift <= -10:
                     rel.disposition = _downgrade_disposition(rel.disposition)
                     rel.disposition_drift = 0
+
+
+ASSIMILATION_THRESHOLD = 15
+ASSIMILATION_STABILITY_DRAIN = 3
+RECONQUEST_COOLDOWN = 10
+
+
+def tick_cultural_assimilation(world: WorldState) -> None:
+    """Tick cultural assimilation for all regions."""
+    for region in world.regions:
+        if region.controller is None:
+            continue
+
+        if region.cultural_identity is None:
+            region.cultural_identity = region.controller
+            continue
+
+        if region.cultural_identity == region.controller:
+            if region.foreign_control_turns > 0:
+                region.foreign_control_turns = 0
+                world.active_conditions.append(ActiveCondition(
+                    condition_type="restless_population",
+                    affected_civs=[region.controller],
+                    duration=RECONQUEST_COOLDOWN,
+                    severity=5,
+                ))
+            continue
+
+        region.foreign_control_turns += 1
+
+        if region.foreign_control_turns >= ASSIMILATION_THRESHOLD:
+            region.cultural_identity = region.controller
+            region.foreign_control_turns = 0
+            world.named_events.append(NamedEvent(
+                name=f"Assimilation of {region.name}",
+                event_type="cultural_assimilation",
+                turn=world.turn,
+                actors=[region.controller],
+                region=region.name,
+                description=f"{region.name} has been culturally assimilated by {region.controller}.",
+                importance=6,
+            ))
+        elif region.foreign_control_turns >= RECONQUEST_COOLDOWN:
+            controller = next(
+                (c for c in world.civilizations if c.name == region.controller), None
+            )
+            if controller:
+                controller.stability = clamp(
+                    controller.stability - ASSIMILATION_STABILITY_DRAIN, 0, 100
+                )
