@@ -247,7 +247,7 @@ narrative_client = make_llm_client(narrative_model, args) if narrative_model els
 # ... execute_run() with on_turn_cb, quit_check — unchanged
 ```
 
-**LLM client construction:** The existing `main.py` builds `sim_client` and `narrative_client` from CLI args before dispatching to `run_live()`. With the lobby, this construction moves into `run_live()` Phase 2 — the model names come from the `start` command, not CLI args. The `make_llm_client(model_name, args)` helper (extracted from existing `main.py` client construction logic) takes a model name string and the args namespace (for `local_url`, API keys, etc.) and returns an `LLMClient`. The `run_live()` signature drops `sim_client` and `narrative_client` parameters; `main.py` no longer constructs them upfront for live mode.
+**LLM client construction:** The existing `main.py` builds `sim_client` and `narrative_client` from CLI args before dispatching to `run_live()`. With the lobby, this construction moves into `run_live()` Phase 2 — the model names come from the `start` command, not CLI args. The existing `create_clients(local_url, sim_model, narrative_model)` in `llm.py` already handles role-specific temperature differentiation (`temperature=0.3` for sim, `temperature=0.8` for narrative). Phase 2 calls `create_clients(local_url=args.local_url, sim_model=sim_model, narrative_model=narrative_model)` directly — no new helper needed. The `run_live()` signature drops `sim_client` and `narrative_client` parameters; `main.py` no longer constructs them upfront for live mode.
 
 ### `build_lobby_init()` — New Helper
 
@@ -471,7 +471,7 @@ Shows details for the selected scenario. Three sections:
 |------|--------|
 | `src/chronicler/live.py` | Add `start_event`, `_start_params`, `_server_state`, `_lobby_init` to `LiveServer`. Add `start` handler (before paused gate). Refactor `run_live()` to block on `start_event`. Add `build_lobby_init()`, `_get_available_models()`. Move LLM client construction into `run_live()` Phase 2. |
 | `src/chronicler/main.py` | Extract `make_llm_client()` helper from existing client construction. Skip client construction for `--live` mode (deferred to `run_live()`). |
-| `viewer/src/types.ts` | Add `ScenarioInfo`, `LobbyInit`, `StartCommand`. Extend `Command` union. |
+| `viewer/src/types.ts` | Add `ScenarioInfo`, `LobbyInit`, `StartCommand` (separate from `Command` union). |
 | `viewer/src/hooks/useLiveConnection.ts` | Add `serverState`, `lobbyInit`, `sendStart`. Branch `init` handler on `msg.state`. |
 | `viewer/src/App.tsx` | Gate live mode on `serverState` switch. Render `SetupLobby` for lobby/starting. |
 | `viewer/src/components/SetupLobby.tsx` | **New file.** Sidebar + preview layout, six controls, launch button. |
