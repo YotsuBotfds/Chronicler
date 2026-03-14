@@ -12,6 +12,64 @@
 
 ---
 
+## Errata — Known Issues in Plan Code Snippets
+
+The following issues were identified during plan review. The implementer MUST apply these corrections when reaching the affected tasks. The plan's task structure, ordering, and test design are correct — these are inline code fixes.
+
+### Calling Convention Fixes (apply everywhere referenced)
+
+1. **`_pick_name` requires 3 args**: `_pick_name(civ, world, rng)` where `rng = random.Random(world.seed + world.turn + hash(civ.name))`. Plan incorrectly calls it with 2 args in Tasks 3 and 17.
+
+2. **`generate_successor` requires `seed` arg**: `generate_successor(civ, world, seed=world.seed)`. Plan calls it with 2 args in Tasks 9 and 12.
+
+3. **`apply_leader_legacy` requires `leader` arg**: `apply_leader_legacy(civ, civ.leader, world)`. Plan calls it with 2 args in Tasks 9 and 12.
+
+4. **`clamp()` is typed for `int`**: The crisis formula in Task 8 uses floats. Use `max(0.05, min(0.40, value))` instead of `clamp(value, 0.05, 0.40)`.
+
+5. **`_downgrade_disposition` / `_upgrade_disposition` take a Disposition enum, return a Disposition**: Call as `rel.disposition = _downgrade_disposition(rel.disposition)`, NOT `_downgrade_disposition(rel)`. Affects Tasks 20 and 23.
+
+6. **`DISPOSITION_ORDER` import**: In `succession.py` Task 11, import from `action_engine.py`: `from chronicler.action_engine import DISPOSITION_ORDER`.
+
+### Test Fixture Fixes (apply to all test files)
+
+7. **`make_world` / `make_civ` fixtures do not exist** in `conftest.py`. The existing fixtures are `sample_world`, `sample_regions`, `sample_civilizations`, `sample_relationships`. Either: (a) add `make_world` and `make_civ` factory fixtures to `conftest.py` as the first step of Task 1, or (b) rewrite tests to use existing fixtures. Option (a) is recommended — create parameterized factories that accept `num_civs` and `seed`.
+
+8. **`run_turn()` requires 3 positional args**: `run_turn(world, action_selector, narrator, seed=world.seed)`. All integration tests (Tasks 7, 13, 18, 24, 25) call it with 1 arg. Provide mock callables: `run_turn(world, action_selector=lambda c, w: "DEVELOP", narrator=None, seed=world.seed)`.
+
+### WarResult Fixes (Task 14)
+
+9. **`contested` is a `Region` object, not a string**: Return `WarResult(outcome, contested.name if contested else None)` at each return point in `resolve_war()`.
+
+10. **f-string fixup in `_resolve_war_action`**: After WarResult change, update event descriptions to use `result.outcome` instead of `result` directly. Specifically lines ~223 and ~228 in `action_engine.py`.
+
+### Phase 7 Leader Death Fix (Task 9)
+
+11. **`_apply_event_effects` does NOT receive an `event` parameter**: It receives `event_type: str`, `civ: Civilization`, `world: WorldState`. The plan's Step 4 pseudocode shows a standalone `if event.event_type == "leader_death"` block — rewrite to match the actual function signature. Also, `_apply_event_effects` returns `None`, not a list — don't use `events.extend(...)`.
+
+### Snapshot Fix (Task 6)
+
+12. **`build_snapshot` function doesn't exist**: Snapshot construction is inline in `main.py` (~line 215). Either extract a `build_snapshot` function first, or modify the inline construction directly and adjust the test.
+
+### Spec Coverage Gaps (implement during the relevant task)
+
+These spec requirements are not fully covered in the plan's code snippets. The implementer should consult the spec (Section references given) and implement during the listed task:
+
+- **Task 17**: Hostage capture fires on peace treaty, not every battle result (spec 3.3). Add a guard or integrate with war-end logic.
+- **Task 17**: Recapture mechanics — check if a hostage's `region` changes hands during war (spec 1.4).
+- **Task 17**: Generic hostage culture bonus (+1/turn for captor) and great person hostage bonus (+3/turn) need Phase 2 wiring.
+- **Task 15**: Rivalry death effects — survivor gains a deed + civ gets +0.05 asabiya (spec 3.2). Add to `dissolve_dead_relationships`.
+- **Task 16**: Mentorship death deed — leader gains "Inherited the teachings of {mentor}" (spec 3.2). Add to dissolution logic.
+- **Task 16**: Mentorship action weight boost — modify `compute_weights()` to check for active mentorship, increase secondary_trait bonus from ×1.3 to ×1.6 (spec 3.2).
+- **Task 16**: Marriage NEUTRAL floor enforcement — prevent disposition from dropping below NEUTRAL for married pairs. Wire into `apply_value_drift()` or disposition change functions. WAR auto-dissolves marriage; manual dissolution costs stability -3 (spec 3.2).
+- **Task 19**: Track `federation_turns` (count turns civ is in a federation) and `capital_recovered` (detect capital loss then recovery) in `update_event_counts` (spec 4.1).
+- **Task 20**: Tradition cooldown adjustments — Martial reduces general cooldown to 18 turns, Diplomatic reduces merchant cooldown similarly (spec 4.3).
+- **Task 20**: Diplomatic federation bonus — +5 stability in federation calculations, dissolution penalty reduced from -15 to -10. Wire into `check_federation_dissolution` (spec 4.2).
+- **Task 20**: Resilience stability recovery — actions doubling stability gains needs wiring into action resolution (spec 4.4).
+- **Task 21**: Folk hero death collection — add `WorldState.turn_deaths: list[tuple[GreatPerson, str, Civilization]]` to collect deaths across phases, process in Phase 10 step 7.
+- **Task 12**: Provide concrete implementation code for new legacy types in `apply_leader_legacy`, matching the existing function structure.
+
+---
+
 ## File Structure
 
 ### New Files
