@@ -3,6 +3,7 @@ import { useBundle } from "./hooks/useBundle";
 import { useLiveConnection } from "./hooks/useLiveConnection";
 import { useTimeline } from "./hooks/useTimeline";
 import { Layout } from "./components/Layout";
+import { SetupLobby } from "./components/SetupLobby";
 
 function App() {
   const wsUrl = new URLSearchParams(window.location.search).get("ws");
@@ -37,6 +38,67 @@ function App() {
     [loadFromFile],
   );
 
+  // --- Live mode state machine ---
+  if (isLive) {
+    switch (liveConn.serverState) {
+      case "connecting":
+        return (
+          <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+            <p className="text-gray-400">Connecting to simulation...</p>
+          </div>
+        );
+
+      case "lobby":
+      case "starting":
+        if (!liveConn.lobbyInit) {
+          // Reconnect during world-gen: server sent "starting" but no lobby data
+          return (
+            <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+              <p className="text-gray-400">World generating...</p>
+            </div>
+          );
+        }
+        return (
+          <SetupLobby
+            lobbyInit={liveConn.lobbyInit}
+            onLaunch={liveConn.sendStart}
+            starting={liveConn.serverState === "starting"}
+            error={liveConn.error}
+          />
+        );
+
+      case "running":
+      case "completed":
+        if (!bundle) {
+          return (
+            <div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
+              <p className="text-gray-400">Waiting for simulation data...</p>
+            </div>
+          );
+        }
+        return (
+          <Layout
+            bundle={bundle}
+            currentTurn={timeline.currentTurn}
+            playing={timeline.playing}
+            speed={timeline.speed}
+            onSeek={timeline.seek}
+            onPlay={timeline.play}
+            onPause={timeline.pause}
+            onSetSpeed={liveConn.connected ? liveConn.setSpeed : timeline.setSpeed}
+            liveConnected={liveConn.connected}
+            livePaused={liveConn.paused}
+            livePauseContext={liveConn.pauseContext}
+            liveSendCommand={liveConn.sendCommand}
+            liveForkedPath={liveConn.lastForked?.save_path}
+            liveForkedHint={liveConn.lastForked?.cli_hint}
+            liveReconnecting={!liveConn.connected && !!wsUrl}
+          />
+        );
+    }
+  }
+
+  // --- Static mode (unchanged) ---
   if (!bundle) {
     return (
       <div
@@ -46,26 +108,18 @@ function App() {
       >
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold">Chronicler Viewer</h1>
-          {isLive ? (
-            <p className="text-gray-400">
-              {liveConn.connected ? "Waiting for simulation data..." : "Connecting to simulation..."}
-            </p>
-          ) : (
-            <>
-              <p className="text-gray-400">
-                Drag and drop a <code className="text-blue-400">chronicle_bundle.json</code> file here
-              </p>
-              <label className="inline-block px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 cursor-pointer">
-                Or choose a file
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-              </label>
-            </>
-          )}
+          <p className="text-gray-400">
+            Drag and drop a <code className="text-blue-400">chronicle_bundle.json</code> file here
+          </p>
+          <label className="inline-block px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 cursor-pointer">
+            Or choose a file
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileInput}
+              className="hidden"
+            />
+          </label>
           {loading && <p className="text-gray-400">Loading...</p>}
           {error && <p className="text-red-400">{error}</p>}
         </div>
@@ -82,14 +136,14 @@ function App() {
       onSeek={timeline.seek}
       onPlay={timeline.play}
       onPause={timeline.pause}
-      onSetSpeed={liveConn.connected ? liveConn.setSpeed : timeline.setSpeed}
-      liveConnected={isLive ? liveConn.connected : undefined}
-      livePaused={isLive ? liveConn.paused : undefined}
-      livePauseContext={isLive ? liveConn.pauseContext : undefined}
-      liveSendCommand={isLive ? liveConn.sendCommand : undefined}
-      liveForkedPath={isLive ? liveConn.lastForked?.save_path : undefined}
-      liveForkedHint={isLive ? liveConn.lastForked?.cli_hint : undefined}
-      liveReconnecting={isLive ? (!liveConn.connected && !!wsUrl) : undefined}
+      onSetSpeed={timeline.setSpeed}
+      liveConnected={undefined}
+      livePaused={undefined}
+      livePauseContext={undefined}
+      liveSendCommand={undefined}
+      liveForkedPath={undefined}
+      liveForkedHint={undefined}
+      liveReconnecting={undefined}
     />
   );
 }
