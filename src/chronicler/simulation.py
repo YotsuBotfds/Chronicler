@@ -44,6 +44,7 @@ from chronicler.leaders import (
 )
 from chronicler.named_events import generate_tech_breakthrough_name
 from chronicler.action_engine import resolve_action
+from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation
 
 
 # --- Type aliases for callbacks ---
@@ -334,6 +335,9 @@ def phase_production(world: WorldState) -> None:
         elif civ.stability <= 10 and civ.population > 1:
             civ.population = clamp(civ.population - 5, STAT_FLOOR["population"], 100)
 
+    # M16a: Prestige decay and trade bonus
+    tick_prestige(world)
+
 
 # --- Phase 5: Action ---
 
@@ -510,6 +514,10 @@ def phase_consequences(world: WorldState) -> list[Event]:
                 civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
+
+    # M16a: Cultural effects
+    apply_value_drift(world)
+    tick_cultural_assimilation(world)
 
     apply_asabiya_dynamics(world)
 

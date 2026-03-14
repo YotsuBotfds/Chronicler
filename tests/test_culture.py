@@ -237,3 +237,19 @@ class TestWorldGenCulture:
         for region in world.regions:
             if region.controller is None:
                 assert region.cultural_identity is None
+
+
+class TestM16aPhaseIntegration:
+    def test_prestige_runs_in_phase_production(self, drift_world):
+        drift_world.civilizations[0].prestige = 10
+        from chronicler.simulation import phase_production
+        phase_production(drift_world)
+        assert drift_world.civilizations[0].prestige == 9
+
+    def test_value_drift_runs_in_consequences(self, drift_world):
+        drift_world.civilizations[0].values = ["Trade", "Order"]
+        drift_world.civilizations[1].values = ["Trade", "Order"]
+        from chronicler.simulation import phase_consequences
+        phase_consequences(drift_world)
+        rel = drift_world.relationships["CivA"]["CivB"]
+        assert rel.disposition_drift == 4
