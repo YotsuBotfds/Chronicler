@@ -168,6 +168,8 @@ def generate_world(
 ) -> WorldState:
     """Generate a complete initial WorldState ready for simulation."""
     regions = generate_regions(count=num_regions, seed=seed)
+    from chronicler.adjacency import compute_adjacencies
+    compute_adjacencies(regions)
     civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
     civ_names = [c.name for c in civs]
     relationships = _build_relationships(civ_names, seed=seed + 1)

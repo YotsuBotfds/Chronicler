@@ -42,6 +42,7 @@ class RegionOverride(BaseModel):
     controller: str | None = None
     x: float | None = None
     y: float | None = None
+    adjacencies: list[str] | None = None
 
 
 class CivOverride(BaseModel):
@@ -246,6 +247,8 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
             world.regions[target_idx].x = reg_override.x
         if reg_override.y is not None:
             world.regions[target_idx].y = reg_override.y
+        if reg_override.adjacencies is not None:
+            world.regions[target_idx].adjacencies = reg_override.adjacencies
 
         # Update civ.regions list entries and region.controller
         if old_name != new_name:
@@ -340,6 +343,14 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
 
     # --- Step 7: Record scenario name ---
     world.scenario_name = config.name
+
+    # --- Step 8: Recompute adjacencies (fills gaps for regions without explicit adjacencies) ---
+    # Clear stale adjacencies from generate_world (region names may have changed)
+    from chronicler.adjacency import compute_adjacencies
+    for region in world.regions:
+        if not any(ro.name == region.name and ro.adjacencies is not None for ro in config.regions):
+            region.adjacencies = []
+    compute_adjacencies(world.regions)
 
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}

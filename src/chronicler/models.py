@@ -50,6 +50,7 @@ class Region(BaseModel):
     controller: Optional[str] = None
     x: float | None = None
     y: float | None = None
+    adjacencies: list[str] = Field(default_factory=list)
 
 
 class Leader(BaseModel):
