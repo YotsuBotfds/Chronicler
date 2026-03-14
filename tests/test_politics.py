@@ -65,3 +65,56 @@ civilizations:
     p.write_text(yaml_content)
     config = load_scenario(p)
     assert config.civilizations[0].capital == "Region A"
+
+
+# --- Task 5: apply_governing_costs ---
+
+from chronicler.politics import apply_governing_costs
+from chronicler.models import Region
+
+
+def _make_world_with_regions(region_names, civ_name="Empire", capital="A", adjacencies=None):
+    """Helper: create a WorldState with a civ controlling given regions."""
+    regions = []
+    for name in region_names:
+        adj = adjacencies.get(name, []) if adjacencies else []
+        regions.append(Region(name=name, terrain="plains", carrying_capacity=50, resources="fertile",
+                              adjacencies=adj, controller=civ_name))
+    leader = Leader(name="Leader", trait="bold", reign_start=0)
+    civ = Civilization(
+        name=civ_name, population=50, military=30, economy=40,
+        culture=30, stability=50, treasury=100, leader=leader,
+        regions=region_names, capital_region=capital,
+    )
+    world = WorldState(name="test", seed=42, regions=regions, civilizations=[civ])
+    return world
+
+
+def test_governing_cost_no_cost_for_two_or_fewer_regions():
+    world = _make_world_with_regions(["A", "B"], capital="A", adjacencies={"A": ["B"], "B": ["A"]})
+    apply_governing_costs(world)
+    civ = world.civilizations[0]
+    assert civ.stability == 50  # unchanged
+    assert civ.treasury == 100  # unchanged
+
+
+def test_governing_cost_three_regions_compact():
+    adj = {"A": ["B", "C"], "B": ["A", "C"], "C": ["A", "B"]}
+    world = _make_world_with_regions(["A", "B", "C"], capital="A", adjacencies=adj)
+    apply_governing_costs(world)
+    civ = world.civilizations[0]
+    # treasury: (3-2)*2 + 2*(1*2) = 2+4 = 6
+    assert civ.treasury == 100 - 6
+    # stability: 1+1 = 2
+    assert civ.stability == 50 - 2
+
+
+def test_governing_cost_distant_regions_cost_more():
+    adj = {"A": ["B"], "B": ["A", "C"], "C": ["B", "D"], "D": ["C"]}
+    world = _make_world_with_regions(["A", "B", "C", "D"], capital="A", adjacencies=adj)
+    apply_governing_costs(world)
+    civ = world.civilizations[0]
+    # treasury: (4-2)*2 + (1*2 + 2*2 + 3*2) = 4 + 12 = 16
+    assert civ.treasury == 100 - 16
+    # stability: 1 + 2 + 3 = 6
+    assert civ.stability == 50 - 6
