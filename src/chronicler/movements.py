@@ -112,6 +112,39 @@ def _process_spread(world: WorldState) -> None:
                     ))
 
 
+def _increment_variants(world: WorldState) -> None:
+    for movement in world.movements:
+        if (world.turn - movement.origin_turn) % VARIANT_DRIFT_INTERVAL == 0:
+            for civ_name in movement.adherents:
+                movement.adherents[civ_name] += 1
+
+
+def _detect_schisms(world: WorldState) -> None:
+    from itertools import combinations
+    for movement in world.movements:
+        adherent_names = list(movement.adherents.keys())
+        for a, b in combinations(adherent_names, 2):
+            divergence = abs(movement.adherents[a] - movement.adherents[b])
+            if divergence >= SCHISM_DIVERGENCE_THRESHOLD:
+                already_fired = any(
+                    ne.event_type == "movement_schism"
+                    and a in ne.actors and b in ne.actors
+                    and movement.id in ne.description
+                    for ne in world.named_events
+                )
+                if not already_fired:
+                    world.named_events.append(NamedEvent(
+                        name=f"Schism of {movement.id.replace('_', ' ')}",
+                        event_type="movement_schism",
+                        turn=world.turn,
+                        actors=[a, b],
+                        description=f"[{movement.id}] Schism between {a} and {b}.",
+                        importance=7,
+                    ))
+
+
 def tick_movements(world: WorldState) -> None:
     _check_emergence(world)
     _process_spread(world)
+    _increment_variants(world)
+    _detect_schisms(world)

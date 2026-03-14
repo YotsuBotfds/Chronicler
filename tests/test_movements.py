@@ -188,3 +188,85 @@ class TestMovementSpread:
                 ne.event_type == "movement_adoption"
                 for ne in movement_world.named_events
             )
+
+
+from chronicler.movements import (
+    _seeded_offset, VARIANT_DRIFT_INTERVAL, SCHISM_DIVERGENCE_THRESHOLD,
+    SEEDED_OFFSET_RANGE,
+)
+
+
+class TestVariantDrift:
+    def test_seeded_offset_deterministic(self):
+        a = _seeded_offset("CivA", "movement_0")
+        b = _seeded_offset("CivA", "movement_0")
+        assert a == b
+        assert 0 <= a < SEEDED_OFFSET_RANGE
+
+    def test_variant_increments_on_tick(self, movement_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": 0},
+        )
+        movement_world.movements.append(m)
+        movement_world.turn = VARIANT_DRIFT_INTERVAL
+        tick_movements(movement_world)
+        assert m.adherents["CivA"] == 1
+        assert m.adherents["CivB"] == 1
+
+    def test_no_increment_off_tick(self, movement_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": 0},
+        )
+        movement_world.movements.append(m)
+        movement_world.turn = VARIANT_DRIFT_INTERVAL + 1
+        tick_movements(movement_world)
+        assert m.adherents["CivA"] == 0
+        assert m.adherents["CivB"] == 0
+
+
+class TestSchismDetection:
+    def test_schism_fires_at_threshold(self, movement_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": SCHISM_DIVERGENCE_THRESHOLD},
+        )
+        movement_world.movements.append(m)
+        movement_world.turn = 1
+        tick_movements(movement_world)
+        assert any(
+            ne.event_type == "movement_schism"
+            for ne in movement_world.named_events
+        )
+
+    def test_schism_fire_once_guard(self, movement_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": SCHISM_DIVERGENCE_THRESHOLD},
+        )
+        movement_world.movements.append(m)
+        movement_world.turn = 1
+        tick_movements(movement_world)
+        count_before = len(movement_world.named_events)
+        tick_movements(movement_world)
+        count_after = len(movement_world.named_events)
+        assert count_after == count_before
+
+    def test_no_schism_below_threshold(self, movement_world):
+        m = Movement(
+            id="movement_0", origin_civ="CivA", origin_turn=0,
+            value_affinity="Trade",
+            adherents={"CivA": 0, "CivB": SCHISM_DIVERGENCE_THRESHOLD - 1},
+        )
+        movement_world.movements.append(m)
+        movement_world.turn = 1
+        tick_movements(movement_world)
+        assert not any(
+            ne.event_type == "movement_schism"
+            for ne in movement_world.named_events
+        )
