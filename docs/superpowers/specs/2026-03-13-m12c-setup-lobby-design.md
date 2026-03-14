@@ -192,7 +192,7 @@ On client connect, the handler sends whichever init matches the current state:
 - Lobby: sends `_lobby_init`
 - Running: sends `_init_data` (existing behavior)
 
-**Reconnect during world generation:** There is a brief window after `_server_state = "running"` but before `_init_data` is populated (world generation hasn't completed yet). If a client reconnects during this window, `_init_data` is `None` and the handler sends nothing — the client sees a "connecting" state until the first turn fires and populates `_init_data`. This is acceptable; world generation is sub-second.
+**Reconnect during world generation:** There is a brief window after `_server_state = "running"` but before `_init_data` is populated (world generation hasn't completed yet). If a client reconnects during this window, the handler sends a minimal acknowledgment `{"type": "init", "state": "starting"}` so the client can show "World generating..." instead of appearing stuck. The client already handles `"starting"` as a local state — receiving it from the server during this window reuses the same UI (disabled Launch button + spinner). Once world generation completes and the first turn fires, the full running init is sent as usual.
 
 **Threading note:** `_start_params` is written by the handler thread and read by the main thread after `start_event.wait()`. The `threading.Event` provides a happens-before guarantee (set before `event.set()`, read after `event.wait()`). Safe under CPython GIL; no additional lock needed.
 
@@ -288,7 +288,7 @@ def build_lobby_init(args) -> dict:
     }
 ```
 
-**`_get_available_models(args)`:** Returns a list of model name strings available for the sim and narrative dropdowns. Implementation: returns a hardcoded list of known models (e.g., `["LFM2-24B"]`) plus any model names specified via CLI args (`--sim-model`, `--narrative-model`). If LM Studio is reachable at `args.local_url`, it can optionally query the `/v1/models` endpoint to discover loaded models. The "Custom..." option in the frontend dropdown handles arbitrary endpoints not in this list.
+**`_get_available_models(args)`:** Returns a list of model name strings available for the sim and narrative dropdowns. Implementation: returns a hardcoded list of known models (e.g., `["LFM2-24B"]`) plus any model names specified via CLI args (`--sim-model`, `--narrative-model`). Optionally queries LM Studio at `args.local_url/v1/models` to discover loaded models — wrapped in `try/except` with a 500ms timeout, falling back to the hardcoded list if LM Studio is down or slow. The "Custom..." option in the frontend dropdown handles arbitrary endpoints not in this list.
 
 ---
 
@@ -412,7 +412,7 @@ All real validation server-side. No duplicated business logic.
 Shows details for the selected scenario. Three sections:
 
 1. **Header** — scenario name, world name, description
-2. **Region map** — extracted `RegionMap` component (subset of `TerritoryMap`) taking `regions: {name, terrain, x, y}[]`. Terrain coloring only, no faction/controller layer. **When x/y are null** (most existing scenarios don't define coordinates), `RegionMap` generates positions using a deterministic layout algorithm (e.g., force-directed from d3-force, seeded by region index) so the preview always shows a meaningful map. This matches how `TerritoryMap` already handles null coordinates for the main viewer.
+2. **Region map** — extracted `RegionMap` component (subset of `TerritoryMap`) taking `regions: {name, terrain, x, y}[]`. Terrain coloring only, no faction/controller layer. **When x/y are null** (most existing scenarios don't define coordinates), `RegionMap` positions nodes using a simple circle layout by index — deterministic, trivial to implement, good enough for preview. (Future enhancement: d3-force with fixed iteration count for more organic layouts.) This matches how `TerritoryMap` already uses `circleLayout` as a fallback for null coordinates.
 3. **Civ list** — read-only cards showing name and values
 
 **Empty state** (Procedural selected or no scenario): centered placeholder with map icon and "Select a scenario to preview."
