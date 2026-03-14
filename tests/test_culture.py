@@ -221,3 +221,19 @@ class TestCulturalWorksEnhancement:
         from chronicler.simulation import phase_cultural_milestones
         phase_cultural_milestones(drift_world)
         assert drift_world.civilizations[0].asabiya == pytest.approx(initial_asabiya + 0.05)
+
+
+class TestWorldGenCulture:
+    def test_controlled_regions_get_cultural_identity(self):
+        from chronicler.world_gen import generate_world
+        world = generate_world(seed=42, num_civs=4)
+        for region in world.regions:
+            if region.controller is not None:
+                assert region.cultural_identity == region.controller
+
+    def test_uncontrolled_regions_have_no_identity(self):
+        from chronicler.world_gen import generate_world
+        world = generate_world(seed=42, num_civs=4)
+        for region in world.regions:
+            if region.controller is None:
+                assert region.cultural_identity is None

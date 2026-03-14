@@ -208,6 +208,11 @@ def generate_world(
     from chronicler.exploration import initialize_fog
     initialize_fog(world)
 
+    # M16a: Initialize cultural identity for controlled regions
+    for region in world.regions:
+        if region.controller is not None:
+            region.cultural_identity = region.controller
+
     return world
 
 
