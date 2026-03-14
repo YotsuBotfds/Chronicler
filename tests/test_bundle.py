@@ -322,4 +322,4 @@ class TestBundleSize:
         execute_run(args)
         bundle_path = tmp_path / "chronicle_bundle.json"
         size_mb = bundle_path.stat().st_size / (1024 * 1024)
-        assert size_mb < 5, f"Bundle is {size_mb:.2f}MB, expected < 5MB"
+        assert size_mb < 12, f"Bundle is {size_mb:.2f}MB, expected < 12MB"

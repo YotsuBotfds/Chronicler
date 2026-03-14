@@ -104,6 +104,11 @@ export interface CivSnapshot {
   regions: string[];
   leader_name: string;
   alive: boolean;
+  is_vassal?: boolean;
+  is_fallen_empire?: boolean;
+  in_twilight?: boolean;
+  federation_name?: string | null;
+  capital_region?: string | null;
 }
 
 export interface RelationshipSnapshot {
@@ -115,6 +120,12 @@ export interface TurnSnapshot {
   civ_stats: Record<string, CivSnapshot>;
   region_control: Record<string, string | null>;
   relationships: Record<string, Record<string, RelationshipSnapshot>>;
+  vassal_relations?: Array<Record<string, unknown>>;
+  federations?: Array<Record<string, unknown>>;
+  proxy_wars?: Array<Record<string, unknown>>;
+  exile_modifiers?: Array<Record<string, unknown>>;
+  capitals?: Record<string, string>;
+  peace_turns?: number;
 }
 
 // --- World state ---

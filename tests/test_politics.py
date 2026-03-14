@@ -723,3 +723,145 @@ def test_exile_removed_when_expired():
     ]
     apply_exile_effects(world)
     assert len(world.exile_modifiers) == 0
+
+
+# --- Task 22: M14d tracking fields ---
+
+def test_civ_has_m14d_tracking_fields():
+    leader = Leader(name="Test", trait="bold", reign_start=0)
+    civ = Civilization(name="Test", population=50, military=30, economy=40,
+                       culture=30, stability=50, leader=leader)
+    assert civ.peak_region_count == 0
+    assert civ.decline_turns == 0
+    assert civ.stats_sum_history == []
+
+
+def test_worldstate_has_peace_and_bop_turns():
+    ws = WorldState(name="test", seed=42)
+    assert ws.peace_turns == 0
+    assert ws.balance_of_power_turns == 0
+
+
+# --- Task 23: Balance of power ---
+
+from chronicler.politics import apply_balance_of_power
+
+
+def test_balance_of_power_no_trigger_below_40_percent():
+    from chronicler.models import Region, Relationship, Disposition
+    civs = []
+    for i, name in enumerate(["A", "B", "C"]):
+        l = Leader(name=f"L{name}", trait="bold", reign_start=0)
+        c = Civilization(name=name, population=30, military=30, economy=30,
+                         culture=30, stability=50, leader=l, regions=[f"R{i}"],
+                         capital_region=f"R{i}")
+        civs.append(c)
+    regions = [Region(name=f"R{i}", terrain="plains", carrying_capacity=50, resources="fertile")
+               for i in range(3)]
+    world = WorldState(name="test", seed=42, regions=regions, civilizations=civs)
+    world.relationships = {}
+    for c1 in civs:
+        world.relationships[c1.name] = {}
+        for c2 in civs:
+            if c1.name != c2.name:
+                world.relationships[c1.name][c2.name] = Relationship(disposition=Disposition.HOSTILE)
+    apply_balance_of_power(world)
+    assert world.balance_of_power_turns == 0
+
+
+def test_balance_of_power_triggers_for_dominant_civ():
+    from chronicler.models import Region, Relationship, Disposition
+    l1 = Leader(name="L1", trait="bold", reign_start=0)
+    dominant = Civilization(name="Dominant", population=80, military=80, economy=80,
+                            culture=50, stability=50, leader=l1,
+                            regions=["R0", "R1", "R2", "R3", "R4"], capital_region="R0")
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    weak = Civilization(name="Weak", population=20, military=10, economy=10,
+                        culture=10, stability=50, leader=l2,
+                        regions=["R5"], capital_region="R5")
+    regions = [Region(name=f"R{i}", terrain="plains", carrying_capacity=50, resources="fertile")
+               for i in range(6)]
+    world = WorldState(name="test", seed=42, regions=regions, civilizations=[dominant, weak])
+    world.relationships = {
+        "Dominant": {"Weak": Relationship(disposition=Disposition.NEUTRAL)},
+        "Weak": {"Dominant": Relationship(disposition=Disposition.HOSTILE)},
+    }
+    apply_balance_of_power(world)
+    assert world.balance_of_power_turns == 1
+
+
+# --- Task 24: Fallen empire modifier ---
+
+from chronicler.politics import update_peak_regions, apply_fallen_empire
+
+
+def test_peak_region_tracking():
+    world = _make_world_with_regions(["A", "B", "C"], capital="A")
+    civ = world.civilizations[0]
+    assert civ.peak_region_count == 0
+    update_peak_regions(world)
+    assert civ.peak_region_count == 3
+    civ.regions = ["A"]
+    update_peak_regions(world)
+    assert civ.peak_region_count == 3  # never decreases
+
+
+def test_fallen_empire_asabiya_boost():
+    world = _make_world_with_regions(["A"], capital="A")
+    civ = world.civilizations[0]
+    civ.peak_region_count = 5
+    civ.asabiya = 0.3
+    apply_fallen_empire(world)
+    assert civ.asabiya == pytest.approx(0.35, abs=1e-6)
+
+
+# --- Task 25: Civilizational twilight ---
+
+import pytest
+from chronicler.politics import update_decline_tracking, apply_twilight
+
+
+def test_decline_tracking_rolling_window():
+    world = _make_world_with_regions(["A"], capital="A")
+    civ = world.civilizations[0]
+    # Simulate 25 turns with decreasing stats
+    for i in range(25):
+        civ.economy = max(40 - i, 0)
+        civ.military = max(30 - i, 0)
+        civ.culture = max(30 - i, 0)
+        update_decline_tracking(world)
+    assert len(civ.stats_sum_history) == 20  # capped
+
+
+def test_twilight_drains_stats():
+    world = _make_world_with_regions(["A"], capital="A")
+    civ = world.civilizations[0]
+    civ.decline_turns = 20
+    civ.population = 50
+    civ.culture = 30
+    apply_twilight(world)
+    assert civ.population == 47
+    assert civ.culture == 28
+
+
+# --- Task 26: Long peace problem ---
+
+from chronicler.politics import apply_long_peace
+
+
+def test_long_peace_resets_with_wars():
+    world = _make_world_with_regions(["A"], capital="A")
+    world.peace_turns = 35
+    world.active_wars = [("A", "B")]
+    apply_long_peace(world)
+    assert world.peace_turns == 0
+
+
+def test_long_peace_military_restlessness():
+    world = _make_world_with_regions(["A"], capital="A")
+    civ = world.civilizations[0]
+    civ.military = 70
+    civ.stability = 50
+    world.peace_turns = 29  # will become 30
+    apply_long_peace(world)
+    assert civ.stability == 48  # -2 for military > 60

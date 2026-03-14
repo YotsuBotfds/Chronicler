@@ -846,6 +846,193 @@ def check_restoration(world: WorldState) -> list[Event]:
     return events
 
 
+# --- M14d: Systemic Dynamics ---
+
+def apply_balance_of_power(world: WorldState) -> list[Event]:
+    """Phase 2: Apply coalition pressure against dominant civs."""
+    events: list[Event] = []
+    living = [c for c in world.civilizations if c.regions]
+    if len(living) < 2:
+        return events
+
+    scores = {c.name: c.military + c.economy + len(c.regions) * 5 for c in living}
+    total = sum(scores.values())
+    if total == 0:
+        return events
+
+    dominant = max(scores, key=scores.get)
+    if scores[dominant] / total <= 0.40:
+        world.balance_of_power_turns = 0
+        return events
+
+    world.balance_of_power_turns += 1
+
+    if world.balance_of_power_turns % 5 == 0:
+        DISPOSITION_UPGRADE = {
+            Disposition.HOSTILE: Disposition.SUSPICIOUS,
+            Disposition.SUSPICIOUS: Disposition.NEUTRAL,
+            Disposition.NEUTRAL: Disposition.FRIENDLY,
+            Disposition.FRIENDLY: Disposition.ALLIED,
+            Disposition.ALLIED: Disposition.ALLIED,
+        }
+        non_dominant = [c.name for c in living if c.name != dominant]
+        for i, name_a in enumerate(non_dominant):
+            for name_b in non_dominant[i+1:]:
+                for a, b in [(name_a, name_b), (name_b, name_a)]:
+                    rel = world.relationships.get(a, {}).get(b)
+                    if rel:
+                        rel.disposition = DISPOSITION_UPGRADE[rel.disposition]
+
+    return events
+
+
+def update_peak_regions(world: WorldState) -> None:
+    """Phase 2: Update peak_region_count for all civs."""
+    for civ in world.civilizations:
+        civ.peak_region_count = max(civ.peak_region_count, len(civ.regions))
+
+
+def _is_fallen_empire(civ: Civilization) -> bool:
+    """Check if civ qualifies as a fallen empire."""
+    return civ.peak_region_count >= 5 and len(civ.regions) == 1
+
+
+def apply_fallen_empire(world: WorldState) -> list[Event]:
+    """Phase 2: Apply fallen empire modifiers (asabiya boost)."""
+    events: list[Event] = []
+    for civ in world.civilizations:
+        if not _is_fallen_empire(civ):
+            continue
+        civ.asabiya = min(civ.asabiya + 0.05, 1.0)
+    return events
+
+
+def update_decline_tracking(world: WorldState) -> None:
+    """End of phase 10: Update decline tracking for all civs."""
+    for civ in world.civilizations:
+        current_sum = civ.economy + civ.military + civ.culture
+        civ.stats_sum_history.append(current_sum)
+        if len(civ.stats_sum_history) > 20:
+            civ.stats_sum_history = civ.stats_sum_history[-20:]
+        if len(civ.stats_sum_history) == 20:
+            if current_sum < civ.stats_sum_history[0]:
+                civ.decline_turns += 1
+            else:
+                civ.decline_turns = 0
+
+
+def _in_twilight(civ: Civilization) -> bool:
+    return civ.decline_turns >= 20 and len(civ.regions) == 1
+
+
+def apply_twilight(world: WorldState) -> list[Event]:
+    """Phase 2: Apply twilight stat drains."""
+    events: list[Event] = []
+    for civ in world.civilizations:
+        if not _in_twilight(civ):
+            continue
+        civ.population = clamp(civ.population - 3, STAT_FLOOR["population"], 100)
+        civ.culture = clamp(civ.culture - 2, STAT_FLOOR["culture"], 100)
+        if civ.decline_turns == 20:
+            events.append(Event(
+                turn=world.turn, event_type="twilight",
+                actors=[civ.name],
+                description=f"The Twilight of {civ.name}",
+                importance=7,
+            ))
+    return events
+
+
+def check_twilight_absorption(world: WorldState) -> list[Event]:
+    """Phase 10: Peacefully absorb civs in terminal twilight."""
+    events: list[Event] = []
+    to_remove = []
+
+    for civ in list(world.civilizations):
+        if civ.decline_turns < 40 or len(civ.regions) != 1:
+            continue
+
+        region_map = {r.name: r for r in world.regions}
+        civ_region = region_map.get(civ.regions[0])
+        if civ_region is None:
+            continue
+
+        best_absorber = None
+        best_culture = -1
+        for adj_name in getattr(civ_region, 'adjacencies', []):
+            adj_region = region_map.get(adj_name)
+            if adj_region and adj_region.controller and adj_region.controller != civ.name:
+                absorber = next((c for c in world.civilizations if c.name == adj_region.controller), None)
+                if absorber and absorber.culture > best_culture:
+                    best_culture = absorber.culture
+                    best_absorber = absorber
+
+        if best_absorber is None:
+            continue
+
+        for rn in civ.regions:
+            best_absorber.regions.append(rn)
+            if rn in region_map:
+                region_map[rn].controller = best_absorber.name
+        civ.regions = []
+        to_remove.append(civ)
+
+        world.exile_modifiers.append(ExileModifier(
+            original_civ_name=civ.name,
+            absorber_civ=best_absorber.name,
+            conquered_regions=[civ_region.name],
+            turns_remaining=10,
+        ))
+
+        events.append(Event(
+            turn=world.turn, event_type="twilight_absorption",
+            actors=[civ.name, best_absorber.name],
+            description=f"The Quiet End of {civ.name}",
+            importance=6,
+        ))
+
+    for civ in to_remove:
+        world.civilizations.remove(civ)
+    return events
+
+
+def apply_long_peace(world: WorldState) -> list[Event]:
+    """Phase 2: Apply long peace effects when no wars for 30+ turns."""
+    events: list[Event] = []
+
+    if world.active_wars:
+        world.peace_turns = 0
+        return events
+
+    world.peace_turns += 1
+    if world.peace_turns < 30:
+        return events
+
+    living = [c for c in world.civilizations if c.regions]
+
+    # Military restlessness
+    for civ in living:
+        if civ.military > 60:
+            civ.stability = clamp(civ.stability - 2, STAT_FLOOR["stability"], 100)
+
+    # Economic inequality
+    if len(living) >= 2:
+        richest = max(living, key=lambda c: c.economy)
+        poorest = min(living, key=lambda c: c.economy)
+        richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
+        poorest.economy = clamp(poorest.economy - 1, STAT_FLOOR["economy"], 100)
+
+    # ALLIED disposition decay every 10 peace turns
+    if world.peace_turns % 10 == 0:
+        DOWNGRADE = {Disposition.ALLIED: Disposition.FRIENDLY}
+        for civ_name, rels in world.relationships.items():
+            for other_name, rel in rels.items():
+                if rel.disposition in DOWNGRADE:
+                    rel.disposition = DOWNGRADE[rel.disposition]
+
+    return events
+
+
 # --- FUND_INSTABILITY resolution ---
 
 def resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:

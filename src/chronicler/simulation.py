@@ -263,10 +263,19 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
     from chronicler.politics import apply_governing_costs, collect_tribute
     from chronicler.politics import apply_proxy_wars, apply_exile_effects
+    from chronicler.politics import (
+        apply_balance_of_power, apply_fallen_empire, apply_twilight,
+        apply_long_peace, update_peak_regions,
+    )
     events.extend(apply_governing_costs(world))
     events.extend(collect_tribute(world))
     events.extend(apply_proxy_wars(world))
     events.extend(apply_exile_effects(world))
+    events.extend(apply_balance_of_power(world))
+    events.extend(apply_fallen_empire(world))
+    events.extend(apply_twilight(world))
+    events.extend(apply_long_peace(world))
+    update_peak_regions(world)
 
     return events
 
@@ -485,8 +494,11 @@ def phase_consequences(world: WorldState) -> list[Event]:
     collapse_events.extend(check_federation_formation(world))
     collapse_events.extend(check_federation_dissolution(world))
     from chronicler.politics import check_proxy_detection, check_restoration
+    from chronicler.politics import check_twilight_absorption, update_decline_tracking
     collapse_events.extend(check_proxy_detection(world))
     collapse_events.extend(check_restoration(world))
+    collapse_events.extend(check_twilight_absorption(world))
+    update_decline_tracking(world)
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:

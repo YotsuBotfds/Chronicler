@@ -114,6 +114,9 @@ class Civilization(BaseModel):
     capital_region: str | None = None
     last_income: int = 0
     merc_pressure_turns: int = 0
+    peak_region_count: int = 0
+    decline_turns: int = 0
+    stats_sum_history: list[int] = Field(default_factory=list)
 
 
 class Relationship(BaseModel):
@@ -215,6 +218,8 @@ class WorldState(BaseModel):
     federations: list[Federation] = Field(default_factory=list)
     proxy_wars: list[ProxyWar] = Field(default_factory=list)
     exile_modifiers: list[ExileModifier] = Field(default_factory=list)
+    peace_turns: int = 0
+    balance_of_power_turns: int = 0
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -247,6 +252,11 @@ class CivSnapshot(BaseModel):
     alive: bool
     last_income: int = 0
     active_trade_routes: int = 0
+    is_vassal: bool = False
+    is_fallen_empire: bool = False
+    in_twilight: bool = False
+    federation_name: str | None = None
+    capital_region: str | None = None
 
 
 class RelationshipSnapshot(BaseModel):
@@ -265,3 +275,9 @@ class TurnSnapshot(BaseModel):
     embargoes: list[tuple[str, str]] = Field(default_factory=list)
     fertility: dict[str, float] = Field(default_factory=dict)
     mercenary_companies: list[dict] = Field(default_factory=list)
+    vassal_relations: list[dict] = Field(default_factory=list)
+    federations: list[dict] = Field(default_factory=list)
+    proxy_wars: list[dict] = Field(default_factory=list)
+    exile_modifiers: list[dict] = Field(default_factory=list)
+    capitals: dict[str, str] = Field(default_factory=dict)
+    peace_turns: int = 0
