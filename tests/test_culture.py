@@ -327,3 +327,38 @@ class TestEraBonus:
 
     def test_fortification_multiplier(self):
         assert get_era_bonus(TechEra.MEDIEVAL, "fortification_multiplier", default=1.0) == 2.0
+
+
+from chronicler.models import ActionType
+from chronicler.action_engine import ActionEngine
+
+
+class TestInvestCultureAction:
+    def test_invest_culture_in_action_type_enum(self):
+        assert hasattr(ActionType, "INVEST_CULTURE")
+
+    def test_invest_culture_eligible_at_culture_60(self, drift_world):
+        drift_world.civilizations[0].culture = 60
+        drift_world.regions[0].adjacencies = ["R2"]
+        drift_world.regions[1].adjacencies = ["R1"]
+        drift_world.regions[1].cultural_identity = "CivB"
+        engine = ActionEngine(drift_world)
+        eligible = engine.get_eligible_actions(drift_world.civilizations[0])
+        assert ActionType.INVEST_CULTURE in eligible
+
+    def test_invest_culture_not_eligible_below_60(self, drift_world):
+        drift_world.civilizations[0].culture = 59
+        engine = ActionEngine(drift_world)
+        eligible = engine.get_eligible_actions(drift_world.civilizations[0])
+        assert ActionType.INVEST_CULTURE not in eligible
+
+    def test_visionary_weights_invest_culture_highest(self, drift_world):
+        drift_world.civilizations[0].culture = 60
+        drift_world.civilizations[0].leader.trait = "visionary"
+        drift_world.regions[0].adjacencies = ["R2"]
+        drift_world.regions[1].adjacencies = ["R1"]
+        drift_world.regions[1].cultural_identity = "CivB"
+        engine = ActionEngine(drift_world)
+        weights = engine.compute_weights(drift_world.civilizations[0])
+        assert ActionType.INVEST_CULTURE in weights
+        assert weights[ActionType.INVEST_CULTURE] > 0

@@ -402,15 +402,15 @@ def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> 
 # --- Weight profiles ---
 
 TRAIT_WEIGHTS: dict[str, dict[ActionType, float]] = {
-    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2, ActionType.EXPLORE: 0.8},
-    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 1.2, ActionType.EXPLORE: 0.5},
-    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.2},
-    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.5},
-    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.5},
-    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5, ActionType.EXPLORE: 0.8},
-    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.2},
-    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2, ActionType.EXPLORE: 1.0},
-    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5, ActionType.EXPLORE: 1.2},
+    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2, ActionType.EXPLORE: 0.8, ActionType.INVEST_CULTURE: 0.3},
+    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 1.2, ActionType.EXPLORE: 0.5, ActionType.INVEST_CULTURE: 1.3},
+    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.2, ActionType.INVEST_CULTURE: 0.8},
+    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.5, ActionType.INVEST_CULTURE: 0.5},
+    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.5, ActionType.INVEST_CULTURE: 1.0},
+    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5, ActionType.EXPLORE: 0.8, ActionType.INVEST_CULTURE: 1.5},
+    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.2, ActionType.INVEST_CULTURE: 2.0},
+    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2, ActionType.EXPLORE: 1.0, ActionType.INVEST_CULTURE: 0.4},
+    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5, ActionType.EXPLORE: 1.2, ActionType.INVEST_CULTURE: 1.8},
     "stubborn":     {},
 }
 
@@ -474,6 +474,25 @@ class ActionEngine:
         from chronicler.exploration import is_explore_eligible
         if is_explore_eligible(self.world, civ):
             eligible.append(ActionType.EXPLORE)
+        # M16c: INVEST_CULTURE requires culture >= 60 and valid targets
+        if civ.culture >= 60:
+            from chronicler.tech import get_era_bonus
+            global_proj = get_era_bonus(civ.tech_era, "culture_projection_range", default=1) == -1
+            civ_regions = {r.name for r in self.world.regions if r.controller == civ.name}
+            adjacent = set()
+            if not global_proj:
+                for r in self.world.regions:
+                    if r.name in civ_regions:
+                        adjacent.update(r.adjacencies)
+            has_valid_target = any(
+                r.controller is not None
+                and r.controller != civ.name
+                and r.cultural_identity != civ.name
+                and (global_proj or r.name in adjacent)
+                for r in self.world.regions
+            )
+            if has_valid_target:
+                eligible.append(ActionType.INVEST_CULTURE)
         return eligible
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:
@@ -554,6 +573,9 @@ class ActionEngine:
             all_allied = False
         if all_allied:
             weights[ActionType.DIPLOMACY] *= 0.1
+        # M16c: Boost INVEST_CULTURE when rival-adjacent regions exist
+        if ActionType.INVEST_CULTURE in weights and weights[ActionType.INVEST_CULTURE] > 0:
+            weights[ActionType.INVEST_CULTURE] *= 2.0
 
     def select_action(self, civ: Civilization, seed: int) -> ActionType:
         weights = self.compute_weights(civ)

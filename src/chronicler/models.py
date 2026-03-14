@@ -53,6 +53,7 @@ class ActionType(str, Enum):
     MOVE_CAPITAL = "move_capital"
     FUND_INSTABILITY = "fund_instability"
     EXPLORE = "explore"
+    INVEST_CULTURE = "invest_culture"
 
 
 class InfrastructureType(str, Enum):
