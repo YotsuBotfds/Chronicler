@@ -3,7 +3,22 @@ from __future__ import annotations
 
 import random
 
-from chronicler.models import Civilization, Event, Leader, WorldState
+from chronicler.models import Civilization, Event, GreatPerson, Leader, NamedEvent, WorldState
+from chronicler.models import Disposition
+
+
+# Disposition ordering used for host-selection in exile logic.
+# Imported from action_engine if available; defined locally as fallback.
+try:
+    from chronicler.action_engine import DISPOSITION_ORDER
+except ImportError:
+    DISPOSITION_ORDER: dict[Disposition, int] = {
+        Disposition.HOSTILE: 0,
+        Disposition.SUSPICIOUS: 1,
+        Disposition.NEUTRAL: 2,
+        Disposition.FRIENDLY: 3,
+        Disposition.ALLIED: 4,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -161,3 +176,102 @@ def inherit_grudges(old_leader: Leader, new_leader: Leader) -> None:
         inherited_intensity = g["intensity"] * 0.5
         if inherited_intensity >= 0.01:
             new_leader.grudges.append({**g, "intensity": inherited_intensity})
+
+
+# ---------------------------------------------------------------------------
+# Task 11: Exiled leaders
+# ---------------------------------------------------------------------------
+
+def create_exiled_leader(
+    old_leader: Leader, origin_civ: Civilization, world: WorldState
+) -> str | None:
+    """Place old_leader as an exile great-person in the most friendly eligible civ.
+
+    Returns the host civ name, or None if no suitable host exists.
+    """
+    best_host = None
+    best_disp = -1
+    for civ in world.civilizations:
+        if civ.name == origin_civ.name or not civ.regions:
+            continue
+        rel = world.relationships.get(origin_civ.name, {}).get(civ.name)
+        if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+            continue
+        disp_val = DISPOSITION_ORDER.get(rel.disposition, 2) if rel else 2
+        if disp_val > best_disp:
+            best_disp = disp_val
+            best_host = civ
+
+    if best_host is None:
+        return None
+
+    exile = GreatPerson(
+        name=old_leader.name,
+        role="exile",
+        trait=old_leader.trait,
+        civilization=best_host.name,
+        origin_civilization=origin_civ.name,
+        born_turn=world.turn,
+        region=(
+            best_host.capital_region
+            or (best_host.regions[0] if best_host.regions else None)
+        ),
+    )
+    best_host.great_persons.append(exile)
+    return best_host.name
+
+
+def apply_exile_pretender_drain(world: WorldState) -> None:
+    """For each active exile, drain stability from origin civ and boost host culture."""
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            if gp.role != "exile" or not gp.active:
+                continue
+            origin = next(
+                (c for c in world.civilizations if c.name == gp.origin_civilization), None
+            )
+            if origin and origin.regions:
+                origin.stability = max(origin.stability - 2, 0)
+            civ.culture = min(civ.culture + 3, 100)
+
+
+def check_exile_restoration(world: WorldState) -> list[Event]:
+    """Check whether any exile restores to power in their origin civ.
+
+    Probability scales with recognition count and fires when origin stability < 20.
+    """
+    events: list[Event] = []
+    for civ in world.civilizations:
+        for gp in list(civ.great_persons):
+            if gp.role != "exile" or not gp.active:
+                continue
+            origin = next(
+                (c for c in world.civilizations if c.name == gp.origin_civilization), None
+            )
+            if not origin or not origin.regions:
+                continue
+            if origin.stability >= 20:
+                continue
+            recognized_count = len(gp.recognized_by)
+            base_prob = 0.05 + (0.03 * recognized_count)
+            rng = random.Random(world.seed + world.turn + hash(gp.name))
+            if rng.random() < base_prob:
+                gp.active = False
+                gp.fate = "ascended"
+                civ.great_persons.remove(gp)
+                world.retired_persons.append(gp)
+                origin.leader = Leader(
+                    name=gp.name,
+                    trait=gp.trait,
+                    reign_start=world.turn,
+                    succession_type="restoration",
+                )
+                origin.stability = min(origin.stability + 15, 100)
+                events.append(Event(
+                    turn=world.turn,
+                    event_type="restoration",
+                    actors=[origin.name, gp.name],
+                    description=f"{gp.name} restored to power in {origin.name}.",
+                    importance=9,
+                ))
+    return events

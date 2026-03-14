@@ -8,8 +8,11 @@ from chronicler.succession import (
     add_grudge,
     decay_grudges,
     inherit_grudges,
+    create_exiled_leader,
+    apply_exile_pretender_drain,
+    check_exile_restoration,
 )
-from chronicler.models import Civilization, Leader, VassalRelation, WorldState
+from chronicler.models import Civilization, Leader, VassalRelation, WorldState, GreatPerson
 
 
 # ---------------------------------------------------------------------------
@@ -151,3 +154,101 @@ def test_grudge_removed_when_intensity_zero():
     leader.grudges = [{"rival_name": "Winner", "rival_civ": "Enemy", "intensity": 0.05, "origin_turn": 0}]
     decay_grudges(leader, current_turn=5, rival_alive=True)
     assert len(leader.grudges) == 0
+
+
+# ---------------------------------------------------------------------------
+# Task 11: Exiled leaders
+# ---------------------------------------------------------------------------
+
+def test_create_exiled_leader(make_world):
+    world = make_world(num_civs=3, seed=42)
+    origin = world.civilizations[0]
+    old_leader = origin.leader
+    host = create_exiled_leader(old_leader, origin, world)
+    exile_found = False
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            if gp.role == "exile" and gp.origin_civilization == origin.name:
+                exile_found = True
+                assert gp.name == old_leader.name
+    assert exile_found
+
+
+def test_pretender_drain(make_world):
+    world = make_world(num_civs=2, seed=42)
+    origin = world.civilizations[0]
+    host = world.civilizations[1]
+    exile = GreatPerson(name="ExiledKing", role="exile", trait="ambitious", civilization=host.name, origin_civilization=origin.name, born_turn=0)
+    host.great_persons.append(exile)
+    origin_stability_before = origin.stability
+    apply_exile_pretender_drain(world)
+    assert origin.stability == origin_stability_before - 2
+
+
+def test_exile_restoration(make_world):
+    world = make_world(num_civs=2, seed=100)
+    origin = world.civilizations[0]
+    origin.stability = 15
+    host = world.civilizations[1]
+    exile = GreatPerson(name="ExiledKing", role="exile", trait="ambitious", civilization=host.name, origin_civilization=origin.name, born_turn=0)
+    host.great_persons.append(exile)
+    events = check_exile_restoration(world)
+    assert isinstance(events, list)
+
+
+# ---------------------------------------------------------------------------
+# Task 12: Legacy expansion
+# ---------------------------------------------------------------------------
+
+def test_golden_age_memory(make_world):
+    from chronicler.leaders import apply_leader_legacy
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.leader.reign_start = 0
+    civ.economy = 80
+    world.turn = 25
+    apply_leader_legacy(civ, civ.leader, world)
+    assert civ.legacy_counts.get("golden_age", 0) >= 1
+
+
+def test_shame_memory(make_world):
+    from chronicler.leaders import apply_leader_legacy
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.leader.reign_start = 0
+    world.turn = 20
+    civ.event_counts["capital_lost"] = 1
+    apply_leader_legacy(civ, civ.leader, world)
+    assert civ.legacy_counts.get("shame", 0) >= 1
+
+
+def test_fracture_memory(make_world):
+    from chronicler.leaders import apply_leader_legacy
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.leader.reign_start = 0
+    world.turn = 20
+    civ.event_counts["secession_occurred"] = 1
+    apply_leader_legacy(civ, civ.leader, world)
+    assert civ.legacy_counts.get("fracture", 0) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Task 13: M17b integration test
+# ---------------------------------------------------------------------------
+
+def test_m17b_integration_succession_crisis_flow(make_world):
+    from chronicler.simulation import run_turn
+    from chronicler.models import ActionType
+    world = make_world(num_civs=3, seed=42)
+    civ = world.civilizations[0]
+    civ.regions = ["r1", "r2", "r3", "r4"]
+    world.turn = 0
+
+    def stub_narrator(w, events):
+        return ""
+
+    for turn in range(10):
+        world.turn = turn
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP, narrator=stub_narrator, seed=world.seed)
+    assert civ.leader is not None

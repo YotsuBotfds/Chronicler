@@ -47,6 +47,7 @@ from chronicler.action_engine import resolve_action
 from chronicler.succession import (
     compute_crisis_probability, trigger_crisis, tick_crisis,
     resolve_crisis, is_in_crisis, decay_grudges,
+    apply_exile_pretender_drain, check_exile_restoration,
 )
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
@@ -312,6 +313,9 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     from chronicler.exploration import tick_trade_knowledge_sharing
     knowledge_events = tick_trade_knowledge_sharing(world)
     events.extend(knowledge_events)
+
+    # M17b: Exile pretender stability drain
+    apply_exile_pretender_drain(world)
 
     return events
 
@@ -610,6 +614,9 @@ def phase_consequences(world: WorldState) -> list[Event]:
             continue
         check_great_person_generation(civ, world)
         check_lifespan_expiry(civ, world)
+
+    # M17b: Exile restoration checks
+    collapse_events.extend(check_exile_restoration(world))
 
     return collapse_events
 
