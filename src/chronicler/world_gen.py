@@ -168,8 +168,13 @@ def generate_world(
 ) -> WorldState:
     """Generate a complete initial WorldState ready for simulation."""
     regions = generate_regions(count=num_regions, seed=seed)
-    from chronicler.adjacency import compute_adjacencies
+    from chronicler.adjacency import compute_adjacencies, classify_regions
     compute_adjacencies(regions)
+    # Classify region roles by graph topology
+    adj_map = {r.name: r.adjacencies for r in regions}
+    roles = classify_regions(adj_map)
+    for region in regions:
+        region.role = roles.get(region.name, "standard")
     from chronicler.resources import assign_resources
     assign_resources(regions, seed=seed)
     civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
@@ -182,7 +187,7 @@ def generate_world(
     # Seed used_leader_names so succession can't duplicate initial leaders
     used_leader_names = [c.leader.name for c in civs]
 
-    return WorldState(
+    world = WorldState(
         name=world_name,
         seed=seed,
         turn=0,
@@ -195,6 +200,15 @@ def generate_world(
         event_probabilities=dict(DEFAULT_EVENT_PROBABILITIES),
         used_leader_names=used_leader_names,
     )
+
+    # Auto-enable fog of war for larger worlds
+    if len(regions) >= 15:
+        world.fog_of_war = True
+
+    from chronicler.exploration import initialize_fog
+    initialize_fog(world)
+
+    return world
 
 
 def enrich_with_llm(world: WorldState, client: Any) -> None:

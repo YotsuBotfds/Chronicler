@@ -259,12 +259,13 @@ def check_capital_loss(world: WorldState) -> list[Event]:
         # Capital lost
         civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
 
-        # Pick best remaining region (highest carrying_capacity * fertility)
+        # Pick best remaining region (highest effective_capacity)
+        from chronicler.terrain import effective_capacity
         region_map = {r.name: r for r in world.regions}
         best_region = max(
             civ.regions,
             key=lambda rn: (
-                region_map[rn].carrying_capacity * getattr(region_map[rn], "fertility", 0.8)
+                effective_capacity(region_map[rn])
                 if rn in region_map else 0
             ),
         )
@@ -792,8 +793,9 @@ def check_restoration(world: WorldState) -> list[Event]:
             continue
 
         # Restoration fires
+        from chronicler.terrain import effective_capacity as _eff_cap
         target_region = max(available,
-                           key=lambda rn: region_map[rn].carrying_capacity * getattr(region_map[rn], "fertility", 0.8))
+                           key=lambda rn: _eff_cap(region_map[rn]))
 
         from chronicler.models import TechEra
         era_order = list(TechEra)

@@ -259,33 +259,9 @@ def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
     )
 
 
-@register_action(ActionType.BUILD)
-def _resolve_build(civ: Civilization, world: WorldState) -> Event:
-    """Build infrastructure in a controlled region."""
-    cost = 10
-    if civ.treasury < cost or not civ.regions:
-        return Event(turn=world.turn, event_type="build", actors=[civ.name],
-                     description=f"{civ.name} lacks funds or territory to build.", importance=2)
-    civ.treasury -= cost
-    controlled = [r for r in world.regions if r.controller == civ.name]
-    target = min(controlled, key=lambda r: int(r.carrying_capacity * r.fertility))
-    fertility_bias_traits = {"cautious", "visionary"}
-    capacity_bias_traits = {"ambitious", "bold", "aggressive"}
-    if civ.leader.trait in fertility_bias_traits and target.fertility < 0.8:
-        restore_fertility = True
-    elif civ.leader.trait in capacity_bias_traits:
-        restore_fertility = target.fertility < 0.3
-    else:
-        restore_fertility = target.fertility < 0.5
-    if restore_fertility:
-        target.fertility = min(1.0, round(target.fertility + 0.1, 4))
-        action = "restored fertility"
-    else:
-        target.carrying_capacity = min(100, target.carrying_capacity + 10)
-        action = "expanded capacity"
-    target.infrastructure_level += 1
-    return Event(turn=world.turn, event_type="build", actors=[civ.name],
-                 description=f"{civ.name} {action} in {target.name}.", importance=4)
+from chronicler.infrastructure import handle_build as _infra_handle_build, scorched_earth_check
+ACTION_REGISTRY[ActionType.BUILD] = _infra_handle_build
+REACTION_REGISTRY["region_lost"] = scorched_earth_check
 
 
 @register_action(ActionType.MOVE_CAPITAL)
@@ -310,8 +286,15 @@ def resolve_war(
 ) -> str:
     """Resolve combat between two civilizations. Returns outcome string."""
     from chronicler.tech import tech_war_multiplier
+    from chronicler.terrain import total_defense_bonus, ROLE_EFFECTS
+    from chronicler.climate import get_climate_phase
+    from chronicler.models import ClimatePhase, InfrastructureType
 
     rng = random.Random(seed)
+
+    # Select contested region BEFORE combat
+    defender_regions = [r for r in world.regions if r.controller == defender.name]
+    contested = rng.choice(defender_regions) if defender_regions else None
 
     att_asabiya = attacker.asabiya
     def_asabiya = defender.asabiya
@@ -326,17 +309,44 @@ def resolve_war(
     att_power *= tech_war_multiplier(attacker.tech_era, defender.tech_era)
     def_power *= tech_war_multiplier(defender.tech_era, attacker.tech_era)
 
+    # Terrain + role defense bonus
+    if contested:
+        climate_phase = get_climate_phase(world.turn, world.climate_config)
+        if climate_phase == ClimatePhase.WARMING and contested.terrain == "mountains":
+            role_defense = ROLE_EFFECTS.get(contested.role, ROLE_EFFECTS["standard"]).defense
+            defense_bonus = role_defense
+        else:
+            defense_bonus = total_defense_bonus(contested)
+
+        # Fortification bonus
+        fort_bonus = 0
+        for infra in contested.infrastructure:
+            if infra.type == InfrastructureType.FORTIFICATIONS and infra.active:
+                fort_bonus = 15
+                break
+        def_power += defense_bonus + fort_bonus
+
     # War costs treasury regardless of outcome
     attacker.treasury = max(0, attacker.treasury - 20)
     defender.treasury = max(0, defender.treasury - 10)
 
     if att_power > def_power * 1.3:
-        defender_regions = [r for r in world.regions if r.controller == defender.name]
-        if defender_regions:
-            seized = rng.choice(defender_regions)
-            seized.controller = attacker.name
-            attacker.regions.append(seized.name)
-            defender.regions = [r for r in defender.regions if r != seized.name]
+        if contested:
+            contested.controller = attacker.name
+            attacker.regions.append(contested.name)
+            defender.regions = [r for r in defender.regions if r != contested.name]
+            # Scorched earth check
+            reaction = REACTION_REGISTRY.get("region_lost")
+            if reaction:
+                scorch_events = reaction(world, defender, contested, seed)
+                world.events_timeline.extend(scorch_events)
+            # Fog: reveal conquered region adjacencies
+            if world.fog_of_war and attacker.known_regions is not None:
+                known_set = set(attacker.known_regions)
+                known_set.add(contested.name)
+                for adj in contested.adjacencies:
+                    known_set.add(adj)
+                attacker.known_regions = sorted(known_set)
         attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
         defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
         defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
@@ -370,9 +380,19 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> 
 
 def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> Event:
     """Dispatch an action to its registered handler."""
+    # EXPLORE has a different signature (world, civ) rather than (civ, world)
+    if action == ActionType.EXPLORE:
+        from chronicler.exploration import handle_explore
+        return handle_explore(world, civ)
     handler = ACTION_REGISTRY.get(action)
     if handler:
-        return handler(civ, world)
+        result = handler(civ, world)
+        if result is None:
+            return Event(
+                turn=world.turn, event_type="action", actors=[civ.name],
+                description=f"{civ.name} rests.", importance=1,
+            )
+        return result
     return Event(
         turn=world.turn, event_type="action", actors=[civ.name],
         description=f"{civ.name} rests.", importance=1,
@@ -382,15 +402,15 @@ def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> 
 # --- Weight profiles ---
 
 TRAIT_WEIGHTS: dict[str, dict[ActionType, float]] = {
-    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2},
-    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 1.2},
-    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5},
-    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5},
-    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5},
-    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5},
-    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 0.5},
-    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2},
-    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5},
+    "aggressive":   {ActionType.WAR: 2.0, ActionType.EXPAND: 1.3, ActionType.DEVELOP: 0.5, ActionType.TRADE: 0.8, ActionType.DIPLOMACY: 0.3, ActionType.BUILD: 0.3, ActionType.EMBARGO: 1.2, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2, ActionType.EXPLORE: 0.8},
+    "cautious":     {ActionType.WAR: 0.2, ActionType.EXPAND: 0.5, ActionType.DEVELOP: 2.0, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.5, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 1.2, ActionType.EXPLORE: 0.5},
+    "opportunistic":{ActionType.WAR: 1.0, ActionType.EXPAND: 1.5, ActionType.DEVELOP: 0.8, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 0.7, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.2},
+    "zealous":      {ActionType.WAR: 1.5, ActionType.EXPAND: 2.0, ActionType.DEVELOP: 1.3, ActionType.TRADE: 0.5, ActionType.DIPLOMACY: 0.4, ActionType.BUILD: 1.0, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.5},
+    "ambitious":    {ActionType.WAR: 1.2, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 1.5, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.6, ActionType.BUILD: 1.2, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.5},
+    "calculating":  {ActionType.WAR: 0.7, ActionType.EXPAND: 0.8, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.5, ActionType.DIPLOMACY: 1.3, ActionType.BUILD: 1.3, ActionType.EMBARGO: 1.3, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5, ActionType.EXPLORE: 0.8},
+    "visionary":    {ActionType.WAR: 0.4, ActionType.EXPAND: 1.0, ActionType.DEVELOP: 1.8, ActionType.TRADE: 1.3, ActionType.DIPLOMACY: 1.5, ActionType.BUILD: 1.5, ActionType.EMBARGO: 0.3, ActionType.MOVE_CAPITAL: 0.3, ActionType.FUND_INSTABILITY: 0.5, ActionType.EXPLORE: 1.2},
+    "bold":         {ActionType.WAR: 1.8, ActionType.EXPAND: 1.8, ActionType.DEVELOP: 0.6, ActionType.TRADE: 1.0, ActionType.DIPLOMACY: 0.5, ActionType.BUILD: 0.5, ActionType.EMBARGO: 0.8, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 0.2, ActionType.EXPLORE: 1.0},
+    "shrewd":       {ActionType.WAR: 0.5, ActionType.EXPAND: 0.7, ActionType.DEVELOP: 1.2, ActionType.TRADE: 2.0, ActionType.DIPLOMACY: 1.8, ActionType.BUILD: 1.0, ActionType.EMBARGO: 1.5, ActionType.MOVE_CAPITAL: 0.1, ActionType.FUND_INSTABILITY: 1.5, ActionType.EXPLORE: 1.2},
     "stubborn":     {},
 }
 
@@ -423,9 +443,18 @@ class ActionEngine:
                     if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                         eligible.append(ActionType.TRADE)
                         break
-        # BUILD: treasury >= 10 and has regions
-        if civ.treasury >= 10 and civ.regions:
-            eligible.append(ActionType.BUILD)
+        # BUILD: treasury >= min build cost and has valid build regions
+        from chronicler.infrastructure import valid_build_types, BUILD_SPECS
+        min_cost = min(s.cost for s in BUILD_SPECS.values())
+        if civ.treasury >= min_cost and civ.regions:
+            has_valid = False
+            for rname in civ.regions:
+                region = next((r for r in self.world.regions if r.name == rname), None)
+                if region and valid_build_types(region):
+                    has_valid = True
+                    break
+            if has_valid:
+                eligible.append(ActionType.BUILD)
         # EMBARGO: has trade route and hostile neighbor
         from chronicler.resources import get_active_trade_routes
         civ_routes = [r for r in get_active_trade_routes(self.world) if civ.name in r]
@@ -441,6 +470,10 @@ class ActionEngine:
         # FUND_INSTABILITY: treasury >= 8, has hostile neighbor, not vassal
         if civ.treasury >= 8 and has_hostile and not is_vassal:
             eligible.append(ActionType.FUND_INSTABILITY)
+        # EXPLORE: fog of war active, treasury >= 5, unknown adjacent regions
+        from chronicler.exploration import is_explore_eligible
+        if is_explore_eligible(self.world, civ):
+            eligible.append(ActionType.EXPLORE)
         return eligible
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:

@@ -1,0 +1,305 @@
+import pytest
+from chronicler.models import (
+    ClimatePhase, ClimateConfig, WorldState, Region,
+    Civilization, Leader, Relationship, Disposition,
+    Infrastructure, InfrastructureType,
+)
+
+
+class TestClimateModels:
+    def test_climate_phase_enum(self):
+        assert ClimatePhase.TEMPERATE == "temperate"
+        assert ClimatePhase.WARMING == "warming"
+        assert ClimatePhase.DROUGHT == "drought"
+        assert ClimatePhase.COOLING == "cooling"
+
+    def test_climate_config_defaults(self):
+        cfg = ClimateConfig()
+        assert cfg.period == 75
+        assert cfg.severity == 1.0
+        assert cfg.start_phase == ClimatePhase.TEMPERATE
+
+    def test_world_has_climate_config(self):
+        w = WorldState(name="T", seed=42)
+        assert w.climate_config.period == 75
+
+    def test_region_has_disaster_fields(self):
+        r = Region(name="T", terrain="plains", carrying_capacity=80,
+                   resources="fertile")
+        assert r.disaster_cooldowns == {}
+        assert r.resource_suspensions == {}
+
+
+class TestGetClimatePhase:
+    def test_turn_0_temperate(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(0, cfg) == ClimatePhase.TEMPERATE
+
+    def test_turn_29_temperate(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(29, cfg) == ClimatePhase.TEMPERATE
+
+    def test_turn_30_warming(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(30, cfg) == ClimatePhase.WARMING
+
+    def test_turn_44_warming(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(44, cfg) == ClimatePhase.WARMING
+
+    def test_turn_45_drought(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(45, cfg) == ClimatePhase.DROUGHT
+
+    def test_turn_60_cooling(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(60, cfg) == ClimatePhase.COOLING
+
+    def test_cycle_wraps(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75)
+        assert get_climate_phase(75, cfg) == ClimatePhase.TEMPERATE
+        assert get_climate_phase(105, cfg) == ClimatePhase.WARMING
+
+
+class TestClimateDegradationMultiplier:
+    def test_temperate_no_change(self):
+        from chronicler.climate import climate_degradation_multiplier
+        assert climate_degradation_multiplier("plains", ClimatePhase.TEMPERATE, 1.0) == 1.0
+
+    def test_drought_plains_doubles(self):
+        from chronicler.climate import climate_degradation_multiplier
+        assert climate_degradation_multiplier("plains", ClimatePhase.DROUGHT, 1.0) == 2.0
+
+    def test_drought_forest(self):
+        from chronicler.climate import climate_degradation_multiplier
+        assert climate_degradation_multiplier("forest", ClimatePhase.DROUGHT, 1.0) == 1.4
+
+    def test_warming_tundra_halved(self):
+        from chronicler.climate import climate_degradation_multiplier
+        assert climate_degradation_multiplier("tundra", ClimatePhase.WARMING, 1.0) == 0.5
+
+    def test_cooling_plains(self):
+        from chronicler.climate import climate_degradation_multiplier
+        assert climate_degradation_multiplier("plains", ClimatePhase.COOLING, 1.0) == 1.25
+
+    def test_cooling_tundra_severe(self):
+        from chronicler.climate import climate_degradation_multiplier
+        m = climate_degradation_multiplier("tundra", ClimatePhase.COOLING, 1.0)
+        assert abs(m - 3.3) < 0.1
+
+    def test_severity_zero_no_effect(self):
+        from chronicler.climate import climate_degradation_multiplier
+        assert climate_degradation_multiplier("plains", ClimatePhase.DROUGHT, 0.0) == 1.0
+
+    def test_severity_half(self):
+        from chronicler.climate import climate_degradation_multiplier
+        m = climate_degradation_multiplier("plains", ClimatePhase.DROUGHT, 0.5)
+        assert m == 1.5
+
+
+class TestCheckDisasters:
+    def test_earthquake_in_mountains(self):
+        from chronicler.climate import check_disasters
+        r = Region(name="Peaks", terrain="mountains", carrying_capacity=50,
+                   resources="mineral", fertility=0.7)
+        w = WorldState(name="T", seed=42, regions=[r],
+                       climate_config=ClimateConfig(severity=1.0))
+        triggered = False
+        for turn in range(500):
+            w.turn = turn
+            r.disaster_cooldowns = {}
+            r.fertility = 0.7
+            events = check_disasters(w, ClimatePhase.TEMPERATE)
+            if any(e.event_type == "earthquake" for e in events):
+                triggered = True
+                break
+        assert triggered
+
+    def test_cooldown_prevents_repeat(self):
+        from chronicler.climate import check_disasters
+        r = Region(name="Peaks", terrain="mountains", carrying_capacity=50,
+                   resources="mineral", fertility=0.7,
+                   disaster_cooldowns={"earthquake": 5})
+        w = WorldState(name="T", seed=42, regions=[r],
+                       climate_config=ClimateConfig(severity=1.0))
+        events = check_disasters(w, ClimatePhase.TEMPERATE)
+        eq_events = [e for e in events if e.event_type == "earthquake"]
+        assert len(eq_events) == 0
+
+    def test_flood_doubled_during_warming(self):
+        from chronicler.climate import _disaster_probability
+        base = _disaster_probability("flood", "coast", ClimatePhase.TEMPERATE, 1.0)
+        warm = _disaster_probability("flood", "coast", ClimatePhase.WARMING, 1.0)
+        assert abs(warm - base * 2) < 0.001
+
+    def test_wildfire_doubled_during_drought(self):
+        from chronicler.climate import _disaster_probability
+        base = _disaster_probability("wildfire", "forest", ClimatePhase.TEMPERATE, 1.0)
+        drought = _disaster_probability("wildfire", "forest", ClimatePhase.DROUGHT, 1.0)
+        assert abs(drought - base * 2) < 0.001
+
+    def test_severity_zero_no_disasters(self):
+        from chronicler.climate import _disaster_probability
+        prob = _disaster_probability("earthquake", "mountains", ClimatePhase.TEMPERATE, 0.0)
+        assert prob == 0.0
+
+    def test_earthquake_destroys_infrastructure(self):
+        from chronicler.climate import check_disasters
+        infra = Infrastructure(type=InfrastructureType.ROADS, builder_civ="X", built_turn=1)
+        r = Region(name="Peaks", terrain="mountains", carrying_capacity=50,
+                   resources="mineral", fertility=0.7,
+                   infrastructure=[infra])
+        w = WorldState(name="T", seed=42, regions=[r],
+                       climate_config=ClimateConfig(severity=1.0))
+        for turn in range(200):
+            w.turn = turn
+            r.disaster_cooldowns = {}
+            infra.active = True
+            r.fertility = 0.7
+            events = check_disasters(w, ClimatePhase.TEMPERATE)
+            if any(e.event_type == "earthquake" for e in events):
+                assert not infra.active
+                break
+
+    def test_wildfire_suspends_timber(self):
+        from chronicler.climate import check_disasters
+        r = Region(name="Woods", terrain="forest", carrying_capacity=60,
+                   resources="timber", fertility=0.7)
+        w = WorldState(name="T", seed=42, regions=[r],
+                       climate_config=ClimateConfig(severity=1.0))
+        for turn in range(200):
+            w.turn = turn
+            r.disaster_cooldowns = {}
+            r.resource_suspensions = {}
+            r.fertility = 0.7
+            events = check_disasters(w, ClimatePhase.TEMPERATE)
+            if any(e.event_type == "wildfire" for e in events):
+                assert r.resource_suspensions.get("timber") == 10
+                break
+
+
+def _make_civ(name, population=50, stability=50, regions=None):
+    leader = Leader(name=f"L-{name}", trait="bold", reign_start=0)
+    return Civilization(
+        name=name, population=population, military=30, economy=40,
+        culture=30, stability=stability, treasury=100,
+        leader=leader, regions=regions or [],
+    )
+
+
+class TestProcessMigration:
+    def test_no_migration_when_capacity_sufficient(self):
+        from chronicler.climate import process_migration
+        r = Region(name="A", terrain="plains", carrying_capacity=80,
+                   resources="fertile", fertility=0.8, controller="Rome",
+                   adjacencies=["B"])
+        civ = _make_civ("Rome", population=30, regions=["A"])
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        events = process_migration(w)
+        assert len(events) == 0
+
+    def test_migration_triggered_by_low_capacity(self):
+        from chronicler.climate import process_migration
+        r_src = Region(name="A", terrain="desert", carrying_capacity=20,
+                       resources="mineral", fertility=0.2, controller="Rome",
+                       adjacencies=["B"])
+        r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
+                       resources="fertile", fertility=0.8, controller="Greece",
+                       adjacencies=["A"])
+        rome = _make_civ("Rome", population=40, regions=["A"])
+        greece = _make_civ("Greece", population=30, regions=["B"])
+        rels = {
+            "Rome": {"Greece": Relationship(disposition=Disposition.NEUTRAL)},
+            "Greece": {"Rome": Relationship(disposition=Disposition.NEUTRAL)},
+        }
+        w = WorldState(name="T", seed=42, regions=[r_src, r_dst],
+                       civilizations=[rome, greece], relationships=rels)
+        events = process_migration(w)
+        assert rome.population < 40
+        assert greece.population > 30
+        assert len(events) > 0
+
+    def test_hostile_border_blocks_migration(self):
+        from chronicler.climate import process_migration
+        r_src = Region(name="A", terrain="desert", carrying_capacity=20,
+                       resources="mineral", fertility=0.1, controller="Rome",
+                       adjacencies=["B"])
+        r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
+                       resources="fertile", fertility=0.8, controller="Greece",
+                       adjacencies=["A"])
+        rome = _make_civ("Rome", population=40, regions=["A"])
+        greece = _make_civ("Greece", population=30, regions=["B"])
+        rels = {
+            "Rome": {"Greece": Relationship(disposition=Disposition.HOSTILE)},
+            "Greece": {"Rome": Relationship(disposition=Disposition.HOSTILE)},
+        }
+        w = WorldState(name="T", seed=42, regions=[r_src, r_dst],
+                       civilizations=[rome, greece], relationships=rels)
+        events = process_migration(w)
+        assert rome.population < 40
+        assert greece.population == 30
+
+    def test_uncontrolled_region_absorbs_to_void(self):
+        from chronicler.climate import process_migration
+        r_src = Region(name="A", terrain="desert", carrying_capacity=20,
+                       resources="mineral", fertility=0.1, controller="Rome",
+                       adjacencies=["B"])
+        r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
+                       resources="fertile", fertility=0.8, controller=None,
+                       adjacencies=["A"])
+        rome = _make_civ("Rome", population=40, regions=["A"])
+        w = WorldState(name="T", seed=42, regions=[r_src, r_dst],
+                       civilizations=[rome])
+        events = process_migration(w)
+        assert rome.population < 40
+
+
+class TestMountainDefenseWarming:
+    def test_mountain_defense_zero_during_warming(self):
+        from chronicler.terrain import total_defense_bonus
+        mountain = Region(name="Peaks", terrain="mountains",
+                         carrying_capacity=50, resources="mineral")
+        assert total_defense_bonus(mountain) == 20
+        climate_phase = ClimatePhase.WARMING
+        if climate_phase == ClimatePhase.WARMING and mountain.terrain == "mountains":
+            defense = 0
+        else:
+            defense = total_defense_bonus(mountain)
+        assert defense == 0
+
+    def test_mountain_defense_normal_during_temperate(self):
+        from chronicler.terrain import total_defense_bonus
+        mountain = Region(name="Peaks", terrain="mountains",
+                         carrying_capacity=50, resources="mineral")
+        climate_phase = ClimatePhase.TEMPERATE
+        if climate_phase == ClimatePhase.WARMING and mountain.terrain == "mountains":
+            defense = 0
+        else:
+            defense = total_defense_bonus(mountain)
+        assert defense == 20
+
+
+class TestTundraCapModifier:
+    def test_tundra_cap_doubles_during_warming(self):
+        from chronicler.terrain import terrain_fertility_cap
+        r = Region(name="T", terrain="tundra", carrying_capacity=30,
+                   resources="mineral")
+        base_cap = terrain_fertility_cap(r)
+        assert base_cap == 0.2
+        warming_cap = base_cap * 2.0
+        assert warming_cap == 0.4
+
+    def test_tundra_cap_crashes_during_cooling(self):
+        from chronicler.terrain import terrain_fertility_cap
+        r = Region(name="T", terrain="tundra", carrying_capacity=30,
+                   resources="mineral")
+        base_cap = terrain_fertility_cap(r)
+        cooling_cap = base_cap * 0.3
+        assert abs(cooling_cap - 0.06) < 0.001

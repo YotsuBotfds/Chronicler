@@ -8,7 +8,8 @@ import yaml
 from pydantic import BaseModel, Field
 
 from chronicler.models import (
-    ActiveCondition, Civilization, Disposition, Region, Relationship, TechEra, WorldState,
+    ActiveCondition, Civilization, ClimateConfig, Disposition, Region, Relationship,
+    TechEra, WorldState,
 )
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
 
@@ -90,6 +91,8 @@ class ScenarioConfig(BaseModel):
     narrative_style: str | None = None
     interestingness_weights: dict[str, float] | None = None
     secession_pool: list[CivOverride] = Field(default_factory=list)
+    climate: "ClimateConfig | None" = None
+    fog_of_war: bool | None = None
 
 
 def load_scenario(path: Path) -> ScenarioConfig:
@@ -352,6 +355,12 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
 
     # --- Step 7: Record scenario name ---
     world.scenario_name = config.name
+
+    # --- Step 7b: Climate and fog of war ---
+    if config.climate is not None:
+        world.climate_config = config.climate
+    if config.fog_of_war is not None:
+        world.fog_of_war = config.fog_of_war
 
     # --- Step 8: Recompute adjacencies (fills gaps for regions without explicit adjacencies) ---
     # Clear stale adjacencies from generate_world (region names may have changed)

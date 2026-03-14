@@ -75,7 +75,7 @@ RELATIONSHIPS:
 
 ACTIVE CONDITIONS: {cond_text}
 
-Choose exactly ONE action from: EXPAND, DEVELOP, TRADE, DIPLOMACY, WAR, BUILD, EMBARGO, MOVE_CAPITAL, FUND_INSTABILITY
+Choose exactly ONE action from: EXPAND, DEVELOP, TRADE, DIPLOMACY, WAR, BUILD, EMBARGO, MOVE_CAPITAL, FUND_INSTABILITY, EXPLORE
 
 Consider: your goal, your stats, your relationships, active threats, and available resources.
 You must respond with exactly one word. Do not explain your reasoning.

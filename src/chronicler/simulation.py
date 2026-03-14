@@ -65,57 +65,77 @@ def _get_civ(world: WorldState, name: str) -> Civilization | None:
 
 def phase_environment(world: WorldState, seed: int) -> list[Event]:
     """Check for natural disasters. At most one environment event per turn."""
+    from chronicler.climate import get_climate_phase, check_disasters, process_migration
+
+    events: list[Event] = []
+
+    # Climate-driven disasters and migration
+    climate_phase = get_climate_phase(world.turn, world.climate_config)
+
+    # Decrement disaster cooldowns and resource suspensions
+    for region in world.regions:
+        for k in list(region.disaster_cooldowns):
+            region.disaster_cooldowns[k] -= 1
+        region.disaster_cooldowns = {k: v for k, v in region.disaster_cooldowns.items() if v > 0}
+        for k in list(region.resource_suspensions):
+            region.resource_suspensions[k] -= 1
+        region.resource_suspensions = {k: v for k, v in region.resource_suspensions.items() if v > 0}
+
+    disaster_events = check_disasters(world, climate_phase)
+    events.extend(disaster_events)
+
+    migration_events = process_migration(world)
+    events.extend(migration_events)
+
+    # Legacy environment events (drought, plague, earthquake)
     event = roll_for_event(
         world.event_probabilities,
         turn=world.turn,
         seed=seed,
         allowed_types=ENVIRONMENT_EVENTS,
     )
-    if event is None:
-        return []
-
-    # Apply effects based on event type
-    rng = random.Random(seed + 1)
-    affected = rng.sample(
-        world.civilizations,
-        k=max(1, len(world.civilizations) // 2),
-    )
-    event.actors = [c.name for c in affected]
-
-    if event.event_type == "drought":
-        for civ in affected:
-            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
-            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
-        world.active_conditions.append(
-            ActiveCondition(
-                condition_type="drought",
-                affected_civs=event.actors,
-                duration=3,
-                severity=50,
-            )
+    if event is not None:
+        rng = random.Random(seed + 1)
+        affected = rng.sample(
+            world.civilizations,
+            k=max(1, len(world.civilizations) // 2),
         )
-    elif event.event_type == "plague":
-        for civ in affected:
-            civ.population = clamp(civ.population - 10, STAT_FLOOR["population"], 100)
-            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
-        world.active_conditions.append(
-            ActiveCondition(
-                condition_type="plague",
-                affected_civs=event.actors,
-                duration=4,
-                severity=60,
+        event.actors = [c.name for c in affected]
+
+        if event.event_type == "drought":
+            for civ in affected:
+                civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+                civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+            world.active_conditions.append(
+                ActiveCondition(
+                    condition_type="drought",
+                    affected_civs=event.actors,
+                    duration=3,
+                    severity=50,
+                )
             )
+        elif event.event_type == "plague":
+            for civ in affected:
+                civ.population = clamp(civ.population - 10, STAT_FLOOR["population"], 100)
+                civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+            world.active_conditions.append(
+                ActiveCondition(
+                    condition_type="plague",
+                    affected_civs=event.actors,
+                    duration=4,
+                    severity=60,
+                )
+            )
+        elif event.event_type == "earthquake":
+            for civ in affected:
+                civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+
+        world.event_probabilities = apply_probability_cascade(
+            event.event_type, world.event_probabilities
         )
-    elif event.event_type == "earthquake":
-        for civ in affected:
-            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+        events.append(event)
 
-    # Cascade probabilities
-    world.event_probabilities = apply_probability_cascade(
-        event.event_type, world.event_probabilities
-    )
-
-    return [event]
+    return events
 
 
 # --- Phase 2: Automatic Effects ---
@@ -123,7 +143,12 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 def apply_automatic_effects(world: WorldState) -> list[Event]:
     """Phase 2: Automatic per-turn effects — maintenance, trade, specialization, mercs."""
     from chronicler.resources import get_active_trade_routes, get_self_trade_civs
+    from chronicler.infrastructure import tick_infrastructure
     events: list[Event] = []
+
+    # 0. Infrastructure tick (advance pending builds, mine degradation)
+    infra_events = tick_infrastructure(world)
+    events.extend(infra_events)
 
     # 1. Military maintenance: free up to 30, then (mil-30)//10 per turn
     for civ in world.civilizations:
@@ -277,6 +302,11 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     events.extend(apply_long_peace(world))
     update_peak_regions(world)
 
+    # Trade knowledge sharing (fog of war)
+    from chronicler.exploration import tick_trade_knowledge_sharing
+    knowledge_events = tick_trade_knowledge_sharing(world)
+    events.extend(knowledge_events)
+
     return events
 
 
@@ -284,6 +314,7 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
 def phase_production(world: WorldState) -> None:
     """Generate income and adjust population for each civilization."""
+    from chronicler.terrain import effective_capacity
     for civ in world.civilizations:
         # Base income
         income = civ.economy // 5 + len(civ.regions) * 2
@@ -294,7 +325,7 @@ def phase_production(world: WorldState) -> None:
         civ.last_income = max(0, income - penalty)
         # Population
         region_capacity = sum(
-            max(1, int(r.carrying_capacity * r.fertility))
+            effective_capacity(r)
             for r in world.regions if r.controller == civ.name
         )
         max_pop = min(100, region_capacity)
@@ -517,6 +548,15 @@ def phase_consequences(world: WorldState) -> list[Event]:
                     importance=10,
                 ))
 
+    # Depopulation tracking for ruins
+    from chronicler.exploration import mark_depopulated
+    for region in world.regions:
+        if region.controller is None and region.depopulated_since is None:
+            mark_depopulated(region, world.turn)
+        elif region.controller is not None and region.depopulated_since is not None:
+            region.depopulated_since = None
+            region.ruin_quality = 0
+
     return collapse_events
 
 
@@ -578,18 +618,45 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
 
 def phase_fertility(world: WorldState) -> list[Event]:
     """Phase 9: Fertility degradation, recovery, and famine checks."""
+    from chronicler.terrain import terrain_fertility_cap, effective_capacity
+    from chronicler.climate import get_climate_phase, climate_degradation_multiplier
+    from chronicler.models import ClimatePhase, InfrastructureType
+
+    climate_phase = get_climate_phase(world.turn, world.climate_config)
+
     for region in world.regions:
         if region.controller is None:
             continue
         civ = _get_civ(world, region.controller)
         if civ is None or not civ.regions:
             continue
-        effective_cap = max(1, int(region.carrying_capacity * region.fertility))
-        avg_pop = civ.population / len(civ.regions)
-        if avg_pop > effective_cap:
-            region.fertility = max(0.0, round(region.fertility - 0.02, 4))
-        elif avg_pop < effective_cap * 0.5:
-            region.fertility = min(1.0, round(region.fertility + 0.01, 4))
+
+        # Compute fertility cap with climate modifier + irrigation
+        base_cap = terrain_fertility_cap(region)
+        if region.terrain == "tundra":
+            if climate_phase == ClimatePhase.WARMING:
+                base_cap = base_cap * 2.0
+            elif climate_phase == ClimatePhase.COOLING:
+                base_cap = base_cap * 0.3
+        irrigation_bonus = 0.15 if any(
+            i.type == InfrastructureType.IRRIGATION and i.active
+            for i in region.infrastructure
+        ) else 0.0
+        cap = min(base_cap + irrigation_bonus, 1.0)
+
+        # Climate degradation multiplier
+        multiplier = climate_degradation_multiplier(
+            region.terrain, climate_phase, world.climate_config.severity
+        )
+
+        eff_cap = effective_capacity(region)
+        region_pop = civ.population // len(civ.regions) if civ.regions else 0
+
+        if region_pop > eff_cap:
+            region.fertility = max(0.0, round(region.fertility - 0.02 * multiplier, 4))
+        elif region_pop < eff_cap * 0.5:
+            region.fertility = min(cap, round(region.fertility + 0.01, 4))
+
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
     return _check_famine(world)

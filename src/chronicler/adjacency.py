@@ -159,3 +159,61 @@ def compute_adjacencies(regions: list[Region], k: int = 3) -> None:
         if best_pair:
             _add_edge(best_pair[0], best_pair[1])
         comps = connected_components(regions)
+
+
+def _find_articulation_points(adj: dict[str, list[str]]) -> set[str]:
+    """Find articulation points using Tarjan's algorithm."""
+    visited: set[str] = set()
+    disc: dict[str, int] = {}
+    low: dict[str, int] = {}
+    parent: dict[str, str | None] = {}
+    ap: set[str] = set()
+    timer = [0]
+
+    def dfs(u: str) -> None:
+        children = 0
+        visited.add(u)
+        disc[u] = low[u] = timer[0]
+        timer[0] += 1
+        for v in adj.get(u, []):
+            if v not in visited:
+                children += 1
+                parent[v] = u
+                dfs(v)
+                low[u] = min(low[u], low[v])
+                if parent[u] is None and children > 1:
+                    ap.add(u)
+                if parent[u] is not None and low[v] >= disc[u]:
+                    ap.add(u)
+            elif v != parent.get(u):
+                low[u] = min(low[u], disc[v])
+
+    for node in adj:
+        if node not in visited:
+            parent[node] = None
+            dfs(node)
+
+    return ap
+
+
+def classify_regions(adj: dict[str, list[str]]) -> dict[str, str]:
+    """Classify regions by graph topology. Called once at world generation.
+
+    - CROSSROADS: 3+ adjacencies (rich but exposed)
+    - FRONTIER: exactly 1 adjacency (defensible but isolated)
+    - CHOKEPOINT: articulation point (strategic trade toll)
+    - STANDARD: everything else
+    """
+    articulation = _find_articulation_points(adj)
+    roles: dict[str, str] = {}
+    for name, neighbors in adj.items():
+        degree = len(neighbors)
+        if degree == 1:
+            roles[name] = "frontier"
+        elif name in articulation:
+            roles[name] = "chokepoint"
+        elif degree >= 3:
+            roles[name] = "crossroads"
+        else:
+            roles[name] = "standard"
+    return roles

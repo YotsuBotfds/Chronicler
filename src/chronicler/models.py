@@ -52,12 +52,48 @@ class ActionType(str, Enum):
     EMBARGO = "embargo"
     MOVE_CAPITAL = "move_capital"
     FUND_INSTABILITY = "fund_instability"
+    EXPLORE = "explore"
+
+
+class InfrastructureType(str, Enum):
+    ROADS = "roads"
+    FORTIFICATIONS = "fortifications"
+    IRRIGATION = "irrigation"
+    PORTS = "ports"
+    MINES = "mines"
+
+
+class ClimatePhase(str, Enum):
+    TEMPERATE = "temperate"
+    WARMING = "warming"
+    DROUGHT = "drought"
+    COOLING = "cooling"
 
 
 class ActionCategory(str, Enum):
     AUTOMATIC = "automatic"
     DELIBERATE = "deliberate"
     REACTION = "reaction"
+
+
+class Infrastructure(BaseModel):
+    type: InfrastructureType
+    builder_civ: str
+    built_turn: int
+    active: bool = True
+
+
+class PendingBuild(BaseModel):
+    type: InfrastructureType
+    builder_civ: str
+    started_turn: int
+    turns_remaining: int
+
+
+class ClimateConfig(BaseModel):
+    period: int = 75
+    severity: float = 1.0
+    start_phase: ClimatePhase = ClimatePhase.TEMPERATE
 
 
 # --- Core entities ---
@@ -73,8 +109,14 @@ class Region(BaseModel):
     adjacencies: list[str] = Field(default_factory=list)
     specialized_resources: list[Resource] = Field(default_factory=list)
     fertility: float = Field(default=0.8, ge=0.0, le=1.0)
-    infrastructure_level: int = Field(default=0, ge=0)
+    infrastructure: list[Infrastructure] = Field(default_factory=list)
+    pending_build: PendingBuild | None = None
     famine_cooldown: int = Field(default=0, ge=0)
+    role: str = "standard"
+    disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
+    resource_suspensions: dict[str, int] = Field(default_factory=dict)
+    depopulated_since: int | None = None
+    ruin_quality: int = 0
 
 
 class Leader(BaseModel):
@@ -117,6 +159,7 @@ class Civilization(BaseModel):
     peak_region_count: int = 0
     decline_turns: int = 0
     stats_sum_history: list[int] = Field(default_factory=list)
+    known_regions: list[str] | None = None
 
 
 class Relationship(BaseModel):
@@ -125,6 +168,7 @@ class Relationship(BaseModel):
     grievances: list[str] = Field(default_factory=list)
     trade_volume: int = 0
     allied_turns: int = 0
+    trade_contact_turns: int = 0
 
 
 class HistoricalFigure(BaseModel):
@@ -220,6 +264,8 @@ class WorldState(BaseModel):
     exile_modifiers: list[ExileModifier] = Field(default_factory=list)
     peace_turns: int = 0
     balance_of_power_turns: int = 0
+    climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
+    fog_of_war: bool = False
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
