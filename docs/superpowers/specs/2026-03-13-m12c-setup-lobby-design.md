@@ -55,7 +55,7 @@ The mental model: left side = controls, right side = world. Before launch, "cont
 
 The server now has an explicit lifecycle: `lobby → running → completed`.
 
-- **lobby** — WebSocket server is up, no simulation running. Accepts `start` commands. Rejects `continue`, `inject`, `set`, `fork`.
+- **lobby** — WebSocket server is up, no simulation running. Accepts `start` commands. Rejects `continue`, `inject`, `set`, `fork`. If the client disconnects and reconnects during lobby, the server sends the lobby init again — the handler's existing connect logic handles this naturally.
 - **running** — simulation active. Existing M12 protocol applies unchanged.
 - **completed** — simulation finished. Existing behavior.
 
@@ -71,15 +71,15 @@ Sent on client connect when server is in lobby state:
   "state": "lobby",
   "scenarios": [
     {
-      "file": "rise_and_fall.yaml",
-      "name": "Rise and Fall",
-      "description": "Two empires competing for dominance...",
-      "world_name": "Aetheris",
+      "file": "dead_miles.yaml",
+      "name": "The Dead Miles",
+      "description": "Post-apocalyptic wasteland survival...",
+      "world_name": "The Dead Miles",
       "civs": [
-        {"name": "Kethani Empire", "values": ["Trade", "Order"]}
+        {"name": "The Convoy", "values": ["Survival", "Freedom"]}
       ],
       "regions": [
-        {"name": "Ashenmoor", "terrain": "plains", "x": 0.3, "y": 0.7}
+        {"name": "Salt Flats", "terrain": "desert", "x": null, "y": null}
       ]
     }
   ],
@@ -88,13 +88,14 @@ Sent on client connect when server is in lobby state:
     "turns": 50,
     "civs": 4,
     "regions": 8,
-    "seed": null,
-    "pause_every": 10
+    "seed": null
   }
 }
 ```
 
 Scenario data is parsed directly from YAML files — no world generation at startup. Only scenarios that don't define explicit civs/regions fall back to empty arrays. The full scenario list is sent upfront so preview updates are instant with zero round trips.
+
+**Note:** `pause_every` is not included in `defaults` — it uses the CLI default (or `--reflection-interval`) and is not configurable from the lobby. The lobby controls parameters that affect *what* is simulated, not *how often* it pauses. Example uses illustrative data; field availability depends on scenario YAML content (`values` defaults to `[]` if absent).
 
 ### Running Init Message (server → client)
 
@@ -118,7 +119,7 @@ For backward compatibility, `init` messages without a `state` field are treated 
 ```json
 {
   "type": "start",
-  "scenario": "rise_and_fall.yaml",
+  "scenario": "dead_miles.yaml",
   "turns": 50,
   "seed": 42,
   "civs": 4,
@@ -158,9 +159,16 @@ self._lobby_init: dict | None = None       # cached lobby init message
 
 ### Handler Changes
 
-The `start` command is handled in the WebSocket message handler:
+The `start` command joins `speed` and `quit` as an **always-accepted** command — it must be dispatched **before** the existing `if not self._paused` gate that rejects commands outside pause intervals. The dispatch order in the handler is:
+
+1. `speed` — always accepted (existing)
+2. `quit` — always accepted (existing)
+3. `start` — always accepted, lobby-only (new)
+4. `if not self._paused: reject` — existing gate for all other commands
+5. `continue`, `inject`, `set`, `fork` — paused-only (existing)
 
 ```python
+# After speed and quit handling, before the paused gate:
 if msg_type == "start":
     if self._server_state != "lobby":
         await websocket.send(json.dumps({
@@ -172,12 +180,21 @@ if msg_type == "start":
     self._server_state = "running"
     self.start_event.set()
     continue
+
+# Existing paused gate follows:
+if not self._paused:
+    await websocket.send(json.dumps({...}))
+    continue
 ```
 
 On client connect, the handler sends whichever init matches the current state:
 
 - Lobby: sends `_lobby_init`
 - Running: sends `_init_data` (existing behavior)
+
+**Reconnect during world generation:** There is a brief window after `_server_state = "running"` but before `_init_data` is populated (world generation hasn't completed yet). If a client reconnects during this window, `_init_data` is `None` and the handler sends nothing — the client sees a "connecting" state until the first turn fires and populates `_init_data`. This is acceptable; world generation is sub-second.
+
+**Threading note:** `_start_params` is written by the handler thread and read by the main thread after `start_event.wait()`. The `threading.Event` provides a happens-before guarantee (set before `event.set()`, read after `event.wait()`). Safe under CPython GIL; no additional lock needed.
 
 ### `run_live()` Refactor
 
@@ -204,18 +221,33 @@ params = server._start_params
 if params.get("resume_state"):
     world = WorldState.model_validate(params["resume_state"])
 else:
-    seed = params.get("seed")  # None = server generates
+    # Resolve seed: None means server-generated random
+    seed = params.get("seed")
+    if seed is None:
+        seed = random.randint(0, 2**31 - 1)
+
     world = generate_world(
         seed=seed,
         num_regions=params.get("regions", 8),
         num_civs=params.get("civs", 4),
     )
     if params.get("scenario"):
-        scenario_config = load_scenario(params["scenario"])
+        scenario_config = load_scenario(Path("scenarios") / params["scenario"])
         apply_scenario(world, scenario_config)
+
+# Construct LLM clients from client-selected models.
+# Currently main.py constructs clients before calling run_live().
+# With the lobby, client construction moves here — after the start
+# command provides the model names.
+sim_model = params.get("sim_model")
+narrative_model = params.get("narrative_model")
+sim_client = make_llm_client(sim_model, args) if sim_model else None
+narrative_client = make_llm_client(narrative_model, args) if narrative_model else None
 
 # ... execute_run() with on_turn_cb, quit_check — unchanged
 ```
+
+**LLM client construction:** The existing `main.py` builds `sim_client` and `narrative_client` from CLI args before dispatching to `run_live()`. With the lobby, this construction moves into `run_live()` Phase 2 — the model names come from the `start` command, not CLI args. The `make_llm_client(model_name, args)` helper (extracted from existing `main.py` client construction logic) takes a model name string and the args namespace (for `local_url`, API keys, etc.) and returns an `LLMClient`. The `run_live()` signature drops `sim_client` and `narrative_client` parameters; `main.py` no longer constructs them upfront for live mode.
 
 ### `build_lobby_init()` — New Helper
 
@@ -251,10 +283,12 @@ def build_lobby_init(args) -> dict:
         "models": _get_available_models(args),
         "defaults": {
             "turns": 50, "civs": 4, "regions": 8,
-            "seed": None, "pause_every": 10,
+            "seed": None,
         },
     }
 ```
+
+**`_get_available_models(args)`:** Returns a list of model name strings available for the sim and narrative dropdowns. Implementation: returns a hardcoded list of known models (e.g., `["LFM2-24B"]`) plus any model names specified via CLI args (`--sim-model`, `--narrative-model`). If LM Studio is reachable at `args.local_url`, it can optionally query the `/v1/models` endpoint to discover loaded models. The "Custom..." option in the frontend dropdown handles arbitrary endpoints not in this list.
 
 ---
 
@@ -280,7 +314,6 @@ export interface LobbyInit {
     civs: number;
     regions: number;
     seed: number | null;
-    pause_every: number;
   };
 }
 
@@ -297,7 +330,7 @@ export interface StartCommand {
 }
 ```
 
-`Command` union extended to include `StartCommand`.
+`StartCommand` is a **separate type**, not added to the `Command` union. The `Command` union remains the type for intervention commands sent via `sendCommand`. `StartCommand` is only sent via the dedicated `sendStart` method, preventing accidental misuse through the generic `sendCommand` path.
 
 ### Hook Changes (`useLiveConnection.ts`)
 
@@ -379,7 +412,7 @@ All real validation server-side. No duplicated business logic.
 Shows details for the selected scenario. Three sections:
 
 1. **Header** — scenario name, world name, description
-2. **Region map** — extracted `RegionMap` component (subset of `TerritoryMap`) taking `regions: {name, terrain, x, y}[]`. Terrain coloring only, no faction/controller layer.
+2. **Region map** — extracted `RegionMap` component (subset of `TerritoryMap`) taking `regions: {name, terrain, x, y}[]`. Terrain coloring only, no faction/controller layer. **When x/y are null** (most existing scenarios don't define coordinates), `RegionMap` generates positions using a deterministic layout algorithm (e.g., force-directed from d3-force, seeded by region index) so the preview always shows a meaningful map. This matches how `TerritoryMap` already handles null coordinates for the main viewer.
 3. **Civ list** — read-only cards showing name and values
 
 **Empty state** (Procedural selected or no scenario): centered placeholder with map icon and "Select a scenario to preview."
@@ -436,12 +469,14 @@ Shows details for the selected scenario. Three sections:
 
 | File | Change |
 |------|--------|
-| `src/chronicler/live.py` | Add `start_event`, `_start_params`, `_server_state`, `_lobby_init` to `LiveServer`. Add `start` handler. Refactor `run_live()` to block on `start_event`. Add `build_lobby_init()`. |
+| `src/chronicler/live.py` | Add `start_event`, `_start_params`, `_server_state`, `_lobby_init` to `LiveServer`. Add `start` handler (before paused gate). Refactor `run_live()` to block on `start_event`. Add `build_lobby_init()`, `_get_available_models()`. Move LLM client construction into `run_live()` Phase 2. |
+| `src/chronicler/main.py` | Extract `make_llm_client()` helper from existing client construction. Skip client construction for `--live` mode (deferred to `run_live()`). |
 | `viewer/src/types.ts` | Add `ScenarioInfo`, `LobbyInit`, `StartCommand`. Extend `Command` union. |
 | `viewer/src/hooks/useLiveConnection.ts` | Add `serverState`, `lobbyInit`, `sendStart`. Branch `init` handler on `msg.state`. |
 | `viewer/src/App.tsx` | Gate live mode on `serverState` switch. Render `SetupLobby` for lobby/starting. |
 | `viewer/src/components/SetupLobby.tsx` | **New file.** Sidebar + preview layout, six controls, launch button. |
-| `viewer/src/components/RegionMap.tsx` | **New file.** Extracted from `TerritoryMap` — terrain-only region positioning. |
+| `viewer/src/components/RegionMap.tsx` | **New file.** Extracted from `TerritoryMap` — terrain-only region positioning with null-coordinate layout. |
+| `viewer/src/components/RegionMap.test.tsx` | **New file.** Null coordinate handling, terrain coloring, deterministic layout. |
 | `tests/test_live.py` | Add lobby init, start validation, state transition, seed round-trip tests. |
 | `viewer/src/hooks/useLiveConnection.test.ts` | Add lobby, sendStart, error recovery, backward compat, retry sequence tests. |
 | `viewer/src/components/SetupLobby.test.tsx` | **New file.** Control rendering, disable logic, resume, launch tests. |
