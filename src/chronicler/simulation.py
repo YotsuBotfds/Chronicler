@@ -261,8 +261,9 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     for civ in world.civilizations:
         civ.last_income = 0
 
-    from chronicler.politics import apply_governing_costs
+    from chronicler.politics import apply_governing_costs, collect_tribute
     events.extend(apply_governing_costs(world))
+    events.extend(collect_tribute(world))
 
     return events
 
@@ -466,10 +467,17 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     apply_asabiya_dynamics(world)
 
-    from chronicler.politics import check_capital_loss, check_secession
+    from chronicler.politics import (
+        check_capital_loss, check_secession, check_vassal_rebellion,
+        check_federation_formation, check_federation_dissolution, update_allied_turns,
+    )
     collapse_events: list[Event] = []
     collapse_events.extend(check_capital_loss(world))
     collapse_events.extend(check_secession(world))
+    update_allied_turns(world)
+    collapse_events.extend(check_vassal_rebellion(world))
+    collapse_events.extend(check_federation_formation(world))
+    collapse_events.extend(check_federation_dissolution(world))
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:

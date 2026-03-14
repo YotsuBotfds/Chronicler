@@ -402,3 +402,161 @@ def check_vassal_rebellion(world: WorldState) -> list[Event]:
             world.vassal_relations.remove(vr)
 
     return events
+
+
+# --- Federation mechanics ---
+
+_FEDERATION_ADJECTIVES = [
+    "Northern", "Southern", "Eastern", "Western", "Iron",
+    "Golden", "Silver", "Maritime", "Sacred", "Grand",
+]
+_FEDERATION_NOUNS = [
+    "Accord", "Pact", "League", "Alliance", "Compact", "Coalition", "Confederation",
+]
+
+
+def _civ_in_federation(civ_name: str, world: WorldState) -> "Federation | None":
+    """Return the federation a civ belongs to, or None."""
+    from chronicler.models import Federation
+    for fed in world.federations:
+        if civ_name in fed.members:
+            return fed
+    return None
+
+
+def _is_vassal(civ_name: str, world: WorldState) -> bool:
+    """Check if a civ is a vassal."""
+    return any(vr.vassal == civ_name for vr in world.vassal_relations)
+
+
+def update_allied_turns(world: WorldState) -> None:
+    """Phase 10: Update allied_turns counters on all relationships."""
+    for civ_name, rels in world.relationships.items():
+        for other_name, rel in rels.items():
+            if rel.disposition == Disposition.ALLIED:
+                rel.allied_turns += 1
+            elif rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS, Disposition.NEUTRAL):
+                rel.allied_turns = 0
+
+
+def check_federation_formation(world: WorldState) -> list[Event]:
+    """Phase 10: Check if any allied pairs can form or join federations."""
+    from chronicler.models import Federation
+    events: list[Event] = []
+    checked_pairs: set[tuple[str, str]] = set()
+
+    for civ_a in world.civilizations:
+        if _is_vassal(civ_a.name, world):
+            continue
+        rels_a = world.relationships.get(civ_a.name, {})
+        for civ_b_name, rel_ab in rels_a.items():
+            if rel_ab.allied_turns < 10:
+                continue
+            pair = tuple(sorted([civ_a.name, civ_b_name]))
+            if pair in checked_pairs:
+                continue
+            checked_pairs.add(pair)
+
+            rel_ba = world.relationships.get(civ_b_name, {}).get(civ_a.name)
+            if rel_ba is None or rel_ba.allied_turns < 10:
+                continue
+            if _is_vassal(civ_b_name, world):
+                continue
+
+            fed_a = _civ_in_federation(civ_a.name, world)
+            fed_b = _civ_in_federation(civ_b_name, world)
+
+            if fed_a and fed_b:
+                continue
+            elif fed_a and not fed_b:
+                fed_a.members.append(civ_b_name)
+            elif fed_b and not fed_a:
+                fed_b.members.append(civ_a.name)
+            else:
+                rng = random.Random(world.seed + world.turn)
+                adj = rng.choice(_FEDERATION_ADJECTIVES)
+                noun = rng.choice(_FEDERATION_NOUNS)
+                fed_name = f"The {adj} {noun}"
+                new_fed = Federation(
+                    name=fed_name,
+                    members=[civ_a.name, civ_b_name],
+                    founded_turn=world.turn,
+                )
+                world.federations.append(new_fed)
+                events.append(Event(
+                    turn=world.turn,
+                    event_type="federation_formed",
+                    actors=[civ_a.name, civ_b_name],
+                    description=f"Formation of {fed_name}",
+                    importance=7,
+                ))
+
+    return events
+
+
+def check_federation_dissolution(world: WorldState) -> list[Event]:
+    """Phase 10: Check if any federation members want to exit."""
+    events: list[Event] = []
+    feds_to_remove = []
+
+    for fed in world.federations:
+        exiting: list[str] = []
+        for member in fed.members:
+            rels = world.relationships.get(member, {})
+            for other_member in fed.members:
+                if other_member == member:
+                    continue
+                rel = rels.get(other_member)
+                if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS, Disposition.NEUTRAL):
+                    exiting.append(member)
+                    break
+
+        for member in exiting:
+            fed.members.remove(member)
+            civ = next((c for c in world.civilizations if c.name == member), None)
+            if civ:
+                civ.stability = clamp(civ.stability - 15, STAT_FLOOR["stability"], 100)
+            for remaining in fed.members:
+                rc = next((c for c in world.civilizations if c.name == remaining), None)
+                if rc:
+                    rc.stability = clamp(rc.stability - 5, STAT_FLOOR["stability"], 100)
+
+        if len(fed.members) <= 1:
+            feds_to_remove.append(fed)
+            events.append(Event(
+                turn=world.turn,
+                event_type="federation_collapsed",
+                actors=fed.members,
+                description=f"Collapse of {fed.name}",
+                importance=7,
+            ))
+
+    for fed in feds_to_remove:
+        world.federations.remove(fed)
+
+    return events
+
+
+def trigger_federation_defense(attacker: str, defender: str, world: WorldState) -> list[Event]:
+    """Called during war resolution: if defender is in a federation, allies join."""
+    events: list[Event] = []
+    fed = _civ_in_federation(defender, world)
+    if fed is None:
+        return events
+
+    for member in fed.members:
+        if member == defender or member == attacker:
+            continue
+        war_pair = (attacker, member)
+        if war_pair not in world.active_wars and (member, attacker) not in world.active_wars:
+            world.active_wars.append(war_pair)
+            world.war_start_turns[war_key(attacker, member)] = world.turn
+            events.append(Event(
+                turn=world.turn,
+                event_type="federation_defense",
+                actors=[member, defender, attacker],
+                description=f"{member} joins war against {attacker} in defense of {defender}",
+                importance=6,
+            ))
+
+    return events

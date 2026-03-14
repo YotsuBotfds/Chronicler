@@ -428,6 +428,10 @@ class ActionEngine:
         # MOVE_CAPITAL: treasury >= 15 and regions >= 2
         if civ.treasury >= 15 and len(civ.regions) >= 2:
             eligible.append(ActionType.MOVE_CAPITAL)
+        # Vassal cannot declare war
+        is_vassal = any(vr.vassal == civ.name for vr in self.world.vassal_relations)
+        if is_vassal:
+            eligible = [a for a in eligible if a != ActionType.WAR]
         return eligible
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:

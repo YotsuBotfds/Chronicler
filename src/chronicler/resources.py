@@ -59,6 +59,13 @@ def get_active_trade_routes(world: WorldState) -> list[tuple[str, str]]:
             if rel_ab and rel_ba:
                 if DISP_ORDER.get(rel_ab.disposition.value, 0) >= 2 and DISP_ORDER.get(rel_ba.disposition.value, 0) >= 2:
                     routes.add(pair)
+    # Federation members get trade routes regardless of adjacency
+    for fed in world.federations:
+        for i, m1 in enumerate(fed.members):
+            for m2 in fed.members[i+1:]:
+                pair = tuple(sorted([m1, m2]))
+                if pair not in routes:
+                    routes.add(pair)
     return list(routes)
 
 

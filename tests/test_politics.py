@@ -437,3 +437,121 @@ def test_vassal_no_rebellion_when_overlord_strong():
     winner.treasury = 100
     events = check_vassal_rebellion(world)
     assert len(world.vassal_relations) == 1
+
+
+# --- Task 14: Federation formation and dissolution ---
+
+from chronicler.politics import check_federation_formation
+
+
+def test_federation_forms_after_10_allied_turns():
+    from chronicler.models import Region, Relationship, Disposition, Federation
+    regions = [
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile"),
+    ]
+    la = Leader(name="LA", trait="bold", reign_start=0)
+    lb = Leader(name="LB", trait="bold", reign_start=0)
+    civ_a = Civilization(name="CivA", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=la, regions=["A"], capital_region="A")
+    civ_b = Civilization(name="CivB", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=lb, regions=["B"], capital_region="B")
+    world = WorldState(name="test", seed=42, turn=20, regions=regions,
+                       civilizations=[civ_a, civ_b])
+    world.relationships = {
+        "CivA": {"CivB": Relationship(disposition=Disposition.ALLIED, allied_turns=10)},
+        "CivB": {"CivA": Relationship(disposition=Disposition.ALLIED, allied_turns=10)},
+    }
+    events = check_federation_formation(world)
+    assert len(world.federations) == 1
+    assert "CivA" in world.federations[0].members
+    assert "CivB" in world.federations[0].members
+
+
+def test_federation_does_not_form_below_10_turns():
+    from chronicler.models import Region, Relationship, Disposition
+    regions = [Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile")]
+    la = Leader(name="LA", trait="bold", reign_start=0)
+    lb = Leader(name="LB", trait="bold", reign_start=0)
+    civ_a = Civilization(name="CivA", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=la, regions=["A"], capital_region="A")
+    civ_b = Civilization(name="CivB", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=lb, regions=[], capital_region=None)
+    world = WorldState(name="test", seed=42, turn=20, regions=regions,
+                       civilizations=[civ_a, civ_b])
+    world.relationships = {
+        "CivA": {"CivB": Relationship(disposition=Disposition.ALLIED, allied_turns=5)},
+        "CivB": {"CivA": Relationship(disposition=Disposition.ALLIED, allied_turns=5)},
+    }
+    events = check_federation_formation(world)
+    assert len(world.federations) == 0
+
+
+# --- Task 15: Federation defense and vassal WAR restriction ---
+
+from chronicler.politics import trigger_federation_defense, war_key
+from chronicler.models import Federation
+
+
+def test_federation_defense_adds_allies_to_war():
+    from chronicler.models import Region, Relationship, Disposition
+    regions = [
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile"),
+    ]
+    la = Leader(name="LA", trait="bold", reign_start=0)
+    lb = Leader(name="LB", trait="bold", reign_start=0)
+    lc = Leader(name="LC", trait="bold", reign_start=0)
+    civ_a = Civilization(name="Attacker", population=50, military=40, economy=40,
+                         culture=30, stability=50, leader=la, regions=["A"], capital_region="A")
+    civ_b = Civilization(name="Defender", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=lb, regions=["B"], capital_region="B")
+    civ_c = Civilization(name="Ally", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=lc, regions=["C"], capital_region="C")
+    world = WorldState(name="test", seed=42, turn=10, regions=regions,
+                       civilizations=[civ_a, civ_b, civ_c])
+    world.federations = [Federation(name="The Iron Pact", members=["Defender", "Ally"], founded_turn=5)]
+    world.active_wars = [("Attacker", "Defender")]
+    world.war_start_turns = {war_key("Attacker", "Defender"): 10}
+    events = trigger_federation_defense("Attacker", "Defender", world)
+    assert ("Attacker", "Ally") in world.active_wars or ("Ally", "Attacker") in world.active_wars
+
+
+def test_vassal_cannot_declare_war():
+    from chronicler.action_engine import ActionEngine
+    from chronicler.models import ActionType
+    adj = {"A": ["B"], "B": ["A"]}
+    world = _make_world_with_regions(["A", "B"], capital="A", adjacencies=adj)
+    world.vassal_relations = [VassalRelation(overlord="Other", vassal="Empire")]
+    civ = world.civilizations[0]
+    # Give civ a hostile relationship so WAR would normally be eligible
+    from chronicler.models import Relationship, Disposition
+    world.relationships = {
+        "Empire": {"Enemy": Relationship(disposition=Disposition.HOSTILE)},
+    }
+    engine = ActionEngine(world)
+    eligible = engine.get_eligible_actions(civ)
+    assert ActionType.WAR not in eligible
+
+
+# --- Task 16: Simulation integration ---
+
+def test_tribute_collected_during_simulation():
+    from chronicler.simulation import run_turn
+    from chronicler.action_engine import ActionEngine
+    from chronicler.models import Region
+    adj = {"A": ["B"], "B": ["A"]}
+    world = _make_world_with_regions(["A"], capital="A", adjacencies=adj)
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    vassal_civ = Civilization(name="Vassal", population=30, military=20, economy=40,
+                              culture=20, stability=30, treasury=50, leader=l2,
+                              regions=["B"], capital_region="B")
+    world.civilizations.append(vassal_civ)
+    world.regions.append(Region(name="B", terrain="plains", carrying_capacity=50,
+                                resources="fertile", adjacencies=["A"], controller="Vassal"))
+    world.vassal_relations = [VassalRelation(overlord="Empire", vassal="Vassal")]
+    engine = ActionEngine(world)
+    selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+    run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
+    assert world.vassal_relations[0].turns_active >= 1
