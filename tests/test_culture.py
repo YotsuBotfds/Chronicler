@@ -310,3 +310,20 @@ class TestMovementDispositionEffects:
         apply_value_drift(drift_world)
         rel = drift_world.relationships["CivA"]["CivB"]
         assert rel.disposition_drift == 10
+
+
+from chronicler.tech import get_era_bonus
+
+
+class TestEraBonus:
+    def test_existing_stat_bonus(self):
+        assert get_era_bonus(TechEra.IRON, "economy", default=0.0) == 10
+
+    def test_multiplier_key(self):
+        assert get_era_bonus(TechEra.IRON, "military_multiplier", default=1.0) == 1.3
+
+    def test_missing_key_returns_default(self):
+        assert get_era_bonus(TechEra.BRONZE, "culture_projection_range", default=1) == 1
+
+    def test_fortification_multiplier(self):
+        assert get_era_bonus(TechEra.MEDIEVAL, "fortification_multiplier", default=1.0) == 2.0

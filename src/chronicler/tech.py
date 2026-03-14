@@ -31,14 +31,19 @@ TECH_REQUIREMENTS: dict[TechEra, tuple[int, int, int]] = {
 }
 
 ERA_BONUSES: dict[TechEra, dict[str, int | float]] = {
-    TechEra.BRONZE: {"military": 10},
-    TechEra.IRON: {"economy": 10},
-    TechEra.CLASSICAL: {"culture": 10},
-    TechEra.MEDIEVAL: {"military": 10},
+    TechEra.BRONZE: {"military": 10, "military_multiplier": 1.0},
+    TechEra.IRON: {"economy": 10, "military_multiplier": 1.3},
+    TechEra.CLASSICAL: {"culture": 10, "fortification_multiplier": 1.0},
+    TechEra.MEDIEVAL: {"military": 10, "fortification_multiplier": 2.0},
     TechEra.RENAISSANCE: {"economy": 20, "culture": 10},
     TechEra.INDUSTRIAL: {"economy": 20, "military": 20},
-    TechEra.INFORMATION: {"culture": 10, "economy": 5},
+    TechEra.INFORMATION: {"culture": 10, "economy": 5, "culture_projection_range": -1},
 }
+
+
+def get_era_bonus(era: TechEra, key: str, default: float = 0.0) -> float:
+    """Look up an era-specific bonus. Returns default if key not present for this era."""
+    return ERA_BONUSES.get(era, {}).get(key, default)
 
 
 RESOURCE_REQUIREMENTS: dict[TechEra, tuple[set[Resource] | None, int]] = {
