@@ -9,7 +9,7 @@ Turn phases:
 6. Cultural Milestones — check cultural threshold for named works
 7. Random Events — 0-1 external events from cascading probability table
 8. Leader Dynamics — trait evolution for all living leaders
-9. Fertility — fertility degradation/recovery, famine checks (NEW)
+9. Ecology — soil/water/forest tick, famine checks (M23)
 10. Consequences — resolve cascading effects, tick condition durations
 
 The engine is deterministic given a seed, except for Phase 5 (action
@@ -63,8 +63,8 @@ from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_a
 from chronicler.movements import tick_movements
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
-    K_FAMINE_STABILITY, K_WAR_COST_STABILITY, K_FAMINE_THRESHOLD,
-    K_CONDITION_ONGOING_DRAIN, K_FERTILITY_DEGRADATION, K_FERTILITY_RECOVERY,
+    K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
+    K_CONDITION_ONGOING_DRAIN,
     K_MILITARY_FREE_THRESHOLD,
     K_REBELLION_STABILITY, K_LEADER_DEATH_STABILITY,
     K_BORDER_INCIDENT_STABILITY, K_RELIGIOUS_MOVEMENT_STABILITY,
@@ -883,105 +883,7 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
     return events
 
 
-# --- Phase 9: Fertility ---
-
-def phase_fertility(world: WorldState) -> list[Event]:
-    """Phase 9: Fertility degradation, recovery, and famine checks."""
-    from chronicler.terrain import terrain_fertility_cap, effective_capacity
-    from chronicler.climate import get_climate_phase, climate_degradation_multiplier
-    from chronicler.models import ClimatePhase, InfrastructureType
-
-    climate_phase = get_climate_phase(world.turn, world.climate_config)
-
-    for region in world.regions:
-        if region.controller is None:
-            continue
-        civ = _get_civ(world, region.controller)
-        if civ is None or not civ.regions:
-            continue
-
-        # Compute fertility cap with climate modifier + irrigation
-        base_cap = terrain_fertility_cap(region)
-        if region.terrain == "tundra":
-            if climate_phase == ClimatePhase.WARMING:
-                base_cap = base_cap * 2.0
-            elif climate_phase == ClimatePhase.COOLING:
-                base_cap = base_cap * 0.3
-        irrigation_bonus = 0.15 if any(
-            i.type == InfrastructureType.IRRIGATION and i.active
-            for i in region.infrastructure
-        ) else 0.0
-        cap = min(base_cap + irrigation_bonus, 1.0)
-
-        # Climate degradation multiplier
-        multiplier = climate_degradation_multiplier(
-            region.terrain, climate_phase, world.climate_config.severity
-        )
-
-        eff_cap = effective_capacity(region)
-        region_pop = region.population
-
-        degradation = get_override(world, K_FERTILITY_DEGRADATION, 0.005)
-        recovery = get_override(world, K_FERTILITY_RECOVERY, 0.05)
-        if region_pop > eff_cap:
-            region.fertility = max(0.0, round(region.fertility - degradation * multiplier, 4))
-        elif region_pop < eff_cap * 0.75:
-            region.fertility = min(cap, round(region.fertility + recovery, 4))
-
-        if region.famine_cooldown > 0:
-            region.famine_cooldown -= 1
-    famine_events = _check_famine(world)
-
-    # M17d: Apply fertility floor for food_stockpiling tradition
-    from chronicler.traditions import apply_fertility_floor
-    apply_fertility_floor(world)
-
-    # M18: Update low fertility counters and check terrain succession
-    from chronicler.emergence import update_low_fertility_counters
-    update_low_fertility_counters(world)
-
-    sync_all_populations(world)
-    return famine_events
-
-
-def _check_famine(world: WorldState) -> list[Event]:
-    """Check for famine in low-fertility regions."""
-    events = []
-    for region in world.regions:
-        threshold = get_override(world, K_FAMINE_THRESHOLD, 0.05)
-        if region.controller is None or region.fertility >= threshold or region.famine_cooldown > 0:
-            continue
-        civ = _get_civ(world, region.controller)
-        if civ is None:
-            continue
-        # M21: AGRICULTURE halves famine threshold
-        if civ and civ.active_focus == "agriculture":
-            threshold *= 0.5
-            world.events_timeline.append(Event(
-                turn=world.turn, event_type="capability_agriculture",
-                actors=[civ.name], description=f"{civ.name} agriculture halves famine threshold",
-                importance=1,
-            ))
-        mult = get_severity_multiplier(civ)
-        drain_region_pop(region, int(5 * mult))
-        sync_civ_population(civ, world)
-        drain = int(get_override(world, K_FAMINE_STABILITY, 3))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
-        region.famine_cooldown = 5
-        for adj_name in region.adjacencies:
-            adj = next((r for r in world.regions if r.name == adj_name), None)
-            if adj and adj.controller and adj.controller != civ.name:
-                neighbor = _get_civ(world, adj.controller)
-                if neighbor:
-                    add_region_pop(adj, 5)
-                    sync_civ_population(neighbor, world)
-                    neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
-        events.append(Event(
-            turn=world.turn, event_type="famine", actors=[civ.name],
-            description=f"Famine strikes {region.name}, devastating {civ.name}.",
-            importance=8,
-        ))
-    return events
+    # NOTE: phase_fertility and _check_famine deleted by M23 — replaced by ecology.tick_ecology
 
 
 # --- Turn orchestrator ---
@@ -1029,10 +931,13 @@ def run_turn(
     # Phase 8: Leader Dynamics
     turn_events.extend(phase_leader_dynamics(world, seed=seed))
 
-    # Phase 9: Fertility
-    turn_events.extend(phase_fertility(world))
+    # Phase 9: Ecology (M23 — replaces phase_fertility)
+    from chronicler.ecology import tick_ecology
+    from chronicler.climate import get_climate_phase
+    climate_phase = get_climate_phase(world.turn, world.climate_config)
+    turn_events.extend(tick_ecology(world, climate_phase))
 
-    # M18: Terrain succession (after phase_fertility updates low_fertility_turns)
+    # M18: Terrain succession (uses low_forest_turns updated by tick_ecology)
     from chronicler.emergence import tick_terrain_succession
     turn_events.extend(tick_terrain_succession(world))
 
