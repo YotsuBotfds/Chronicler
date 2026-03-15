@@ -96,7 +96,7 @@ def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
     rng = random.Random(world.turn * 1000 + civ_index)
     unclaimed = [r for r in world.regions if r.controller is None]
     # Filter out harsh terrain if below IRON era
-    if not _era_at_least(civ.tech_era, TechEra.IRON):
+    if not _era_at_least(civ.tech_era, TechEra.IRON) and civ.active_focus != "exploration":
         unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
     if unclaimed and civ.military >= 30:
         target = rng.choice(unclaimed)
@@ -273,7 +273,9 @@ def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
         world.embargoes.append((civ.name, target_name))
         target = _get_civ(world, target_name)
         if target:
-            target.stability = clamp(target.stability - 5, STAT_FLOOR["stability"], 100)
+            # M21: BANKING halves incoming embargo stability damage
+            embargo_damage = 2 if target.active_focus == "banking" else 5
+            target.stability = clamp(target.stability - embargo_damage, STAT_FLOOR["stability"], 100)
         return Event(
             turn=world.turn, event_type="embargo", actors=[civ.name, target_name],
             description=f"{civ.name} imposed a trade embargo on {target_name}.",
@@ -363,6 +365,9 @@ def resolve_war(
         att_power += 5
     if "martial" in defender.traditions:
         def_power += 5
+    # M21: NAVAL_POWER gives +10 defense if contested region is coastal
+    if defender.active_focus == "naval_power" and contested and contested.terrain == "coast":
+        def_power += 10
 
     # War costs treasury regardless of outcome
     attacker.treasury = max(0, attacker.treasury - 20)
@@ -406,6 +411,20 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> 
     """Resolve trade: both sides gain treasury proportional to their economy."""
     gain1 = max(1, civ2.economy // 3)
     gain2 = max(1, civ1.economy // 3)
+    # M21: Trade income bonuses
+    if civ1.active_focus == "networks":
+        gain1 *= 2
+    elif civ1.active_focus == "commerce":
+        gain1 = int(gain1 * 1.5)
+    if civ2.active_focus == "networks":
+        gain2 *= 2
+    elif civ2.active_focus == "commerce":
+        gain2 = int(gain2 * 1.5)
+    # COMMERCE benefits partner: if either has it, partner also gets +50%
+    if civ1.active_focus == "commerce" and civ2.active_focus != "networks":
+        gain2 = int(gain2 * 1.5)
+    if civ2.active_focus == "commerce" and civ1.active_focus != "networks":
+        gain1 = int(gain1 * 1.5)
     civ1.treasury += gain1
     civ2.treasury += gain2
     if civ1.name in world.relationships and civ2.name in world.relationships[civ1.name]:
