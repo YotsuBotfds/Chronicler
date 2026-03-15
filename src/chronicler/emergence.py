@@ -198,8 +198,149 @@ def check_black_swans(world: WorldState, seed: int) -> list[Event]:
 
 
 def _apply_pandemic_origin(world: WorldState, seed: int) -> list[Event]:
-    """Placeholder — implemented in Task 12."""
-    return []
+    """Initialize a pandemic originating from the most trade-connected civ."""
+    rng = random.Random(seed + world.turn * 1009)
+
+    # Find most connected civ
+    best_civ = None
+    best_count = 0
+    for civ in world.civilizations:
+        count = _count_trade_partners(civ.name, world)
+        if count > best_count:
+            best_count = count
+            best_civ = civ
+
+    if best_civ is None:
+        return []
+
+    # Select origin region (random among best_civ's controlled regions)
+    controlled = [r for r in world.regions if r.controller == best_civ.name]
+    if not controlled:
+        return []
+    origin_region = rng.choice(controlled)
+
+    # Compute severity from active infrastructure
+    active_infra = len([i for i in origin_region.infrastructure if i.active])
+    severity = min(3, 1 + active_infra // 2)
+
+    # Duration: 4-6, reduced by 1 if scientist great person present
+    duration = rng.randint(4, 6)
+    has_scientist = any(
+        gp.role == "scientist" and gp.active
+        for gp in best_civ.great_persons
+    )
+    if has_scientist:
+        duration = max(1, duration - 1)
+
+    world.pandemic_state.append(PandemicRegion(
+        region_name=origin_region.name,
+        severity=severity,
+        turns_remaining=duration,
+    ))
+
+    return [Event(
+        turn=world.turn,
+        event_type="pandemic",
+        actors=[best_civ.name],
+        description=f"A devastating plague erupts in {origin_region.name}, spreading through {best_civ.name}'s trade network",
+        importance=9,
+    )]
+
+
+def tick_pandemic(world: WorldState) -> list[Event]:
+    """Per-turn pandemic tick: apply damage, spread, decrement timers. Phase 2."""
+    if not world.pandemic_state:
+        return []
+
+    events: list[Event] = []
+    infected_names = {p.region_name for p in world.pandemic_state}
+    already_infected_or_recovered = set(infected_names) | set(world.pandemic_recovered)
+
+    # --- Apply per-civ damage (aggregate, not per-region) ---
+    civ_max_severity: dict[str, int] = {}
+    for p in world.pandemic_state:
+        for r in world.regions:
+            if r.name == p.region_name and r.controller:
+                current = civ_max_severity.get(r.controller, 0)
+                civ_max_severity[r.controller] = max(current, p.severity)
+
+    for civ_name, severity in civ_max_severity.items():
+        civ = next((c for c in world.civilizations if c.name == civ_name), None)
+        if civ is None:
+            continue
+        pop_loss = min(severity * 3, 12)
+        eco_loss = min(severity * 2, 8)
+        civ.population = clamp(civ.population - pop_loss, STAT_FLOOR.get("population", 1), 100)
+        civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
+
+        # Leader kill check: 5% per infected civ
+        rng = random.Random(world.seed + world.turn * 1013 + hash(civ_name))
+        if rng.random() < 0.05:
+            from chronicler.succession import trigger_crisis
+            old_leader = civ.leader
+            old_leader.alive = False
+            trigger_crisis(civ, world)
+            events.append(Event(
+                turn=world.turn, event_type="pandemic_leader_death",
+                actors=[civ_name],
+                description=f"{old_leader.name} of {civ_name} succumbs to the plague",
+                importance=8,
+            ))
+
+    # --- Spread to adjacent trade-connected regions ---
+    routes = get_active_trade_routes(world)
+    trade_pairs = set()
+    for a, b in routes:
+        trade_pairs.add((a, b))
+        trade_pairs.add((b, a))
+
+    infected_controllers = set()
+    for p in world.pandemic_state:
+        for r in world.regions:
+            if r.name == p.region_name and r.controller:
+                infected_controllers.add(r.controller)
+
+    new_infections: list[PandemicRegion] = []
+    rng_spread = random.Random(world.seed + world.turn * 1019)
+    for p in world.pandemic_state:
+        source_region = next((r for r in world.regions if r.name == p.region_name), None)
+        if source_region is None:
+            continue
+        for adj_name in source_region.adjacencies:
+            if adj_name in already_infected_or_recovered:
+                continue
+            adj_region = next((r for r in world.regions if r.name == adj_name), None)
+            if adj_region is None or adj_region.controller is None:
+                continue
+            adj_ctrl = adj_region.controller
+            if any((ctrl, adj_ctrl) in trade_pairs for ctrl in infected_controllers):
+                active_infra = len([i for i in adj_region.infrastructure if i.active])
+                severity = min(3, 1 + active_infra // 2)
+                duration = rng_spread.randint(4, 6)
+                target_civ = next((c for c in world.civilizations if c.name == adj_ctrl), None)
+                if target_civ and any(gp.role == "scientist" and gp.active for gp in target_civ.great_persons):
+                    duration = max(1, duration - 1)
+                new_infections.append(PandemicRegion(
+                    region_name=adj_name, severity=severity, turns_remaining=duration,
+                ))
+                already_infected_or_recovered.add(adj_name)
+
+    # --- Decrement timers and remove expired ---
+    for p in world.pandemic_state:
+        p.turns_remaining -= 1
+    for p in world.pandemic_state:
+        if p.turns_remaining <= 0:
+            world.pandemic_recovered.append(p.region_name)
+    world.pandemic_state = [p for p in world.pandemic_state if p.turns_remaining > 0]
+
+    # Add newly spread regions
+    world.pandemic_state.extend(new_infections)
+
+    # Clear recovered list when pandemic ends
+    if not world.pandemic_state:
+        world.pandemic_recovered = []
+
+    return events
 
 
 def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:

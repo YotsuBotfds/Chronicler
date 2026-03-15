@@ -510,3 +510,105 @@ class TestEligibilityHelpers:
         world.civilizations = [_make_civ(tech_era=TechEra.MEDIEVAL)]
         eligible = _get_eligible_types(world)
         assert "tech_accident" not in eligible
+
+
+class TestPandemic:
+    def _setup_trade_world(self):
+        """Create a world with trade routes for pandemic testing."""
+        world = _make_world()
+        civs = [_make_civ(name=n, regions=[n]) for n in ["A", "B", "C", "D"]]
+        regions = [_make_region(name=n, controller=n) for n in ["A", "B", "C", "D"]]
+        # A-B-C chain, D isolated
+        regions[0].adjacencies = ["B"]
+        regions[1].adjacencies = ["A", "C"]
+        regions[2].adjacencies = ["B"]
+        regions[3].adjacencies = []
+        world.regions = regions
+        world.civilizations = civs
+        # A-B and B-C trade routes
+        from chronicler.models import Relationship, Disposition
+        world.relationships = {}
+        for c in civs:
+            world.relationships[c.name] = {}
+            for o in civs:
+                if o.name != c.name:
+                    treaties = ["trade"] if {c.name, o.name} in [{"A", "B"}, {"B", "C"}] else []
+                    world.relationships[c.name][o.name] = Relationship(
+                        disposition=Disposition.FRIENDLY, treaties=treaties,
+                    )
+        return world
+
+    def test_pandemic_origin_selects_most_connected(self):
+        from chronicler.emergence import _apply_pandemic_origin
+        world = self._setup_trade_world()
+        events = _apply_pandemic_origin(world, seed=42)
+        assert len(events) >= 1
+        # B has 2 partners (A and C), most connected
+        assert len(world.pandemic_state) >= 1
+        # Origin should be in B's region
+        origin = world.pandemic_state[0]
+        assert origin.region_name == "B"
+
+    def test_pandemic_severity_from_infrastructure(self):
+        from chronicler.emergence import _apply_pandemic_origin
+        world = self._setup_trade_world()
+        # Add infrastructure to region B
+        from chronicler.models import Infrastructure, InfrastructureType
+        world.regions[1].infrastructure = [
+            Infrastructure(type=InfrastructureType.ROADS, builder_civ="B", built_turn=0),
+            Infrastructure(type=InfrastructureType.PORTS, builder_civ="B", built_turn=0),
+        ]
+        _apply_pandemic_origin(world, seed=42)
+        origin = world.pandemic_state[0]
+        assert origin.severity == 2  # 1 + 2//2 = 2
+
+    def test_tick_pandemic_applies_damage(self):
+        from chronicler.emergence import tick_pandemic
+        world = _make_world()
+        civ = _make_civ(population=80, economy=70)
+        world.civilizations = [civ]
+        r = _make_region(name="R1", controller="TestCiv")
+        world.regions = [r]
+        world.pandemic_state = [PandemicRegion(region_name="R1", severity=2, turns_remaining=4)]
+        events = tick_pandemic(world)
+        assert civ.population < 80  # Should have decreased
+        assert civ.economy < 70
+        assert world.pandemic_state[0].turns_remaining == 3
+
+    def test_tick_pandemic_removes_expired(self):
+        from chronicler.emergence import tick_pandemic
+        world = _make_world()
+        civ = _make_civ()
+        world.civilizations = [civ]
+        r = _make_region(name="R1", controller="TestCiv")
+        world.regions = [r]
+        world.pandemic_state = [PandemicRegion(region_name="R1", severity=1, turns_remaining=1)]
+        tick_pandemic(world)
+        assert len(world.pandemic_state) == 0  # Removed after last tick
+
+    def test_pandemic_per_civ_damage_cap(self):
+        """Damage is per-civ, not per-region. Multiple infected regions don't multiply damage."""
+        from chronicler.emergence import tick_pandemic
+        world = _make_world()
+        civ = _make_civ(population=80, economy=70)
+        world.civilizations = [civ]
+        r1 = _make_region(name="R1", controller="TestCiv")
+        r2 = _make_region(name="R2", controller="TestCiv")
+        world.regions = [r1, r2]
+        world.pandemic_state = [
+            PandemicRegion(region_name="R1", severity=3, turns_remaining=4),
+            PandemicRegion(region_name="R2", severity=2, turns_remaining=4),
+        ]
+        tick_pandemic(world)
+        # Max severity is 3. pop -= min(3*3, 12) = 9, eco -= min(3*2, 8) = 6
+        assert civ.population == 80 - 9
+        assert civ.economy == 70 - 6
+
+    def test_isolated_civ_not_infected(self):
+        """D has no trade routes — pandemic should not spread to D."""
+        from chronicler.emergence import tick_pandemic
+        world = self._setup_trade_world()
+        world.pandemic_state = [PandemicRegion(region_name="B", severity=1, turns_remaining=4)]
+        tick_pandemic(world)
+        infected_names = {p.region_name for p in world.pandemic_state}
+        assert "D" not in infected_names
