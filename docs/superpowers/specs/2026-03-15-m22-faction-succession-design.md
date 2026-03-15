@@ -211,7 +211,7 @@ if max_weight > 2.5:
 
 ### Integration Point in compute_weights()
 
-Called after tradition modifiers (line 585), before streak breaker (line 587):
+Called after M21 tech focus modifiers and before the streak breaker. Semantic position: last multiplicative modifier before streak-breaking zeroes and the 2.5x cap:
 
 ```python
 # M22: Faction weight modifier
@@ -337,20 +337,23 @@ All modifications target `src/chronicler/succession.py`. M17's state machine (tr
 
 ### Leader--Faction Alignment
 
+Mapped against the actual trait pool in `ALL_TRAITS` (leaders.py:120-123):
+
 ```python
 TRAIT_FACTION_MAP: dict[str, FactionType] = {
     # Military-aligned traits
     "aggressive": FactionType.MILITARY,
-    "expansionist": FactionType.MILITARY,
-    "martial": FactionType.MILITARY,
+    "bold": FactionType.MILITARY,
+    "ambitious": FactionType.MILITARY,
     # Merchant-aligned traits
-    "diplomatic": FactionType.MERCHANT,
     "cautious": FactionType.MERCHANT,
-    "mercantile": FactionType.MERCHANT,
+    "calculating": FactionType.MERCHANT,
+    "shrewd": FactionType.MERCHANT,
     # Cultural-aligned traits
     "visionary": FactionType.CULTURAL,
-    "scholarly": FactionType.CULTURAL,
-    "pious": FactionType.CULTURAL,
+    "zealous": FactionType.CULTURAL,
+    # Neutral traits (return 0.5 -- don't help or hurt alignment)
+    # "opportunistic", "stubborn" -- not in map, handled by default
 }
 
 def get_leader_faction_alignment(leader: Leader, factions: FactionState) -> float:
@@ -522,7 +525,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
         if civ.name in world.relationships and winner["backer_civ"] in world.relationships[civ.name]:
             rel = world.relationships[civ.name][winner["backer_civ"]]
             rel.disposition = upgrade_disposition(rel.disposition)
-            # upgrade_disposition: new helper in factions.py
+            # Reuses _upgrade_disposition from culture.py:24 (made public)
             # hostile -> suspicious -> neutral -> friendly -> allied
 
     # Exile old leader (existing M17 logic -- create_exiled_leader handles GP
@@ -718,7 +721,7 @@ Contains all faction logic:
 - `generate_faction_candidates(civ, world)` -- succession candidate generation
 - `resolve_crisis_with_factions(civ, world)` -- weighted crisis resolution
 - `inherit_grudges_with_factions(old_leader, new_leader, factions)` -- variable rate
-- `upgrade_disposition(disposition)` -- step disposition up one level (hostile→suspicious→neutral→friendly→allied)
+- `upgrade_disposition(disposition)` -- reuse `_upgrade_disposition` from `culture.py:24` (make it public or import directly; identical logic: hostile→suspicious→neutral→friendly→allied)
 - `get_struggling_factions(civ)` -- return the two factions within 0.05 influence
 - `resolve_win_tie(world, civ, contenders)` -- break win count ties by recency, then military
 - `_event_is_win(event, civ, faction_type)` -- internal: does this event count as a win for this faction
