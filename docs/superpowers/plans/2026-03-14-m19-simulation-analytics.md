@@ -311,7 +311,7 @@ git commit -m "feat(m19): add tuning module with key constants, YAML loading, an
     def test_tuning_overrides_applied(self, batch_args, tmp_path):
         """Tuning YAML overrides are injected into WorldState."""
         tuning_file = tmp_path / "tuning.yaml"
-        tuning_file.write_text("stability:\n  drain:\n    drought_immediate: -1\n")
+        tuning_file.write_text("stability:\n  drain:\n    drought_immediate: 1\n")
         batch_args.tuning = str(tuning_file)
         batch_args.simulate_only = True
         sim = self._mock_llm()
@@ -520,15 +520,17 @@ def test_famine_stability_drain_respects_tuning_override(make_world):
     assert civ.stability == original_stability - 2
 ```
 
-Note: There are multiple stability drain paths to wire. The test above covers `_check_famine` (line 820). Additional paths:
-- Line 116: ongoing condition drain in `apply_automatic_effects`
-- Line 535: immediate drought drain in `_apply_event_effects` / `apply_injected_event`
+**Sign convention:** Drain values in tuning YAML are always **positive** (they represent the amount subtracted). Callsites compute `stability - drain`. Do not use `abs()` — the `K_*` constant names already say "drain" which implies "amount subtracted."
+
+Note: There are multiple stability drain paths to wire. The test above covers `_check_famine`. Additional paths (grep for the patterns, don't trust line numbers):
+- Ongoing condition drain in `_resolve_conditions` (stability -= 10 at severity >= 50)
+- Immediate drought drain in `_apply_event_effects` / `apply_injected_event`
 
 Wire all 5 example callsites across these paths. M19b will cover thorough testing of all ~250 callsites.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/test_simulation.py::test_drought_stability_drain_respects_tuning_override -v`
+Run: `pytest tests/test_simulation.py::test_famine_stability_drain_respects_tuning_override -v`
 Expected: FAIL — function doesn't read tuning overrides
 
 - [ ] **Step 3: Wire 5 callsites in simulation.py**
@@ -1817,7 +1819,7 @@ class TestM19Integration:
         from chronicler.batch import run_batch
 
         tuning_file = tmp_path / "tuning.yaml"
-        tuning_file.write_text("stability:\n  drain:\n    drought_immediate: -1\n")
+        tuning_file.write_text("stability:\n  drain:\n    drought_immediate: 1\n")
         batch_args.tuning = str(tuning_file)
 
         sim = self._mock_llm()
