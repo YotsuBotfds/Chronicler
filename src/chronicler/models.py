@@ -490,3 +490,15 @@ class NarrationContext(BaseModel):
     consequences: list[str]
     previous_prose: str | None
     civ_context: dict[str, CivThematicContext]
+
+
+class ChronicleEntry(BaseModel):
+    """A narrated chronicle entry covering a range of turns."""
+    turn: int  # anchor turn
+    covers_turns: tuple[int, int]  # inclusive range
+    events: list[Event]
+    named_events: list[NamedEvent]
+    narrative: str  # LLM prose or mechanical fallback
+    importance: float
+    narrative_role: NarrativeRole
+    causal_links: list[CausalLink]

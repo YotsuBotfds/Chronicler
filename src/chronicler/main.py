@@ -14,7 +14,8 @@ from typing import Any, Callable
 
 from chronicler.bundle import assemble_bundle, write_bundle
 from chronicler.climate import get_climate_phase
-from chronicler.chronicle import ChronicleEntry, compile_chronicle
+from chronicler.chronicle import compile_chronicle
+from chronicler.models import ChronicleEntry, NarrativeRole
 from chronicler.interestingness import find_boring_civs
 from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
@@ -275,8 +276,11 @@ def execute_run(
 
         # Record chronicle entry
         chronicle_entries.append(ChronicleEntry(
-            turn=world.turn,
-            text=chronicle_text,
+            turn=world.turn, covers_turns=(world.turn, world.turn),
+            events=[], named_events=[],
+            narrative=chronicle_text, importance=5.0,
+            narrative_role=NarrativeRole.RESOLUTION,
+            causal_links=[],
         ))
 
         # on_turn callback — fires after each turn's data is captured

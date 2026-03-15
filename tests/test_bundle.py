@@ -8,7 +8,18 @@ from chronicler.models import (
 from chronicler.scenario import RegionOverride, ScenarioConfig, apply_scenario
 from chronicler.models import WorldState, Leader, Civilization, Relationship, Disposition
 from chronicler.bundle import assemble_bundle, write_bundle
-from chronicler.chronicle import ChronicleEntry
+from chronicler.models import ChronicleEntry, NarrativeRole
+
+
+def _entry(turn, narrative):
+    """Helper to build a minimal ChronicleEntry for bundle tests."""
+    return ChronicleEntry(
+        turn=turn, covers_turns=(turn, turn),
+        events=[], named_events=[],
+        narrative=narrative, importance=5.0,
+        narrative_role=NarrativeRole.RESOLUTION,
+        causal_links=[],
+    )
 
 
 class TestSnapshotModels:
@@ -127,7 +138,7 @@ class TestBundleAssembly:
                 },
             ),
         ]
-        chronicle_entries = [ChronicleEntry(turn=1, text="The empires clashed.")]
+        chronicle_entries = [_entry(1, "The empires clashed.")]
         era_reflections = {10: "## Era: Turns 1-10\n\nReflection text."}
 
         bundle = assemble_bundle(
@@ -148,11 +159,11 @@ class TestBundleAssembly:
         assert "era_reflections" in bundle
         assert "metadata" in bundle
 
-    def test_chronicle_entries_keyed_by_turn_string(self, sample_world):
+    def test_chronicle_entries_serialized_as_list(self, sample_world):
         history = []
         entries = [
-            ChronicleEntry(turn=1, text="Turn one prose."),
-            ChronicleEntry(turn=2, text="Turn two prose."),
+            _entry(1, "Turn one prose."),
+            _entry(2, "Turn two prose."),
         ]
         bundle = assemble_bundle(
             world=sample_world, history=history,
@@ -160,8 +171,12 @@ class TestBundleAssembly:
             sim_model="m", narrative_model="m",
             interestingness_score=None,
         )
-        assert bundle["chronicle_entries"]["1"] == "Turn one prose."
-        assert bundle["chronicle_entries"]["2"] == "Turn two prose."
+        assert isinstance(bundle["chronicle_entries"], list)
+        assert len(bundle["chronicle_entries"]) == 2
+        assert bundle["chronicle_entries"][0]["turn"] == 1
+        assert bundle["chronicle_entries"][0]["narrative"] == "Turn one prose."
+        assert bundle["chronicle_entries"][1]["turn"] == 2
+        assert bundle["chronicle_entries"][1]["narrative"] == "Turn two prose."
 
     def test_metadata_fields(self, sample_world):
         bundle = assemble_bundle(

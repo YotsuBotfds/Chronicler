@@ -6,8 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from chronicler.chronicle import ChronicleEntry
-from chronicler.models import TurnSnapshot, WorldState
+from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
 
 
 def assemble_bundle(
@@ -18,6 +17,7 @@ def assemble_bundle(
     sim_model: str,
     narrative_model: str,
     interestingness_score: float | None,
+    gap_summaries: list[GapSummary] | None = None,
 ) -> dict[str, Any]:
     """Assemble all run data into a single dict for the viewer bundle."""
     return {
@@ -29,9 +29,8 @@ def assemble_bundle(
         "named_events": [
             json.loads(ne.model_dump_json()) for ne in world.named_events
         ],
-        "chronicle_entries": {
-            str(entry.turn): entry.text for entry in chronicle_entries
-        },
+        "chronicle_entries": [entry.model_dump() for entry in chronicle_entries],
+        "gap_summaries": [gs.model_dump() for gs in (gap_summaries or [])],
         "era_reflections": {
             str(turn): text for turn, text in era_reflections.items()
         },
