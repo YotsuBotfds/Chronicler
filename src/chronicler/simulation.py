@@ -799,6 +799,10 @@ def phase_fertility(world: WorldState) -> list[Event]:
     from chronicler.traditions import apply_fertility_floor
     apply_fertility_floor(world)
 
+    # M18: Update low fertility counters and check terrain succession
+    from chronicler.emergence import update_low_fertility_counters
+    update_low_fertility_counters(world)
+
     return famine_events
 
 
@@ -877,6 +881,10 @@ def run_turn(
 
     # Phase 9: Fertility
     turn_events.extend(phase_fertility(world))
+
+    # M18: Terrain succession (after phase_fertility updates low_fertility_turns)
+    from chronicler.emergence import tick_terrain_succession
+    turn_events.extend(tick_terrain_succession(world))
 
     # Phase 10: Consequences
     turn_events.extend(phase_consequences(world))

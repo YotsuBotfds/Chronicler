@@ -1053,3 +1053,18 @@ class TestRegressionIntegration:
                  narrator=lambda w, e: "", seed=1)
         assert civ.regions_start_of_turn == initial_regions
         assert civ.capital_start_of_turn is not None
+
+
+class TestSuccessionIntegration:
+    def test_low_fertility_counter_updates_during_turn(self):
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        # Set a forest region to very low fertility
+        forest_regions = [r for r in world.regions if r.terrain == "forest"]
+        if forest_regions:
+            forest_regions[0].fertility = 0.1
+            run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                     narrator=lambda w, e: "", seed=1)
+            assert forest_regions[0].low_fertility_turns >= 1
