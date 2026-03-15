@@ -107,7 +107,7 @@ The `terrain_fertility_cap` concept is removed. Soil and water have their own ce
 | Variable       | Primary driver                | Rate       | Condition                     |
 |----------------|-------------------------------|------------|-------------------------------|
 | soil           | Population pressure           | -0.005/turn | population > effective_capacity |
-| soil           | Tech focus (Metallurgy/Mech.) | -0.03/turn  | active mine in region          |
+| soil           | Mine extraction (tunable: `mine_soil_degradation_rate`) | -0.03/turn  | active mine in region          |
 | water          | Drought climate phase         | -0.04/turn  | climate_phase == DROUGHT       |
 | water          | Irrigation drought penalty    | ×1.5       | irrigated region during drought |
 | forest_cover   | Population clearing           | -0.02/turn  | population > 0.5 × carrying_capacity |
@@ -195,8 +195,8 @@ Entries added to ecology awareness, not to `FOCUS_EFFECTS` table (which handles 
 | Focus          | Ecology effect                                     |
 |----------------|----------------------------------------------------|
 | AGRICULTURE    | +0.02/turn soil recovery bonus in controlled regions |
-| METALLURGY     | Mine soil degradation halved: -0.015/turn (base -0.03 × 0.5, preserving M21 behavior) |
-| MECHANIZATION  | Mine soil degradation doubled: -0.06/turn (base -0.03 × 2.0) |
+| METALLURGY     | Mine soil degradation halved: base `mine_soil_degradation_rate` (0.03) × 0.5 = -0.015/turn |
+| MECHANIZATION  | Mine soil degradation doubled: base `mine_soil_degradation_rate` (0.03) × `mechanization_mine_multiplier` (2.0) = -0.06/turn |
 
 These are checked inside `tick_ecology()` by reading the controlling civ's `active_focus`. No changes to `tech_focus.py` or `FOCUS_EFFECTS`.
 
@@ -298,15 +298,17 @@ fertility.famine_threshold    → replaced by ecology.famine_water_threshold
 ```
 ecology.soil_degradation_rate         = 0.005
 ecology.soil_recovery_rate            = 0.05
+ecology.mine_soil_degradation_rate    = 0.03
 ecology.water_drought_rate            = 0.04
 ecology.water_recovery_rate           = 0.03
 ecology.forest_clearing_rate          = 0.02
 ecology.forest_regrowth_rate          = 0.01
+ecology.cooling_forest_damage_rate    = 0.01
 ecology.irrigation_water_bonus        = 0.03
 ecology.irrigation_drought_multiplier = 1.5
 ecology.agriculture_soil_bonus        = 0.02
 ecology.mechanization_mine_multiplier = 2.0
-ecology.famine_water_threshold        = 0.05
+ecology.famine_water_threshold        = 0.20
 ```
 
 All tuning keys registered in `tuning.py:KNOWN_OVERRIDES` and accessible via `get_override()`.
@@ -367,7 +369,7 @@ def _check_famine(world) -> list[Event]:
 ### Famine check migration
 
 Famine currently triggers on `fertility < threshold`. Under M23:
-- Famine triggers when `ecology.water < famine_water_threshold` (default 0.05) in a controlled region with population > 0
+- Famine triggers when `ecology.water < famine_water_threshold` (default 0.20) in a controlled region with population > 0. Threshold must be above water floor (0.10) to be reachable.
 - Famine events are **region-level**: each affected region emits its own event with the region name in the event description
 - Famine cooldown per region is unchanged
 
