@@ -243,6 +243,7 @@ def execute_run(
                     active_crisis=civ.succession_crisis_turns_remaining > 0,
                     civ_stress=civ.civ_stress,
                     active_focus=civ.active_focus,
+                    factions=civ.factions,
                 )
                 for civ in world.civilizations
             },

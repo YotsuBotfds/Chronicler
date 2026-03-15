@@ -768,6 +768,10 @@ def phase_consequences(world: WorldState) -> list[Event]:
     check_mentorship_formation(world)
     check_marriage_formation(world)
 
+    # M22: Faction tick — influence shifts, power struggles
+    from chronicler.factions import tick_factions
+    collapse_events.extend(tick_factions(world))
+
     return collapse_events
 
 
@@ -862,7 +866,8 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
         if is_in_crisis(civ):
             tick_crisis(civ, world)
             if civ.succession_crisis_turns_remaining == 0:
-                crisis_events = resolve_crisis(civ, world)
+                from chronicler.factions import resolve_crisis_with_factions
+                crisis_events = resolve_crisis_with_factions(civ, world)
                 events.extend(crisis_events)
 
         # Grudge decay — per-grudge rival alive status handled inside decay_grudges

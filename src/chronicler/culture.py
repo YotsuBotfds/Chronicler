@@ -21,7 +21,7 @@ VALUE_OPPOSITIONS: dict[str, str] = {
 _DISPOSITION_ORDER = list(Disposition)
 
 
-def _upgrade_disposition(current: Disposition) -> Disposition:
+def upgrade_disposition(current: Disposition) -> Disposition:
     idx = _DISPOSITION_ORDER.index(current)
     return _DISPOSITION_ORDER[min(idx + 1, len(_DISPOSITION_ORDER) - 1)]
 
@@ -53,7 +53,7 @@ def apply_value_drift(world: WorldState) -> None:
                     continue
                 rel.disposition_drift += net_drift
                 if rel.disposition_drift >= 10:
-                    rel.disposition = _upgrade_disposition(rel.disposition)
+                    rel.disposition = upgrade_disposition(rel.disposition)
                     rel.disposition_drift = 0
                 elif rel.disposition_drift <= -10:
                     rel.disposition = _downgrade_disposition(rel.disposition)
@@ -187,6 +187,9 @@ def resolve_invest_culture(civ, world: WorldState):
     # M21: MEDIA doubles propaganda acceleration
     base_accel = PROPAGANDA_ACCELERATION * 2 if civ.active_focus == "media" else PROPAGANDA_ACCELERATION
     net_acceleration = base_accel + adjustment
+    # M22: Power struggle reduces action effectiveness by 20%
+    from chronicler.action_engine import _power_struggle_factor
+    net_acceleration = int(net_acceleration * _power_struggle_factor(civ))
     target.foreign_control_turns += net_acceleration
 
     world.named_events.append(NamedEvent(

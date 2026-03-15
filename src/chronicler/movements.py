@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 
-from chronicler.models import Movement, NamedEvent, TechEra, WorldState
+from chronicler.models import Event, Movement, NamedEvent, TechEra, WorldState
 from chronicler.culture import VALUE_OPPOSITIONS
 
 MOVEMENT_EMERGENCE_INTERVAL = 30
@@ -109,6 +109,12 @@ def _process_spread(world: WorldState) -> None:
                         name=f"{civ.name} adopts {movement.id.replace('_', ' ')}",
                         event_type="movement_adoption",
                         turn=world.turn,
+                        actors=[civ.name, movement.origin_civ],
+                        description=f"{civ.name} adopts a {movement.value_affinity}-aligned movement from {movement.origin_civ}.",
+                        importance=5,
+                    ))
+                    world.events_timeline.append(Event(
+                        turn=world.turn, event_type="movement_adoption",
                         actors=[civ.name, movement.origin_civ],
                         description=f"{civ.name} adopts a {movement.value_affinity}-aligned movement from {movement.origin_civ}.",
                         importance=5,

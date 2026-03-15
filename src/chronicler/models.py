@@ -42,6 +42,24 @@ class Disposition(str, Enum):
     ALLIED = "allied"
 
 
+class FactionType(str, Enum):
+    MILITARY = "military"
+    MERCHANT = "merchant"
+    CULTURAL = "cultural"
+
+
+class FactionState(BaseModel):
+    influence: dict[FactionType, float] = Field(
+        default_factory=lambda: {
+            FactionType.MILITARY: 0.33,
+            FactionType.MERCHANT: 0.33,
+            FactionType.CULTURAL: 0.34,
+        }
+    )
+    power_struggle: bool = False
+    power_struggle_turns: int = 0
+
+
 class ActionType(str, Enum):
     EXPAND = "expand"
     DEVELOP = "develop"
@@ -182,6 +200,8 @@ class Civilization(BaseModel):
     capital_start_of_turn: str | None = None  # M18: snapshot for regression detection
     tech_focuses: list[str] = Field(default_factory=list)  # M21: history of focus values
     active_focus: str | None = None  # M21: current era's focus
+    factions: FactionState = Field(default_factory=FactionState)
+    founded_turn: int = 0
 
 
 class Relationship(BaseModel):
@@ -399,6 +419,7 @@ class CivSnapshot(BaseModel):
     active_crisis: bool = False
     civ_stress: int = 0
     active_focus: str | None = None  # M21: tech focus for viewer/analytics
+    factions: FactionState | None = None
 
 
 class RelationshipSnapshot(BaseModel):

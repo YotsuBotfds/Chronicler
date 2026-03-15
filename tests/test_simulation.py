@@ -138,9 +138,9 @@ class TestPhaseConsequences:
         civ.regions = [r.name for r in sample_world.regions[:3]]
         for r in sample_world.regions[:3]:
             r.controller = civ.name
-        collapse_events = phase_consequences(sample_world)
+        all_events = phase_consequences(sample_world)
+        collapse_events = [e for e in all_events if e.event_type == "collapse"]
         assert len(collapse_events) == 1
-        assert collapse_events[0].event_type == "collapse"
         assert collapse_events[0].importance == 10
         assert civ.name in collapse_events[0].actors
 
