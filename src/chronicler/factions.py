@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from chronicler.models import (
+    ActionType,
     Event,
     FactionType,
     FactionState,
@@ -117,3 +118,30 @@ def count_faction_wins(world, civ: Civilization, faction_type: FactionType, look
         if _event_is_win(event, civ, faction_type):
             count += 1
     return count
+
+
+# ---------------------------------------------------------------------------
+# Action weight modifier
+# ---------------------------------------------------------------------------
+
+FACTION_WEIGHTS: dict[FactionType, dict[ActionType, float]] = {
+    FactionType.MILITARY: {
+        ActionType.WAR: 1.8, ActionType.EXPAND: 1.5,
+        ActionType.DIPLOMACY: 0.6, ActionType.TRADE: 0.7,
+    },
+    FactionType.MERCHANT: {
+        ActionType.TRADE: 1.8, ActionType.BUILD: 1.5,
+        ActionType.EMBARGO: 1.3, ActionType.WAR: 0.5,
+    },
+    FactionType.CULTURAL: {
+        ActionType.INVEST_CULTURE: 1.8, ActionType.DIPLOMACY: 1.5,
+        ActionType.WAR: 0.4, ActionType.EXPAND: 0.6,
+    },
+}
+
+
+def get_faction_weight_modifier(civ: Civilization, action: ActionType) -> float:
+    dominant = get_dominant_faction(civ.factions)
+    influence = civ.factions.influence[dominant]
+    faction_weight = FACTION_WEIGHTS.get(dominant, {}).get(action, 1.0)
+    return faction_weight ** influence

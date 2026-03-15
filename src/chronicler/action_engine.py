@@ -610,6 +610,12 @@ class ActionEngine:
             if action in weights and weights[action] > 0:
                 weights[action] *= mod
 
+        # M22: Faction weight modifier
+        from chronicler.factions import get_faction_weight_modifier
+        for action in ActionType:
+            if weights[action] > 0:
+                weights[action] *= get_faction_weight_modifier(civ, action)
+
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3
         if len(history) >= streak_limit:

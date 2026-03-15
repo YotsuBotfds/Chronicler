@@ -191,3 +191,32 @@ class TestWinCounting:
         world = _make_world(turn=20, events=events)
         civ = _make_civ()
         assert count_faction_wins(world, civ, FactionType.MILITARY, lookback=10) == 0
+
+
+from chronicler.models import ActionType
+from chronicler.factions import get_faction_weight_modifier, FACTION_WEIGHTS
+
+
+class TestWeightModifier:
+    def test_military_dominant_war_weight(self):
+        civ = _make_civ()
+        civ.factions.influence[FactionType.MILITARY] = 0.6
+        civ.factions.influence[FactionType.MERCHANT] = 0.2
+        civ.factions.influence[FactionType.CULTURAL] = 0.2
+        mod = get_faction_weight_modifier(civ, ActionType.WAR)
+        assert mod == pytest.approx(1.8 ** 0.6, rel=0.01)
+
+    def test_equal_influence_mild_bias(self):
+        civ = _make_civ()
+        # Default: CULTURAL dominant at 0.34
+        mod = get_faction_weight_modifier(civ, ActionType.WAR)
+        assert mod == pytest.approx(0.4 ** 0.34, rel=0.01)
+
+    def test_unlisted_action_returns_one(self):
+        civ = _make_civ()
+        civ.factions.influence[FactionType.MILITARY] = 0.6
+        civ.factions.influence[FactionType.MERCHANT] = 0.2
+        civ.factions.influence[FactionType.CULTURAL] = 0.2
+        # INVEST_CULTURE not in MILITARY table -> 1.0^0.6 = 1.0
+        mod = get_faction_weight_modifier(civ, ActionType.INVEST_CULTURE)
+        assert mod == pytest.approx(1.0)
