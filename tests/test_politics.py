@@ -75,11 +75,13 @@ from chronicler.models import Region
 
 def _make_world_with_regions(region_names, civ_name="Empire", capital="A", adjacencies=None):
     """Helper: create a WorldState with a civ controlling given regions."""
+    pop_per_region = 50 // len(region_names) if region_names else 0
     regions = []
-    for name in region_names:
+    for i, name in enumerate(region_names):
         adj = adjacencies.get(name, []) if adjacencies else []
+        rpop = 50 - pop_per_region * (len(region_names) - 1) if i == len(region_names) - 1 else pop_per_region
         regions.append(Region(name=name, terrain="plains", carrying_capacity=50, resources="fertile",
-                              adjacencies=adj, controller=civ_name))
+                              adjacencies=adj, controller=civ_name, population=rpop))
     leader = Leader(name="Leader", trait="bold", reign_start=0)
     civ = Civilization(
         name=civ_name, population=50, military=30, economy=40,
@@ -315,8 +317,9 @@ def test_secession_stat_split_conserves_stats():
         civ.economy = 45
         civ.treasury = 90
         world.civilizations = [civ]
-        for r in world.regions:
+        for i, r in enumerate(world.regions):
             r.controller = civ.name
+            r.population = 20  # 60 / 3 regions
         events = check_secession(world)
         if len(world.civilizations) > 1:
             parent = world.civilizations[0]

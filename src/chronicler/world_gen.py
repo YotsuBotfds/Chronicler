@@ -19,6 +19,7 @@ from chronicler.models import (
     TechEra,
     WorldState,
 )
+from chronicler.terrain import effective_capacity
 
 # --- Name and trait pools ---
 
@@ -124,10 +125,11 @@ def assign_civilizations(
                 region.controller = t["name"]
 
         leader_name = f"{titles_pool[i % len(titles_pool)]} {names_pool[i % len(names_pool)]}"
+        total_pop = rng.randint(30, 70)
         civs.append(
             Civilization(
                 name=t["name"],
-                population=rng.randint(30, 70),
+                population=total_pop,
                 military=rng.randint(20, 70),
                 economy=rng.randint(30, 70),
                 culture=rng.randint(20, 70),
@@ -142,6 +144,24 @@ def assign_civilizations(
                 asabiya=round(rng.uniform(0.4, 0.8), 2),
             ),
         )
+
+        # P4: distribute initial population across starting regions
+        assigned_regions = [r for r in regions if r.name in assigned]
+        if assigned_regions:
+            total_cap = sum(effective_capacity(r) for r in assigned_regions)
+            remainder = total_pop
+            for j, ar in enumerate(assigned_regions):
+                if j == len(assigned_regions) - 1:
+                    ar.population = remainder
+                else:
+                    share = (
+                        round(total_pop * effective_capacity(ar) / total_cap)
+                        if total_cap > 0
+                        else total_pop // len(assigned_regions)
+                    )
+                    ar.population = share
+                    remainder -= share
+
     return civs
 
 

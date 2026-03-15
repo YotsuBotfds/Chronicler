@@ -199,7 +199,7 @@ class TestProcessMigration:
         from chronicler.climate import process_migration
         r = Region(name="A", terrain="plains", carrying_capacity=80,
                    resources="fertile", fertility=0.8, controller="Rome",
-                   adjacencies=["B"])
+                   adjacencies=["B"], population=30)
         civ = _make_civ("Rome", population=30, regions=["A"])
         w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
         events = process_migration(w)
@@ -209,10 +209,10 @@ class TestProcessMigration:
         from chronicler.climate import process_migration
         r_src = Region(name="A", terrain="desert", carrying_capacity=20,
                        resources="mineral", fertility=0.2, controller="Rome",
-                       adjacencies=["B"])
+                       adjacencies=["B"], population=40)
         r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
                        resources="fertile", fertility=0.8, controller="Greece",
-                       adjacencies=["A"])
+                       adjacencies=["A"], population=30)
         rome = _make_civ("Rome", population=40, regions=["A"])
         greece = _make_civ("Greece", population=30, regions=["B"])
         rels = {
@@ -230,10 +230,10 @@ class TestProcessMigration:
         from chronicler.climate import process_migration
         r_src = Region(name="A", terrain="desert", carrying_capacity=20,
                        resources="mineral", fertility=0.1, controller="Rome",
-                       adjacencies=["B"])
+                       adjacencies=["B"], population=40)
         r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
                        resources="fertile", fertility=0.8, controller="Greece",
-                       adjacencies=["A"])
+                       adjacencies=["A"], population=30)
         rome = _make_civ("Rome", population=40, regions=["A"])
         greece = _make_civ("Greece", population=30, regions=["B"])
         rels = {
@@ -250,7 +250,7 @@ class TestProcessMigration:
         from chronicler.climate import process_migration
         r_src = Region(name="A", terrain="desert", carrying_capacity=20,
                        resources="mineral", fertility=0.1, controller="Rome",
-                       adjacencies=["B"])
+                       adjacencies=["B"], population=40)
         r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
                        resources="fertile", fertility=0.8, controller=None,
                        adjacencies=["A"])

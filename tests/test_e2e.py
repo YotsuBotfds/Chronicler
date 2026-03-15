@@ -134,7 +134,7 @@ def test_m7_critical_gate_20_turns():
     # Criterion 5: All stats bounded (population can exceed 100 via migration overflow
     # with M19b tuning; other stats remain bounded)
     for civ in world.civilizations:
-        assert civ.population >= 1
+        assert civ.population >= 0
         assert 0 <= civ.military <= 100
         assert 0 <= civ.economy <= 100
         assert 0 <= civ.culture <= 100

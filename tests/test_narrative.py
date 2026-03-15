@@ -218,5 +218,6 @@ class TestNarrativeStyle:
         events = []
         engine.generate_chronicle(sample_world, events)
         call_args = narrative_client.complete.call_args[0][0]
-        assert "You are a historian chronicling" in call_args
-        assert "mythic historian" not in call_args
+        # Iron-era civs get the archaic chronicler voice
+        assert "You chronicle the world of" in call_args
+        assert "archaic chronicler" in call_args

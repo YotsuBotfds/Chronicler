@@ -11,6 +11,7 @@ from chronicler.models import (
     ActiveCondition, Civilization, ClimateConfig, Disposition, Region, Relationship,
     TechEra, TerrainTransitionRule, WorldState,
 )
+from chronicler.utils import sync_civ_population
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
 
 
@@ -50,7 +51,7 @@ class RegionOverride(BaseModel):
 
 class CivOverride(BaseModel):
     name: str
-    population: int | None = Field(default=None, ge=1, le=100)
+    population: int | None = Field(default=None, ge=1, le=1000)
     military: int | None = Field(default=None, ge=0, le=100)
     economy: int | None = Field(default=None, ge=0, le=100)
     culture: int | None = Field(default=None, ge=0, le=100)
@@ -420,6 +421,24 @@ def _apply_civ_override(
     # Apply stat overrides (non-None only)
     if override.population is not None:
         civ.population = override.population
+        # Distribute override population across civ's regions
+        from chronicler.terrain import effective_capacity
+        civ_regions = [r for r in world.regions if r.controller == civ.name]
+        if civ_regions:
+            total_cap = sum(effective_capacity(r) for r in civ_regions)
+            remainder = override.population
+            for j, cr in enumerate(civ_regions):
+                if j == len(civ_regions) - 1:
+                    cr.population = remainder
+                else:
+                    share = (
+                        round(override.population * effective_capacity(cr) / total_cap)
+                        if total_cap > 0
+                        else override.population // len(civ_regions)
+                    )
+                    cr.population = share
+                    remainder -= share
+        sync_civ_population(civ, world)
     if override.military is not None:
         civ.military = override.military
     if override.economy is not None:

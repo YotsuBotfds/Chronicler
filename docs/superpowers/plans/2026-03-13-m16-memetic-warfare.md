@@ -10,9 +10,88 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-13-m16-memetic-warfare-design.md`
 
-**Note on M14 parallel implementation guard:** M16 depends on M14 model definitions. If M14 has not yet merged, the model fields referenced here (e.g., congress voting weight) should be stubbed and updated when M14 lands.
+**M14 status:** M14 (Political Topology) is fully merged to main (516 tests). All M14 fields (`vassal_relations`, `federations`, `capital_region`, etc.) are present. No guards needed.
 
-**P1 dependency:** This plan assumes P1 (stat migration from 1-10 to 0-100 scale) has landed. Model field constraints (`Field(ge=1, le=10)`) will have been changed to `Field(ge=0, le=100)` by P1. If P1 has NOT landed yet, adjust all test fixture values and constants to 1-10 scale (e.g., `stability=5` not `stability=50`, `ASSIMILATION_STABILITY_DRAIN=1` not `3`, `culture + 1` not `culture + 5`, `CULTURE_PROJECTION_THRESHOLD=6` not `60`).
+**M15 status:** M15 (Living World) is fully merged (628 tests). `TechEra.INFORMATION` exists in `ERA_BONUSES`. `terrain.py`, `infrastructure.py`, `climate.py`, `exploration.py` are all present. `Region.adjacencies` always exists.
+
+**P1 status:** P1 (stat migration 0-100 scale) is complete. All stats use `Field(ge=0, le=100)`. Test fixtures should use 0-100 values (e.g., `stability=50` not `stability=5`).
+
+---
+
+## ERRATA — Read Before Implementing
+
+This plan was written before M14, M15, and P1 were complete. All three are now merged. The following corrections apply throughout the plan. **Apply these corrections as you encounter the affected sections.**
+
+### E1: Action resolution uses `@register_action` + `ACTION_REGISTRY`, NOT `_resolve_action`
+
+The plan references `_resolve_action` in `simulation.py` (Task 16 Step 4). **This function does not exist.** The actual pattern in `action_engine.py`:
+
+```python
+@register_action(ActionType.INVEST_CULTURE)
+def _resolve_invest_culture(civ: Civilization, world: WorldState) -> Event:
+    from chronicler.culture import resolve_invest_culture
+    return resolve_invest_culture(civ, world)
+```
+
+Register INVEST_CULTURE in `action_engine.py` using the decorator, not an `elif` branch in simulation.py.
+
+### E2: `ERA_BONUSES` uses P1-scale values — plan shows pre-P1 values
+
+The plan's Task 14 shows `"military": 1, "economy": 2` etc. The actual values are P1-migrated:
+```python
+TechEra.BRONZE: {"military": 10},
+TechEra.IRON: {"economy": 10},
+TechEra.CLASSICAL: {"culture": 10},
+TechEra.MEDIEVAL: {"military": 10},
+TechEra.RENAISSANCE: {"economy": 20, "culture": 10},
+TechEra.INDUSTRIAL: {"economy": 20, "military": 20},
+TechEra.INFORMATION: {"culture": 10, "economy": 5},
+```
+
+When adding multiplier keys, **preserve the existing P1 values** and add the new keys alongside them. Do NOT overwrite the existing stat bonuses with the plan's pre-P1 values.
+
+### E3: Test fixtures must use 0-100 scale stat values
+
+Throughout the plan, test fixtures use `population=5, military=5, economy=5, culture=5, stability=5`. These are pre-P1 (1-10 scale). Replace with P1-scale values: `population=50, military=50, economy=50, culture=50, stability=50`. Also: `culture=70` for propaganda tests (not `culture=7`), `culture=80` for cultural milestone threshold tests (not `culture=8`).
+
+### E4: `STAT_MAX` should be imported from `utils.py`
+
+The plan hardcodes `STAT_MAX = 100` in `movements.py`. Instead: `from chronicler.utils import STAT_FLOOR` and define or import `STAT_MAX = 100` from utils if it exists there. Check `utils.py` for the correct constant name.
+
+### E5: `TechEra.INFORMATION` exists — uncomment and include
+
+The plan comments out `TechEra.INFORMATION` in `_ERA_BONUS` dict in movements.py. INFORMATION era is present (added by M15). Include it:
+```python
+TechEra.INFORMATION: 0.3,
+```
+
+### E6: `hasattr(r, 'adjacencies')` guards are unnecessary
+
+Task 15 Step 4 and Task 16 Step 3 use `hasattr(r, 'adjacencies')`. Region always has `adjacencies: list[str]`. Use `r.adjacencies` directly.
+
+### E7: `phase_consequences` ordering needs careful insertion
+
+The current `phase_consequences` ordering (post-M14/M15) is:
+1. Tick condition durations
+2. Apply asabiya dynamics
+3. Capital loss check
+4. Secession check
+5. Update allied turns
+6. Vassal/federation/proxy checks
+7. Restoration/twilight/decline
+8. Collapse check
+9. Depopulation/ruin tracking
+
+M16 culture effects should be inserted AFTER tick conditions (step 1) and BEFORE asabiya dynamics (step 2):
+```
+1. Tick condition durations
+2. tick_movements(world)           # M16b — NEW
+3. apply_value_drift(world)        # M16a — NEW
+4. tick_cultural_assimilation(world) # M16a — NEW
+5. check_cultural_victories(world)  # M16c — NEW (last of culture effects)
+6. Apply asabiya dynamics          # existing (stability changes from assimilation feed asabiya)
+7. ... rest of existing ordering
+```
 
 ---
 
@@ -37,8 +116,8 @@ from chronicler.models import Civilization, Region, Relationship, Leader, TechEr
 class TestModelFields:
     def test_civilization_has_prestige_field(self):
         civ = Civilization(
-            name="Test", population=5, military=5, economy=5, culture=5,
-            stability=5, leader=Leader(name="L", trait="cautious", reign_start=0),
+            name="Test", population=50, military=50, economy=50, culture=50,
+            stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
             domains=["trade"], values=["Trade"], regions=["R1"],
         )
         assert civ.prestige == 0
@@ -121,13 +200,13 @@ def drift_world():
     ]
     civs = [
         Civilization(
-            name="CivA", population=5, military=5, economy=5, culture=5,
-            stability=5, leader=Leader(name="LA", trait="cautious", reign_start=0),
+            name="CivA", population=50, military=50, economy=50, culture=50,
+            stability=50, leader=Leader(name="LA", trait="cautious", reign_start=0),
             domains=["trade"], values=["Trade", "Order"], regions=["R1"],
         ),
         Civilization(
-            name="CivB", population=5, military=5, economy=5, culture=5,
-            stability=5, leader=Leader(name="LB", trait="cautious", reign_start=0),
+            name="CivB", population=50, military=50, economy=50, culture=50,
+            stability=50, leader=Leader(name="LB", trait="cautious", reign_start=0),
             domains=["trade"], values=["Trade", "Freedom"], regions=["R2"],
         ),
     ]
@@ -316,12 +395,12 @@ def assimilation_world():
     ]
     civs = [
         Civilization(
-            name="CivA", population=5, military=5, economy=5, culture=5,
+            name="CivA", population=50, military=50, economy=50, culture=50,
             stability=50, leader=Leader(name="LA", trait="cautious", reign_start=0),
             domains=["trade"], values=["Trade"], regions=[],
         ),
         Civilization(
-            name="CivB", population=5, military=5, economy=5, culture=5,
+            name="CivB", population=50, military=50, economy=50, culture=50,
             stability=50, leader=Leader(name="LB", trait="cautious", reign_start=0),
             domains=["trade"], values=["Order"], regions=["Contested"],
         ),
@@ -532,8 +611,8 @@ def tick_prestige(world: WorldState) -> None:
         trade_bonus = civ.prestige // 5
         if trade_bonus > 0:
             civ.treasury += trade_bonus
-        # TODO: Congress voting weight (M14c): prestige // 3 added to negotiating power
-        # Implement when M14c merges and congress voting weight field exists
+        # Congress voting weight (M14c is merged): prestige // 3 added to negotiating power
+        # Wire into politics.py congress resolution where voting weights are computed
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -567,14 +646,14 @@ from chronicler.simulation import phase_cultural_milestones
 class TestCulturalWorksEnhancement:
     def test_cultural_work_boosts_prestige(self, drift_world):
         """Producing a cultural work adds +2 prestige."""
-        drift_world.civilizations[0].culture = 8  # hits threshold
+        drift_world.civilizations[0].culture = 80  # hits threshold (P1 scale)
         initial_prestige = drift_world.civilizations[0].prestige
         phase_cultural_milestones(drift_world)
         assert drift_world.civilizations[0].prestige == initial_prestige + 2
 
     def test_cultural_work_boosts_asabiya(self, drift_world):
         """Producing a cultural work adds +0.05 asabiya."""
-        drift_world.civilizations[0].culture = 8
+        drift_world.civilizations[0].culture = 80  # P1 scale
         initial_asabiya = drift_world.civilizations[0].asabiya
         phase_cultural_milestones(drift_world)
         assert drift_world.civilizations[0].asabiya == pytest.approx(initial_asabiya + 0.05)
@@ -862,14 +941,14 @@ def movement_world():
     ]
     civs = [
         Civilization(
-            name="CivA", population=5, military=5, economy=5, culture=7,
-            stability=3, leader=Leader(name="LA", trait="visionary", reign_start=0),
+            name="CivA", population=50, military=50, economy=50, culture=70,
+            stability=30, leader=Leader(name="LA", trait="visionary", reign_start=0),
             domains=["trade"], values=["Trade", "Order"], regions=["R1"],
             tech_era=TechEra.CLASSICAL,
         ),
         Civilization(
-            name="CivB", population=5, military=5, economy=5, culture=4,
-            stability=8, leader=Leader(name="LB", trait="aggressive", reign_start=0),
+            name="CivB", population=50, military=50, economy=50, culture=40,
+            stability=80, leader=Leader(name="LB", trait="aggressive", reign_start=0),
             domains=["warfare"], values=["Honor", "Strength"], regions=["R2"],
             tech_era=TechEra.IRON,
         ),
@@ -935,10 +1014,10 @@ class TestMovementEmergence:
         """Same seed + turn always produces same origin civ."""
         movement_world.turn = MOVEMENT_EMERGENCE_INTERVAL
         # Make both civs score identically
-        movement_world.civilizations[0].culture = 5
-        movement_world.civilizations[0].stability = 5
-        movement_world.civilizations[1].culture = 5
-        movement_world.civilizations[1].stability = 5
+        movement_world.civilizations[0].culture = 50
+        movement_world.civilizations[0].stability = 50
+        movement_world.civilizations[1].culture = 50
+        movement_world.civilizations[1].stability = 50
         movement_world.civilizations[0].tech_era = TechEra.IRON
         movement_world.civilizations[1].tech_era = TechEra.IRON
         tick_movements(movement_world)
@@ -983,10 +1062,10 @@ _ERA_BONUS: dict[TechEra, float] = {
     TechEra.IRON: 0.1, TechEra.CLASSICAL: 0.1,
     TechEra.MEDIEVAL: 0.2, TechEra.RENAISSANCE: 0.2,
     TechEra.INDUSTRIAL: 0.3,
+    TechEra.INFORMATION: 0.3,  # M15 added INFORMATION era
 }
-# INFORMATION era added when M15 lands TechEra.INFORMATION
 
-STAT_MAX = 100  # Post-P1; imported from utils.py when P1 defines it
+STAT_MAX = 100  # P1 migrated; check utils.py for canonical constant
 
 
 def _seeded_offset(civ_name: str, movement_id: str) -> int:
@@ -1112,8 +1191,8 @@ class TestMovementSpread:
         """A civ adopted this turn should NOT spread to others in the same turn."""
         # Add CivC
         civ_c = Civilization(
-            name="CivC", population=5, military=5, economy=5, culture=5,
-            stability=5, leader=Leader(name="LC", trait="cautious", reign_start=0),
+            name="CivC", population=50, military=50, economy=50, culture=50,
+            stability=50, leader=Leader(name="LC", trait="cautious", reign_start=0),
             domains=["trade"], values=["Trade"], regions=["R3"],
         )
         movement_world.civilizations.append(civ_c)
@@ -1605,7 +1684,7 @@ from chronicler.tech import get_era_bonus
 
 class TestEraBonus:
     def test_existing_stat_bonus(self):
-        assert get_era_bonus(TechEra.IRON, "economy", default=0.0) == 1
+        assert get_era_bonus(TechEra.IRON, "economy", default=0.0) == 10  # P1 scale
 
     def test_multiplier_key(self):
         assert get_era_bonus(TechEra.IRON, "military_multiplier", default=1.0) == 1.3
@@ -1631,15 +1710,17 @@ In `src/chronicler/tech.py`, modify `ERA_BONUSES` (line ~32-39) to add paradigm 
 # Multiplier/range keys (military_multiplier, fortification_multiplier, culture_projection_range)
 # are ongoing modifiers queried per-turn by consuming modules.
 # Consumers should always use get_era_bonus(), never read the dict directly.
+#
+# NOTE: Preserve existing P1-scale stat values. Only ADD the new multiplier keys.
 ERA_BONUSES: dict[TechEra, dict[str, int | float]] = {
-    TechEra.BRONZE: {"military": 1, "military_multiplier": 1.0},
-    TechEra.IRON: {"economy": 1, "military_multiplier": 1.3},
-    TechEra.CLASSICAL: {"culture": 1, "fortification_multiplier": 1.0},
-    TechEra.MEDIEVAL: {"military": 1, "fortification_multiplier": 2.0},
-    TechEra.RENAISSANCE: {"economy": 2, "culture": 1},
-    TechEra.INDUSTRIAL: {"economy": 2, "military": 2},
+    TechEra.BRONZE: {"military": 10, "military_multiplier": 1.0},
+    TechEra.IRON: {"economy": 10, "military_multiplier": 1.3},
+    TechEra.CLASSICAL: {"culture": 10, "fortification_multiplier": 1.0},
+    TechEra.MEDIEVAL: {"military": 10, "fortification_multiplier": 2.0},
+    TechEra.RENAISSANCE: {"economy": 20, "culture": 10},
+    TechEra.INDUSTRIAL: {"economy": 20, "military": 20},
+    TechEra.INFORMATION: {"culture": 10, "economy": 5, "culture_projection_range": -1},
 }
-# TechEra.INFORMATION: {"culture_projection_range": -1}  # Added when M15 lands INFORMATION era
 ```
 
 Add after ERA_BONUSES:
@@ -1686,7 +1767,9 @@ class TestInvestCultureAction:
 
     def test_invest_culture_eligible_at_culture_60(self, drift_world):
         drift_world.civilizations[0].culture = 60
-        # Need a rival-adjacent region for targeting
+        # Need adjacency for targeting and rival cultural identity
+        drift_world.regions[0].adjacencies = ["R2"]
+        drift_world.regions[1].adjacencies = ["R1"]
         drift_world.regions[1].cultural_identity = "CivB"
         engine = ActionEngine(drift_world)
         eligible = engine.get_eligible_actions(drift_world.civilizations[0])
@@ -1701,6 +1784,8 @@ class TestInvestCultureAction:
     def test_visionary_weights_invest_culture_highest(self, drift_world):
         drift_world.civilizations[0].culture = 60
         drift_world.civilizations[0].leader.trait = "visionary"
+        drift_world.regions[0].adjacencies = ["R2"]
+        drift_world.regions[1].adjacencies = ["R1"]
         drift_world.regions[1].cultural_identity = "CivB"
         engine = ActionEngine(drift_world)
         weights = engine.compute_weights(drift_world.civilizations[0])
@@ -1749,7 +1834,7 @@ In `get_eligible_actions` (line ~39), add INVEST_CULTURE eligibility:
             adjacent = set()
             if not global_proj:
                 for r in self.world.regions:
-                    if r.name in civ_regions and hasattr(r, 'adjacencies'):
+                    if r.name in civ_regions:
                         adjacent.update(r.adjacencies)
             has_valid_target = any(
                 r.controller is not None
@@ -1806,20 +1891,20 @@ from chronicler.culture import (
 def propaganda_world():
     """World with a high-culture civ adjacent to a rival region."""
     regions = [
-        Region(name="Home", terrain="plains", carrying_capacity=5, resources="fertile",
-               controller="CivA", cultural_identity="CivA"),
-        Region(name="Target", terrain="plains", carrying_capacity=5, resources="fertile",
-               controller="CivB", cultural_identity="CivB"),
+        Region(name="Home", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="CivA", cultural_identity="CivA", adjacencies=["Target"]),
+        Region(name="Target", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="CivB", cultural_identity="CivB", adjacencies=["Home"]),
     ]
     civs = [
         Civilization(
-            name="CivA", population=5, military=5, economy=5, culture=70,
+            name="CivA", population=50, military=50, economy=50, culture=70,
             stability=50, treasury=20,
             leader=Leader(name="LA", trait="visionary", reign_start=0),
             domains=["trade"], values=["Trade"], regions=["Home"],
         ),
         Civilization(
-            name="CivB", population=5, military=5, economy=5, culture=30,
+            name="CivB", population=50, military=50, economy=50, culture=30,
             stability=50, treasury=20,
             leader=Leader(name="LB", trait="aggressive", reign_start=0),
             domains=["warfare"], values=["Honor"], regions=["Target"],
@@ -1922,11 +2007,11 @@ def resolve_invest_culture(civ, world: WorldState) -> Event | None:
     if global_projection:
         targets = candidates
     else:
-        # Get all regions adjacent to civ's regions (requires M15 adjacency infrastructure)
+        # Get all regions adjacent to civ's regions
         civ_regions = {r.name for r in world.regions if r.controller == civ.name}
         adjacent = set()
         for r in world.regions:
-            if r.name in civ_regions and hasattr(r, 'adjacencies'):
+            if r.name in civ_regions:
                 adjacent.update(r.adjacencies)
         targets = [r for r in candidates if r.name in adjacent]
 
@@ -1978,14 +2063,15 @@ def resolve_invest_culture(civ, world: WorldState) -> Event | None:
     )
 ```
 
-- [ ] **Step 4: Wire INVEST_CULTURE into _resolve_action**
+- [ ] **Step 4: Register INVEST_CULTURE handler in action_engine.py**
 
-In `src/chronicler/simulation.py`, in `_resolve_action` (line ~204-224), add before the `else` branch:
+In `src/chronicler/action_engine.py`, add a registered handler (NOT in simulation.py — see ERRATA E1):
 
 ```python
-    elif action == ActionType.INVEST_CULTURE:
-        from chronicler.culture import resolve_invest_culture
-        return resolve_invest_culture(civ, world)
+@register_action(ActionType.INVEST_CULTURE)
+def _resolve_invest_culture(civ: Civilization, world: WorldState) -> Event:
+    from chronicler.culture import resolve_invest_culture
+    return resolve_invest_culture(civ, world)
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -2160,7 +2246,7 @@ class TestSnapshotChanges:
     def test_civ_snapshot_has_prestige(self):
         from chronicler.models import CivSnapshot
         snap = CivSnapshot(
-            population=5, military=5, economy=5, culture=5, stability=5,
+            population=50, military=50, economy=50, culture=50, stability=50,
             treasury=10, asabiya=0.5, tech_era=TechEra.IRON, trait="cautious",
             regions=["R1"], leader_name="L", alive=True, prestige=10,
         )

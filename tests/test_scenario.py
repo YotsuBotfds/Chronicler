@@ -137,7 +137,7 @@ class TestLoadScenario:
     def test_load_stat_out_of_range(self, tmp_path):
         path = self._write_yaml(tmp_path, {
             "name": "Test",
-            "civilizations": [{"name": "Civ A", "population": 150}],
+            "civilizations": [{"name": "Civ A", "population": 1500}],
         })
         with pytest.raises(ValueError):
             load_scenario(path)

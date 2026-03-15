@@ -50,14 +50,15 @@ class TestCivilization:
 
     def test_stat_bounds(self):
         leader = Leader(name="X", trait="bold", reign_start=0)
+        # population ge=0, le=1000 (P4: regional population, civ total is sum)
         with pytest.raises(Exception):
             Civilization(
-                name="Bad", population=0, military=10, economy=10,
+                name="Bad", population=-1, military=10, economy=10,
                 culture=10, stability=10, leader=leader,
             )
         with pytest.raises(Exception):
             Civilization(
-                name="Bad", population=101, military=10, economy=10,
+                name="Bad", population=1001, military=10, economy=10,
                 culture=10, stability=10, leader=leader,
             )
 

@@ -166,6 +166,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
 def process_migration(world: WorldState) -> list[Event]:
     """Called at end of phase 1, after disasters."""
     from chronicler.terrain import effective_capacity
+    from chronicler.utils import add_region_pop, sync_all_populations
 
     events: list[Event] = []
 
@@ -177,7 +178,7 @@ def process_migration(world: WorldState) -> list[Event]:
         if civ is None or not civ.regions:
             continue
 
-        region_pop = civ.population // len(civ.regions)
+        region_pop = region.population
         eff_cap = effective_capacity(region)
 
         if eff_cap >= region_pop * 0.5:
@@ -208,15 +209,15 @@ def process_migration(world: WorldState) -> list[Event]:
                 amount = share + (1 if remainder > 0 else 0)
                 if remainder > 0:
                     remainder -= 1
+                add_region_pop(adj_region, amount)
                 if ctrl_name is not None:
                     recv_civ = next(
                         (c for c in world.civilizations if c.name == ctrl_name), None
                     )
                     if recv_civ:
-                        recv_civ.population += amount
                         recv_civ.stability = max(recv_civ.stability - 3, 0)
 
-            civ.population = max(civ.population - surplus, 1)
+            region.population = max(region.population - surplus, 0)
             importance = min(5 + surplus // 10, 9)
             events.append(Event(
                 turn=world.turn, event_type="migration",
@@ -225,7 +226,7 @@ def process_migration(world: WorldState) -> list[Event]:
                 importance=importance,
             ))
         else:
-            civ.population = max(civ.population - surplus, 1)
+            region.population = max(region.population - surplus, 0)
             events.append(Event(
                 turn=world.turn, event_type="famine_starvation",
                 actors=[civ.name],
@@ -233,4 +234,5 @@ def process_migration(world: WorldState) -> list[Event]:
                 importance=min(5 + surplus // 10, 9),
             ))
 
+    sync_all_populations(world)
     return events

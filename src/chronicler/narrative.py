@@ -190,6 +190,81 @@ ROLE_INSTRUCTIONS = {
     NarrativeRole.CODA: "Look back on what happened. Reflect on the arc of this history.",
 }
 
+ERA_ORDER = ["tribal", "bronze", "iron", "classical", "medieval", "renaissance", "industrial", "information"]
+
+ERA_REGISTER: dict[str, tuple[str, str]] = {
+    # era_key: (system_voice, style_instruction)
+    "tribal": (
+        "You are a keeper of oral traditions, transcribing stories passed down through generations.",
+        "Write as an oral tradition — rhythmic, mythic, using 'it is said that' and 'the elders remember'. "
+        "Names carry weight. Nature is animate. Causation is fate or spirits, not policy.",
+    ),
+    "bronze": (
+        "You are a temple scribe recording events on clay tablets for the gods and kings.",
+        "Write as a temple chronicle — declarative, formal, focused on kings and omens. "
+        "Events are divine will made manifest. Lists of deeds matter. Brevity is authority.",
+    ),
+    "iron": (
+        "You are an archaic chronicler in the tradition of Herodotus — a traveler recording what you witnessed and were told.",
+        "Write as an early historian — curious, discursive, citing named witnesses. "
+        "Include asides about customs. Causation mixes human ambition with fortune.",
+    ),
+    "classical": (
+        "You are a classical historian in the tradition of Thucydides or Sima Qian — analytical, precise, concerned with causes.",
+        "Write as a classical history — measured prose, focus on institutional causes and consequences. "
+        "Leaders are judged by their decisions. War is analyzed, not glorified.",
+    ),
+    "medieval": (
+        "You are a monastic chronicler recording events for posterity in a scriptorium.",
+        "Write as a medieval chronicle — annalistic, with moral commentary woven in. "
+        "Events reflect cosmic justice or human folly. Traditions and legitimacy matter deeply.",
+    ),
+    "renaissance": (
+        "You are a Renaissance court historian with access to diplomatic archives and personal correspondence.",
+        "Write as a Renaissance history — sophisticated, aware of competing accounts. "
+        "Note irony and paradox. Power is a craft. Culture and commerce rival the sword.",
+    ),
+    "industrial": (
+        "You are a 19th-century diplomatic historian writing for an educated public.",
+        "Write as a modern analytical history — institutional language, economic forces, "
+        "structural causes. Reference demographics and resources. Leaders are products of systems.",
+    ),
+    "information": (
+        "You are a contemporary historian writing a definitive account with full archival access.",
+        "Write as a contemporary history — precise, data-aware, multi-perspectival. "
+        "Acknowledge complexity. Soft power and information flow matter as much as armies.",
+    ),
+}
+
+
+def get_dominant_era(moment: NarrativeMoment, snapshot: TurnSnapshot) -> str:
+    """Highest tech era among civs involved in this moment's events.
+
+    The most advanced actor sets the 'recording technology' — if a Medieval
+    civ is fighting a Tribal civ, the chronicle reads Medieval because the
+    more literate society is the one whose records survive.
+
+    Falls back to median era of all living civs if no actors found in snapshot.
+    """
+    actor_civs = set()
+    for event in moment.events:
+        for actor in event.actors:
+            if actor in snapshot.civ_stats:
+                actor_civs.add(actor)
+
+    if not actor_civs:
+        actor_civs = {name for name, cs in snapshot.civ_stats.items() if cs.alive}
+
+    if not actor_civs:
+        return "tribal"
+
+    eras = [snapshot.civ_stats[name].tech_era for name in actor_civs
+            if name in snapshot.civ_stats]
+    if not eras:
+        return "tribal"
+
+    return max(eras, key=lambda e: ERA_ORDER.index(e) if e in ERA_ORDER else 0)
+
 
 def thread_domains(text: str, civ_name: str, civ_domains: dict[str, list[str]]) -> str:
     """Weave civilization domain keywords into narrative text.
@@ -226,7 +301,7 @@ def build_action_prompt(civ: Civilization, world: WorldState) -> str:
     return f"""You are the strategic advisor for {civ.name}.
 
 CURRENT STATE:
-- Population: {civ.population}/100
+- Population: {civ.population} ({len(civ.regions)} region{'s' if len(civ.regions) != 1 else ''})
 - Military: {civ.military}/100
 - Economy: {civ.economy}/100
 - Culture: {civ.culture}/100
@@ -309,8 +384,11 @@ def _build_chronicle_prompt_impl(
             rivalry_context += f"- {r}\n"
         rivalry_context += "Weave these personal rivalries into the narrative when relevant.\n"
 
-    # Role line and narrative style
-    role_line = f"You are a historian chronicling the world of {world.name}."
+    # Era-adaptive role line
+    eras = [c.tech_era.value for c in world.civilizations if c.regions]
+    dominant = max(eras, key=lambda e: ERA_ORDER.index(e) if e in ERA_ORDER else 0) if eras else "tribal"
+    era_voice, era_style = ERA_REGISTER.get(dominant, ERA_REGISTER["tribal"])
+    role_line = f"{era_voice} You chronicle the world of {world.name}."
     if narrative_style:
         role_line += f"\n\nNARRATIVE STYLE: {narrative_style}"
 
@@ -323,7 +401,7 @@ CIVILIZATIONS:{civ_summaries}
 EVENTS THIS TURN:{event_text}{named_context}{rivalry_context}
 
 Write a chronicle entry for this turn. Rules:
-1. Write in the style of a history — evocative, literary, as if written by a scholar looking back on these events centuries later.
+1. {narrative_style if narrative_style else era_style}
 2. For each civilization mentioned, weave their cultural DOMAINS into the prose. A maritime culture's trade dispute involves harbors and currents; a mountain culture's crisis involves peaks and stone. This is critical for thematic coherence.
 3. Focus on events with importance >= 5. Mention lower-importance events briefly or skip them.
 4. Reference specific leader names, region names, and cultural values where relevant.
@@ -467,15 +545,21 @@ class NarrativeEngine:
                 excerpt = previous_prose[-200:]
                 continuity_text = f"\n\nPREVIOUS ENTRY (for style continuity):\n...{excerpt}"
 
-            # Narrative style
+            # Era-adaptive register
+            snap = _closest_snap({s.turn: s for s in history}, moment.anchor_turn)
+            dominant_era = get_dominant_era(moment, snap) if snap else "tribal"
+            era_voice, era_style = ERA_REGISTER.get(dominant_era, ERA_REGISTER["tribal"])
+
+            # Narrative style: scenario override takes precedence over era register
             style_text = ""
             if self.narrative_style:
                 style_text = f"\n\nNARRATIVE STYLE: {self.narrative_style}"
+            else:
+                style_text = f"\n\nNARRATIVE REGISTER: {era_style}"
 
             # Build system prompt
             system = (
-                f"You are a literary historian writing a chronicle. "
-                f"Write evocative prose as if looking back centuries later. "
+                f"{era_voice} "
                 f"Do NOT include turn numbers or game mechanics in the prose. "
                 f"ROLE: {role_instruction}"
             )
