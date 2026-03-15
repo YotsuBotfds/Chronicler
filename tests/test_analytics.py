@@ -285,3 +285,36 @@ class TestAnomalyDetection:
         anomalies = detect_anomalies(report)
         never_fire = [a for a in anomalies if a["name"] == "never_fire"]
         assert len(never_fire) >= 1
+
+
+class TestReportAssembly:
+    def test_generate_report_returns_all_sections(self, tmp_path):
+        from chronicler.analytics import generate_report
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        report = generate_report(batch_dir)
+        assert "metadata" in report
+        assert "stability" in report
+        assert "resources" in report
+        assert "politics" in report
+        assert "event_firing_rates" in report
+        assert "anomalies" in report
+        assert report["metadata"]["runs"] == 5
+        assert report["metadata"]["report_schema_version"] == 1
+
+    def test_generate_report_respects_checkpoints(self, tmp_path):
+        from chronicler.analytics import generate_report
+        batch_dir = _write_batch(tmp_path, num_runs=3, turns=10)
+        report = generate_report(batch_dir, checkpoints=[5])
+        assert "5" in report["stability"]["percentiles_by_turn"]
+
+
+class TestTextFormatter:
+    def test_format_text_report_produces_output(self, tmp_path):
+        from chronicler.analytics import generate_report, format_text_report
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        report = generate_report(batch_dir)
+        text = format_text_report(report)
+        assert "ANALYTICS REPORT" in text
+        assert "STABILITY" in text
+        assert "EVENT FIRING RATES" in text
+        assert len(text) > 200

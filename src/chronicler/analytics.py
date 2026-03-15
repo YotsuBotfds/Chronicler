@@ -413,3 +413,157 @@ def detect_anomalies(report: dict) -> list[dict]:
         })
 
     return anomalies
+
+
+# --- Task 10: Report Assembly and Text Formatter ---
+
+def generate_report(
+    batch_dir: Path,
+    checkpoints: list[int] | None = None,
+) -> dict:
+    """Load bundles, run all extractors, run anomaly checks, return composite report."""
+    bundles = load_bundles(batch_dir)
+    max_turn = _min_total_turns(bundles) - 1
+    cps = _clamp_checkpoints(checkpoints, max_turn)
+
+    seeds = [b["metadata"]["seed"] for b in bundles]
+    metadata = {
+        "runs": len(bundles),
+        "turns_per_run": max_turn + 1,
+        "seed_range": [min(seeds), max(seeds)],
+        "checkpoints": cps,
+        "timestamp": datetime.now().isoformat(),
+        "version": "post-M18",
+        "report_schema_version": 1,
+        "tuning_file": None,
+    }
+
+    stability = extract_stability(bundles, checkpoints=cps)
+    resources = extract_resources(bundles, checkpoints=cps)
+    politics = extract_politics(bundles)
+    climate = extract_climate(bundles)
+    memetic = extract_memetic(bundles, checkpoints=cps)
+    great_persons = extract_great_persons(bundles)
+    emergence = extract_emergence(bundles, checkpoints=cps)
+    general = extract_general(bundles)
+    firing_rates = compute_event_firing_rates(bundles)
+
+    report = {
+        "metadata": metadata,
+        "stability": stability,
+        "resources": resources,
+        "politics": politics,
+        "climate": climate,
+        "memetic": memetic,
+        "great_persons": great_persons,
+        "emergence": emergence,
+        "general": general,
+        "event_firing_rates": firing_rates,
+    }
+
+    report["anomalies"] = detect_anomalies(report)
+    return report
+
+
+def format_text_report(report: dict) -> str:
+    """Format full analytics report as grep-friendly plain text."""
+    lines = []
+    meta = report["metadata"]
+    n_runs = meta["runs"]
+    lines.append(f"ANALYTICS REPORT — {n_runs} runs, {meta['turns_per_run']} turns each")
+    lines.append(f"Seeds: {meta['seed_range'][0]}-{meta['seed_range'][1]}")
+    lines.append(f"Checkpoints: {meta['checkpoints']}")
+    lines.append("")
+
+    # Stability
+    stab = report.get("stability", {})
+    lines.append("STABILITY:")
+    for cp, pcts in stab.get("percentiles_by_turn", {}).items():
+        lines.append(f"  turn {cp}:  median={pcts['median']}, p10={pcts['p10']}, p90={pcts['p90']}")
+    for cp, zr in stab.get("zero_rate_by_turn", {}).items():
+        if zr > 0:
+            flag = "  ← CRITICAL" if zr > 0.4 else ""
+            lines.append(f"  Zero-stability rate at turn {cp}: {zr:.0%}{flag}")
+    lines.append("")
+
+    # Resources
+    res = report.get("resources", {})
+    famine_dist = res.get("famine_turn_distribution", {})
+    if famine_dist:
+        lines.append(f"Famine:     first occurrence median turn {famine_dist.get('median', '?')}")
+    for cp, pcts in res.get("trade_route_percentiles_by_turn", {}).items():
+        lines.append(f"Trade routes at turn {cp}: median={pcts.get('median', 0)}")
+    lines.append("")
+
+    # Politics
+    pol = report.get("politics", {})
+    for key in ["war_rate", "secession_rate", "federation_rate", "vassal_rate", "mercenary_rate", "twilight_rate"]:
+        rate = pol.get(key, 0)
+        if rate > 0:
+            count = int(rate * n_runs)
+            label = key.replace("_rate", "").title()
+            flag = "  ← EVERY RUN" if rate >= 1.0 else ""
+            lines.append(f"{label}: {count}/{n_runs} ({rate:.0%}){flag}")
+    lines.append("")
+
+    # Climate
+    clim = report.get("climate", {})
+    for dtype, freq in clim.get("disaster_frequency_by_type", {}).items():
+        lines.append(f"Disaster {dtype}: {freq:.0%} of runs")
+    lines.append("")
+
+    # Great Persons
+    gp = report.get("great_persons", {})
+    for key in ["great_person_born_rate", "succession_crisis_rate", "tradition_acquired_rate", "hostage_taken_rate"]:
+        rate = gp.get(key, 0)
+        label = key.replace("_rate", "").replace("_", " ").title()
+        lines.append(f"{label}: {rate:.0%} of runs")
+    lines.append("")
+
+    # Emergence
+    emrg = report.get("emergence", {})
+    bs = emrg.get("black_swan_frequency_by_type", {})
+    if bs:
+        parts = ", ".join(f"{k} {v:.0%}" for k, v in bs.items())
+        lines.append(f"Black Swan: {parts}")
+    lines.append(f"Regression: {emrg.get('regression_rate', 0):.0%} of runs")
+    lines.append("")
+
+    # General
+    gen = report.get("general", {})
+    if "median_era_at_final" in gen:
+        lines.append(f"Median era at final turn: {gen['median_era_at_final']}")
+    lines.append("")
+
+    # Event firing rates
+    lines.append("EVENT FIRING RATES:")
+    for et, rate in sorted(report.get("event_firing_rates", {}).items(), key=lambda x: -x[1]):
+        count = int(rate * n_runs)
+        flag = ""
+        if rate >= 1.0:
+            flag = "  ← EVERY RUN"
+        elif rate < 0.05:
+            flag = "  ← RARE"
+        lines.append(f"  {et}: {count}/{n_runs} ({rate:.0%}){flag}")
+    lines.append("")
+
+    # Anomalies
+    anomalies = report.get("anomalies", [])
+    if anomalies:
+        critical = [a for a in anomalies if a["severity"] == "CRITICAL"]
+        warnings_ = [a for a in anomalies if a["severity"] == "WARNING"]
+        if critical:
+            lines.append("DEGENERATE PATTERNS:")
+            for a in critical:
+                lines.append(f"  ⚠ {a['name']}: {a['detail']}")
+            lines.append("")
+        if warnings_:
+            lines.append("NEVER-FIRE / WARNINGS:")
+            for a in warnings_:
+                lines.append(f"  ⚠ {a['name']}: {a['detail']}")
+            lines.append("")
+    else:
+        lines.append("No anomalies detected.")
+        lines.append("")
+
+    return "\n".join(lines)
