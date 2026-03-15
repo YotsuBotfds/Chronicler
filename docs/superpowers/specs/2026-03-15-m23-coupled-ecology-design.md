@@ -173,7 +173,7 @@ Climate phases affect water degradation/recovery, replacing the old `climate_deg
 | TEMPERATE  | +0.03/turn recovery                   | No modifier                           |
 | WARMING    | Tundra: water +0.05 (melt); Coast: flood risk doubles | Wildfire risk doubles (existing disaster spec) |
 | DROUGHT    | -0.04/turn degradation; irrigated ×1.5 | No forest recovery (water < 0.3 cross-effect) |
-| COOLING    | -0.02/turn degradation (freezing)     | -0.01/turn (frost damage)             |
+| COOLING    | -0.02/turn degradation (freezing)     | -0.01/turn frost damage (**new behavior**, not present in old system) |
 
 The `climate_degradation_multiplier` function is retired. Climate effects are applied directly inside `tick_ecology()` based on phase.
 
@@ -267,7 +267,7 @@ Several disaster and emergence functions directly mutate `region.fertility`. All
 | File            | Function              | Current write                    | M23 migration                          |
 |-----------------|-----------------------|----------------------------------|----------------------------------------|
 | `climate.py`    | `check_disasters`     | earthquake: `fertility -= 0.2`   | `ecology.soil -= 0.2`                  |
-| `climate.py`    | `check_disasters`     | flood: `fertility -= 0.1`        | `ecology.water += 0.1` (flood raises water temporarily) |
+| `climate.py`    | `check_disasters`     | flood: `fertility -= 0.1`        | `ecology.water += 0.1` (flood raises water — intentionally beneficial during drought; floods are a mixed event, not purely negative) |
 | `climate.py`    | `check_disasters`     | wildfire: `fertility -= 0.15`    | `ecology.forest_cover -= 0.3` (fire burns forest) |
 | `emergence.py`  | `_apply_supervolcano` | `fertility = 0.1`               | `ecology.soil = 0.1, ecology.forest_cover = 0.05` |
 | `emergence.py`  | `_apply_tech_accident` | target: `fertility -= 0.3`      | `ecology.soil -= 0.3`                  |
@@ -394,7 +394,7 @@ turn_events.extend(tick_terrain_succession(world))
 
 ### Infrastructure phase (infrastructure.py)
 
-Remove mine fertility degradation from `tick_infrastructure`. Mine soil degradation is now handled in `ecology.py:_tick_soil` to maintain the one-driver-per-direction principle.
+Remove mine fertility degradation from `tick_infrastructure`. Mine soil degradation is now handled in `ecology.py:_tick_soil` to maintain the one-driver-per-direction principle. The `capability_metallurgy` diagnostic event (currently emitted in infrastructure.py line 96-100) moves to `_tick_soil` — it fires when Metallurgy focus halves mine degradation.
 
 ### Effective capacity callers
 
