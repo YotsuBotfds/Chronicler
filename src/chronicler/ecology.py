@@ -120,3 +120,17 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
         bonus = get_override(world, K_IRRIGATION_WATER_BONUS, 0.03)
         bonus *= _pressure_multiplier(region)
         region.ecology.water += bonus
+
+
+def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
+    if region.population > region.carrying_capacity * 0.5:
+        rate = get_override(world, K_FOREST_CLEARING, 0.02)
+        region.ecology.forest_cover -= rate
+
+    if climate_phase == ClimatePhase.COOLING:
+        region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
+
+    if region.population < region.carrying_capacity * 0.5 and region.ecology.water >= 0.3:
+        rate = get_override(world, K_FOREST_REGROWTH, 0.01)
+        rate *= _pressure_multiplier(region)
+        region.ecology.forest_cover += rate

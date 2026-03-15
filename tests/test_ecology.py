@@ -348,3 +348,50 @@ class TestTickWater:
         old = r.ecology.water
         _tick_water(r, civ, ClimatePhase.WARMING, w)
         assert r.ecology.water == old
+
+
+# --- Task 7: _tick_forest ---
+
+from chronicler.ecology import _tick_forest
+
+
+class TestTickForest:
+    def _setup(self, pop=60, forest=0.5, water=0.6, capacity=100):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="T", terrain="forest", carrying_capacity=capacity,
+            resources="timber", population=pop, controller="TestCiv",
+            ecology=RegionEcology(soil=0.7, water=water, forest_cover=forest),
+        )
+        civ = Civilization(
+            name="TestCiv", population=pop, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"],
+        )
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        return r, civ, w
+
+    def test_high_pop_clears_forest(self):
+        r, civ, w = self._setup(pop=60, forest=0.5)
+        old = r.ecology.forest_cover
+        _tick_forest(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.forest_cover < old
+
+    def test_low_pop_regrows_forest(self):
+        r, civ, w = self._setup(pop=10, forest=0.5)
+        old = r.ecology.forest_cover
+        _tick_forest(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.forest_cover > old
+
+    def test_low_water_blocks_regrowth(self):
+        r, civ, w = self._setup(pop=10, forest=0.5, water=0.2)
+        old = r.ecology.forest_cover
+        _tick_forest(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.forest_cover == old
+
+    def test_cooling_damages_forest(self):
+        r, civ, w = self._setup(pop=10, forest=0.5)
+        r2, civ2, w2 = self._setup(pop=10, forest=0.5)
+        _tick_forest(r, civ, ClimatePhase.COOLING, w)
+        _tick_forest(r2, civ2, ClimatePhase.TEMPERATE, w2)
+        assert r.ecology.forest_cover < r2.ecology.forest_cover
