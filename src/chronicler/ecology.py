@@ -223,10 +223,41 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase) -> list[Event]:
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
 
+    # Uncontrolled regions: natural recovery + climate effects only (no civ bonuses)
+    for region in world.regions:
+        if region.controller is not None:
+            continue
+        # Natural soil recovery (no civ bonuses)
+        eff = effective_capacity(region)
+        if region.population < eff * 0.75:
+            rate = get_override(world, K_SOIL_RECOVERY, 0.05)
+            rate *= _pressure_multiplier(region)
+            region.ecology.soil += rate
+        # Water: climate effects only
+        if climate_phase == ClimatePhase.DROUGHT:
+            region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04)
+        elif climate_phase == ClimatePhase.COOLING:
+            region.ecology.water -= 0.02
+        elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
+            region.ecology.water += 0.05
+        elif climate_phase == ClimatePhase.TEMPERATE:
+            rate = get_override(world, K_WATER_RECOVERY, 0.03)
+            rate *= _pressure_multiplier(region)
+            region.ecology.water += rate
+        # Forest: natural regrowth (water gate applies)
+        if region.population < region.carrying_capacity * 0.5 and region.ecology.water >= 0.3:
+            rate = get_override(world, K_FOREST_REGROWTH, 0.01)
+            rate *= _pressure_multiplier(region)
+            region.ecology.forest_cover += rate
+        if climate_phase == ClimatePhase.COOLING:
+            region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
+        _apply_cross_effects(region)
+        _clamp_ecology(region)
+
     events = _check_famine(world)
 
-    from chronicler.traditions import apply_fertility_floor
-    apply_fertility_floor(world)
+    from chronicler.traditions import apply_soil_floor
+    apply_soil_floor(world)
 
     _update_ecology_counters(world)
 

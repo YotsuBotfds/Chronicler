@@ -5,7 +5,7 @@ from chronicler.traditions import (
     update_event_counts,
     check_tradition_acquisition,
     apply_tradition_effects,
-    apply_fertility_floor,
+    apply_soil_floor,
     is_dramatic_death,
     check_folk_hero,
     compute_folk_hero_asabiya_bonus,
@@ -118,7 +118,7 @@ def test_food_stockpiling_fertility_floor(make_world):
     civ.traditions = ["food_stockpiling"]
     region = next(r for r in world.regions if r.name in civ.regions)
     region.ecology.soil = 0.1
-    apply_fertility_floor(world)
+    apply_soil_floor(world)
     assert region.ecology.soil == 0.2
 
 

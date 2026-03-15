@@ -122,8 +122,8 @@ def apply_tradition_effects(world: WorldState) -> None:
                     rel.disposition = order[idx - 1]
 
 
-def apply_fertility_floor(world: WorldState) -> None:
-    """Phase 9: Apply fertility floor for civs with food_stockpiling tradition."""
+def apply_soil_floor(world: WorldState) -> None:
+    """Phase 9: Apply soil floor for civs with food_stockpiling tradition."""
     for region in world.regions:
         controller = next(
             (civ for civ in world.civilizations if region.name in civ.regions), None

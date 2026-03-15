@@ -472,12 +472,24 @@ class TestTickEcology:
         events = tick_ecology(w, ClimatePhase.TEMPERATE)
         assert isinstance(events, list)
 
-    def test_skips_uncontrolled_regions(self):
-        w = self._make_world()
+    def test_uncontrolled_regions_skip_civ_effects(self):
+        """Uncontrolled regions skip civ-dependent bonuses (agriculture, irrigation, etc)."""
+        w = self._make_world(pop=0, soil=0.95)
         w.regions[0].controller = None
-        old = w.regions[0].ecology.soil
+        w.regions[0].population = 0
+        # With soil already near cap and pop=0, natural recovery should still apply
+        # but civ-specific bonuses (agriculture) are absent — just verify no crash
+        events = tick_ecology(w, ClimatePhase.TEMPERATE)
+        assert isinstance(events, list)
+
+    def test_uncontrolled_regions_still_recover(self):
+        """Abandoned regions should recover naturally."""
+        w = self._make_world(pop=0, soil=0.3, water=0.4, forest=0.2)
+        w.regions[0].controller = None
+        w.regions[0].population = 0
+        old_soil = w.regions[0].ecology.soil
         tick_ecology(w, ClimatePhase.TEMPERATE)
-        assert w.regions[0].ecology.soil == old
+        assert w.regions[0].ecology.soil > old_soil
 
     def test_ecology_clamped_after_tick(self):
         w = self._make_world(soil=0.01, terrain="desert")
