@@ -463,6 +463,8 @@ class TurnSnapshot(BaseModel):
     pandemic_regions: list[str] = Field(default_factory=list)
     climate_phase: str = ""
     active_conditions: list[dict] = Field(default_factory=list)
+    per_pair_accuracy: dict[str, dict[str, float]] = Field(default_factory=dict)
+    perception_errors: dict[str, dict[str, dict[str, int]]] = Field(default_factory=dict)
 
 
 # --- M20a: Narration Pipeline v2 models ---
