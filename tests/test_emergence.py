@@ -1068,3 +1068,33 @@ class TestSuccessionIntegration:
             run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
                      narrator=lambda w, e: "", seed=1)
             assert forest_regions[0].low_fertility_turns >= 1
+
+
+class TestM18EndToEnd:
+    def test_5_turn_smoke_test(self):
+        """Run 5 turns with all M18 systems active. No crashes."""
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        for turn in range(5):
+            run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                     narrator=lambda w, e: "", seed=turn)
+        assert world.turn == 5
+        assert world.stress_index >= 0
+        assert world.black_swan_cooldown >= 0
+        for civ in world.civilizations:
+            assert 0 <= civ.civ_stress <= 20
+            assert civ.population >= 1
+            assert civ.economy >= 0
+
+    def test_50_turn_extended_run(self):
+        """Run 50 turns to verify stability over longer periods."""
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=99, num_regions=8, num_civs=4)
+        for turn in range(50):
+            run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                     narrator=lambda w, e: "", seed=turn)
+        assert world.turn == 50
