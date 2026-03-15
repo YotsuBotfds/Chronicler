@@ -38,6 +38,7 @@ from chronicler.models import (
 )
 from chronicler.tech import check_tech_advancement
 from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
     check_rival_fall,
@@ -111,8 +112,9 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 
         if event.event_type == "drought":
             for civ in affected:
-                civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
-                civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+                mult = get_severity_multiplier(civ)
+                civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+                civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="drought",
@@ -123,8 +125,9 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
             )
         elif event.event_type == "plague":
             for civ in affected:
-                civ.population = clamp(civ.population - 10, STAT_FLOOR["population"], 100)
-                civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+                mult = get_severity_multiplier(civ)
+                civ.population = clamp(civ.population - int(10 * mult), STAT_FLOOR["population"], 100)
+                civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="plague",
@@ -135,7 +138,8 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
             )
         elif event.event_type == "earthquake":
             for civ in affected:
-                civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+                mult = get_severity_multiplier(civ)
+                civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
 
         world.event_probabilities = apply_probability_cascade(
             event.event_type, world.event_probabilities
@@ -470,7 +474,8 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         import random as _random
         old_leader = civ.leader
         old_leader.alive = False
-        civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
+        mult = get_severity_multiplier(civ)
+        civ.stability = clamp(civ.stability - int(20 * mult), STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
         check_rival_fall(civ, old_leader.name, world)
         # Check whether death triggers a succession crisis instead of immediate succession
@@ -484,22 +489,26 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
             inherit_grudges(old_leader, new_leader)
             civ.leader = new_leader
     elif event_type == "rebellion":
-        civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
-        civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
+        mult = get_severity_multiplier(civ)
+        civ.stability = clamp(civ.stability - int(20 * mult), STAT_FLOOR["stability"], 100)
+        civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
     elif event_type == "discovery":
         civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
         civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
     elif event_type == "religious_movement":
         civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        mult = get_severity_multiplier(civ)
+        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "cultural_renaissance":
         civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
         civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
         civ.population = clamp(civ.population + 10, STAT_FLOOR["population"], 100)
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        mult = get_severity_multiplier(civ)
+        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "border_incident":
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        mult = get_severity_multiplier(civ)
+        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
 
 
 def apply_injected_event(
@@ -561,7 +570,8 @@ def phase_consequences(world: WorldState) -> list[Event]:
         for civ_name in condition.affected_civs:
             civ = _get_civ(world, civ_name)
             if civ and condition.severity >= 50:
-                civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+                mult = get_severity_multiplier(civ)
+                civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
 
@@ -797,8 +807,9 @@ def _check_famine(world: WorldState) -> list[Event]:
         civ = _get_civ(world, region.controller)
         if civ is None:
             continue
-        civ.population = clamp(civ.population - 15, STAT_FLOOR["population"], 100)
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        mult = get_severity_multiplier(civ)
+        civ.population = clamp(civ.population - int(15 * mult), STAT_FLOOR["population"], 100)
+        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
         region.famine_cooldown = 5
         for adj_name in region.adjacencies:
             adj = next((r for r in world.regions if r.name == adj_name), None)

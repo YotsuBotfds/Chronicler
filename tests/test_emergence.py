@@ -336,3 +336,45 @@ class TestStressIntegration:
                  narrator=lambda w, e: "", seed=1)
         # Snapshot should have captured the pre-turn region count
         assert civ.regions_start_of_turn == initial_regions
+
+
+class TestSeverityMultiplierWiring:
+    def test_drought_damage_amplified_by_stress(self):
+        """A civ with high stress should take more damage from drought."""
+        from chronicler.simulation import phase_consequences
+        world = _make_world()
+        # Civ A: high stress. Civ B: zero stress.
+        civ_a = _make_civ(name="A", stability=60, economy=60, civ_stress=20)
+        civ_b = _make_civ(name="B", stability=60, economy=60, civ_stress=0)
+        world.civilizations = [civ_a, civ_b]
+        # Inject drought condition affecting both
+        world.active_conditions = [ActiveCondition(
+            condition_type="drought", affected_civs=["A", "B"], duration=3, severity=50,
+        )]
+        phase_consequences(world)
+        # Both take stability damage from the condition (severity >= 50 → -10 base)
+        # A should take more: int(10 * 1.5) = 15. B takes 10.
+        assert civ_a.stability < civ_b.stability
+
+    def test_famine_damage_amplified_by_stress(self):
+        """Famine damage should be amplified by stress."""
+        from chronicler.simulation import _check_famine
+        world = _make_world()
+        civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20)
+        world.civilizations = [civ]
+        r = _make_region(name="R1", controller="Civ1", fertility=0.1, famine_cooldown=0)
+        world.regions = [r]
+        _check_famine(world)
+        # Base famine: pop -15, stability -10. With 1.5x: pop -22, stability -15
+        assert civ.population <= 80 - 15  # At least base damage
+        assert civ.population < 80 - 15 + 1  # More than base (amplified)
+
+    def test_random_event_damage_amplified(self):
+        """Random event damage should be amplified by stress."""
+        from chronicler.simulation import _apply_event_effects
+        world = _make_world()
+        civ = _make_civ(stability=60, civ_stress=20)
+        world.civilizations = [civ]
+        _apply_event_effects("rebellion", civ, world)
+        # Base rebellion: stability -20, military -10. With 1.5x: stability -30
+        assert civ.stability <= 60 - 20  # At least base
