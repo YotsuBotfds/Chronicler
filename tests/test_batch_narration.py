@@ -1,10 +1,12 @@
 """Tests for batch narration: before/after summaries, narrate_batch, and --narrate CLI."""
+import json
 from unittest.mock import MagicMock
 from chronicler.models import (
     TurnSnapshot, CivSnapshot, NarrativeMoment, NarrativeRole,
-    Event, CausalLink, ChronicleEntry,
+    Event, CausalLink, ChronicleEntry, GapSummary,
 )
 from chronicler.narrative import build_before_summary, build_after_summary, NarrativeEngine
+from chronicler.curator import curate
 
 
 def _make_snap(turn, civ, pop, mil, stab, regions):
@@ -113,3 +115,57 @@ def test_narrate_batch_progress_callback():
     assert len(entries) == 3
     assert len(progress_calls) == 3
     assert progress_calls[-1] == (3, 3)
+
+
+def test_end_to_end_simulate_curate_narrate():
+    """Full pipeline: curate hand-crafted events -> narrate -> verify bundle."""
+    events = [
+        Event(turn=1, event_type="drought", actors=["A"], description="drought hits", importance=7),
+        Event(turn=3, event_type="war", actors=["A", "B"], description="war begins", importance=9),
+        Event(turn=5, event_type="famine", actors=["A"], description="famine", importance=8),
+        Event(turn=7, event_type="trade", actors=["B"], description="trade", importance=3),
+        Event(turn=9, event_type="collapse", actors=["A"], description="collapse", importance=10),
+    ]
+    history = [_make_snap(i, "A", 100 - i*5, 50, 50 - i*3, ["r1"]) for i in range(1, 11)]
+
+    # Curate
+    moments, gaps = curate(events, named_events=[], history=history, budget=3, seed=42)
+
+    assert len(moments) <= 3
+    assert all(isinstance(m.narrative_role, NarrativeRole) for m in moments)
+
+    # Narrate with mock LLM
+    mock_client = MagicMock()
+    mock_client.model = "test"
+    mock_client.complete.return_value = "Chronicle prose."
+    engine = NarrativeEngine(sim_client=mock_client, narrative_client=mock_client)
+
+    entries = engine.narrate_batch(moments, history, gaps)
+
+    assert len(entries) == len(moments)
+    assert all(isinstance(e, ChronicleEntry) for e in entries)
+    assert all(e.narrative == "Chronicle prose." for e in entries)
+
+    # Verify bundle format
+    bundle_data = {
+        "chronicle_entries": [e.model_dump() for e in entries],
+        "gap_summaries": [g.model_dump() for g in gaps],
+    }
+    raw = json.dumps(bundle_data, default=str)
+    loaded = json.loads(raw)
+
+    assert isinstance(loaded["chronicle_entries"], list)
+    for entry_data in loaded["chronicle_entries"]:
+        restored = ChronicleEntry.model_validate(entry_data)
+        assert restored.narrative_role in list(NarrativeRole)
+
+    # Verify gaps + entries don't overlap in turns
+    moment_turns = set()
+    for e in entries:
+        for t in range(e.covers_turns[0], e.covers_turns[1] + 1):
+            moment_turns.add(t)
+    gap_turns = set()
+    for g in gaps:
+        for t in range(g.turn_range[0], g.turn_range[1] + 1):
+            gap_turns.add(t)
+    assert not (moment_turns & gap_turns), "Moment and gap turns should not overlap"
