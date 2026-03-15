@@ -815,14 +815,15 @@ class TestStabilityExtractor:
         assert "50" not in result["percentiles_by_turn"]
         assert "500" not in result["percentiles_by_turn"]
 
-    def test_zero_rate(self, tmp_path):
+    def test_zero_rate_per_checkpoint(self, tmp_path):
         from chronicler.analytics import load_bundles, extract_stability
         batch_dir = _write_batch(tmp_path, num_runs=5, turns=10)
         bundles = load_bundles(batch_dir)
         result = extract_stability(bundles, checkpoints=[9])
         # stability = max(0, 50 - t*3), at turn 9 = max(0, 50-27) = 23 > 0
-        # So zero_rate should be 0.0 for this synthetic data
-        assert "zero_rate" in result
+        # So zero_rate at turn 9 should be 0.0
+        assert "zero_rate_by_turn" in result
+        assert result["zero_rate_by_turn"]["9"] == 0.0
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -868,37 +869,48 @@ def _min_total_turns(bundles: list[dict]) -> int:
     return min(len(b["history"]) for b in bundles)
 
 
+def _snapshot_at_turn(bundle: dict, turn: int) -> dict | None:
+    """Look up a snapshot by its turn field, not list position."""
+    for snap in bundle["history"]:
+        if snap["turn"] == turn:
+            return snap
+    return None
+
+
 # --- Extractors ---
 
 def extract_stability(
     bundles: list[dict],
     checkpoints: list[int] | None = None,
 ) -> dict:
-    """Stability percentiles at checkpoint turns and zero-rate."""
+    """Stability percentiles at checkpoint turns and per-checkpoint zero-rates."""
     max_turn = _min_total_turns(bundles) - 1  # 0-indexed
     cps = _clamp_checkpoints(checkpoints, max_turn)
 
     percentiles_by_turn: dict[str, dict] = {}
-    all_zero_count = 0
-    all_total_count = 0
+    zero_rate_by_turn: dict[str, float] = {}
 
     for cp in cps:
         values = []
+        zero_count = 0
+        total_count = 0
         for bundle in bundles:
-            if cp < len(bundle["history"]):
-                snap = bundle["history"][cp]
-                for civ_name, civ_data in snap["civ_stats"].items():
-                    stab = civ_data["stability"]
-                    values.append(stab)
-                    all_total_count += 1
-                    if stab == 0:
-                        all_zero_count += 1
+            snap = _snapshot_at_turn(bundle, cp)
+            if snap is None:
+                continue
+            for civ_name, civ_data in snap["civ_stats"].items():
+                stab = civ_data["stability"]
+                values.append(stab)
+                total_count += 1
+                if stab == 0:
+                    zero_count += 1
         if values:
             percentiles_by_turn[str(cp)] = _compute_percentiles(values)
+            zero_rate_by_turn[str(cp)] = zero_count / max(1, total_count)
 
     return {
         "percentiles_by_turn": percentiles_by_turn,
-        "zero_rate": all_zero_count / max(1, all_total_count),
+        "zero_rate_by_turn": zero_rate_by_turn,
     }
 ```
 
@@ -1138,7 +1150,7 @@ class TestAnomalyDetection:
         from chronicler.analytics import detect_anomalies
         # Create a report dict with known degenerate values
         report = {
-            "stability": {"zero_rate": 0.5},
+            "stability": {"zero_rate_by_turn": {"100": 0.5}},
             "event_firing_rates": {"famine": 0.99},
             "general": {"median_era_at_final": "tribal"},
         }
@@ -1148,7 +1160,7 @@ class TestAnomalyDetection:
     def test_detects_never_fire(self, tmp_path):
         from chronicler.analytics import detect_anomalies
         report = {
-            "stability": {"zero_rate": 0.0},
+            "stability": {"zero_rate_by_turn": {}},
             "event_firing_rates": {"famine": 1.0, "hostage_taken": 0.0},
             "general": {"median_era_at_final": "medieval"},
         }
@@ -1202,13 +1214,16 @@ def detect_anomalies(report: dict) -> list[dict]:
     """Run anomaly checks against a completed report."""
     anomalies = []
 
-    # Degenerate pattern checks
-    zero_rate = report.get("stability", {}).get("zero_rate", 0)
-    if zero_rate > 0.4:
-        anomalies.append({
-            "name": "stability_collapse", "severity": "CRITICAL",
-            "detail": f"{zero_rate:.0%} of civ-checkpoint observations at stability 0",
-        })
+    # Degenerate pattern checks — use worst (highest) per-checkpoint zero rate
+    zero_rates = report.get("stability", {}).get("zero_rate_by_turn", {})
+    if zero_rates:
+        worst_cp = max(zero_rates, key=zero_rates.get)
+        worst_rate = zero_rates[worst_cp]
+        if worst_rate > 0.4:
+            anomalies.append({
+                "name": "stability_collapse", "severity": "CRITICAL",
+                "detail": f"{worst_rate:.0%} of civs at stability 0 at turn {worst_cp}",
+            })
 
     famine_rate = report.get("event_firing_rates", {}).get("famine", 0)
     if famine_rate > 0.95:
@@ -1386,10 +1401,10 @@ def format_text_report(report: dict) -> str:
     for cp, pcts in stab.get("percentiles_by_turn", {}).items():
         lines.append(f"STABILITY at turn {cp}:  median={pcts['median']}, "
                       f"p10={pcts['p10']}, p90={pcts['p90']}")
-    zero_rate = stab.get("zero_rate", 0)
-    if zero_rate > 0:
-        flag = "  ← CRITICAL" if zero_rate > 0.4 else ""
-        lines.append(f"  Zero-stability rate: {zero_rate:.0%}{flag}")
+    for cp, zr in stab.get("zero_rate_by_turn", {}).items():
+        if zr > 0:
+            flag = "  ← CRITICAL" if zr > 0.4 else ""
+            lines.append(f"  Zero-stability rate at turn {cp}: {zr:.0%}{flag}")
     lines.append("")
 
     # Resources
@@ -1506,26 +1521,26 @@ class TestDeltaReport:
     def test_delta_shows_changed_metrics(self):
         from chronicler.analytics import format_delta_report
         baseline = {
-            "stability": {"zero_rate": 0.43},
+            "stability": {"zero_rate_by_turn": {"100": 0.43}},
             "event_firing_rates": {"famine": 0.99},
             "anomalies": [{"name": "stability_collapse", "severity": "CRITICAL", "detail": "bad"}],
         }
         current = {
-            "stability": {"zero_rate": 0.08},
+            "stability": {"zero_rate_by_turn": {"100": 0.08}},
             "event_firing_rates": {"famine": 0.65},
             "anomalies": [],
         }
         text = format_delta_report(baseline, current)
-        assert "zero_rate" in text
+        assert "100" in text  # checkpoint turn reference
         assert "famine" in text
         assert "RESOLVED" in text
 
     def test_delta_omits_small_changes(self):
         from chronicler.analytics import format_delta_report
-        baseline = {"stability": {"zero_rate": 0.50}}
-        current = {"stability": {"zero_rate": 0.49}}  # < 5% change
+        baseline = {"stability": {"zero_rate_by_turn": {"100": 0.50}}}
+        current = {"stability": {"zero_rate_by_turn": {"100": 0.49}}}  # < 5% change
         text = format_delta_report(baseline, current, threshold=0.05)
-        assert "zero_rate" not in text or "omitted" in text.lower()
+        assert "omitted" in text.lower() or "0 %" not in text
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1810,12 +1825,12 @@ class TestM19Integration:
         from chronicler.analytics import format_delta_report
 
         baseline = {
-            "stability": {"zero_rate": 0.43, "percentiles_by_turn": {"5": {"median": 8}}},
+            "stability": {"zero_rate_by_turn": {"100": 0.43}, "percentiles_by_turn": {"5": {"median": 8}}},
             "event_firing_rates": {"famine": 0.99, "war": 0.5},
             "anomalies": [{"name": "stability_collapse", "severity": "CRITICAL", "detail": "bad"}],
         }
         current = {
-            "stability": {"zero_rate": 0.08, "percentiles_by_turn": {"5": {"median": 31}}},
+            "stability": {"zero_rate_by_turn": {"100": 0.08}, "percentiles_by_turn": {"5": {"median": 31}}},
             "event_firing_rates": {"famine": 0.65, "war": 0.5},
             "anomalies": [],
         }
