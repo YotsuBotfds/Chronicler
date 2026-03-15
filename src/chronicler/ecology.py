@@ -146,3 +146,89 @@ def _clamp_ecology(region: Region) -> None:
     region.ecology.soil = max(_FLOOR_SOIL, min(caps["soil"], round(region.ecology.soil, 4)))
     region.ecology.water = max(_FLOOR_WATER, min(caps["water"], round(region.ecology.water, 4)))
     region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], round(region.ecology.forest_cover, 4)))
+
+
+def _check_famine(world: WorldState) -> list[Event]:
+    """Region-level famine check: water < threshold."""
+    from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
+    from chronicler.emergence import get_severity_multiplier
+
+    events: list[Event] = []
+    threshold = get_override(world, K_FAMINE_WATER_THRESHOLD, 0.20)
+
+    for region in world.regions:
+        if region.controller is None or region.famine_cooldown > 0:
+            continue
+        if region.ecology.water >= threshold:
+            continue
+        if region.population <= 0:
+            continue
+
+        civ = next((c for c in world.civilizations if c.name == region.controller), None)
+        if civ is None:
+            continue
+
+        mult = get_severity_multiplier(civ)
+        drain_region_pop(region, int(5 * mult))
+        sync_civ_population(civ, world)
+        drain = int(get_override(world, "stability.drain.famine_immediate", 3))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        region.famine_cooldown = 5
+
+        for adj_name in region.adjacencies:
+            adj = next((r for r in world.regions if r.name == adj_name), None)
+            if adj and adj.controller and adj.controller != civ.name:
+                neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
+                if neighbor:
+                    add_region_pop(adj, 5)
+                    sync_civ_population(neighbor, world)
+                    neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
+
+        events.append(Event(
+            turn=world.turn, event_type="famine", actors=[civ.name],
+            description=f"Famine strikes {region.name}, devastating {civ.name}.",
+            importance=8,
+        ))
+    return events
+
+
+def _update_ecology_counters(world: WorldState) -> None:
+    """Update low_forest_turns and forest_regrowth_turns for terrain succession."""
+    for region in world.regions:
+        if region.ecology.forest_cover < 0.2:
+            region.low_forest_turns += 1
+        else:
+            region.low_forest_turns = 0
+        if region.ecology.forest_cover > 0.7 and region.population < 5:
+            region.forest_regrowth_turns += 1
+        else:
+            region.forest_regrowth_turns = 0
+
+
+def tick_ecology(world: WorldState, climate_phase: ClimatePhase) -> list[Event]:
+    """Phase 9 ecology tick. Replaces phase_fertility."""
+    for region in world.regions:
+        if region.controller is None:
+            continue
+        civ = next((c for c in world.civilizations if c.name == region.controller), None)
+        if civ is None:
+            continue
+
+        _tick_soil(region, civ, climate_phase, world)
+        _tick_water(region, civ, climate_phase, world)
+        _tick_forest(region, civ, climate_phase, world)
+        _apply_cross_effects(region)
+        _clamp_ecology(region)
+
+        if region.famine_cooldown > 0:
+            region.famine_cooldown -= 1
+
+    events = _check_famine(world)
+
+    # Note: food_stockpiling tradition soil floor will be added after Task 14 traditions migration
+
+    _update_ecology_counters(world)
+
+    from chronicler.utils import sync_all_populations
+    sync_all_populations(world)
+    return events

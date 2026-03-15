@@ -444,3 +444,83 @@ class TestClampEcology:
         assert r.ecology.soil == 0.30
         assert r.ecology.water == 0.20
         assert r.ecology.forest_cover == 0.10
+
+
+# --- Task 9: tick_ecology orchestrator and famine check ---
+
+from chronicler.ecology import tick_ecology
+
+
+class TestTickEcology:
+    def _make_world(self, pop=50, soil=0.8, water=0.6, forest=0.3, terrain="plains"):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="TestRegion", terrain=terrain, carrying_capacity=100,
+            resources="fertile", population=pop, controller="TestCiv",
+            ecology=RegionEcology(soil=soil, water=water, forest_cover=forest),
+        )
+        civ = Civilization(
+            name="TestCiv", population=pop, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["TestRegion"],
+        )
+        return WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+
+    def test_returns_event_list(self):
+        w = self._make_world()
+        events = tick_ecology(w, ClimatePhase.TEMPERATE)
+        assert isinstance(events, list)
+
+    def test_skips_uncontrolled_regions(self):
+        w = self._make_world()
+        w.regions[0].controller = None
+        old = w.regions[0].ecology.soil
+        tick_ecology(w, ClimatePhase.TEMPERATE)
+        assert w.regions[0].ecology.soil == old
+
+    def test_ecology_clamped_after_tick(self):
+        w = self._make_world(soil=0.01, terrain="desert")
+        tick_ecology(w, ClimatePhase.TEMPERATE)
+        assert w.regions[0].ecology.soil >= 0.05
+
+    def test_famine_cooldown_decremented(self):
+        w = self._make_world()
+        w.regions[0].famine_cooldown = 3
+        tick_ecology(w, ClimatePhase.TEMPERATE)
+        assert w.regions[0].famine_cooldown == 2
+
+
+class TestFamineCheck:
+    def _make_world(self, water=0.15, pop=50):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="TestRegion", terrain="plains", carrying_capacity=100,
+            resources="fertile", population=pop, controller="TestCiv",
+            ecology=RegionEcology(soil=0.8, water=water, forest_cover=0.3),
+        )
+        civ = Civilization(
+            name="TestCiv", population=pop, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["TestRegion"],
+        )
+        return WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+
+    def test_famine_fires_when_water_below_threshold(self):
+        w = self._make_world(water=0.15)
+        events = tick_ecology(w, ClimatePhase.TEMPERATE)
+        famine_events = [e for e in events if e.event_type == "famine"]
+        assert len(famine_events) == 1
+        assert "TestRegion" in famine_events[0].description
+
+    def test_no_famine_when_water_above_threshold(self):
+        w = self._make_world(water=0.5)
+        events = tick_ecology(w, ClimatePhase.TEMPERATE)
+        famine_events = [e for e in events if e.event_type == "famine"]
+        assert len(famine_events) == 0
+
+    def test_no_famine_during_cooldown(self):
+        w = self._make_world(water=0.15)
+        w.regions[0].famine_cooldown = 3
+        events = tick_ecology(w, ClimatePhase.TEMPERATE)
+        famine_events = [e for e in events if e.event_type == "famine"]
+        assert len(famine_events) == 0
