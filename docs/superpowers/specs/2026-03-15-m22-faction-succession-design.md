@@ -426,7 +426,7 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
         if other.name == civ.name or not other.regions:
             continue
         rel = world.relationships.get(other.name, {}).get(civ.name)
-        if rel and rel.disposition in ("allied", "friendly"):
+        if rel and rel.disposition in (Disposition.ALLIED, Disposition.FRIENDLY):
             other_dominant = get_dominant_faction(other.factions)
             candidates.append({
                 "type": FACTION_CANDIDATE_TYPE[other_dominant],
@@ -455,6 +455,8 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
 
 Replaces uniform random selection in `resolve_crisis()` (succession.py lines 91-136):
 
+**Important:** `generate_successor()` (leaders.py) is not just a leader factory. It internally handles: `civ.leader = new_leader` assignment, `old_leader.alive = False`, `apply_leader_legacy(civ, old_leader, world)`, `inherit_grudges(old_leader, new_leader)` at flat 0.5 rate, and exile creation. The faction-aware resolution function calls `generate_successor` for all of this, then applies faction-specific post-processing.
+
 ```python
 def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[Event]:
     rng = random.Random(world.seed + world.turn + hash(civ.name))
@@ -475,7 +477,17 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
 
     force_type = winner["type"]
     old_leader = civ.leader
+    old_factions = civ.factions.model_copy(deep=True)  # snapshot for grudge comparison
+
+    # generate_successor handles: civ.leader assignment, old_leader.alive = False,
+    # apply_leader_legacy(), inherit_grudges() at flat 0.5, exile creation.
     new_leader = generate_successor(civ, world, seed=world.seed, force_type=force_type)
+    # civ.leader is now new_leader (assigned inside generate_successor)
+
+    # Override grudge inheritance with faction-aware rates.
+    # generate_successor already applied flat 0.5 rate -- replace with faction-aware.
+    new_leader.grudges = []
+    inherit_grudges_with_factions(old_leader, new_leader, old_factions)
 
     # Faction influence shift from resolution
     winning_faction = FactionType(winner["faction"])
@@ -498,13 +510,14 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
             # upgrade_disposition: new helper in factions.py
             # hostile -> suspicious -> neutral -> friendly -> allied
 
-    # Faction-aware grudge inheritance (replaces flat 0.5 rate)
-    inherit_grudges_with_factions(old_leader, new_leader, civ.factions)
-
-    # Exile old leader (existing M17 logic, unchanged)
-    # create_exiled_leader() returns str | None (host civ name), not an Event.
-    # It handles GP creation internally. We just call it for its side effects.
-    create_exiled_leader(old_leader, civ, world)
+    # Emit succession_crisis_resolved event with faction context (importance 8)
+    events.append(Event(
+        turn=world.turn, event_type="succession_crisis_resolved",
+        actors=[civ.name],
+        description=(f"{civ.name} succession crisis resolved: {winning_faction.value} "
+                     f"faction prevails, {new_leader.name} takes power."),
+        importance=8,
+    ))
 
     # Clean up crisis state (mirrors existing resolve_crisis behavior)
     civ.succession_crisis_turns_remaining = 0
