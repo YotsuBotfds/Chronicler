@@ -160,3 +160,51 @@ def test_get_weight_modifiers_empty_when_no_focus():
     civ = _make_civ()
     mods = get_focus_weight_modifiers(civ)
     assert mods == {}
+
+
+def test_gp_bonus_tips_close_decision():
+    """A scientist GP should add +5 to SCHOLARSHIP, tipping a close decision."""
+    from chronicler.models import GreatPerson
+    regions = [
+        _make_region("R1", terrain="plains", controller="TestCiv",
+                     specialized_resources=[Resource.GRAIN])
+    ]
+    civ = _make_civ(
+        tech_era=TechEra.MEDIEVAL, culture=15, regions=["R1"],
+        great_persons=[GreatPerson(name="Scholar", role="scientist",
+                                   trait="wise", civilization="TestCiv",
+                                   origin_civilization="TestCiv", born_turn=0,
+                                   active=True, alive=True)],
+    )
+    world = _make_world(regions=regions)
+    world.civilizations.append(civ)
+    focus = select_tech_focus(civ, world)
+    assert focus == TechFocus.SCHOLARSHIP
+
+
+def test_readvancement_after_regression_may_differ():
+    """After regression, re-advancement selects fresh based on current state."""
+    regions = [
+        _make_region("Coast1", terrain="coast", controller="TestCiv",
+                     resources="maritime",
+                     infrastructure=[_make_infra(InfrastructureType.PORTS)])
+    ]
+    civ = _make_civ(tech_era=TechEra.CLASSICAL, regions=["Coast1"])
+    world = _make_world(regions=regions)
+    world.civilizations.append(civ)
+    focus1 = select_tech_focus(civ, world)
+    assert focus1 == TechFocus.NAVIGATION
+    apply_focus_effects(civ, focus1)
+
+    # Simulate regression: clear focus
+    remove_focus_effects(civ, TechFocus.NAVIGATION)
+    civ.active_focus = None
+
+    # Change geography: now mining civ
+    regions[0].terrain = "mountains"
+    regions[0].specialized_resources = [Resource.IRON]
+    regions[0].infrastructure = [_make_infra(InfrastructureType.MINES)]
+
+    # Re-advance: should pick METALLURGY now
+    focus2 = select_tech_focus(civ, world)
+    assert focus2 == TechFocus.METALLURGY
