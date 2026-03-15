@@ -43,6 +43,9 @@ class LiveServer:
         self._start_params: dict | None = None
         self._server_state: str = "lobby"
         self._lobby_init: dict | None = None
+        # Batch state
+        self._batch_thread: threading.Thread | None = None
+        self._batch_cancel_event = threading.Event()
 
     @property
     def speed(self) -> float:
@@ -73,6 +76,99 @@ class LiveServer:
         self._start_params = msg
         self._server_state = "running"
         self.start_event.set()
+        return None
+
+    def _handle_batch_start(self, msg: dict) -> dict | None:
+        """Handle a batch_start command. Runs batch in a background thread."""
+        if self._batch_thread is not None and self._batch_thread.is_alive():
+            return {"type": "batch_error", "message": "Batch already running"}
+
+        config = msg.get("config", {})
+        self._batch_cancel_event.clear()
+
+        def _batch_worker():
+            import argparse as _argparse
+            from datetime import datetime
+            from chronicler.batch import run_batch
+            from chronicler.analytics import generate_report
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            batch_output = f"output/batch_gui_{timestamp}"
+
+            args = _argparse.Namespace(
+                seed=config.get("seed_start", 1),
+                batch=config.get("seed_count", 200),
+                turns=config.get("turns", 500),
+                simulate_only=config.get("simulate_only", True),
+                parallel=config.get("parallel", True),
+                output=f"{batch_output}/chronicle.md",
+                state=f"{batch_output}/state.json",
+                tuning=None,
+                civs=4,
+                regions=8,
+                resume=None,
+                reflection_interval=10,
+                local_url="http://localhost:1234/v1",
+                sim_model=None,
+                narrative_model=None,
+                llm_actions=False,
+                scenario=None,
+                fork=None,
+                interactive=False,
+                pause_every=None,
+                seed_range=None,
+            )
+
+            workers = config.get("workers")
+            if workers and workers > 0:
+                args.parallel = workers
+
+            tuning_dict = config.get("tuning_overrides") or None
+
+            def on_progress(completed: int, total: int, current_seed: int):
+                self.snapshot_queue.put({
+                    "type": "batch_progress",
+                    "completed": completed,
+                    "total": total,
+                    "current_seed": current_seed,
+                })
+
+            try:
+                batch_dir = run_batch(
+                    args,
+                    progress_cb=on_progress,
+                    cancel_event=self._batch_cancel_event,
+                    tuning_overrides_dict=tuning_dict,
+                )
+
+                if self._batch_cancel_event.is_set():
+                    self.snapshot_queue.put({
+                        "type": "batch_cancelled",
+                    })
+                    return
+
+                # Auto-run analytics and save report to disk
+                try:
+                    report = generate_report(batch_dir)
+                    report_path = batch_dir / "batch_report.json"
+                    report_path.write_text(json.dumps(report, indent=2))
+                    self.snapshot_queue.put({
+                        "type": "batch_complete",
+                        "report": report,
+                    })
+                except Exception as exc:
+                    self.snapshot_queue.put({
+                        "type": "batch_error",
+                        "message": f"Batch completed but analytics failed: {exc}",
+                    })
+            except Exception as exc:
+                self.snapshot_queue.put({
+                    "type": "batch_error",
+                    "message": str(exc),
+                })
+
+        self._batch_thread = threading.Thread(target=_batch_worker, daemon=True)
+        self._batch_thread.start()
         return None
 
     def _run_loop(self, ready: threading.Event) -> None:
@@ -144,6 +240,31 @@ class LiveServer:
                         err = self._handle_start(msg)
                         if err is not None:
                             await websocket.send(json.dumps(err))
+                        continue
+
+                    if msg_type == "batch_start":
+                        err = self._handle_batch_start(msg)
+                        if err is not None:
+                            await websocket.send(json.dumps(err))
+                        continue
+
+                    if msg_type == "batch_cancel":
+                        self._batch_cancel_event.set()
+                        continue
+
+                    if msg_type == "batch_load_report":
+                        report_path = msg.get("path", "")
+                        try:
+                            report = json.loads(Path(report_path).read_text())
+                            await websocket.send(json.dumps({
+                                "type": "batch_report_loaded",
+                                "report": report,
+                            }))
+                        except Exception as exc:
+                            await websocket.send(json.dumps({
+                                "type": "batch_error",
+                                "message": f"Failed to load report: {exc}",
+                            }))
                         continue
 
                     if msg_type == "narrate_range":

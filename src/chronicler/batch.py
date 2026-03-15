@@ -4,11 +4,15 @@ from __future__ import annotations
 import argparse
 import copy
 import multiprocessing
+import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from chronicler.interestingness import score_run
 from chronicler.types import RunResult
+
+# Type alias for progress callbacks: (completed, total, current_seed) -> None
+ProgressCallback = Callable[[int, int, int], None]
 
 
 def run_batch(
@@ -16,8 +20,18 @@ def run_batch(
     sim_client: Any = None,
     narrative_client: Any = None,
     scenario_config: Any = None,
+    progress_cb: ProgressCallback | None = None,
+    cancel_event: threading.Event | None = None,
+    tuning_overrides_dict: dict[str, float] | None = None,
 ) -> Path:
-    """Run N chronicles with sequential seeds. Returns the batch directory path."""
+    """Run N chronicles with sequential seeds. Returns the batch directory path.
+
+    Parameters
+    ----------
+    progress_cb : optional callback(completed, total, current_seed) called after each seed.
+    cancel_event : optional threading.Event; if set, batch stops between seeds.
+    tuning_overrides_dict : optional in-memory overrides (bypasses YAML file I/O).
+    """
     base_seed = args.seed or 42
     count = args.batch
     base_output = Path(args.output).parent if hasattr(args, 'output') else Path("output")
@@ -26,9 +40,9 @@ def run_batch(
 
     results: list[RunResult] = []
 
-    # Load tuning overrides if provided
-    tuning_overrides: dict[str, float] = {}
-    if getattr(args, "tuning", None):
+    # Load tuning overrides: prefer in-memory dict, fall back to YAML file
+    tuning_overrides: dict[str, float] = tuning_overrides_dict or {}
+    if not tuning_overrides and getattr(args, "tuning", None):
         from chronicler.tuning import load_tuning
         tuning_overrides = load_tuning(Path(args.tuning))
 
@@ -47,9 +61,20 @@ def run_batch(
             run_args.append((child_args, scenario_config))
 
         with multiprocessing.Pool(workers) as pool:
-            results = pool.starmap(_run_single_no_llm, run_args)
+            async_results = [pool.apply_async(_run_single_no_llm, a) for a in run_args]
+            for i, ar in enumerate(async_results):
+                if cancel_event and cancel_event.is_set():
+                    pool.terminate()
+                    break
+                result = ar.get()
+                results.append(result)
+                run_seed = base_seed + i
+                if progress_cb:
+                    progress_cb(i + 1, count, run_seed)
     else:
         for i in range(count):
+            if cancel_event and cancel_event.is_set():
+                break
             run_seed = base_seed + i
             run_dir = batch_dir / f"seed_{run_seed}"
             run_dir.mkdir(parents=True, exist_ok=True)
@@ -68,6 +93,8 @@ def run_batch(
                 scenario_config=scenario_config,
             )
             results.append(result)
+            if progress_cb:
+                progress_cb(i + 1, count, run_seed)
             print(f"  Batch run {i + 1}/{count} complete (seed {run_seed})")
 
     # Write summary

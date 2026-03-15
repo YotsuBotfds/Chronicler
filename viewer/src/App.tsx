@@ -64,6 +64,13 @@ function App() {
             onLaunch={liveConn.sendStart}
             starting={liveConn.serverState === "starting"}
             error={liveConn.error}
+            batchState={liveConn.batch.batchState}
+            batchReport={liveConn.batch.report}
+            batchProgress={liveConn.batch.progress}
+            batchError={liveConn.batch.error}
+            onBatchStart={liveConn.batch.startBatch}
+            onBatchCancel={liveConn.batch.cancelBatch}
+            onBatchReset={liveConn.batch.reset}
           />
         );
 

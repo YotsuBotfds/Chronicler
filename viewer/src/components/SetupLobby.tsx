@@ -1,17 +1,33 @@
 import { useState, useCallback, useRef } from "react";
-import type { LobbyInit, StartCommand, ScenarioInfo, WorldState } from "../types";
+import type { LobbyInit, StartCommand, ScenarioInfo, WorldState, BatchConfig } from "../types";
+import type { BatchState } from "../hooks/useBatchConnection";
+import type { BatchReport } from "../types";
 import { RegionMap } from "./RegionMap";
+import { BatchPanel } from "./BatchPanel";
+import { BatchCompare } from "./BatchCompare";
 
 interface SetupLobbyProps {
   lobbyInit: LobbyInit;
   onLaunch: (params: Omit<StartCommand, "type">) => void;
   starting: boolean;
   error: string | null;
+  batchState?: BatchState;
+  batchReport?: BatchReport | null;
+  batchProgress?: { completed: number; total: number; currentSeed: number } | null;
+  batchError?: string | null;
+  onBatchStart?: (config: BatchConfig) => void;
+  onBatchCancel?: () => void;
+  onBatchReset?: () => void;
 }
 
-export function SetupLobby({ lobbyInit, onLaunch, starting, error }: SetupLobbyProps) {
+export function SetupLobby({
+  lobbyInit, onLaunch, starting, error,
+  batchState = "idle", batchReport = null, batchProgress = null,
+  batchError = null, onBatchStart, onBatchCancel, onBatchReset,
+}: SetupLobbyProps) {
   const { scenarios, models, defaults } = lobbyInit;
 
+  const [tab, setTab] = useState<"single" | "batch">("single");
   const [scenario, setScenario] = useState<string>("");
   const [seed, setSeed] = useState<string>("");
   const [turns, setTurns] = useState(defaults.turns);
@@ -105,10 +121,50 @@ export function SetupLobby({ lobbyInit, onLaunch, starting, error }: SetupLobbyP
     <div className="min-h-screen bg-gray-900 text-gray-100 flex">
       {/* Sidebar */}
       <div className="w-[300px] bg-gray-800 border-r border-gray-700 p-5 flex flex-col">
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-lg font-bold text-red-400 tracking-wider">CHRONICLER</h1>
           <p className="text-xs text-gray-500 mt-1">Setup</p>
         </div>
+
+        {/* Tab bar */}
+        <div className="flex mb-4 border-b border-gray-700">
+          <button
+            onClick={() => setTab("single")}
+            className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+              tab === "single"
+                ? "text-gray-100 border-b-2 border-red-400"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            Single Run
+          </button>
+          <button
+            onClick={() => setTab("batch")}
+            className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+              tab === "batch"
+                ? "text-gray-100 border-b-2 border-red-400"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            Batch Run
+          </button>
+        </div>
+
+        {tab === "batch" ? (
+          <div className="flex-1 overflow-y-auto">
+            {onBatchStart && onBatchCancel && onBatchReset && (
+              <BatchPanel
+                batchState={batchState}
+                report={batchReport}
+                progress={batchProgress}
+                error={batchError}
+                onStart={onBatchStart}
+                onCancel={onBatchCancel}
+                onReset={onBatchReset}
+              />
+            )}
+          </div>
+        ) : (
 
         <div className="flex-1 space-y-4 overflow-y-auto">
           {/* Scenario */}
@@ -291,6 +347,7 @@ export function SetupLobby({ lobbyInit, onLaunch, starting, error }: SetupLobbyP
             )}
           </div>
         </div>
+        )}
 
         {/* Error banner */}
         {error && (
@@ -299,29 +356,33 @@ export function SetupLobby({ lobbyInit, onLaunch, starting, error }: SetupLobbyP
           </div>
         )}
 
-        {/* Launch button */}
-        <button
-          onClick={handleLaunch}
-          disabled={starting || turns <= 0}
-          className="w-full mt-4 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-bold text-base tracking-wide transition-colors"
-        >
-          {starting ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Starting...
-            </span>
-          ) : (
-            "\u25B6 LAUNCH SIMULATION"
-          )}
-        </button>
+        {/* Launch button (single run only) */}
+        {tab === "single" && (
+          <button
+            onClick={handleLaunch}
+            disabled={starting || turns <= 0}
+            className="w-full mt-4 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-bold text-base tracking-wide transition-colors"
+          >
+            {starting ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Starting...
+              </span>
+            ) : (
+              "\u25B6 LAUNCH SIMULATION"
+            )}
+          </button>
+        )}
       </div>
 
       {/* Preview Panel */}
       <div className="flex-1 p-6 overflow-y-auto">
-        {!selectedScenario && !resumeState ? (
+        {tab === "batch" && batchState === "complete" && batchReport ? (
+          <BatchCompare initialRight={batchReport} />
+        ) : !selectedScenario && !resumeState ? (
           <div className="h-full flex items-center justify-center text-gray-500">
             <div className="text-center">
               <div className="text-5xl mb-3">{"\uD83D\uDDFA\uFE0F"}</div>

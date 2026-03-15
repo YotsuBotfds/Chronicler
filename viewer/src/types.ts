@@ -288,6 +288,60 @@ export interface CausalLink {
   pattern: string;
 }
 
+// --- M20b: Batch Runner types ---
+
+export interface BatchConfig {
+  seed_start: number;
+  seed_count: number;
+  turns: number;
+  simulate_only: boolean;
+  parallel: boolean;
+  workers: number | null;
+  tuning_overrides: Record<string, number> | null;
+}
+
+export interface BatchReport {
+  metadata: {
+    runs: number;
+    turns_per_run: number;
+    seed_range: [number, number];
+    checkpoints: number[];
+    timestamp: string;
+    version: string;
+    report_schema_version: number;
+    tuning_file: string | null;
+  };
+  stability: {
+    percentiles_by_turn: Record<string, PercentileData>;
+    zero_rate_by_turn: Record<string, number>;
+  };
+  resources: Record<string, unknown>;
+  politics: Record<string, unknown>;
+  climate: Record<string, unknown>;
+  memetic: Record<string, unknown>;
+  great_persons: Record<string, unknown>;
+  emergence: Record<string, unknown>;
+  general: Record<string, unknown>;
+  event_firing_rates: Record<string, number>;
+  anomalies: AnomalyFlag[];
+}
+
+export interface PercentileData {
+  min: number;
+  p10: number;
+  p25: number;
+  median: number;
+  p75: number;
+  p90: number;
+  max: number;
+}
+
+export interface AnomalyFlag {
+  name: string;
+  severity: "CRITICAL" | "WARNING" | "INFO";
+  detail: string;
+}
+
 export type BundleChronicle =
   | Record<string, string>       // legacy: turn → text
   | NewChronicleEntry[];          // new: sparse entries

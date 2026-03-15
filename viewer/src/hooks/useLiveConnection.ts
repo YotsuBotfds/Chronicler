@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage, LobbyInit, StartCommand, NewChronicleEntry } from "../types";
 import { isLegacyBundle } from "../types";
+import { useBatchConnection, type BatchConnectionState } from "./useBatchConnection";
 
 type ServerState = "connecting" | "lobby" | "starting" | "running" | "completed";
 
@@ -19,6 +20,8 @@ interface LiveConnectionState {
   lobbyInit: LobbyInit | null;
   sendStart: (params: Omit<StartCommand, "type">) => void;
   sendNarrateRange: (startTurn: number, endTurn: number) => void;
+  batch: BatchConnectionState;
+  wsRef: React.RefObject<WebSocket | null>;
 }
 
 export function useLiveConnection(wsUrl: string): LiveConnectionState {
@@ -36,6 +39,9 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelayRef = useRef(1000);
   const serverStateRef = useRef<ServerState>("connecting");
+  const batch = useBatchConnection(wsRef);
+  const batchHandleRef = useRef(batch.handleMessage);
+  batchHandleRef.current = batch.handleMessage;
 
   const sendCommand = useCallback((cmd: Command) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -237,6 +243,14 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
               serverStateRef.current = "lobby";
             }
             break;
+
+          case "batch_progress":
+          case "batch_complete":
+          case "batch_cancelled":
+          case "batch_error":
+          case "batch_report_loaded":
+            batchHandleRef.current(msg);
+            break;
         }
       };
     }
@@ -265,5 +279,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     lobbyInit,
     sendStart,
     sendNarrateRange,
+    batch,
+    wsRef,
   };
 }
