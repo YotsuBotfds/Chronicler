@@ -75,7 +75,7 @@ In `TurnSnapshot` (after `pandemic_regions` field, line 424):
     active_conditions: list[dict] = Field(default_factory=list)
 ```
 
-In `WorldState` (after `pandemic_state` field):
+In `WorldState` (after `terrain_transition_rules` field, line 346-353 — the last field before `save()`):
 
 ```python
     tuning_overrides: dict[str, float] = Field(default_factory=dict)
@@ -219,6 +219,7 @@ K_PLAGUE_STABILITY = "stability.drain.plague_immediate"
 K_FAMINE_STABILITY = "stability.drain.famine_immediate"
 K_WAR_COST_STABILITY = "stability.drain.war_cost"
 K_GOVERNING_COST = "stability.drain.governing_per_distance"
+K_CONDITION_ONGOING_DRAIN = "stability.drain.condition_ongoing"  # -10/turn at severity >= 50
 
 # Fertility
 K_FERTILITY_DEGRADATION = "fertility.degradation_rate"
@@ -236,6 +237,7 @@ K_BLACK_SWAN_COOLDOWN = "emergence.black_swan_cooldown_turns"
 KNOWN_OVERRIDES: set[str] = {
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY, K_GOVERNING_COST,
+    K_CONDITION_ONGOING_DRAIN,
     K_FERTILITY_DEGRADATION, K_FERTILITY_RECOVERY, K_FAMINE_THRESHOLD,
     K_MILITARY_FREE_THRESHOLD, K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
 }
@@ -495,27 +497,34 @@ The goal is to prove the tuning system works end-to-end. Wire 5 representative s
 
 ```python
 # tests/test_simulation.py — append
-def test_drought_stability_drain_respects_tuning_override(make_world):
-    """Drought stability drain uses tuning override when present."""
+def test_famine_stability_drain_respects_tuning_override(make_world):
+    """Famine stability drain uses tuning override when present."""
+    from chronicler.simulation import _check_famine
+
     world = make_world(num_civs=2)
-    world.tuning_overrides = {"stability.drain.drought_immediate": 2}
+    world.tuning_overrides = {"stability.drain.famine_immediate": 2}
     civ = world.civilizations[0]
     civ.stability = 50
-    original = civ.stability
+    original_stability = civ.stability
 
-    # _apply_event_effects signature: (event_type, civ, world)
-    from chronicler.simulation import _apply_event_effects
-    _apply_event_effects("drought", civ, world)
+    # Set a region to trigger famine (fertility below threshold 0.3)
+    region = world.regions[0]
+    region.fertility = 0.2
+    region.famine_cooldown = 0
+    region.controller = civ.name
 
-    # With override of 2, stability should drop by 2 (not default 10)
-    assert civ.stability == original - 2
+    _check_famine(world)
+
+    # With override of 2 (and severity_multiplier=1.0 for healthy civ),
+    # stability should drop by 2 (not default 10)
+    assert civ.stability == original_stability - 2
 ```
 
-Note: There are TWO drought stability drain paths in `simulation.py`:
-- Line 116: ongoing condition drain in `apply_automatic_effects` (severity >= 50)
-- Line 535: immediate drain in `_apply_event_effects` / `apply_injected_event`
+Note: There are multiple stability drain paths to wire. The test above covers `_check_famine` (line 820). Additional paths:
+- Line 116: ongoing condition drain in `apply_automatic_effects`
+- Line 535: immediate drought drain in `_apply_event_effects` / `apply_injected_event`
 
-Wire both paths. The test above covers the `_apply_event_effects` path. The ongoing condition path (line 116) can be wired but doesn't need a separate test for M19 — M19b will cover thorough testing of all callsites.
+Wire all 5 example callsites across these paths. M19b will cover thorough testing of all ~250 callsites.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1088,7 +1097,7 @@ def extract_general(bundles) -> dict:
 Implementation guidance for each:
 
 - **extract_resources**: Find first `event_type == "famine"` turn per run → distribution. Read `trade_routes` length from `history[cp]` → percentiles. Read `civ_stats[name]["treasury"]` → percentiles.
-- **extract_politics**: Count runs with at least one `event_type` in `{"secession", "federation_formed", "vassal_imposed", "mercenary_spawned", "war", "twilight_absorption"}`. Compute firing rate = count / total_runs. Also compute `elimination_turn_distribution`: for each run, find the turn where any civ's `alive` first becomes False in `civ_stats`.
+- **extract_politics**: Count runs with at least one `event_type` in `{"secession", "federation_formed", "vassal_imposed", "mercenary_spawned", "war", "twilight_absorption"}`. Compute firing rate = count / total_runs. Also compute `elimination_turn_distribution`: `CivSnapshot.alive` is available at `snap["civ_stats"][name]["alive"]` — find the first turn where it becomes `False` for any civ.
 - **extract_climate**: Count events where `event_type` in `{"drought", "plague", "earthquake", "flood", "wildfire", "sandstorm"}`. Compute frequency = count / total_runs.
 - **extract_memetic**: Read `movements_summary` length from checkpoints. Count `paradigm_shift` and `cultural_assimilation` events.
 - **extract_great_persons**: Count `great_person_born` events grouped by the civ's `tech_era` at that turn. Count `tradition_acquired`, `succession_crisis`, `hostage_taken` events.
