@@ -124,3 +124,164 @@ class TestSnapshotExtensions:
         snap = TurnSnapshot(turn=0, civ_stats={}, region_control={}, relationships={})
         assert snap.stress_index == 0
         assert snap.pandemic_regions == []
+
+
+from chronicler.models import (
+    ActiveCondition, PandemicRegion, WorldState, Region, Civilization,
+    Leader, Relationship, Disposition,
+)
+
+
+def _make_world(**overrides) -> WorldState:
+    """Create a minimal WorldState for testing."""
+    defaults = dict(name="Test", seed=42)
+    defaults.update(overrides)
+    return WorldState(**defaults)
+
+
+def _make_civ(name="TestCiv", **overrides) -> Civilization:
+    defaults = dict(
+        name=name, population=50, military=50, economy=50,
+        culture=50, stability=50,
+        leader=Leader(name="L", trait="bold", reign_start=0),
+    )
+    defaults.update(overrides)
+    return Civilization(**defaults)
+
+
+def _make_region(name="R1", **overrides) -> Region:
+    defaults = dict(name=name, terrain="plains", carrying_capacity=80, resources="fertile")
+    defaults.update(overrides)
+    return Region(**defaults)
+
+
+class TestComputeCivStress:
+    def test_zero_stress_baseline(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        assert compute_civ_stress(civ, world) == 0
+
+    def test_war_adds_3(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        world.active_wars = [("TestCiv", "EnemyCiv")]
+        assert compute_civ_stress(civ, world) == 3
+
+    def test_two_wars_adds_6(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        world.active_wars = [("TestCiv", "A"), ("B", "TestCiv")]
+        assert compute_civ_stress(civ, world) == 6
+
+    def test_famine_region_adds_2(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        r = _make_region(controller="TestCiv", famine_cooldown=3)
+        world.regions = [r]
+        assert compute_civ_stress(civ, world) == 2
+
+    def test_secession_risk_adds_4(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ(stability=15, regions=["R1", "R2", "R3"])
+        assert compute_civ_stress(civ, world) == 4
+
+    def test_pandemic_adds_2_per_region(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        r1 = _make_region(name="R1", controller="TestCiv")
+        r2 = _make_region(name="R2", controller="TestCiv")
+        world.regions = [r1, r2]
+        world.pandemic_state = [
+            PandemicRegion(region_name="R1", severity=2, turns_remaining=3),
+            PandemicRegion(region_name="R2", severity=1, turns_remaining=2),
+        ]
+        assert compute_civ_stress(civ, world) == 4
+
+    def test_turbulent_succession_adds_2(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        world.turn = 10
+        leader = Leader(name="L", trait="bold", reign_start=8, succession_type="usurper")
+        civ = _make_civ(leader=leader)
+        assert compute_civ_stress(civ, world) == 2
+
+    def test_old_succession_no_stress(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        world.turn = 100
+        leader = Leader(name="L", trait="bold", reign_start=10, succession_type="usurper")
+        civ = _make_civ(leader=leader)
+        assert compute_civ_stress(civ, world) == 0
+
+    def test_twilight_adds_3(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ(decline_turns=5)
+        assert compute_civ_stress(civ, world) == 3
+
+    def test_disaster_condition_adds_2(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        world.active_conditions = [
+            ActiveCondition(condition_type="drought", affected_civs=["TestCiv"], duration=3, severity=50),
+        ]
+        assert compute_civ_stress(civ, world) == 2
+
+    def test_volcanic_winter_counts(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        world.active_conditions = [
+            ActiveCondition(condition_type="volcanic_winter", affected_civs=["TestCiv"], duration=3, severity=40),
+        ]
+        assert compute_civ_stress(civ, world) == 2
+
+    def test_overextension_adds_per_region_beyond_6(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ(regions=[f"R{i}" for i in range(8)])
+        assert compute_civ_stress(civ, world) == 2  # 8 - 6 = 2
+
+    def test_stress_caps_at_20(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        world.turn = 1
+        leader = Leader(name="L", trait="bold", reign_start=0, succession_type="general")
+        civ = _make_civ(
+            stability=15, decline_turns=5, leader=leader,
+            regions=[f"R{i}" for i in range(16)],
+        )
+        world.active_wars = [("TestCiv", "A"), ("TestCiv", "B")]
+        world.active_conditions = [
+            ActiveCondition(condition_type="drought", affected_civs=["TestCiv"], duration=3, severity=50),
+        ]
+        assert compute_civ_stress(civ, world) == 20
+
+    def test_multiple_factors_stack(self):
+        from chronicler.emergence import compute_civ_stress
+        world = _make_world()
+        civ = _make_civ()
+        r = _make_region(controller="TestCiv", famine_cooldown=3)
+        world.regions = [r]
+        world.active_wars = [("TestCiv", "Enemy")]
+        assert compute_civ_stress(civ, world) == 5
+
+
+class TestComputeAllStress:
+    def test_updates_all_civs_and_global(self):
+        from chronicler.emergence import compute_all_stress
+        world = _make_world()
+        civ_a = _make_civ(name="A", decline_turns=5)
+        civ_b = _make_civ(name="B")
+        world.civilizations = [civ_a, civ_b]
+        compute_all_stress(world)
+        assert civ_a.civ_stress == 3
+        assert civ_b.civ_stress == 0
+        assert world.stress_index == 3
