@@ -745,3 +745,64 @@ class TestResourceDiscovery:
         events = _apply_resource_discovery(world, seed=42)
         assert len(events) == 1
         assert events[0].event_type == "resource_discovery"
+
+
+class TestTechAccident:
+    def _setup_industrial_world(self):
+        world = _make_world()
+        r1 = _make_region(name="Factory", controller="Civ1", fertility=0.8)
+        r2 = _make_region(name="Neighbor1", controller="Civ2", fertility=0.7)
+        r3 = _make_region(name="Neighbor2", controller="Civ2", fertility=0.6)
+        r1.adjacencies = ["Neighbor1"]
+        r2.adjacencies = ["Factory", "Neighbor2"]
+        r3.adjacencies = ["Neighbor1"]
+        r1.infrastructure = [
+            Infrastructure(type=InfrastructureType.MINES, builder_civ="Civ1", built_turn=0),
+        ]
+        world.regions = [r1, r2, r3]
+        world.civilizations = [
+            _make_civ(name="Civ1", tech_era=TechEra.INDUSTRIAL, regions=["Factory"]),
+            _make_civ(name="Civ2", regions=["Neighbor1", "Neighbor2"]),
+        ]
+        from chronicler.models import Relationship
+        world.relationships = {
+            "Civ1": {"Civ2": Relationship()},
+            "Civ2": {"Civ1": Relationship()},
+        }
+        return world
+
+    def test_target_region_fertility_drops(self):
+        from chronicler.emergence import _apply_tech_accident
+        world = self._setup_industrial_world()
+        _apply_tech_accident(world, seed=42)
+        assert world.regions[0].fertility == pytest.approx(0.5)
+
+    def test_adjacent_regions_fertility_drops(self):
+        from chronicler.emergence import _apply_tech_accident
+        world = self._setup_industrial_world()
+        _apply_tech_accident(world, seed=42)
+        assert world.regions[1].fertility == pytest.approx(0.55)
+
+    def test_two_hop_regions_affected(self):
+        from chronicler.emergence import _apply_tech_accident
+        world = self._setup_industrial_world()
+        _apply_tech_accident(world, seed=42)
+        assert world.regions[2].fertility == pytest.approx(0.45)
+
+    def test_diplomatic_fallout(self):
+        from chronicler.emergence import _apply_tech_accident
+        world = self._setup_industrial_world()
+        _apply_tech_accident(world, seed=42)
+        assert world.relationships["Civ2"]["Civ1"].disposition_drift <= -8
+
+    def test_scientist_reduces_radius(self):
+        from chronicler.emergence import _apply_tech_accident
+        from chronicler.models import GreatPerson
+        world = self._setup_industrial_world()
+        scientist = GreatPerson(
+            name="Dr. Test", role="scientist", trait="visionary",
+            civilization="Civ1", origin_civilization="Civ1", born_turn=0,
+        )
+        world.civilizations[0].great_persons = [scientist]
+        _apply_tech_accident(world, seed=42)
+        assert world.regions[2].fertility == pytest.approx(0.6)

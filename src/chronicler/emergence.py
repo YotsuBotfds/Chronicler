@@ -447,5 +447,55 @@ def _apply_resource_discovery(world: WorldState, seed: int) -> list[Event]:
 
 
 def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
-    """Placeholder — implemented in Task 16."""
-    return []
+    """Industrial+ era ecological disaster."""
+    rng = random.Random(seed + world.turn * 1033)
+
+    industrial_plus = {TechEra.INDUSTRIAL, TechEra.INFORMATION}
+    industrial_civs = [c for c in world.civilizations if c.tech_era in industrial_plus]
+    if not industrial_civs:
+        return []
+
+    civ = rng.choice(industrial_civs)
+
+    controlled = [r for r in world.regions if r.controller == civ.name]
+    if not controlled:
+        return []
+    from chronicler.models import InfrastructureType
+    mine_regions = [r for r in controlled
+                    if any(i.type == InfrastructureType.MINES and i.active for i in r.infrastructure)]
+    target = rng.choice(mine_regions if mine_regions else controlled)
+
+    has_scientist = any(gp.role == "scientist" and gp.active for gp in civ.great_persons)
+    max_hops = 1 if has_scientist else 2
+
+    target.fertility = max(0.0, round(target.fertility - 0.3, 4))
+
+    affected_neighbors: set[str] = set()
+    frontier = {target.name}
+    for hop in range(max_hops):
+        next_frontier: set[str] = set()
+        for rname in frontier:
+            region = next((r for r in world.regions if r.name == rname), None)
+            if region:
+                for adj in region.adjacencies:
+                    if adj != target.name and adj not in affected_neighbors:
+                        next_frontier.add(adj)
+                        affected_neighbors.add(adj)
+        frontier = next_frontier
+
+    polluter_name = civ.name
+    for rname in affected_neighbors:
+        region = next((r for r in world.regions if r.name == rname), None)
+        if region:
+            region.fertility = max(0.0, round(region.fertility - 0.15, 4))
+            if region.controller and region.controller != polluter_name:
+                if region.controller in world.relationships and polluter_name in world.relationships[region.controller]:
+                    world.relationships[region.controller][polluter_name].disposition_drift -= 8
+
+    return [Event(
+        turn=world.turn,
+        event_type="tech_accident",
+        actors=[civ.name],
+        description=f"Industrial disaster in {target.name} poisons the surrounding lands",
+        importance=8,
+    )]
