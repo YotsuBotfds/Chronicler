@@ -250,3 +250,38 @@ class TestGeneralExtractor:
         assert "first_war_turn_distribution" in result
         assert result["first_war_turn_distribution"]["median"] == 5
         assert "civs_alive_at_end" in result
+
+
+class TestEventFiringRates:
+    def test_discovers_event_types_from_data(self, tmp_path):
+        from chronicler.analytics import load_bundles, compute_event_firing_rates
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        rates = compute_event_firing_rates(bundles)
+        assert "famine" in rates
+        assert "war" in rates
+        assert rates["famine"] == 1.0
+        assert rates["war"] == 1.0
+
+
+class TestAnomalyDetection:
+    def test_detects_degenerate_patterns(self):
+        from chronicler.analytics import detect_anomalies
+        report = {
+            "stability": {"zero_rate_by_turn": {"100": 0.5}},
+            "event_firing_rates": {"famine": 0.99},
+            "general": {"median_era_at_final": "tribal"},
+        }
+        anomalies = detect_anomalies(report)
+        assert any(a["name"] == "stability_collapse" for a in anomalies)
+
+    def test_detects_never_fire(self):
+        from chronicler.analytics import detect_anomalies
+        report = {
+            "stability": {"zero_rate_by_turn": {}},
+            "event_firing_rates": {"famine": 1.0, "hostage_taken": 0.0},
+            "general": {"median_era_at_final": "medieval"},
+        }
+        anomalies = detect_anomalies(report)
+        never_fire = [a for a in anomalies if a["name"] == "never_fire"]
+        assert len(never_fire) >= 1

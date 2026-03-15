@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import statistics
+from datetime import datetime
 from pathlib import Path
 
 ERA_ORDER = [
@@ -333,3 +334,82 @@ def extract_general(bundles: list[dict]) -> dict:
         "first_war_turn_distribution": _compute_percentiles(first_war_turns),
         "action_diversity_median": action_diversity_median,
     }
+
+
+# --- Task 9: Anomaly Detection and Event Firing Rates ---
+
+EXPECTED_EVENT_TYPES = {
+    "famine", "embargo", "war", "secession", "collapse", "mercenary_spawned",
+    "vassal_imposed", "federation_formed", "proxy_war_started", "twilight_absorption",
+    "drought", "plague", "earthquake", "flood", "migration",
+    "movement_emerged", "paradigm_shift", "cultural_assimilation",
+    "great_person_born", "tradition_acquired", "succession_crisis",
+    "hostage_taken", "rivalry_formed", "folk_hero_created",
+    "pandemic", "supervolcano", "resource_discovery", "tech_accident",
+    "tech_regression", "terrain_transition",
+    "tech_advancement", "rebellion",
+}
+
+
+def compute_event_firing_rates(bundles: list[dict]) -> dict[str, float]:
+    """Discover event types from data and compute firing rates."""
+    n_runs = len(bundles)
+    type_run_sets: dict[str, set[int]] = {}
+    for i, bundle in enumerate(bundles):
+        for event in bundle.get("events_timeline", []):
+            et = event["event_type"]
+            if et not in type_run_sets:
+                type_run_sets[et] = set()
+            type_run_sets[et].add(i)
+    return {et: len(runs) / n_runs for et, runs in sorted(type_run_sets.items())}
+
+
+def detect_anomalies(report: dict) -> list[dict]:
+    """Run anomaly checks against a completed report."""
+    anomalies = []
+
+    # Degenerate pattern: stability collapse (worst checkpoint zero rate)
+    zero_rates = report.get("stability", {}).get("zero_rate_by_turn", {})
+    if zero_rates:
+        worst_cp = max(zero_rates, key=zero_rates.get)
+        worst_rate = zero_rates[worst_cp]
+        if worst_rate > 0.4:
+            anomalies.append({
+                "name": "stability_collapse", "severity": "CRITICAL",
+                "detail": f"{worst_rate:.0%} of civs at stability 0 at turn {worst_cp}",
+            })
+
+    # Degenerate pattern: universal famine
+    famine_rate = report.get("event_firing_rates", {}).get("famine", 0)
+    if famine_rate > 0.95:
+        anomalies.append({
+            "name": "universal_famine", "severity": "CRITICAL",
+            "detail": f"Famine fires in {famine_rate:.0%} of runs",
+        })
+
+    # Degenerate pattern: no late game
+    median_era = report.get("general", {}).get("median_era_at_final", "medieval")
+    if ERA_ORDER.index(median_era.lower()) < ERA_ORDER.index("medieval"):
+        anomalies.append({
+            "name": "no_late_game", "severity": "WARNING",
+            "detail": f"Median era at final turn is {median_era}",
+        })
+
+    # Never-fire: event types with < 5% rate (discovered from data)
+    firing_rates = report.get("event_firing_rates", {})
+    for et, rate in firing_rates.items():
+        if rate < 0.05:
+            anomalies.append({
+                "name": "never_fire", "severity": "WARNING",
+                "detail": f"{et} fired in {rate:.0%} of runs",
+            })
+
+    # Safety net: expected types completely absent from all bundles
+    present_types = set(firing_rates.keys())
+    for et in sorted(EXPECTED_EVENT_TYPES - present_types):
+        anomalies.append({
+            "name": "never_fire", "severity": "CRITICAL",
+            "detail": f"{et} absent from all runs (0 events across all bundles)",
+        })
+
+    return anomalies
