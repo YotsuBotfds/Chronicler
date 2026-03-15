@@ -134,3 +134,15 @@ def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldS
         rate = get_override(world, K_FOREST_REGROWTH, 0.01)
         rate *= _pressure_multiplier(region)
         region.ecology.forest_cover += rate
+
+
+def _apply_cross_effects(region: Region) -> None:
+    if region.ecology.forest_cover > 0.5:
+        region.ecology.soil += 0.01
+
+
+def _clamp_ecology(region: Region) -> None:
+    caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
+    region.ecology.soil = max(_FLOOR_SOIL, min(caps["soil"], round(region.ecology.soil, 4)))
+    region.ecology.water = max(_FLOOR_WATER, min(caps["water"], round(region.ecology.water, 4)))
+    region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], round(region.ecology.forest_cover, 4)))

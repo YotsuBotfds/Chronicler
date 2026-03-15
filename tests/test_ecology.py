@@ -395,3 +395,52 @@ class TestTickForest:
         _tick_forest(r, civ, ClimatePhase.COOLING, w)
         _tick_forest(r2, civ2, ClimatePhase.TEMPERATE, w2)
         assert r.ecology.forest_cover < r2.ecology.forest_cover
+
+
+# --- Task 8: _apply_cross_effects and _clamp_ecology ---
+
+from chronicler.ecology import _apply_cross_effects, _clamp_ecology
+
+
+class TestCrossEffects:
+    def test_forest_provides_soil_bonus(self):
+        r = Region(name="T", terrain="forest", carrying_capacity=100, resources="timber", population=0,
+                   ecology=RegionEcology(soil=0.5, water=0.6, forest_cover=0.6))
+        old_soil = r.ecology.soil
+        _apply_cross_effects(r)
+        assert r.ecology.soil > old_soil
+
+    def test_low_forest_no_soil_bonus(self):
+        r = Region(name="T", terrain="plains", carrying_capacity=100, resources="fertile", population=0,
+                   ecology=RegionEcology(soil=0.5, water=0.6, forest_cover=0.3))
+        old_soil = r.ecology.soil
+        _apply_cross_effects(r)
+        assert r.ecology.soil == old_soil
+
+
+class TestClampEcology:
+    def test_soil_floor(self):
+        r = Region(name="T", terrain="desert", carrying_capacity=30, resources="barren",
+                   ecology=RegionEcology(soil=0.01, water=0.10, forest_cover=0.0))
+        _clamp_ecology(r)
+        assert r.ecology.soil == 0.05
+
+    def test_water_floor(self):
+        r = Region(name="T", terrain="desert", carrying_capacity=30, resources="barren",
+                   ecology=RegionEcology(soil=0.20, water=0.02, forest_cover=0.0))
+        _clamp_ecology(r)
+        assert r.ecology.water == 0.10
+
+    def test_forest_floor_is_zero(self):
+        r = Region(name="T", terrain="desert", carrying_capacity=30, resources="barren",
+                   ecology=RegionEcology(soil=0.20, water=0.10, forest_cover=0.0))
+        _clamp_ecology(r)
+        assert r.ecology.forest_cover == 0.0
+
+    def test_terrain_caps_enforced(self):
+        r = Region(name="T", terrain="desert", carrying_capacity=30, resources="barren",
+                   ecology=RegionEcology(soil=0.50, water=0.50, forest_cover=0.50))
+        _clamp_ecology(r)
+        assert r.ecology.soil == 0.30
+        assert r.ecology.water == 0.20
+        assert r.ecology.forest_cover == 0.10
