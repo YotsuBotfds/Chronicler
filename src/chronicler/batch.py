@@ -26,6 +26,12 @@ def run_batch(
 
     results: list[RunResult] = []
 
+    # Load tuning overrides if provided
+    tuning_overrides: dict[str, float] = {}
+    if getattr(args, "tuning", None):
+        from chronicler.tuning import load_tuning
+        tuning_overrides = load_tuning(Path(args.tuning))
+
     if args.parallel:
         workers = args.parallel if isinstance(args.parallel, int) and args.parallel > 1 else max(1, multiprocessing.cpu_count() - 1)
         run_args = []
@@ -37,6 +43,7 @@ def run_batch(
             child_args.seed = run_seed
             child_args.output = str(run_dir / "chronicle.md")
             child_args.state = str(run_dir / "state.json")
+            child_args.tuning_overrides = tuning_overrides
             run_args.append((child_args, scenario_config))
 
         with multiprocessing.Pool(workers) as pool:
@@ -51,6 +58,7 @@ def run_batch(
             child_args.seed = run_seed
             child_args.output = str(run_dir / "chronicle.md")
             child_args.state = str(run_dir / "state.json")
+            child_args.tuning_overrides = tuning_overrides
 
             from chronicler.main import execute_run
             result = execute_run(

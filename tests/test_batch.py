@@ -19,6 +19,7 @@ def batch_args(tmp_path):
         llm_actions=False, scenario=None,
         batch=3, fork=None, interactive=False,
         parallel=None, pause_every=None,
+        tuning=None, simulate_only=False, seed_range=None,
     )
 
 
@@ -60,3 +61,14 @@ class TestRunBatch:
         narr = self._mock_llm("Story.")
         batch_dir = run_batch(batch_args, sim_client=sim, narrative_client=narr)
         assert batch_dir.name == "batch_42"
+
+    def test_tuning_overrides_applied(self, batch_args, tmp_path):
+        tuning_file = tmp_path / "tuning.yaml"
+        tuning_file.write_text("stability:\n  drain:\n    drought_immediate: 1\n")
+        batch_args.tuning = str(tuning_file)
+        batch_args.simulate_only = True
+        sim = self._mock_llm()
+        narr = self._mock_llm("Story.")
+        batch_dir = run_batch(batch_args, sim_client=sim, narrative_client=narr)
+        assert batch_dir.exists()
+        assert (batch_dir / "summary.md").exists()

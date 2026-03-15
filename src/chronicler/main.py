@@ -153,6 +153,10 @@ def execute_run(
             except Exception:
                 pass  # Goals remain empty on failure — non-fatal
 
+    # Apply tuning overrides to world state
+    if getattr(args, "tuning_overrides", None):
+        world.tuning_overrides = args.tuning_overrides
+
     # Initialize memory streams if not provided
     if memories is None:
         memories = {
@@ -536,6 +540,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="WebSocket server port for live mode (default: 8765)")
     parser.add_argument("--simulate-only", action="store_true",
                         help="Run simulation without LLM narrative generation")
+    parser.add_argument("--tuning", type=str, default=None,
+                        help="Path to tuning YAML file for constant overrides")
+    parser.add_argument("--seed-range", type=str, default=None,
+                        help="Seed range for batch mode (e.g., 1-200)")
     return parser
 
 
@@ -563,6 +571,23 @@ def main() -> None:
     if args.parallel is not None and args.llm_actions:
         print("Error: Cannot use --parallel with --llm-actions", file=sys.stderr)
         sys.exit(1)
+
+    # Parse --seed-range into seed + batch count
+    if getattr(args, "seed_range", None):
+        parts = args.seed_range.split("-")
+        if len(parts) != 2:
+            print("Error: --seed-range must be START-END (e.g., 1-200)", file=sys.stderr)
+            sys.exit(1)
+        try:
+            start, end = int(parts[0]), int(parts[1])
+        except ValueError:
+            print("Error: --seed-range values must be integers (e.g., 1-200)", file=sys.stderr)
+            sys.exit(1)
+        if start > end:
+            print(f"Error: --seed-range start ({start}) must be <= end ({end})", file=sys.stderr)
+            sys.exit(1)
+        args.seed = start
+        args.batch = end - start + 1
 
     # Skip LLM client and scenario resolution for live mode — run_live
     # handles both after receiving params from the client's start command
