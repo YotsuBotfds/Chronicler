@@ -53,6 +53,16 @@ def compute_crisis_probability(civ: Civilization, world: WorldState) -> float:
     if leader_reign > 15:
         modifiers *= 0.7
 
+    # Faction modifiers
+    from chronicler.factions import get_leader_faction_alignment
+    if civ.factions.power_struggle:
+        modifiers *= 1.4
+    alignment = get_leader_faction_alignment(civ.leader, civ.factions)
+    if alignment > 0.5:
+        modifiers *= 0.8
+    elif alignment < 0.2:
+        modifiers *= 1.3
+
     return max(0.05, min(0.40, base * region_factor * instability_factor * modifiers))
 
 
@@ -71,15 +81,9 @@ def trigger_crisis(civ: Civilization, world: WorldState) -> None:
     duration = min(5, max(1, len(civ.regions) // 2 + rng.randint(1, 2)))
     civ.succession_crisis_turns_remaining = duration
 
-    # Build candidate list from neighboring civs
-    civ.succession_candidates = []
-    for other in world.civilizations:
-        if other.name == civ.name:
-            continue
-        civ.succession_candidates.append({
-            "backer_civ": other.name,
-            "type": "diplomatic",
-        })
+    # Build faction-weighted candidate list
+    from chronicler.factions import generate_faction_candidates
+    civ.succession_candidates = generate_faction_candidates(civ, world)
 
 
 def tick_crisis(civ: Civilization, world: WorldState) -> None:
@@ -267,6 +271,13 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                 continue
             recognized_count = len(gp.recognized_by)
             base_prob = 0.05 + (0.03 * recognized_count)
+            from chronicler.factions import GP_ROLE_TO_FACTION, get_dominant_faction
+            exile_faction = GP_ROLE_TO_FACTION.get(gp.role)
+            origin_dominant = get_dominant_faction(origin.factions)
+            if exile_faction and exile_faction == origin_dominant:
+                base_prob *= 0.3
+            elif exile_faction:
+                base_prob *= 1.5
             rng = random.Random(world.seed + world.turn + hash(gp.name))
             if rng.random() < base_prob:
                 gp.active = False

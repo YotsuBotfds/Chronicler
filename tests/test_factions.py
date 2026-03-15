@@ -11,6 +11,7 @@ from chronicler.factions import (
     FOCUS_FACTION_MAP,
 )
 from chronicler.factions import count_faction_wins, _event_is_win
+from chronicler.factions import generate_faction_candidates, inherit_grudges_with_factions, FACTION_CANDIDATE_TYPE, GP_ROLE_TO_FACTION
 
 
 class TestFactionDataModel:
@@ -304,3 +305,69 @@ class TestTickFactions:
         events = tick_factions(world)
         shift_events = [e for e in events if e.event_type == "faction_dominance_shift"]
         assert len(shift_events) == 1
+
+
+class TestCandidateGeneration:
+    def test_internal_candidates_per_faction(self):
+        civ = _make_civ()
+        world = _make_world()
+        world.civilizations = [civ]
+        world.relationships = {}
+        candidates = generate_faction_candidates(civ, world)
+        types = {c["faction"] for c in candidates}
+        assert "military" in types
+        assert "merchant" in types
+        assert "cultural" in types
+
+    def test_weak_faction_excluded(self):
+        civ = _make_civ()
+        civ.factions.influence[FactionType.CULTURAL] = 0.10
+        civ.factions.influence[FactionType.MILITARY] = 0.50
+        civ.factions.influence[FactionType.MERCHANT] = 0.40
+        world = _make_world()
+        world.civilizations = [civ]
+        world.relationships = {}
+        candidates = generate_faction_candidates(civ, world)
+        factions = {c["faction"] for c in candidates}
+        assert "cultural" not in factions
+
+    def test_candidate_type_mapping(self):
+        assert FACTION_CANDIDATE_TYPE[FactionType.MILITARY] == "general"
+        assert FACTION_CANDIDATE_TYPE[FactionType.MERCHANT] == "elected"
+        assert FACTION_CANDIDATE_TYPE[FactionType.CULTURAL] == "heir"
+
+
+class TestGrudgeInheritance:
+    def test_same_faction_high_rate(self):
+        old = Leader(name="Old", trait="aggressive", reign_start=0)
+        old.grudges = [{"target": "Enemy", "intensity": 1.0}]
+        new = Leader(name="New", trait="bold", reign_start=10)
+        fs = FactionState()
+        inherit_grudges_with_factions(old, new, fs)
+        assert len(new.grudges) == 1
+        assert new.grudges[0]["intensity"] == pytest.approx(0.7)
+
+    def test_different_faction_low_rate(self):
+        old = Leader(name="Old", trait="aggressive", reign_start=0)
+        old.grudges = [{"target": "Enemy", "intensity": 1.0}]
+        new = Leader(name="New", trait="cautious", reign_start=10)
+        fs = FactionState()
+        inherit_grudges_with_factions(old, new, fs)
+        assert len(new.grudges) == 1
+        assert new.grudges[0]["intensity"] == pytest.approx(0.3)
+
+    def test_neutral_trait_default_rate(self):
+        old = Leader(name="Old", trait="stubborn", reign_start=0)
+        old.grudges = [{"target": "Enemy", "intensity": 1.0}]
+        new = Leader(name="New", trait="opportunistic", reign_start=10)
+        fs = FactionState()
+        inherit_grudges_with_factions(old, new, fs)
+        assert new.grudges[0]["intensity"] == pytest.approx(0.5)
+
+    def test_low_intensity_filtered(self):
+        old = Leader(name="Old", trait="aggressive", reign_start=0)
+        old.grudges = [{"target": "Enemy", "intensity": 0.01}]
+        new = Leader(name="New", trait="cautious", reign_start=10)
+        fs = FactionState()
+        inherit_grudges_with_factions(old, new, fs)
+        assert len(new.grudges) == 0

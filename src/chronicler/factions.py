@@ -1,13 +1,17 @@
 """M22: Faction system — influence, power struggles, weight modifiers, succession."""
 from __future__ import annotations
 
+import random
+
 from chronicler.models import (
     ActionType,
+    Disposition,
     Event,
     FactionType,
     FactionState,
     Civilization,
     Leader,
+    WorldState,
 )
 
 # ---------------------------------------------------------------------------
@@ -41,6 +45,24 @@ FOCUS_FACTION_MAP: dict[str, FactionType] = {
     "scholarship": FactionType.CULTURAL,
     "printing": FactionType.CULTURAL,
     "media": FactionType.CULTURAL,
+}
+
+FACTION_CANDIDATE_TYPE: dict[FactionType, str] = {
+    FactionType.MILITARY: "general",
+    FactionType.MERCHANT: "elected",
+    FactionType.CULTURAL: "heir",
+}
+
+GP_ROLE_TO_FACTION: dict[str, FactionType] = {
+    "general": FactionType.MILITARY,
+    "merchant": FactionType.MERCHANT,
+    "prophet": FactionType.CULTURAL,
+}
+
+GP_SUCCESSION_TYPE: dict[str, str] = {
+    "general": "general",
+    "merchant": "elected",
+    "prophet": "heir",
 }
 
 # ---------------------------------------------------------------------------
@@ -320,5 +342,201 @@ def tick_factions(world) -> list[Event]:
                     ),
                     importance=6,
                 ))
+
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Succession integration — candidates, resolution, grudge inheritance
+# ---------------------------------------------------------------------------
+
+def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[dict]:
+    """Create faction-weighted succession candidates.
+
+    - One internal candidate per faction with influence >= 0.15
+    - External candidates from allied/friendly civs
+    - GP candidates from active general/merchant/prophet
+    """
+    candidates: list[dict] = []
+
+    # Internal candidates: one per faction with sufficient influence
+    for ft in FactionType:
+        if civ.factions.influence.get(ft, 0) >= 0.15:
+            candidates.append({
+                "faction": ft.value,
+                "type": FACTION_CANDIDATE_TYPE[ft],
+                "source": "internal",
+                "weight": civ.factions.influence[ft],
+            })
+
+    # External candidates from allied/friendly civs
+    for other in world.civilizations:
+        if other.name == civ.name:
+            continue
+        rel = world.relationships.get(civ.name, {}).get(other.name)
+        if rel and rel.disposition in (Disposition.ALLIED, Disposition.FRIENDLY):
+            candidates.append({
+                "faction": "external",
+                "type": "diplomatic",
+                "source": "external",
+                "backer_civ": other.name,
+                "weight": 0.10,
+            })
+
+    # GP candidates from active general/merchant/prophet
+    dominant = get_dominant_faction(civ.factions)
+    for gp in civ.great_persons:
+        if not gp.active or not gp.alive:
+            continue
+        if gp.role not in GP_ROLE_TO_FACTION:
+            continue
+        gp_faction = GP_ROLE_TO_FACTION[gp.role]
+        weight = civ.factions.influence.get(gp_faction, 0)
+        if gp_faction == dominant:
+            weight += 0.10
+        candidates.append({
+            "faction": gp_faction.value,
+            "type": GP_SUCCESSION_TYPE[gp.role],
+            "source": "great_person",
+            "gp_name": gp.name,
+            "gp_trait": gp.trait,
+            "weight": weight,
+        })
+
+    return candidates
+
+
+def inherit_grudges_with_factions(
+    old_leader: Leader, new_leader: Leader, factions: FactionState
+) -> None:
+    """Transfer grudges from old leader to new leader at faction-variable rate.
+
+    - Same faction (both traits map to same FactionType): 0.7
+    - Different faction: 0.3
+    - Neutral trait (not in TRAIT_FACTION_MAP): 0.5
+    - Filters out grudges with inherited intensity < 0.01
+    """
+    old_faction = TRAIT_FACTION_MAP.get(old_leader.trait)
+    new_faction = TRAIT_FACTION_MAP.get(new_leader.trait)
+
+    if old_faction is None or new_faction is None:
+        rate = 0.5
+    elif old_faction == new_faction:
+        rate = 0.7
+    else:
+        rate = 0.3
+
+    for g in old_leader.grudges:
+        inherited_intensity = g["intensity"] * rate
+        if inherited_intensity >= 0.01:
+            new_leader.grudges.append({**g, "intensity": inherited_intensity})
+
+
+def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[Event]:
+    """End the crisis using faction-weighted candidate selection.
+
+    Mirrors the full flow of resolve_crisis in succession.py but integrates
+    faction candidates, weighted selection, and faction-aware grudge inheritance.
+    """
+    from chronicler.leaders import generate_successor, apply_leader_legacy
+    from chronicler.succession import create_exiled_leader
+    from chronicler.culture import upgrade_disposition
+
+    events: list[Event] = []
+    rng = random.Random(world.seed + world.turn + hash(civ.name))
+
+    old_leader = civ.leader
+    candidates = civ.succession_candidates
+
+    # 1. Select winner from candidates
+    winner = None
+    if candidates:
+        outsider_candidates = [c for c in candidates if c.get("source") == "external"]
+        if outsider_candidates and rng.random() < 0.10:
+            winner = rng.choice(outsider_candidates)
+        else:
+            weights = [c.get("weight", 0.1) for c in candidates]
+            winner = rng.choices(candidates, weights=weights, k=1)[0]
+
+    # Determine force_type from winner
+    force_type: str | None = None
+    if winner:
+        candidate_type = winner.get("type", "")
+        if candidate_type in ("general", "elected", "heir"):
+            force_type = candidate_type
+        elif candidate_type == "military":
+            force_type = "general"
+        elif candidate_type == "usurper":
+            force_type = "usurper"
+
+    # 2. Mark old leader dead
+    old_leader.alive = False
+
+    # 3. Apply legacy
+    legacy_event = apply_leader_legacy(civ, old_leader, world)
+    if legacy_event:
+        events.append(legacy_event)
+
+    # 4. Generate successor
+    new_leader = generate_successor(civ, world, seed=world.seed, force_type=force_type)
+
+    # 5. Override grudges: clear the ones from generate_successor, apply faction-aware inheritance
+    new_leader.grudges = []
+    inherit_grudges_with_factions(old_leader, new_leader, civ.factions)
+
+    # 6. Assign new leader
+    civ.leader = new_leader
+
+    # 7. Shift winning faction influence +0.15
+    if winner and winner.get("faction") and winner["faction"] != "external":
+        winning_ft = FactionType(winner["faction"])
+        shift_faction_influence(civ.factions, winning_ft, +0.15)
+
+    # 8. Handle GP winner (transfer name/trait, mark gp dead)
+    if winner and winner.get("source") == "great_person":
+        gp_name = winner.get("gp_name")
+        gp_trait = winner.get("gp_trait")
+        if gp_name:
+            new_leader.name = gp_name
+        if gp_trait:
+            new_leader.trait = gp_trait
+        # Mark the GP dead
+        for gp in civ.great_persons:
+            if gp.name == gp_name and gp.active:
+                gp.active = False
+                gp.alive = False
+                gp.fate = "dead"
+                break
+
+    # 9. Handle external backer (upgrade disposition)
+    if winner and winner.get("source") == "external":
+        backer_name = winner.get("backer_civ")
+        if backer_name:
+            rel = world.relationships.get(civ.name, {}).get(backer_name)
+            if rel:
+                rel.disposition = upgrade_disposition(rel.disposition)
+            # Upgrade the reverse direction too
+            rev_rel = world.relationships.get(backer_name, {}).get(civ.name)
+            if rev_rel:
+                rev_rel.disposition = upgrade_disposition(rev_rel.disposition)
+
+    # 10. Create exiled leader (call for side effects)
+    create_exiled_leader(old_leader, civ, world)
+
+    # 11. Emit event
+    events.append(Event(
+        turn=world.turn,
+        event_type="succession_crisis_resolved",
+        actors=[civ.name],
+        description=(
+            f"The succession crisis in {civ.name} ends: "
+            f"{new_leader.name} rises to power after the fall of {old_leader.name}."
+        ),
+        importance=8,
+    ))
+
+    # 12. Clean up crisis state
+    civ.succession_crisis_turns_remaining = 0
+    civ.succession_candidates = []
 
     return events
