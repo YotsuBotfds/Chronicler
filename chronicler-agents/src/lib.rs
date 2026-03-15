@@ -5,6 +5,8 @@
 
 use pyo3::prelude::*;
 
+mod agent;
+
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
 #[cfg(not(target_os = "windows"))]
