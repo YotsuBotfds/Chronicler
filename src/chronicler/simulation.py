@@ -934,6 +934,9 @@ def _check_famine(world: WorldState) -> list[Event]:
         civ = _get_civ(world, region.controller)
         if civ is None:
             continue
+        # M21: AGRICULTURE halves famine threshold
+        if civ and civ.active_focus == "agriculture":
+            threshold *= 0.5
         mult = get_severity_multiplier(civ)
         drain_region_pop(region, int(5 * mult))
         sync_civ_population(civ, world)

@@ -93,9 +93,10 @@ def check_tech_advancement(civ: Civilization, world: WorldState) -> Event | None
     if not _check_resource_requirements(civ, world):
         return None
     min_culture, min_economy, cost = reqs
-    if civ.culture < min_culture or civ.economy < min_economy or civ.treasury < cost:
+    effective_cost = int(cost * 0.8) if civ.active_focus == "scholarship" else cost
+    if civ.culture < min_culture or civ.economy < min_economy or civ.treasury < effective_cost:
         return None
-    civ.treasury -= cost
+    civ.treasury -= effective_cost
     new_era = _next_era(civ.tech_era)
     assert new_era is not None
     civ.tech_era = new_era

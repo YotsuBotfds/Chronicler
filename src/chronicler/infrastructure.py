@@ -57,6 +57,11 @@ def tick_infrastructure(world: WorldState) -> list:
     for region in world.regions:
         if region.pending_build is not None:
             region.pending_build.turns_remaining -= 1
+            # M21: FORTIFICATION reduces fort build time by 1 turn
+            if (region.pending_build.type == IType.FORTIFICATIONS and region.controller):
+                ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
+                if ctrl_civ and ctrl_civ.active_focus == "fortification":
+                    region.pending_build.turns_remaining = max(0, region.pending_build.turns_remaining - 1)
             if region.pending_build.turns_remaining <= 0:
                 completed = Infrastructure(
                     type=region.pending_build.type,
@@ -77,7 +82,13 @@ def tick_infrastructure(world: WorldState) -> list:
             i.type == IType.MINES and i.active for i in region.infrastructure
         )
         if has_active_mine:
-            region.fertility = max(region.fertility - 0.03, 0.0)
+            mine_degrade = 0.03
+            # M21: METALLURGY halves mine fertility degradation
+            if region.controller:
+                ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
+                if ctrl_civ and ctrl_civ.active_focus == "metallurgy":
+                    mine_degrade *= 0.5
+            region.fertility = max(region.fertility - mine_degrade, 0.0)
 
     return events
 
