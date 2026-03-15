@@ -12,7 +12,7 @@ from chronicler.models import (
     ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
 )
 from chronicler.tuning import K_GOVERNING_COST, get_override
-from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.utils import clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
 
 if TYPE_CHECKING:
     pass
@@ -99,7 +99,8 @@ def check_secession(world: WorldState) -> list[Event]:
     new_civs: list[Civilization] = []
 
     for civ in list(world.civilizations):
-        if civ.stability >= 20 or len(civ.regions) < 3:
+        secession_threshold = 10 if civ.active_focus == "surveillance" else 20
+        if civ.stability >= secession_threshold or len(civ.regions) < 3:
             continue
 
         prob = (20 - civ.stability) / 100
@@ -128,7 +129,9 @@ def check_secession(world: WorldState) -> list[Event]:
         remaining_regions = [r for r in civ.regions if r not in breakaway_regions]
 
         ratio = len(breakaway_regions) / len(civ.regions)
-        split_pop = math.floor(civ.population * ratio)
+        split_pop = sum(
+            r.population for r in world.regions if r.name in breakaway_regions
+        )
         split_mil = math.floor(civ.military * ratio)
         split_eco = math.floor(civ.economy * ratio)
         split_tre = math.floor(civ.treasury * ratio)
@@ -206,7 +209,6 @@ def check_secession(world: WorldState) -> list[Event]:
         # M17d: Tradition inheritance through secession
         breakaway_civ.traditions = list(civ.traditions)
 
-        civ.population = max(civ.population - split_pop, 1)
         civ.military = max(civ.military - split_mil, 0)
         civ.economy = max(civ.economy - split_eco, 0)
         civ.treasury -= split_tre
@@ -216,6 +218,8 @@ def check_secession(world: WorldState) -> list[Event]:
         for rn in breakaway_regions:
             if rn in region_map:
                 region_map[rn].controller = breakaway_name
+
+        sync_civ_population(civ, world)
 
         if civ.name not in world.relationships:
             world.relationships[civ.name] = {}
@@ -813,6 +817,7 @@ def check_restoration(world: WorldState) -> list[Event]:
         rng_trait = random.Random(world.seed + world.turn)
         new_trait = rng_trait.choice(_TRAIT_POOL)
 
+        region_map[target_region].population = 30
         restored_civ = Civilization(
             name=exile.original_civ_name,
             population=30, military=20, economy=20,
@@ -826,6 +831,7 @@ def check_restoration(world: WorldState) -> list[Event]:
         if target_region in absorber.regions:
             absorber.regions.remove(target_region)
         region_map[target_region].controller = exile.original_civ_name
+        sync_civ_population(absorber, world)
 
         world.relationships[exile.original_civ_name] = {}
         for c in world.civilizations:
@@ -940,7 +946,11 @@ def apply_twilight(world: WorldState) -> list[Event]:
     for civ in world.civilizations:
         if not _in_twilight(civ):
             continue
-        civ.population = clamp(civ.population - 3, STAT_FLOOR["population"], 100)
+        civ_regions = [r for r in world.regions if r.controller == civ.name]
+        if civ_regions:
+            target_r = max(civ_regions, key=lambda r: r.population)
+            drain_region_pop(target_r, 3)
+            sync_civ_population(civ, world)
         civ.culture = clamp(civ.culture - 2, STAT_FLOOR["culture"], 100)
         if civ.decline_turns == 20:
             events.append(Event(

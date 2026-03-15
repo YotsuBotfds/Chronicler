@@ -184,7 +184,9 @@ def resolve_invest_culture(civ, world: WorldState):
     if defender:
         adjustment = _counter_propaganda_reaction(world, defender, target, world.seed)
 
-    net_acceleration = PROPAGANDA_ACCELERATION + adjustment
+    # M21: MEDIA doubles propaganda acceleration
+    base_accel = PROPAGANDA_ACCELERATION * 2 if civ.active_focus == "media" else PROPAGANDA_ACCELERATION
+    net_acceleration = base_accel + adjustment
     target.foreign_control_turns += net_acceleration
 
     world.named_events.append(NamedEvent(

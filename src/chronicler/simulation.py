@@ -406,6 +406,15 @@ def phase_production(world: WorldState) -> None:
                     add_region_pop(r, 3)
             sync_civ_population(civ, world)
 
+        # M21: MECHANIZATION gives +2 treasury per active mine
+        if civ.active_focus == "mechanization":
+            from chronicler.models import InfrastructureType
+            mine_count = sum(
+                1 for r in world.regions if r.controller == civ.name
+                for i in r.infrastructure if i.type == InfrastructureType.MINES and i.active
+            )
+            civ.treasury += mine_count * 2
+
     # Stability recovery: passive per-turn recovery, halved during severe conditions
     for civ in world.civilizations:
         if civ.stability < 50:

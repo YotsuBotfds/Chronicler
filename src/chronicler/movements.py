@@ -96,6 +96,9 @@ def _process_spread(world: WorldState) -> None:
                     compatibility = 50
 
                 adoption_probability = rel.trade_volume * compatibility / 100
+                # M21: PRINTING doubles movement adoption probability
+                if civ.active_focus == "printing":
+                    adoption_probability *= 2
                 roll = int(hashlib.sha256(
                     f"{world.seed}:{world.turn}:{movement.id}:{civ.name}:spread".encode()
                 ).hexdigest(), 16) % 100
