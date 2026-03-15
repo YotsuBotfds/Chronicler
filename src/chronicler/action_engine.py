@@ -231,10 +231,24 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
         # Hostage capture on decisive outcomes
         if result.outcome == "defender_wins":
             from chronicler.relationships import capture_hostage
-            capture_hostage(civ, defender, world, contested_region=result.contested_region)
+            hostage = capture_hostage(civ, defender, world, contested_region=result.contested_region)
+            if hostage:
+                world.events_timeline.append(Event(
+                    turn=world.turn, event_type="hostage_taken",
+                    actors=[defender.name, civ.name],
+                    description=f"{defender.name} takes {hostage.name} hostage from {civ.name}.",
+                    importance=6,
+                ))
         elif result.outcome == "attacker_wins":
             from chronicler.relationships import capture_hostage
-            capture_hostage(defender, civ, world, contested_region=result.contested_region)
+            hostage = capture_hostage(defender, civ, world, contested_region=result.contested_region)
+            if hostage:
+                world.events_timeline.append(Event(
+                    turn=world.turn, event_type="hostage_taken",
+                    actors=[civ.name, defender.name],
+                    description=f"{civ.name} takes {hostage.name} hostage from {defender.name}.",
+                    importance=6,
+                ))
         return Event(
             turn=world.turn, event_type="war", actors=[civ.name, target_name],
             description=f"{civ.name} attacked {target_name}: {result.outcome}.", importance=8,

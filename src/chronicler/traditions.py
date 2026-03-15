@@ -79,9 +79,12 @@ TRADITION_CRYSTALLIZATION: dict = {
 MAX_TRADITIONS = 4
 
 
-def check_tradition_acquisition(world: WorldState) -> list[str]:
-    """Check and grant new traditions to civs based on event counts and legacy."""
-    granted = []
+def check_tradition_acquisition(world: WorldState) -> list[tuple[str, str]]:
+    """Check and grant new traditions to civs based on event counts and legacy.
+
+    Returns list of (civ_name, tradition_name) pairs.
+    """
+    granted: list[tuple[str, str]] = []
     for civ in world.civilizations:
         if len(civ.traditions) >= MAX_TRADITIONS:
             continue
@@ -92,13 +95,13 @@ def check_tradition_acquisition(world: WorldState) -> list[str]:
                 continue
             if trigger(civ):
                 civ.traditions.append(tradition)
-                granted.append(tradition)
+                granted.append((civ.name, tradition))
                 continue
             legacy_key, threshold = TRADITION_CRYSTALLIZATION[tradition]
             if civ.legacy_counts.get(legacy_key, 0) >= threshold:
                 if tradition not in civ.traditions:
                     civ.traditions.append(tradition)
-                    granted.append(tradition)
+                    granted.append((civ.name, tradition))
     return granted
 
 

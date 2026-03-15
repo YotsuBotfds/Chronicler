@@ -13,6 +13,11 @@ from chronicler.models import (
 )
 from chronicler.resources import get_active_trade_routes
 from chronicler.tech import _prev_era, remove_era_bonus
+from chronicler.tuning import (
+    K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
+    K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
+    get_override,
+)
 from chronicler.utils import clamp, STAT_FLOOR
 
 
@@ -171,7 +176,7 @@ def check_black_swans(world: WorldState, seed: int) -> list[Event]:
         return []
 
     rng = random.Random(seed + world.turn * 997)
-    prob = _BLACK_SWAN_BASE_PROB * world.chaos_multiplier
+    prob = get_override(world, K_BLACK_SWAN_BASE_PROB, _BLACK_SWAN_BASE_PROB) * world.chaos_multiplier
     if rng.random() >= prob:
         return []
 
@@ -186,7 +191,7 @@ def check_black_swans(world: WorldState, seed: int) -> list[Event]:
     chosen = rng.choices(types, weights=weights, k=1)[0]
 
     # Set cooldown
-    world.black_swan_cooldown = world.black_swan_cooldown_turns
+    world.black_swan_cooldown = int(get_override(world, K_BLACK_SWAN_COOLDOWN, world.black_swan_cooldown_turns))
 
     # Dispatch to specific handler
     handlers = {
@@ -514,7 +519,11 @@ _REGRESSION_TRIGGERS = {
 
 
 def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> list[Event]:
-    """Check regression triggers for all civs. Phase 10, after consequences."""
+    """Check regression triggers for all civs. Phase 10, after consequences.
+
+    Base regression probabilities are reduced by culture-based resistance:
+    effective_prob = base_prob * max(0.2, 1.0 - culture / 200)
+    """
     events: list[Event] = []
 
     for civ in world.civilizations:
@@ -528,20 +537,28 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
                 and civ.capital_region != civ.capital_start_of_turn
                 and civ.regions_start_of_turn > 0
                 and len(civ.regions) / civ.regions_start_of_turn < 0.5):
-            matching_probs.append(_REGRESSION_TRIGGERS["capital_collapse"])
+            matching_probs.append(
+                get_override(world, K_REGRESSION_CAPITAL_COLLAPSE, _REGRESSION_TRIGGERS["capital_collapse"])
+            )
 
         # Trigger 2: Entered twilight this turn
         if civ.decline_turns > 0 and not civ.was_in_twilight:
-            matching_probs.append(_REGRESSION_TRIGGERS["entered_twilight"])
+            matching_probs.append(
+                get_override(world, K_REGRESSION_TWILIGHT, _REGRESSION_TRIGGERS["entered_twilight"])
+            )
 
         # Trigger 3: Black swan while critically stressed
         if black_swan_fired and civ.civ_stress >= 15:
-            matching_probs.append(_REGRESSION_TRIGGERS["black_swan_stressed"])
+            matching_probs.append(
+                get_override(world, K_REGRESSION_BLACK_SWAN, _REGRESSION_TRIGGERS["black_swan_stressed"])
+            )
 
         if not matching_probs:
             continue
 
-        best_prob = max(matching_probs)
+        # Culture-based resistance: higher culture = lower regression probability
+        culture_resistance = max(0.2, 1.0 - civ.culture / 200)
+        best_prob = max(matching_probs) * culture_resistance
         rng = random.Random(world.seed + world.turn * 1037 + hash(civ.name))
         if rng.random() >= best_prob:
             continue

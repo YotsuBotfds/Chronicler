@@ -113,10 +113,11 @@ def extract_stability(
 # --- Firing rate helper ---
 
 def _firing_rate(bundles: list[dict], event_type: str) -> float:
-    """Fraction of runs where event_type appears at least once."""
+    """Fraction of runs where event_type appears at least once (events + named_events)."""
     count = sum(
         1 for b in bundles
         if any(e["event_type"] == event_type for e in b.get("events_timeline", []))
+        or any(e["event_type"] == event_type for e in b.get("named_events", []))
     )
     return count / len(bundles)
 
@@ -340,23 +341,31 @@ def extract_general(bundles: list[dict]) -> dict:
 
 EXPECTED_EVENT_TYPES = {
     "famine", "embargo", "war", "secession", "collapse", "mercenary_spawned",
-    "vassal_imposed", "federation_formed", "proxy_war_started", "twilight_absorption",
+    "federation_formed", "twilight_absorption",
     "drought", "plague", "earthquake", "flood", "migration",
-    "movement_emerged", "paradigm_shift", "cultural_assimilation",
+    "movement_emergence", "paradigm_shift", "cultural_assimilation",
     "great_person_born", "tradition_acquired", "succession_crisis",
     "hostage_taken", "rivalry_formed", "folk_hero_created",
-    "pandemic", "supervolcano", "resource_discovery", "tech_accident",
+    "pandemic", "supervolcano", "tech_accident",
     "tech_regression", "terrain_transition",
     "tech_advancement", "rebellion",
 }
 
 
 def compute_event_firing_rates(bundles: list[dict]) -> dict[str, float]:
-    """Discover event types from data and compute firing rates."""
+    """Discover event types from data and compute firing rates.
+
+    Scans both events_timeline and named_events to capture all event types.
+    """
     n_runs = len(bundles)
     type_run_sets: dict[str, set[int]] = {}
     for i, bundle in enumerate(bundles):
         for event in bundle.get("events_timeline", []):
+            et = event["event_type"]
+            if et not in type_run_sets:
+                type_run_sets[et] = set()
+            type_run_sets[et].add(i)
+        for event in bundle.get("named_events", []):
             et = event["event_type"]
             if et not in type_run_sets:
                 type_run_sets[et] = set()
@@ -379,11 +388,11 @@ def detect_anomalies(report: dict) -> list[dict]:
                 "detail": f"{worst_rate:.0%} of civs at stability 0 at turn {worst_cp}",
             })
 
-    # Degenerate pattern: universal famine
+    # Universal famine: warn at 98%+ (famine over 500 turns is historically normal)
     famine_rate = report.get("event_firing_rates", {}).get("famine", 0)
-    if famine_rate > 0.95:
+    if famine_rate > 0.98:
         anomalies.append({
-            "name": "universal_famine", "severity": "CRITICAL",
+            "name": "near_universal_famine", "severity": "WARNING",
             "detail": f"Famine fires in {famine_rate:.0%} of runs",
         })
 

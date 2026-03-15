@@ -20,6 +20,15 @@ K_FAMINE_STABILITY = "stability.drain.famine_immediate"
 K_WAR_COST_STABILITY = "stability.drain.war_cost"
 K_GOVERNING_COST = "stability.drain.governing_per_distance"
 K_CONDITION_ONGOING_DRAIN = "stability.drain.condition_ongoing"
+K_REBELLION_STABILITY = "stability.drain.rebellion"
+K_LEADER_DEATH_STABILITY = "stability.drain.leader_death"
+K_BORDER_INCIDENT_STABILITY = "stability.drain.border_incident"
+K_RELIGIOUS_MOVEMENT_STABILITY = "stability.drain.religious_movement"
+K_MIGRATION_STABILITY = "stability.drain.migration"
+K_TWILIGHT_STABILITY = "stability.drain.twilight"
+
+# Stability recovery
+K_STABILITY_RECOVERY = "stability.recovery_per_turn"
 
 # Fertility
 K_FERTILITY_DEGRADATION = "fertility.degradation_rate"
@@ -33,13 +42,23 @@ K_MILITARY_FREE_THRESHOLD = "military.maintenance_free_threshold"
 K_BLACK_SWAN_BASE_PROB = "emergence.black_swan_base_probability"
 K_BLACK_SWAN_COOLDOWN = "emergence.black_swan_cooldown_turns"
 
+# Regression
+K_REGRESSION_CAPITAL_COLLAPSE = "regression.capital_collapse_probability"
+K_REGRESSION_TWILIGHT = "regression.entered_twilight_probability"
+K_REGRESSION_BLACK_SWAN = "regression.black_swan_stressed_probability"
+
 # Complete set of known override keys
 KNOWN_OVERRIDES: set[str] = {
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY, K_GOVERNING_COST,
     K_CONDITION_ONGOING_DRAIN,
+    K_REBELLION_STABILITY, K_LEADER_DEATH_STABILITY,
+    K_BORDER_INCIDENT_STABILITY, K_RELIGIOUS_MOVEMENT_STABILITY,
+    K_MIGRATION_STABILITY, K_TWILIGHT_STABILITY,
+    K_STABILITY_RECOVERY,
     K_FERTILITY_DEGRADATION, K_FERTILITY_RECOVERY, K_FAMINE_THRESHOLD,
     K_MILITARY_FREE_THRESHOLD, K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
+    K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
 }
 
 

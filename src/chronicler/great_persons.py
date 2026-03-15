@@ -86,9 +86,35 @@ def _total_great_persons(world: WorldState) -> int:
 def _retire_person(gp: GreatPerson, civ: Civilization, world: WorldState) -> None:
     gp.active = False
     gp.fate = "retired"
+    gp.death_turn = world.turn
     if gp in civ.great_persons:
         civ.great_persons.remove(gp)
     world.retired_persons.append(gp)
+    # Check for folk hero if civ is in dramatic circumstances
+    context = _infer_dramatic_context(civ, world)
+    if context:
+        from chronicler.traditions import check_folk_hero
+        became_hero = check_folk_hero(gp, civ, world, context=context)
+        if became_hero:
+            from chronicler.models import Event
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type="folk_hero_created",
+                actors=[civ.name],
+                description=f"{gp.name} of {civ.name} becomes a folk hero after a dramatic {context}.",
+                importance=6,
+            ))
+
+
+def _infer_dramatic_context(civ: Civilization, world: WorldState) -> str | None:
+    """Infer dramatic death context from current civ state."""
+    if any(civ.name in w for w in world.active_wars):
+        return "war"
+    if any(c.condition_type in ("drought", "plague", "volcanic_winter")
+           and civ.name in c.affected_civs for c in world.active_conditions):
+        return "disaster"
+    if civ.succession_crisis_turns_remaining > 0:
+        return "succession_crisis"
+    return None
 
 
 def _enforce_cap(civ: Civilization, world: WorldState) -> None:
@@ -235,5 +261,13 @@ def kill_great_person(
     world.retired_persons.append(gp)
     # Check for folk hero elevation
     from chronicler.traditions import check_folk_hero
-    check_folk_hero(gp, civ, world, context=context)
+    became_hero = check_folk_hero(gp, civ, world, context=context)
+    if became_hero:
+        from chronicler.models import Event
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="folk_hero_created",
+            actors=[civ.name],
+            description=f"{gp.name} of {civ.name} becomes a folk hero after a dramatic {context}.",
+            importance=6,
+        ))
     return gp

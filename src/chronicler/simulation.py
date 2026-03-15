@@ -53,8 +53,13 @@ from chronicler.succession import (
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
 from chronicler.tuning import (
-    K_DROUGHT_STABILITY, K_PLAGUE_STABILITY, K_FAMINE_STABILITY,
-    K_WAR_COST_STABILITY, K_FAMINE_THRESHOLD,
+    K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
+    K_FAMINE_STABILITY, K_WAR_COST_STABILITY, K_FAMINE_THRESHOLD,
+    K_CONDITION_ONGOING_DRAIN, K_FERTILITY_DEGRADATION, K_FERTILITY_RECOVERY,
+    K_MILITARY_FREE_THRESHOLD,
+    K_REBELLION_STABILITY, K_LEADER_DEATH_STABILITY,
+    K_BORDER_INCIDENT_STABILITY, K_RELIGIOUS_MOVEMENT_STABILITY,
+    K_MIGRATION_STABILITY, K_STABILITY_RECOVERY,
     get_override,
 )
 
@@ -118,7 +123,7 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         if event.event_type == "drought":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                drain = int(get_override(world, K_DROUGHT_STABILITY, 10))
+                drain = int(get_override(world, K_DROUGHT_STABILITY, 3))
                 civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
                 civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
             world.active_conditions.append(
@@ -133,7 +138,7 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
             for civ in affected:
                 mult = get_severity_multiplier(civ)
                 civ.population = clamp(civ.population - int(10 * mult), STAT_FLOOR["population"], 100)
-                drain = int(get_override(world, K_PLAGUE_STABILITY, 10))
+                drain = int(get_override(world, K_PLAGUE_STABILITY, 3))
                 civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
             world.active_conditions.append(
                 ActiveCondition(
@@ -168,10 +173,11 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     infra_events = tick_infrastructure(world)
     events.extend(infra_events)
 
-    # 1. Military maintenance: free up to 30, then (mil-30)//10 per turn
+    # 1. Military maintenance: free up to threshold, then (mil-threshold)//10 per turn
+    free_threshold = int(get_override(world, K_MILITARY_FREE_THRESHOLD, 30))
     for civ in world.civilizations:
-        if civ.military > 30:
-            cost = (civ.military - 30) // 10
+        if civ.military > free_threshold:
+            cost = (civ.military - free_threshold) // 10
             civ.treasury -= cost
 
     # 2. Trade income
@@ -248,7 +254,7 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
             if c:
                 c.treasury -= 3
                 if c.treasury <= 0:
-                    drain = int(get_override(world, K_WAR_COST_STABILITY, 5))
+                    drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
                     c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
 
     # 6. Mercenary system
@@ -268,6 +274,12 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
                 "strength": strength, "origin_civ": civ.name,
                 "location": region, "available": True, "hired_by": None,
             })
+            events.append(Event(
+                turn=world.turn, event_type="mercenary_spawned",
+                actors=[civ.name],
+                description=f"A mercenary company forms from {civ.name}'s overextended military.",
+                importance=5,
+            ))
             civ.merc_pressure_turns = 0
     # Mercenary hiring: underdog priority in active wars
     for merc in world.mercenary_companies:
@@ -367,6 +379,17 @@ def phase_production(world: WorldState) -> None:
             civ.population = clamp(civ.population + 5, STAT_FLOOR["population"], 100)
         elif civ.stability <= 10 and civ.population > 1:
             civ.population = clamp(civ.population - 5, STAT_FLOOR["population"], 100)
+
+    # Stability recovery: passive per-turn recovery, halved during severe conditions
+    for civ in world.civilizations:
+        if civ.stability < 50:
+            base_recovery = int(get_override(world, K_STABILITY_RECOVERY, 20))
+            has_severe_condition = any(
+                c.severity >= 50 and civ.name in c.affected_civs
+                for c in world.active_conditions
+            )
+            recovery = base_recovery // 2 if has_severe_condition else base_recovery
+            civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
 
     # M16a: Prestige decay and trade bonus
     tick_prestige(world)
@@ -487,7 +510,8 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         old_leader = civ.leader
         old_leader.alive = False
         mult = get_severity_multiplier(civ)
-        civ.stability = clamp(civ.stability - int(20 * mult), STAT_FLOOR["stability"], 100)
+        drain = int(get_override(world, K_LEADER_DEATH_STABILITY, 4))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
         check_rival_fall(civ, old_leader.name, world)
         # Check whether death triggers a succession crisis instead of immediate succession
@@ -495,6 +519,12 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         rng = _random.Random(world.seed + world.turn + hash(civ.name))
         if crisis_prob > 0.0 and rng.random() < crisis_prob and not is_in_crisis(civ):
             trigger_crisis(civ, world)
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type="succession_crisis",
+                actors=[civ.name],
+                description=f"A succession crisis erupts in {civ.name} after the death of {old_leader.name}.",
+                importance=8,
+            ))
         else:
             new_leader = generate_successor(civ, world, seed=world.turn * 100)
             from chronicler.succession import inherit_grudges
@@ -502,7 +532,8 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
             civ.leader = new_leader
     elif event_type == "rebellion":
         mult = get_severity_multiplier(civ)
-        civ.stability = clamp(civ.stability - int(20 * mult), STAT_FLOOR["stability"], 100)
+        drain = int(get_override(world, K_REBELLION_STABILITY, 4))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
     elif event_type == "discovery":
         civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
@@ -510,17 +541,20 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
     elif event_type == "religious_movement":
         civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
         mult = get_severity_multiplier(civ)
-        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+        drain = int(get_override(world, K_RELIGIOUS_MOVEMENT_STABILITY, 4))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "cultural_renaissance":
         civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
         civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
         civ.population = clamp(civ.population + 10, STAT_FLOOR["population"], 100)
         mult = get_severity_multiplier(civ)
-        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+        drain = int(get_override(world, K_MIGRATION_STABILITY, 4))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "border_incident":
         mult = get_severity_multiplier(civ)
-        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+        drain = int(get_override(world, K_BORDER_INCIDENT_STABILITY, 2))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
 
 def apply_injected_event(
@@ -583,7 +617,11 @@ def phase_consequences(world: WorldState) -> list[Event]:
             civ = _get_civ(world, civ_name)
             if civ and condition.severity >= 50:
                 mult = get_severity_multiplier(civ)
-                civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+                if condition.condition_type == "drought":
+                    drain = int(get_override(world, K_DROUGHT_ONGOING, 2))
+                else:
+                    drain = int(get_override(world, K_CONDITION_ONGOING_DRAIN, 1))
+                civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
 
@@ -646,14 +684,28 @@ def phase_consequences(world: WorldState) -> list[Event]:
     # --- M17d: Event counts and tradition acquisition (runs before great person generation) ---
     from chronicler.traditions import update_event_counts, check_tradition_acquisition
     update_event_counts(world)
-    check_tradition_acquisition(world)
+    acquired_traditions = check_tradition_acquisition(world)
+    for civ_name, trad_name in acquired_traditions:
+        collapse_events.append(Event(
+            turn=world.turn, event_type="tradition_acquired",
+            actors=[civ_name],
+            description=f"{civ_name} acquires the tradition of {trad_name}.",
+            importance=5,
+        ))
 
     # --- M17: Great Person Consequences ---
     from chronicler.great_persons import check_great_person_generation, check_lifespan_expiry
     for civ in world.civilizations:
         if not civ.regions:
             continue
-        check_great_person_generation(civ, world)
+        new_persons = check_great_person_generation(civ, world)
+        for gp in new_persons:
+            collapse_events.append(Event(
+                turn=world.turn, event_type="great_person_born",
+                actors=[civ.name],
+                description=f"A great {gp.role} emerges in {civ.name}: {gp.name}.",
+                importance=6,
+            ))
         check_lifespan_expiry(civ, world)
 
     # M17b: Exile restoration checks
@@ -661,7 +713,14 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     # M17c: Character relationship formation
     from chronicler.relationships import check_rivalry_formation, check_mentorship_formation, check_marriage_formation
-    check_rivalry_formation(world)
+    new_rivalries = check_rivalry_formation(world)
+    for rivalry in new_rivalries:
+        collapse_events.append(Event(
+            turn=world.turn, event_type="rivalry_formed",
+            actors=[rivalry.get("civ_a", ""), rivalry.get("civ_b", "")],
+            description=f"A rivalry forms between great persons of opposing civilizations.",
+            importance=5,
+        ))
     check_mentorship_formation(world)
     check_marriage_formation(world)
 
@@ -794,10 +853,12 @@ def phase_fertility(world: WorldState) -> list[Event]:
         eff_cap = effective_capacity(region)
         region_pop = civ.population // len(civ.regions) if civ.regions else 0
 
+        degradation = get_override(world, K_FERTILITY_DEGRADATION, 0.005)
+        recovery = get_override(world, K_FERTILITY_RECOVERY, 0.05)
         if region_pop > eff_cap:
-            region.fertility = max(0.0, round(region.fertility - 0.02 * multiplier, 4))
+            region.fertility = max(0.0, round(region.fertility - degradation * multiplier, 4))
         elif region_pop < eff_cap * 0.5:
-            region.fertility = min(cap, round(region.fertility + 0.01, 4))
+            region.fertility = min(cap, round(region.fertility + recovery, 4))
 
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
@@ -818,7 +879,7 @@ def _check_famine(world: WorldState) -> list[Event]:
     """Check for famine in low-fertility regions."""
     events = []
     for region in world.regions:
-        threshold = get_override(world, K_FAMINE_THRESHOLD, 0.3)
+        threshold = get_override(world, K_FAMINE_THRESHOLD, 0.05)
         if region.controller is None or region.fertility >= threshold or region.famine_cooldown > 0:
             continue
         civ = _get_civ(world, region.controller)
@@ -826,7 +887,7 @@ def _check_famine(world: WorldState) -> list[Event]:
             continue
         mult = get_severity_multiplier(civ)
         civ.population = clamp(civ.population - int(15 * mult), STAT_FLOOR["population"], 100)
-        drain = int(get_override(world, K_FAMINE_STABILITY, 10))
+        drain = int(get_override(world, K_FAMINE_STABILITY, 3))
         civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         region.famine_cooldown = 5
         for adj_name in region.adjacencies:

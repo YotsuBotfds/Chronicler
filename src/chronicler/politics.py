@@ -11,6 +11,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent,
     ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
 )
+from chronicler.tuning import K_GOVERNING_COST, get_override
 from chronicler.utils import clamp, STAT_FLOOR
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ def apply_governing_costs(world: WorldState) -> list[Event]:
         treasury_cost = (region_count - 2) * 2
 
         stability_cost = 0
+        gov_cost_per_dist = int(get_override(world, K_GOVERNING_COST, 0.5))
         for region_name in civ.regions:
             if region_name == civ.capital_region:
                 continue
@@ -39,7 +41,7 @@ def apply_governing_costs(world: WorldState) -> list[Event]:
             if dist < 0:
                 dist = 1  # fallback if disconnected
             treasury_cost += dist * 2
-            stability_cost += dist * 1
+            stability_cost += dist * gov_cost_per_dist
 
         civ.treasury -= treasury_cost
         civ.stability = clamp(civ.stability - stability_cost, STAT_FLOOR["stability"], 100)
