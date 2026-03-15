@@ -58,6 +58,11 @@ def _era_at_least(era: TechEra, minimum: TechEra) -> bool:
 
 # --- Helpers ---
 
+def _power_struggle_factor(civ: Civilization) -> float:
+    """Returns 0.8 if civ is in a power struggle, 1.0 otherwise."""
+    return 0.8 if civ.factions.power_struggle else 1.0
+
+
 def _get_civ(world: WorldState, name: str) -> Civilization | None:
     for c in world.civilizations:
         if c.name == name:
@@ -73,11 +78,12 @@ def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
     cost = 5 + civ.economy // 10
     if civ.treasury >= cost:
         civ.treasury -= cost
+        factor = _power_struggle_factor(civ)
         if civ.economy <= civ.culture:
-            civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
+            civ.economy = clamp(civ.economy + int(10 * factor), STAT_FLOOR["economy"], 100)
             target = "economy"
         else:
-            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+            civ.culture = clamp(civ.culture + int(10 * factor), STAT_FLOOR["culture"], 100)
             target = "culture"
         return Event(
             turn=world.turn, event_type="develop", actors=[civ.name],
@@ -425,6 +431,8 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> 
         gain2 = int(gain2 * 1.5)
     if civ2.active_focus == "commerce" and civ1.active_focus != "networks":
         gain1 = int(gain1 * 1.5)
+    gain1 = int(gain1 * _power_struggle_factor(civ1))
+    gain2 = int(gain2 * _power_struggle_factor(civ2))
     civ1.treasury += gain1
     civ2.treasury += gain2
     if civ1.name in world.relationships and civ2.name in world.relationships[civ1.name]:

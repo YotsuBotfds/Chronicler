@@ -374,6 +374,15 @@ class TestGrudgeInheritance:
         assert len(new.grudges) == 0
 
 
+class TestPowerStruggleEffectiveness:
+    def test_power_struggle_reduces_action_effectiveness(self):
+        from chronicler.action_engine import _power_struggle_factor
+        civ = _make_civ()
+        assert _power_struggle_factor(civ) == 1.0
+        civ.factions.power_struggle = True
+        assert _power_struggle_factor(civ) == 0.8
+
+
 class TestSecessionViability:
     def test_total_effective_capacity(self):
         from chronicler.models import Region

@@ -187,6 +187,9 @@ def resolve_invest_culture(civ, world: WorldState):
     # M21: MEDIA doubles propaganda acceleration
     base_accel = PROPAGANDA_ACCELERATION * 2 if civ.active_focus == "media" else PROPAGANDA_ACCELERATION
     net_acceleration = base_accel + adjustment
+    # M22: Power struggle reduces action effectiveness by 20%
+    from chronicler.action_engine import _power_struggle_factor
+    net_acceleration = int(net_acceleration * _power_struggle_factor(civ))
     target.foreign_control_turns += net_acceleration
 
     world.named_events.append(NamedEvent(
