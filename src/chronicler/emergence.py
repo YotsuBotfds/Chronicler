@@ -408,8 +408,42 @@ def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
 
 
 def _apply_resource_discovery(world: WorldState, seed: int) -> list[Event]:
-    """Placeholder — implemented in Task 15."""
-    return []
+    """Add strategic resources to a barren region."""
+    rng = random.Random(seed + world.turn * 1031)
+
+    barren = [r for r in world.regions if len(r.specialized_resources) == 0]
+    if not barren:
+        return []
+
+    region = rng.choice(barren)
+    count = rng.randint(1, 2)
+    new_resources = rng.sample([Resource.FUEL, Resource.RARE_MINERALS], k=count)
+    region.specialized_resources.extend(new_resources)
+
+    controller = region.controller
+    for adj_name in region.adjacencies:
+        adj = next((r for r in world.regions if r.name == adj_name), None)
+        if adj is None or adj.controller is None:
+            continue
+        adj_ctrl = adj.controller
+        if controller and adj_ctrl != controller:
+            if adj_ctrl in world.relationships and controller in world.relationships[adj_ctrl]:
+                world.relationships[adj_ctrl][controller].disposition_drift -= 5
+        elif controller is None:
+            for other_adj_name in region.adjacencies:
+                other_adj = next((r for r in world.regions if r.name == other_adj_name), None)
+                if other_adj and other_adj.controller and other_adj.controller != adj_ctrl:
+                    if adj_ctrl in world.relationships and other_adj.controller in world.relationships[adj_ctrl]:
+                        world.relationships[adj_ctrl][other_adj.controller].disposition_drift -= 5
+
+    resource_names = ", ".join(r.value for r in new_resources)
+    return [Event(
+        turn=world.turn,
+        event_type="resource_discovery",
+        actors=[controller] if controller else [],
+        description=f"Deposits of {resource_names} discovered in {region.name}!",
+        importance=8,
+    )]
 
 
 def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:

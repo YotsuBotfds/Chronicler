@@ -703,3 +703,45 @@ class TestSupervolcano:
         _apply_supervolcano(world, seed=42)
         assert world.regions[2].fertility == pytest.approx(0.1)
         assert world.civilizations[1].population == 70
+
+
+class TestResourceDiscovery:
+    def test_adds_resources_to_barren_region(self):
+        from chronicler.emergence import _apply_resource_discovery
+        world = _make_world()
+        r = _make_region(name="Barren", specialized_resources=[], controller="Civ1")
+        world.regions = [r]
+        world.civilizations = [_make_civ(name="Civ1", regions=["Barren"])]
+        _apply_resource_discovery(world, seed=42)
+        assert len(r.specialized_resources) >= 1
+        assert all(res in (Resource.FUEL, Resource.RARE_MINERALS) for res in r.specialized_resources)
+
+    def test_diplomatic_drift_on_adjacent_civs(self):
+        from chronicler.emergence import _apply_resource_discovery
+        world = _make_world()
+        r1 = _make_region(name="Barren", specialized_resources=[], controller="Civ1")
+        r2 = _make_region(name="Neighbor", controller="Civ2")
+        r1.adjacencies = ["Neighbor"]
+        r2.adjacencies = ["Barren"]
+        world.regions = [r1, r2]
+        world.civilizations = [
+            _make_civ(name="Civ1", regions=["Barren"]),
+            _make_civ(name="Civ2", regions=["Neighbor"]),
+        ]
+        from chronicler.models import Relationship
+        world.relationships = {
+            "Civ1": {"Civ2": Relationship()},
+            "Civ2": {"Civ1": Relationship()},
+        }
+        _apply_resource_discovery(world, seed=42)
+        assert world.relationships["Civ2"]["Civ1"].disposition_drift <= -5
+
+    def test_discovery_returns_event(self):
+        from chronicler.emergence import _apply_resource_discovery
+        world = _make_world()
+        r = _make_region(name="Barren", specialized_resources=[])
+        world.regions = [r]
+        world.civilizations = [_make_civ()]
+        events = _apply_resource_discovery(world, seed=42)
+        assert len(events) == 1
+        assert events[0].event_type == "resource_discovery"
