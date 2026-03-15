@@ -370,8 +370,8 @@ from chronicler.politics import choose_vassalize_or_absorb, collect_tribute
 def _make_two_civ_world(winner_stability=50, winner_trait="cautious"):
     from chronicler.models import Region, Relationship, Disposition
     regions = [
-        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["B"]),
-        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["A"]),
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["B"], controller="Winner"),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["A"], controller="Loser"),
     ]
     w_leader = Leader(name="WL", trait=winner_trait, reign_start=0)
     l_leader = Leader(name="LL", trait="bold", reign_start=0)

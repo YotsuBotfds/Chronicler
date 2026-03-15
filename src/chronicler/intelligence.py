@@ -1,6 +1,7 @@
 """M24: Information Asymmetry — perception layer for cross-civ stat reads."""
 from __future__ import annotations
 
+import hashlib
 import random
 from typing import TYPE_CHECKING
 
@@ -125,7 +126,9 @@ def get_perceived_stat(observer: Civilization, target: Civilization,
     if noise_range == 0:
         return actual
 
-    rng = random.Random(hash((world.seed, observer.name, target.name, world.turn, stat)))
+    seed_bytes = f"{world.seed}:{observer.name}:{target.name}:{world.turn}:{stat}".encode()
+    seed_int = int.from_bytes(hashlib.sha256(seed_bytes).digest()[:8], "little")
+    rng = random.Random(seed_int)
     noise = int(rng.gauss(0, noise_range / 2))
     noise = max(-noise_range, min(noise_range, noise))
     return max(0, min(max_value, actual + noise))
