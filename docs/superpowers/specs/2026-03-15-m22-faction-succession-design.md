@@ -455,10 +455,18 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
 
 Replaces uniform random selection in `resolve_crisis()` (succession.py lines 91-136):
 
-**Important:** `generate_successor()` (leaders.py) is not just a leader factory. It internally handles: `civ.leader = new_leader` assignment, `old_leader.alive = False`, `apply_leader_legacy(civ, old_leader, world)`, `inherit_grudges(old_leader, new_leader)` at flat 0.5 rate, and exile creation. The faction-aware resolution function calls `generate_successor` for all of this, then applies faction-specific post-processing.
+**Division of labor between `generate_successor` and `resolve_crisis`:**
+
+`generate_successor()` (leaders.py:187-230) creates a Leader object, applies succession-type stat effects (general: -10 stability/+10 military, usurper: -30 stability, elected: +10 stability), calls `inherit_grudges(old_leader, new_leader)` at flat 0.5 rate, resets `civ.action_counts`, and returns the Leader. It does NOT assign `civ.leader`, mark `old_leader.alive = False`, call `apply_leader_legacy`, or create exiles.
+
+`resolve_crisis()` (succession.py:91-136) is the caller that handles those steps: marks old leader dead, applies legacy, calls `generate_successor`, assigns `civ.leader`, cleans up crisis state, and emits the `succession_crisis_resolved` event. Note: `resolve_crisis` also calls `inherit_grudges` a second time (succession.py:119), which is a pre-existing double-inheritance bug -- M22's replacement function corrects this.
+
+`resolve_crisis_with_factions` mirrors `resolve_crisis`'s full flow, replacing candidate selection and grudge inheritance:
 
 ```python
 def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[Event]:
+    from chronicler.leaders import generate_successor, apply_leader_legacy
+
     rng = random.Random(world.seed + world.turn + hash(civ.name))
     events = []
 
@@ -477,17 +485,24 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
 
     force_type = winner["type"]
     old_leader = civ.leader
-    old_factions = civ.factions.model_copy(deep=True)  # snapshot for grudge comparison
+    old_leader.alive = False
 
-    # generate_successor handles: civ.leader assignment, old_leader.alive = False,
-    # apply_leader_legacy(), inherit_grudges() at flat 0.5, exile creation.
+    # Apply legacy (mirrors resolve_crisis line 101-103)
+    legacy_event = apply_leader_legacy(civ, old_leader, world)
+    if legacy_event:
+        events.append(legacy_event)
+
+    # generate_successor creates Leader, applies stat effects, inherits grudges at 0.5
     new_leader = generate_successor(civ, world, seed=world.seed, force_type=force_type)
-    # civ.leader is now new_leader (assigned inside generate_successor)
 
     # Override grudge inheritance with faction-aware rates.
-    # generate_successor already applied flat 0.5 rate -- replace with faction-aware.
+    # generate_successor already applied flat 0.5 -- clear and re-apply.
+    # (Also fixes the pre-existing double-inheritance in resolve_crisis.)
     new_leader.grudges = []
-    inherit_grudges_with_factions(old_leader, new_leader, old_factions)
+    inherit_grudges_with_factions(old_leader, new_leader, civ.factions)
+
+    # Assign new leader (generate_successor does NOT do this)
+    civ.leader = new_leader
 
     # Faction influence shift from resolution
     winning_faction = FactionType(winner["faction"])
@@ -510,6 +525,10 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
             # upgrade_disposition: new helper in factions.py
             # hostile -> suspicious -> neutral -> friendly -> allied
 
+    # Exile old leader (existing M17 logic -- create_exiled_leader handles GP
+    # creation internally, returns str | None for host civ name)
+    create_exiled_leader(old_leader, civ, world)
+
     # Emit succession_crisis_resolved event with faction context (importance 8)
     events.append(Event(
         turn=world.turn, event_type="succession_crisis_resolved",
@@ -519,7 +538,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
         importance=8,
     ))
 
-    # Clean up crisis state (mirrors existing resolve_crisis behavior)
+    # Clean up crisis state (mirrors resolve_crisis lines 122-123)
     civ.succession_crisis_turns_remaining = 0
     civ.succession_candidates = []
 
