@@ -1,5 +1,7 @@
 import pytest
-from chronicler.models import RegionEcology, Region
+from chronicler.models import (
+    ClimatePhase, InfrastructureType, Region, RegionEcology, WorldState,
+)
 
 
 class TestRegionEcologyModel:
@@ -43,7 +45,7 @@ class TestRegionEcologyField:
         assert r.forest_regrowth_turns == 0
 
 
-from chronicler.models import TurnSnapshot, WorldState
+from chronicler.models import TurnSnapshot
 
 
 class TestTurnSnapshotEcology:
@@ -172,3 +174,95 @@ class TestEffectiveCapacity:
     def test_combined_soil_and_water(self):
         r = self._region(soil=0.5, water=0.25)
         assert effective_capacity(r) == 25
+
+
+# --- Task 5: _pressure_multiplier and _tick_soil ---
+
+from chronicler.ecology import _tick_soil, _pressure_multiplier
+
+
+class TestPressureMultiplier:
+    def _region(self, pop, soil=0.8, water=0.6, capacity=100):
+        return Region(
+            name="T", terrain="plains", carrying_capacity=capacity,
+            resources="fertile", population=pop,
+            ecology=RegionEcology(soil=soil, water=water, forest_cover=0.3),
+        )
+
+    def test_at_capacity(self):
+        r = self._region(pop=80)
+        mult = _pressure_multiplier(r)
+        assert mult == pytest.approx(0.1, abs=0.05)
+
+    def test_half_capacity(self):
+        r = self._region(pop=40)
+        mult = _pressure_multiplier(r)
+        assert mult == pytest.approx(0.5, abs=0.05)
+
+    def test_abandoned(self):
+        r = self._region(pop=0)
+        mult = _pressure_multiplier(r)
+        assert mult == pytest.approx(1.0)
+
+
+class TestTickSoil:
+    def _setup(self, pop=90, soil=0.8, focus=None, has_mine=False):
+        from chronicler.models import Infrastructure, Leader, Civilization
+        r = Region(
+            name="T", terrain="plains", carrying_capacity=100,
+            resources="fertile", population=pop, controller="TestCiv",
+            ecology=RegionEcology(soil=soil, water=0.6, forest_cover=0.3),
+        )
+        if has_mine:
+            r.infrastructure.append(Infrastructure(
+                type=InfrastructureType.MINES, builder_civ="TestCiv",
+                built_turn=0, active=True,
+            ))
+        civ = Civilization(
+            name="TestCiv", population=pop, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"],
+        )
+        if focus:
+            civ.active_focus = focus
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        return r, civ, w
+
+    def test_overpop_degrades_soil(self):
+        r, civ, w = self._setup(pop=90, soil=0.8)
+        old_soil = r.ecology.soil
+        _tick_soil(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.soil < old_soil
+
+    def test_underpop_recovers_soil(self):
+        r, civ, w = self._setup(pop=10, soil=0.4)
+        old_soil = r.ecology.soil
+        _tick_soil(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.soil > old_soil
+
+    def test_agriculture_bonus_recovery(self):
+        r_agri, civ_agri, w_agri = self._setup(pop=10, soil=0.4, focus="agriculture")
+        r_none, civ_none, w_none = self._setup(pop=10, soil=0.4)
+        _tick_soil(r_agri, civ_agri, ClimatePhase.TEMPERATE, w_agri)
+        _tick_soil(r_none, civ_none, ClimatePhase.TEMPERATE, w_none)
+        assert r_agri.ecology.soil > r_none.ecology.soil
+
+    def test_mine_degrades_soil(self):
+        r, civ, w = self._setup(pop=60, soil=0.8, has_mine=True)
+        old_soil = r.ecology.soil
+        _tick_soil(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.soil < old_soil
+
+    def test_metallurgy_halves_mine_degradation(self):
+        r_met, civ_met, w_met = self._setup(pop=10, soil=0.8, focus="metallurgy", has_mine=True)
+        r_none, civ_none, w_none = self._setup(pop=10, soil=0.8, has_mine=True)
+        _tick_soil(r_met, civ_met, ClimatePhase.TEMPERATE, w_met)
+        _tick_soil(r_none, civ_none, ClimatePhase.TEMPERATE, w_none)
+        assert r_met.ecology.soil > r_none.ecology.soil
+
+    def test_mechanization_doubles_mine_degradation(self):
+        r_mech, civ_mech, w_mech = self._setup(pop=10, soil=0.8, focus="mechanization", has_mine=True)
+        r_none, civ_none, w_none = self._setup(pop=10, soil=0.8, has_mine=True)
+        _tick_soil(r_mech, civ_mech, ClimatePhase.TEMPERATE, w_mech)
+        _tick_soil(r_none, civ_none, ClimatePhase.TEMPERATE, w_none)
+        assert r_mech.ecology.soil < r_none.ecology.soil

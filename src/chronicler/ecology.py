@@ -48,3 +48,45 @@ def effective_capacity(region: Region) -> int:
     soil = region.ecology.soil
     water_factor = min(1.0, region.ecology.water / 0.5)
     return max(int(region.carrying_capacity * soil * water_factor), 1)
+
+
+def _pressure_multiplier(region: Region) -> float:
+    eff = effective_capacity(region)
+    if eff <= 0:
+        return 1.0
+    return max(0.1, 1.0 - region.population / eff)
+
+
+def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
+    eff = effective_capacity(region)
+
+    # Degradation: overpopulation
+    if region.population > eff:
+        rate = get_override(world, K_SOIL_DEGRADATION, 0.005)
+        region.ecology.soil -= rate
+
+    # Degradation: active mines
+    has_mine = any(
+        i.type == InfrastructureType.MINES and i.active for i in region.infrastructure
+    )
+    if has_mine:
+        mine_rate = get_override(world, K_MINE_SOIL_DEGRADATION, 0.03)
+        if civ and civ.active_focus == "metallurgy":
+            mine_rate *= 0.5
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type="capability_metallurgy",
+                actors=[civ.name],
+                description=f"{civ.name} metallurgy reduces mine degradation",
+                importance=1,
+            ))
+        elif civ and civ.active_focus == "mechanization":
+            mine_rate *= get_override(world, K_MECHANIZATION_MINE_MULT, 2.0)
+        region.ecology.soil -= mine_rate
+
+    # Recovery: pressure-gated
+    if region.population < eff * 0.75:
+        rate = get_override(world, K_SOIL_RECOVERY, 0.05)
+        rate *= _pressure_multiplier(region)
+        if civ and civ.active_focus == "agriculture":
+            rate += get_override(world, K_AGRICULTURE_SOIL_BONUS, 0.02)
+        region.ecology.soil += rate
