@@ -806,3 +806,17 @@ class TestTechAccident:
         world.civilizations[0].great_persons = [scientist]
         _apply_tech_accident(world, seed=42)
         assert world.regions[2].fertility == pytest.approx(0.6)
+
+
+class TestBlackSwanIntegration:
+    def test_black_swan_check_runs_during_turn(self):
+        """Verify check_black_swans is called during run_turn."""
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        # Set cooldown to verify it decrements
+        world.black_swan_cooldown = 5
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                 narrator=lambda w, e: "", seed=1)
+        assert world.black_swan_cooldown == 4  # Decremented by 1

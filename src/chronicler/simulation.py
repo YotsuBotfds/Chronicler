@@ -850,6 +850,10 @@ def run_turn(
     # Phase 1: Environment
     turn_events.extend(phase_environment(world, seed=seed))
 
+    # M18: Black swan check (after climate disasters)
+    from chronicler.emergence import check_black_swans
+    turn_events.extend(check_black_swans(world, seed=seed))
+
     # Phase 2: Automatic Effects (NEW)
     turn_events.extend(apply_automatic_effects(world))
 
