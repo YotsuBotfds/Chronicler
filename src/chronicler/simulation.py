@@ -881,6 +881,12 @@ def run_turn(
     # Phase 10: Consequences
     turn_events.extend(phase_consequences(world))
 
+    # --- M18: Tech regression (after consequences, before stress) ---
+    from chronicler.emergence import check_tech_regression
+    from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
+    black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
+    turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn))
+
     # --- M18: Stress computation (feeds next turn) ---
     from chronicler.emergence import compute_all_stress
     compute_all_stress(world)

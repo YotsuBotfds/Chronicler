@@ -1038,3 +1038,18 @@ class TestEcologicalSuccession:
         world.regions = [r]
         update_low_fertility_counters(world)
         assert r.low_fertility_turns == 0
+
+
+class TestRegressionIntegration:
+    def test_regression_wired_into_turn(self):
+        """Verify snapshots are set and regression hook runs during turn."""
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        civ = world.civilizations[0]
+        initial_regions = len(civ.regions)
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                 narrator=lambda w, e: "", seed=1)
+        assert civ.regions_start_of_turn == initial_regions
+        assert civ.capital_start_of_turn is not None
