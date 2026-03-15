@@ -26,7 +26,10 @@ PHASE_SCHEDULE: list[tuple[float, ClimatePhase]] = [
 
 def get_climate_phase(turn: int, config: ClimateConfig) -> ClimatePhase:
     """Pure function. Deterministic from turn + config."""
-    position = (turn % config.period) / config.period
+    phase_idx = config.phase_offset % len(PHASE_SCHEDULE)
+    threshold_shift = int(PHASE_SCHEDULE[phase_idx][0] * config.period)
+    shifted_turn = turn + threshold_shift
+    position = (shifted_turn % config.period) / config.period
     phase = ClimatePhase.TEMPERATE
     for threshold, p in PHASE_SCHEDULE:
         if position >= threshold:

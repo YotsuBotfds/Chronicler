@@ -303,3 +303,29 @@ class TestTundraCapModifier:
         base_cap = terrain_fertility_cap(r)
         cooling_cap = base_cap * 0.3
         assert abs(cooling_cap - 0.06) < 0.001
+
+
+class TestPhaseOffset:
+    def test_offset_zero_unchanged(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=75, phase_offset=0)
+        assert get_climate_phase(0, cfg) == ClimatePhase.TEMPERATE
+
+    def test_offset_one_advances_one_phase(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=100, phase_offset=1)
+        # offset=1 shifts by 25 turns (period//4). Turn 0 with offset=1
+        # is equivalent to turn 25 without offset, which should be WARMING.
+        assert get_climate_phase(0, cfg) == ClimatePhase.WARMING
+
+    def test_offset_wraps_around(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=100, phase_offset=4)
+        # offset=4 shifts by 100 turns = full cycle, back to same phase
+        assert get_climate_phase(0, cfg) == get_climate_phase(0, ClimateConfig(period=100))
+
+    def test_offset_two_advances_two_phases(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=100, phase_offset=2)
+        # offset=2 shifts by 50 turns. Turn 0 with offset=2 => DROUGHT
+        assert get_climate_phase(0, cfg) == ClimatePhase.DROUGHT
