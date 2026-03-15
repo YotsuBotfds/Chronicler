@@ -567,3 +567,63 @@ def format_text_report(report: dict) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+# --- Task 11: Delta Comparison Report ---
+
+def format_delta_report(
+    baseline: dict,
+    current: dict,
+    threshold: float = 0.05,
+) -> str:
+    """Format delta-only comparison between two reports."""
+    lines = ["DELTA REPORT (baseline → current)", "=" * 40, ""]
+
+    deltas = []
+    omitted = 0
+
+    def _walk(base: dict, curr: dict, prefix: str = ""):
+        nonlocal omitted
+        for key in sorted(set(list(base.keys()) + list(curr.keys()))):
+            if key in ("anomalies", "metadata"):
+                continue
+            full_key = f"{prefix}.{key}" if prefix else key
+            b_val = base.get(key)
+            c_val = curr.get(key)
+            if isinstance(b_val, dict) and isinstance(c_val, dict):
+                _walk(b_val, c_val, full_key)
+            elif isinstance(b_val, (int, float)) and isinstance(c_val, (int, float)):
+                rel_change = abs(c_val - b_val) / max(abs(b_val), 1e-9)
+                if rel_change >= threshold:
+                    pct = ((c_val - b_val) / max(abs(b_val), 1e-9)) * 100
+                    sign = "+" if pct > 0 else ""
+                    deltas.append(f"  {full_key}: {b_val} → {c_val}  ({sign}{pct:.0f}%)")
+                else:
+                    omitted += 1
+
+    _walk(baseline, current)
+
+    if deltas:
+        lines.extend(deltas)
+    else:
+        lines.append("  No significant changes.")
+    lines.append("")
+
+    base_anomaly_names = {a["name"] for a in baseline.get("anomalies", [])}
+    curr_anomaly_names = {a["name"] for a in current.get("anomalies", [])}
+    resolved = base_anomaly_names - curr_anomaly_names
+    new_anomalies = curr_anomaly_names - base_anomaly_names
+
+    if resolved:
+        lines.append("ANOMALIES RESOLVED:")
+        for name in sorted(resolved):
+            lines.append(f"  ✓ {name}")
+        lines.append("")
+    if new_anomalies:
+        lines.append("ANOMALIES NEW:")
+        for name in sorted(new_anomalies):
+            lines.append(f"  ⚠ {name}")
+        lines.append("")
+
+    lines.append(f"{omitted} metrics omitted (< {threshold:.0%} change)")
+    return "\n".join(lines)

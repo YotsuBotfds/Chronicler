@@ -318,3 +318,29 @@ class TestTextFormatter:
         assert "STABILITY" in text
         assert "EVENT FIRING RATES" in text
         assert len(text) > 200
+
+
+class TestDeltaReport:
+    def test_delta_shows_changed_metrics(self):
+        from chronicler.analytics import format_delta_report
+        baseline = {
+            "stability": {"zero_rate_by_turn": {"100": 0.43}},
+            "event_firing_rates": {"famine": 0.99},
+            "anomalies": [{"name": "stability_collapse", "severity": "CRITICAL", "detail": "bad"}],
+        }
+        current = {
+            "stability": {"zero_rate_by_turn": {"100": 0.08}},
+            "event_firing_rates": {"famine": 0.65},
+            "anomalies": [],
+        }
+        text = format_delta_report(baseline, current)
+        assert "100" in text
+        assert "famine" in text
+        assert "RESOLVED" in text
+
+    def test_delta_omits_small_changes(self):
+        from chronicler.analytics import format_delta_report
+        baseline = {"stability": {"zero_rate_by_turn": {"100": 0.50}}}
+        current = {"stability": {"zero_rate_by_turn": {"100": 0.49}}}
+        text = format_delta_report(baseline, current, threshold=0.05)
+        assert "omitted" in text.lower()
