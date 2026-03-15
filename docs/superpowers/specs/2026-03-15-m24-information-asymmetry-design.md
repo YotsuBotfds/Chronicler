@@ -329,6 +329,16 @@ Run batch analytics before/after M24 lands. Check:
 - Per-turn accuracy persistence (stateless)
 - New model fields on Civilization (none needed)
 
+## Implementation Notes
+
+### Note 1: WAR weight multiplier is per-target, but `compute_weights()` is global
+
+`compute_weights()` at `action_engine.py:603` computes global action-type weights, not per-target weights. There is no existing per-target loop in the WAR weight path. The spec's Callsite 1 correctly describes what should happen (per-target perceived military comparison), but the implementer must wire the multiplier into the **target selection logic** that runs after WAR is chosen as an action, not into `compute_weights()` itself. Check where target selection happens downstream and apply the 0.6–1.4 multiplier there.
+
+### Note 2: Relationship helpers need sourcing
+
+`compute_accuracy` calls five helpers: `shares_adjacent_region`, `has_active_trade_route`, `in_same_federation`, `is_vassal_of`, `at_war`. None exist with these exact signatures. The underlying logic is scattered across the codebase (e.g., `_civ_in_federation` at `politics.py:443`, `get_active_trade_routes` in `action_engine.py`). The implementation plan should include a subtask to write thin wrappers in `intelligence.py` that delegate to existing logic, or extract shared helpers. This is ~20 lines of glue code, not architectural work.
+
 ## File Changes
 
 | File | Change | Lines (est.) |
