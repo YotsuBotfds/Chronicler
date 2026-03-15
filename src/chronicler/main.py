@@ -250,6 +250,7 @@ def execute_run(
                 )
                 for civ in world.civilizations
             },
+            ecology={r.name: r.ecology.model_dump() for r in world.regions},
             region_control={
                 region.name: region.controller
                 for region in world.regions

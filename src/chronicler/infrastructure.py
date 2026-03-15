@@ -83,23 +83,6 @@ def tick_infrastructure(world: WorldState) -> list:
                 ))
                 region.pending_build = None
 
-        has_active_mine = any(
-            i.type == IType.MINES and i.active for i in region.infrastructure
-        )
-        if has_active_mine:
-            mine_degrade = 0.03
-            # M21: METALLURGY halves mine fertility degradation
-            if region.controller:
-                ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
-                if ctrl_civ and ctrl_civ.active_focus == "metallurgy":
-                    mine_degrade *= 0.5
-                    world.events_timeline.append(Event(
-                        turn=world.turn, event_type="capability_metallurgy",
-                        actors=[ctrl_civ.name], description=f"{ctrl_civ.name} metallurgy reduces mine degradation",
-                        importance=1,
-                    ))
-            region.fertility = max(region.fertility - mine_degrade, 0.0)
-
     return events
 
 

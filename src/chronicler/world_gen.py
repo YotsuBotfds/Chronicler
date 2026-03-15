@@ -19,7 +19,7 @@ from chronicler.models import (
     TechEra,
     WorldState,
 )
-from chronicler.ecology import effective_capacity
+from chronicler.ecology import effective_capacity, TERRAIN_ECOLOGY_DEFAULTS
 
 # --- Name and trait pools ---
 
@@ -84,15 +84,19 @@ def generate_regions(count: int = 8, seed: int = 42) -> list[Region]:
         )
     rng = random.Random(seed)
     templates = rng.sample(REGION_TEMPLATES, k=count)
-    return [
-        Region(
+    regions = []
+    for t in templates:
+        region = Region(
             name=t["name"],
             terrain=t["terrain"],
             carrying_capacity=t["capacity"],
             resources=t["resources"],
         )
-        for t in templates
-    ]
+        defaults = TERRAIN_ECOLOGY_DEFAULTS.get(region.terrain)
+        if defaults:
+            region.ecology = defaults.model_copy()
+        regions.append(region)
+    return regions
 
 
 def assign_civilizations(

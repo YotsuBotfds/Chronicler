@@ -225,7 +225,8 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase) -> list[Event]:
 
     events = _check_famine(world)
 
-    # Note: food_stockpiling tradition soil floor will be added after Task 14 traditions migration
+    from chronicler.traditions import apply_fertility_floor
+    apply_fertility_floor(world)
 
     _update_ecology_counters(world)
 

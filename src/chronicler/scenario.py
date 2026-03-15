@@ -46,7 +46,7 @@ class RegionOverride(BaseModel):
     y: float | None = None
     adjacencies: list[str] | None = None
     specialized_resources: list[str] | None = None
-    fertility: float | None = None
+    ecology: dict[str, float] | None = None
 
 
 class CivOverride(BaseModel):
@@ -263,8 +263,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         if reg_override.specialized_resources is not None:
             from chronicler.models import Resource
             world.regions[target_idx].specialized_resources = [Resource(r) for r in reg_override.specialized_resources]
-        if reg_override.fertility is not None:
-            world.regions[target_idx].fertility = reg_override.fertility
+        if reg_override.ecology is not None:
+            for key, value in reg_override.ecology.items():
+                setattr(world.regions[target_idx].ecology, key, value)
 
         # Update civ.regions list entries and region.controller
         if old_name != new_name:

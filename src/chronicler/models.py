@@ -331,7 +331,7 @@ class TerrainTransitionRule(BaseModel):
     """Configurable terrain transformation rule for ecological succession."""
     from_terrain: str
     to_terrain: str
-    condition: str  # "low_fertility" or "depopulated"
+    condition: str  # "low_forest" or "forest_regrowth"
     threshold_turns: int  # Consecutive turns before transform triggers
 
 
