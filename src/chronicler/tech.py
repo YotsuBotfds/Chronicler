@@ -20,6 +20,14 @@ def _next_era(era: TechEra) -> TechEra | None:
     return None
 
 
+def _prev_era(era: TechEra) -> TechEra | None:
+    """Return the previous era, or None for TRIBAL."""
+    idx = _era_index(era)
+    if idx > 0:
+        return _ERA_ORDER[idx - 1]
+    return None
+
+
 TECH_REQUIREMENTS: dict[TechEra, tuple[int, int, int]] = {
     TechEra.TRIBAL: (40, 40, 100),
     TechEra.BRONZE: (50, 50, 120),
@@ -104,6 +112,15 @@ def apply_era_bonus(civ: Civilization, era: TechEra) -> None:
         if isinstance(amount, int) and hasattr(civ, stat):
             current = getattr(civ, stat)
             setattr(civ, stat, clamp(current + amount, STAT_FLOOR.get(stat, 0), 100))
+
+
+def remove_era_bonus(civ: Civilization, era: TechEra) -> None:
+    """Reverse of apply_era_bonus — subtract integer stat bonuses for an era."""
+    bonuses = ERA_BONUSES.get(era, {})
+    for stat, amount in bonuses.items():
+        if isinstance(amount, int) and hasattr(civ, stat):
+            current = getattr(civ, stat)
+            setattr(civ, stat, clamp(current - amount, STAT_FLOOR.get(stat, 0), 100))
 
 
 def tech_war_multiplier(attacker_era: TechEra, defender_era: TechEra) -> float:

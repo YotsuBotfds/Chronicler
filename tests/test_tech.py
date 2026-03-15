@@ -151,3 +151,64 @@ def test_tech_allowed_with_resources(sample_world):
             break
     event = check_tech_advancement(civ, sample_world)
     assert event is not None
+
+
+from chronicler.models import Civilization, Leader, TechEra
+from chronicler.tech import _prev_era, remove_era_bonus, apply_era_bonus, ERA_BONUSES
+from chronicler.utils import STAT_FLOOR
+
+
+class TestPrevEra:
+    def test_tribal_returns_none(self):
+        assert _prev_era(TechEra.TRIBAL) is None
+
+    def test_bronze_returns_tribal(self):
+        assert _prev_era(TechEra.BRONZE) == TechEra.TRIBAL
+
+    def test_information_returns_industrial(self):
+        assert _prev_era(TechEra.INFORMATION) == TechEra.INDUSTRIAL
+
+    def test_all_eras_except_tribal_have_prev(self):
+        from chronicler.tech import _ERA_ORDER
+        for era in _ERA_ORDER[1:]:
+            assert _prev_era(era) is not None
+
+
+class TestRemoveEraBonus:
+    def _make_civ(self, **overrides):
+        defaults = dict(
+            name="T", population=50, military=50, economy=50,
+            culture=50, stability=50,
+            leader=Leader(name="L", trait="bold", reign_start=0),
+        )
+        defaults.update(overrides)
+        return Civilization(**defaults)
+
+    def test_remove_iron_reverses_apply(self):
+        civ = self._make_civ(military=50, economy=50)
+        apply_era_bonus(civ, TechEra.IRON)
+        mil_after_apply = civ.military
+        eco_after_apply = civ.economy
+        remove_era_bonus(civ, TechEra.IRON)
+        # IRON gives economy +10. military_multiplier is non-int, so only economy changes.
+        assert civ.economy == eco_after_apply - 10
+
+    def test_remove_industrial_reverses_apply(self):
+        civ = self._make_civ(military=50, economy=50)
+        apply_era_bonus(civ, TechEra.INDUSTRIAL)
+        remove_era_bonus(civ, TechEra.INDUSTRIAL)
+        assert civ.military == 50
+        assert civ.economy == 50
+
+    def test_remove_clamps_to_floor(self):
+        civ = self._make_civ(economy=5)
+        # RENAISSANCE gives economy +20; removing when at 5 should clamp to floor
+        remove_era_bonus(civ, TechEra.RENAISSANCE)
+        assert civ.economy >= STAT_FLOOR.get("economy", 0)
+
+    def test_remove_era_with_no_bonuses(self):
+        """TRIBAL has no bonuses. remove_era_bonus should be a no-op."""
+        civ = self._make_civ()
+        old_mil = civ.military
+        remove_era_bonus(civ, TechEra.TRIBAL)
+        assert civ.military == old_mil
