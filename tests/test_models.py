@@ -212,3 +212,86 @@ def test_turn_snapshot_has_active_conditions():
 
 def test_world_state_has_tuning_overrides(sample_world):
     assert sample_world.tuning_overrides == {}
+
+
+from chronicler.models import (
+    NarrativeRole, CausalLink, GapSummary, NarrativeMoment,
+    CivThematicContext,
+)
+
+
+def test_narrative_role_values():
+    assert NarrativeRole.INCITING == "inciting"
+    assert NarrativeRole.ESCALATION == "escalation"
+    assert NarrativeRole.CLIMAX == "climax"
+    assert NarrativeRole.RESOLUTION == "resolution"
+    assert NarrativeRole.CODA == "coda"
+
+
+def test_causal_link_creation():
+    link = CausalLink(
+        cause_turn=10, cause_event_type="drought",
+        effect_turn=18, effect_event_type="famine",
+        pattern="drought→famine",
+    )
+    assert link.cause_turn == 10
+    assert link.pattern == "drought→famine"
+
+
+def test_gap_summary_stat_deltas_shape():
+    gap = GapSummary(
+        turn_range=(10, 30), event_count=15,
+        top_event_type="war",
+        stat_deltas={"Vrashni": {"population": -20, "military": 5, "stability": -12}},
+        territory_changes=3,
+    )
+    assert gap.stat_deltas["Vrashni"]["population"] == -20
+    assert gap.turn_range == (10, 30)
+
+
+def test_narrative_moment_creation():
+    from chronicler.models import Event
+    event = Event(turn=10, event_type="war", actors=["Vrashni"], description="test")
+    moment = NarrativeMoment(
+        anchor_turn=10, turn_range=(8, 12),
+        events=[event], named_events=[], score=15.0,
+        causal_links=[], narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=3.0,
+    )
+    assert moment.anchor_turn == 10
+    assert moment.narrative_role == NarrativeRole.CLIMAX
+    assert moment.bonus_applied == 3.0
+
+
+def test_civ_thematic_context():
+    ctx = CivThematicContext(
+        name="Vrashni", trait="aggressive",
+        domains=["maritime", "mysticism"],
+        dominant_terrain="coast", tech_era="classical",
+        active_named_events=["The Battle of Tidecrest"],
+    )
+    assert ctx.active_tech_focus is None
+    assert ctx.domains == ["maritime", "mysticism"]
+
+
+def test_causal_link_round_trip():
+    link = CausalLink(
+        cause_turn=10, cause_event_type="drought",
+        effect_turn=18, effect_event_type="famine",
+        pattern="drought→famine",
+    )
+    data = link.model_dump()
+    restored = CausalLink.model_validate(data)
+    assert restored == link
+
+
+def test_gap_summary_round_trip():
+    gap = GapSummary(
+        turn_range=(10, 30), event_count=15,
+        top_event_type="war",
+        stat_deltas={"Vrashni": {"population": -20}},
+        territory_changes=3,
+    )
+    data = gap.model_dump()
+    restored = GapSummary.model_validate(data)
+    assert restored == gap

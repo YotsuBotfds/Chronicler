@@ -425,3 +425,68 @@ class TurnSnapshot(BaseModel):
     pandemic_regions: list[str] = Field(default_factory=list)
     climate_phase: str = ""
     active_conditions: list[dict] = Field(default_factory=list)
+
+
+# --- M20a: Narration Pipeline v2 models ---
+
+class NarrativeRole(str, Enum):
+    """Narrative arc position for a curated moment."""
+    INCITING = "inciting"
+    ESCALATION = "escalation"
+    CLIMAX = "climax"
+    RESOLUTION = "resolution"
+    CODA = "coda"
+
+
+class CausalLink(BaseModel):
+    """Connection between a cause event and its effect."""
+    cause_turn: int
+    cause_event_type: str
+    effect_turn: int
+    effect_event_type: str
+    pattern: str  # e.g., "drought→famine"
+
+
+class GapSummary(BaseModel):
+    """Mechanical summary of unnarrated turns between curated moments."""
+    turn_range: tuple[int, int]  # inclusive
+    event_count: int
+    top_event_type: str
+    stat_deltas: dict[str, dict[str, int]]  # {civ_name: {stat_name: delta}}
+    territory_changes: int
+
+
+class CivThematicContext(BaseModel):
+    """Per-civ thematic data for narrator prompts."""
+    name: str
+    trait: str
+    domains: list[str]
+    dominant_terrain: str
+    tech_era: str
+    active_tech_focus: str | None = None
+    active_named_events: list[str] = Field(default_factory=list)
+
+
+class NarrativeMoment(BaseModel):
+    """Curator output: a selected narratively important moment."""
+    anchor_turn: int
+    turn_range: tuple[int, int]  # inclusive
+    events: list[Event]
+    named_events: list[NamedEvent]
+    score: float
+    causal_links: list[CausalLink]
+    narrative_role: NarrativeRole
+    bonus_applied: float  # internal, not serialized to bundle
+
+
+class NarrationContext(BaseModel):
+    """Per-moment LLM context for batch narration."""
+    moment: NarrativeMoment
+    snapshot: TurnSnapshot
+    before_summary: str
+    after_summary: str
+    role_instruction: str
+    causes: list[str]
+    consequences: list[str]
+    previous_prose: str | None
+    civ_context: dict[str, CivThematicContext]
