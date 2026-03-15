@@ -41,7 +41,8 @@ low_fertility_turns: int = 0
 
 # ADD:
 ecology: RegionEcology = Field(default_factory=RegionEcology)
-low_forest_turns: int = 0  # M18 migration: consecutive turns with forest_cover < 0.2
+low_forest_turns: int = 0  # M18: consecutive turns with forest_cover < 0.2
+forest_regrowth_turns: int = 0  # M18: consecutive turns with forest_cover > 0.7 AND population < 5
 ```
 
 ### TurnSnapshot (models.py)
@@ -117,7 +118,7 @@ The `terrain_fertility_cap` concept is removed. Soil and water have their own ce
 |----------------|--------------------------------------|------------|------------------------------------|
 | soil           | Pressure-gated natural recovery      | +0.05/turn | population < 0.75 × eff_capacity  |
 | soil           | Agriculture tech focus bonus         | +0.02/turn | controlling civ has agriculture focus |
-| water          | Temperate/cooling climate recovery   | +0.03/turn | climate_phase in (TEMPERATE, COOLING) |
+| water          | Temperate climate recovery            | +0.03/turn | climate_phase == TEMPERATE            |
 | water          | Irrigation infrastructure bonus      | +0.03/turn | active irrigation in region        |
 | forest_cover   | Natural regrowth                     | +0.01/turn | population < 0.5 × carrying_capacity |
 
@@ -194,10 +195,12 @@ Entries added to ecology awareness, not to `FOCUS_EFFECTS` table (which handles 
 | Focus          | Ecology effect                                     |
 |----------------|----------------------------------------------------|
 | AGRICULTURE    | +0.02/turn soil recovery bonus in controlled regions |
-| METALLURGY     | Soil degradation from mines unchanged (stays -0.03/turn; M21 already halves this to -0.015) |
-| MECHANIZATION  | Mine soil degradation doubled: -0.06/turn in regions with active mines |
+| METALLURGY     | Mine soil degradation halved: -0.015/turn (base -0.03 × 0.5, preserving M21 behavior) |
+| MECHANIZATION  | Mine soil degradation doubled: -0.06/turn (base -0.03 × 2.0) |
 
 These are checked inside `tick_ecology()` by reading the controlling civ's `active_focus`. No changes to `tech_focus.py` or `FOCUS_EFFECTS`.
+
+**M21 famine threshold interaction:** The current `_check_famine` halves the famine threshold for Agriculture-focused civs (`threshold *= 0.5`). Under M23, famine triggers on water < threshold. **Discard this behavior.** Agriculture's M23 benefit is +0.02/turn soil recovery — a fundamentally different and stronger lever. Halving a water threshold for an agriculture focus mixes metaphors (agriculture helps soil, not water resilience). The one-driver-per-direction principle says water resilience comes from irrigation, not tech focus.
 
 ## Faction Integration (M22)
 
@@ -235,13 +238,42 @@ def update_low_forest_counters(world: WorldState) -> None:
             region.low_forest_turns = 0
 ```
 
-### TerrainTransitionRule condition
+### TerrainTransitionRule conditions
 
-Default deforestation rule condition changes from `"low_fertility"` to `"low_forest"`. The `tick_terrain_succession` function checks against this condition string.
+Default rules in `WorldState.terrain_transition_rules` (models.py):
 
-After terrain transition, set ecology values appropriate to new terrain:
+**Deforestation rule:** Change `condition="low_fertility"` to `condition="low_forest"`. The `tick_terrain_succession` function matches this string against the counter.
+
+**Rewilding rule:** Change `condition="depopulated"` to `condition="forest_regrowth"`. The `tick_terrain_succession` function handles this as a compound check: `forest_cover > 0.7 AND population < 5` for `threshold_turns` consecutive turns. This requires a new counter `forest_regrowth_turns` on Region (incremented when both conditions met, reset otherwise), OR reuse `low_forest_turns` as a general ecology counter by inverting the meaning based on condition string. **Recommended:** Add `forest_regrowth_turns: int = 0` to Region and update the counter logic in `update_low_forest_counters` (renamed to `update_ecology_counters`) to also track regrowth.
+
+After terrain transition, `_apply_transition` in emergence.py sets ecology values for new terrain:
 - Forest → plains: soil=0.5, water unchanged, forest_cover=0.1, low_forest_turns=0
-- Plains → forest: soil unchanged, water unchanged, forest_cover=0.7
+- Plains → forest: soil unchanged, water unchanged, forest_cover=0.7, forest_regrowth_turns=0
+
+## Snapshot Builder (main.py)
+
+`main.py:execute_run` builds `TurnSnapshot` objects each turn. Currently does not populate `fertility` (Pydantic default empty dict). Under M23, add ecology snapshot population:
+
+```python
+ecology={r.name: r.ecology.model_dump() for r in world.regions}
+```
+
+This provides per-region ecology state for M19 analytics.
+
+## Disaster Fertility Writes Migration
+
+Several disaster and emergence functions directly mutate `region.fertility`. All must be migrated to ecology variables:
+
+| File            | Function              | Current write                    | M23 migration                          |
+|-----------------|-----------------------|----------------------------------|----------------------------------------|
+| `climate.py`    | `check_disasters`     | earthquake: `fertility -= 0.2`   | `ecology.soil -= 0.2`                  |
+| `climate.py`    | `check_disasters`     | flood: `fertility -= 0.1`        | `ecology.water += 0.1` (flood raises water temporarily) |
+| `climate.py`    | `check_disasters`     | wildfire: `fertility -= 0.15`    | `ecology.forest_cover -= 0.3` (fire burns forest) |
+| `emergence.py`  | `_apply_supervolcano` | `fertility = 0.1`               | `ecology.soil = 0.1, ecology.forest_cover = 0.05` |
+| `emergence.py`  | `_apply_tech_accident` | target: `fertility -= 0.3`      | `ecology.soil -= 0.3`                  |
+| `emergence.py`  | `_apply_tech_accident` | neighbors: `fertility -= 0.15`  | `ecology.soil -= 0.15`                 |
+
+All clamp to floors after mutation. Disaster effects are one-time shocks, not ongoing ticks — they bypass the pressure-gated recovery system and apply directly.
 
 ## Traditions Integration
 
@@ -253,10 +285,12 @@ After terrain transition, set ecology values appropriate to new terrain:
 
 ### Removed
 
+Remove constants `K_FERTILITY_DEGRADATION`, `K_FERTILITY_RECOVERY`, `K_FAMINE_THRESHOLD` from `tuning.py` and their entries in `KNOWN_OVERRIDES`. Any existing YAML tuning files using these keys will generate warnings from the unknown-key validator.
+
 ```
-fertility.degradation_rate    → replaced by ecology-specific rates
-fertility.recovery_rate       → replaced by ecology-specific rates
-fertility.famine_threshold    → replaced by water threshold check
+fertility.degradation_rate    → replaced by ecology.soil_degradation_rate
+fertility.recovery_rate       → replaced by ecology.soil_recovery_rate
+fertility.famine_threshold    → replaced by ecology.famine_water_threshold
 ```
 
 ### Added
@@ -364,10 +398,18 @@ Remove mine fertility degradation from `tick_infrastructure`. Mine soil degradat
 
 ### Effective capacity callers
 
-All callers of `terrain.effective_capacity` must migrate to `ecology.effective_capacity`. Search for imports:
-- `simulation.py`: phase_fertility (removed), migration checks
-- `climate.py`: migration cascade
-- `infrastructure.py`: capacity checks
+All callers of `terrain.effective_capacity` must migrate to `ecology.effective_capacity`. Complete list of import sites:
+
+| File              | Sites                                       | Notes                                    |
+|-------------------|---------------------------------------------|------------------------------------------|
+| `simulation.py`   | line 374, 591, 890 (3 sites)               | phase_fertility removed; other two update |
+| `climate.py`      | line 168                                    | migration cascade                        |
+| `infrastructure.py` | capacity checks                           | mine degradation moves to ecology.py     |
+| `politics.py`     | line 14, 286, 820 (3 sites)               | secession capacity calculations          |
+| `factions.py`     | line 437 (`total_effective_capacity`)       | faction influence from capacity           |
+| `utils.py`        | line 61 (`add_region_pop`)                 | population helper                         |
+| `world_gen.py`    | line 22                                     | initialization                           |
+| `scenario.py`     | line 425                                    | scenario override application            |
 
 `terrain.py:effective_capacity` is removed. `terrain.py:terrain_fertility_cap` is removed. `TerrainEffect.fertility_cap` field remains for backward compat in any scenario files but is not used by the simulation.
 
@@ -391,6 +433,10 @@ if reg_override.ecology is not None:
     for key, value in reg_override.ecology.items():
         setattr(world.regions[target_idx].ecology, key, value)
 ```
+
+## Backward Compatibility
+
+The Region model change from `fertility: float` to `ecology: RegionEcology` breaks deserialization of existing `state.json` save files. **Old saves are not supported after M23.** No migration validator is needed — the simulation does not support mid-run save/load across milestone boundaries.
 
 ## Feedback Loops
 
