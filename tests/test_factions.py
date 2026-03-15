@@ -1,6 +1,15 @@
 """Tests for faction system — influence, power struggles, weight modifiers, succession."""
 import pytest
 from chronicler.models import FactionType, FactionState, Civilization, Leader, CivSnapshot
+from chronicler.models import WorldState, Event
+from chronicler.factions import (
+    normalize_influence,
+    shift_faction_influence,
+    get_dominant_faction,
+    get_leader_faction_alignment,
+    TRAIT_FACTION_MAP,
+    FOCUS_FACTION_MAP,
+)
 
 
 class TestFactionDataModel:
@@ -33,3 +42,70 @@ class TestFactionDataModel:
             trait="bold", regions=["r1"], leader_name="Test", alive=True,
         )
         assert snap.factions is None
+
+
+class TestNormalization:
+    def test_normalize_sums_to_one(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.5
+        fs.influence[FactionType.MERCHANT] = 0.3
+        fs.influence[FactionType.CULTURAL] = 0.2
+        normalize_influence(fs)
+        assert sum(fs.influence.values()) == pytest.approx(1.0)
+
+    def test_normalize_enforces_floor(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.95
+        fs.influence[FactionType.MERCHANT] = 0.04
+        fs.influence[FactionType.CULTURAL] = 0.01
+        normalize_influence(fs)
+        assert fs.influence[FactionType.CULTURAL] >= 0.05
+        assert fs.influence[FactionType.MERCHANT] >= 0.05
+        assert sum(fs.influence.values()) == pytest.approx(1.0)
+
+    def test_normalize_after_zero(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 1.0
+        fs.influence[FactionType.MERCHANT] = 0.0
+        fs.influence[FactionType.CULTURAL] = 0.0
+        normalize_influence(fs)
+        assert fs.influence[FactionType.MERCHANT] >= 0.05
+        assert fs.influence[FactionType.CULTURAL] >= 0.05
+
+
+class TestCoreHelpers:
+    def test_shift_faction_influence(self):
+        fs = FactionState()
+        shift_faction_influence(fs, FactionType.MILITARY, 0.10)
+        assert fs.influence[FactionType.MILITARY] > 0.33
+        assert sum(fs.influence.values()) == pytest.approx(1.0)
+
+    def test_get_dominant_faction(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.6
+        fs.influence[FactionType.MERCHANT] = 0.2
+        fs.influence[FactionType.CULTURAL] = 0.2
+        assert get_dominant_faction(fs) == FactionType.MILITARY
+
+    def test_leader_alignment_military_trait(self):
+        leader = Leader(name="Test", trait="aggressive", reign_start=0)
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.6
+        fs.influence[FactionType.MERCHANT] = 0.2
+        fs.influence[FactionType.CULTURAL] = 0.2
+        assert get_leader_faction_alignment(leader, fs) == pytest.approx(0.6)
+
+    def test_leader_alignment_neutral_trait(self):
+        leader = Leader(name="Test", trait="stubborn", reign_start=0)
+        fs = FactionState()
+        assert get_leader_faction_alignment(leader, fs) == pytest.approx(0.5)
+
+    def test_trait_faction_map_covers_actual_traits(self):
+        mapped = set(TRAIT_FACTION_MAP.keys())
+        actual_traits = {"ambitious", "cautious", "aggressive", "calculating",
+                         "zealous", "opportunistic", "stubborn", "bold",
+                         "shrewd", "visionary"}
+        assert mapped.issubset(actual_traits)
+
+    def test_focus_faction_map_covers_all_focuses(self):
+        assert len(FOCUS_FACTION_MAP) == 15
