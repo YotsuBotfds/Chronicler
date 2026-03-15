@@ -1,6 +1,7 @@
 import pytest
 from chronicler.models import (
     ClimatePhase, InfrastructureType, Region, RegionEcology, WorldState,
+    Infrastructure,
 )
 
 
@@ -524,3 +525,70 @@ class TestFamineCheck:
         events = tick_ecology(w, ClimatePhase.TEMPERATE)
         famine_events = [e for e in events if e.event_type == "famine"]
         assert len(famine_events) == 0
+
+
+class TestFeedbackLoops:
+    def _run_turns(self, world, phase, n):
+        from chronicler.ecology import tick_ecology
+        all_events = []
+        for _ in range(n):
+            world.turn += 1
+            events = tick_ecology(world, phase)
+            all_events.extend(events)
+        return all_events
+
+    def test_deforestation_spiral_terminates(self):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="T", terrain="forest", carrying_capacity=80,
+            resources="timber", population=70, controller="TestCiv",
+            ecology=RegionEcology(soil=0.7, water=0.7, forest_cover=0.9),
+        )
+        civ = Civilization(
+            name="TestCiv", population=70, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"],
+        )
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        self._run_turns(w, ClimatePhase.TEMPERATE, 100)
+        assert r.ecology.soil > 0.05 or r.ecology.forest_cover > 0.0
+
+    def test_irrigation_trap_drought_spike(self):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="T", terrain="plains", carrying_capacity=100,
+            resources="fertile", population=80, controller="TestCiv",
+            ecology=RegionEcology(soil=0.9, water=0.6, forest_cover=0.2),
+        )
+        r.infrastructure.append(Infrastructure(
+            type=InfrastructureType.IRRIGATION, builder_civ="TestCiv",
+            built_turn=0, active=True,
+        ))
+        civ = Civilization(
+            name="TestCiv", population=80, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"],
+        )
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        self._run_turns(w, ClimatePhase.DROUGHT, 10)
+        assert r.ecology.water < 0.3
+
+    def test_mining_collapse_and_recovery(self):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="T", terrain="mountains", carrying_capacity=40,
+            resources="mineral", population=30, controller="TestCiv",
+            ecology=RegionEcology(soil=0.4, water=0.8, forest_cover=0.3),
+        )
+        r.infrastructure.append(Infrastructure(
+            type=InfrastructureType.MINES, builder_civ="TestCiv",
+            built_turn=0, active=True,
+        ))
+        civ = Civilization(
+            name="TestCiv", population=30, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"], active_focus="mechanization",
+        )
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        self._run_turns(w, ClimatePhase.TEMPERATE, 20)
+        assert r.ecology.soil <= 0.10
