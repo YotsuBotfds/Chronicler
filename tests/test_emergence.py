@@ -820,3 +820,221 @@ class TestBlackSwanIntegration:
         run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
                  narrator=lambda w, e: "", seed=1)
         assert world.black_swan_cooldown == 4  # Decremented by 1
+
+
+class TestTechRegression:
+    def test_no_regression_without_triggers(self):
+        from chronicler.emergence import check_tech_regression
+        world = _make_world()
+        civ = _make_civ(tech_era=TechEra.INDUSTRIAL)
+        world.civilizations = [civ]
+        events = check_tech_regression(world, black_swan_fired=False)
+        assert events == []
+
+    def test_capital_loss_trigger(self):
+        from chronicler.emergence import check_tech_regression
+        world = _make_world()
+        civ = _make_civ(
+            tech_era=TechEra.INDUSTRIAL,
+            regions=["R1"],
+            regions_start_of_turn=4,
+            capital_start_of_turn="Capital",
+            capital_region="R1",
+        )
+        world.civilizations = [civ]
+        regressions = 0
+        for i in range(100):
+            test_world = _make_world()
+            test_civ = _make_civ(
+                tech_era=TechEra.INDUSTRIAL,
+                regions=["R1"],
+                regions_start_of_turn=4,
+                capital_start_of_turn="Capital",
+                capital_region="R1",
+            )
+            test_world.civilizations = [test_civ]
+            test_world.seed = i
+            test_world.turn = i
+            events = check_tech_regression(test_world, black_swan_fired=False)
+            if events:
+                regressions += 1
+        assert 15 <= regressions <= 45  # ~30% ± wide margin
+
+    def test_twilight_trigger(self):
+        from chronicler.emergence import check_tech_regression
+        regressions = 0
+        for i in range(100):
+            test_world = _make_world()
+            test_civ = _make_civ(
+                tech_era=TechEra.IRON,
+                decline_turns=1,
+                was_in_twilight=False,
+            )
+            test_world.civilizations = [test_civ]
+            test_world.seed = i
+            test_world.turn = i
+            events = check_tech_regression(test_world, black_swan_fired=False)
+            if events:
+                regressions += 1
+        assert 35 <= regressions <= 65  # ~50% ± wide margin
+
+    def test_regression_drops_one_era(self):
+        from chronicler.emergence import check_tech_regression
+        for i in range(100):
+            world = _make_world()
+            civ = _make_civ(
+                tech_era=TechEra.IRON, decline_turns=1, was_in_twilight=False,
+                military=60, economy=60,
+            )
+            world.civilizations = [civ]
+            world.seed = i
+            world.turn = i
+            events = check_tech_regression(world, black_swan_fired=False)
+            if events:
+                assert civ.tech_era == TechEra.BRONZE
+                return
+        pytest.fail("Regression never fired in 100 attempts")
+
+    def test_tribal_floor(self):
+        from chronicler.emergence import check_tech_regression
+        world = _make_world()
+        civ = _make_civ(
+            tech_era=TechEra.TRIBAL, decline_turns=1, was_in_twilight=False,
+        )
+        world.civilizations = [civ]
+        events = check_tech_regression(world, black_swan_fired=False)
+        assert events == []
+        assert civ.tech_era == TechEra.TRIBAL
+
+    def test_highest_probability_used(self):
+        from chronicler.emergence import check_tech_regression
+        regressions = 0
+        for i in range(200):
+            world = _make_world()
+            civ = _make_civ(
+                tech_era=TechEra.IRON,
+                regions=["R1"],
+                regions_start_of_turn=4,
+                capital_start_of_turn="Capital",
+                capital_region="R1",
+                decline_turns=1,
+                was_in_twilight=False,
+            )
+            world.civilizations = [civ]
+            world.seed = i
+            world.turn = i
+            events = check_tech_regression(world, black_swan_fired=False)
+            if events:
+                regressions += 1
+        assert regressions >= 70  # At least 35% (50% - wide margin)
+
+    def test_removes_era_bonuses(self):
+        from chronicler.emergence import check_tech_regression
+        from chronicler.tech import ERA_BONUSES
+        for i in range(100):
+            world = _make_world()
+            civ = _make_civ(
+                tech_era=TechEra.IRON, economy=70,
+                decline_turns=1, was_in_twilight=False,
+            )
+            world.civilizations = [civ]
+            world.seed = i
+            world.turn = i
+            events = check_tech_regression(world, black_swan_fired=False)
+            if events:
+                assert civ.economy == 60  # 70 - 10 (IRON economy bonus)
+                return
+        pytest.fail("Regression never fired")
+
+
+class TestEcologicalSuccession:
+    def test_deforestation_after_threshold(self):
+        from chronicler.emergence import tick_terrain_succession
+        world = _make_world()
+        r = _make_region(name="Forest", terrain="forest", carrying_capacity=50,
+                         fertility=0.2)
+        r.low_fertility_turns = 50
+        world.regions = [r]
+        events = tick_terrain_succession(world)
+        assert len(events) == 1
+        assert r.terrain == "plains"
+        assert r.carrying_capacity == 70  # 50 + 20
+        assert r.fertility == pytest.approx(0.5)
+        assert r.low_fertility_turns == 0
+
+    def test_deforestation_below_threshold_no_change(self):
+        from chronicler.emergence import tick_terrain_succession
+        world = _make_world()
+        r = _make_region(name="Forest", terrain="forest", carrying_capacity=50,
+                         fertility=0.2)
+        r.low_fertility_turns = 49
+        world.regions = [r]
+        events = tick_terrain_succession(world)
+        assert events == []
+        assert r.terrain == "forest"
+
+    def test_rewilding_after_threshold(self):
+        from chronicler.emergence import tick_terrain_succession
+        world = _make_world()
+        world.turn = 200
+        r = _make_region(name="Plains", terrain="plains", carrying_capacity=80)
+        r.depopulated_since = 99  # 200 - 99 = 101 turns > 100 threshold
+        r.controller = None
+        world.regions = [r]
+        events = tick_terrain_succession(world)
+        assert len(events) == 1
+        assert r.terrain == "forest"
+        assert r.carrying_capacity == 70  # 80 - 10
+        assert r.fertility == pytest.approx(0.7)
+        assert r.depopulated_since is None
+
+    def test_rewilding_skips_controlled_region(self):
+        from chronicler.emergence import tick_terrain_succession
+        world = _make_world()
+        world.turn = 200
+        r = _make_region(name="Plains", terrain="plains")
+        r.depopulated_since = 50
+        r.controller = "Civ1"
+        world.regions = [r]
+        events = tick_terrain_succession(world)
+        assert events == []
+        assert r.terrain == "plains"
+
+    def test_rewilding_skips_none_depopulated_since(self):
+        from chronicler.emergence import tick_terrain_succession
+        world = _make_world()
+        world.turn = 200
+        r = _make_region(name="Plains", terrain="plains")
+        r.depopulated_since = None
+        r.controller = None
+        world.regions = [r]
+        events = tick_terrain_succession(world)
+        assert events == []
+
+    def test_empty_rules_disables_succession(self):
+        from chronicler.emergence import tick_terrain_succession
+        world = _make_world()
+        world.terrain_transition_rules = []
+        r = _make_region(name="Forest", terrain="forest", fertility=0.1)
+        r.low_fertility_turns = 100
+        world.regions = [r]
+        events = tick_terrain_succession(world)
+        assert events == []
+        assert r.terrain == "forest"
+
+    def test_low_fertility_counter_increments(self):
+        from chronicler.emergence import update_low_fertility_counters
+        world = _make_world()
+        r = _make_region(name="R", fertility=0.2)
+        world.regions = [r]
+        update_low_fertility_counters(world)
+        assert r.low_fertility_turns == 1
+
+    def test_low_fertility_counter_resets(self):
+        from chronicler.emergence import update_low_fertility_counters
+        world = _make_world()
+        r = _make_region(name="R", fertility=0.5)
+        r.low_fertility_turns = 10
+        world.regions = [r]
+        update_low_fertility_counters(world)
+        assert r.low_fertility_turns == 0

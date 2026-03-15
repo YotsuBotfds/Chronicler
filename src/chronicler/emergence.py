@@ -12,6 +12,7 @@ from chronicler.models import (
     Resource, TechEra, WorldState,
 )
 from chronicler.resources import get_active_trade_routes
+from chronicler.tech import _prev_era, remove_era_bonus
 from chronicler.utils import clamp, STAT_FLOOR
 
 
@@ -499,3 +500,129 @@ def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
         description=f"Industrial disaster in {target.name} poisons the surrounding lands",
         importance=8,
     )]
+
+
+# ---------------------------------------------------------------------------
+# Technological Regression
+# ---------------------------------------------------------------------------
+
+_REGRESSION_TRIGGERS = {
+    "capital_collapse": 0.30,
+    "entered_twilight": 0.50,
+    "black_swan_stressed": 0.20,
+}
+
+
+def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> list[Event]:
+    """Check regression triggers for all civs. Phase 10, after consequences."""
+    events: list[Event] = []
+
+    for civ in world.civilizations:
+        if _prev_era(civ.tech_era) is None:
+            continue
+
+        matching_probs: list[float] = []
+
+        # Trigger 1: Capital loss + territorial collapse
+        if (civ.capital_start_of_turn is not None
+                and civ.capital_region != civ.capital_start_of_turn
+                and civ.regions_start_of_turn > 0
+                and len(civ.regions) / civ.regions_start_of_turn < 0.5):
+            matching_probs.append(_REGRESSION_TRIGGERS["capital_collapse"])
+
+        # Trigger 2: Entered twilight this turn
+        if civ.decline_turns > 0 and not civ.was_in_twilight:
+            matching_probs.append(_REGRESSION_TRIGGERS["entered_twilight"])
+
+        # Trigger 3: Black swan while critically stressed
+        if black_swan_fired and civ.civ_stress >= 15:
+            matching_probs.append(_REGRESSION_TRIGGERS["black_swan_stressed"])
+
+        if not matching_probs:
+            continue
+
+        best_prob = max(matching_probs)
+        rng = random.Random(world.seed + world.turn * 1037 + hash(civ.name))
+        if rng.random() >= best_prob:
+            continue
+
+        old_era = civ.tech_era
+        new_era = _prev_era(old_era)
+        assert new_era is not None
+        remove_era_bonus(civ, old_era)
+        civ.tech_era = new_era
+
+        events.append(Event(
+            turn=world.turn,
+            event_type="tech_regression",
+            actors=[civ.name],
+            description=f"{civ.name} loses the knowledge of the {old_era.value} era, falling back to {new_era.value}",
+            importance=9,
+        ))
+
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Ecological Succession
+# ---------------------------------------------------------------------------
+
+def update_low_fertility_counters(world: WorldState) -> None:
+    """Increment or reset low_fertility_turns for all regions. Called in Phase 9."""
+    for region in world.regions:
+        if region.fertility < 0.3:
+            region.low_fertility_turns += 1
+        else:
+            region.low_fertility_turns = 0
+
+
+def tick_terrain_succession(world: WorldState) -> list[Event]:
+    """Check and apply terrain transitions. Called at end of Phase 9."""
+    events: list[Event] = []
+
+    for region in world.regions:
+        for rule in world.terrain_transition_rules:
+            if region.terrain != rule.from_terrain:
+                continue
+
+            if rule.condition == "low_fertility":
+                if region.low_fertility_turns >= rule.threshold_turns:
+                    _apply_transition(region, rule)
+                    events.append(Event(
+                        turn=world.turn,
+                        event_type="terrain_transition",
+                        actors=[region.controller] if region.controller else [],
+                        description=f"{region.name} transforms from {rule.from_terrain} to {rule.to_terrain}",
+                        importance=6,
+                    ))
+
+            elif rule.condition == "depopulated":
+                if region.controller is not None:
+                    continue
+                if region.depopulated_since is None:
+                    continue
+                if world.turn - region.depopulated_since >= rule.threshold_turns:
+                    _apply_transition(region, rule)
+                    events.append(Event(
+                        turn=world.turn,
+                        event_type="terrain_transition",
+                        actors=[],
+                        description=f"{region.name} transforms from {rule.from_terrain} to {rule.to_terrain}",
+                        importance=6,
+                    ))
+
+    return events
+
+
+def _apply_transition(region: Region, rule) -> None:
+    """Apply a terrain transition to a region."""
+    if rule.from_terrain == "forest" and rule.to_terrain == "plains":
+        region.terrain = "plains"
+        region.carrying_capacity = min(100, region.carrying_capacity + 20)
+        region.fertility = 0.5
+        region.low_fertility_turns = 0
+    elif rule.from_terrain == "plains" and rule.to_terrain == "forest":
+        region.terrain = "forest"
+        region.carrying_capacity = max(1, region.carrying_capacity - 10)
+        region.fertility = 0.7
+        region.depopulated_since = None
