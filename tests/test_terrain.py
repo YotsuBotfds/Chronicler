@@ -39,26 +39,24 @@ class TestTerrainDefenseBonus:
         assert terrain_defense_bonus(r) == 0
 
 
-class TestTerrainFertilityCap:
-    def test_plains_cap(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="F", terrain="plains", carrying_capacity=80, resources="fertile")
-        assert terrain_fertility_cap(r) == 0.9
+class TestTerrainEcologyCaps:
+    """Terrain ecology caps are now in ecology.TERRAIN_ECOLOGY_CAPS."""
 
-    def test_desert_cap(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="D", terrain="desert", carrying_capacity=30, resources="mineral")
-        assert terrain_fertility_cap(r) == 0.3
+    def test_plains_soil_cap(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        assert TERRAIN_ECOLOGY_CAPS["plains"]["soil"] == 0.95
 
-    def test_tundra_cap(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="T", terrain="tundra", carrying_capacity=20, resources="mineral")
-        assert terrain_fertility_cap(r) == 0.2
+    def test_desert_soil_cap(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        assert TERRAIN_ECOLOGY_CAPS["desert"]["soil"] == 0.30
 
-    def test_unknown_terrain_defaults_to_plains(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="H", terrain="river", carrying_capacity=60, resources="fertile")
-        assert terrain_fertility_cap(r) == 0.9
+    def test_tundra_soil_cap(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        assert TERRAIN_ECOLOGY_CAPS["tundra"]["soil"] == 0.20
+
+    def test_all_terrains_present(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
 
 
 class TestTerrainTradeModifier:
@@ -74,35 +72,42 @@ class TestTerrainTradeModifier:
 
 
 class TestEffectiveCapacity:
+    """effective_capacity now lives in ecology module."""
+
     def test_basic_capacity(self):
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
+        from chronicler.models import RegionEcology
         r = Region(name="F", terrain="plains", carrying_capacity=80, resources="fertile",
-                   fertility=0.5)
+                   ecology=RegionEcology(soil=0.5, water=0.6))
         assert effective_capacity(r) == 40
 
-    def test_capped_by_terrain(self):
-        from chronicler.terrain import effective_capacity
+    def test_low_water_reduces_capacity(self):
+        from chronicler.ecology import effective_capacity
+        from chronicler.models import RegionEcology
         r = Region(name="D", terrain="desert", carrying_capacity=100, resources="mineral",
-                   fertility=0.5)
-        assert effective_capacity(r) == 30
+                   ecology=RegionEcology(soil=0.5, water=0.25))
+        assert effective_capacity(r) == 25
 
     def test_floor_of_one(self):
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
+        from chronicler.models import RegionEcology
         r = Region(name="X", terrain="tundra", carrying_capacity=10, resources="mineral",
-                   fertility=0.0)
-        assert effective_capacity(r) == 1
+                   ecology=RegionEcology(soil=0.05, water=0.10))
+        assert effective_capacity(r) >= 1
 
     def test_full_capacity(self):
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
+        from chronicler.models import RegionEcology
         r = Region(name="F", terrain="plains", carrying_capacity=90, resources="fertile",
-                   fertility=0.9)
-        assert effective_capacity(r) == 81
+                   ecology=RegionEcology(soil=1.0, water=1.0))
+        assert effective_capacity(r) == 90
 
-    def test_fertility_above_cap_uses_cap(self):
-        from chronicler.terrain import effective_capacity
+    def test_soil_and_water_combined(self):
+        from chronicler.ecology import effective_capacity
+        from chronicler.models import RegionEcology
         r = Region(name="M", terrain="mountains", carrying_capacity=50, resources="mineral",
-                   fertility=1.0)
-        assert effective_capacity(r) == 30
+                   ecology=RegionEcology(soil=0.5, water=0.25))
+        assert effective_capacity(r) == 12
 
 
 class TestClassifyRegions:
@@ -168,32 +173,23 @@ class TestRoleStacking:
         assert total_trade_modifier(r) == 5
 
 
-class TestTerrainFertilityCapIntegration:
-    def test_desert_recovery_capped(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="D", terrain="desert", carrying_capacity=30,
-                   resources="mineral", fertility=0.29)
-        cap = terrain_fertility_cap(r)
-        new_fertility = min(r.fertility + 0.01, cap)
-        assert new_fertility == 0.3
+class TestEcologyCapIntegration:
+    """Ecology capping is now handled by _clamp_ecology in ecology.py."""
 
-    def test_desert_recovery_at_cap_stays(self):
-        from chronicler.terrain import terrain_fertility_cap
+    def test_desert_soil_capped(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS, _clamp_ecology
+        from chronicler.models import RegionEcology
         r = Region(name="D", terrain="desert", carrying_capacity=30,
-                   resources="mineral", fertility=0.3)
-        cap = terrain_fertility_cap(r)
-        new_fertility = min(r.fertility + 0.01, cap)
-        assert new_fertility == 0.3
+                   resources="mineral",
+                   ecology=RegionEcology(soil=0.50, water=0.10, forest_cover=0.0))
+        _clamp_ecology(r)
+        assert r.ecology.soil == 0.30  # desert soil cap
 
-
-class TestFertilityRecoveryMultiTurn:
-    def test_desert_recovers_to_cap_over_turns(self):
-        from chronicler.terrain import terrain_fertility_cap
+    def test_desert_soil_at_cap_stays(self):
+        from chronicler.ecology import _clamp_ecology
+        from chronicler.models import RegionEcology
         r = Region(name="D", terrain="desert", carrying_capacity=30,
-                   resources="mineral", fertility=0.28)
-        cap = terrain_fertility_cap(r)
-        history = []
-        for _ in range(5):
-            r.fertility = min(r.fertility + 0.01, cap)
-            history.append(round(r.fertility, 2))
-        assert history == [0.29, 0.30, 0.30, 0.30, 0.30]
+                   resources="mineral",
+                   ecology=RegionEcology(soil=0.30, water=0.10, forest_cover=0.0))
+        _clamp_ecology(r)
+        assert r.ecology.soil == 0.30

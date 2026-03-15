@@ -31,7 +31,7 @@ class TestInfrastructureModels:
     def test_region_has_infrastructure_fields(self):
         r = Region(
             name="Test", terrain="plains", carrying_capacity=80,
-            resources="fertile", fertility=0.8,
+            resources="fertile",
             infrastructure=[
                 Infrastructure(type=InfrastructureType.ROADS,
                               builder_civ="Rome", built_turn=10),
@@ -84,28 +84,28 @@ class TestValidBuildTypes:
     def test_desert_excludes_irrigation(self):
         from chronicler.infrastructure import valid_build_types
         r = Region(name="D", terrain="desert", carrying_capacity=30,
-                   resources="mineral", fertility=0.3)
+                   resources="mineral")
         types = valid_build_types(r)
         assert InfrastructureType.IRRIGATION not in types
 
     def test_coast_allows_ports(self):
         from chronicler.infrastructure import valid_build_types
         r = Region(name="S", terrain="coast", carrying_capacity=70,
-                   resources="maritime", fertility=0.8)
+                   resources="maritime")
         types = valid_build_types(r)
         assert InfrastructureType.PORTS in types
 
     def test_non_coast_excludes_ports(self):
         from chronicler.infrastructure import valid_build_types
         r = Region(name="F", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8)
+                   resources="fertile")
         types = valid_build_types(r)
         assert InfrastructureType.PORTS not in types
 
     def test_no_duplicate_types(self):
         from chronicler.infrastructure import valid_build_types
         r = Region(name="F", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8,
+                   resources="fertile",
                    infrastructure=[
                        Infrastructure(type=InfrastructureType.ROADS,
                                      builder_civ="X", built_turn=1),
@@ -116,7 +116,7 @@ class TestValidBuildTypes:
     def test_pending_build_blocks_all(self):
         from chronicler.infrastructure import valid_build_types
         r = Region(name="F", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8,
+                   resources="fertile",
                    pending_build=PendingBuild(
                        type=InfrastructureType.ROADS,
                        builder_civ="X", started_turn=1, turns_remaining=1,
@@ -129,7 +129,7 @@ class TestHandleBuild:
     def test_build_creates_pending(self):
         from chronicler.infrastructure import handle_build
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8, controller="Rome")
+                   resources="fertile", controller="Rome")
         civ = _make_civ("Rome", treasury=50, regions=["A"])
         world = _make_world([r], [civ])
         event = handle_build(civ, world)
@@ -140,7 +140,7 @@ class TestHandleBuild:
     def test_build_deducts_cost(self):
         from chronicler.infrastructure import handle_build, BUILD_SPECS
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8, controller="Rome")
+                   resources="fertile", controller="Rome")
         civ = _make_civ("Rome", treasury=100, regions=["A"])
         world = _make_world([r], [civ])
         handle_build(civ, world)
@@ -151,7 +151,7 @@ class TestHandleBuild:
     def test_build_aggressive_prefers_fortifications(self):
         from chronicler.infrastructure import handle_build
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8, controller="Rome")
+                   resources="fertile", controller="Rome")
         civ = _make_civ("Rome", treasury=100, regions=["A"], trait="aggressive")
         world = _make_world([r], [civ])
         handle_build(civ, world)
@@ -160,7 +160,7 @@ class TestHandleBuild:
     def test_build_no_valid_regions_returns_none(self):
         from chronicler.infrastructure import handle_build
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8, controller="Rome",
+                   resources="fertile", controller="Rome",
                    pending_build=PendingBuild(
                        type=InfrastructureType.ROADS,
                        builder_civ="Rome", started_turn=1, turns_remaining=1))
@@ -174,7 +174,7 @@ class TestTickInfrastructure:
     def test_pending_build_advances(self):
         from chronicler.infrastructure import tick_infrastructure
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8,
+                   resources="fertile",
                    pending_build=PendingBuild(
                        type=InfrastructureType.ROADS,
                        builder_civ="Rome", started_turn=1, turns_remaining=2,
@@ -186,7 +186,7 @@ class TestTickInfrastructure:
     def test_pending_build_completes(self):
         from chronicler.infrastructure import tick_infrastructure
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8,
+                   resources="fertile",
                    pending_build=PendingBuild(
                        type=InfrastructureType.ROADS,
                        builder_civ="Rome", started_turn=1, turns_remaining=1,
@@ -199,29 +199,7 @@ class TestTickInfrastructure:
         assert len(events) == 1
         assert events[0].event_type == "infrastructure_completed"
 
-    def test_mine_degrades_fertility(self):
-        from chronicler.infrastructure import tick_infrastructure
-        r = Region(name="A", terrain="mountains", carrying_capacity=50,
-                   resources="mineral", fertility=0.7,
-                   infrastructure=[
-                       Infrastructure(type=InfrastructureType.MINES,
-                                     builder_civ="Rome", built_turn=1),
-                   ])
-        world = _make_world([r], [])
-        tick_infrastructure(world)
-        assert abs(r.fertility - 0.67) < 0.001
-
-    def test_inactive_mine_no_degradation(self):
-        from chronicler.infrastructure import tick_infrastructure
-        r = Region(name="A", terrain="mountains", carrying_capacity=50,
-                   resources="mineral", fertility=0.7,
-                   infrastructure=[
-                       Infrastructure(type=InfrastructureType.MINES,
-                                     builder_civ="Rome", built_turn=1, active=False),
-                   ])
-        world = _make_world([r], [])
-        tick_infrastructure(world)
-        assert r.fertility == 0.7
+    # Mine soil degradation tests moved to test_ecology.py (TestTickSoil)
 
 
 class TestScorchedEarth:
@@ -229,7 +207,7 @@ class TestScorchedEarth:
         from chronicler.infrastructure import scorched_earth_check
         civ = _make_civ("Rome", stability=10)
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8,
+                   resources="fertile",
                    infrastructure=[
                        Infrastructure(type=InfrastructureType.ROADS,
                                      builder_civ="Rome", built_turn=1),
@@ -245,7 +223,7 @@ class TestScorchedEarth:
         from chronicler.infrastructure import scorched_earth_check
         civ = _make_civ("Rome", stability=100)
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8,
+                   resources="fertile",
                    infrastructure=[
                        Infrastructure(type=InfrastructureType.ROADS,
                                      builder_civ="Rome", built_turn=1),
@@ -259,7 +237,7 @@ class TestScorchedEarth:
         from chronicler.infrastructure import scorched_earth_check
         civ = _make_civ("Rome", stability=1)
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8)
+                   resources="fertile")
         world = _make_world([r], [civ])
         events = scorched_earth_check(world, civ, r, seed=42)
         assert len(events) == 0

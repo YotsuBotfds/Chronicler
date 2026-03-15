@@ -108,14 +108,13 @@ class TestCheckDisasters:
     def test_earthquake_in_mountains(self):
         from chronicler.climate import check_disasters
         r = Region(name="Peaks", terrain="mountains", carrying_capacity=50,
-                   resources="mineral", fertility=0.7)
+                   resources="mineral")
         w = WorldState(name="T", seed=42, regions=[r],
                        climate_config=ClimateConfig(severity=1.0))
         triggered = False
         for turn in range(500):
             w.turn = turn
             r.disaster_cooldowns = {}
-            r.fertility = 0.7
             events = check_disasters(w, ClimatePhase.TEMPERATE)
             if any(e.event_type == "earthquake" for e in events):
                 triggered = True
@@ -125,7 +124,7 @@ class TestCheckDisasters:
     def test_cooldown_prevents_repeat(self):
         from chronicler.climate import check_disasters
         r = Region(name="Peaks", terrain="mountains", carrying_capacity=50,
-                   resources="mineral", fertility=0.7,
+                   resources="mineral",
                    disaster_cooldowns={"earthquake": 5})
         w = WorldState(name="T", seed=42, regions=[r],
                        climate_config=ClimateConfig(severity=1.0))
@@ -154,7 +153,7 @@ class TestCheckDisasters:
         from chronicler.climate import check_disasters
         infra = Infrastructure(type=InfrastructureType.ROADS, builder_civ="X", built_turn=1)
         r = Region(name="Peaks", terrain="mountains", carrying_capacity=50,
-                   resources="mineral", fertility=0.7,
+                   resources="mineral",
                    infrastructure=[infra])
         w = WorldState(name="T", seed=42, regions=[r],
                        climate_config=ClimateConfig(severity=1.0))
@@ -162,7 +161,6 @@ class TestCheckDisasters:
             w.turn = turn
             r.disaster_cooldowns = {}
             infra.active = True
-            r.fertility = 0.7
             events = check_disasters(w, ClimatePhase.TEMPERATE)
             if any(e.event_type == "earthquake" for e in events):
                 assert not infra.active
@@ -171,14 +169,13 @@ class TestCheckDisasters:
     def test_wildfire_suspends_timber(self):
         from chronicler.climate import check_disasters
         r = Region(name="Woods", terrain="forest", carrying_capacity=60,
-                   resources="timber", fertility=0.7)
+                   resources="timber")
         w = WorldState(name="T", seed=42, regions=[r],
                        climate_config=ClimateConfig(severity=1.0))
         for turn in range(200):
             w.turn = turn
             r.disaster_cooldowns = {}
             r.resource_suspensions = {}
-            r.fertility = 0.7
             events = check_disasters(w, ClimatePhase.TEMPERATE)
             if any(e.event_type == "wildfire" for e in events):
                 assert r.resource_suspensions.get("timber") == 10
@@ -198,7 +195,7 @@ class TestProcessMigration:
     def test_no_migration_when_capacity_sufficient(self):
         from chronicler.climate import process_migration
         r = Region(name="A", terrain="plains", carrying_capacity=80,
-                   resources="fertile", fertility=0.8, controller="Rome",
+                   resources="fertile", controller="Rome",
                    adjacencies=["B"], population=30)
         civ = _make_civ("Rome", population=30, regions=["A"])
         w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
@@ -208,10 +205,10 @@ class TestProcessMigration:
     def test_migration_triggered_by_low_capacity(self):
         from chronicler.climate import process_migration
         r_src = Region(name="A", terrain="desert", carrying_capacity=20,
-                       resources="mineral", fertility=0.2, controller="Rome",
+                       resources="mineral", controller="Rome",
                        adjacencies=["B"], population=40)
         r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
-                       resources="fertile", fertility=0.8, controller="Greece",
+                       resources="fertile", controller="Greece",
                        adjacencies=["A"], population=30)
         rome = _make_civ("Rome", population=40, regions=["A"])
         greece = _make_civ("Greece", population=30, regions=["B"])
@@ -229,10 +226,10 @@ class TestProcessMigration:
     def test_hostile_border_blocks_migration(self):
         from chronicler.climate import process_migration
         r_src = Region(name="A", terrain="desert", carrying_capacity=20,
-                       resources="mineral", fertility=0.1, controller="Rome",
+                       resources="mineral", controller="Rome",
                        adjacencies=["B"], population=40)
         r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
-                       resources="fertile", fertility=0.8, controller="Greece",
+                       resources="fertile", controller="Greece",
                        adjacencies=["A"], population=30)
         rome = _make_civ("Rome", population=40, regions=["A"])
         greece = _make_civ("Greece", population=30, regions=["B"])
@@ -249,10 +246,10 @@ class TestProcessMigration:
     def test_uncontrolled_region_absorbs_to_void(self):
         from chronicler.climate import process_migration
         r_src = Region(name="A", terrain="desert", carrying_capacity=20,
-                       resources="mineral", fertility=0.1, controller="Rome",
+                       resources="mineral", controller="Rome",
                        adjacencies=["B"], population=40)
         r_dst = Region(name="B", terrain="plains", carrying_capacity=80,
-                       resources="fertile", fertility=0.8, controller=None,
+                       resources="fertile", controller=None,
                        adjacencies=["A"])
         rome = _make_civ("Rome", population=40, regions=["A"])
         w = WorldState(name="T", seed=42, regions=[r_src, r_dst],
@@ -287,22 +284,14 @@ class TestMountainDefenseWarming:
 
 
 class TestTundraCapModifier:
-    def test_tundra_cap_doubles_during_warming(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="T", terrain="tundra", carrying_capacity=30,
-                   resources="mineral")
-        base_cap = terrain_fertility_cap(r)
-        assert base_cap == 0.2
-        warming_cap = base_cap * 2.0
-        assert warming_cap == 0.4
+    def test_tundra_soil_cap(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        caps = TERRAIN_ECOLOGY_CAPS["tundra"]
+        assert caps["soil"] == 0.20
 
-    def test_tundra_cap_crashes_during_cooling(self):
-        from chronicler.terrain import terrain_fertility_cap
-        r = Region(name="T", terrain="tundra", carrying_capacity=30,
-                   resources="mineral")
-        base_cap = terrain_fertility_cap(r)
-        cooling_cap = base_cap * 0.3
-        assert abs(cooling_cap - 0.06) < 0.001
+    def test_tundra_soil_cap_compared_to_plains(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        assert TERRAIN_ECOLOGY_CAPS["tundra"]["soil"] < TERRAIN_ECOLOGY_CAPS["plains"]["soil"]
 
 
 class TestPhaseOffset:

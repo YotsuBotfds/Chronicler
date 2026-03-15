@@ -141,10 +141,13 @@ def test_capital_loss_triggers_stability_penalty():
 
 
 def test_capital_loss_picks_best_remaining_region():
-    """Capital reassignment picks highest carrying_capacity * fertility."""
+    """Capital reassignment picks highest effective_capacity."""
+    from chronicler.models import RegionEcology
     regions = [
-        Region(name="B", terrain="plains", carrying_capacity=30, resources="fertile", fertility=0.5),
-        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile", fertility=0.8),
+        Region(name="B", terrain="plains", carrying_capacity=30, resources="fertile",
+               ecology=RegionEcology(soil=0.5, water=0.6)),
+        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile",
+               ecology=RegionEcology(soil=0.8, water=0.6)),
     ]
     leader = Leader(name="L", trait="bold", reign_start=0)
     civ = Civilization(
@@ -154,7 +157,7 @@ def test_capital_loss_picks_best_remaining_region():
     )
     world = WorldState(name="test", seed=42, regions=regions, civilizations=[civ])
     check_capital_loss(world)
-    # C has 50*0.8=40, B has 30*0.5=15 — C wins
+    # C has effective_capacity(50, soil=0.8) = 40, B has effective_capacity(30, soil=0.5) = 15 — C wins
     assert civ.capital_region == "C"
 
 

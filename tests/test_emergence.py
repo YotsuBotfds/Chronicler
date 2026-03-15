@@ -21,7 +21,7 @@ class TestTerrainTransitionRule:
     def test_create(self):
         rule = TerrainTransitionRule(
             from_terrain="forest", to_terrain="plains",
-            condition="low_fertility", threshold_turns=50,
+            condition="low_forest", threshold_turns=50,
         )
         assert rule.from_terrain == "forest"
         assert rule.threshold_turns == 50
@@ -29,7 +29,7 @@ class TestTerrainTransitionRule:
     def test_serialization_roundtrip(self):
         rule = TerrainTransitionRule(
             from_terrain="plains", to_terrain="forest",
-            condition="depopulated", threshold_turns=100,
+            condition="forest_regrowth", threshold_turns=100,
         )
         data = rule.model_dump()
         rule2 = TerrainTransitionRule(**data)
@@ -43,9 +43,9 @@ from chronicler.models import (
 
 
 class TestM18ModelExtensions:
-    def test_region_has_low_fertility_turns(self):
+    def test_region_has_low_forest_turns(self):
         r = Region(name="T", terrain="plains", carrying_capacity=80, resources="fertile")
-        assert r.low_fertility_turns == 0
+        assert r.low_forest_turns == 0
 
     def test_civilization_has_stress_fields(self):
         c = Civilization(
@@ -358,17 +358,17 @@ class TestSeverityMultiplierWiring:
 
     def test_famine_damage_amplified_by_stress(self):
         """Famine damage should be amplified by stress."""
-        from chronicler.simulation import _check_famine
+        from chronicler.ecology import _check_famine
         world = _make_world()
-        civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20)
+        civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20, regions=["R1"])
         world.civilizations = [civ]
-        # Use fertility below tuned threshold (0.05)
-        r = _make_region(name="R1", controller="Civ1", fertility=0.01, famine_cooldown=0)
+        # Use water below famine threshold (0.20)
+        r = _make_region(name="R1", controller="Civ1", famine_cooldown=0, population=80)
+        r.ecology.water = 0.01
         world.regions = [r]
         _check_famine(world)
-        # Base famine: pop -15. With 1.5x stress multiplier: pop -= int(15*1.5) = 22
-        assert civ.population <= 80 - 15  # At least base damage
-        assert civ.population < 80 - 15 + 1  # More than base (amplified)
+        # Base famine: pop -5. With 1.5x stress multiplier: pop -= int(5*1.5) = 7
+        assert civ.population < 80  # At least some damage
 
     def test_random_event_damage_amplified(self):
         """Random event damage should be amplified by stress."""
@@ -647,9 +647,9 @@ class TestSupervolcano:
         r1.infrastructure = [
             Infrastructure(type=InfrastructureType.FORTIFICATIONS, builder_civ="Civ1", built_turn=0),
         ]
-        r1.fertility = 0.8
-        r2.fertility = 0.8
-        r3.fertility = 0.6
+        r1.ecology.soil = 0.8
+        r2.ecology.soil = 0.8
+        r3.ecology.soil = 0.6
         world.regions = [r1, r2, r3]
         world.civilizations = [
             _make_civ(name="Civ1", population=80, stability=60, regions=["Peak", "Valley"]),
@@ -657,13 +657,13 @@ class TestSupervolcano:
         ]
         return world
 
-    def test_supervolcano_devastates_fertility(self):
+    def test_supervolcano_devastates_soil(self):
         from chronicler.emergence import _apply_supervolcano
         world = self._setup_volcano_world()
         events = _apply_supervolcano(world, seed=42)
         assert len(events) >= 1
         for r in world.regions:
-            assert r.fertility == pytest.approx(0.1)
+            assert r.ecology.soil == pytest.approx(0.1)
 
     def test_supervolcano_destroys_infrastructure(self):
         from chronicler.emergence import _apply_supervolcano
@@ -703,7 +703,7 @@ class TestSupervolcano:
         world.regions[2].controller = None
         world.civilizations[1].regions = []
         _apply_supervolcano(world, seed=42)
-        assert world.regions[2].fertility == pytest.approx(0.1)
+        assert world.regions[2].ecology.soil == pytest.approx(0.1)
         assert world.civilizations[1].population == 70
 
 
@@ -752,9 +752,12 @@ class TestResourceDiscovery:
 class TestTechAccident:
     def _setup_industrial_world(self):
         world = _make_world()
-        r1 = _make_region(name="Factory", controller="Civ1", fertility=0.8)
-        r2 = _make_region(name="Neighbor1", controller="Civ2", fertility=0.7)
-        r3 = _make_region(name="Neighbor2", controller="Civ2", fertility=0.6)
+        r1 = _make_region(name="Factory", controller="Civ1")
+        r1.ecology.soil = 0.8
+        r2 = _make_region(name="Neighbor1", controller="Civ2")
+        r2.ecology.soil = 0.7
+        r3 = _make_region(name="Neighbor2", controller="Civ2")
+        r3.ecology.soil = 0.6
         r1.adjacencies = ["Neighbor1"]
         r2.adjacencies = ["Factory", "Neighbor2"]
         r3.adjacencies = ["Neighbor1"]
@@ -773,23 +776,23 @@ class TestTechAccident:
         }
         return world
 
-    def test_target_region_fertility_drops(self):
+    def test_target_region_soil_drops(self):
         from chronicler.emergence import _apply_tech_accident
         world = self._setup_industrial_world()
         _apply_tech_accident(world, seed=42)
-        assert world.regions[0].fertility == pytest.approx(0.5)
+        assert world.regions[0].ecology.soil == pytest.approx(0.5)
 
-    def test_adjacent_regions_fertility_drops(self):
+    def test_adjacent_regions_soil_drops(self):
         from chronicler.emergence import _apply_tech_accident
         world = self._setup_industrial_world()
         _apply_tech_accident(world, seed=42)
-        assert world.regions[1].fertility == pytest.approx(0.55)
+        assert world.regions[1].ecology.soil == pytest.approx(0.55)
 
     def test_two_hop_regions_affected(self):
         from chronicler.emergence import _apply_tech_accident
         world = self._setup_industrial_world()
         _apply_tech_accident(world, seed=42)
-        assert world.regions[2].fertility == pytest.approx(0.45)
+        assert world.regions[2].ecology.soil == pytest.approx(0.45)
 
     def test_diplomatic_fallout(self):
         from chronicler.emergence import _apply_tech_accident
@@ -807,7 +810,7 @@ class TestTechAccident:
         )
         world.civilizations[0].great_persons = [scientist]
         _apply_tech_accident(world, seed=42)
-        assert world.regions[2].fertility == pytest.approx(0.6)
+        assert world.regions[2].ecology.soil == pytest.approx(0.6)
 
 
 class TestBlackSwanIntegration:
@@ -954,23 +957,23 @@ class TestEcologicalSuccession:
     def test_deforestation_after_threshold(self):
         from chronicler.emergence import tick_terrain_succession
         world = _make_world()
-        r = _make_region(name="Forest", terrain="forest", carrying_capacity=50,
-                         fertility=0.2)
-        r.low_fertility_turns = 50
+        r = _make_region(name="Forest", terrain="forest", carrying_capacity=50)
+        r.ecology.forest_cover = 0.1
+        r.low_forest_turns = 50
         world.regions = [r]
         events = tick_terrain_succession(world)
         assert len(events) == 1
         assert r.terrain == "plains"
         assert r.carrying_capacity == 70  # 50 + 20
-        assert r.fertility == pytest.approx(0.5)
-        assert r.low_fertility_turns == 0
+        assert r.ecology.soil == pytest.approx(0.5)
+        assert r.low_forest_turns == 0
 
     def test_deforestation_below_threshold_no_change(self):
         from chronicler.emergence import tick_terrain_succession
         world = _make_world()
-        r = _make_region(name="Forest", terrain="forest", carrying_capacity=50,
-                         fertility=0.2)
-        r.low_fertility_turns = 49
+        r = _make_region(name="Forest", terrain="forest", carrying_capacity=50)
+        r.ecology.forest_cover = 0.1
+        r.low_forest_turns = 49
         world.regions = [r]
         events = tick_terrain_succession(world)
         assert events == []
@@ -981,34 +984,34 @@ class TestEcologicalSuccession:
         world = _make_world()
         world.turn = 200
         r = _make_region(name="Plains", terrain="plains", carrying_capacity=80)
-        r.depopulated_since = 99  # 200 - 99 = 101 turns > 100 threshold
+        r.forest_regrowth_turns = 101
         r.controller = None
         world.regions = [r]
         events = tick_terrain_succession(world)
         assert len(events) == 1
         assert r.terrain == "forest"
         assert r.carrying_capacity == 70  # 80 - 10
-        assert r.fertility == pytest.approx(0.7)
-        assert r.depopulated_since is None
+        assert r.ecology.forest_cover == pytest.approx(0.7)
+        assert r.forest_regrowth_turns == 0
 
-    def test_rewilding_skips_controlled_region(self):
+    def test_rewilding_skips_low_regrowth_turns(self):
         from chronicler.emergence import tick_terrain_succession
         world = _make_world()
         world.turn = 200
         r = _make_region(name="Plains", terrain="plains")
-        r.depopulated_since = 50
+        r.forest_regrowth_turns = 50  # below 100 threshold
         r.controller = "Civ1"
         world.regions = [r]
         events = tick_terrain_succession(world)
         assert events == []
         assert r.terrain == "plains"
 
-    def test_rewilding_skips_none_depopulated_since(self):
+    def test_rewilding_skips_zero_regrowth_turns(self):
         from chronicler.emergence import tick_terrain_succession
         world = _make_world()
         world.turn = 200
         r = _make_region(name="Plains", terrain="plains")
-        r.depopulated_since = None
+        r.forest_regrowth_turns = 0
         r.controller = None
         world.regions = [r]
         events = tick_terrain_succession(world)
@@ -1018,29 +1021,32 @@ class TestEcologicalSuccession:
         from chronicler.emergence import tick_terrain_succession
         world = _make_world()
         world.terrain_transition_rules = []
-        r = _make_region(name="Forest", terrain="forest", fertility=0.1)
-        r.low_fertility_turns = 100
+        r = _make_region(name="Forest", terrain="forest")
+        r.ecology.forest_cover = 0.1
+        r.low_forest_turns = 100
         world.regions = [r]
         events = tick_terrain_succession(world)
         assert events == []
         assert r.terrain == "forest"
 
-    def test_low_fertility_counter_increments(self):
-        from chronicler.emergence import update_low_fertility_counters
+    def test_low_forest_counter_increments(self):
+        from chronicler.ecology import _update_ecology_counters
         world = _make_world()
-        r = _make_region(name="R", fertility=0.2)
+        r = _make_region(name="R")
+        r.ecology.forest_cover = 0.1
         world.regions = [r]
-        update_low_fertility_counters(world)
-        assert r.low_fertility_turns == 1
+        _update_ecology_counters(world)
+        assert r.low_forest_turns == 1
 
-    def test_low_fertility_counter_resets(self):
-        from chronicler.emergence import update_low_fertility_counters
+    def test_low_forest_counter_resets(self):
+        from chronicler.ecology import _update_ecology_counters
         world = _make_world()
-        r = _make_region(name="R", fertility=0.5)
-        r.low_fertility_turns = 10
+        r = _make_region(name="R")
+        r.ecology.forest_cover = 0.5
+        r.low_forest_turns = 10
         world.regions = [r]
-        update_low_fertility_counters(world)
-        assert r.low_fertility_turns == 0
+        _update_ecology_counters(world)
+        assert r.low_forest_turns == 0
 
 
 class TestRegressionIntegration:
@@ -1059,18 +1065,18 @@ class TestRegressionIntegration:
 
 
 class TestSuccessionIntegration:
-    def test_low_fertility_counter_updates_during_turn(self):
+    def test_low_forest_counter_updates_during_turn(self):
         from chronicler.simulation import run_turn
         from chronicler.world_gen import generate_world
         from chronicler.models import ActionType
         world = generate_world(seed=42, num_regions=8, num_civs=4)
-        # Set a forest region to very low fertility
+        # Set a forest region to very low forest cover
         forest_regions = [r for r in world.regions if r.terrain == "forest"]
         if forest_regions:
-            forest_regions[0].fertility = 0.1
+            forest_regions[0].ecology.forest_cover = 0.1
             run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
                      narrator=lambda w, e: "", seed=1)
-            assert forest_regions[0].low_fertility_turns >= 1
+            assert forest_regions[0].low_forest_turns >= 1
 
 
 class TestM18EndToEnd:

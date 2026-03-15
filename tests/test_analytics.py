@@ -40,7 +40,7 @@ def _make_bundle(seed: int, turns: int = 10, num_civs: int = 2) -> dict:
             "trade_routes": [["Civ0", "Civ1"]] if t > 2 else [],
             "active_wars": [["Civ0", "Civ1"]] if t == 5 else [],
             "embargoes": [],
-            "fertility": {f"{n}_region": 0.8 - t * 0.05 for n in civ_names},
+            "ecology": {f"{n}_region": {"soil": 0.8 - t * 0.05, "water": 0.6, "forest_cover": 0.3} for n in civ_names},
             "mercenary_companies": [],
             "vassal_relations": [], "federations": [],
             "proxy_wars": [], "exile_modifiers": [],

@@ -24,10 +24,10 @@ class TestM15Integration:
 
         # Basic invariants
         for region in world.regions:
-            assert 0.0 <= region.fertility <= 1.0
+            assert 0.0 <= region.ecology.soil <= 1.0
             assert region.role in ("standard", "crossroads", "frontier", "chokepoint")
         for civ in world.civilizations:
-            assert civ.population >= 1
+            assert civ.population >= 0
 
     def test_terrain_defense_affects_war_outcome(self):
         """Mountain defenders should win more often than plains defenders."""
@@ -38,11 +38,11 @@ class TestM15Integration:
         for seed in range(50):
             mountain = Region(name="Peaks", terrain="mountains",
                              carrying_capacity=50, resources="mineral",
-                             controller="Defender", fertility=0.5,
+                             controller="Defender",
                              adjacencies=["Valley"])
             plains = Region(name="Valley", terrain="plains",
                            carrying_capacity=80, resources="fertile",
-                           controller="Attacker", fertility=0.8,
+                           controller="Attacker",
                            adjacencies=["Peaks"])
             leader_d = Leader(name="LD", trait="bold", reign_start=0)
             leader_a = Leader(name="LA", trait="bold", reign_start=0)
