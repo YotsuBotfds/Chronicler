@@ -351,6 +351,7 @@ class WorldState(BaseModel):
                                   condition="depopulated", threshold_turns=100),
         ]
     )
+    tuning_overrides: dict[str, float] = Field(default_factory=dict)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -422,3 +423,5 @@ class TurnSnapshot(BaseModel):
     movements_summary: list[dict] = Field(default_factory=list)
     stress_index: int = 0
     pandemic_regions: list[str] = Field(default_factory=list)
+    climate_phase: str = ""
+    active_conditions: list[dict] = Field(default_factory=list)

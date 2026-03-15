@@ -13,6 +13,7 @@ from chronicler.models import (
     NamedEvent,
     ActiveCondition,
     WorldState,
+    TurnSnapshot,
 )
 
 
@@ -197,3 +198,17 @@ def test_world_state_scenario_name_persists(sample_world, tmp_path):
     sample_world.save(path)
     loaded = WorldState.load(path)
     assert loaded.scenario_name == "Dead Miles"
+
+
+def test_turn_snapshot_has_climate_phase():
+    snap = TurnSnapshot(turn=1, civ_stats={}, region_control={}, relationships={})
+    assert snap.climate_phase == ""
+
+
+def test_turn_snapshot_has_active_conditions():
+    snap = TurnSnapshot(turn=1, civ_stats={}, region_control={}, relationships={})
+    assert snap.active_conditions == []
+
+
+def test_world_state_has_tuning_overrides(sample_world):
+    assert sample_world.tuning_overrides == {}
