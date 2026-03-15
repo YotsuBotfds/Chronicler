@@ -87,7 +87,7 @@ Shifts are detected by scanning `world.events_timeline` for the current turn dur
 - **Successful trade:** `event_type == "trade"` with `len(actors) >= 2` (successful trade has two actors).
 - **Successful expansion:** `event_type == "expand"` with `importance >= 5`.
 - **Cultural work:** `event_type == "cultural_work"`.
-- **Movement adoption:** `event_type == "movement_adoption"`.
+- **Movement adoption:** `event_type == "movement_adoption"`. **Prerequisite:** Currently emitted only as a `NamedEvent` in `world.named_events` (movements.py:108-115), not as a regular `Event` in `world.events_timeline`. M22 must add a parallel `Event` emission in `_process_spread()` alongside the existing `NamedEvent`, matching the `cultural_work` pattern which emits to both. This is a ~3-line addition to `movements.py`.
 - **Famine:** `event_type == "famine"` with `civ.name in actors`.
 - **Treasury bankruptcy:** Checked directly from civ state (`civ.treasury <= 0`), not from events.
 - **Trade income > military cost:** Checked from civ state (treasury delta this turn vs military maintenance cost), not from events.
@@ -363,7 +363,7 @@ def get_leader_faction_alignment(leader: Leader, factions: FactionState) -> floa
     """
     leader_faction = TRAIT_FACTION_MAP.get(leader.trait)
     if leader_faction is None:
-        return 0.5  # neutral traits (e.g., "resilient") don't help or hurt
+        return 0.5  # neutral traits (e.g., "opportunistic", "stubborn") don't help or hurt
     return factions.influence.get(leader_faction, 0.33)
 ```
 
@@ -768,11 +768,12 @@ All changes to `succession.py` are additive:
 | `src/chronicler/succession.py` | Crisis probability faction modifier, faction candidate generation call, weighted resolution call, exile faction check (~20 lines modified) |
 | `src/chronicler/politics.py` | Secession region scoring (capacity-weighted), `total_effective_capacity` helper, absorption safety net in twilight tick (~20 lines) |
 | `src/chronicler/action_engine.py` | Faction weight modifier call in `compute_weights()` (~5 lines) |
+| `src/chronicler/movements.py` | Add parallel `Event` emission for `movement_adoption` alongside existing `NamedEvent` (~3 lines) |
 | `src/chronicler/simulation.py` | `tick_factions()` call in phase 10 consequences (~3 lines) |
 | `src/chronicler/main.py` | Populate `factions` in CivSnapshot (~1 line) |
 | `tests/test_factions.py` (new) | Comprehensive test suite: influence shifts, normalization, power struggles, weight modifiers, candidate generation, win counting, secession scoring (~200 lines) |
 
-**Total:** ~450 lines production code, ~200 lines tests, across 6 source files + 1 new module + 1 test file.
+**Total:** ~450 lines production code, ~200 lines tests, across 7 source files + 1 new module + 1 test file.
 
 ## Cross-Cutting Concerns
 
