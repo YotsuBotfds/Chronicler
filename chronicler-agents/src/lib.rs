@@ -6,6 +6,7 @@
 use pyo3::prelude::*;
 
 mod agent;
+mod pool;
 mod region;
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
