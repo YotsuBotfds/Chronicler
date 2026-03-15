@@ -104,6 +104,7 @@ class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
     carrying_capacity: int = Field(ge=1, le=100)
+    population: int = Field(default=0, ge=0)
     resources: str  # fertile, mineral, timber, maritime, barren
     controller: Optional[str] = None
     x: float | None = None
@@ -143,7 +144,7 @@ class Civilization(BaseModel):
     # to keep values in-bounds. Do NOT enable validate_assignment=True without
     # updating all mutation sites in simulation.py.
     name: str
-    population: int = Field(ge=1, le=100)
+    population: int = Field(ge=0, le=1000)
     military: int = Field(ge=0, le=100)
     economy: int = Field(ge=0, le=100)
     culture: int = Field(ge=0, le=100)
@@ -179,6 +180,8 @@ class Civilization(BaseModel):
     regions_start_of_turn: int = 0  # M18: snapshot for regression detection
     was_in_twilight: bool = False  # M18: snapshot for regression detection
     capital_start_of_turn: str | None = None  # M18: snapshot for regression detection
+    tech_focuses: list[str] = Field(default_factory=list)  # M21: history of focus values
+    active_focus: str | None = None  # M21: current era's focus
 
 
 class Relationship(BaseModel):
@@ -395,6 +398,7 @@ class CivSnapshot(BaseModel):
     folk_heroes: list[dict] = Field(default_factory=list)
     active_crisis: bool = False
     civ_stress: int = 0
+    active_focus: str | None = None  # M21: tech focus for viewer/analytics
 
 
 class RelationshipSnapshot(BaseModel):

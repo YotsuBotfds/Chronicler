@@ -242,6 +242,7 @@ def execute_run(
                     folk_heroes=[{"name": fh["name"], "role": fh["role"]} for fh in civ.folk_heroes],
                     active_crisis=civ.succession_crisis_turns_remaining > 0,
                     civ_stress=civ.civ_stress,
+                    active_focus=civ.active_focus,
                 )
                 for civ in world.civilizations
             },
