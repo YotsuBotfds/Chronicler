@@ -247,8 +247,31 @@ def check_power_struggle(factions: FactionState) -> tuple[FactionType, FactionTy
 Forced when `power_struggle_turns > 5`:
 
 ```python
+def get_struggling_factions(civ: Civilization) -> tuple[FactionType, FactionType]:
+    """Return the two factions within 0.05 influence that are both above 0.30."""
+    sorted_factions = sorted(civ.factions.influence.items(), key=lambda x: x[1], reverse=True)
+    return (sorted_factions[0][0], sorted_factions[1][0])
+
+def resolve_win_tie(world: WorldState, civ: Civilization,
+                    contenders: tuple[FactionType, FactionType]) -> FactionType:
+    """Break tie: faction with more recent win. Still tied: military wins."""
+    min_turn = world.turn - 10
+    latest = {ft: -1 for ft in contenders}
+    for event in world.events_timeline:
+        if event.turn < min_turn or civ.name not in event.actors:
+            continue
+        for ft in contenders:
+            if _event_is_win(event, civ, ft):
+                latest[ft] = max(latest[ft], event.turn)
+    if latest[contenders[0]] != latest[contenders[1]]:
+        return max(latest, key=latest.get)
+    # Still tied: military wins (the generals have swords)
+    if FactionType.MILITARY in contenders:
+        return FactionType.MILITARY
+    return contenders[0]  # arbitrary if neither is military (rare)
+
 def resolve_power_struggle(civ: Civilization, world: WorldState) -> list[Event]:
-    contenders = get_struggling_factions(civ)  # the two within 0.05
+    contenders = get_struggling_factions(civ)
     wins = {}
     for ft in contenders:
         wins[ft] = count_faction_wins(world, civ, ft, lookback=10)
@@ -256,14 +279,21 @@ def resolve_power_struggle(civ: Civilization, world: WorldState) -> list[Event]:
     if wins[contenders[0]] != wins[contenders[1]]:
         winner = max(wins, key=wins.get)
     else:
-        # Tie: most recent win. Still tied: military wins (the generals have swords).
         winner = resolve_win_tie(world, civ, contenders)
 
+    turns = civ.factions.power_struggle_turns
     shift_faction_influence(civ.factions, winner, +0.15)
     civ.factions.power_struggle = False
     civ.factions.power_struggle_turns = 0
-    return [Event(...)]  # power_struggle_resolved event
+    return [Event(
+        turn=world.turn, event_type="power_struggle_resolved",
+        actors=[civ.name],
+        description=f"{civ.name}: {winner.value} faction prevails after {turns} turns of infighting.",
+        importance=7,
+    )]
 ```
+
+`_event_is_win(event, civ, faction_type)` is an internal helper that reuses the same event type matching logic as `count_faction_wins` (returns `True` if the event counts as a win for the given faction).
 
 ### Win Counting -- Stateless Event Scanner
 
@@ -291,13 +321,15 @@ def count_faction_wins(world: WorldState, civ: Civilization,
             if event.event_type == "trade" and len(event.actors) >= 2:
                 count += 1
         elif faction_type == FactionType.CULTURAL:
-            if event.event_type in ("cultural_work", "movement_adoption",
-                                     "tech_advancement"):
+            # Note: tech_advancement is NOT counted here -- it feeds into faction
+            # influence via FOCUS_FACTION_MAP separately. Including it in win counting
+            # would double-count its faction impact.
+            if event.event_type in ("cultural_work", "movement_adoption"):
                 count += 1
     return count
 ```
 
-Event type strings verified against the codebase: `"war"` (action_engine.py:253), `"expand"` (action_engine.py:107), `"trade"` (action_engine.py:132), `"cultural_work"` (simulation.py:810), `"movement_adoption"` (movements.py:107), `"tech_advancement"` (tech.py:104). War outcomes distinguished by description content (`result.outcome` string embedded at action_engine.py:254). Expansion success distinguished by importance threshold (6 for success at action_engine.py:108, 2 for failure at action_engine.py:112). Trade success distinguished by actor count (2 actors for success at action_engine.py:132, 1 for failure at action_engine.py:136).
+Event type strings verified against the codebase: `"war"` (action_engine.py:253), `"expand"` (action_engine.py:107), `"trade"` (action_engine.py:132), `"cultural_work"` (simulation.py:810), `"movement_adoption"` (movements.py:107). War outcomes distinguished by description content (`result.outcome` string embedded at action_engine.py:254). Expansion success distinguished by importance threshold (6 for success at action_engine.py:108, 2 for failure at action_engine.py:112). Trade success distinguished by actor count (2 actors for success at action_engine.py:132, 1 for failure at action_engine.py:136). Note: `"tech_advancement"` (tech.py:104) is NOT counted as a cultural win -- tech focus mapping via `FOCUS_FACTION_MAP` handles the faction influence shift separately.
 
 ## Succession Integration
 
@@ -458,19 +490,25 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
             gp.alive = False
             gp.fate = "ascended_to_leadership"
 
-    # External backer relationship bonus
+    # External backer relationship bonus -- upgrade disposition one step
     if winner.get("backer_civ"):
-        backer = next((c for c in world.civilizations if c.name == winner["backer_civ"]), None)
-        if backer:
-            improve_disposition(world, civ.name, backer.name, +1)
+        if civ.name in world.relationships and winner["backer_civ"] in world.relationships[civ.name]:
+            rel = world.relationships[civ.name][winner["backer_civ"]]
+            rel.disposition = upgrade_disposition(rel.disposition)
+            # upgrade_disposition: new helper in factions.py
+            # hostile -> suspicious -> neutral -> friendly -> allied
 
     # Faction-aware grudge inheritance (replaces flat 0.5 rate)
     inherit_grudges_with_factions(old_leader, new_leader, civ.factions)
 
     # Exile old leader (existing M17 logic, unchanged)
-    exile_event = create_exiled_leader(old_leader, civ, world)
-    if exile_event:
-        events.append(exile_event)
+    # create_exiled_leader() returns str | None (host civ name), not an Event.
+    # It handles GP creation internally. We just call it for its side effects.
+    create_exiled_leader(old_leader, civ, world)
+
+    # Clean up crisis state (mirrors existing resolve_crisis behavior)
+    civ.succession_crisis_turns_remaining = 0
+    civ.succession_candidates = []
 
     return events
 ```
@@ -544,10 +582,12 @@ Bundled in M22 because M22 already touches `politics.py` for faction-weighted se
 Modifies `sorted_regions` in `politics.py` (lines 119-123). Replaces pure distance sort with composite score:
 
 ```python
+region_map = {r.name: r for r in world.regions}
+
 def _secession_score(rn: str, _civ=civ) -> float:
     d = graph_distance(world.regions, _civ.capital_region or _civ.regions[0], rn)
     dist = d if d >= 0 else 0
-    cap = effective_capacity(world.regions[rn])
+    cap = effective_capacity(region_map[rn]) if rn in region_map else 0
     # Higher score = more likely to secede: far + high capacity
     return dist * 0.7 + cap * 0.3
 
@@ -562,20 +602,23 @@ Distance still dominates (far regions secede), but among equidistant regions, hi
 
 ```python
 def total_effective_capacity(civ: Civilization, world: WorldState) -> int:
-    """Sum of effective_capacity across all civ-controlled regions."""
-    return sum(effective_capacity(world.regions[rn]) for rn in civ.regions
-               if rn in world.regions)
+    """Sum of effective_capacity across all civ-controlled regions. New helper."""
+    region_map = {r.name: r for r in world.regions}
+    return sum(effective_capacity(region_map[rn]) for rn in civ.regions
+               if rn in region_map)
 
 # In check_twilight or equivalent, after existing twilight checks:
-# If total effective capacity stays below 10 for 30+ turns, absorb
-civ_age = world.turn - civ.founded_turn  # or equivalent age measure
+# If total effective capacity < 10 and civ has existed for 30+ turns, absorb.
+# Use leader.reign_start as founding proxy -- for secession-born civs, the first
+# leader is created at secession time; for original civs, reign_start is ~0.
+civ_age = world.turn - civ.leader.reign_start
 if total_effective_capacity(civ, world) < 10 and civ_age > 30:
     absorb_into_neighbor(civ, world)  # existing twilight absorption logic
 ```
 
-Catches edge cases where Option 3's weighting still produces a desert splinter. Triggered by structural incapacity (total capacity < 10 for 30+ turns of existence) instead of stat decline.
+Catches edge cases where Option 3's weighting still produces a desert splinter. Triggered by structural incapacity (total capacity < 10 and civ age > 30 turns) instead of stat decline.
 
-`total_effective_capacity` is a new helper function -- trivially derived from existing `effective_capacity()`.
+`total_effective_capacity` is a new helper function in `politics.py` -- builds `region_map` (existing codebase pattern, see politics.py:117, 273, 787) and sums `effective_capacity` across civ regions. `civ_age` uses `civ.leader.reign_start` as a founding proxy since `Civilization` has no `founded_turn` field; this works because secession-born civs get a new leader at creation and original civs have `reign_start ≈ 0`.
 
 ## Faction Events
 
@@ -643,7 +686,10 @@ Contains all faction logic:
 - `generate_faction_candidates(civ, world)` -- succession candidate generation
 - `resolve_crisis_with_factions(civ, world)` -- weighted crisis resolution
 - `inherit_grudges_with_factions(old_leader, new_leader, factions)` -- variable rate
-- `total_effective_capacity(civ, world)` -- sum of regional capacities
+- `upgrade_disposition(disposition)` -- step disposition up one level (hostile→suspicious→neutral→friendly→allied)
+- `get_struggling_factions(civ)` -- return the two factions within 0.05 influence
+- `resolve_win_tie(world, civ, contenders)` -- break win count ties by recency, then military
+- `_event_is_win(event, civ, faction_type)` -- internal: does this event count as a win for this faction
 
 ### Phase Ordering
 
