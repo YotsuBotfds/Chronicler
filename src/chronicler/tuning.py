@@ -30,10 +30,20 @@ K_TWILIGHT_STABILITY = "stability.drain.twilight"
 # Stability recovery
 K_STABILITY_RECOVERY = "stability.recovery_per_turn"
 
-# Fertility
-K_FERTILITY_DEGRADATION = "fertility.degradation_rate"
-K_FERTILITY_RECOVERY = "fertility.recovery_rate"
-K_FAMINE_THRESHOLD = "fertility.famine_threshold"
+# Ecology
+K_SOIL_DEGRADATION = "ecology.soil_degradation_rate"
+K_SOIL_RECOVERY = "ecology.soil_recovery_rate"
+K_MINE_SOIL_DEGRADATION = "ecology.mine_soil_degradation_rate"
+K_WATER_DROUGHT = "ecology.water_drought_rate"
+K_WATER_RECOVERY = "ecology.water_recovery_rate"
+K_FOREST_CLEARING = "ecology.forest_clearing_rate"
+K_FOREST_REGROWTH = "ecology.forest_regrowth_rate"
+K_COOLING_FOREST_DAMAGE = "ecology.cooling_forest_damage_rate"
+K_IRRIGATION_WATER_BONUS = "ecology.irrigation_water_bonus"
+K_IRRIGATION_DROUGHT_MULT = "ecology.irrigation_drought_multiplier"
+K_AGRICULTURE_SOIL_BONUS = "ecology.agriculture_soil_bonus"
+K_MECHANIZATION_MINE_MULT = "ecology.mechanization_mine_multiplier"
+K_FAMINE_WATER_THRESHOLD = "ecology.famine_water_threshold"
 
 # Military
 K_MILITARY_FREE_THRESHOLD = "military.maintenance_free_threshold"
@@ -56,7 +66,11 @@ KNOWN_OVERRIDES: set[str] = {
     K_BORDER_INCIDENT_STABILITY, K_RELIGIOUS_MOVEMENT_STABILITY,
     K_MIGRATION_STABILITY, K_TWILIGHT_STABILITY,
     K_STABILITY_RECOVERY,
-    K_FERTILITY_DEGRADATION, K_FERTILITY_RECOVERY, K_FAMINE_THRESHOLD,
+    K_SOIL_DEGRADATION, K_SOIL_RECOVERY, K_MINE_SOIL_DEGRADATION,
+    K_WATER_DROUGHT, K_WATER_RECOVERY,
+    K_FOREST_CLEARING, K_FOREST_REGROWTH, K_COOLING_FOREST_DAMAGE,
+    K_IRRIGATION_WATER_BONUS, K_IRRIGATION_DROUGHT_MULT,
+    K_AGRICULTURE_SOIL_BONUS, K_MECHANIZATION_MINE_MULT, K_FAMINE_WATER_THRESHOLD,
     K_MILITARY_FREE_THRESHOLD, K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
 }

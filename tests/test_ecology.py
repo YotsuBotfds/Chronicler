@@ -73,3 +73,32 @@ class TestTerrainTransitionDefaults:
         assert rewild.from_terrain == "plains"
         assert rewild.to_terrain == "forest"
         assert rewild.condition == "forest_regrowth"
+
+
+from chronicler.tuning import KNOWN_OVERRIDES
+
+
+class TestEcologyTuningKeys:
+    def test_old_fertility_keys_removed(self):
+        assert "fertility.degradation_rate" not in KNOWN_OVERRIDES
+        assert "fertility.recovery_rate" not in KNOWN_OVERRIDES
+        assert "fertility.famine_threshold" not in KNOWN_OVERRIDES
+
+    def test_ecology_keys_registered(self):
+        expected = [
+            "ecology.soil_degradation_rate",
+            "ecology.soil_recovery_rate",
+            "ecology.mine_soil_degradation_rate",
+            "ecology.water_drought_rate",
+            "ecology.water_recovery_rate",
+            "ecology.forest_clearing_rate",
+            "ecology.forest_regrowth_rate",
+            "ecology.cooling_forest_damage_rate",
+            "ecology.irrigation_water_bonus",
+            "ecology.irrigation_drought_multiplier",
+            "ecology.agriculture_soil_bonus",
+            "ecology.mechanization_mine_multiplier",
+            "ecology.famine_water_threshold",
+        ]
+        for key in expected:
+            assert key in KNOWN_OVERRIDES, f"Missing tuning key: {key}"
