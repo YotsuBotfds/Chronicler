@@ -519,7 +519,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
                 break
 
     # 9. Handle external backer (upgrade disposition)
-    if winner and winner.get("source") == "external":
+    if winner and winner.get("backer_civ"):
         backer_name = winner.get("backer_civ")
         if backer_name:
             rel = world.relationships.get(civ.name, {}).get(backer_name)
