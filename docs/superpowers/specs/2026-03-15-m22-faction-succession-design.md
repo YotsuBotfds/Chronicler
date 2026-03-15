@@ -42,13 +42,14 @@ Influence always sums to 1.0 -- normalized after every modification. Zero-sum co
 
 ### Civilization (models.py)
 
-New field:
+New fields:
 
 ```python
 factions: FactionState = Field(default_factory=FactionState)
+founded_turn: int = 0
 ```
 
-Default equal influence ensures backward compatibility with all existing scenarios and bundles.
+`factions` defaults to equal influence for backward compatibility. `founded_turn` defaults to 0 (original civs). Set to `world.turn` in secession civ creation (`_create_secession_civ` in politics.py). Used by the absorption safety net to distinguish young splinter civs from old-but-weak civs. Unlike `leader.reign_start`, this does not reset on succession.
 
 ### CivSnapshot (models.py)
 
@@ -525,8 +526,8 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
         if civ.name in world.relationships and winner["backer_civ"] in world.relationships[civ.name]:
             rel = world.relationships[civ.name][winner["backer_civ"]]
             rel.disposition = upgrade_disposition(rel.disposition)
-            # Reuses _upgrade_disposition from culture.py:24 (made public)
-            # hostile -> suspicious -> neutral -> friendly -> allied
+            # from chronicler.culture import upgrade_disposition
+            # Renamed from _upgrade_disposition in culture.py:24
 
     # Exile old leader (existing M17 logic -- create_exiled_leader handles GP
     # creation internally, returns str | None for host civ name)
@@ -644,16 +645,13 @@ def total_effective_capacity(civ: Civilization, world: WorldState) -> int:
 
 # In check_twilight or equivalent, after existing twilight checks:
 # If total effective capacity < 10 and civ has existed for 30+ turns, absorb.
-# Use leader.reign_start as founding proxy -- for secession-born civs, the first
-# leader is created at secession time; for original civs, reign_start is ~0.
-civ_age = world.turn - civ.leader.reign_start
-if total_effective_capacity(civ, world) < 10 and civ_age > 30:
+if total_effective_capacity(civ, world) < 10 and (world.turn - civ.founded_turn) > 30:
     absorb_into_neighbor(civ, world)  # existing twilight absorption logic
 ```
 
 Catches edge cases where Option 3's weighting still produces a desert splinter. Triggered by structural incapacity (total capacity < 10 and civ age > 30 turns) instead of stat decline.
 
-`total_effective_capacity` is a new helper function in `politics.py` -- builds `region_map` (existing codebase pattern, see politics.py:117, 273, 787) and sums `effective_capacity` across civ regions. `civ_age` uses `civ.leader.reign_start` as a founding proxy since `Civilization` has no `founded_turn` field; this works because secession-born civs get a new leader at creation and original civs have `reign_start ≈ 0`.
+`total_effective_capacity` is a new helper function in `politics.py` -- builds `region_map` (existing codebase pattern, see politics.py:117, 273, 787) and sums `effective_capacity` across civ regions. `civ.founded_turn` is a new field on Civilization (see Data Model section).
 
 ## Faction Events
 
@@ -710,7 +708,7 @@ Contains all faction logic:
 - `TRAIT_FACTION_MAP` table
 - `FACTION_CANDIDATE_TYPE`, `GP_ROLE_TO_FACTION`, `GP_SUCCESSION_TYPE` mapping tables
 - `normalize_influence(factions)` -- normalization with 0.05 floor
-- `shift_faction_influence(factions, faction_type, amount)` -- shift + normalize
+- `shift_faction_influence(factions, faction_type, amount)` -- `factions.influence[faction_type] += amount; normalize_influence(factions)`
 - `get_dominant_faction(factions)` -- returns faction with highest influence
 - `get_leader_faction_alignment(leader, factions)` -- alignment score
 - `get_faction_weight_modifier(civ, action)` -- exponentiation formula
@@ -721,7 +719,7 @@ Contains all faction logic:
 - `generate_faction_candidates(civ, world)` -- succession candidate generation
 - `resolve_crisis_with_factions(civ, world)` -- weighted crisis resolution
 - `inherit_grudges_with_factions(old_leader, new_leader, factions)` -- variable rate
-- `upgrade_disposition(disposition)` -- reuse `_upgrade_disposition` from `culture.py:24` (make it public or import directly; identical logic: hostile→suspicious→neutral→friendly→allied)
+- `upgrade_disposition(disposition)` -- rename `_upgrade_disposition` → `upgrade_disposition` in `culture.py:24` (drop underscore prefix to make public). Import in factions.py as `from chronicler.culture import upgrade_disposition`. No new code — just visibility change.
 - `get_struggling_factions(civ)` -- return the two factions within 0.05 influence
 - `resolve_win_tie(world, civ, contenders)` -- break win count ties by recency, then military
 - `_event_is_win(event, civ, faction_type)` -- internal: does this event count as a win for this faction
@@ -745,7 +743,8 @@ Runs AFTER event-generating phases (war, trade, culture) so that the current tur
    d. Normalize influence
    e. Check for dominance shift, emit event if changed
    f. If `succession_crisis_turns_remaining > 0`: skip power struggle processing (Rule 2)
-   g. Else: check power struggle trigger, tick power struggle timer, apply stability drain, check forced resolution
+   g. Else if `power_struggle` is True: tick timer, apply stability drain (`-int(3 * get_severity_multiplier(civ))`), check forced resolution (timer > 5)
+   h. Else (no crisis, no active struggle): check `check_power_struggle(factions)` for new trigger, emit `power_struggle_started` event if triggered, set `power_struggle = True`
 
 ### Succession Module Modifications
 
@@ -764,16 +763,17 @@ All changes to `succession.py` are additive:
 | File | Changes |
 |---|---|
 | `src/chronicler/factions.py` (new) | All faction logic: influence shifts, normalization, power struggles, faction weights, candidate generation, win counting, leader alignment, mapping tables (~350 lines) |
-| `src/chronicler/models.py` | FactionType enum, FactionState model, `factions` field on Civilization, `factions` field on CivSnapshot (~25 lines) |
+| `src/chronicler/models.py` | FactionType enum, FactionState model, `factions` + `founded_turn` fields on Civilization, `factions` field on CivSnapshot (~27 lines) |
 | `src/chronicler/succession.py` | Crisis probability faction modifier, faction candidate generation call, weighted resolution call, exile faction check (~20 lines modified) |
-| `src/chronicler/politics.py` | Secession region scoring (capacity-weighted), `total_effective_capacity` helper, absorption safety net in twilight tick (~20 lines) |
+| `src/chronicler/politics.py` | Secession region scoring (capacity-weighted), `total_effective_capacity` helper, absorption safety net in twilight tick, set `founded_turn` in `_create_secession_civ` (~22 lines) |
+| `src/chronicler/culture.py` | Rename `_upgrade_disposition` → `upgrade_disposition` (drop underscore, ~1 line) |
 | `src/chronicler/action_engine.py` | Faction weight modifier call in `compute_weights()` (~5 lines) |
 | `src/chronicler/movements.py` | Add parallel `Event` emission for `movement_adoption` alongside existing `NamedEvent` (~3 lines) |
 | `src/chronicler/simulation.py` | `tick_factions()` call in phase 10 consequences (~3 lines) |
 | `src/chronicler/main.py` | Populate `factions` in CivSnapshot (~1 line) |
 | `tests/test_factions.py` (new) | Comprehensive test suite: influence shifts, normalization, power struggles, weight modifiers, candidate generation, win counting, secession scoring (~200 lines) |
 
-**Total:** ~450 lines production code, ~200 lines tests, across 7 source files + 1 new module + 1 test file.
+**Total:** ~450 lines production code, ~200 lines tests, across 8 source files + 1 new module + 1 test file.
 
 ## Cross-Cutting Concerns
 
