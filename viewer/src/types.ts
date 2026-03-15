@@ -159,7 +159,8 @@ export interface Bundle {
   history: TurnSnapshot[];
   events_timeline: Event[];
   named_events: NamedEvent[];
-  chronicle_entries: Record<string, string>;
+  chronicle_entries: BundleChronicle;
+  gap_summaries?: GapSummary[];
   era_reflections: Record<string, string>;
   metadata: BundleMetadata;
 }
@@ -256,4 +257,43 @@ export interface StartCommand {
   sim_model: string;
   narrative_model: string;
   resume_state: WorldState | null;
+}
+
+// --- M20a: Narration Pipeline v2 types ---
+
+export interface NewChronicleEntry {
+  turn: number;
+  covers_turns: [number, number];
+  events: Event[];
+  named_events: NamedEvent[];
+  narrative: string;
+  importance: number;
+  narrative_role: "inciting" | "escalation" | "climax" | "resolution" | "coda";
+  causal_links: CausalLink[];
+}
+
+export interface GapSummary {
+  turn_range: [number, number];
+  event_count: number;
+  top_event_type: string;
+  stat_deltas: Record<string, Record<string, number>>;
+  territory_changes: number;
+}
+
+export interface CausalLink {
+  cause_turn: number;
+  cause_event_type: string;
+  effect_turn: number;
+  effect_event_type: string;
+  pattern: string;
+}
+
+export type BundleChronicle =
+  | Record<string, string>       // legacy: turn → text
+  | NewChronicleEntry[];          // new: sparse entries
+
+export function isLegacyBundle(
+  chronicle: BundleChronicle,
+): chronicle is Record<string, string> {
+  return !Array.isArray(chronicle);
 }

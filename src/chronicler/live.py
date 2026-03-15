@@ -146,6 +146,38 @@ class LiveServer:
                             await websocket.send(json.dumps(err))
                         continue
 
+                    if msg_type == "narrate_range":
+                        start_turn = msg.get("start_turn")
+                        end_turn = msg.get("end_turn")
+                        await websocket.send(json.dumps({
+                            "type": "narration_started",
+                            "start_turn": start_turn,
+                            "end_turn": end_turn,
+                        }))
+
+                        from chronicler.models import Event, NamedEvent, TurnSnapshot
+                        from chronicler.curator import curate
+                        from chronicler.narrative import NarrativeEngine
+                        from chronicler.llm import create_clients
+
+                        all_events = [Event.model_validate(e) for e in self._init_data.get("events_timeline", [])]
+                        all_named = [NamedEvent.model_validate(e) for e in self._init_data.get("named_events", [])]
+                        all_history = [TurnSnapshot.model_validate(s) for s in self._init_data.get("history", [])]
+                        seed = self._init_data.get("metadata", {}).get("seed", 0)
+
+                        range_events = [e for e in all_events if start_turn <= e.turn <= end_turn]
+                        moments, _ = curate(range_events, all_named, all_history, budget=1, seed=seed)
+                        if moments:
+                            _, narrative_client = create_clients()
+                            engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
+                            entries = engine.narrate_batch(moments, all_history, [])
+                            if entries:
+                                await websocket.send(json.dumps({
+                                    "type": "narration_complete",
+                                    "entry": entries[0].model_dump(),
+                                }))
+                        continue
+
                     # Other commands only accepted while paused
                     if not self._paused:
                         await websocket.send(json.dumps({

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage, LobbyInit, StartCommand } from "../types";
+import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage, LobbyInit, StartCommand, NewChronicleEntry } from "../types";
+import { isLegacyBundle } from "../types";
 
 type ServerState = "connecting" | "lobby" | "starting" | "running" | "completed";
 
@@ -17,6 +18,7 @@ interface LiveConnectionState {
   serverState: ServerState;
   lobbyInit: LobbyInit | null;
   sendStart: (params: Omit<StartCommand, "type">) => void;
+  sendNarrateRange: (startTurn: number, endTurn: number) => void;
 }
 
 export function useLiveConnection(wsUrl: string): LiveConnectionState {
@@ -53,6 +55,16 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
       serverStateRef.current = "starting";
       setError(null);
       wsRef.current.send(JSON.stringify({ type: "start", ...params }));
+    }
+  }, []);
+
+  const sendNarrateRange = useCallback((startTurn: number, endTurn: number) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "narrate_range",
+        start_turn: startTurn,
+        end_turn: endTurn,
+      }));
     }
   }, []);
 
@@ -136,13 +148,14 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
                 region_control: msg.region_control,
                 relationships: msg.relationships,
               };
+              // Only merge turn text into legacy (Record) chronicle_entries
+              const updatedChronicle = isLegacyBundle(prev.chronicle_entries)
+                ? { ...prev.chronicle_entries, [String(msg.turn)]: msg.chronicle_text || "" }
+                : prev.chronicle_entries;
               return {
                 ...prev,
                 history: [...prev.history, snap],
-                chronicle_entries: {
-                  ...prev.chronicle_entries,
-                  [String(msg.turn)]: msg.chronicle_text || "",
-                },
+                chronicle_entries: updatedChronicle,
                 events_timeline: [...prev.events_timeline, ...(msg.events || [])],
                 named_events: [...prev.named_events, ...(msg.named_events || [])],
               };
@@ -191,6 +204,24 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             setLastForked(msg as ForkedMessage);
             break;
 
+          case "narration_started":
+            // Loading indicator could be shown via additional state;
+            // for now, this is a no-op acknowledgment.
+            break;
+
+          case "narration_complete":
+            if (msg.entry) {
+              setBundle((prev) => {
+                if (!prev) return prev;
+                const entry = msg.entry as NewChronicleEntry;
+                const entries = Array.isArray(prev.chronicle_entries)
+                  ? [...prev.chronicle_entries, entry]
+                  : prev.chronicle_entries;
+                return { ...prev, chronicle_entries: entries };
+              });
+            }
+            break;
+
           case "completed":
             setServerState("completed");
             serverStateRef.current = "completed";
@@ -233,5 +264,6 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     serverState,
     lobbyInit,
     sendStart,
+    sendNarrateRange,
   };
 }

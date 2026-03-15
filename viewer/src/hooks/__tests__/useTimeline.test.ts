@@ -96,7 +96,7 @@ describe("useTimeline follow mode", () => {
   });
 
   it("re-enables followMode when user seeks to latest", () => {
-    const { result, rerender } = renderHook(
+    const { result } = renderHook(
       ({ maxTurn }) => useTimeline(maxTurn, { liveMode: true }),
       { initialProps: { maxTurn: 10 } },
     );

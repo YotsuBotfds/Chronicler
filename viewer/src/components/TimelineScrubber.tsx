@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useRef } from "react";
-import type { NamedEvent, TurnSnapshot } from "../types";
+import type { NamedEvent, TurnSnapshot, BundleChronicle, GapSummary, NewChronicleEntry } from "../types";
 import type { TechEra } from "../types";
+import { isLegacyBundle } from "../types";
 import { ERA_LABELS, ERA_ORDER } from "../lib/format";
 
 interface TimelineScrubberProps {
@@ -16,7 +17,20 @@ interface TimelineScrubberProps {
   onSetSpeed: (speed: number) => void;
   followMode?: boolean;
   onToggleFollowMode?: () => void;
+  // M20a: segmented timeline props
+  chronicleEntries?: BundleChronicle;
+  gapSummaries?: GapSummary[];
+  onNarrateRange?: (startTurn: number, endTurn: number) => void;
+  showCausalLinks?: boolean;
 }
+
+const ROLE_COLORS: Record<string, string> = {
+  inciting: "#3b82f6",    // blue
+  escalation: "#f97316",  // orange
+  climax: "#ef4444",      // red
+  resolution: "#22c55e",  // green
+  coda: "#9ca3af",        // gray
+};
 
 /** Find the first turn any civ reaches each era. */
 function computeEraBoundaries(
@@ -59,6 +73,36 @@ function selectEventDots(
   return selected;
 }
 
+type Segment =
+  | { kind: "narrated"; entry: NewChronicleEntry; startTurn: number; endTurn: number }
+  | { kind: "mechanical"; gap: GapSummary; startTurn: number; endTurn: number };
+
+/** Build ordered segments from chronicle entries and gap summaries. */
+function buildSegments(
+  entries: NewChronicleEntry[],
+  gaps: GapSummary[],
+): Segment[] {
+  const segments: Segment[] = [];
+  for (const entry of entries) {
+    segments.push({
+      kind: "narrated",
+      entry,
+      startTurn: entry.covers_turns[0],
+      endTurn: entry.covers_turns[1],
+    });
+  }
+  for (const gap of gaps) {
+    segments.push({
+      kind: "mechanical",
+      gap,
+      startTurn: gap.turn_range[0],
+      endTurn: gap.turn_range[1],
+    });
+  }
+  segments.sort((a, b) => a.startTurn - b.startTurn);
+  return segments;
+}
+
 export function TimelineScrubber({
   currentTurn,
   maxTurn,
@@ -72,6 +116,10 @@ export function TimelineScrubber({
   onSetSpeed,
   followMode,
   onToggleFollowMode,
+  chronicleEntries,
+  gapSummaries,
+  onNarrateRange,
+  showCausalLinks,
 }: TimelineScrubberProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -96,6 +144,32 @@ export function TimelineScrubber({
   );
 
   const pct = ((currentTurn - 1) / Math.max(maxTurn - 1, 1)) * 100;
+
+  const useSegmented = chronicleEntries !== undefined && !isLegacyBundle(chronicleEntries);
+
+  const segments = useMemo(() => {
+    if (!useSegmented || !chronicleEntries || isLegacyBundle(chronicleEntries)) return [];
+    return buildSegments(chronicleEntries, gapSummaries ?? []);
+  }, [useSegmented, chronicleEntries, gapSummaries]);
+
+  // Build causal link arcs for SVG overlay
+  const causalArcs = useMemo(() => {
+    if (!showCausalLinks || !useSegmented || !chronicleEntries || isLegacyBundle(chronicleEntries)) return [];
+    const arcs: { causeTurn: number; effectTurn: number; pattern: string }[] = [];
+    for (const entry of chronicleEntries) {
+      for (const link of entry.causal_links) {
+        arcs.push({
+          causeTurn: link.cause_turn,
+          effectTurn: link.effect_turn,
+          pattern: link.pattern,
+        });
+      }
+    }
+    return arcs;
+  }, [showCausalLinks, useSegmented, chronicleEntries]);
+
+  const turnToPct = (turn: number) =>
+    ((turn - 1) / Math.max(maxTurn - 1, 1)) * 100;
 
   return (
     <div className="px-4 py-2 bg-gray-800 border-b border-gray-700">
@@ -128,7 +202,7 @@ export function TimelineScrubber({
             <div
               key={era}
               className="absolute top-0 h-full border-l border-gray-500"
-              style={{ left: `${((turn - 1) / Math.max(maxTurn - 1, 1)) * 100}%` }}
+              style={{ left: `${turnToPct(turn)}%` }}
             >
               <span className="absolute -top-4 text-[10px] text-gray-400 -translate-x-1/2">
                 {ERA_LABELS[era]}
@@ -136,17 +210,96 @@ export function TimelineScrubber({
             </div>
           ))}
 
-          {/* Event dots */}
-          {eventDots.map((ev) => (
-            <div
-              key={`${ev.turn}-${ev.name}`}
-              className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-amber-400 hover:bg-amber-300"
-              style={{
-                left: `${((ev.turn - 1) / Math.max(maxTurn - 1, 1)) * 100}%`,
-              }}
-              title={`${ev.name} (Turn ${ev.turn})`}
-            />
-          ))}
+          {useSegmented ? (
+            <>
+              {/* Segmented bar */}
+              {segments.map((seg, idx) => {
+                const left = turnToPct(seg.startTurn);
+                const right = turnToPct(seg.endTurn);
+                const width = right - left;
+                if (width <= 0) return null;
+
+                if (seg.kind === "narrated") {
+                  const color = ROLE_COLORS[seg.entry.narrative_role] ?? "#6b7280";
+                  return (
+                    <div
+                      key={`seg-${idx}`}
+                      className="absolute top-1 bottom-1 rounded-sm opacity-80 hover:opacity-100"
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        backgroundColor: color,
+                      }}
+                      title={`${seg.entry.narrative_role} (Turns ${seg.startTurn}-${seg.endTurn})`}
+                    />
+                  );
+                } else {
+                  return (
+                    <div
+                      key={`seg-${idx}`}
+                      className="absolute top-1 bottom-1 rounded-sm bg-gray-600 opacity-60 hover:opacity-90 group"
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                      }}
+                      title={`Mechanical (Turns ${seg.startTurn}-${seg.endTurn}, ${seg.gap.event_count} events)`}
+                    >
+                      {onNarrateRange && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNarrateRange(seg.startTurn, seg.endTurn);
+                          }}
+                          className="absolute inset-0 flex items-center justify-center text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 bg-gray-700/70 rounded-sm"
+                        >
+                          Narrate
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+              })}
+
+              {/* Causal link arcs */}
+              {showCausalLinks && causalArcs.length > 0 && (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                  {causalArcs.map((arc, i) => {
+                    const x1 = turnToPct(arc.causeTurn);
+                    const x2 = turnToPct(arc.effectTurn);
+                    const midX = (x1 + x2) / 2;
+                    const arcHeight = Math.min(Math.abs(x2 - x1) * 0.4, 20);
+                    return (
+                      <path
+                        key={`arc-${i}`}
+                        d={`M ${x1}% 50% Q ${midX}% ${50 - arcHeight}% ${x2}% 50%`}
+                        fill="none"
+                        stroke="#a78bfa"
+                        strokeWidth="1.5"
+                        strokeDasharray="3 2"
+                        opacity="0.6"
+                      >
+                        <title>{arc.pattern}</title>
+                      </path>
+                    );
+                  })}
+                </svg>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Legacy: Event dots */}
+              {eventDots.map((ev) => (
+                <div
+                  key={`${ev.turn}-${ev.name}`}
+                  className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-amber-400 hover:bg-amber-300"
+                  style={{
+                    left: `${turnToPct(ev.turn)}%`,
+                  }}
+                  title={`${ev.name} (Turn ${ev.turn})`}
+                />
+              ))}
+            </>
+          )}
 
           {/* Thumb */}
           <div

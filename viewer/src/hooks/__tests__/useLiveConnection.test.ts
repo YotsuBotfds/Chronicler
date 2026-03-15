@@ -14,7 +14,9 @@ class MockWebSocket {
   static CLOSED = 3;
   static CONNECTING = 0;
 
-  constructor(public url: string) {
+  url: string;
+  constructor(url: string) {
+    this.url = url;
     MockWebSocket.instances.push(this);
     setTimeout(() => {
       this.readyState = 1;
@@ -103,7 +105,8 @@ describe("useLiveConnection", () => {
     });
 
     expect(result.current.bundle?.history.length).toBe(1);
-    expect(result.current.bundle?.chronicle_entries["1"]).toBe("Turn 1 text");
+    const entries = result.current.bundle?.chronicle_entries;
+    expect(entries && !Array.isArray(entries) ? entries["1"] : undefined).toBe("Turn 1 text");
   });
 
   it("sets paused state on paused message", async () => {
