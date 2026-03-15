@@ -204,8 +204,9 @@ tribute = math.floor(vassal.economy * vr.tribute_rate)
 
 # AFTER:
 perceived_econ = get_perceived_stat(overlord, vassal, "economy", world)
-# None impossible: vassal/overlord grants +0.5 accuracy
-tribute = math.floor(perceived_econ * vr.tribute_rate)
+# NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
+# If this fires, compute_accuracy has a bug.
+tribute = math.floor((perceived_econ if perceived_econ is not None else vassal.economy) * vr.tribute_rate)
 ```
 
 Overlord collects what they *think* the vassal produces. A vassal in decline can temporarily hide its weakness.
@@ -220,9 +221,10 @@ overlord.treasury >= 10
 # AFTER:
 perceived_stab = get_perceived_stat(vassal, overlord, "stability", world)
 perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world)
-# None impossible: vassal/overlord grants +0.5 accuracy
-perceived_stab >= 25
-perceived_treas >= 10
+# NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
+# If this fires, compute_accuracy has a bug.
+(perceived_stab if perceived_stab is not None else overlord.stability) >= 25
+(perceived_treas if perceived_treas is not None else overlord.treasury) >= 10
 ```
 
 Vassal decides to rebel based on perceived overlord strength. A weak overlord that *appears* strong deters rebellion.
@@ -231,20 +233,21 @@ Vassal decides to rebel based on perceived overlord strength. A weak overlord th
 
 ```python
 # BEFORE:
-power = civ.military + civ.economy
+power = (civ.military + civ.economy + fed_allies * 10) / max(longest_war, 1)
 
 # AFTER (per-observer perception):
 # Congress organizer = highest actual culture (unchanged, world fact)
 organizer = max(participants, key=lambda c: c.culture)
 
 # Organizer perceives each participant's power
+# Only military and economy are wrapped — fed_allies and longest_war are world facts
 for civ in participants:
     perceived_mil = get_perceived_stat(organizer, civ, "military", world)
     perceived_econ = get_perceived_stat(organizer, civ, "economy", world)
     # Self-perception is always accurate (compute_accuracy returns 1.0 for self)
     # None filtered: if organizer doesn't know a civ, they're excluded from ranking
     if perceived_mil is not None and perceived_econ is not None:
-        power = perceived_mil + perceived_econ
+        power = (perceived_mil + perceived_econ + fed_allies * 10) / max(longest_war, 1)
 ```
 
 Each civ would ideally perceive different power levels, but for simplicity the congress organizer's perceptions determine the power ranking. Self-accuracy is 1.0, so the organizer always perceives their own power correctly.
