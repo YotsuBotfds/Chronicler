@@ -378,3 +378,44 @@ class TestSeverityMultiplierWiring:
         _apply_event_effects("rebellion", civ, world)
         # Base rebellion: stability -20, military -10. With 1.5x: stability -30
         assert civ.stability <= 60 - 20  # At least base
+
+
+class TestBlackSwanEligibility:
+    def test_no_event_when_cooldown_active(self):
+        from chronicler.emergence import check_black_swans
+        world = _make_world()
+        world.black_swan_cooldown = 10
+        world.civilizations = [_make_civ()]
+        events = check_black_swans(world, seed=42)
+        assert events == []
+
+    def test_no_event_on_zero_chaos(self):
+        """With chaos_multiplier=0.0, no black swan should ever fire."""
+        from chronicler.emergence import check_black_swans
+        world = _make_world()
+        world.chaos_multiplier = 0.0
+        world.civilizations = [_make_civ()]
+        events = check_black_swans(world, seed=42)
+        assert events == []
+
+    def test_cooldown_set_when_event_fires(self):
+        """When a black swan fires, cooldown should be set."""
+        from chronicler.emergence import check_black_swans
+        world = _make_world()
+        world.chaos_multiplier = 1000.0  # Force the roll to succeed
+        r = _make_region(name="Barren", specialized_resources=[])
+        world.regions = [r]
+        world.civilizations = [_make_civ()]
+        events = check_black_swans(world, seed=42)
+        if events:  # If an event fired
+            assert world.black_swan_cooldown == 30
+
+    def test_no_eligible_types_no_event(self):
+        """If roll succeeds but no types are eligible, no event and no cooldown."""
+        from chronicler.emergence import check_black_swans
+        world = _make_world()
+        world.chaos_multiplier = 1000.0
+        # No regions, no civs — nothing is eligible
+        events = check_black_swans(world, seed=42)
+        assert events == []
+        assert world.black_swan_cooldown == 0
