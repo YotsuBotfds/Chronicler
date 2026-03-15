@@ -34,3 +34,52 @@ class TestTerrainTransitionRule:
         data = rule.model_dump()
         rule2 = TerrainTransitionRule(**data)
         assert rule2 == rule
+
+
+from chronicler.models import (
+    Region, Civilization, WorldState, ClimateConfig, Leader,
+    PandemicRegion, TerrainTransitionRule,
+)
+
+
+class TestM18ModelExtensions:
+    def test_region_has_low_fertility_turns(self):
+        r = Region(name="T", terrain="plains", carrying_capacity=80, resources="fertile")
+        assert r.low_fertility_turns == 0
+
+    def test_civilization_has_stress_fields(self):
+        c = Civilization(
+            name="T", population=50, military=50, economy=50,
+            culture=50, stability=50, leader=Leader(name="L", trait="bold", reign_start=0),
+        )
+        assert c.civ_stress == 0
+        assert c.regions_start_of_turn == 0
+        assert c.was_in_twilight is False
+        assert c.capital_start_of_turn is None
+
+    def test_world_has_emergence_fields(self):
+        w = WorldState(name="T", seed=42)
+        assert w.stress_index == 0
+        assert w.black_swan_cooldown == 0
+        assert w.pandemic_state == []
+        assert len(w.terrain_transition_rules) == 2
+        assert w.terrain_transition_rules[0].from_terrain == "forest"
+        assert w.terrain_transition_rules[1].from_terrain == "plains"
+        assert w.chaos_multiplier == 1.0
+        assert w.black_swan_cooldown_turns == 30
+
+    def test_climate_config_has_phase_offset(self):
+        cfg = ClimateConfig()
+        assert cfg.phase_offset == 0
+
+    def test_world_state_serialization_with_m18_fields(self):
+        w = WorldState(name="T", seed=42)
+        w.stress_index = 5
+        w.black_swan_cooldown = 10
+        w.pandemic_state.append(PandemicRegion(region_name="X", severity=2, turns_remaining=3))
+        data = w.model_dump()
+        w2 = WorldState(**data)
+        assert w2.stress_index == 5
+        assert w2.black_swan_cooldown == 10
+        assert len(w2.pandemic_state) == 1
+        assert w2.pandemic_state[0].region_name == "X"

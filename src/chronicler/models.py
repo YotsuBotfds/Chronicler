@@ -95,6 +95,7 @@ class ClimateConfig(BaseModel):
     period: int = 75
     severity: float = 1.0
     start_phase: ClimatePhase = ClimatePhase.TEMPERATE
+    phase_offset: int = 0  # M18: supervolcano advances climate by incrementing this
 
 
 # --- Core entities ---
@@ -120,6 +121,7 @@ class Region(BaseModel):
     resource_suspensions: dict[str, int] = Field(default_factory=dict)
     depopulated_since: int | None = None
     ruin_quality: int = 0
+    low_fertility_turns: int = 0  # M18: consecutive turns with fertility < 0.3
 
 
 class Leader(BaseModel):
@@ -173,6 +175,10 @@ class Civilization(BaseModel):
     folk_heroes: list[dict] = Field(default_factory=list)
     succession_crisis_turns_remaining: int = 0
     succession_candidates: list[dict] = Field(default_factory=list)
+    civ_stress: int = 0  # M18: per-civ stress, recomputed each turn
+    regions_start_of_turn: int = 0  # M18: snapshot for regression detection
+    was_in_twilight: bool = False  # M18: snapshot for regression detection
+    capital_start_of_turn: str | None = None  # M18: snapshot for regression detection
 
 
 class Relationship(BaseModel):
@@ -330,6 +336,21 @@ class WorldState(BaseModel):
     retired_persons: list[GreatPerson] = Field(default_factory=list)
     character_relationships: list[dict] = Field(default_factory=list)
     great_person_cooldowns: dict[str, dict[str, int]] = Field(default_factory=dict)
+    # M18: Emergence and Chaos
+    stress_index: int = 0  # Global stress aggregate (max across civs)
+    black_swan_cooldown: int = 0  # Turns until next black swan eligible
+    chaos_multiplier: float = 1.0  # Scalar on black swan probability (from ScenarioConfig)
+    black_swan_cooldown_turns: int = 30  # Configurable cooldown length (from ScenarioConfig)
+    pandemic_state: list[PandemicRegion] = Field(default_factory=list)
+    pandemic_recovered: list[str] = Field(default_factory=list)  # Regions already hit; prevents re-infection
+    terrain_transition_rules: list[TerrainTransitionRule] = Field(
+        default_factory=lambda: [
+            TerrainTransitionRule(from_terrain="forest", to_terrain="plains",
+                                  condition="low_fertility", threshold_turns=50),
+            TerrainTransitionRule(from_terrain="plains", to_terrain="forest",
+                                  condition="depopulated", threshold_turns=100),
+        ]
+    )
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
