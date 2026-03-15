@@ -72,3 +72,9 @@ class TestRunBatch:
         batch_dir = run_batch(batch_args, sim_client=sim, narrative_client=narr)
         assert batch_dir.exists()
         assert (batch_dir / "summary.md").exists()
+
+    def test_simulate_only_skips_llm(self, batch_args, tmp_path):
+        """--simulate-only batch runs don't require real LLM clients."""
+        batch_args.simulate_only = True
+        batch_dir = run_batch(batch_args, sim_client=None, narrative_client=None)
+        assert batch_dir.exists()
