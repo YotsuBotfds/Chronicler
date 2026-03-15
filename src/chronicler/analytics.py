@@ -5,6 +5,11 @@ import json
 import statistics
 from pathlib import Path
 
+ERA_ORDER = [
+    "tribal", "bronze", "iron", "classical", "medieval",
+    "renaissance", "industrial", "information",
+]
+
 
 def load_bundles(batch_dir: Path) -> list[dict]:
     """Glob batch_dir/*/chronicle_bundle.json, deserialize, return list.
@@ -101,4 +106,230 @@ def extract_stability(
     return {
         "percentiles_by_turn": percentiles_by_turn,
         "zero_rate_by_turn": zero_rate_by_turn,
+    }
+
+
+# --- Firing rate helper ---
+
+def _firing_rate(bundles: list[dict], event_type: str) -> float:
+    """Fraction of runs where event_type appears at least once."""
+    count = sum(
+        1 for b in bundles
+        if any(e["event_type"] == event_type for e in b.get("events_timeline", []))
+    )
+    return count / len(bundles)
+
+
+# --- Additional Extractors ---
+
+def extract_resources(
+    bundles: list[dict],
+    checkpoints: list[int] | None = None,
+) -> dict:
+    """Famine turn distribution, trade route and treasury percentiles by turn."""
+    max_turn = _min_total_turns(bundles) - 1
+    cps = _clamp_checkpoints(checkpoints, max_turn)
+
+    # famine_turn_distribution: first famine turn per run
+    famine_turns = []
+    for b in bundles:
+        for e in b.get("events_timeline", []):
+            if e["event_type"] == "famine":
+                famine_turns.append(e["turn"])
+                break
+
+    trade_route_percentiles_by_turn: dict[str, dict] = {}
+    treasury_percentiles_by_turn: dict[str, dict] = {}
+
+    for cp in cps:
+        trade_values = []
+        treasury_values = []
+        for bundle in bundles:
+            snap = _snapshot_at_turn(bundle, cp)
+            if snap is None:
+                continue
+            trade_values.append(len(snap.get("trade_routes", [])))
+            for civ_data in snap["civ_stats"].values():
+                treasury_values.append(civ_data.get("treasury", 0))
+        if trade_values:
+            trade_route_percentiles_by_turn[str(cp)] = _compute_percentiles(trade_values)
+        if treasury_values:
+            treasury_percentiles_by_turn[str(cp)] = _compute_percentiles(treasury_values)
+
+    return {
+        "famine_turn_distribution": _compute_percentiles(famine_turns),
+        "trade_route_percentiles_by_turn": trade_route_percentiles_by_turn,
+        "treasury_percentiles_by_turn": treasury_percentiles_by_turn,
+    }
+
+
+def extract_politics(bundles: list[dict]) -> dict:
+    """Firing rates for political events and elimination turn distribution."""
+    political_event_types = [
+        "war", "secession", "federation_formed", "vassal_imposed",
+        "mercenary_spawned", "twilight_absorption",
+    ]
+    result: dict = {}
+    for et in political_event_types:
+        result[f"{et}_rate"] = _firing_rate(bundles, et)
+
+    # elimination_turn_distribution: first turn where any civ's alive is False
+    elimination_turns = []
+    for b in bundles:
+        for snap in b["history"]:
+            for civ_data in snap["civ_stats"].values():
+                if not civ_data.get("alive", True):
+                    elimination_turns.append(snap["turn"])
+                    break
+            else:
+                continue
+            break
+
+    result["elimination_turn_distribution"] = _compute_percentiles(elimination_turns)
+    return result
+
+
+def extract_climate(bundles: list[dict]) -> dict:
+    """Disaster frequency by type."""
+    disaster_types = {"drought", "plague", "earthquake", "flood", "wildfire", "sandstorm"}
+    disaster_frequency_by_type: dict[str, float] = {}
+    n = len(bundles)
+    for dtype in disaster_types:
+        count = sum(
+            1 for b in bundles
+            if any(e["event_type"] == dtype for e in b.get("events_timeline", []))
+        )
+        disaster_frequency_by_type[dtype] = count / n
+    return {"disaster_frequency_by_type": disaster_frequency_by_type}
+
+
+def extract_memetic(
+    bundles: list[dict],
+    checkpoints: list[int] | None = None,
+) -> dict:
+    """Movement count percentiles by turn and memetic firing rates."""
+    max_turn = _min_total_turns(bundles) - 1
+    cps = _clamp_checkpoints(checkpoints, max_turn)
+
+    movement_count_percentiles_by_turn: dict[str, dict] = {}
+    for cp in cps:
+        values = []
+        for bundle in bundles:
+            snap = _snapshot_at_turn(bundle, cp)
+            if snap is None:
+                continue
+            values.append(len(snap.get("movements_summary", [])))
+        if values:
+            movement_count_percentiles_by_turn[str(cp)] = _compute_percentiles(values)
+
+    return {
+        "movement_count_percentiles_by_turn": movement_count_percentiles_by_turn,
+        "paradigm_shift_rate": _firing_rate(bundles, "paradigm_shift"),
+        "assimilation_rate": _firing_rate(bundles, "cultural_assimilation"),
+    }
+
+
+def extract_great_persons(bundles: list[dict]) -> dict:
+    """Firing rates for great person and succession events."""
+    event_types = ["great_person_born", "tradition_acquired", "succession_crisis", "hostage_taken"]
+    return {f"{et}_rate": _firing_rate(bundles, et) for et in event_types}
+
+
+def extract_emergence(
+    bundles: list[dict],
+    checkpoints: list[int] | None = None,
+) -> dict:
+    """Black swan frequencies, regression/terrain rates, stress percentiles by turn."""
+    max_turn = _min_total_turns(bundles) - 1
+    cps = _clamp_checkpoints(checkpoints, max_turn)
+    n = len(bundles)
+
+    black_swan_types = ["pandemic", "supervolcano", "resource_discovery", "tech_accident"]
+    black_swan_frequency_by_type: dict[str, float] = {}
+    for bst in black_swan_types:
+        count = sum(
+            1 for b in bundles
+            if any(e["event_type"] == bst for e in b.get("events_timeline", []))
+        )
+        black_swan_frequency_by_type[bst] = count / n
+
+    stress_percentiles_by_turn: dict[str, dict] = {}
+    for cp in cps:
+        values = []
+        for bundle in bundles:
+            snap = _snapshot_at_turn(bundle, cp)
+            if snap is None:
+                continue
+            si = snap.get("stress_index")
+            if si is not None:
+                values.append(si)
+        if values:
+            stress_percentiles_by_turn[str(cp)] = _compute_percentiles(values)
+
+    return {
+        "black_swan_frequency_by_type": black_swan_frequency_by_type,
+        "regression_rate": _firing_rate(bundles, "tech_regression"),
+        "terrain_transition_rate": _firing_rate(bundles, "terrain_transition"),
+        "stress_percentiles_by_turn": stress_percentiles_by_turn,
+    }
+
+
+def extract_general(bundles: list[dict]) -> dict:
+    """Era distribution, median era, civs alive, first war turn, action diversity."""
+    n = len(bundles)
+
+    # era_distribution_at_final and median_era_at_final
+    era_counts: dict[str, int] = {}
+    era_ordinals: list[int] = []
+    for b in bundles:
+        last_snap = b["history"][-1]
+        for civ_data in last_snap["civ_stats"].values():
+            era = civ_data.get("tech_era", "tribal")
+            era_counts[era] = era_counts.get(era, 0) + 1
+            if era in ERA_ORDER:
+                era_ordinals.append(ERA_ORDER.index(era))
+    total_era_entries = sum(era_counts.values())
+    era_distribution_at_final = {
+        era: count / total_era_entries for era, count in era_counts.items()
+    } if total_era_entries else {}
+
+    if era_ordinals:
+        med_ordinal = statistics.median(era_ordinals)
+        # Round to nearest int to map back to era name
+        median_era_at_final = ERA_ORDER[round(med_ordinal)]
+    else:
+        median_era_at_final = "tribal"
+
+    # civs_alive_at_end
+    civs_alive_counts = []
+    for b in bundles:
+        last_snap = b["history"][-1]
+        alive_count = sum(
+            1 for civ_data in last_snap["civ_stats"].values()
+            if civ_data.get("alive", False)
+        )
+        civs_alive_counts.append(alive_count)
+
+    # first_war_turn_distribution
+    first_war_turns = []
+    for b in bundles:
+        for e in b.get("events_timeline", []):
+            if e["event_type"] == "war":
+                first_war_turns.append(e["turn"])
+                break
+
+    # action_diversity_median: distinct action types per civ, then median
+    action_diversities = []
+    for b in bundles:
+        for civ_entry in b.get("world_state", {}).get("civilizations", []):
+            ac = civ_entry.get("action_counts", {})
+            action_diversities.append(len(ac))
+    action_diversity_median = statistics.median(action_diversities) if action_diversities else 0
+
+    return {
+        "era_distribution_at_final": era_distribution_at_final,
+        "median_era_at_final": median_era_at_final,
+        "civs_alive_at_end": _compute_percentiles(civs_alive_counts),
+        "first_war_turn_distribution": _compute_percentiles(first_war_turns),
+        "action_diversity_median": action_diversity_median,
     }

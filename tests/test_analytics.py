@@ -153,3 +153,100 @@ class TestStabilityExtractor:
         assert "zero_rate_by_turn" in result
         # stability = max(0, 50 - t*3), at turn 9 = max(0, 50-27) = 23 > 0
         assert result["zero_rate_by_turn"]["9"] == 0.0
+
+
+class TestResourceExtractor:
+    def test_famine_turn_distribution(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_resources
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_resources(bundles)
+        assert "famine_turn_distribution" in result
+        assert result["famine_turn_distribution"]["median"] == 3
+
+    def test_trade_route_percentiles(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_resources
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_resources(bundles, checkpoints=[5])
+        assert "trade_route_percentiles_by_turn" in result
+        assert result["trade_route_percentiles_by_turn"]["5"]["median"] >= 1
+
+
+class TestPoliticsExtractor:
+    def test_firing_rates(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_politics
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_politics(bundles)
+        assert "war_rate" in result
+        assert result["war_rate"] == 1.0
+        assert "elimination_turn_distribution" in result
+
+    def test_secession_rate(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_politics
+        batch_dir = _write_batch(tmp_path, num_runs=15)
+        bundles = load_bundles(batch_dir)
+        result = extract_politics(bundles)
+        assert 0 < result.get("secession_rate", 0) < 1.0
+
+
+class TestClimateExtractor:
+    def test_disaster_frequency(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_climate
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_climate(bundles)
+        assert "disaster_frequency_by_type" in result
+        assert result["disaster_frequency_by_type"].get("drought", 0) == 1.0
+
+
+class TestMemeticExtractor:
+    def test_movement_metrics(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_memetic
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_memetic(bundles, checkpoints=[5])
+        assert "paradigm_shift_rate" in result
+        assert "movement_count_percentiles_by_turn" in result
+
+
+class TestGreatPersonExtractor:
+    def test_generation_and_crisis_rate(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_great_persons
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_great_persons(bundles)
+        assert result["great_person_born_rate"] == 1.0
+        assert result["succession_crisis_rate"] == 1.0
+
+
+class TestEmergenceExtractor:
+    def test_black_swan_frequency(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_emergence
+        batch_dir = _write_batch(tmp_path, num_runs=15)
+        bundles = load_bundles(batch_dir)
+        result = extract_emergence(bundles)
+        assert "black_swan_frequency_by_type" in result
+        assert 0 < result["black_swan_frequency_by_type"].get("pandemic", 0) < 1.0
+        assert "regression_rate" in result
+
+
+class TestGeneralExtractor:
+    def test_era_distribution(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_general
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_general(bundles)
+        assert "era_distribution_at_final" in result
+        assert "classical" in result["era_distribution_at_final"]
+        assert "median_era_at_final" in result
+
+    def test_first_war_and_civs_alive(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_general
+        batch_dir = _write_batch(tmp_path, num_runs=5)
+        bundles = load_bundles(batch_dir)
+        result = extract_general(bundles)
+        assert "first_war_turn_distribution" in result
+        assert result["first_war_turn_distribution"]["median"] == 5
+        assert "civs_alive_at_end" in result
