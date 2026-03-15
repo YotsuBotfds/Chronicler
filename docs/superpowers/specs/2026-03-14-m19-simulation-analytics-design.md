@@ -8,10 +8,10 @@
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Analytics architecture | Option B + Thin C (post-processing on bundles + minimal snapshot extension) | Bundles already capture 90%+ of what analytics needs. No simulation code imports. |
+| Analytics architecture | Post-processing on bundles + minimal snapshot extension | Bundles already capture 90%+ of what analytics needs. No simulation code imports. Analytics never imports simulation code — it reads JSON. |
 | CLI approach | Keep existing `--batch`, add `--analyze` flag | Batch runner works. Don't restructure for aesthetics. M19 value is in analytics, not CLI. |
-| Batch → Analyze coupling | Separate steps (B) | Re-analyze without re-running. Analysis is seconds; simulation is minutes. Tweak anomaly thresholds without re-running 200 sims. |
-| Tuning override mechanism | Overlay dict on WorldState (C) + `KNOWN_OVERRIDES` validation | Minimum-viable. No GameConfig refactor (Phase 5 concern). One guardrail: warn on unknown YAML keys at load time. |
+| Batch → Analyze coupling | Separate steps | Re-analyze without re-running. Analysis is seconds; simulation is minutes. Tweak anomaly thresholds without re-running 200 sims. |
+| Tuning override mechanism | Overlay dict on WorldState + `KNOWN_OVERRIDES` validation | Minimum-viable. No GameConfig refactor (Phase 5 concern). One guardrail: warn on unknown YAML keys at load time. |
 | Tuning key resolution | Constants in `tuning.py`, callsites use constants not strings | Reduces typo surface. `KNOWN_OVERRIDES` is the set of constant values. One place to add, one place to validate. |
 | Never-fire detection | Discover event types from data, flag < 5% | Auto-includes new milestone event types. `EXPECTED_EVENT_TYPES` is safety net only (catches zero-fire mechanics absent from all bundles). |
 | Checkpoint turns | Configurable via `--checkpoints`, default 25/50/100/200/500, clamped to <= total_turns | A `--turns 100` batch makes 200/500 checkpoints meaningless. |
@@ -21,16 +21,17 @@
 
 ## 1. TurnSnapshot Extension
 
-Three new fields on `TurnSnapshot`, captured in `main.py` after each `run_turn()`:
+Two new fields on `TurnSnapshot`, captured in `main.py` after each `run_turn()`:
 
 ```python
 # models.py — add to TurnSnapshot
 climate_phase: str = ""                              # "warming"/"cooling"/"temperate"/"drought"
 active_conditions: list[dict] = Field(default_factory=list)  # [{type, severity, duration}]
-per_civ_income: dict[str, int] = Field(default_factory=dict) # civ.last_income snapshot
 ```
 
-Capture in `main.py` (~3 lines):
+Note: per-civ income is already captured via `CivSnapshot.last_income` (accessible as `snapshot.civ_stats[civ_name].last_income`). No additional field needed.
+
+Capture in `main.py` (~2 lines):
 
 ```python
 snapshot = TurnSnapshot(
@@ -40,7 +41,6 @@ snapshot = TurnSnapshot(
         {"type": c.condition_type, "severity": c.severity, "duration": c.duration}
         for c in world.active_conditions
     ],
-    per_civ_income={civ.name: civ.last_income for civ in world.civilizations},
 )
 ```
 
@@ -75,7 +75,12 @@ The following are already on TurnSnapshot/CivSnapshot and do NOT need new fields
 
 ```python
 def load_bundles(batch_dir: Path) -> list[dict]:
-    """Glob batch_dir/*/chronicle_bundle.json, deserialize, return list."""
+    """Glob batch_dir/*/chronicle_bundle.json, deserialize, return list.
+
+    Raises ValueError if fewer than 2 bundles found (distributions require
+    multiple runs). If bundles have different total_turns, checkpoint clamping
+    uses the minimum total_turns across all bundles.
+    """
 ```
 
 ### Per-System Extractors
@@ -108,13 +113,21 @@ Time-series metrics (stability, trade routes, population) use checkpoint turns. 
 **Degenerate patterns** — conditions indicating broken mechanics:
 
 ```python
+# TechEra ordinals for comparison (string comparison gives wrong results)
+ERA_ORDER = ["tribal", "bronze", "iron", "classical", "medieval", "renaissance", "industrial", "information"]
+
 ANOMALY_CHECKS = [
     ("stability_collapse", lambda r: r["stability"]["zero_rate_at_100"] > 0.4, "CRITICAL"),
     ("universal_famine", lambda r: r["event_firing_rates"]["famine"] > 0.95, "CRITICAL"),
-    ("single_dominant", lambda r: r["general"]["same_winner_rate"] > 0.8, "WARNING"),
-    ("no_late_game", lambda r: r["general"]["median_era_at_final"] < "MEDIEVAL", "WARNING"),
+    ("no_late_game",
+     lambda r: ERA_ORDER.index(r["general"]["median_era_at_final"].lower()) < ERA_ORDER.index("medieval"),
+     "WARNING"),
 ]
 ```
+
+Note on `zero_rate`: defined as the fraction of (civ, checkpoint) observations where `stability == 0` exactly.
+
+Note on famine event types: the codebase emits both `"famine"` (from `_check_famine`) and related events. Extractors should aggregate all famine-related event types under the `"famine"` firing rate.
 
 **Never-fire detection** — discover event types from data:
 
@@ -123,6 +136,28 @@ ANOMALY_CHECKS = [
 3. Flag types with < 5% firing rate as WARNING
 
 **`EXPECTED_EVENT_TYPES` safety net** — hardcoded set of event types that should fire in healthy simulations. If any of these appear in zero bundles (not just < 5%, but truly absent), flag as CRITICAL. This catches mechanics that are completely broken — no events emitted at all.
+
+```python
+EXPECTED_EVENT_TYPES = {
+    # M13: Resources/Economics
+    "famine", "embargo",
+    # M14: Politics
+    "war", "secession", "collapse", "mercenary_spawned", "vassal_imposed",
+    "federation_formed", "proxy_war_started", "twilight_absorption",
+    # M15: Living World
+    "drought", "plague", "earthquake", "flood", "migration",
+    # M16: Memetic Warfare
+    "movement_emerged", "paradigm_shift", "cultural_assimilation",
+    # M17: Great Persons
+    "great_person_born", "tradition_acquired", "succession_crisis",
+    "hostage_taken", "rivalry_formed", "folk_hero_created",
+    # M18: Emergence
+    "pandemic", "supervolcano", "resource_discovery", "tech_accident",
+    "tech_regression", "terrain_transition",
+    # General
+    "tech_advancement", "rebellion",
+}
+```
 
 ### Report Assembly
 
@@ -152,7 +187,7 @@ chronicler --batch N --tuning tuning.yaml [--seed-range START-END]
 
 ### `--analyze` Dispatch
 
-In `main.py`, `--analyze` is mutually exclusive with `--batch`, `--fork`, `--interactive`, `--live`, `--resume`. It dispatches to:
+In `main.py`, `--analyze` joins the existing `mode_flags` mutual exclusion check (alongside `--batch`, `--fork`, `--interactive`, `--live`, `--resume`). When `--analyze` is set, simulation flags (`--seed`, `--turns`, `--civs`, `--regions`) are ignored — the analyze path skips the normal run setup entirely. It dispatches to:
 
 ```python
 from chronicler.analytics import generate_report, format_text_report, format_delta_report
@@ -172,7 +207,7 @@ Verify that `run_batch()` passes the `--simulate-only` flag through to `execute_
 
 ### `--seed-range` Enhancement
 
-One-line parse: `start, end = map(int, args.seed_range.split("-"))`, sets `base_seed = start`, `num_runs = end - start + 1`. Falls back to existing `--seed` + sequential behavior if `--seed-range` not provided.
+One-line parse: `start, end = map(int, args.seed_range.split("-"))`, sets `base_seed = start`, `num_runs = end - start + 1`. Raise argparse error if `start > end`. Falls back to existing `--seed` + sequential behavior if `--seed-range` not provided.
 
 ---
 
@@ -191,6 +226,7 @@ Written to `BATCH_DIR/batch_report.json`:
     "checkpoints": [25, 50, 100, 200, 500],
     "timestamp": "2026-03-15T14:30:00",
     "version": "post-M18",
+    "report_schema_version": 1,
     "tuning_file": "tuning.yaml or null"
   },
   "stability": {
@@ -295,7 +331,28 @@ ANOMALIES NEW:
 3 metrics unchanged (< 5% delta), 18 metrics omitted
 ```
 
-Significance threshold: omit deltas under 5% change. Adjustable at implementation time.
+Significance threshold: omit deltas under 5% relative change. Adjustable at implementation time.
+
+### Formatter Signatures
+
+```python
+def format_text_report(report: dict) -> str:
+    """Format full analytics report as grep-friendly plain text.
+
+    Reads all top-level report sections (stability, resources, politics, etc.)
+    plus event_firing_rates and anomalies. Each section produces 1-3 summary
+    lines. Anomalies appended at end grouped by severity (CRITICAL first).
+    """
+
+def format_delta_report(baseline: dict, current: dict, threshold: float = 0.05) -> str:
+    """Format delta-only comparison between two reports.
+
+    Walks both reports' numeric leaf values. Omits metrics where the relative
+    change is below threshold (default 5%). Shows before → after with percentage
+    change. Appends anomalies resolved/new sections.
+    Threshold is relative: abs(new - old) / max(abs(old), 1e-9) < threshold → skip.
+    """
+```
 
 ---
 
@@ -342,6 +399,15 @@ KNOWN_OVERRIDES: set[str] = {
 ### Loading and Validation
 
 ```python
+def _flatten(d: dict, prefix: str = "") -> dict[str, float]:
+    """Recursively join dict keys with '.' separator.
+
+    Leaf values must be numeric (int or float). Raises ValueError on
+    non-dict, non-numeric leaves (strings, lists, etc.).
+    Example: {"stability": {"drain": {"drought": -10}}}
+           → {"stability.drain.drought": -10}
+    """
+
 def load_tuning(path: Path) -> dict[str, float]:
     """Load hierarchical YAML, flatten to dot-notation keys, validate."""
     raw = yaml.safe_load(path.read_text())
@@ -356,6 +422,8 @@ def get_override(world: WorldState, key: str, default: float) -> float:
     """Read a tunable constant with override fallback."""
     return world.tuning_overrides.get(key, default)
 ```
+
+**Type note**: `get_override` returns `float`. Many simulation constants are `int` (e.g., `stability -= 10`). Callsites that need integer values should use `int(get_override(...))`. The default value's type signals intent: pass `10` for int constants, `0.02` for float constants. The implementer wraps with `int()` where the consuming code expects an integer.
 
 ### WorldState Extension
 
@@ -400,8 +468,8 @@ M19 builds the infrastructure and wires 5-10 example callsites as proof. M19b do
 
 | File | Change | Est. Lines |
 |---|---|---|
-| `src/chronicler/models.py` | 3 new TurnSnapshot fields, `tuning_overrides` on WorldState | ~6 |
-| `src/chronicler/main.py` | Snapshot capture (3 fields), `--analyze`/`--tuning`/`--seed-range`/`--checkpoints`/`--compare` CLI flags, analyze dispatch | ~50 |
+| `src/chronicler/models.py` | 2 new TurnSnapshot fields (`climate_phase`, `active_conditions`), `tuning_overrides` on WorldState | ~5 |
+| `src/chronicler/main.py` | Snapshot capture (2 fields), `--analyze`/`--tuning`/`--seed-range`/`--checkpoints`/`--compare` CLI flags, analyze dispatch | ~50 |
 | `src/chronicler/batch.py` | Verify/wire `--simulate-only` passthrough, tuning YAML loading + injection into WorldState | ~15 |
 | `src/chronicler/simulation.py` | 5-10 example callsites wired to `get_override()` | ~15 |
 
