@@ -419,3 +419,94 @@ class TestBlackSwanEligibility:
         events = check_black_swans(world, seed=42)
         assert events == []
         assert world.black_swan_cooldown == 0
+
+
+from chronicler.models import Resource, TechEra, Infrastructure, InfrastructureType
+
+
+class TestEligibilityHelpers:
+    def test_pandemic_eligible_with_3_trade_partners(self):
+        from chronicler.emergence import _get_eligible_types
+        world = _make_world()
+        # Set up 4 civs with trade routes so one has 3 partners
+        civs = [_make_civ(name=n, regions=[n]) for n in ["A", "B", "C", "D"]]
+        world.civilizations = civs
+        regions = [_make_region(name=n, controller=n) for n in ["A", "B", "C", "D"]]
+        # Make A adjacent to B, C, D
+        regions[0].adjacencies = ["B", "C", "D"]
+        regions[1].adjacencies = ["A"]
+        regions[2].adjacencies = ["A"]
+        regions[3].adjacencies = ["A"]
+        world.regions = regions
+        # Set up relationships with trade treaties
+        from chronicler.models import Relationship, Disposition
+        world.relationships = {}
+        for c in civs:
+            world.relationships[c.name] = {}
+            for other in civs:
+                if other.name != c.name:
+                    world.relationships[c.name][other.name] = Relationship(
+                        disposition=Disposition.FRIENDLY,
+                        treaties=["trade"],
+                    )
+        eligible = _get_eligible_types(world)
+        assert "pandemic" in eligible
+
+    def test_pandemic_not_eligible_without_trade(self):
+        from chronicler.emergence import _get_eligible_types
+        world = _make_world()
+        world.civilizations = [_make_civ()]
+        world.regions = [_make_region(controller="TestCiv")]
+        eligible = _get_eligible_types(world)
+        assert "pandemic" not in eligible
+
+    def test_supervolcano_eligible_with_triple(self):
+        from chronicler.emergence import _get_eligible_types, _find_volcano_triples
+        world = _make_world()
+        r1 = _make_region(name="A", controller="Civ1")
+        r2 = _make_region(name="B")
+        r3 = _make_region(name="C")
+        r1.adjacencies = ["B", "C"]
+        r2.adjacencies = ["A", "C"]
+        r3.adjacencies = ["A", "B"]
+        world.regions = [r1, r2, r3]
+        world.civilizations = [_make_civ(name="Civ1")]
+        triples = _find_volcano_triples(world)
+        assert len(triples) == 1
+        eligible = _get_eligible_types(world)
+        assert "supervolcano" in eligible
+
+    def test_supervolcano_not_eligible_no_controller(self):
+        from chronicler.emergence import _find_volcano_triples
+        world = _make_world()
+        r1 = _make_region(name="A")  # No controller
+        r2 = _make_region(name="B")
+        r3 = _make_region(name="C")
+        r1.adjacencies = ["B", "C"]
+        r2.adjacencies = ["A", "C"]
+        r3.adjacencies = ["A", "B"]
+        world.regions = [r1, r2, r3]
+        triples = _find_volcano_triples(world)
+        assert len(triples) == 0
+
+    def test_resource_discovery_eligible(self):
+        from chronicler.emergence import _get_eligible_types
+        world = _make_world()
+        world.regions = [_make_region(specialized_resources=[])]
+        world.civilizations = [_make_civ()]
+        eligible = _get_eligible_types(world)
+        assert "resource_discovery" in eligible
+
+    def test_tech_accident_eligible_at_industrial(self):
+        from chronicler.emergence import _get_eligible_types
+        world = _make_world()
+        world.civilizations = [_make_civ(tech_era=TechEra.INDUSTRIAL)]
+        eligible = _get_eligible_types(world)
+        assert "tech_accident" in eligible
+
+    def test_tech_accident_not_eligible_at_medieval(self):
+        from chronicler.emergence import _get_eligible_types
+        world = _make_world()
+        world.civilizations = [_make_civ(tech_era=TechEra.MEDIEVAL)]
+        eligible = _get_eligible_types(world)
+        assert "tech_accident" not in eligible
