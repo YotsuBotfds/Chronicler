@@ -120,6 +120,12 @@ class ClimateConfig(BaseModel):
 
 # --- Core entities ---
 
+class RegionEcology(BaseModel):
+    soil: float = Field(default=0.8, ge=0.0, le=1.0)
+    water: float = Field(default=0.6, ge=0.0, le=1.0)
+    forest_cover: float = Field(default=0.3, ge=0.0, le=1.0)
+
+
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
@@ -133,7 +139,9 @@ class Region(BaseModel):
     foreign_control_turns: int = 0
     adjacencies: list[str] = Field(default_factory=list)
     specialized_resources: list[Resource] = Field(default_factory=list)
-    fertility: float = Field(default=0.8, ge=0.0, le=1.0)
+    ecology: RegionEcology = Field(default_factory=RegionEcology)
+    low_forest_turns: int = 0
+    forest_regrowth_turns: int = 0
     infrastructure: list[Infrastructure] = Field(default_factory=list)
     pending_build: PendingBuild | None = None
     famine_cooldown: int = Field(default=0, ge=0)
@@ -142,7 +150,6 @@ class Region(BaseModel):
     resource_suspensions: dict[str, int] = Field(default_factory=dict)
     depopulated_since: int | None = None
     ruin_quality: int = 0
-    low_fertility_turns: int = 0  # M18: consecutive turns with fertility < 0.3
 
 
 class Leader(BaseModel):
