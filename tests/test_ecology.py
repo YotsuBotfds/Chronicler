@@ -102,3 +102,73 @@ class TestEcologyTuningKeys:
         ]
         for key in expected:
             assert key in KNOWN_OVERRIDES, f"Missing tuning key: {key}"
+
+
+# --- Task 4: Terrain tables & effective_capacity ---
+
+from chronicler.ecology import effective_capacity, TERRAIN_ECOLOGY_DEFAULTS, TERRAIN_ECOLOGY_CAPS
+
+
+class TestTerrainDefaults:
+    def test_plains_defaults(self):
+        eco = TERRAIN_ECOLOGY_DEFAULTS["plains"]
+        assert eco.soil == 0.9
+        assert eco.water == 0.6
+        assert eco.forest_cover == 0.2
+
+    def test_forest_defaults(self):
+        eco = TERRAIN_ECOLOGY_DEFAULTS["forest"]
+        assert eco.forest_cover == 0.9
+
+    def test_desert_defaults(self):
+        eco = TERRAIN_ECOLOGY_DEFAULTS["desert"]
+        assert eco.soil == 0.2
+        assert eco.water == 0.1
+        assert eco.forest_cover == 0.05
+
+    def test_all_six_terrains_present(self):
+        assert set(TERRAIN_ECOLOGY_DEFAULTS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
+
+
+class TestTerrainCaps:
+    def test_desert_caps(self):
+        caps = TERRAIN_ECOLOGY_CAPS["desert"]
+        assert caps["soil"] == 0.30
+        assert caps["water"] == 0.20
+        assert caps["forest_cover"] == 0.10
+
+    def test_all_six_terrains_present(self):
+        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
+
+
+class TestEffectiveCapacity:
+    def _region(self, soil=0.8, water=0.6, forest_cover=0.3, capacity=100):
+        return Region(
+            name="T", terrain="plains", carrying_capacity=capacity,
+            resources="fertile",
+            ecology=RegionEcology(soil=soil, water=water, forest_cover=forest_cover),
+        )
+
+    def test_full_soil_full_water(self):
+        r = self._region(soil=1.0, water=1.0)
+        assert effective_capacity(r) == 100
+
+    def test_half_soil_full_water(self):
+        r = self._region(soil=0.5, water=1.0)
+        assert effective_capacity(r) == 50
+
+    def test_full_soil_water_at_threshold(self):
+        r = self._region(soil=1.0, water=0.5)
+        assert effective_capacity(r) == 100
+
+    def test_full_soil_water_below_threshold(self):
+        r = self._region(soil=1.0, water=0.25)
+        assert effective_capacity(r) == 50
+
+    def test_floor_of_one(self):
+        r = self._region(soil=0.05, water=0.10, capacity=1)
+        assert effective_capacity(r) >= 1
+
+    def test_combined_soil_and_water(self):
+        r = self._region(soil=0.5, water=0.25)
+        assert effective_capacity(r) == 25
