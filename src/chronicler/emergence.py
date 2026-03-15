@@ -599,13 +599,7 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
 # Ecological Succession
 # ---------------------------------------------------------------------------
 
-def update_low_fertility_counters(world: WorldState) -> None:
-    """Increment or reset low_fertility_turns for all regions. Called in Phase 9."""
-    for region in world.regions:
-        if region.fertility < 0.3:
-            region.low_fertility_turns += 1
-        else:
-            region.low_fertility_turns = 0
+    # NOTE: update_low_fertility_counters deleted by M23 — replaced by _update_ecology_counters in ecology.py
 
 
 def tick_terrain_succession(world: WorldState) -> list[Event]:
@@ -617,8 +611,8 @@ def tick_terrain_succession(world: WorldState) -> list[Event]:
             if region.terrain != rule.from_terrain:
                 continue
 
-            if rule.condition == "low_fertility":
-                if region.low_fertility_turns >= rule.threshold_turns:
+            if rule.condition == "low_forest":
+                if region.low_forest_turns >= rule.threshold_turns:
                     _apply_transition(region, rule)
                     events.append(Event(
                         turn=world.turn,
@@ -628,12 +622,8 @@ def tick_terrain_succession(world: WorldState) -> list[Event]:
                         importance=6,
                     ))
 
-            elif rule.condition == "depopulated":
-                if region.controller is not None:
-                    continue
-                if region.depopulated_since is None:
-                    continue
-                if world.turn - region.depopulated_since >= rule.threshold_turns:
+            elif rule.condition == "forest_regrowth":
+                if region.forest_regrowth_turns >= rule.threshold_turns:
                     _apply_transition(region, rule)
                     events.append(Event(
                         turn=world.turn,
@@ -651,10 +641,11 @@ def _apply_transition(region: Region, rule) -> None:
     if rule.from_terrain == "forest" and rule.to_terrain == "plains":
         region.terrain = "plains"
         region.carrying_capacity = min(100, region.carrying_capacity + 20)
-        region.fertility = 0.5
-        region.low_fertility_turns = 0
+        region.ecology.soil = 0.5
+        region.ecology.forest_cover = 0.1
+        region.low_forest_turns = 0
     elif rule.from_terrain == "plains" and rule.to_terrain == "forest":
         region.terrain = "forest"
         region.carrying_capacity = max(1, region.carrying_capacity - 10)
-        region.fertility = 0.7
-        region.depopulated_since = None
+        region.ecology.forest_cover = 0.7
+        region.forest_regrowth_turns = 0
