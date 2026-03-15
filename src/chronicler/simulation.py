@@ -329,6 +329,10 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     from chronicler.relationships import tick_hostages
     tick_hostages(world)
 
+    # M18: Pandemic tick
+    from chronicler.emergence import tick_pandemic
+    events.extend(tick_pandemic(world))
+
     return events
 
 

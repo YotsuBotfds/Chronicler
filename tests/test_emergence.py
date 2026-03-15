@@ -612,3 +612,22 @@ class TestPandemic:
         tick_pandemic(world)
         infected_names = {p.region_name for p in world.pandemic_state}
         assert "D" not in infected_names
+
+
+class TestPandemicIntegration:
+    def test_pandemic_ticks_during_turn(self):
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        # Inject a pandemic
+        world.pandemic_state = [PandemicRegion(
+            region_name=world.regions[0].name, severity=1, turns_remaining=3,
+        )]
+        world.regions[0].controller = world.civilizations[0].name
+        initial_pop = world.civilizations[0].population
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                 narrator=lambda w, e: "", seed=1)
+        # Pandemic should have ticked (damage applied, timer decremented)
+        assert world.civilizations[0].population < initial_pop
+        assert world.pandemic_state[0].turns_remaining == 2
