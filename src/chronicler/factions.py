@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from chronicler.models import (
+    Event,
     FactionType,
     FactionState,
     Civilization,
@@ -85,3 +86,34 @@ def get_leader_faction_alignment(leader: Leader, factions: FactionState) -> floa
     if leader_faction is None:
         return 0.5
     return factions.influence.get(leader_faction, 0.33)
+
+
+def _event_is_win(event: Event, civ: Civilization, faction_type: FactionType) -> bool:
+    if civ.name not in event.actors:
+        return False
+    if faction_type == FactionType.MILITARY:
+        if event.event_type == "war" and len(event.actors) >= 2:
+            is_attacker = event.actors[0] == civ.name
+            if (is_attacker and "attacker_wins" in event.description) or \
+               (not is_attacker and "defender_wins" in event.description):
+                return True
+        elif event.event_type == "expand" and event.importance >= 5:
+            return True
+    elif faction_type == FactionType.MERCHANT:
+        if event.event_type == "trade" and len(event.actors) >= 2:
+            return True
+    elif faction_type == FactionType.CULTURAL:
+        if event.event_type in ("cultural_work", "movement_adoption"):
+            return True
+    return False
+
+
+def count_faction_wins(world, civ: Civilization, faction_type: FactionType, lookback: int = 10) -> int:
+    min_turn = world.turn - lookback
+    count = 0
+    for event in world.events_timeline:
+        if event.turn < min_turn:
+            continue
+        if _event_is_win(event, civ, faction_type):
+            count += 1
+    return count

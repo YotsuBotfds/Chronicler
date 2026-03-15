@@ -10,6 +10,7 @@ from chronicler.factions import (
     TRAIT_FACTION_MAP,
     FOCUS_FACTION_MAP,
 )
+from chronicler.factions import count_faction_wins, _event_is_win
 
 
 class TestFactionDataModel:
@@ -109,3 +110,84 @@ class TestCoreHelpers:
 
     def test_focus_faction_map_covers_all_focuses(self):
         assert len(FOCUS_FACTION_MAP) == 15
+
+
+def _make_world(turn: int = 10, events: list[Event] | None = None) -> WorldState:
+    """Minimal WorldState for testing."""
+    world = WorldState(name="test", seed=42, turn=turn)
+    if events:
+        world.events_timeline = events
+    return world
+
+
+def _make_civ(name: str = "TestCiv") -> Civilization:
+    leader = Leader(name="Leader", trait="bold", reign_start=0)
+    return Civilization(
+        name=name, population=50, military=40, economy=60,
+        culture=30, stability=70, regions=["r1"], leader=leader,
+    )
+
+
+class TestWinCounting:
+    def test_military_war_win_attacker(self):
+        events = [Event(turn=5, event_type="war", actors=["TestCiv", "Enemy"],
+                        description="TestCiv attacked Enemy: attacker_wins.", importance=8)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MILITARY, lookback=10) == 1
+
+    def test_military_war_win_defender(self):
+        events = [Event(turn=5, event_type="war", actors=["Enemy", "TestCiv"],
+                        description="Enemy attacked TestCiv: defender_wins.", importance=8)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MILITARY, lookback=10) == 1
+
+    def test_military_war_loss_not_counted(self):
+        events = [Event(turn=5, event_type="war", actors=["TestCiv", "Enemy"],
+                        description="TestCiv attacked Enemy: defender_wins.", importance=8)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MILITARY, lookback=10) == 0
+
+    def test_military_expansion_success(self):
+        events = [Event(turn=5, event_type="expand", actors=["TestCiv"],
+                        description="TestCiv expanded.", importance=6)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MILITARY, lookback=10) == 1
+
+    def test_merchant_trade_success(self):
+        events = [Event(turn=5, event_type="trade", actors=["TestCiv", "Partner"],
+                        description="TestCiv traded.", importance=3)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MERCHANT, lookback=10) == 1
+
+    def test_merchant_trade_failure_not_counted(self):
+        events = [Event(turn=5, event_type="trade", actors=["TestCiv"],
+                        description="No partners.", importance=2)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MERCHANT, lookback=10) == 0
+
+    def test_cultural_work(self):
+        events = [Event(turn=5, event_type="cultural_work", actors=["TestCiv"],
+                        description="Cultural work.", importance=6)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.CULTURAL, lookback=10) == 1
+
+    def test_cultural_movement_adoption(self):
+        events = [Event(turn=5, event_type="movement_adoption", actors=["TestCiv", "Origin"],
+                        description="Adopted.", importance=5)]
+        world = _make_world(turn=10, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.CULTURAL, lookback=10) == 1
+
+    def test_lookback_window_respected(self):
+        events = [Event(turn=1, event_type="war", actors=["TestCiv", "Enemy"],
+                        description="TestCiv attacked Enemy: attacker_wins.", importance=8)]
+        world = _make_world(turn=20, events=events)
+        civ = _make_civ()
+        assert count_faction_wins(world, civ, FactionType.MILITARY, lookback=10) == 0
