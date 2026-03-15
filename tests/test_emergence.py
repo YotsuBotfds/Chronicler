@@ -83,3 +83,26 @@ class TestM18ModelExtensions:
         assert w2.black_swan_cooldown == 10
         assert len(w2.pandemic_state) == 1
         assert w2.pandemic_state[0].region_name == "X"
+
+
+from chronicler.scenario import ScenarioConfig
+
+
+class TestScenarioM18:
+    def test_scenario_has_chaos_multiplier(self):
+        cfg = ScenarioConfig(name="test")
+        assert cfg.chaos_multiplier == 1.0
+
+    def test_scenario_has_cooldown_turns(self):
+        cfg = ScenarioConfig(name="test")
+        assert cfg.black_swan_cooldown_turns == 30
+
+    def test_scenario_terrain_rules_override(self):
+        """Verify that scenario can override terrain transition rules."""
+        from chronicler.world_gen import generate_world
+        from chronicler.scenario import apply_scenario
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        assert len(world.terrain_transition_rules) == 2
+        cfg = ScenarioConfig(name="test", terrain_transition_rules=[])
+        apply_scenario(world, cfg)
+        assert world.terrain_transition_rules == []

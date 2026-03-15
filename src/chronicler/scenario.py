@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from chronicler.models import (
     ActiveCondition, Civilization, ClimateConfig, Disposition, Region, Relationship,
-    TechEra, WorldState,
+    TechEra, TerrainTransitionRule, WorldState,
 )
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
 
@@ -93,6 +93,9 @@ class ScenarioConfig(BaseModel):
     secession_pool: list[CivOverride] = Field(default_factory=list)
     climate: "ClimateConfig | None" = None
     fog_of_war: bool | None = None
+    chaos_multiplier: float = Field(default=1.0, ge=0.0)
+    black_swan_cooldown_turns: int = Field(default=30, ge=0)
+    terrain_transition_rules: list[TerrainTransitionRule] | None = None  # None = use WorldState defaults
 
 
 def load_scenario(path: Path) -> ScenarioConfig:
@@ -361,6 +364,12 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         world.climate_config = config.climate
     if config.fog_of_war is not None:
         world.fog_of_war = config.fog_of_war
+
+    # --- Step 7c: M18 emergence config ---
+    world.chaos_multiplier = config.chaos_multiplier
+    world.black_swan_cooldown_turns = config.black_swan_cooldown_turns
+    if config.terrain_transition_rules is not None:
+        world.terrain_transition_rules = list(config.terrain_transition_rules)
 
     # --- Step 8: Recompute adjacencies (fills gaps for regions without explicit adjacencies) ---
     # Clear stale adjacencies from generate_world (region names may have changed)
