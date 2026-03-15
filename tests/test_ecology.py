@@ -266,3 +266,85 @@ class TestTickSoil:
         _tick_soil(r_mech, civ_mech, ClimatePhase.TEMPERATE, w_mech)
         _tick_soil(r_none, civ_none, ClimatePhase.TEMPERATE, w_none)
         assert r_mech.ecology.soil < r_none.ecology.soil
+
+
+# --- Task 6: _tick_water ---
+
+from chronicler.ecology import _tick_water
+
+
+class TestTickWater:
+    def _setup(self, pop=50, water=0.6, has_irrigation=False):
+        from chronicler.models import Infrastructure, Leader, Civilization
+        r = Region(
+            name="T", terrain="plains", carrying_capacity=100,
+            resources="fertile", population=pop, controller="TestCiv",
+            ecology=RegionEcology(soil=0.8, water=water, forest_cover=0.3),
+        )
+        if has_irrigation:
+            r.infrastructure.append(Infrastructure(
+                type=InfrastructureType.IRRIGATION, builder_civ="TestCiv",
+                built_turn=0, active=True,
+            ))
+        civ = Civilization(
+            name="TestCiv", population=pop, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"],
+        )
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        return r, civ, w
+
+    def test_drought_degrades_water(self):
+        r, civ, w = self._setup(water=0.6)
+        old = r.ecology.water
+        _tick_water(r, civ, ClimatePhase.DROUGHT, w)
+        assert r.ecology.water < old
+
+    def test_irrigation_amplifies_drought(self):
+        r_irr, civ_irr, w_irr = self._setup(water=0.6, has_irrigation=True)
+        r_dry, civ_dry, w_dry = self._setup(water=0.6)
+        _tick_water(r_irr, civ_irr, ClimatePhase.DROUGHT, w_irr)
+        _tick_water(r_dry, civ_dry, ClimatePhase.DROUGHT, w_dry)
+        assert r_irr.ecology.water < r_dry.ecology.water
+
+    def test_temperate_recovers_water(self):
+        r, civ, w = self._setup(water=0.4)
+        old = r.ecology.water
+        _tick_water(r, civ, ClimatePhase.TEMPERATE, w)
+        assert r.ecology.water > old
+
+    def test_irrigation_bonus_recovery(self):
+        r_irr, civ_irr, w_irr = self._setup(water=0.4, has_irrigation=True)
+        r_dry, civ_dry, w_dry = self._setup(water=0.4)
+        _tick_water(r_irr, civ_irr, ClimatePhase.TEMPERATE, w_irr)
+        _tick_water(r_dry, civ_dry, ClimatePhase.TEMPERATE, w_dry)
+        assert r_irr.ecology.water > r_dry.ecology.water
+
+    def test_cooling_degrades_water(self):
+        r, civ, w = self._setup(water=0.6)
+        old = r.ecology.water
+        _tick_water(r, civ, ClimatePhase.COOLING, w)
+        assert r.ecology.water < old
+
+    def test_warming_tundra_melt_bonus(self):
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="T", terrain="tundra", carrying_capacity=20,
+            resources="barren", population=5, controller="TestCiv",
+            ecology=RegionEcology(soil=0.15, water=0.4, forest_cover=0.1),
+        )
+        civ = Civilization(
+            name="TestCiv", population=5, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["T"],
+        )
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        old = r.ecology.water
+        _tick_water(r, civ, ClimatePhase.WARMING, w)
+        assert r.ecology.water > old
+
+    def test_warming_non_tundra_no_effect(self):
+        r, civ, w = self._setup(water=0.6)
+        old = r.ecology.water
+        _tick_water(r, civ, ClimatePhase.WARMING, w)
+        assert r.ecology.water == old

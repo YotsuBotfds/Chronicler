@@ -90,3 +90,33 @@ def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldSta
         if civ and civ.active_focus == "agriculture":
             rate += get_override(world, K_AGRICULTURE_SOIL_BONUS, 0.02)
         region.ecology.soil += rate
+
+
+def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
+    has_irrigation = any(
+        i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure
+    )
+
+    # Degradation / phase effects
+    if climate_phase == ClimatePhase.DROUGHT:
+        rate = get_override(world, K_WATER_DROUGHT, 0.04)
+        if has_irrigation:
+            rate *= get_override(world, K_IRRIGATION_DROUGHT_MULT, 1.5)
+        region.ecology.water -= rate
+    elif climate_phase == ClimatePhase.COOLING:
+        region.ecology.water -= 0.02
+    elif climate_phase == ClimatePhase.WARMING:
+        if region.terrain == "tundra":
+            region.ecology.water += 0.05
+
+    # Recovery
+    if climate_phase == ClimatePhase.TEMPERATE:
+        rate = get_override(world, K_WATER_RECOVERY, 0.03)
+        rate *= _pressure_multiplier(region)
+        region.ecology.water += rate
+
+    # Irrigation bonus (always, not just temperate, but not during drought)
+    if has_irrigation and climate_phase != ClimatePhase.DROUGHT:
+        bonus = get_override(world, K_IRRIGATION_WATER_BONUS, 0.03)
+        bonus *= _pressure_multiplier(region)
+        region.ecology.water += bonus
