@@ -281,6 +281,21 @@ class Movement(BaseModel):
     adherents: dict[str, int] = Field(default_factory=dict)
 
 
+class PandemicRegion(BaseModel):
+    """Tracks pandemic spread per-region. Part of M18 emergence system."""
+    region_name: str
+    severity: int  # 1-3, keyed off active infrastructure count
+    turns_remaining: int  # 4-6, decrements each turn
+
+
+class TerrainTransitionRule(BaseModel):
+    """Configurable terrain transformation rule for ecological succession."""
+    from_terrain: str
+    to_terrain: str
+    condition: str  # "low_fertility" or "depopulated"
+    threshold_turns: int  # Consecutive turns before transform triggers
+
+
 # --- Top-level state ---
 
 class WorldState(BaseModel):
