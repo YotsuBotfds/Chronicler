@@ -521,7 +521,14 @@ class TestSnapshotPopulation:
     def test_snapshot_contains_accuracy_and_errors(self):
         r1 = _region("A", controller="Civ1", adjacencies=["B"])
         r2 = _region("B", controller="Civ2", adjacencies=["A"])
-        c1 = _civ("Civ1", regions=["A"], military=50, economy=60, stability=40)
+        # Use military-dominant faction so no faction bonus (accuracy = adjacent only = 0.3)
+        military_factions = FactionState(influence={
+            FactionType.MILITARY: 0.6,
+            FactionType.MERCHANT: 0.2,
+            FactionType.CULTURAL: 0.2,
+        })
+        c1 = _civ("Civ1", regions=["A"], military=50, economy=60, stability=40,
+                  factions=military_factions)
         c2 = _civ("Civ2", regions=["B"], military=70, economy=30, stability=55)
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
         acc_cache = {}

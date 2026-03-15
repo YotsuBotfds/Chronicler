@@ -25,6 +25,7 @@ from chronicler.narrative import NarrativeEngine
 from chronicler.simulation import apply_injected_event, run_turn
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
+from chronicler.intelligence import compute_accuracy, get_perceived_stat
 
 DEFAULT_CONFIG = {
     "seed": 42,
@@ -215,6 +216,12 @@ def execute_run(
         )
 
         # Capture per-turn snapshot for viewer bundle
+        # M24: cache accuracy for snapshot
+        _acc_cache: dict[tuple[str, str], float] = {}
+        for _obs in world.civilizations:
+            for _tgt in world.civilizations:
+                if _obs.name != _tgt.name:
+                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(_obs, _tgt, world)
         snapshot = TurnSnapshot(
             turn=world.turn,
             civ_stats={
@@ -277,6 +284,31 @@ def execute_run(
                 {"type": c.condition_type, "severity": c.severity, "duration": c.duration}
                 for c in world.active_conditions
             ],
+            per_pair_accuracy={
+                obs_name: {
+                    tgt_name: acc
+                    for tgt_name, acc in (
+                        (t.name, _acc_cache[(obs_name, t.name)])
+                        for t in world.civilizations if t.name != obs_name
+                    )
+                    if acc > 0.0
+                }
+                for obs_name in (c.name for c in world.civilizations)
+            },
+            perception_errors={
+                obs_name: {
+                    tgt_name: {
+                        stat: pv - getattr(tgt, stat)
+                        for stat in ("military", "economy", "stability")
+                        if (pv := get_perceived_stat(obs, tgt, stat, world)) is not None
+                    }
+                    for tgt in world.civilizations
+                    for tgt_name in [tgt.name]
+                    if tgt_name != obs_name and _acc_cache.get((obs_name, tgt_name), 0.0) > 0.0
+                }
+                for obs in world.civilizations
+                for obs_name in [obs.name]
+            },
         )
         history.append(snapshot)
 
