@@ -100,7 +100,7 @@ All 15 formulas grounded in verified model state:
 |---|---|---|
 | Classical | NAVIGATION | `coastal x 3 + ports x 5` |
 | Classical | METALLURGY | `iron_regions x 4 + mines x 5` |
-| Classical | AGRICULTURE | `grain_regions x 3 + irrigated x 5 + civ.population x 0.1` |
+| Classical | AGRICULTURE | `grain_regions x 3 + irrigated x 5 + civ.population x 0.1` (note: civ.population synced in phase 0, current by phase 4) |
 | Medieval | FORTIFICATION | `fortifications x 5 + border_regions x 3 + military x 0.2` |
 | Medieval | COMMERCE | `trade_routes x 5 + treasury x 0.1 + ports x 3` |
 | Medieval | SCHOLARSHIP | `culture x 0.3 + great_persons x 5 + len(civ.traditions) x 3` |
@@ -231,7 +231,7 @@ Returns weight multipliers from active focus. Empty dict if no focus. Called by 
 | NAVAL_POWER | Coastal defense +10 | action_engine.py `resolve_war()` | +10 defense if defender has NAVAL_POWER and region is coastal |
 | NETWORKS | Trade income x2 | action_engine.py `resolve_trade()` | Treasury gain x 2 |
 | SURVEILLANCE | Secession resistance | politics.py `check_secession()` | Secession triggers at `stability < 10` instead of `stability < 20` (line 102) |
-| MEDIA | Propaganda acceleration x2 | culture.py `resolve_invest_culture()` | Double `PROPAGANDA_ACCELERATION` value (line 187) |
+| MEDIA | Propaganda acceleration x2 | culture.py `resolve_invest_culture()` | Double `PROPAGANDA_ACCELERATION` value (line 127) |
 
 ### Design Notes on Capabilities
 
@@ -247,7 +247,7 @@ Returns weight multipliers from active focus. Empty dict if no focus. Called by 
 - BANKING was changed from offensive (embargo damage doubled) to defensive (incoming embargo damage halved). Fires more often since economically strong civs are common embargo targets.
 - MECHANIZATION adds a new +2 treasury per active mine mechanic in `phase_production()`. No existing mine income mechanic exists -- mines only cause fertility degradation in `infrastructure.py`. This is a small new block (~3 lines), not a modification of existing code.
 - PRINTING doubles `adoption_probability` in `movements.py _process_spread()` (line 98). Movement `adherents` is `dict[str, int]` where values are variant offsets, not adherent counts. The capability affects adoption *probability*, not any numeric adherent value.
-- MEDIA's capability is propaganda acceleration x2 in `culture.py resolve_invest_culture()` (line 187), not cultural projection range. At INFORMATION era, `culture_projection_range = -1` already grants global projection (tech.py line 48), making a range extension redundant. Doubling `PROPAGANDA_ACCELERATION` instead gives MEDIA a meaningful offensive cultural warfare capability.
+- MEDIA's capability is propaganda acceleration x2 in `culture.py resolve_invest_culture()` (line 127), not cultural projection range. At INFORMATION era, `culture_projection_range = -1` already grants global projection (tech.py line 48), making a range extension redundant. Doubling `PROPAGANDA_ACCELERATION` instead gives MEDIA a meaningful offensive cultural warfare capability.
 - SURVEILLANCE: secession check at `politics.py` line 102 uses `civ.stability >= 20` (civs at stability 20+ are immune). With SURVEILLANCE, the threshold drops to 10, meaning the civ must be below stability 10 before secession triggers. This makes the civ *more resistant* to fracture.
 
 ## Simulation Integration
