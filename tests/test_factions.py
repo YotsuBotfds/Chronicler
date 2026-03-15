@@ -223,6 +223,7 @@ class TestWeightModifier:
 
 
 from chronicler.factions import check_power_struggle, get_struggling_factions, resolve_power_struggle
+from chronicler.factions import tick_factions
 
 
 class TestPowerStruggle:
@@ -266,3 +267,40 @@ class TestPowerStruggle:
         assert civ.factions.influence[FactionType.MILITARY] > 0.36
         assert len(result_events) == 1
         assert result_events[0].event_type == "power_struggle_resolved"
+
+
+class TestTickFactions:
+    def test_tick_shifts_influence_on_war_win(self):
+        civ = _make_civ()
+        world = _make_world(turn=10, events=[Event(
+            turn=10, event_type="war", actors=["TestCiv", "Enemy"],
+            description="TestCiv attacked Enemy: attacker_wins.", importance=8,
+        )])
+        world.civilizations = [civ]
+        mil_before = civ.factions.influence[FactionType.MILITARY]
+        tick_factions(world)
+        assert civ.factions.influence[FactionType.MILITARY] > mil_before
+
+    def test_tick_skips_power_struggle_during_crisis(self):
+        civ = _make_civ()
+        civ.factions.power_struggle = True
+        civ.factions.power_struggle_turns = 3
+        civ.succession_crisis_turns_remaining = 2
+        world = _make_world(turn=10)
+        world.civilizations = [civ]
+        tick_factions(world)
+        assert civ.factions.power_struggle_turns == 3
+
+    def test_tick_emits_dominance_shift_event(self):
+        civ = _make_civ()
+        civ.factions.influence[FactionType.MILITARY] = 0.50
+        civ.factions.influence[FactionType.MERCHANT] = 0.30
+        civ.factions.influence[FactionType.CULTURAL] = 0.20
+        world = _make_world(turn=10, events=[Event(
+            turn=10, event_type="war", actors=["TestCiv", "Enemy"],
+            description="TestCiv attacked Enemy: defender_wins.", importance=8,
+        )] * 5)
+        world.civilizations = [civ]
+        events = tick_factions(world)
+        shift_events = [e for e in events if e.event_type == "faction_dominance_shift"]
+        assert len(shift_events) == 1

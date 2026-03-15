@@ -199,3 +199,126 @@ def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
         description=f"{civ.name}: {winner.value} faction prevails after {turns} turns of infighting.",
         importance=7,
     )]
+
+
+# ---------------------------------------------------------------------------
+# Per-turn faction tick (phase 10 — consequences)
+# ---------------------------------------------------------------------------
+
+def tick_factions(world) -> list[Event]:
+    """Main per-turn faction tick. Runs in phase 10 (consequences)."""
+    events: list[Event] = []
+    current_turn = world.turn
+
+    for civ in world.civilizations:
+        if not civ.regions:
+            continue
+
+        # 1. Record current dominant faction
+        old_dominant = get_dominant_faction(civ.factions)
+
+        # 2. Scan current-turn events for influence shifts
+        for event in world.events_timeline:
+            if event.turn != current_turn:
+                continue
+            if civ.name not in event.actors:
+                continue
+
+            if event.event_type == "war" and len(event.actors) >= 2:
+                is_attacker = event.actors[0] == civ.name
+                if (is_attacker and "attacker_wins" in event.description) or \
+                   (not is_attacker and "defender_wins" in event.description):
+                    # War win
+                    civ.factions.influence[FactionType.MILITARY] += 0.10
+                else:
+                    # War loss
+                    civ.factions.influence[FactionType.MILITARY] -= 0.10
+                    civ.factions.influence[FactionType.MERCHANT] += 0.05
+                    civ.factions.influence[FactionType.CULTURAL] += 0.05
+
+            elif event.event_type == "trade" and len(event.actors) >= 2:
+                civ.factions.influence[FactionType.MERCHANT] += 0.08
+
+            elif event.event_type == "expand" and event.importance >= 5:
+                civ.factions.influence[FactionType.MILITARY] += 0.05
+                civ.factions.influence[FactionType.MERCHANT] += 0.03
+
+            elif event.event_type in ("cultural_work", "movement_adoption"):
+                civ.factions.influence[FactionType.CULTURAL] += 0.08
+
+            elif event.event_type == "famine":
+                civ.factions.influence[FactionType.MILITARY] -= 0.03
+                civ.factions.influence[FactionType.MERCHANT] -= 0.03
+                civ.factions.influence[FactionType.CULTURAL] += 0.06
+
+            elif event.event_type == "tech_focus_selected":
+                focus_name = civ.active_focus
+                if focus_name and focus_name in FOCUS_FACTION_MAP:
+                    civ.factions.influence[FOCUS_FACTION_MAP[focus_name]] += 0.05
+
+        # 3. State-based shifts
+        if civ.treasury <= 0:
+            civ.factions.influence[FactionType.MERCHANT] -= 0.15
+            civ.factions.influence[FactionType.CULTURAL] += 0.05
+
+        if civ.last_income > civ.military:
+            civ.factions.influence[FactionType.MERCHANT] += 0.08
+
+        # 4. GP per-turn bonuses
+        for gp in civ.great_persons:
+            if not gp.alive or not gp.active:
+                continue
+            if gp.role == "general":
+                civ.factions.influence[FactionType.MILITARY] += 0.03
+            elif gp.role == "merchant":
+                civ.factions.influence[FactionType.MERCHANT] += 0.03
+            elif gp.role == "prophet":
+                civ.factions.influence[FactionType.CULTURAL] += 0.03
+            elif gp.role == "scientist":
+                if civ.active_focus and civ.active_focus in FOCUS_FACTION_MAP:
+                    civ.factions.influence[FOCUS_FACTION_MAP[civ.active_focus]] += 0.02
+
+        # 5. Normalize influence
+        normalize_influence(civ.factions)
+
+        # 6. Check for dominance shift
+        new_dominant = get_dominant_faction(civ.factions)
+        if new_dominant != old_dominant:
+            events.append(Event(
+                turn=current_turn, event_type="faction_dominance_shift",
+                actors=[civ.name],
+                description=(
+                    f"{civ.name}: {new_dominant.value} faction overtakes "
+                    f"{old_dominant.value} as dominant influence."
+                ),
+                importance=6,
+            ))
+
+        # 7. Power struggle processing
+        if civ.succession_crisis_turns_remaining > 0:
+            # Rule 2 — crisis pauses power struggle
+            pass
+        elif civ.factions.power_struggle:
+            civ.factions.power_struggle_turns += 1
+            from chronicler.emergence import get_severity_multiplier
+            civ.stability -= int(3 * get_severity_multiplier(civ))
+            if civ.stability < 0:
+                civ.stability = 0
+            if civ.factions.power_struggle_turns > 5:
+                events.extend(resolve_power_struggle(civ, world))
+        else:
+            struggle = check_power_struggle(civ.factions)
+            if struggle is not None:
+                civ.factions.power_struggle = True
+                civ.factions.power_struggle_turns = 0
+                events.append(Event(
+                    turn=current_turn, event_type="power_struggle_started",
+                    actors=[civ.name],
+                    description=(
+                        f"{civ.name}: {struggle[0].value} and {struggle[1].value} "
+                        f"factions begin a power struggle."
+                    ),
+                    importance=6,
+                ))
+
+    return events

@@ -768,6 +768,10 @@ def phase_consequences(world: WorldState) -> list[Event]:
     check_mentorship_formation(world)
     check_marriage_formation(world)
 
+    # M22: Faction tick — influence shifts, power struggles
+    from chronicler.factions import tick_factions
+    collapse_events.extend(tick_factions(world))
+
     return collapse_events
 
 
