@@ -432,6 +432,17 @@ def inherit_grudges_with_factions(
             new_leader.grudges.append({**g, "intensity": inherited_intensity})
 
 
+def total_effective_capacity(civ: Civilization, world) -> int:
+    """Sum of effective_capacity across all civ-controlled regions."""
+    from chronicler.terrain import effective_capacity
+    region_map = {r.name: r for r in world.regions}
+    return sum(
+        effective_capacity(region_map[rn])
+        for rn in civ.regions
+        if rn in region_map
+    )
+
+
 def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[Event]:
     """End the crisis using faction-weighted candidate selection.
 

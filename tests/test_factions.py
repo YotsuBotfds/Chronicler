@@ -225,6 +225,7 @@ class TestWeightModifier:
 
 from chronicler.factions import check_power_struggle, get_struggling_factions, resolve_power_struggle
 from chronicler.factions import tick_factions
+from chronicler.factions import total_effective_capacity
 
 
 class TestPowerStruggle:
@@ -371,3 +372,18 @@ class TestGrudgeInheritance:
         fs = FactionState()
         inherit_grudges_with_factions(old, new, fs)
         assert len(new.grudges) == 0
+
+
+class TestSecessionViability:
+    def test_total_effective_capacity(self):
+        from chronicler.models import Region
+        regions = [
+            Region(name="plains1", terrain="plains", carrying_capacity=50, resources="grain"),
+            Region(name="desert1", terrain="desert", carrying_capacity=20, resources="none"),
+        ]
+        world = _make_world()
+        world.regions = regions
+        civ = _make_civ()
+        civ.regions = ["plains1", "desert1"]
+        cap = total_effective_capacity(civ, world)
+        assert cap > 0

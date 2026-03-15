@@ -11,6 +11,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent,
     ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
 )
+from chronicler.terrain import effective_capacity
 from chronicler.tuning import K_GOVERNING_COST, get_override
 from chronicler.utils import clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
 
@@ -117,11 +118,13 @@ def check_secession(world: WorldState) -> list[Event]:
         # Secession fires
         region_map = {r.name: r for r in world.regions}
 
-        def _dist_from_capital(rn: str, _civ=civ) -> int:
+        def _secession_score(rn: str, _civ=civ) -> float:
             d = graph_distance(world.regions, _civ.capital_region or _civ.regions[0], rn)
-            return d if d >= 0 else 0
+            dist = d if d >= 0 else 0
+            cap = effective_capacity(region_map[rn]) if rn in region_map else 0
+            return dist * 0.7 + cap * 0.3
 
-        sorted_regions = sorted(civ.regions, key=_dist_from_capital, reverse=True)
+        sorted_regions = sorted(civ.regions, key=_secession_score, reverse=True)
 
         breakaway_count = math.ceil(len(civ.regions) / 3)
         breakaway_count = max(1, min(breakaway_count, len(civ.regions) - 1))
@@ -205,6 +208,8 @@ def check_secession(world: WorldState) -> list[Event]:
             asabiya=0.7,
             leader_name_pool=list(civ.leader_name_pool or []),
         )
+
+        breakaway_civ.founded_turn = world.turn
 
         # M17d: Tradition inheritance through secession
         breakaway_civ.traditions = list(civ.traditions)
@@ -968,6 +973,45 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
     to_remove = []
 
     for civ in list(world.civilizations):
+        # M22: Absorb structurally unviable civs
+        from chronicler.factions import total_effective_capacity
+        if total_effective_capacity(civ, world) < 10 and (world.turn - civ.founded_turn) > 30:
+            region_map_u = {r.name: r for r in world.regions}
+            best_absorber_u = None
+            best_culture_u = -1
+            for rn in civ.regions:
+                civ_r = region_map_u.get(rn)
+                if civ_r is None:
+                    continue
+                for adj_name in getattr(civ_r, 'adjacencies', []):
+                    adj_region = region_map_u.get(adj_name)
+                    if adj_region and adj_region.controller and adj_region.controller != civ.name:
+                        absorber = next((c for c in world.civilizations if c.name == adj_region.controller), None)
+                        if absorber and absorber.culture > best_culture_u:
+                            best_culture_u = absorber.culture
+                            best_absorber_u = absorber
+            if best_absorber_u is not None:
+                absorbed_regions = list(civ.regions)
+                for rn in absorbed_regions:
+                    best_absorber_u.regions.append(rn)
+                    if rn in region_map_u:
+                        region_map_u[rn].controller = best_absorber_u.name
+                civ.regions = []
+                to_remove.append(civ)
+                world.exile_modifiers.append(ExileModifier(
+                    original_civ_name=civ.name,
+                    absorber_civ=best_absorber_u.name,
+                    conquered_regions=absorbed_regions,
+                    turns_remaining=10,
+                ))
+                events.append(Event(
+                    turn=world.turn, event_type="twilight_absorption",
+                    actors=[civ.name, best_absorber_u.name],
+                    description=f"The Quiet End of {civ.name}",
+                    importance=6,
+                ))
+                continue
+
         if civ.decline_turns < 40 or len(civ.regions) != 1:
             continue
 
