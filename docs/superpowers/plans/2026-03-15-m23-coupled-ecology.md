@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-15-m23-coupled-ecology-design.md`
 
+### Implementation Notes (from plan review)
+
+1. **Task 9 — Circular import risk.** `_check_famine` imports `_get_civ`, `clamp`, `STAT_FLOOR` from simulation.py and `get_severity_multiplier` from emergence.py. Since simulation.py imports ecology.py, this creates a circular dependency. **Fix before implementation:** Extract `_get_civ`, `clamp`, `STAT_FLOOR` into `utils.py` (they're generic helpers), then import from there. Or pass `_get_civ` as a parameter.
+2. **Task 10 — climate_phase recomputation.** Check whether `climate_phase` is already computed earlier in the turn loop and available as a local variable. If so, pass that instead of recomputing via `get_climate_phase`.
+3. **Task 12 — Disaster tests are formula validation only.** The Step 1 tests just validate Python arithmetic, not the actual disaster code migration. Real validation comes from the existing climate/emergence test suites in Step 4. Don't count these as meaningful migration test coverage.
+4. **Task 13 — _apply_transition water.** Forest→plains sets soil=0.5 and forest_cover=0.1 but does NOT touch water (spec says "water unchanged"). Do not accidentally reset water when implementing.
+5. **Task 15 — Blast radius.** Run `grep -r "\.fertility" tests/` first to get the full list of sites before starting edits. Expect 50+ sites across 9+ test files.
+
 ---
 
 ## Chunk 1: Data Model Foundation
