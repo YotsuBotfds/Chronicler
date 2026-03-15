@@ -243,7 +243,10 @@ def execute_run(
                     active_crisis=civ.succession_crisis_turns_remaining > 0,
                     civ_stress=civ.civ_stress,
                     active_focus=civ.active_focus,
-                    factions=civ.factions,
+                    factions=civ.factions.model_copy(deep=True),
+                    action_counts=dict(civ.action_counts),
+                    max_precap_weight=civ.max_precap_weight,
+                    last_action=(world.action_history.get(civ.name, [])[-1] if world.action_history.get(civ.name) else None),
                 )
                 for civ in world.civilizations
             },

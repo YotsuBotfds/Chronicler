@@ -99,6 +99,11 @@ def _process_spread(world: WorldState) -> None:
                 # M21: PRINTING doubles movement adoption probability
                 if civ.active_focus == "printing":
                     adoption_probability *= 2
+                    world.events_timeline.append(Event(
+                        turn=world.turn, event_type="capability_printing",
+                        actors=[civ.name], description=f"{civ.name} printing doubles movement adoption",
+                        importance=1,
+                    ))
                 roll = int(hashlib.sha256(
                     f"{world.seed}:{world.turn}:{movement.id}:{civ.name}:spread".encode()
                 ).hexdigest(), 16) % 100

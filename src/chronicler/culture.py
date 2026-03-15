@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from chronicler.models import ActiveCondition, Disposition, NamedEvent, WorldState
+from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
 from chronicler.utils import clamp
 
 VALUE_OPPOSITIONS: dict[str, str] = {
@@ -185,7 +185,15 @@ def resolve_invest_culture(civ, world: WorldState):
         adjustment = _counter_propaganda_reaction(world, defender, target, world.seed)
 
     # M21: MEDIA doubles propaganda acceleration
-    base_accel = PROPAGANDA_ACCELERATION * 2 if civ.active_focus == "media" else PROPAGANDA_ACCELERATION
+    if civ.active_focus == "media":
+        base_accel = PROPAGANDA_ACCELERATION * 2
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_media",
+            actors=[civ.name], description=f"{civ.name} media doubles propaganda acceleration",
+            importance=1,
+        ))
+    else:
+        base_accel = PROPAGANDA_ACCELERATION
     net_acceleration = base_accel + adjustment
     # M22: Power struggle reduces action effectiveness by 20%
     from chronicler.action_engine import _power_struggle_factor

@@ -109,6 +109,13 @@ def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
         target.controller = civ.name
         civ.regions.append(target.name)
         civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
+        # M19b: Track exploration capability firing into harsh terrain pre-Iron
+        if civ.active_focus == "exploration" and not _era_at_least(civ.tech_era, TechEra.IRON) and target.terrain in HARSH_TERRAINS:
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type="capability_exploration",
+                actors=[civ.name], description=f"{civ.name} exploration enables harsh terrain expansion",
+                importance=1,
+            ))
         return Event(
             turn=world.turn, event_type="expand", actors=[civ.name],
             description=f"{civ.name} expanded into {target.name}.", importance=6,
@@ -280,7 +287,15 @@ def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
         target = _get_civ(world, target_name)
         if target:
             # M21: BANKING halves incoming embargo stability damage
-            embargo_damage = 2 if target.active_focus == "banking" else 5
+            if target.active_focus == "banking":
+                embargo_damage = 2
+                world.events_timeline.append(Event(
+                    turn=world.turn, event_type="capability_banking",
+                    actors=[target.name], description=f"{target.name} banking reduces embargo damage",
+                    importance=1,
+                ))
+            else:
+                embargo_damage = 5
             target.stability = clamp(target.stability - embargo_damage, STAT_FLOOR["stability"], 100)
         return Event(
             turn=world.turn, event_type="embargo", actors=[civ.name, target_name],
@@ -374,6 +389,11 @@ def resolve_war(
     # M21: NAVAL_POWER gives +10 defense if contested region is coastal
     if defender.active_focus == "naval_power" and contested and contested.terrain == "coast":
         def_power += 10
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_naval_power",
+            actors=[defender.name], description=f"{defender.name} naval power boosts coastal defense",
+            importance=1,
+        ))
 
     # War costs treasury regardless of outcome
     attacker.treasury = max(0, attacker.treasury - 20)
@@ -420,12 +440,32 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> 
     # M21: Trade income bonuses
     if civ1.active_focus == "networks":
         gain1 *= 2
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_networks",
+            actors=[civ1.name], description=f"{civ1.name} networks doubles trade income",
+            importance=1,
+        ))
     elif civ1.active_focus == "commerce":
         gain1 = int(gain1 * 1.5)
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_commerce",
+            actors=[civ1.name], description=f"{civ1.name} commerce boosts trade income",
+            importance=1,
+        ))
     if civ2.active_focus == "networks":
         gain2 *= 2
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_networks",
+            actors=[civ2.name], description=f"{civ2.name} networks doubles trade income",
+            importance=1,
+        ))
     elif civ2.active_focus == "commerce":
         gain2 = int(gain2 * 1.5)
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_commerce",
+            actors=[civ2.name], description=f"{civ2.name} commerce boosts trade income",
+            importance=1,
+        ))
     # COMMERCE benefits partner: if either has it, partner also gets +50%
     if civ1.active_focus == "commerce" and civ2.active_focus != "networks":
         gain2 = int(gain2 * 1.5)
@@ -631,8 +671,10 @@ class ActionEngine:
             if len(set(last_n)) == 1:
                 streaked = ActionType(last_n[0])
                 weights[streaked] = 0.0
-        # M21: Cap combined weight multiplier at 2.5x to prevent dominant action
+        # M19b: Track max pre-cap weight for analytics
         max_weight = max(weights.values()) if weights else 0
+        civ.max_precap_weight = max_weight
+        # M21: Cap combined weight multiplier at 2.5x to prevent dominant action
         if max_weight > 2.5:
             scale = 2.5 / max_weight
             for action in weights:

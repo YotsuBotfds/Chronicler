@@ -75,9 +75,9 @@ def normalize_influence(factions: FactionState) -> None:
     if total > 0:
         for ft in FactionType:
             factions.influence[ft] /= total
-    # Iteratively enforce floor of 0.05: clamp undervalued factions and
+    # Iteratively enforce floor of 0.10: clamp undervalued factions and
     # redistribute the "borrowed" share from overvalued ones
-    floor = 0.05
+    floor = 0.10
     for _ in range(10):
         under = [ft for ft in FactionType if factions.influence[ft] < floor]
         if not under:
@@ -176,7 +176,7 @@ def get_faction_weight_modifier(civ: Civilization, action: ActionType) -> float:
 def check_power_struggle(factions: FactionState) -> tuple[FactionType, FactionType] | None:
     sorted_factions = sorted(factions.influence.items(), key=lambda x: x[1], reverse=True)
     top, second = sorted_factions[0], sorted_factions[1]
-    if top[1] - second[1] < 0.05 and second[1] > 0.30:
+    if top[1] - second[1] < 0.15 and second[1] > 0.40:
         return (top[0], second[0])
     return None
 
@@ -212,9 +212,10 @@ def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
     else:
         winner = resolve_win_tie(world, civ, contenders)
     turns = civ.factions.power_struggle_turns
-    shift_faction_influence(civ.factions, winner, +0.15)
+    shift_faction_influence(civ.factions, winner, +0.35)  # M19b: power struggle resolution shift
     civ.factions.power_struggle = False
     civ.factions.power_struggle_turns = 0
+    civ.factions.power_struggle_cooldown = 10  # M19b: immune for 10 turns
     return [Event(
         turn=world.turn, event_type="power_struggle_resolved",
         actors=[civ.name],
@@ -246,62 +247,72 @@ def tick_factions(world) -> list[Event]:
             if civ.name not in event.actors:
                 continue
 
+            # M19b iter4: all event shifts halved for slower faction evolution
             if event.event_type == "war" and len(event.actors) >= 2:
                 is_attacker = event.actors[0] == civ.name
                 if (is_attacker and "attacker_wins" in event.description) or \
                    (not is_attacker and "defender_wins" in event.description):
                     # War win
-                    civ.factions.influence[FactionType.MILITARY] += 0.10
+                    civ.factions.influence[FactionType.MILITARY] += 0.05
                 else:
-                    # War loss
-                    civ.factions.influence[FactionType.MILITARY] -= 0.10
-                    civ.factions.influence[FactionType.MERCHANT] += 0.05
-                    civ.factions.influence[FactionType.CULTURAL] += 0.05
+                    # War loss — merchants profit from power vacuums
+                    civ.factions.influence[FactionType.MILITARY] -= 0.05
+                    civ.factions.influence[FactionType.MERCHANT] += 0.035
+                    civ.factions.influence[FactionType.CULTURAL] += 0.01
 
             elif event.event_type == "trade" and len(event.actors) >= 2:
-                civ.factions.influence[FactionType.MERCHANT] += 0.08
+                civ.factions.influence[FactionType.MERCHANT] += 0.04
 
             elif event.event_type == "expand" and event.importance >= 5:
-                civ.factions.influence[FactionType.MILITARY] += 0.05
-                civ.factions.influence[FactionType.MERCHANT] += 0.03
+                civ.factions.influence[FactionType.MILITARY] += 0.025
+                civ.factions.influence[FactionType.MERCHANT] += 0.015
 
             elif event.event_type in ("cultural_work", "movement_adoption"):
-                civ.factions.influence[FactionType.CULTURAL] += 0.08
+                civ.factions.influence[FactionType.CULTURAL] += 0.04
 
             elif event.event_type == "famine":
-                civ.factions.influence[FactionType.MILITARY] -= 0.03
-                civ.factions.influence[FactionType.MERCHANT] -= 0.03
-                civ.factions.influence[FactionType.CULTURAL] += 0.06
+                civ.factions.influence[FactionType.MILITARY] -= 0.015
+                civ.factions.influence[FactionType.MERCHANT] -= 0.015
+                civ.factions.influence[FactionType.CULTURAL] += 0.015
 
             elif event.event_type == "tech_focus_selected":
                 focus_name = civ.active_focus
                 if focus_name and focus_name in FOCUS_FACTION_MAP:
-                    civ.factions.influence[FOCUS_FACTION_MAP[focus_name]] += 0.05
+                    civ.factions.influence[FOCUS_FACTION_MAP[focus_name]] += 0.025
 
-        # 3. State-based shifts
+        # 3. State-based shifts (halved)
         if civ.treasury <= 0:
-            civ.factions.influence[FactionType.MERCHANT] -= 0.15
-            civ.factions.influence[FactionType.CULTURAL] += 0.05
+            civ.factions.influence[FactionType.MERCHANT] -= 0.075
+            civ.factions.influence[FactionType.CULTURAL] += 0.01
 
         if civ.last_income > civ.military:
-            civ.factions.influence[FactionType.MERCHANT] += 0.08
+            civ.factions.influence[FactionType.MERCHANT] += 0.04
 
-        # 4. GP per-turn bonuses
+        # 4. GP per-turn bonuses (halved)
         for gp in civ.great_persons:
             if not gp.alive or not gp.active:
                 continue
             if gp.role == "general":
-                civ.factions.influence[FactionType.MILITARY] += 0.03
+                civ.factions.influence[FactionType.MILITARY] += 0.015
             elif gp.role == "merchant":
-                civ.factions.influence[FactionType.MERCHANT] += 0.03
+                civ.factions.influence[FactionType.MERCHANT] += 0.015
             elif gp.role == "prophet":
-                civ.factions.influence[FactionType.CULTURAL] += 0.03
+                civ.factions.influence[FactionType.CULTURAL] += 0.015
             elif gp.role == "scientist":
                 if civ.active_focus and civ.active_focus in FOCUS_FACTION_MAP:
-                    civ.factions.influence[FOCUS_FACTION_MAP[civ.active_focus]] += 0.02
+                    civ.factions.influence[FOCUS_FACTION_MAP[civ.active_focus]] += 0.01
 
         # 5. Normalize influence
         normalize_influence(civ.factions)
+
+        # 5b. Apply pending succession faction shift AFTER normalization.
+        # Raw add WITHOUT re-normalizing — normalization's floor enforcement
+        # absorbs all shifts when dominant is at ceiling (0.80 with floor 0.10).
+        # The raw shift is visible in the snapshot; next turn's normalize cleans up.
+        if civ.factions.pending_faction_shift:
+            winning_ft = FactionType(civ.factions.pending_faction_shift)
+            civ.factions.influence[winning_ft] += 0.20
+            civ.factions.pending_faction_shift = None
 
         # 6. Check for dominance shift
         new_dominant = get_dominant_faction(civ.factions)
@@ -317,6 +328,10 @@ def tick_factions(world) -> list[Event]:
             ))
 
         # 7. Power struggle processing
+        # M19b: Decrement cooldown
+        if civ.factions.power_struggle_cooldown > 0:
+            civ.factions.power_struggle_cooldown -= 1
+
         if civ.succession_crisis_turns_remaining > 0:
             # Rule 2 — crisis pauses power struggle
             pass
@@ -328,7 +343,7 @@ def tick_factions(world) -> list[Event]:
                 civ.stability = 0
             if civ.factions.power_struggle_turns > 5:
                 events.extend(resolve_power_struggle(civ, world))
-        else:
+        elif civ.factions.power_struggle_cooldown <= 0:
             struggle = check_power_struggle(civ.factions)
             if struggle is not None:
                 civ.factions.power_struggle = True
@@ -497,10 +512,9 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     # 6. Assign new leader
     civ.leader = new_leader
 
-    # 7. Shift winning faction influence +0.15
+    # 7. Mark faction shift for post-normalization application in tick_factions
     if winner and winner.get("faction"):
-        winning_faction = FactionType(winner["faction"])
-        shift_faction_influence(civ.factions, winning_faction, +0.15)
+        civ.factions.pending_faction_shift = winner["faction"]
 
     # 8. Handle GP winner (transfer name/trait, mark gp dead)
     if winner and winner.get("source") == "great_person":

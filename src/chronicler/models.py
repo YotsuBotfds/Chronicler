@@ -58,6 +58,8 @@ class FactionState(BaseModel):
     )
     power_struggle: bool = False
     power_struggle_turns: int = 0
+    power_struggle_cooldown: int = 0  # M19b: turns until next struggle eligible
+    pending_faction_shift: str | None = None  # M19b: faction to shift after normalization
 
 
 class ActionType(str, Enum):
@@ -202,6 +204,7 @@ class Civilization(BaseModel):
     active_focus: str | None = None  # M21: current era's focus
     factions: FactionState = Field(default_factory=FactionState)
     founded_turn: int = 0
+    max_precap_weight: float = 0.0  # M19b: transient, tracks max weight before 2.5x cap
 
 
 class Relationship(BaseModel):
@@ -420,6 +423,9 @@ class CivSnapshot(BaseModel):
     civ_stress: int = 0
     active_focus: str | None = None  # M21: tech focus for viewer/analytics
     factions: FactionState | None = None
+    action_counts: dict[str, int] = Field(default_factory=dict)  # M19b: cumulative action counts
+    max_precap_weight: float = 0.0  # M19b: max weight before 2.5x cap
+    last_action: str | None = None  # M19b: most recent action taken
 
 
 class RelationshipSnapshot(BaseModel):

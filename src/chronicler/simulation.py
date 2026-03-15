@@ -413,7 +413,13 @@ def phase_production(world: WorldState) -> None:
                 1 for r in world.regions if r.controller == civ.name
                 for i in r.infrastructure if i.type == InfrastructureType.MINES and i.active
             )
-            civ.treasury += mine_count * 2
+            if mine_count > 0:
+                civ.treasury += mine_count * 2
+                world.events_timeline.append(Event(
+                    turn=world.turn, event_type="capability_mechanization",
+                    actors=[civ.name], description=f"{civ.name} mechanization yields {mine_count * 2} from mines",
+                    importance=1,
+                ))
 
     # Stability recovery: passive per-turn recovery, halved during severe conditions
     for civ in world.civilizations:
@@ -951,6 +957,11 @@ def _check_famine(world: WorldState) -> list[Event]:
         # M21: AGRICULTURE halves famine threshold
         if civ and civ.active_focus == "agriculture":
             threshold *= 0.5
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type="capability_agriculture",
+                actors=[civ.name], description=f"{civ.name} agriculture halves famine threshold",
+                importance=1,
+            ))
         mult = get_severity_multiplier(civ)
         drain_region_pop(region, int(5 * mult))
         sync_civ_population(civ, world)

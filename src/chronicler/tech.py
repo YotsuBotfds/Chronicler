@@ -93,7 +93,15 @@ def check_tech_advancement(civ: Civilization, world: WorldState) -> Event | None
     if not _check_resource_requirements(civ, world):
         return None
     min_culture, min_economy, cost = reqs
-    effective_cost = int(cost * 0.8) if civ.active_focus == "scholarship" else cost
+    if civ.active_focus == "scholarship":
+        effective_cost = int(cost * 0.8)
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type="capability_scholarship",
+            actors=[civ.name], description=f"{civ.name} scholarship reduces tech cost",
+            importance=1,
+        ))
+    else:
+        effective_cost = cost
     if civ.culture < min_culture or civ.economy < min_economy or civ.treasury < effective_cost:
         return None
     civ.treasury -= effective_cost

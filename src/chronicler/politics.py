@@ -100,7 +100,15 @@ def check_secession(world: WorldState) -> list[Event]:
     new_civs: list[Civilization] = []
 
     for civ in list(world.civilizations):
-        secession_threshold = 10 if civ.active_focus == "surveillance" else 20
+        if civ.active_focus == "surveillance":
+            secession_threshold = 10
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type="capability_surveillance",
+                actors=[civ.name], description=f"{civ.name} surveillance lowers secession threshold",
+                importance=1,
+            ))
+        else:
+            secession_threshold = 20
         if civ.stability >= secession_threshold or len(civ.regions) < 3:
             continue
 

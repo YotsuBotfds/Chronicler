@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import random
 
-from chronicler.models import Disposition, InfrastructureType, Region, Resource, WorldState
+from chronicler.models import Disposition, Event, InfrastructureType, Region, Resource, WorldState
 
 
 TERRAIN_RESOURCE_PROBS: dict[str, dict[Resource, float]] = {
@@ -66,6 +66,7 @@ def get_active_trade_routes(world: WorldState) -> list[tuple[str, str]]:
         if civ.active_focus:
             civ_focuses[civ.name] = civ.active_focus
 
+    capability_fired: set[tuple[str, str]] = set()  # (civ_name, focus) pairs that created routes
     for r1 in world.regions:
         if r1.controller is None or r1.controller not in civ_focuses:
             continue
@@ -96,6 +97,14 @@ def get_active_trade_routes(world: WorldState) -> list[tuple[str, str]]:
                 if rel_ab and rel_ba:
                     if DISP_ORDER.get(rel_ab.disposition.value, 0) >= 2 and DISP_ORDER.get(rel_ba.disposition.value, 0) >= 2:
                         routes.add(pair)
+                        capability_fired.add((r1.controller, focus))
+    # Emit capability events for navigation/railways
+    for civ_name, focus in capability_fired:
+        world.events_timeline.append(Event(
+            turn=world.turn, event_type=f"capability_{focus}",
+            actors=[civ_name], description=f"{civ_name} {focus} extends trade routes",
+            importance=1,
+        ))
 
     # Federation members get trade routes regardless of adjacency
     for fed in world.federations:

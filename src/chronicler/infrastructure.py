@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
-from chronicler.models import InfrastructureType as IType, Infrastructure, PendingBuild
+from chronicler.models import Event, InfrastructureType as IType, Infrastructure, PendingBuild
 
 
 @dataclass(frozen=True)
@@ -62,6 +62,11 @@ def tick_infrastructure(world: WorldState) -> list:
                 ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
                 if ctrl_civ and ctrl_civ.active_focus == "fortification":
                     region.pending_build.turns_remaining = max(0, region.pending_build.turns_remaining - 1)
+                    world.events_timeline.append(Event(
+                        turn=world.turn, event_type="capability_fortification",
+                        actors=[ctrl_civ.name], description=f"{ctrl_civ.name} fortification speeds construction",
+                        importance=1,
+                    ))
             if region.pending_build.turns_remaining <= 0:
                 completed = Infrastructure(
                     type=region.pending_build.type,
@@ -88,6 +93,11 @@ def tick_infrastructure(world: WorldState) -> list:
                 ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
                 if ctrl_civ and ctrl_civ.active_focus == "metallurgy":
                     mine_degrade *= 0.5
+                    world.events_timeline.append(Event(
+                        turn=world.turn, event_type="capability_metallurgy",
+                        actors=[ctrl_civ.name], description=f"{ctrl_civ.name} metallurgy reduces mine degradation",
+                        importance=1,
+                    ))
             region.fertility = max(region.fertility - mine_degrade, 0.0)
 
     return events
