@@ -66,7 +66,7 @@ The `narrate` subcommand loads a simulate-only bundle, runs the curator, runs th
 - `seed` → `bundle["metadata"]["seed"]` (needed for curator's tie-breaking and dominant power detection)
 - `WorldState` is NOT reconstructed — the curator and narrator operate on the deserialized lists and metadata, not on a live world object.
 
-**Implementer note:** `assemble_bundle()` currently produces `chronicle_entries` as `dict[str, str]`. M20a changes this function to produce `list[dict]` (serialized `ChronicleEntry`). This format change must land in `assemble_bundle()` before the simulate-only path can write `chronicle_entries: []`. The simulate-only path must also write `gap_summaries: []`.
+**Implementer note:** The current `--simulate-only` path writes `chronicle_entries` as a dict of turn→empty-string (one entry per turn with empty text from the dummy narrator). The `ChronicleEntry` construction loop at ~line 277 in `main.py` runs even in simulate-only mode, appending entries with empty `text`. M20a changes this: skip the construction loop entirely when `--simulate-only` is set (not run with a dummy narrator), and write `chronicle_entries: []` (empty list) and `gap_summaries: []`. This requires `assemble_bundle()` to produce `list[dict]` format first — the format change in `assemble_bundle()` must land before the simulate-only path change.
 
 ### Existing Infrastructure Preserved
 
