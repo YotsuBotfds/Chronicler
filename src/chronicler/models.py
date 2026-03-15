@@ -393,6 +393,7 @@ class CivSnapshot(BaseModel):
     traditions: list[str] = Field(default_factory=list)
     folk_heroes: list[dict] = Field(default_factory=list)
     active_crisis: bool = False
+    civ_stress: int = 0
 
 
 class RelationshipSnapshot(BaseModel):
@@ -419,3 +420,5 @@ class TurnSnapshot(BaseModel):
     peace_turns: int = 0
     region_cultural_identity: dict[str, str | None] = Field(default_factory=dict)
     movements_summary: list[dict] = Field(default_factory=list)
+    stress_index: int = 0
+    pandemic_regions: list[str] = Field(default_factory=list)

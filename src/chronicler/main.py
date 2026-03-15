@@ -235,6 +235,7 @@ def execute_run(
                     traditions=list(civ.traditions),
                     folk_heroes=[{"name": fh["name"], "role": fh["role"]} for fh in civ.folk_heroes],
                     active_crisis=civ.succession_crisis_turns_remaining > 0,
+                    civ_stress=civ.civ_stress,
                 )
                 for civ in world.civilizations
             },
@@ -257,6 +258,8 @@ def execute_run(
             peace_turns=world.peace_turns,
             region_cultural_identity={r.name: r.cultural_identity for r in world.regions},
             movements_summary=[{"id": m.id, "value_affinity": m.value_affinity, "adherent_count": len(m.adherents), "origin_civ": m.origin_civ} for m in world.movements],
+            stress_index=world.stress_index,
+            pandemic_regions=[p.region_name for p in world.pandemic_state],
         )
         history.append(snapshot)
 

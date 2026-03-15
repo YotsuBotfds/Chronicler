@@ -106,3 +106,21 @@ class TestScenarioM18:
         cfg = ScenarioConfig(name="test", terrain_transition_rules=[])
         apply_scenario(world, cfg)
         assert world.terrain_transition_rules == []
+
+
+from chronicler.models import CivSnapshot, TurnSnapshot
+
+
+class TestSnapshotExtensions:
+    def test_civ_snapshot_has_stress(self):
+        snap = CivSnapshot(
+            population=50, military=50, economy=50, culture=50,
+            stability=50, treasury=100, asabiya=0.5, tech_era="tribal",
+            trait="bold", regions=["R1"], leader_name="L", alive=True,
+        )
+        assert snap.civ_stress == 0
+
+    def test_turn_snapshot_has_stress_index(self):
+        snap = TurnSnapshot(turn=0, civ_stats={}, region_control={}, relationships={})
+        assert snap.stress_index == 0
+        assert snap.pandemic_regions == []
