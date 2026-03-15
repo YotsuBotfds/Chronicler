@@ -114,7 +114,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
             region.disaster_cooldowns[dtype] = 10
 
             if dtype == "earthquake":
-                region.fertility = max(region.fertility - 0.2, 0.0)
+                region.ecology.soil = max(0.05, region.ecology.soil - 0.2)
                 active_infra = [i for i in region.infrastructure if i.active]
                 if active_infra:
                     idx = int(_deterministic_roll(
@@ -130,7 +130,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "flood":
-                region.fertility = max(region.fertility - 0.1, 0.0)
+                region.ecology.water = min(1.0, region.ecology.water + 0.1)
                 for i in region.infrastructure:
                     if i.type == InfrastructureType.PORTS and i.active:
                         i.active = False
@@ -142,7 +142,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "wildfire":
-                region.fertility = max(region.fertility - 0.15, 0.0)
+                region.ecology.forest_cover = max(0.0, region.ecology.forest_cover - 0.3)
                 region.resource_suspensions["timber"] = 10
                 events.append(Event(
                     turn=world.turn, event_type="wildfire",

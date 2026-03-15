@@ -374,7 +374,8 @@ def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
     affected_civs: set[str] = set()
 
     for region in cluster:
-        region.fertility = 0.1
+        region.ecology.soil = 0.1
+        region.ecology.forest_cover = 0.05
         region.infrastructure = []
         region.pending_build = None
 
@@ -483,7 +484,7 @@ def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
     has_scientist = any(gp.role == "scientist" and gp.active for gp in civ.great_persons)
     max_hops = 1 if has_scientist else 2
 
-    target.fertility = max(0.0, round(target.fertility - 0.3, 4))
+    target.ecology.soil = max(0.05, round(target.ecology.soil - 0.3, 4))
 
     affected_neighbors: set[str] = set()
     frontier = {target.name}
@@ -502,7 +503,7 @@ def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
     for rname in affected_neighbors:
         region = next((r for r in world.regions if r.name == rname), None)
         if region:
-            region.fertility = max(0.0, round(region.fertility - 0.15, 4))
+            region.ecology.soil = max(0.05, round(region.ecology.soil - 0.15, 4))
             if region.controller and region.controller != polluter_name:
                 if region.controller in world.relationships and polluter_name in world.relationships[region.controller]:
                     world.relationships[region.controller][polluter_name].disposition_drift -= 8
