@@ -344,8 +344,67 @@ def tick_pandemic(world: WorldState) -> list[Event]:
 
 
 def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
-    """Placeholder — implemented in Task 14."""
-    return []
+    """Supervolcano: devastate a cluster of 3 adjacent regions."""
+    rng = random.Random(seed + world.turn * 1021)
+
+    triples = _find_volcano_triples(world)
+    if not triples:
+        return []
+
+    # Prefer triples containing mountains
+    mountain_triples = [t for t in triples if any(r.terrain == "mountains" for r in t)]
+    candidates = mountain_triples if mountain_triples else triples
+    cluster = rng.choice(candidates)
+
+    events: list[Event] = []
+    affected_civs: set[str] = set()
+
+    for region in cluster:
+        region.fertility = 0.1
+        region.infrastructure = []
+        region.pending_build = None
+
+        if region.controller:
+            affected_civs.add(region.controller)
+            civ = next((c for c in world.civilizations if c.name == region.controller), None)
+            if civ:
+                civ.population = clamp(civ.population - 20, STAT_FLOOR.get("population", 1), 100)
+                civ.stability = clamp(civ.stability - 15, STAT_FLOOR.get("stability", 0), 100)
+
+    world.climate_config.phase_offset += 1
+
+    blast_names = {r.name for r in cluster}
+    adjacent_civs: set[str] = set()
+    for region in cluster:
+        for adj_name in region.adjacencies:
+            adj = next((r for r in world.regions if r.name == adj_name), None)
+            if adj and adj.controller and adj.name not in blast_names:
+                adjacent_civs.add(adj.controller)
+    all_affected = affected_civs | adjacent_civs
+    if all_affected:
+        world.active_conditions.append(ActiveCondition(
+            condition_type="volcanic_winter",
+            affected_civs=list(all_affected),
+            duration=5,
+            severity=40,
+        ))
+
+    # M17: Folk hero asabiya bonus
+    for civ_name in affected_civs:
+        civ = next((c for c in world.civilizations if c.name == civ_name), None)
+        if civ and civ.folk_heroes:
+            civ.asabiya = min(1.0, civ.asabiya + 0.05)
+
+    region_names = [r.name for r in cluster]
+    events.append(Event(
+        turn=world.turn,
+        event_type="supervolcano",
+        actors=list(affected_civs),
+        description=f"A supervolcano erupts, devastating {', '.join(region_names)}",
+        importance=10,
+    ))
+
+    return events
 
 
 def _apply_resource_discovery(world: WorldState, seed: int) -> list[Event]:

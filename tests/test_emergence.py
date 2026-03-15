@@ -631,3 +631,75 @@ class TestPandemicIntegration:
         # Pandemic should have ticked (damage applied, timer decremented)
         assert world.civilizations[0].population < initial_pop
         assert world.pandemic_state[0].turns_remaining == 2
+
+
+class TestSupervolcano:
+    def _setup_volcano_world(self):
+        world = _make_world()
+        r1 = _make_region(name="Peak", terrain="mountains", controller="Civ1")
+        r2 = _make_region(name="Valley", terrain="plains", controller="Civ1")
+        r3 = _make_region(name="Coast", terrain="coast", controller="Civ2")
+        r1.adjacencies = ["Valley", "Coast"]
+        r2.adjacencies = ["Peak", "Coast"]
+        r3.adjacencies = ["Peak", "Valley"]
+        r1.infrastructure = [
+            Infrastructure(type=InfrastructureType.FORTIFICATIONS, builder_civ="Civ1", built_turn=0),
+        ]
+        r1.fertility = 0.8
+        r2.fertility = 0.8
+        r3.fertility = 0.6
+        world.regions = [r1, r2, r3]
+        world.civilizations = [
+            _make_civ(name="Civ1", population=80, stability=60, regions=["Peak", "Valley"]),
+            _make_civ(name="Civ2", population=70, stability=50, regions=["Coast"]),
+        ]
+        return world
+
+    def test_supervolcano_devastates_fertility(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        events = _apply_supervolcano(world, seed=42)
+        assert len(events) >= 1
+        for r in world.regions:
+            assert r.fertility == pytest.approx(0.1)
+
+    def test_supervolcano_destroys_infrastructure(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        _apply_supervolcano(world, seed=42)
+        for r in world.regions:
+            assert r.infrastructure == []
+            assert r.pending_build is None
+
+    def test_supervolcano_penalizes_controlling_civs(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        _apply_supervolcano(world, seed=42)
+        civ1 = world.civilizations[0]
+        assert civ1.population == max(1, 80 - 40)
+        assert civ1.stability == max(0, 60 - 30)
+
+    def test_supervolcano_advances_climate(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        assert world.climate_config.phase_offset == 0
+        _apply_supervolcano(world, seed=42)
+        assert world.climate_config.phase_offset == 1
+
+    def test_supervolcano_creates_volcanic_winter(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        _apply_supervolcano(world, seed=42)
+        volcanic = [c for c in world.active_conditions if c.condition_type == "volcanic_winter"]
+        assert len(volcanic) == 1
+        assert volcanic[0].duration == 5
+        assert volcanic[0].severity == 40
+
+    def test_supervolcano_skips_uncontrolled_region_penalties(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        world.regions[2].controller = None
+        world.civilizations[1].regions = []
+        _apply_supervolcano(world, seed=42)
+        assert world.regions[2].fertility == pytest.approx(0.1)
+        assert world.civilizations[1].population == 70
