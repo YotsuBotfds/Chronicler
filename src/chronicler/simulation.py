@@ -52,6 +52,11 @@ from chronicler.succession import (
 )
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
+from chronicler.tuning import (
+    K_DROUGHT_STABILITY, K_PLAGUE_STABILITY, K_FAMINE_STABILITY,
+    K_WAR_COST_STABILITY, K_FAMINE_THRESHOLD,
+    get_override,
+)
 
 
 # --- Type aliases for callbacks ---
@@ -113,7 +118,8 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         if event.event_type == "drought":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+                drain = int(get_override(world, K_DROUGHT_STABILITY, 10))
+                civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
                 civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
             world.active_conditions.append(
                 ActiveCondition(
@@ -127,7 +133,8 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
             for civ in affected:
                 mult = get_severity_multiplier(civ)
                 civ.population = clamp(civ.population - int(10 * mult), STAT_FLOOR["population"], 100)
-                civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+                drain = int(get_override(world, K_PLAGUE_STABILITY, 10))
+                civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="plague",
@@ -241,7 +248,8 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
             if c:
                 c.treasury -= 3
                 if c.treasury <= 0:
-                    c.stability = clamp(c.stability - 5, STAT_FLOOR["stability"], 100)
+                    drain = int(get_override(world, K_WAR_COST_STABILITY, 5))
+                    c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
 
     # 6. Mercenary system
     MAX_MERCS = 3
@@ -810,14 +818,16 @@ def _check_famine(world: WorldState) -> list[Event]:
     """Check for famine in low-fertility regions."""
     events = []
     for region in world.regions:
-        if region.controller is None or region.fertility >= 0.3 or region.famine_cooldown > 0:
+        threshold = get_override(world, K_FAMINE_THRESHOLD, 0.3)
+        if region.controller is None or region.fertility >= threshold or region.famine_cooldown > 0:
             continue
         civ = _get_civ(world, region.controller)
         if civ is None:
             continue
         mult = get_severity_multiplier(civ)
         civ.population = clamp(civ.population - int(15 * mult), STAT_FLOOR["population"], 100)
-        civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+        drain = int(get_override(world, K_FAMINE_STABILITY, 10))
+        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         region.famine_cooldown = 5
         for adj_name in region.adjacencies:
             adj = next((r for r in world.regions if r.name == adj_name), None)
