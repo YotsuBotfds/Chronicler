@@ -220,3 +220,49 @@ class TestWeightModifier:
         # INVEST_CULTURE not in MILITARY table -> 1.0^0.6 = 1.0
         mod = get_faction_weight_modifier(civ, ActionType.INVEST_CULTURE)
         assert mod == pytest.approx(1.0)
+
+
+from chronicler.factions import check_power_struggle, get_struggling_factions, resolve_power_struggle
+
+
+class TestPowerStruggle:
+    def test_trigger_when_close_and_above_threshold(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.36
+        fs.influence[FactionType.MERCHANT] = 0.34
+        fs.influence[FactionType.CULTURAL] = 0.30
+        result = check_power_struggle(fs)
+        assert result is not None
+        assert FactionType.MILITARY in result
+        assert FactionType.MERCHANT in result
+
+    def test_no_trigger_when_gap_too_large(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.50
+        fs.influence[FactionType.MERCHANT] = 0.30
+        fs.influence[FactionType.CULTURAL] = 0.20
+        assert check_power_struggle(fs) is None
+
+    def test_no_trigger_when_below_threshold(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.50
+        fs.influence[FactionType.MERCHANT] = 0.26
+        fs.influence[FactionType.CULTURAL] = 0.24
+        assert check_power_struggle(fs) is None
+
+    def test_resolve_power_struggle_picks_winner(self):
+        civ = _make_civ()
+        civ.factions.influence[FactionType.MILITARY] = 0.36
+        civ.factions.influence[FactionType.MERCHANT] = 0.34
+        civ.factions.influence[FactionType.CULTURAL] = 0.30
+        civ.factions.power_struggle = True
+        civ.factions.power_struggle_turns = 6
+        events = [Event(turn=8, event_type="war", actors=["TestCiv", "Enemy"],
+                        description="TestCiv attacked Enemy: attacker_wins.", importance=8)]
+        world = _make_world(turn=10, events=events)
+        result_events = resolve_power_struggle(civ, world)
+        assert civ.factions.power_struggle is False
+        assert civ.factions.power_struggle_turns == 0
+        assert civ.factions.influence[FactionType.MILITARY] > 0.36
+        assert len(result_events) == 1
+        assert result_events[0].event_type == "power_struggle_resolved"

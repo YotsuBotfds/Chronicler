@@ -145,3 +145,57 @@ def get_faction_weight_modifier(civ: Civilization, action: ActionType) -> float:
     influence = civ.factions.influence[dominant]
     faction_weight = FACTION_WEIGHTS.get(dominant, {}).get(action, 1.0)
     return faction_weight ** influence
+
+
+# ---------------------------------------------------------------------------
+# Power struggle detection and resolution
+# ---------------------------------------------------------------------------
+
+def check_power_struggle(factions: FactionState) -> tuple[FactionType, FactionType] | None:
+    sorted_factions = sorted(factions.influence.items(), key=lambda x: x[1], reverse=True)
+    top, second = sorted_factions[0], sorted_factions[1]
+    if top[1] - second[1] < 0.05 and second[1] > 0.30:
+        return (top[0], second[0])
+    return None
+
+
+def get_struggling_factions(civ: Civilization) -> tuple[FactionType, FactionType]:
+    sorted_factions = sorted(civ.factions.influence.items(), key=lambda x: x[1], reverse=True)
+    return (sorted_factions[0][0], sorted_factions[1][0])
+
+
+def resolve_win_tie(world, civ: Civilization, contenders: tuple[FactionType, FactionType]) -> FactionType:
+    min_turn = world.turn - 10
+    latest: dict[FactionType, int] = {ft: -1 for ft in contenders}
+    for event in world.events_timeline:
+        if event.turn < min_turn or civ.name not in event.actors:
+            continue
+        for ft in contenders:
+            if _event_is_win(event, civ, ft):
+                latest[ft] = max(latest[ft], event.turn)
+    if latest[contenders[0]] != latest[contenders[1]]:
+        return max(latest, key=latest.get)
+    if FactionType.MILITARY in contenders:
+        return FactionType.MILITARY
+    return contenders[0]
+
+
+def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
+    contenders = get_struggling_factions(civ)
+    wins = {}
+    for ft in contenders:
+        wins[ft] = count_faction_wins(world, civ, ft, lookback=10)
+    if wins[contenders[0]] != wins[contenders[1]]:
+        winner = max(wins, key=wins.get)
+    else:
+        winner = resolve_win_tie(world, civ, contenders)
+    turns = civ.factions.power_struggle_turns
+    shift_faction_influence(civ.factions, winner, +0.15)
+    civ.factions.power_struggle = False
+    civ.factions.power_struggle_turns = 0
+    return [Event(
+        turn=world.turn, event_type="power_struggle_resolved",
+        actors=[civ.name],
+        description=f"{civ.name}: {winner.value} faction prevails after {turns} turns of infighting.",
+        importance=7,
+    )]
