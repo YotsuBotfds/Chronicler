@@ -560,7 +560,81 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Compare against a baseline batch_report.json (delta-only output)")
     parser.add_argument("--checkpoints", type=str, default=None,
                         help="Comma-separated checkpoint turns for analytics (e.g., 25,50,100)")
+    # --- M20a narration pipeline flags ---
+    parser.add_argument("--narrate", type=Path, default=None,
+                        help="Narrate a simulate-only bundle")
+    parser.add_argument("--budget", type=int, default=50,
+                        help="Number of moments to narrate")
+    parser.add_argument("--narrate-output", type=Path, default=None,
+                        help="Output path for narrated bundle")
     return parser
+
+
+def _run_narrate(args: argparse.Namespace) -> None:
+    """Load a simulate-only bundle, curate moments, and narrate them."""
+    import json as _json
+    from chronicler.curator import curate
+    from chronicler.models import Event, NamedEvent, TurnSnapshot
+
+    bundle_path = Path(args.narrate)
+    if not bundle_path.exists():
+        print(f"Error: Bundle not found: {bundle_path}", file=sys.stderr)
+        sys.exit(1)
+
+    with open(bundle_path) as f:
+        bundle = _json.load(f)
+
+    # Deserialize events, named_events, history
+    events = [Event.model_validate(e) for e in bundle.get("events", [])]
+    named_events = [NamedEvent.model_validate(ne) for ne in bundle.get("named_events", [])]
+    history = [TurnSnapshot.model_validate(snap) for snap in bundle.get("history", [])]
+    seed = bundle.get("metadata", {}).get("seed", 42)
+    budget = args.budget
+
+    # Create LLM clients
+    sim_client, narrative_client = create_clients(
+        local_url=args.local_url,
+        sim_model=getattr(args, "sim_model", None),
+        narrative_model=getattr(args, "narrative_model", None),
+    )
+
+    # Curate moments
+    moments, gap_summaries = curate(
+        events=events,
+        named_events=named_events,
+        history=history,
+        budget=budget,
+        seed=seed,
+    )
+
+    print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
+
+    # Narrate
+    engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
+
+    def progress_cb(completed: int, total: int, eta: float | None) -> None:
+        eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
+        print(f"  Narrating {completed}/{total}{eta_str}")
+
+    chronicle_entries = engine.narrate_batch(
+        moments, history, gap_summaries, on_progress=progress_cb
+    )
+
+    # Write output
+    output_path = args.narrate_output
+    if output_path is None:
+        output_path = bundle_path.parent / f"{bundle_path.stem}_narrated.json"
+
+    result = {
+        "chronicle_entries": [entry.model_dump() for entry in chronicle_entries],
+        "gap_summaries": [gs.model_dump() for gs in gap_summaries],
+        "metadata": bundle.get("metadata", {}),
+    }
+
+    with open(output_path, "w") as f:
+        _json.dump(result, f, indent=2)
+
+    print(f"Narrated {len(chronicle_entries)} entries -> {output_path}")
 
 
 def main() -> None:
@@ -582,6 +656,8 @@ def main() -> None:
         mode_flags.append("--resume")
     if getattr(args, "analyze", None):
         mode_flags.append("--analyze")
+    if getattr(args, "narrate", None):
+        mode_flags.append("--narrate")
     if len(mode_flags) > 1:
         print(f"Error: {' and '.join(mode_flags)} are mutually exclusive", file=sys.stderr)
         sys.exit(1)
@@ -610,6 +686,11 @@ def main() -> None:
     # Skip LLM client and scenario resolution for live mode — run_live
     # handles both after receiving params from the client's start command.
     # Also skip for --analyze, which only reads already-written bundles.
+    # Handle --narrate early: it manages its own LLM clients
+    if getattr(args, "narrate", None):
+        _run_narrate(args)
+        return
+
     if not args.live and not getattr(args, "analyze", None):
         if getattr(args, "simulate_only", False):
             sim_client = _DummyClient()

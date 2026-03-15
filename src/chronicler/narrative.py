@@ -10,15 +10,185 @@ perception of deep cultural coherence with minimal mechanical overhead.
 """
 from __future__ import annotations
 
+import time
+from typing import Callable, Sequence
+
 from chronicler.llm import LLMClient
 from chronicler.models import (
     ActionType,
+    CausalLink,
+    ChronicleEntry,
+    CivThematicContext,
     Civilization,
     Disposition,
     Event,
+    GapSummary,
+    NarrationContext,
+    NarrativeMoment,
+    NarrativeRole,
     NamedEvent,
+    TurnSnapshot,
     WorldState,
 )
+
+
+_SUMMARY_STATS = ("population", "military", "economy", "culture", "stability")
+_STAT_THRESHOLD = 10
+
+
+def build_before_summary(
+    history: Sequence[TurnSnapshot],
+    moment: NarrativeMoment,
+    prev_moment: NarrativeMoment | None,
+) -> str:
+    """Mechanical before-context from snapshot diffs.
+
+    Compare prev_moment.anchor_turn (or turn 1 if None) to moment.anchor_turn.
+    Report stat changes > 10, territory gains/losses. Return 3-5 bullet points.
+    """
+    snap_by_turn: dict[int, TurnSnapshot] = {s.turn: s for s in history}
+    if not snap_by_turn:
+        return ""
+
+    # Reference turn: prev_moment's anchor, or the first available turn
+    if prev_moment is not None:
+        ref_turn = prev_moment.anchor_turn
+    else:
+        ref_turn = min(snap_by_turn.keys())
+
+    target_turn = moment.anchor_turn
+
+    # Find closest available snapshots
+    ref_snap = _closest_snap(snap_by_turn, ref_turn)
+    target_snap = _closest_snap(snap_by_turn, target_turn)
+
+    if ref_snap is None or target_snap is None:
+        return ""
+
+    bullets: list[str] = []
+
+    # Stat changes per civ
+    all_civs = set(ref_snap.civ_stats.keys()) | set(target_snap.civ_stats.keys())
+    for civ in sorted(all_civs):
+        if civ not in ref_snap.civ_stats or civ not in target_snap.civ_stats:
+            continue
+        before = ref_snap.civ_stats[civ]
+        after = target_snap.civ_stats[civ]
+        for stat in _SUMMARY_STATS:
+            old_val = getattr(before, stat)
+            new_val = getattr(after, stat)
+            delta = new_val - old_val
+            if abs(delta) > _STAT_THRESHOLD:
+                direction = "rose" if delta > 0 else "fell"
+                bullets.append(f"{civ} {stat} {direction} from {old_val} to {new_val}")
+
+    # Territory gains/losses
+    ref_regions = set(ref_snap.region_control.keys())
+    target_regions = set(target_snap.region_control.keys())
+    all_regions = ref_regions | target_regions
+    for region in sorted(all_regions):
+        ctrl_before = ref_snap.region_control.get(region)
+        ctrl_after = target_snap.region_control.get(region)
+        if ctrl_before != ctrl_after:
+            if ctrl_after and ctrl_before:
+                bullets.append(f"{ctrl_after} took {region} from {ctrl_before}")
+            elif ctrl_after:
+                bullets.append(f"{ctrl_after} claimed {region}")
+            else:
+                bullets.append(f"{ctrl_before} lost {region}")
+
+    # Cap at 5 bullets
+    bullets = bullets[:5]
+    return "\n".join(f"- {b}" for b in bullets) if bullets else ""
+
+
+def build_after_summary(
+    history: Sequence[TurnSnapshot],
+    moment: NarrativeMoment,
+    next_moment: NarrativeMoment | None,
+) -> str:
+    """Mechanical after-context for foreshadowing.
+
+    Compare moment.anchor_turn to next_moment.anchor_turn (or final turn if None).
+    Forward-looking: "will rise/fall to X".
+    """
+    snap_by_turn: dict[int, TurnSnapshot] = {s.turn: s for s in history}
+    if not snap_by_turn:
+        return ""
+
+    current_turn = moment.anchor_turn
+
+    # Reference turn: next_moment's anchor, or last available turn
+    if next_moment is not None:
+        ref_turn = next_moment.anchor_turn
+    else:
+        ref_turn = max(snap_by_turn.keys())
+
+    current_snap = _closest_snap(snap_by_turn, current_turn)
+    future_snap = _closest_snap(snap_by_turn, ref_turn)
+
+    if current_snap is None or future_snap is None:
+        return ""
+
+    bullets: list[str] = []
+
+    # Stat changes per civ (forward-looking language)
+    all_civs = set(current_snap.civ_stats.keys()) | set(future_snap.civ_stats.keys())
+    for civ in sorted(all_civs):
+        if civ not in current_snap.civ_stats or civ not in future_snap.civ_stats:
+            continue
+        now = current_snap.civ_stats[civ]
+        later = future_snap.civ_stats[civ]
+        for stat in _SUMMARY_STATS:
+            now_val = getattr(now, stat)
+            later_val = getattr(later, stat)
+            delta = later_val - now_val
+            if abs(delta) > _STAT_THRESHOLD:
+                direction = "will rise" if delta > 0 else "will fall"
+                bullets.append(f"{civ} {stat} {direction} to {later_val}")
+
+    # Territory changes (forward-looking)
+    current_regions = set(current_snap.region_control.keys())
+    future_regions = set(future_snap.region_control.keys())
+    all_regions = current_regions | future_regions
+    for region in sorted(all_regions):
+        ctrl_now = current_snap.region_control.get(region)
+        ctrl_later = future_snap.region_control.get(region)
+        if ctrl_now != ctrl_later:
+            if ctrl_later and ctrl_now:
+                bullets.append(f"{region} will pass from {ctrl_now} to {ctrl_later}")
+            elif ctrl_later:
+                bullets.append(f"{region} will be claimed by {ctrl_later}")
+            else:
+                bullets.append(f"{ctrl_now} will lose {region}")
+
+    # Cap at 5 bullets
+    bullets = bullets[:5]
+    return "\n".join(f"- {b}" for b in bullets) if bullets else ""
+
+
+def _closest_snap(
+    snap_by_turn: dict[int, TurnSnapshot],
+    target: int,
+) -> TurnSnapshot | None:
+    """Find the snapshot closest to target turn."""
+    if not snap_by_turn:
+        return None
+    if target in snap_by_turn:
+        return snap_by_turn[target]
+    # Find nearest turn
+    turns = sorted(snap_by_turn.keys())
+    best = min(turns, key=lambda t: abs(t - target))
+    return snap_by_turn[best]
+
+
+ROLE_INSTRUCTIONS = {
+    NarrativeRole.INCITING: "Introduce the tension. Something has changed that cannot be undone.",
+    NarrativeRole.ESCALATION: "Build on what came before. The stakes are rising.",
+    NarrativeRole.CLIMAX: "This is the turning point. Maximum consequence, maximum drama.",
+    NarrativeRole.RESOLUTION: "The dust settles. Show what was won and what was lost.",
+    NarrativeRole.CODA: "Look back on what happened. Reflect on the arc of this history.",
+}
 
 
 def thread_domains(text: str, civ_name: str, civ_domains: dict[str, list[str]]) -> str:
@@ -217,6 +387,155 @@ class NarrativeEngine:
             # Fallback: mechanical summary so the run doesn't crash
             summaries = "; ".join(e.description for e in events if e.description)
             return f"Turn {world.turn}: {summaries or 'Events unfolded.'}"
+
+    def narrate_batch(
+        self,
+        moments: list[NarrativeMoment],
+        history: Sequence[TurnSnapshot],
+        gap_summaries: list[GapSummary],
+        on_progress: Callable[[int, int, float | None], None] | None = None,
+    ) -> list[ChronicleEntry]:
+        """Narrate all selected moments sequentially with full context.
+
+        Sequential (LM Studio saturates GPU with one request).
+        Per-moment fallback on LLM failure (mechanical summary, batch continues).
+        Progress: on_progress(completed, total, eta_seconds).
+        ETA from second call onward (first is warmup). Default: 30 tok/s.
+        """
+        entries: list[ChronicleEntry] = []
+        total = len(moments)
+        previous_prose: str | None = None
+        start_time: float | None = None
+
+        for idx, moment in enumerate(moments):
+            # Build before/after summaries
+            prev_moment = moments[idx - 1] if idx > 0 else None
+            next_moment = moments[idx + 1] if idx < total - 1 else None
+
+            before_summary = build_before_summary(history, moment, prev_moment)
+            after_summary = build_after_summary(history, moment, next_moment)
+
+            # Role instruction
+            role_instruction = ROLE_INSTRUCTIONS.get(
+                moment.narrative_role,
+                ROLE_INSTRUCTIONS[NarrativeRole.RESOLUTION],
+            )
+
+            # Extract causes (causal links where effect is in this moment's turn range)
+            causes: list[str] = []
+            consequences: list[str] = []
+            for link in moment.causal_links:
+                if link.effect_turn >= moment.turn_range[0] and link.effect_turn <= moment.turn_range[1]:
+                    causes.append(f"{link.pattern} (turn {link.cause_turn})")
+                if link.cause_turn >= moment.turn_range[0] and link.cause_turn <= moment.turn_range[1]:
+                    consequences.append(f"{link.pattern} (turn {link.effect_turn})")
+
+            # Build event text
+            event_text = ""
+            for e in moment.events:
+                event_text += f"\n- [{e.event_type}] {e.description} (actors: {', '.join(e.actors)}, importance: {e.importance}/10)"
+
+            # Named events
+            named_text = ""
+            if moment.named_events:
+                named_text = "\n\nHistorical landmarks in this period:\n"
+                for ne in moment.named_events:
+                    named_text += f"- {ne.name} (turn {ne.turn}): {ne.description}\n"
+
+            # Causes and consequences context
+            causal_text = ""
+            if causes:
+                causal_text += "\n\nCAUSES leading to this moment:\n"
+                for c in causes:
+                    causal_text += f"- {c}\n"
+            if consequences:
+                causal_text += "\n\nCONSEQUENCES flowing from this moment:\n"
+                for c in consequences:
+                    causal_text += f"- {c}\n"
+
+            # Before/after context
+            context_text = ""
+            if before_summary:
+                context_text += f"\n\nBEFORE this moment:\n{before_summary}"
+            if after_summary:
+                context_text += f"\n\nAFTER this moment (for foreshadowing):\n{after_summary}"
+
+            # Previous prose for style continuity
+            continuity_text = ""
+            if previous_prose:
+                # Include last 200 chars for continuity
+                excerpt = previous_prose[-200:]
+                continuity_text = f"\n\nPREVIOUS ENTRY (for style continuity):\n...{excerpt}"
+
+            # Narrative style
+            style_text = ""
+            if self.narrative_style:
+                style_text = f"\n\nNARRATIVE STYLE: {self.narrative_style}"
+
+            # Build system prompt
+            system = (
+                f"You are a literary historian writing a chronicle. "
+                f"Write evocative prose as if looking back centuries later. "
+                f"Do NOT include turn numbers or game mechanics in the prose. "
+                f"ROLE: {role_instruction}"
+            )
+
+            # Build user prompt
+            prompt = f"""NARRATIVE ROLE: {moment.narrative_role.value.upper()}
+{role_instruction}
+
+TURNS {moment.turn_range[0]}-{moment.turn_range[1]}:
+
+EVENTS:{event_text}{named_text}{causal_text}{context_text}{continuity_text}{style_text}
+
+Write 3-5 paragraphs of chronicle prose for this moment.
+Respond only with the chronicle prose. No preamble, no markdown formatting."""
+
+            # Call LLM with fallback
+            try:
+                narrative = self.narrative_client.complete(
+                    prompt, max_tokens=1000, system=system
+                )
+            except Exception:
+                # Mechanical fallback: join event descriptions
+                descriptions = [
+                    e.description for e in moment.events if e.description
+                ]
+                narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
+
+            previous_prose = narrative
+
+            # Build ChronicleEntry
+            entry = ChronicleEntry(
+                turn=moment.anchor_turn,
+                covers_turns=moment.turn_range,
+                events=list(moment.events),
+                named_events=list(moment.named_events),
+                narrative=narrative,
+                importance=moment.score,
+                narrative_role=moment.narrative_role,
+                causal_links=list(moment.causal_links),
+            )
+            entries.append(entry)
+
+            # Progress callback with ETA
+            completed = idx + 1
+            if completed == 1:
+                start_time = time.monotonic()
+                eta = None
+            else:
+                elapsed = time.monotonic() - (start_time or time.monotonic())
+                if elapsed > 0 and completed > 1:
+                    per_moment = elapsed / (completed - 1)  # exclude warmup
+                    remaining = total - completed
+                    eta = per_moment * remaining
+                else:
+                    eta = None
+
+            if on_progress is not None:
+                on_progress(completed, total, eta)
+
+        return entries
 
     def action_selector(self, civ: Civilization, world: WorldState) -> ActionType:
         """Adapter method matching the ActionSelector callback signature."""
