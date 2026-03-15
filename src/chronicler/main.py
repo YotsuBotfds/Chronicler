@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from chronicler.bundle import assemble_bundle, write_bundle
+from chronicler.climate import get_climate_phase
 from chronicler.chronicle import ChronicleEntry, compile_chronicle
 from chronicler.interestingness import find_boring_civs
 from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
@@ -264,6 +265,11 @@ def execute_run(
             movements_summary=[{"id": m.id, "value_affinity": m.value_affinity, "adherent_count": len(m.adherents), "origin_civ": m.origin_civ} for m in world.movements],
             stress_index=world.stress_index,
             pandemic_regions=[p.region_name for p in world.pandemic_state],
+            climate_phase=get_climate_phase(world.turn, world.climate_config).value,
+            active_conditions=[
+                {"type": c.condition_type, "severity": c.severity, "duration": c.duration}
+                for c in world.active_conditions
+            ],
         )
         history.append(snapshot)
 
