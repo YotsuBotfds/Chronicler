@@ -114,3 +114,42 @@ class TestBundleLoader:
         batch_dir.mkdir()
         with pytest.raises(ValueError, match="fewer than 2"):
             load_bundles(batch_dir)
+
+
+class TestDistributionHelpers:
+    def test_percentiles_basic(self):
+        from chronicler.analytics import _compute_percentiles
+        values = list(range(100))
+        p = _compute_percentiles(values)
+        assert p["min"] == 0
+        assert p["max"] == 99
+        assert p["median"] == 49.5 or p["median"] == 50
+
+
+class TestStabilityExtractor:
+    def test_returns_percentiles_by_turn(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_stability
+        batch_dir = _write_batch(tmp_path, num_runs=5, turns=10)
+        bundles = load_bundles(batch_dir)
+        result = extract_stability(bundles, checkpoints=[5])
+        assert "percentiles_by_turn" in result
+        assert "5" in result["percentiles_by_turn"]
+        assert "median" in result["percentiles_by_turn"]["5"]
+
+    def test_clamps_checkpoints_to_total_turns(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_stability
+        batch_dir = _write_batch(tmp_path, num_runs=3, turns=10)
+        bundles = load_bundles(batch_dir)
+        result = extract_stability(bundles, checkpoints=[5, 50, 500])
+        assert "5" in result["percentiles_by_turn"]
+        assert "50" not in result["percentiles_by_turn"]
+        assert "500" not in result["percentiles_by_turn"]
+
+    def test_zero_rate_per_checkpoint(self, tmp_path):
+        from chronicler.analytics import load_bundles, extract_stability
+        batch_dir = _write_batch(tmp_path, num_runs=5, turns=10)
+        bundles = load_bundles(batch_dir)
+        result = extract_stability(bundles, checkpoints=[9])
+        assert "zero_rate_by_turn" in result
+        # stability = max(0, 50 - t*3), at turn 9 = max(0, 50-27) = 23 > 0
+        assert result["zero_rate_by_turn"]["9"] == 0.0
