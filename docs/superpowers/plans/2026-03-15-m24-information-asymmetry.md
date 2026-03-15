@@ -592,12 +592,14 @@ Add to `src/chronicler/intelligence.py`:
 
 ```python
 def get_perceived_stat(observer: Civilization, target: Civilization,
-                       stat: str, world: WorldState) -> int | None:
+                       stat: str, world: WorldState,
+                       max_value: int = 100) -> int | None:
     """Return observer's perceived value of target's stat.
 
     Returns None when accuracy is 0.0 (unknown civ — callsites should skip).
-    Gaussian noise, σ = noise_range/2, clipped to ±noise_range, clamped 0–100.
+    Gaussian noise, σ = noise_range/2, clipped to ±noise_range, clamped 0–max_value.
     Deterministic: same observer/target/turn/stat → same result.
+    max_value: upper clamp bound (default 100 for stats; use higher for treasury).
     """
     accuracy = compute_accuracy(observer, target, world)
     if accuracy == 0.0:
@@ -611,7 +613,7 @@ def get_perceived_stat(observer: Civilization, target: Civilization,
     rng = random.Random(hash((world.seed, observer.name, target.name, world.turn, stat)))
     noise = int(rng.gauss(0, noise_range / 2))
     noise = max(-noise_range, min(noise_range, noise))
-    return max(0, min(100, actual + noise))
+    return max(0, min(max_value, actual + noise))
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -916,7 +918,7 @@ With:
 
 ```python
         perceived_stab = get_perceived_stat(vassal, overlord, "stability", world)
-        perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world)
+        perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world, max_value=500)
         # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
         # If this fires, compute_accuracy has a bug.
         eff_stab = perceived_stab if perceived_stab is not None else overlord.stability
@@ -924,7 +926,7 @@ With:
         if eff_stab >= 25 and eff_treas >= 10:
 ```
 
-**Note on treasury clamping:** `get_perceived_stat` clamps output to 0–100, but `treasury` is unbounded (can exceed 100). At this callsite the threshold is `>= 10`, so clamping to 100 max is benign — a treasury of 150 perceived as 100 still deters rebellion. If treasury perception is needed at higher-threshold callsites in future milestones, `get_perceived_stat` may need a configurable clamp range.
+Treasury uses `max_value=500` since treasury is unbounded (unlike stats which are 0–100). The 500 cap is conservative — treasury rarely exceeds 300 in practice.
 
 - [ ] **Step 5: Modify check_congress to use organizer perception**
 
@@ -1120,13 +1122,8 @@ With:
             # HOSTILE=0 → base 2, SUSPICIOUS=1 → base 1 (more hostile = higher base)
             hostility_base = 2 - DISPOSITION_ORDER[rel.disposition]
             ratio = civ.military / max(1, perceived_mil)
-            # Clamp multiplier to 0.6–1.4 range per spec
-            if ratio > 1.4:
-                strength_mult = 1.4
-            elif ratio < 0.7:
-                strength_mult = 0.6
-            else:
-                strength_mult = 0.6 + (ratio - 0.7) / (1.4 - 0.7) * (1.4 - 0.6)
+            # Clamp ratio to 0.6–1.4 range per spec (ratio=1.0 → mult=1.0, parity is neutral)
+            strength_mult = max(0.6, min(1.4, ratio))
             score = hostility_base + strength_mult
             if best_score is None or score > best_score:
                 best_score = score
@@ -1274,9 +1271,9 @@ Then after line 280 (after the `active_conditions` field in the TurnSnapshot con
             perception_errors={
                 obs_name: {
                     tgt_name: {
-                        stat: get_perceived_stat(obs, tgt, stat, world) - getattr(tgt, stat)
+                        stat: pv - getattr(tgt, stat)
                         for stat in ("military", "economy", "stability")
-                        if get_perceived_stat(obs, tgt, stat, world) is not None
+                        if (pv := get_perceived_stat(obs, tgt, stat, world)) is not None
                     }
                     for tgt in world.civilizations
                     for tgt_name in [tgt.name]

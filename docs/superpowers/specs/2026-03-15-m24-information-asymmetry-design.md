@@ -117,13 +117,14 @@ def compute_accuracy(observer: Civilization, target: Civilization, world: WorldS
 | Adjacent + war + grudge | 0.7 | ±6 |
 | Max (all sources stacked) | 1.0 | ±0 |
 
-### `get_perceived_stat(observer, target, stat, world) → int | None`
+### `get_perceived_stat(observer, target, stat, world, max_value=100) → int | None`
 
-Returns `None` when accuracy is 0.0 (unknown civ). Otherwise returns actual stat + Gaussian noise.
+Returns `None` when accuracy is 0.0 (unknown civ). Otherwise returns actual stat + Gaussian noise. `max_value` controls the upper clamp bound (default 100 for stats; use 500 for treasury).
 
 ```python
 def get_perceived_stat(observer: Civilization, target: Civilization,
-                       stat: str, world: WorldState) -> int | None:
+                       stat: str, world: WorldState,
+                       max_value: int = 100) -> int | None:
     accuracy = compute_accuracy(observer, target, world)
     if accuracy == 0.0:
         return None  # target unknown to observer
@@ -135,7 +136,7 @@ def get_perceived_stat(observer: Civilization, target: Civilization,
     rng = random.Random(hash((world.seed, observer.name, target.name, world.turn, stat)))
     noise = int(rng.gauss(0, noise_range / 2))  # σ = half the range
     noise = max(-noise_range, min(noise_range, noise))  # clip to ±noise_range
-    return max(0, min(100, getattr(target, stat) + noise))
+    return max(0, min(max_value, getattr(target, stat) + noise))
 ```
 
 **Determinism:** Same observer, same target, same turn, same stat = same perceived value. The seed ensures perceptions don't change mid-turn.
@@ -167,13 +168,8 @@ if perceived_mil is None:
     continue
 
 ratio = observer.military / max(1, perceived_mil)
-if ratio > 1.4:
-    war_weight_multiplier = 1.4   # target looks weak → aggressive
-elif ratio < 0.7:
-    war_weight_multiplier = 0.6   # target looks strong → deterred
-else:
-    # Linear interpolation between 0.6 and 1.4
-    war_weight_multiplier = 0.6 + (ratio - 0.7) / (1.4 - 0.7) * (1.4 - 0.6)
+# Clamp ratio directly: parity (1.0) is neutral, >1.4 capped aggressive, <0.7 capped deterred
+war_weight_multiplier = max(0.6, min(1.4, ratio))
 ```
 
 Per-target multiplier. Slots into existing weight computation without changing action resolution or targeting architecture.
@@ -220,7 +216,7 @@ overlord.treasury >= 10
 
 # AFTER:
 perceived_stab = get_perceived_stat(vassal, overlord, "stability", world)
-perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world)
+perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world, max_value=500)
 # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
 # If this fires, compute_accuracy has a bug.
 (perceived_stab if perceived_stab is not None else overlord.stability) >= 25
