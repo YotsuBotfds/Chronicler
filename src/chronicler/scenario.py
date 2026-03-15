@@ -422,7 +422,7 @@ def _apply_civ_override(
     if override.population is not None:
         civ.population = override.population
         # Distribute override population across civ's regions
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
             total_cap = sum(effective_capacity(r) for r in civ_regions)

@@ -58,6 +58,6 @@ def drain_region_pop(region, amount: int) -> int:
 def add_region_pop(region, amount: int, cap=None) -> None:
     """Add population to a region, capped at effective_capacity."""
     if cap is None:
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
         cap = effective_capacity(region)
     region.population = min(region.population + amount, cap)

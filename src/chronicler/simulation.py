@@ -371,7 +371,7 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
 def phase_production(world: WorldState) -> None:
     """Generate income and adjust population for each civilization."""
-    from chronicler.terrain import effective_capacity
+    from chronicler.ecology import effective_capacity
     for civ in world.civilizations:
         # Base income
         income = civ.economy // 5 + len(civ.regions) * 2
@@ -588,7 +588,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
         civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
             target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)

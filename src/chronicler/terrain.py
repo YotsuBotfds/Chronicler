@@ -49,11 +49,6 @@ def terrain_defense_bonus(region: Region) -> int:
     return _get_effect(region).defense
 
 
-def terrain_fertility_cap(region: Region) -> float:
-    """Maximum fertility for this terrain type. Hard ceiling."""
-    return _get_effect(region).fertility_cap
-
-
 def terrain_trade_modifier(region: Region) -> int:
     """Additional trade income for routes through this region."""
     return _get_effect(region).trade_mod
@@ -73,11 +68,5 @@ def total_trade_modifier(region: Region) -> int:
     return terrain + role
 
 
-def effective_capacity(region: Region) -> int:
-    """Single source of truth for region carrying capacity.
-
-    max(int(carrying_capacity * min(fertility, terrain_fertility_cap)), 1).
-    Floor of 1 prevents division-by-zero in famine/migration calculations.
-    """
-    cap = terrain_fertility_cap(region)
-    return max(int(region.carrying_capacity * min(region.fertility, cap)), 1)
+    # NOTE: effective_capacity and terrain_fertility_cap removed by M23 —
+    # effective_capacity now lives in chronicler.ecology

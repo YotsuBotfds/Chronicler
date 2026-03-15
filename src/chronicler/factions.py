@@ -449,7 +449,7 @@ def inherit_grudges_with_factions(
 
 def total_effective_capacity(civ: Civilization, world) -> int:
     """Sum of effective_capacity across all civ-controlled regions."""
-    from chronicler.terrain import effective_capacity
+    from chronicler.ecology import effective_capacity
     region_map = {r.name: r for r in world.regions}
     return sum(
         effective_capacity(region_map[rn])

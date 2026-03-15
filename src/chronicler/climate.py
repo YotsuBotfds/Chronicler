@@ -165,7 +165,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
 
 def process_migration(world: WorldState) -> list[Event]:
     """Called at end of phase 1, after disasters."""
-    from chronicler.terrain import effective_capacity
+    from chronicler.ecology import effective_capacity
     from chronicler.utils import add_region_pop, sync_all_populations
 
     events: list[Event] = []

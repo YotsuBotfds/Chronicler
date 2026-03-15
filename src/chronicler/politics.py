@@ -11,7 +11,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent,
     ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
 )
-from chronicler.terrain import effective_capacity
+from chronicler.ecology import effective_capacity
 from chronicler.tuning import K_GOVERNING_COST, get_override
 from chronicler.utils import clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
 
@@ -283,7 +283,7 @@ def check_capital_loss(world: WorldState) -> list[Event]:
         civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
 
         # Pick best remaining region (highest effective_capacity)
-        from chronicler.terrain import effective_capacity
+        from chronicler.ecology import effective_capacity
         region_map = {r.name: r for r in world.regions}
         best_region = max(
             civ.regions,
@@ -817,7 +817,7 @@ def check_restoration(world: WorldState) -> list[Event]:
             continue
 
         # Restoration fires
-        from chronicler.terrain import effective_capacity as _eff_cap
+        from chronicler.ecology import effective_capacity as _eff_cap
         target_region = max(available,
                            key=lambda rn: _eff_cap(region_map[rn]))
 

@@ -19,7 +19,7 @@ from chronicler.models import (
     TechEra,
     WorldState,
 )
-from chronicler.terrain import effective_capacity
+from chronicler.ecology import effective_capacity
 
 # --- Name and trait pools ---
 
