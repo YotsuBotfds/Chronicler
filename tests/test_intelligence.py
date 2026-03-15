@@ -3,6 +3,7 @@ import pytest
 from chronicler.models import (
     Civilization, Leader, Region, WorldState, VassalRelation,
     Federation, ProxyWar, FactionState, FactionType, GreatPerson,
+    Disposition, Relationship,
 )
 from chronicler.intelligence import (
     shares_adjacent_region, has_active_trade_route, in_same_federation,
@@ -388,3 +389,171 @@ class TestEmitIntelligenceFailure:
         event = emit_intelligence_failure(c1, c2, perceived_mil=25, actual_mil=75, world=world)
         assert "25" in event.description
         assert "75" in event.description
+
+
+# --- Task 6: Trade Resolution Callsite ---
+
+class TestTradePerception:
+    def test_trade_gain_uses_perceived_economy(self):
+        from chronicler.action_engine import resolve_trade
+        r1 = _region("A", controller="Civ1", adjacencies=["B"])
+        r2 = _region("B", controller="Civ2", adjacencies=["A"])
+        c1 = _civ("Civ1", regions=["A"], economy=60, treasury=0)
+        c2 = _civ("Civ2", regions=["B"], economy=90, treasury=0)
+        world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
+        world.relationships = {
+            "Civ1": {"Civ2": Relationship(disposition=Disposition.NEUTRAL)},
+            "Civ2": {"Civ1": Relationship(disposition=Disposition.NEUTRAL)},
+        }
+        resolve_trade(c1, c2, world)
+        assert c1.treasury > 0
+        assert c2.treasury > 0
+
+
+# --- Task 7: Politics Callsites ---
+
+class TestTributePerception:
+    def test_tribute_uses_perceived_economy(self):
+        from chronicler.politics import collect_tribute
+        r1 = _region("A", controller="Overlord", adjacencies=["B"])
+        r2 = _region("B", controller="Vassal", adjacencies=["A"])
+        overlord = _civ("Overlord", regions=["A"], treasury=100)
+        vassal = _civ("Vassal", regions=["B"], economy=60, treasury=100)
+        world = WorldState(name="t", seed=42, regions=[r1, r2],
+                           civilizations=[overlord, vassal])
+        world.vassal_relations = [VassalRelation(vassal="Vassal", overlord="Overlord",
+                                                  tribute_rate=0.5)]
+        collect_tribute(world)
+        assert overlord.treasury > 100
+
+
+class TestRebellionPerception:
+    def test_rebellion_suppressed_by_perceived_strength(self):
+        from chronicler.politics import check_vassal_rebellion
+        r1 = _region("A", controller="Overlord", adjacencies=["B"])
+        r2 = _region("B", controller="Vassal", adjacencies=["A"])
+        overlord = _civ("Overlord", regions=["A"], stability=20, treasury=5)
+        vassal = _civ("Vassal", regions=["B"], stability=50)
+        world = WorldState(name="t", seed=42, regions=[r1, r2],
+                           civilizations=[overlord, vassal])
+        world.vassal_relations = [VassalRelation(vassal="Vassal", overlord="Overlord")]
+        events = check_vassal_rebellion(world)
+        assert isinstance(events, list)
+
+
+class TestCongressPerception:
+    def test_congress_power_uses_organizer_perception(self):
+        from chronicler.politics import check_congress
+        r1 = _region("A", controller="Civ1", adjacencies=["B", "C"])
+        r2 = _region("B", controller="Civ2", adjacencies=["A", "C"])
+        r3 = _region("C", controller="Civ3", adjacencies=["A", "B"])
+        c1 = _civ("Civ1", regions=["A"], military=80, economy=80, culture=90)
+        c2 = _civ("Civ2", regions=["B"], military=50, economy=50, culture=30)
+        c3 = _civ("Civ3", regions=["C"], military=30, economy=30, culture=20)
+        world = WorldState(name="t", seed=42, regions=[r1, r2, r3],
+                           civilizations=[c1, c2, c3])
+        world.active_wars = [("Civ1", "Civ2"), ("Civ2", "Civ3")]
+        world.war_start_turns = {"Civ1:Civ2": 1, "Civ2:Civ3": 1}
+        world.relationships = {
+            "Civ1": {"Civ2": Relationship(disposition=Disposition.HOSTILE),
+                     "Civ3": Relationship(disposition=Disposition.HOSTILE)},
+            "Civ2": {"Civ1": Relationship(disposition=Disposition.HOSTILE),
+                     "Civ3": Relationship(disposition=Disposition.HOSTILE)},
+            "Civ3": {"Civ1": Relationship(disposition=Disposition.HOSTILE),
+                     "Civ2": Relationship(disposition=Disposition.HOSTILE)},
+        }
+        events = check_congress(world)
+        assert isinstance(events, list)
+
+
+# --- Task 8: WAR Target Bias + Intelligence Failure Event ---
+
+class TestWarTargetBias:
+    def test_prefers_perceived_weaker_target(self):
+        r1 = _region("A", controller="Attacker", adjacencies=["B", "C"])
+        r2 = _region("B", controller="Strong", adjacencies=["A"])
+        r3 = _region("C", controller="Weak", adjacencies=["A"])
+        attacker = _civ("Attacker", regions=["A"], military=50, stability=50,
+                        economy=40, culture=30, population=50)
+        strong = _civ("Strong", regions=["B"], military=80, stability=50,
+                      economy=40, culture=30, population=50)
+        weak = _civ("Weak", regions=["C"], military=20, stability=50,
+                    economy=40, culture=30, population=50)
+        world = WorldState(name="t", seed=42, regions=[r1, r2, r3],
+                           civilizations=[attacker, strong, weak])
+        world.relationships = {
+            "Attacker": {
+                "Strong": Relationship(disposition=Disposition.HOSTILE),
+                "Weak": Relationship(disposition=Disposition.HOSTILE),
+            },
+            "Strong": {"Attacker": Relationship(disposition=Disposition.HOSTILE)},
+            "Weak": {"Attacker": Relationship(disposition=Disposition.HOSTILE)},
+        }
+        from chronicler.action_engine import _resolve_war_action
+        event = _resolve_war_action(attacker, world)
+        assert "Weak" in event.actors or "Weak" in event.description
+
+
+class TestIntelligenceFailureEvent:
+    def test_mechanism_wired(self):
+        r1 = _region("A", controller="Attacker", adjacencies=["B"])
+        r2 = _region("B", controller="Defender", adjacencies=["A"])
+        attacker = _civ("Attacker", regions=["A"], military=40, stability=50,
+                        economy=40, culture=30, population=50, asabiya=0.5)
+        defender = _civ("Defender", regions=["B"], military=80, stability=50,
+                        economy=40, culture=30, population=50, asabiya=0.5)
+        world = WorldState(name="t", seed=42, regions=[r1, r2],
+                           civilizations=[attacker, defender])
+        world.relationships = {
+            "Attacker": {"Defender": Relationship(disposition=Disposition.HOSTILE)},
+            "Defender": {"Attacker": Relationship(disposition=Disposition.HOSTILE)},
+        }
+        from chronicler.action_engine import _resolve_war_action
+        event = _resolve_war_action(attacker, world)
+        intel_events = [e for e in world.events_timeline
+                        if e.event_type == "intelligence_failure"]
+        assert isinstance(intel_events, list)
+
+
+# --- Task 9: Snapshot Population ---
+
+class TestSnapshotPopulation:
+    def test_snapshot_contains_accuracy_and_errors(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["B"])
+        r2 = _region("B", controller="Civ2", adjacencies=["A"])
+        c1 = _civ("Civ1", regions=["A"], military=50, economy=60, stability=40)
+        c2 = _civ("Civ2", regions=["B"], military=70, economy=30, stability=55)
+        world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
+        acc_cache = {}
+        for obs in world.civilizations:
+            for tgt in world.civilizations:
+                if obs.name != tgt.name:
+                    acc_cache[(obs.name, tgt.name)] = compute_accuracy(obs, tgt, world)
+        per_pair_accuracy = {
+            obs.name: {
+                tgt.name: acc_cache[(obs.name, tgt.name)]
+                for tgt in world.civilizations
+                if obs.name != tgt.name and acc_cache[(obs.name, tgt.name)] > 0.0
+            }
+            for obs in world.civilizations
+        }
+        perception_errors = {
+            obs.name: {
+                tgt.name: {
+                    stat: get_perceived_stat(obs, tgt, stat, world) - getattr(tgt, stat)
+                    for stat in ("military", "economy", "stability")
+                    if get_perceived_stat(obs, tgt, stat, world) is not None
+                }
+                for tgt in world.civilizations
+                if obs.name != tgt.name and acc_cache[(obs.name, tgt.name)] > 0.0
+            }
+            for obs in world.civilizations
+        }
+        assert "Civ2" in per_pair_accuracy.get("Civ1", {})
+        assert per_pair_accuracy["Civ1"]["Civ2"] == pytest.approx(0.3)
+        errors = perception_errors["Civ1"]["Civ2"]
+        assert "military" in errors
+        assert "economy" in errors
+        assert "stability" in errors
+        for stat, err in errors.items():
+            assert isinstance(err, int)

@@ -13,6 +13,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent, TechEra, WorldState,
 )
 from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 
 
 class WarResult(NamedTuple):
@@ -204,14 +205,26 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
     from chronicler.leaders import update_rivalries
 
     target_name = None
-    worst_disp = None
+    best_score = None
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
             if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                 continue
-            d = DISPOSITION_ORDER[rel.disposition]
-            if worst_disp is None or d < worst_disp:
-                worst_disp = d
+            other_civ = _get_civ(world, other_name)
+            if other_civ is None:
+                continue
+            perceived_mil = get_perceived_stat(civ, other_civ, "military", world)
+            if perceived_mil is None:
+                continue  # Unknown civ — not a valid target
+            # Score: hostility base + perceived weakness bonus
+            # HOSTILE=0 → base 2, SUSPICIOUS=1 → base 1 (more hostile = higher base)
+            hostility_base = 2 - DISPOSITION_ORDER[rel.disposition]
+            ratio = civ.military / max(1, perceived_mil)
+            # Clamp ratio directly: parity (1.0) is neutral, >1.4 capped, <0.7 capped
+            strength_mult = max(0.6, min(1.4, ratio))
+            score = hostility_base + strength_mult
+            if best_score is None or score > best_score:
+                best_score = score
                 target_name = other_name
 
     if target_name is None:
@@ -243,6 +256,13 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
             update_rivalries(civ, defender, world)
         # Hostage capture on decisive outcomes
         if result.outcome == "defender_wins":
+            # M24: Check for intelligence failure (uses post-combat military —
+            # intentional: the revealed truth is what defender had after battle)
+            perceived_mil = get_perceived_stat(civ, defender, "military", world)
+            if perceived_mil is not None and perceived_mil <= 0.7 * defender.military:
+                world.events_timeline.append(emit_intelligence_failure(
+                    civ, defender, perceived_mil, defender.military, world,
+                ))
             from chronicler.relationships import capture_hostage
             hostage = capture_hostage(civ, defender, world, contested_region=result.contested_region)
             if hostage:
@@ -435,8 +455,12 @@ def resolve_war(
 
 def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> None:
     """Resolve trade: both sides gain treasury proportional to their economy."""
-    gain1 = max(1, civ2.economy // 3)
-    gain2 = max(1, civ1.economy // 3)
+    perceived_econ_2 = get_perceived_stat(civ1, civ2, "economy", world)
+    perceived_econ_1 = get_perceived_stat(civ2, civ1, "economy", world)
+    # NOTE: None should be unreachable — trade requires an active route,
+    # which grants +0.2 accuracy. If this fires, compute_accuracy has a bug.
+    gain1 = max(1, (perceived_econ_2 if perceived_econ_2 is not None else civ2.economy) // 3)
+    gain2 = max(1, (perceived_econ_1 if perceived_econ_1 is not None else civ1.economy) // 3)
     # M21: Trade income bonuses
     if civ1.active_focus == "networks":
         gain1 *= 2
