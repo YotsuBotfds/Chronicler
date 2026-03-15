@@ -37,13 +37,22 @@ from chronicler.models import (
     WorldState,
 )
 from chronicler.tech import check_tech_advancement
-from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.utils import (
+    clamp,
+    STAT_FLOOR,
+    sync_civ_population,
+    sync_all_populations,
+    distribute_pop_loss,
+    drain_region_pop,
+    add_region_pop,
+)
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
     check_rival_fall,
 )
 from chronicler.named_events import generate_tech_breakthrough_name
+from chronicler.tech_focus import TechFocus, select_tech_focus, apply_focus_effects, remove_focus_effects
 from chronicler.action_engine import resolve_action
 from chronicler.succession import (
     compute_crisis_probability, trigger_crisis, tick_crisis,
@@ -137,7 +146,9 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         elif event.event_type == "plague":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ.population = clamp(civ.population - int(10 * mult), STAT_FLOOR["population"], 100)
+                civ_regions = [r for r in world.regions if r.controller == civ.name]
+                distribute_pop_loss(civ_regions, int(10 * mult))
+                sync_civ_population(civ, world)
                 drain = int(get_override(world, K_PLAGUE_STABILITY, 3))
                 civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
             world.active_conditions.append(
@@ -374,11 +385,26 @@ def phase_production(world: WorldState) -> None:
             effective_capacity(r)
             for r in world.regions if r.controller == civ.name
         )
-        max_pop = min(100, region_capacity)
-        if civ.economy > civ.population and civ.stability > 20 and civ.population < max_pop:
-            civ.population = clamp(civ.population + 5, STAT_FLOOR["population"], 100)
-        elif civ.stability <= 10 and civ.population > 1:
-            civ.population = clamp(civ.population - 5, STAT_FLOOR["population"], 100)
+        max_pop = min(1000, region_capacity)
+        civ_regions = [r for r in world.regions if r.controller == civ.name]
+        if civ.economy > civ.population // 3 and civ.stability > 10 and civ.population < max_pop:
+            if civ_regions:
+                growth = max(5, 5 * len(civ_regions))
+                per_region = max(1, growth // len(civ_regions))
+                for r in civ_regions:
+                    add_region_pop(r, per_region)
+                sync_civ_population(civ, world)
+        elif civ.stability <= 5 and civ.population > 1:
+            if civ_regions:
+                target = max(civ_regions, key=lambda r: r.population)
+                drain_region_pop(target, 5)
+                sync_civ_population(civ, world)
+        # Passive repopulation: empty controlled regions slowly recover
+        if civ_regions:
+            for r in civ_regions:
+                if r.population == 0:
+                    add_region_pop(r, 3)
+            sync_civ_population(civ, world)
 
     # Stability recovery: passive per-turn recovery, halved during severe conditions
     for civ in world.civilizations:
@@ -547,7 +573,12 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
         civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
         civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
-        civ.population = clamp(civ.population + 10, STAT_FLOOR["population"], 100)
+        from chronicler.terrain import effective_capacity
+        civ_regions = [r for r in world.regions if r.controller == civ.name]
+        if civ_regions:
+            target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)
+            add_region_pop(target, 10)
+            sync_civ_population(civ, world)
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_MIGRATION_STABILITY, 4))
         civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
@@ -585,7 +616,11 @@ def apply_injected_event(
             )
         )
     elif event_type == "plague":
-        civ.population = clamp(civ.population - 10, STAT_FLOOR["population"], 100)
+        civ_regions = [r for r in world.regions if r.controller == civ.name]
+        if civ_regions:
+            target_r = max(civ_regions, key=lambda r: r.population)
+            drain_region_pop(target_r, 10)
+            sync_civ_population(civ, world)
         civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         world.active_conditions.append(
             ActiveCondition(
@@ -736,6 +771,19 @@ def phase_technology(world: WorldState) -> list[Event]:
         event = check_tech_advancement(civ, world)
         if event:
             events.append(event)
+            # M21: Remove old focus effects, select and apply new
+            if civ.active_focus:
+                old_focus = TechFocus(civ.active_focus)
+                remove_focus_effects(civ, old_focus)
+            new_focus = select_tech_focus(civ, world)
+            if new_focus:
+                apply_focus_effects(civ, new_focus)
+                events.append(Event(
+                    turn=world.turn, event_type="tech_focus_selected",
+                    actors=[civ.name],
+                    description=f"{civ.name} develops {new_focus.value} specialization",
+                    importance=6,
+                ))
             # Increment tech_advanced so great person generation can detect era advance
             civ.event_counts["tech_advanced"] = civ.event_counts.get("tech_advanced", 0) + 1
             name = generate_tech_breakthrough_name(civ.tech_era)
@@ -851,13 +899,13 @@ def phase_fertility(world: WorldState) -> list[Event]:
         )
 
         eff_cap = effective_capacity(region)
-        region_pop = civ.population // len(civ.regions) if civ.regions else 0
+        region_pop = region.population
 
         degradation = get_override(world, K_FERTILITY_DEGRADATION, 0.005)
         recovery = get_override(world, K_FERTILITY_RECOVERY, 0.05)
         if region_pop > eff_cap:
             region.fertility = max(0.0, round(region.fertility - degradation * multiplier, 4))
-        elif region_pop < eff_cap * 0.5:
+        elif region_pop < eff_cap * 0.75:
             region.fertility = min(cap, round(region.fertility + recovery, 4))
 
         if region.famine_cooldown > 0:
@@ -872,6 +920,7 @@ def phase_fertility(world: WorldState) -> list[Event]:
     from chronicler.emergence import update_low_fertility_counters
     update_low_fertility_counters(world)
 
+    sync_all_populations(world)
     return famine_events
 
 
@@ -886,7 +935,8 @@ def _check_famine(world: WorldState) -> list[Event]:
         if civ is None:
             continue
         mult = get_severity_multiplier(civ)
-        civ.population = clamp(civ.population - int(15 * mult), STAT_FLOOR["population"], 100)
+        drain_region_pop(region, int(5 * mult))
+        sync_civ_population(civ, world)
         drain = int(get_override(world, K_FAMINE_STABILITY, 3))
         civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         region.famine_cooldown = 5
@@ -895,7 +945,8 @@ def _check_famine(world: WorldState) -> list[Event]:
             if adj and adj.controller and adj.controller != civ.name:
                 neighbor = _get_civ(world, adj.controller)
                 if neighbor:
-                    neighbor.population = clamp(neighbor.population + 5, STAT_FLOOR["population"], 100)
+                    add_region_pop(adj, 5)
+                    sync_civ_population(neighbor, world)
                     neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
         events.append(Event(
             turn=world.turn, event_type="famine", actors=[civ.name],

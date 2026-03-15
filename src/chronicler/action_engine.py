@@ -584,6 +584,13 @@ class ActionEngine:
         if "diplomatic" in civ.traditions and ActionType.DIPLOMACY in weights:
             weights[ActionType.DIPLOMACY] *= 1.2
 
+        # M21: Tech focus weight biases
+        from chronicler.tech_focus import get_focus_weight_modifiers
+        focus_mods = get_focus_weight_modifiers(civ)
+        for action, mod in focus_mods.items():
+            if action in weights and weights[action] > 0:
+                weights[action] *= mod
+
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3
         if len(history) >= streak_limit:
@@ -591,6 +598,12 @@ class ActionEngine:
             if len(set(last_n)) == 1:
                 streaked = ActionType(last_n[0])
                 weights[streaked] = 0.0
+        # M21: Cap combined weight multiplier at 2.5x to prevent dominant action
+        max_weight = max(weights.values()) if weights else 0
+        if max_weight > 2.5:
+            scale = 2.5 / max_weight
+            for action in weights:
+                weights[action] *= scale
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:

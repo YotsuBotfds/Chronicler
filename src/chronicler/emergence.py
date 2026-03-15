@@ -18,7 +18,7 @@ from chronicler.tuning import (
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
     get_override,
 )
-from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.utils import clamp, STAT_FLOOR, distribute_pop_loss, drain_region_pop, sync_civ_population
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +262,7 @@ def tick_pandemic(world: WorldState) -> list[Event]:
     infected_names = {p.region_name for p in world.pandemic_state}
     already_infected_or_recovered = set(infected_names) | set(world.pandemic_recovered)
 
-    # --- Apply per-civ damage (aggregate, not per-region) ---
+    # --- Apply per-civ damage (distributed across affected regions) ---
     civ_max_severity: dict[str, int] = {}
     for p in world.pandemic_state:
         for r in world.regions:
@@ -276,7 +276,15 @@ def tick_pandemic(world: WorldState) -> list[Event]:
             continue
         pop_loss = min(severity * 3, 12)
         eco_loss = min(severity * 2, 8)
-        civ.population = clamp(civ.population - pop_loss, STAT_FLOOR.get("population", 1), 100)
+        pandemic_region_names = {p.region_name for p in world.pandemic_state}
+        affected_regions = [
+            r for r in world.regions
+            if r.controller == civ_name and r.name in pandemic_region_names
+        ]
+        if not affected_regions:
+            affected_regions = [r for r in world.regions if r.controller == civ_name]
+        distribute_pop_loss(affected_regions, pop_loss)
+        sync_civ_population(civ, world)
         civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
 
         # Leader kill check: 5% per infected civ
@@ -374,7 +382,8 @@ def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
             affected_civs.add(region.controller)
             civ = next((c for c in world.civilizations if c.name == region.controller), None)
             if civ:
-                civ.population = clamp(civ.population - 20, STAT_FLOOR.get("population", 1), 100)
+                drain_region_pop(region, 20)
+                sync_civ_population(civ, world)
                 civ.stability = clamp(civ.stability - 15, STAT_FLOOR.get("stability", 0), 100)
 
     world.climate_config.phase_offset += 1
@@ -567,6 +576,11 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
         new_era = _prev_era(old_era)
         assert new_era is not None
         remove_era_bonus(civ, old_era)
+        # M21: Remove tech focus effects on regression
+        if civ.active_focus:
+            from chronicler.tech_focus import TechFocus, remove_focus_effects
+            remove_focus_effects(civ, TechFocus(civ.active_focus))
+            civ.active_focus = None
         civ.tech_era = new_era
 
         events.append(Event(
