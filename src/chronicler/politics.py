@@ -14,6 +14,7 @@ from chronicler.models import (
 from chronicler.ecology import effective_capacity
 from chronicler.tuning import K_GOVERNING_COST, get_override
 from chronicler.utils import clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
+from chronicler.intelligence import get_perceived_stat
 
 if TYPE_CHECKING:
     pass
@@ -371,7 +372,10 @@ def collect_tribute(world: WorldState) -> list[Event]:
         overlord = civ_map.get(vr.overlord)
         if vassal is None or overlord is None:
             continue
-        tribute = math.floor(vassal.economy * vr.tribute_rate)
+        perceived_econ = get_perceived_stat(overlord, vassal, "economy", world)
+        # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
+        # If this fires, compute_accuracy has a bug.
+        tribute = math.floor((perceived_econ if perceived_econ is not None else vassal.economy) * vr.tribute_rate)
         vassal.treasury -= tribute
         overlord.treasury += tribute
         vr.turns_active += 1
@@ -392,7 +396,13 @@ def check_vassal_rebellion(world: WorldState) -> list[Event]:
             to_remove.append(vr)
             continue
 
-        if overlord.stability >= 25 and overlord.treasury >= 10:
+        perceived_stab = get_perceived_stat(vassal, overlord, "stability", world)
+        perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world, max_value=500)
+        # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
+        # If this fires, compute_accuracy has a bug.
+        eff_stab = perceived_stab if perceived_stab is not None else overlord.stability
+        eff_treas = perceived_treas if perceived_treas is not None else overlord.treasury
+        if eff_stab >= 25 and eff_treas >= 10:
             continue
 
         rng = random.Random(world.seed + world.turn + hash(vr.vassal))
@@ -682,6 +692,11 @@ def check_congress(world: WorldState) -> list[Event]:
 
     civ_map = {c.name: c for c in world.civilizations}
 
+    # M24: Congress organizer = highest actual culture (world fact, not perceived)
+    organizer = max(
+        (civ_map[n] for n in participants if n in civ_map),
+        key=lambda c: c.culture, default=None,
+    )
     powers: dict[str, float] = {}
     for name in participants:
         civ = civ_map.get(name)
@@ -694,7 +709,17 @@ def check_congress(world: WorldState) -> list[Event]:
         longest_war = world.turn - min(matching_starts) if matching_starts else 1
         fed = _civ_in_federation(name, world)
         fed_allies = len(fed.members) - 1 if fed else 0
-        powers[name] = (civ.military + civ.economy + fed_allies * 10) / max(longest_war, 1)
+        # M24: organizer perceives each participant's military and economy
+        if organizer is not None:
+            p_mil = get_perceived_stat(organizer, civ, "military", world)
+            p_econ = get_perceived_stat(organizer, civ, "economy", world)
+        else:
+            p_mil, p_econ = None, None
+        # Self-perception is always accurate (compute_accuracy returns 1.0 for self)
+        # None filtered: if organizer doesn't know a civ, use actual as fallback
+        eff_mil = p_mil if p_mil is not None else civ.military
+        eff_econ = p_econ if p_econ is not None else civ.economy
+        powers[name] = (eff_mil + eff_econ + fed_allies * 10) / max(longest_war, 1)
 
     roll = rng.random()
     if roll < 0.40:
