@@ -362,10 +362,11 @@ class TestSeverityMultiplierWiring:
         world = _make_world()
         civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20)
         world.civilizations = [civ]
-        r = _make_region(name="R1", controller="Civ1", fertility=0.1, famine_cooldown=0)
+        # Use fertility below tuned threshold (0.05)
+        r = _make_region(name="R1", controller="Civ1", fertility=0.01, famine_cooldown=0)
         world.regions = [r]
         _check_famine(world)
-        # Base famine: pop -15, stability -10. With 1.5x: pop -22, stability -15
+        # Base famine: pop -15. With 1.5x stress multiplier: pop -= int(15*1.5) = 22
         assert civ.population <= 80 - 15  # At least base damage
         assert civ.population < 80 - 15 + 1  # More than base (amplified)
 
@@ -376,8 +377,9 @@ class TestSeverityMultiplierWiring:
         civ = _make_civ(stability=60, civ_stress=20)
         world.civilizations = [civ]
         _apply_event_effects("rebellion", civ, world)
-        # Base rebellion: stability -20, military -10. With 1.5x: stability -30
-        assert civ.stability <= 60 - 20  # At least base
+        # Base rebellion drain is K_REBELLION_STABILITY default 4. With 1.5x: int(4*1.5)=6
+        # Result: 60 - 6 = 54
+        assert civ.stability <= 60 - 4  # At least base damage applied
 
 
 class TestBlackSwanEligibility:
@@ -876,7 +878,8 @@ class TestTechRegression:
             events = check_tech_regression(test_world, black_swan_fired=False)
             if events:
                 regressions += 1
-        assert 35 <= regressions <= 65  # ~50% ± wide margin
+        # Base prob 50%, culture resistance 0.75 (culture=50) → effective ~37.5%
+        assert 20 <= regressions <= 65  # ~37.5% ± wide margin
 
     def test_regression_drops_one_era(self):
         from chronicler.emergence import check_tech_regression

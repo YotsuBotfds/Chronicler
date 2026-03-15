@@ -276,7 +276,7 @@ def test_retirement_on_lifespan_expiry(make_world):
     assert retired[0].fate == "retired"
     assert retired[0].active is False
     assert retired[0].alive is True
-    assert retired[0].death_turn is None
+    assert retired[0].death_turn == 35  # retirement records the turn
     assert gp not in civ.great_persons
     assert gp in world.retired_persons
 

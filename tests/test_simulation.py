@@ -506,14 +506,14 @@ def test_famine_stability_drain_respects_tuning_override(make_world):
     civ.stability = 50
     original_stability = civ.stability
 
-    # Set a region to trigger famine (fertility below threshold 0.3)
+    # Set a region to trigger famine (fertility below tuned threshold 0.05)
     region = world.regions[0]
-    region.fertility = 0.2
+    region.fertility = 0.01
     region.famine_cooldown = 0
     region.controller = civ.name
 
     _check_famine(world)
 
     # With override of 2 (and severity_multiplier=1.0 for healthy civ),
-    # stability should drop by 2 (not default 10)
+    # stability should drop by 2 (not default 3)
     assert civ.stability == original_stability - 2
