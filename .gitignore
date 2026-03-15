@@ -8,3 +8,5 @@ dist/
 .env
 .worktrees/
 .DS_Store
+# Rust build artifacts
+chronicler-agents/target/
