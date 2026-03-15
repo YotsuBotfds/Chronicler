@@ -379,9 +379,9 @@ class WorldState(BaseModel):
     terrain_transition_rules: list[TerrainTransitionRule] = Field(
         default_factory=lambda: [
             TerrainTransitionRule(from_terrain="forest", to_terrain="plains",
-                                  condition="low_fertility", threshold_turns=50),
+                                  condition="low_forest", threshold_turns=50),
             TerrainTransitionRule(from_terrain="plains", to_terrain="forest",
-                                  condition="depopulated", threshold_turns=100),
+                                  condition="forest_regrowth", threshold_turns=100),
         ]
     )
     tuning_overrides: dict[str, float] = Field(default_factory=dict)
@@ -449,7 +449,7 @@ class TurnSnapshot(BaseModel):
     trade_routes: list[tuple[str, str]] = Field(default_factory=list)
     active_wars: list[tuple[str, str]] = Field(default_factory=list)
     embargoes: list[tuple[str, str]] = Field(default_factory=list)
-    fertility: dict[str, float] = Field(default_factory=dict)
+    ecology: dict[str, dict[str, float]] = Field(default_factory=dict)
     mercenary_companies: list[dict] = Field(default_factory=list)
     vassal_relations: list[dict] = Field(default_factory=list)
     federations: list[dict] = Field(default_factory=list)

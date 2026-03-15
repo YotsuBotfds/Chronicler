@@ -41,3 +41,35 @@ class TestRegionEcologyField:
     def test_region_has_forest_regrowth_turns(self):
         r = Region(name="T", terrain="plains", carrying_capacity=60, resources="fertile")
         assert r.forest_regrowth_turns == 0
+
+
+from chronicler.models import TurnSnapshot, WorldState
+
+
+class TestTurnSnapshotEcology:
+    def test_snapshot_has_ecology_field(self):
+        snap = TurnSnapshot(turn=0, civ_stats={}, region_control={}, relationships={})
+        assert snap.ecology == {}
+
+    def test_snapshot_ecology_accepts_dict(self):
+        snap = TurnSnapshot(
+            turn=0, civ_stats={}, region_control={}, relationships={},
+            ecology={"Plains": {"soil": 0.9, "water": 0.6, "forest_cover": 0.2}},
+        )
+        assert snap.ecology["Plains"]["soil"] == 0.9
+
+
+class TestTerrainTransitionDefaults:
+    def test_deforestation_rule_uses_low_forest(self):
+        w = WorldState(name="T", seed=42)
+        deforest = w.terrain_transition_rules[0]
+        assert deforest.from_terrain == "forest"
+        assert deforest.to_terrain == "plains"
+        assert deforest.condition == "low_forest"
+
+    def test_rewilding_rule_uses_forest_regrowth(self):
+        w = WorldState(name="T", seed=42)
+        rewild = w.terrain_transition_rules[1]
+        assert rewild.from_terrain == "plains"
+        assert rewild.to_terrain == "forest"
+        assert rewild.condition == "forest_regrowth"
