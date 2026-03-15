@@ -408,3 +408,10 @@ class TestMutualExclusions:
         sys.argv = ["chronicler", "--batch", "3", "--fork", "state.json"]
         with pytest.raises(SystemExit):
             main()
+
+
+def test_analyze_flag_parses():
+    from chronicler.main import _build_parser
+    parser = _build_parser()
+    args = parser.parse_args(["--analyze", "/some/path"])
+    assert args.analyze == "/some/path"

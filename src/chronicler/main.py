@@ -550,6 +550,12 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
                         help="Seed range for batch mode (e.g., 1-200)")
+    parser.add_argument("--analyze", type=str, default=None,
+                        help="Analyze a batch directory and produce batch_report.json")
+    parser.add_argument("--compare", type=str, default=None,
+                        help="Compare against a baseline batch_report.json (delta-only output)")
+    parser.add_argument("--checkpoints", type=str, default=None,
+                        help="Comma-separated checkpoint turns for analytics (e.g., 25,50,100)")
     return parser
 
 
@@ -570,6 +576,8 @@ def main() -> None:
         mode_flags.append("--live")
     if args.resume:
         mode_flags.append("--resume")
+    if getattr(args, "analyze", None):
+        mode_flags.append("--analyze")
     if len(mode_flags) > 1:
         print(f"Error: {' and '.join(mode_flags)} are mutually exclusive", file=sys.stderr)
         sys.exit(1)
@@ -596,8 +604,9 @@ def main() -> None:
         args.batch = end - start + 1
 
     # Skip LLM client and scenario resolution for live mode — run_live
-    # handles both after receiving params from the client's start command
-    if not args.live:
+    # handles both after receiving params from the client's start command.
+    # Also skip for --analyze, which only reads already-written bundles.
+    if not args.live and not getattr(args, "analyze", None):
         if getattr(args, "simulate_only", False):
             sim_client = _DummyClient()
             narrative_client = _DummyClient()
@@ -631,7 +640,26 @@ def main() -> None:
         scenario_config = None
 
     # --- Dispatch ---
-    if args.batch:
+    if getattr(args, "analyze", None):
+        import json as _json
+        from chronicler.analytics import generate_report, format_text_report, format_delta_report
+        analyze_dir = Path(args.analyze)
+        checkpoints = None
+        if getattr(args, "checkpoints", None):
+            checkpoints = [int(x.strip()) for x in args.checkpoints.split(",")]
+        report = generate_report(analyze_dir, checkpoints=checkpoints)
+        report_path = analyze_dir / "batch_report.json"
+        with open(report_path, "w") as f:
+            _json.dump(report, f, indent=2)
+        if getattr(args, "compare", None):
+            with open(args.compare) as f:
+                baseline = _json.load(f)
+            print(format_delta_report(baseline, report))
+        else:
+            print(format_text_report(report))
+        print(f"\nReport written to: {report_path}")
+
+    elif args.batch:
         from chronicler.batch import run_batch
         batch_dir = run_batch(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
         print(f"\nBatch complete: {batch_dir}")
