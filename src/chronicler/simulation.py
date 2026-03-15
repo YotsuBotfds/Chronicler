@@ -826,6 +826,12 @@ def run_turn(
     """Execute one complete turn of the simulation. Returns chronicle text."""
     turn_events: list[Event] = []
 
+    # --- M18: Start-of-turn snapshots ---
+    for civ in world.civilizations:
+        civ.regions_start_of_turn = len(civ.regions)
+        civ.was_in_twilight = civ.decline_turns > 0
+        civ.capital_start_of_turn = civ.capital_region
+
     # Phase 1: Environment
     turn_events.extend(phase_environment(world, seed=seed))
 
@@ -855,6 +861,14 @@ def run_turn(
 
     # Phase 10: Consequences
     turn_events.extend(phase_consequences(world))
+
+    # --- M18: Stress computation (feeds next turn) ---
+    from chronicler.emergence import compute_all_stress
+    compute_all_stress(world)
+
+    # --- M18: Decrement black swan cooldown ---
+    if world.black_swan_cooldown > 0:
+        world.black_swan_cooldown -= 1
 
     # Record events
     world.events_timeline.extend(turn_events)

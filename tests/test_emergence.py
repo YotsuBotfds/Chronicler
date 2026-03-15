@@ -307,3 +307,32 @@ class TestGetSeverityMultiplier:
         from chronicler.emergence import get_severity_multiplier
         civ = _make_civ(civ_stress=5)
         assert get_severity_multiplier(civ) == pytest.approx(1.125)
+
+
+class TestStressIntegration:
+    def test_stress_computed_after_turn(self):
+        """After running a turn, stress should be recomputed."""
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        # Give one civ twilight to generate stress
+        world.civilizations[0].decline_turns = 5
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                 narrator=lambda w, e: "", seed=1)
+        # After turn, stress should be computed
+        assert world.civilizations[0].civ_stress >= 3  # twilight = 3
+        assert world.stress_index >= 3
+
+    def test_snapshots_set_at_turn_start(self):
+        """Start-of-turn snapshots should reflect pre-turn state."""
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.models import ActionType
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        civ = world.civilizations[0]
+        initial_regions = len(civ.regions)
+        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
+                 narrator=lambda w, e: "", seed=1)
+        # Snapshot should have captured the pre-turn region count
+        assert civ.regions_start_of_turn == initial_regions
