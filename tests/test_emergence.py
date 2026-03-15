@@ -285,3 +285,25 @@ class TestComputeAllStress:
         assert civ_a.civ_stress == 3
         assert civ_b.civ_stress == 0
         assert world.stress_index == 3
+
+
+class TestGetSeverityMultiplier:
+    def test_zero_stress(self):
+        from chronicler.emergence import get_severity_multiplier
+        civ = _make_civ(civ_stress=0)
+        assert get_severity_multiplier(civ) == 1.0
+
+    def test_stress_10(self):
+        from chronicler.emergence import get_severity_multiplier
+        civ = _make_civ(civ_stress=10)
+        assert get_severity_multiplier(civ) == pytest.approx(1.25)
+
+    def test_stress_20_cap(self):
+        from chronicler.emergence import get_severity_multiplier
+        civ = _make_civ(civ_stress=20)
+        assert get_severity_multiplier(civ) == pytest.approx(1.5)
+
+    def test_stress_5(self):
+        from chronicler.emergence import get_severity_multiplier
+        civ = _make_civ(civ_stress=5)
+        assert get_severity_multiplier(civ) == pytest.approx(1.125)
