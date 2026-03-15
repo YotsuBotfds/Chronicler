@@ -313,7 +313,7 @@ def tick_factions(world) -> list[Event]:
                     f"{civ.name}: {new_dominant.value} faction overtakes "
                     f"{old_dominant.value} as dominant influence."
                 ),
-                importance=6,
+                importance=5,
             ))
 
         # 7. Power struggle processing
@@ -371,16 +371,16 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
 
     # External candidates from allied/friendly civs
     for other in world.civilizations:
-        if other.name == civ.name:
+        if other.name == civ.name or not other.regions:
             continue
         rel = world.relationships.get(civ.name, {}).get(other.name)
         if rel and rel.disposition in (Disposition.ALLIED, Disposition.FRIENDLY):
+            other_dominant = get_dominant_faction(other.factions)
             candidates.append({
-                "faction": "external",
-                "type": "diplomatic",
-                "source": "external",
+                "type": FACTION_CANDIDATE_TYPE[other_dominant],
+                "faction": other_dominant.value,
+                "weight": 0.1,
                 "backer_civ": other.name,
-                "weight": 0.10,
             })
 
     # GP candidates from active general/merchant/prophet
@@ -462,11 +462,10 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     # 1. Select winner from candidates
     winner = None
     if candidates:
-        outsider_candidates = [c for c in candidates if c.get("source") == "external"]
-        if outsider_candidates and rng.random() < 0.10:
-            winner = rng.choice(outsider_candidates)
+        if rng.random() < 0.10:
+            winner = rng.choice(candidates)
         else:
-            weights = [c.get("weight", 0.1) for c in candidates]
+            weights = [c["weight"] for c in candidates]
             winner = rng.choices(candidates, weights=weights, k=1)[0]
 
     # Determine force_type from winner
@@ -499,9 +498,9 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     civ.leader = new_leader
 
     # 7. Shift winning faction influence +0.15
-    if winner and winner.get("faction") and winner["faction"] != "external":
-        winning_ft = FactionType(winner["faction"])
-        shift_faction_influence(civ.factions, winning_ft, +0.15)
+    if winner and winner.get("faction"):
+        winning_faction = FactionType(winner["faction"])
+        shift_faction_influence(civ.factions, winning_faction, +0.15)
 
     # 8. Handle GP winner (transfer name/trait, mark gp dead)
     if winner and winner.get("source") == "great_person":
@@ -516,7 +515,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
             if gp.name == gp_name and gp.active:
                 gp.active = False
                 gp.alive = False
-                gp.fate = "dead"
+                gp.fate = "ascended_to_leadership"
                 break
 
     # 9. Handle external backer (upgrade disposition)
