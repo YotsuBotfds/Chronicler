@@ -123,7 +123,7 @@ pub enum Terrain {
 pub struct RegionState {
     pub region_id: u16,
     pub terrain: u8,
-    pub carrying_capacity: u16,
+    pub carrying_capacity: u16,   // Python max is 100; u16 chosen for that constraint
     pub population: u16,
     pub soil: f32,
     pub water: f32,
@@ -188,7 +188,7 @@ impl AgentSimulator {
     fn new(num_regions: u16, seed: u64) -> Self { ... }
 
     fn set_region_state(&mut self, batch: PyRecordBatch) -> PyResult<()> { ... }
-    fn tick(&mut self, turn: u32) -> PyResult<PyRecordBatch> { ... }
+    fn tick(&mut self, turn: u32) -> PyResult<PyRecordBatch> { ... }  // M26 adds signals: PyRecordBatch
     fn get_snapshot(&self) -> PyResult<PyRecordBatch> { ... }
     fn get_aggregates(&self) -> PyResult<PyRecordBatch> { ... }
     fn get_region_populations(&self) -> PyResult<PyRecordBatch> { ... }
@@ -242,7 +242,16 @@ Only alive agents. Dead slots filtered during `to_record_batch()`.
 
 **Events schema** (`tick` return):
 
-Defined with full column set in M25. Returns zero rows until M26 populates rebellion/migration/death events.
+Defined with full column set in M25. Returns zero rows until M26 populates rebellion/migration/death events. Schema stable from M25 onward — M26 adds rows, not columns.
+
+| Column | Arrow Type | Notes |
+|--------|-----------|-------|
+| `agent_id` | `UInt32` | which agent triggered the event |
+| `event_type` | `UInt8` | enum: 0=death, 1=rebellion, 2=migration, 3=occupation_switch, 4=loyalty_flip, 5=birth |
+| `region` | `UInt16` | region where event occurred |
+| `target_region` | `UInt16` | destination for migration, 0 otherwise |
+| `civ_affinity` | `UInt16` | agent's civ at time of event |
+| `turn` | `UInt32` | tick number |
 
 **Region state schema** (`set_region_state` input):
 
@@ -305,6 +314,19 @@ ChaCha8Rng with native `set_stream()` — cryptographically independent streams 
 - The `* 1000` gives headroom for up to 1000 turns before stream IDs from different regions could theoretically alias. With 24 regions and 500 turns, the actual max stream ID is ~24,500 — well within ChaCha's 64-bit stream space.
 - Seed: bytes 0–7 = u64 seed as little-endian, bytes 8–31 = zero. Documented in constructor.
 
+### PendingEvents
+
+Collects side effects from the parallel tick for sequential application:
+
+```rust
+struct PendingEvents {
+    deaths: Vec<usize>,   // slot indices of agents who died
+    aged: Vec<usize>,     // slot indices of agents who survived (age += 1)
+}
+```
+
+M26 extends this with `births`, `migrations`, and `events` fields.
+
 ### Demographic Tick (M25 Scope: Age + Die Only)
 
 ```rust
@@ -345,6 +367,9 @@ fn ecological_stress(region: &RegionState) -> f32 {
     let eco_health = (region.soil + region.water) / 2.0;  // 0.0–1.0
     1.0 + 2.0 * (1.0 - eco_health)
     // Range: 1.0 (healthy ecology) to 3.0 (total ecological collapse)
+    // NOTE: M26 replaces this with a per-variable stress formula
+    // (1.0 + max(0, 0.5-soil) + max(0, 0.5-water), range 1.0–2.0).
+    // The M25 formula is intentionally simpler for the age+die-only tick.
 }
 ```
 
@@ -383,10 +408,15 @@ class AgentBridge:
         return []
 
     def _apply_demographics_clamp(self, world: WorldState) -> None:
-        region_pops = self._sim.get_region_populations()
+        region_pops = self._sim.get_region_populations()  # Arrow RecordBatch
+        # Build region_id → alive_count lookup from the batch
+        pop_map = dict(zip(
+            region_pops.column("region_id").to_pylist(),
+            region_pops.column("alive_count").to_pylist(),
+        ))
         for i, region in enumerate(world.regions):
             if region.controller is not None:
-                agent_pop = ...  # extract from region_pops by region_id
+                agent_pop = pop_map.get(i, 0)
                 region.population = min(agent_pop, int(region.carrying_capacity * 1.2))
 
     def get_snapshot(self): return self._sim.get_snapshot()
