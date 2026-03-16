@@ -5,6 +5,7 @@ modules read from and write to WorldState, which serializes to JSON.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -261,6 +262,7 @@ class Event(BaseModel):
     description: str
     consequences: list[str] = Field(default_factory=list)
     importance: int = Field(default=5, ge=1, le=10)
+    source: str = "aggregate"  # "aggregate" or "agent"
 
 
 class NamedEvent(BaseModel):
@@ -335,6 +337,45 @@ class TerrainTransitionRule(BaseModel):
     threshold_turns: int  # Consecutive turns before transform triggers
 
 
+# --- M27: Agent integration data structures ---
+
+@dataclass(slots=True)
+class StatChange:
+    civ_id: int
+    stat: str
+    delta: float
+    category: str       # "guard", "guard-action", "guard-shock", "signal", "keep"
+    stat_at_time: float  # stat value when mutation was recorded
+
+
+@dataclass
+class CivShock:
+    civ_id: int
+    stability_shock: float = 0.0
+    economy_shock: float = 0.0
+    military_shock: float = 0.0
+    culture_shock: float = 0.0
+
+
+@dataclass
+class DemandSignal:
+    civ_id: int
+    occupation: int      # 0=farmer, 1=soldier, 2=merchant, 3=scholar, 4=priest
+    magnitude: float
+    turns_remaining: int  # starts at 3
+
+
+@dataclass(slots=True)
+class AgentEventRecord:
+    turn: int
+    agent_id: int
+    event_type: str
+    region: int
+    target_region: int
+    civ_affinity: int
+    occupation: int
+
+
 # --- Top-level state ---
 
 class WorldState(BaseModel):
@@ -385,6 +426,10 @@ class WorldState(BaseModel):
         ]
     )
     tuning_overrides: dict[str, float] = Field(default_factory=dict)
+    # M27: Agent integration
+    agent_mode: str | None = None       # None/"off", "demographics-only", "shadow", "hybrid"
+    pending_shocks: list = Field(default_factory=list)   # list[CivShock]
+    agent_events_raw: list = Field(default_factory=list)  # list[AgentEventRecord]
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
