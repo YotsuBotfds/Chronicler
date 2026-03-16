@@ -217,3 +217,55 @@ def get_self_trade_civs(world: WorldState) -> set[str]:
             if r2 and r2.controller == r1.controller:
                 self_routes.add(r1.controller)
     return self_routes
+
+
+# --- M34: Season and Climate ---
+
+def get_season_step(turn: int) -> int:
+    return turn % 12
+
+
+def get_season_id(turn: int) -> int:
+    return (turn % 12) // 3
+
+
+# SEASON_MOD[resource_type_id][season_id] — all [CALIBRATE]
+SEASON_MOD: list[list[float]] = [
+    # Spring Summer Autumn Winter
+    [0.8,   1.2,   1.5,   0.3],   # GRAIN
+    [0.6,   1.0,   1.2,   0.8],   # TIMBER
+    [1.2,   0.8,   0.6,   0.2],   # BOTANICALS
+    [1.0,   1.0,   0.8,   0.6],   # FISH
+    [0.8,   1.2,   1.0,   1.0],   # SALT
+    [0.9,   1.0,   1.0,   0.9],   # ORE
+    [0.9,   1.0,   1.0,   1.0],   # PRECIOUS
+    [1.0,   0.8,   1.2,   0.6],   # EXOTIC
+]
+
+# CLIMATE_CLASS_MOD[class_index][climate_phase_index]
+# Classes: 0=Crop, 1=Forestry, 2=Marine, 3=Mineral, 4=Evaporite
+# Phases: 0=TEMPERATE, 1=WARMING, 2=DROUGHT, 3=COOLING
+CLIMATE_CLASS_MOD: list[list[float]] = [
+    [1.0, 0.9, 0.5, 0.7],  # Crop
+    [1.0, 0.9, 0.7, 0.8],  # Forestry
+    [1.0, 1.0, 0.8, 0.9],  # Marine
+    [1.0, 1.0, 1.0, 1.0],  # Mineral
+    [1.0, 1.1, 1.2, 0.9],  # Evaporite
+]
+
+_CLIMATE_PHASE_INDEX = {"temperate": 0, "warming": 1, "drought": 2, "cooling": 3}
+
+
+def resource_class_index(rtype: int) -> int:
+    """Map ResourceType to mechanical class index for CLIMATE_CLASS_MOD."""
+    if rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS, ResourceType.EXOTIC):
+        return 0  # Crop
+    elif rtype == ResourceType.TIMBER:
+        return 1  # Forestry
+    elif rtype == ResourceType.FISH:
+        return 2  # Marine
+    elif rtype in (ResourceType.ORE, ResourceType.PRECIOUS):
+        return 3  # Mineral
+    elif rtype == ResourceType.SALT:
+        return 4  # Evaporite
+    return 0  # Fallback

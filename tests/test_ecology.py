@@ -604,3 +604,46 @@ class TestFeedbackLoops:
         w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
         self._run_turns(w, ClimatePhase.TEMPERATE, 20)
         assert r.ecology.soil <= 0.10
+
+
+# --- Task 4 (M34): Season/Climate modifier tables ---
+
+from chronicler.resources import get_season_id, get_season_step
+
+
+def test_season_clock():
+    assert get_season_step(0) == 0   # Spring turn 0
+    assert get_season_id(0) == 0     # Spring
+    assert get_season_step(2) == 2   # Spring close
+    assert get_season_id(2) == 0     # Still Spring
+    assert get_season_step(3) == 3   # Summer open
+    assert get_season_id(3) == 1     # Summer
+    assert get_season_step(11) == 11 # Winter close
+    assert get_season_id(11) == 3    # Winter
+    assert get_season_step(12) == 0  # Wraps to Spring
+    assert get_season_id(12) == 0
+
+
+def test_season_modifier_table_shape():
+    from chronicler.resources import SEASON_MOD
+    assert len(SEASON_MOD) == 8   # 8 resource types
+    assert len(SEASON_MOD[0]) == 4  # 4 seasons
+
+
+def test_climate_class_mod_shape():
+    from chronicler.resources import CLIMATE_CLASS_MOD
+    assert len(CLIMATE_CLASS_MOD) == 5   # 5 mechanical classes
+    assert len(CLIMATE_CLASS_MOD[0]) == 4  # 4 climate phases
+
+
+def test_resource_class_index():
+    from chronicler.resources import resource_class_index
+    from chronicler.models import ResourceType
+    assert resource_class_index(ResourceType.GRAIN) == 0      # Crop
+    assert resource_class_index(ResourceType.BOTANICALS) == 0  # Crop
+    assert resource_class_index(ResourceType.EXOTIC) == 0      # Crop
+    assert resource_class_index(ResourceType.TIMBER) == 1      # Forestry
+    assert resource_class_index(ResourceType.FISH) == 2        # Marine
+    assert resource_class_index(ResourceType.ORE) == 3         # Mineral
+    assert resource_class_index(ResourceType.PRECIOUS) == 3    # Mineral
+    assert resource_class_index(ResourceType.SALT) == 4        # Evaporite
