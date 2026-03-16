@@ -5,6 +5,19 @@ from chronicler_agents import AgentSimulator
 from chronicler.agent_bridge import build_region_batch, TERRAIN_MAP, AgentBridge
 
 
+def _make_dummy_signals(num_civs=3):
+    """Minimal civ-signals batch for tests that don't exercise signal logic."""
+    return pa.record_batch({
+        "civ_id": pa.array(range(num_civs), type=pa.uint8()),
+        "stability": pa.array([50] * num_civs, type=pa.uint8()),
+        "is_at_war": pa.array([False] * num_civs, type=pa.bool_()),
+        "dominant_faction": pa.array([0] * num_civs, type=pa.uint8()),
+        "faction_military": pa.array([0.33] * num_civs, type=pa.float32()),
+        "faction_merchant": pa.array([0.33] * num_civs, type=pa.float32()),
+        "faction_cultural": pa.array([0.34] * num_civs, type=pa.float32()),
+    })
+
+
 def _make_region_batch(num_regions=3, capacity=60):
     return pa.record_batch({
         "region_id": pa.array(range(num_regions), type=pa.uint16()),
@@ -38,19 +51,20 @@ class TestPythonRoundTrip:
                     "loyalty", "satisfaction", "skill", "age", "displacement_turn"]
         assert snap.schema.names == expected
 
-    def test_aggregates_population_matches_and_others_zeroed(self):
+    def test_aggregates_population_matches_and_metrics_in_range(self):
         sim = AgentSimulator(num_regions=2, seed=42)
         sim.set_region_state(_make_region_batch(num_regions=2, capacity=30))
         agg = sim.get_aggregates()
         total_pop = sum(agg.column("population").to_pylist())
         assert total_pop == sim.get_snapshot().num_rows
         for col_name in ["military", "economy", "culture", "stability"]:
-            assert all(v == 0 for v in agg.column(col_name).to_pylist())
+            values = agg.column(col_name).to_pylist()
+            assert all(0 <= v <= 100 for v in values)
 
     def test_tick_before_set_region_state_errors(self):
         sim = AgentSimulator(num_regions=2, seed=42)
         with pytest.raises((RuntimeError, ValueError), match="set_region_state"):
-            sim.tick(0)
+            sim.tick(0, _make_dummy_signals())
 
 
 class TestTickBehavior:
@@ -63,8 +77,8 @@ class TestTickBehavior:
         region_batch = _make_region_batch(num_regions=3, capacity=60)
         for turn in range(10):
             sim.set_region_state(region_batch)
-            events = sim.tick(turn)
-            assert events.num_rows == 0
+            events = sim.tick(turn, _make_dummy_signals())
+        # M26: events RecordBatch is populated (deaths, births, etc.) — just check pop decreased
         assert sim.get_snapshot().num_rows < initial_count
 
     def test_ages_increment(self):
@@ -73,7 +87,7 @@ class TestTickBehavior:
         region_batch = _make_region_batch(num_regions=1, capacity=20)
         for turn in range(5):
             sim.set_region_state(region_batch)
-            sim.tick(turn)
+            sim.tick(turn, _make_dummy_signals(num_civs=1))
         ages = sim.get_snapshot().column("age").to_pylist()
         assert all(a == 5 for a in ages)
 
@@ -83,7 +97,7 @@ class TestTickBehavior:
         region_batch = _make_region_batch(num_regions=3, capacity=40)
         for turn in range(5):
             sim.set_region_state(region_batch)
-            sim.tick(turn)
+            sim.tick(turn, _make_dummy_signals())
         snap = sim.get_snapshot()
         region_pops = sim.get_region_populations()
         regions_col = snap.column("region").to_pylist()
@@ -110,7 +124,9 @@ class TestDemographicsOnlyIntegration:
                 if region.controller is not None:
                     assert region.population <= int(region.carrying_capacity * 1.2)
         final_pops = {r.name: r.population for r in sample_world.regions if r.controller is not None}
-        assert sum(final_pops.values()) < sum(initial_pops.values())
+        # M26 has fertility, so population may not strictly decrease.
+        # Just verify it stayed bounded (carrying_capacity * 1.2 check above) and didn't explode.
+        assert sum(final_pops.values()) < sum(initial_pops.values()) * 2
 
 
 class TestPythonDeterminism:
@@ -118,13 +134,14 @@ class TestPythonDeterminism:
         sim_a = AgentSimulator(num_regions=3, seed=12345)
         sim_b = AgentSimulator(num_regions=3, seed=12345)
         region_batch = _make_region_batch(num_regions=3, capacity=50)
+        signals = _make_dummy_signals()
         sim_a.set_region_state(region_batch)
         sim_b.set_region_state(region_batch)
         for turn in range(50):
             sim_a.set_region_state(region_batch)
             sim_b.set_region_state(region_batch)
-            sim_a.tick(turn)
-            sim_b.tick(turn)
+            sim_a.tick(turn, signals)
+            sim_b.tick(turn, signals)
         snap_a = sim_a.get_snapshot()
         snap_b = sim_b.get_snapshot()
         assert snap_a.num_rows == snap_b.num_rows

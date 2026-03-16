@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use arrow::array::{UInt8Builder, UInt16Builder, UInt32Builder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
@@ -70,11 +71,13 @@ pub fn events_schema() -> Schema {
         Field::new("region", DataType::UInt16, false),
         Field::new("target_region", DataType::UInt16, false),
         Field::new("civ_affinity", DataType::UInt16, false),
+        Field::new("occupation", DataType::UInt8, false),
         Field::new("turn", DataType::UInt32, false),
     ])
 }
 
 /// Schema for `set_region_state()` input.
+#[allow(dead_code)]
 pub fn region_state_schema() -> Schema {
     Schema::new(vec![
         Field::new("region_id", DataType::UInt16, false),
@@ -84,6 +87,20 @@ pub fn region_state_schema() -> Schema {
         Field::new("soil", DataType::Float32, false),
         Field::new("water", DataType::Float32, false),
         Field::new("forest_cover", DataType::Float32, false),
+    ])
+}
+
+/// Schema for civ_signals input to `tick()`.
+#[allow(dead_code)]
+pub fn civ_signals_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("civ_id", DataType::UInt8, false),
+        Field::new("stability", DataType::UInt8, false),
+        Field::new("is_at_war", DataType::Boolean, false),
+        Field::new("dominant_faction", DataType::UInt8, false),
+        Field::new("faction_military", DataType::Float32, false),
+        Field::new("faction_merchant", DataType::Float32, false),
+        Field::new("faction_cultural", DataType::Float32, false),
     ])
 }
 
@@ -97,6 +114,7 @@ pub fn region_state_schema() -> Schema {
 pub struct AgentSimulator {
     pool: AgentPool,
     regions: Vec<RegionState>,
+    contested_regions: Vec<bool>,
     master_seed: [u8; 32],
     num_regions: usize,
     turn: u32,
@@ -115,6 +133,7 @@ impl AgentSimulator {
         Self {
             pool: AgentPool::new(num_regions * 60),
             regions: Vec::new(),
+            contested_regions: Vec::new(),
             master_seed,
             num_regions,
             turn: 0,
@@ -168,6 +187,25 @@ impl AgentSimulator {
         let waters = col_f32!("water");
         let forest_covers = col_f32!("forest_cover");
 
+        // Optional M26 columns — backward-compatible defaults.
+        let controller_civs = rb
+            .column_by_name("controller_civ")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let adjacency_masks = rb
+            .column_by_name("adjacency_mask")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt32Array>());
+        let trade_route_counts = rb
+            .column_by_name("trade_route_count")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let is_contested_col = rb
+            .column_by_name("is_contested")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+
+        // Store contested_regions.
+        self.contested_regions = (0..n)
+            .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
+            .collect();
+
         if !self.initialized {
             // First call: initialise regions and spawn agents.
             self.regions = (0..n)
@@ -179,6 +217,9 @@ impl AgentSimulator {
                     soil: soils.value(i),
                     water: waters.value(i),
                     forest_cover: forest_covers.value(i),
+                    controller_civ: controller_civs.map_or(255, |arr| arr.value(i)),
+                    adjacency_mask: adjacency_masks.map_or(0, |arr| arr.value(i)),
+                    trade_route_count: trade_route_counts.map_or(0, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -187,8 +228,11 @@ impl AgentSimulator {
             for i in 0..n {
                 let cap = capacities.value(i) as usize;
                 let region_id = region_ids.value(i);
-                // Use civ_affinity = region_id as u8 (placeholder; M26 will assign proper civs)
-                let civ = (region_id % 256) as u8;
+                let civ = if self.regions[i].controller_civ != 255 {
+                    self.regions[i].controller_civ
+                } else {
+                    (region_id % 256) as u8  // fallback for uncontrolled
+                };
 
                 let n_farmer = (cap * 60 + 50) / 100;
                 let n_soldier = (cap * 15 + 50) / 100;
@@ -216,7 +260,7 @@ impl AgentSimulator {
 
             self.initialized = true;
         } else {
-            // Subsequent calls: update ecology fields only.
+            // Subsequent calls: update all fields.
             if self.regions.len() != n {
                 return Err(PyValueError::new_err(
                     "set_region_state: row count changed between calls",
@@ -230,24 +274,40 @@ impl AgentSimulator {
                 r.soil = soils.value(i);
                 r.water = waters.value(i);
                 r.forest_cover = forest_covers.value(i);
+                r.controller_civ = controller_civs.map_or(r.controller_civ, |arr| arr.value(i));
+                r.adjacency_mask = adjacency_masks.map_or(r.adjacency_mask, |arr| arr.value(i));
+                r.trade_route_count = trade_route_counts.map_or(r.trade_route_count, |arr| arr.value(i));
             }
         }
         Ok(())
     }
 
-    /// Advance simulation by one turn. Returns an empty events RecordBatch.
-    pub fn tick(&mut self, turn: u32) -> PyResult<PyRecordBatch> {
+    /// Advance simulation by one turn. Returns an events RecordBatch.
+    pub fn tick(&mut self, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
         if !self.initialized {
             return Err(PyValueError::new_err(
                 "tick() called before set_region_state()",
             ));
         }
         self.turn = turn;
-        crate::tick::tick_agents(&mut self.pool, &self.regions, self.master_seed, turn);
 
-        // Return an empty events RecordBatch with the full schema.
-        let schema = Arc::new(events_schema());
-        let batch = RecordBatch::new_empty(schema);
+        // Parse civ signals from the Arrow batch.
+        let civ_rb: RecordBatch = civ_signals.into_inner();
+        let civs = crate::signals::parse_civ_signals(&civ_rb).map_err(arrow_err)?;
+
+        let signals = crate::signals::TickSignals {
+            civs,
+            contested_regions: self.contested_regions.clone(),
+        };
+        let events = crate::tick::tick_agents(
+            &mut self.pool,
+            &self.regions,
+            &signals,
+            self.master_seed,
+            turn,
+        );
+
+        let batch = events_to_batch(&events).map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
     }
 
@@ -259,7 +319,7 @@ impl AgentSimulator {
 
     /// Return per-civ aggregate stats as an Arrow RecordBatch.
     pub fn get_aggregates(&self) -> PyResult<PyRecordBatch> {
-        let batch = self.pool.compute_aggregates().map_err(arrow_err)?;
+        let batch = self.pool.compute_aggregates(&self.regions).map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
     }
 
@@ -271,4 +331,44 @@ impl AgentSimulator {
             .map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Event serialization
+// ---------------------------------------------------------------------------
+
+/// Convert a slice of AgentEvents into an Arrow RecordBatch using events_schema().
+fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, ArrowError> {
+    let n = events.len();
+    let mut agent_ids = UInt32Builder::with_capacity(n);
+    let mut event_types = UInt8Builder::with_capacity(n);
+    let mut regions = UInt16Builder::with_capacity(n);
+    let mut target_regions = UInt16Builder::with_capacity(n);
+    let mut civ_affinities = UInt16Builder::with_capacity(n);
+    let mut occupations = UInt8Builder::with_capacity(n);
+    let mut turns = UInt32Builder::with_capacity(n);
+
+    for e in events {
+        agent_ids.append_value(e.agent_id);
+        event_types.append_value(e.event_type);
+        regions.append_value(e.region);
+        target_regions.append_value(e.target_region);
+        civ_affinities.append_value(e.civ_affinity as u16);
+        occupations.append_value(e.occupation);
+        turns.append_value(e.turn);
+    }
+
+    let schema = Arc::new(events_schema());
+    RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(agent_ids.finish()) as _,
+            Arc::new(event_types.finish()) as _,
+            Arc::new(regions.finish()) as _,
+            Arc::new(target_regions.finish()) as _,
+            Arc::new(civ_affinities.finish()) as _,
+            Arc::new(occupations.finish()) as _,
+            Arc::new(turns.finish()) as _,
+        ],
+    )
 }

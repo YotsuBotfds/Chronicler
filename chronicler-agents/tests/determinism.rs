@@ -1,4 +1,5 @@
 use chronicler_agents::{AgentPool, Occupation, RegionState, tick_agents};
+use chronicler_agents::signals::{CivSignals, TickSignals};
 
 fn make_test_regions() -> Vec<RegionState> {
     (0..5)
@@ -10,8 +11,28 @@ fn make_test_regions() -> Vec<RegionState> {
             soil: 0.5 + (i as f32) * 0.1,
             water: 0.4 + (i as f32) * 0.05,
             forest_cover: 0.3,
+            adjacency_mask: 0,
+            controller_civ: 255,
+            trade_route_count: 0,
         })
         .collect()
+}
+
+fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
+    TickSignals {
+        civs: (0..num_civs)
+            .map(|i| CivSignals {
+                civ_id: i as u8,
+                stability: if i == 2 { 20 } else { 55 },
+                is_at_war: i == 1 || i == 3,
+                dominant_faction: (i % 3) as u8,
+                faction_military: if i == 1 { 0.60 } else { 0.25 },
+                faction_merchant: if i == 1 { 0.20 } else { 0.40 },
+                faction_cultural: if i == 1 { 0.20 } else { 0.35 },
+            })
+            .collect(),
+        contested_regions: (0..num_regions).map(|i| i == 1 || i == 3).collect(),
+    }
 }
 
 fn make_test_pool(regions: &[RegionState]) -> AgentPool {
@@ -26,9 +47,10 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
 
 fn run_simulation(seed: [u8; 32], turns: u32) -> (usize, Vec<u16>) {
     let regions = make_test_regions();
+    let signals = make_default_signals(5, 5);
     let mut pool = make_test_pool(&regions);
     for turn in 0..turns {
-        tick_agents(&mut pool, &regions, seed, turn);
+        tick_agents(&mut pool, &regions, &signals, seed, turn);
     }
     let batch = pool.to_record_batch().unwrap();
     let ages_col = batch

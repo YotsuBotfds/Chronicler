@@ -9,6 +9,10 @@ mod agent;
 mod ffi;
 mod pool;
 mod region;
+pub mod behavior;
+pub mod demographics;
+pub mod satisfaction;
+pub mod signals;
 mod tick;
 
 // Public re-exports for integration tests and benchmarks.
@@ -19,7 +23,7 @@ pub use pool::AgentPool;
 #[doc(hidden)]
 pub use region::RegionState;
 #[doc(hidden)]
-pub use tick::tick_agents;
+pub use tick::{tick_agents, AgentEvent};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
