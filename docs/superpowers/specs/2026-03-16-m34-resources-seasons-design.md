@@ -265,13 +265,16 @@ current_yield = base_yield × season_mod × reserve_ramp
 # FOOD_TYPES = {GRAIN, FISH, BOTANICALS, EXOTIC}
 slot_food = max((y for rtype, y in zip(region.resource_types, yields)
                  if rtype in FOOD_TYPES), default=0.0)
-food_yield = max(SUBSISTENCE_BASELINE, slot_food)
+
+# Subsistence baseline affected by climate — drought hits foragers too
+subsistence = SUBSISTENCE_BASELINE * climate_mod_for_crops
+food_yield = max(subsistence, slot_food)
 
 if food_yield < FAMINE_YIELD_THRESHOLD:
     emit FAMINE event
 ```
 
-The `default=0.0` handles regions with zero food slots (Mountains, some Forests). `SUBSISTENCE_BASELINE` (0.15) provides a floor above the famine threshold under normal conditions, but drought can push it below: `0.15 × 0.5 = 0.075 < 0.12`.
+The `default=0.0` handles regions with zero food slots (Mountains, some Forests). `climate_mod_for_crops` applies to the baseline so drought reaches foragers: temperate subsistence = `0.15 × 1.0 = 0.15` (above threshold), drought subsistence = `0.15 × 0.5 = 0.075` (below threshold → famine).
 
 `FAMINE_YIELD_THRESHOLD` `[CALIBRATE]`: must sit below `base × 0.3 × 1.0 × healthy_ecology` (normal Winter — no famine) but above `base × 0.3 × 0.5 × degraded_ecology` (drought Winter with stress — famine). Target: 5-15% of turns during drought phases, near-zero during temperate.
 
@@ -382,7 +385,7 @@ fn trade_satisfaction(region: &RegionState) -> f32 {
 }
 ```
 
-Continuous rather than step-function — avoids 0.4 satisfaction jumps from gaining/losing a single trade good. Non-food resources (Ore, Precious, Salt) contribute more than food. Mountains with Ore + Precious = 0.7. Tundra with only Exotic (food) = 0.25. Coast with Fish + Salt = 0.50. Desert with Exotic + Salt + Precious = 0.85.
+Continuous rather than step-function — avoids 0.4 satisfaction jumps from gaining/losing a single trade good. Non-food resources (Ore, Precious, Salt) contribute more than food. Mountains with Ore + Precious = 0.7. Tundra with only Exotic (food) = 0.15. Coast with Fish + Salt = 0.50. Desert with Exotic + Salt + Precious = 0.85.
 
 ### Occupation Demand Shifts
 
