@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
-from chronicler.models import ClimateConfig, ClimatePhase, Event, InfrastructureType, Disposition
+from chronicler.models import ClimateConfig, ClimatePhase, Event, InfrastructureType, Disposition, ResourceType
 
 
 PHASE_SCHEDULE: list[tuple[float, ClimatePhase]] = [
@@ -143,7 +143,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
 
             elif dtype == "wildfire":
                 region.ecology.forest_cover = max(0.0, region.ecology.forest_cover - 0.3)
-                region.resource_suspensions["timber"] = 10
+                region.resource_suspensions[ResourceType.TIMBER] = 10
                 events.append(Event(
                     turn=world.turn, event_type="wildfire",
                     actors=[region.controller or "nature"],
@@ -152,7 +152,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "sandstorm":
-                region.resource_suspensions["trade_route"] = 5
+                region.route_suspensions["trade_route"] = 5
                 events.append(Event(
                     turn=world.turn, event_type="sandstorm",
                     actors=[region.controller or "nature"],

@@ -783,3 +783,16 @@ def test_multifood_uses_max():
     r.resource_types = [ResourceType.FISH, ResourceType.BOTANICALS, EMPTY_SLOT]
     # Fish yield low (0.05) but Botanicals high (0.50) -> no famine
     assert check_food_yield(r, [0.05, 0.50, 0.0], ClimatePhase.TEMPERATE) is False
+
+
+# --- Task 7 (Climate Suspension Split) ---
+
+def test_suspension_split_types():
+    """resource_suspensions uses int keys, route_suspensions uses str keys."""
+    from chronicler.models import Region, ResourceType
+    r = Region(name="Test", terrain="forest", carrying_capacity=50, resources="timber")
+    r.resource_suspensions[ResourceType.TIMBER] = 10
+    r.route_suspensions["trade_route"] = 5
+    assert ResourceType.TIMBER in r.resource_suspensions
+    assert "trade_route" in r.route_suspensions
+    assert "timber" not in r.resource_suspensions  # No string keys in resource_suspensions

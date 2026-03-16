@@ -2,7 +2,7 @@ import pytest
 from chronicler.models import (
     ClimatePhase, ClimateConfig, WorldState, Region,
     Civilization, Leader, Relationship, Disposition,
-    Infrastructure, InfrastructureType,
+    Infrastructure, InfrastructureType, ResourceType,
 )
 
 
@@ -178,7 +178,24 @@ class TestCheckDisasters:
             r.resource_suspensions = {}
             events = check_disasters(w, ClimatePhase.TEMPERATE)
             if any(e.event_type == "wildfire" for e in events):
-                assert r.resource_suspensions.get("timber") == 10
+                assert r.resource_suspensions.get(ResourceType.TIMBER) == 10
+                assert "timber" not in r.resource_suspensions
+                break
+
+    def test_sandstorm_suspends_trade_route(self):
+        from chronicler.climate import check_disasters
+        r = Region(name="Dunes", terrain="desert", carrying_capacity=20,
+                   resources="mineral")
+        w = WorldState(name="T", seed=42, regions=[r],
+                       climate_config=ClimateConfig(severity=1.0))
+        for turn in range(200):
+            w.turn = turn
+            r.disaster_cooldowns = {}
+            r.route_suspensions = {}
+            events = check_disasters(w, ClimatePhase.TEMPERATE)
+            if any(e.event_type == "sandstorm" for e in events):
+                assert r.route_suspensions.get("trade_route") == 5
+                assert "trade_route" not in r.resource_suspensions
                 break
 
 

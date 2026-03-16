@@ -31,6 +31,7 @@ from chronicler.models import (
     Civilization,
     CivShock,
     Disposition,
+    EMPTY_SLOT,
     Event,
     Leader,
     NamedEvent,
@@ -109,6 +110,9 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
         for k in list(region.resource_suspensions):
             region.resource_suspensions[k] -= 1
         region.resource_suspensions = {k: v for k, v in region.resource_suspensions.items() if v > 0}
+        for k in list(region.route_suspensions):
+            region.route_suspensions[k] -= 1
+        region.route_suspensions = {k: v for k, v in region.route_suspensions.items() if v > 0}
 
     disaster_events = check_disasters(world, climate_phase)
     events.extend(disaster_events)
@@ -248,11 +252,12 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
             continue
         resource_counts: dict = {}
         for r in controlled:
-            for res in r.specialized_resources:
-                resource_counts[res] = resource_counts.get(res, 0) + 1
+            for rtype in r.resource_types:
+                if rtype == EMPTY_SLOT:
+                    continue
+                resource_counts[rtype] = resource_counts.get(rtype, 0) + 1
         if not resource_counts:
             continue
-        from chronicler.models import Resource
         primary = max(resource_counts, key=lambda r: resource_counts[r])
         civ_routes = [(a, b) for a, b in cross_routes if civ.name in (a, b)]
         if not civ_routes:
@@ -260,7 +265,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
         primary_routes = 0
         for a, b in civ_routes:
             route_regions = [r for r in world.regions
-                            if r.controller in (a, b) and primary in r.specialized_resources]
+                            if r.controller in (a, b) and primary in r.resource_types]
             if route_regions:
                 primary_routes += 1
         if len(civ_routes) > 0 and primary_routes / len(civ_routes) > 0.6:
