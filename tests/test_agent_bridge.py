@@ -78,7 +78,7 @@ class TestTickBehavior:
         for turn in range(10):
             sim.set_region_state(region_batch)
             events = sim.tick(turn, _make_dummy_signals())
-            assert events.num_rows == 0
+        # M26: events RecordBatch is populated (deaths, births, etc.) — just check pop decreased
         assert sim.get_snapshot().num_rows < initial_count
 
     def test_ages_increment(self):
@@ -124,7 +124,9 @@ class TestDemographicsOnlyIntegration:
                 if region.controller is not None:
                     assert region.population <= int(region.carrying_capacity * 1.2)
         final_pops = {r.name: r.population for r in sample_world.regions if r.controller is not None}
-        assert sum(final_pops.values()) < sum(initial_pops.values())
+        # M26 has fertility, so population may not strictly decrease.
+        # Just verify it stayed bounded (carrying_capacity * 1.2 check above) and didn't explode.
+        assert sum(final_pops.values()) < sum(initial_pops.values()) * 2
 
 
 class TestPythonDeterminism:
