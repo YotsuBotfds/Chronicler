@@ -14,6 +14,7 @@ pub mod demographics;
 pub mod satisfaction;
 pub mod signals;
 mod tick;
+pub mod named_characters;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
@@ -24,6 +25,8 @@ pub use pool::AgentPool;
 pub use region::RegionState;
 #[doc(hidden)]
 pub use tick::{tick_agents, AgentEvent};
+#[doc(hidden)]
+pub use named_characters::{CharacterRole, NamedCharacterRegistry};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
