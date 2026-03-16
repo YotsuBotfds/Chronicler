@@ -520,6 +520,7 @@ _CRISIS_HALVED_STATS = ("economy", "culture", "military", "stability", "populati
 def phase_action(
     world: WorldState,
     action_selector: ActionSelector,
+    acc=None,
 ) -> list[Event]:
     """Each civilization takes one action from the constrained menu."""
     events: list[Event] = []
@@ -532,7 +533,7 @@ def phase_action(
             pre_stats = {s: getattr(civ, s) for s in _CRISIS_HALVED_STATS}
 
         action = action_selector(civ, world)
-        event = resolve_action(civ, action, world)
+        event = resolve_action(civ, action, world, acc=acc)
 
         # Crisis halving: reduce positive stat gains by 50%
         if in_crisis:

@@ -74,17 +74,28 @@ def _get_civ(world: WorldState, name: str) -> Civilization | None:
 # --- Action handlers ---
 
 @register_action(ActionType.DEVELOP)
-def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
+def _resolve_develop(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Invest in infrastructure: spend treasury to boost economy or culture."""
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
     cost = 5 + civ.economy // 10
     if civ.treasury >= cost:
-        civ.treasury -= cost
+        if acc is not None:
+            acc.add(civ_idx, civ, "treasury", -cost, "keep")
+        else:
+            civ.treasury -= cost
         factor = _power_struggle_factor(civ)
         if civ.economy <= civ.culture:
-            civ.economy = clamp(civ.economy + int(10 * factor), STAT_FLOOR["economy"], 100)
+            if acc is not None:
+                acc.add(civ_idx, civ, "economy", int(10 * factor), "guard-action")
+            else:
+                civ.economy = clamp(civ.economy + int(10 * factor), STAT_FLOOR["economy"], 100)
             target = "economy"
         else:
-            civ.culture = clamp(civ.culture + int(10 * factor), STAT_FLOOR["culture"], 100)
+            if acc is not None:
+                acc.add(civ_idx, civ, "culture", int(10 * factor), "guard-action")
+            else:
+                civ.culture = clamp(civ.culture + int(10 * factor), STAT_FLOOR["culture"], 100)
             target = "culture"
         return Event(
             turn=world.turn, event_type="develop", actors=[civ.name],
@@ -97,7 +108,7 @@ def _resolve_develop(civ: Civilization, world: WorldState) -> Event:
 
 
 @register_action(ActionType.EXPAND)
-def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
+def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Claim an uncontrolled region."""
     civ_index = next((i for i, c in enumerate(world.civilizations) if c.name == civ.name), 0)
     rng = random.Random(world.turn * 1000 + civ_index)
@@ -109,7 +120,10 @@ def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
         target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
-        civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
+        if acc is not None:
+            acc.add(civ_index, civ, "military", -10, "guard-action")
+        else:
+            civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
         # M19b: Track exploration capability firing into harsh terrain pre-Iron
         if civ.active_focus == "exploration" and not _era_at_least(civ.tech_era, TechEra.IRON) and target.terrain in HARSH_TERRAINS:
             world.events_timeline.append(Event(
@@ -129,7 +143,7 @@ def _resolve_expand(civ: Civilization, world: WorldState) -> Event:
 
 
 @register_action(ActionType.TRADE)
-def _resolve_trade_action(civ: Civilization, world: WorldState) -> Event:
+def _resolve_trade_action(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Initiate trade with the friendliest neighbor."""
     best_partner = None
     best_disp = -1
@@ -141,7 +155,7 @@ def _resolve_trade_action(civ: Civilization, world: WorldState) -> Event:
                 best_partner = _get_civ(world, other_name)
 
     if best_partner and best_disp >= 2:  # At least neutral
-        resolve_trade(civ, best_partner, world)
+        resolve_trade(civ, best_partner, world, acc=acc)
         return Event(
             turn=world.turn, event_type="trade", actors=[civ.name, best_partner.name],
             description=f"{civ.name} traded with {best_partner.name}.", importance=3,
@@ -153,7 +167,7 @@ def _resolve_trade_action(civ: Civilization, world: WorldState) -> Event:
 
 
 @register_action(ActionType.DIPLOMACY)
-def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
+def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Attempt to improve relations with the most hostile neighbor."""
     from chronicler.named_events import generate_treaty_name
 
@@ -199,7 +213,7 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState) -> Event:
 
 
 @register_action(ActionType.WAR)
-def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
+def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Declare war on the most hostile neighbor."""
     from chronicler.named_events import generate_battle_name
     from chronicler.leaders import update_rivalries
@@ -229,11 +243,11 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
 
     if target_name is None:
         # No HOSTILE/SUSPICIOUS target exists — fall back to peaceful action
-        return _resolve_develop(civ, world)
+        return _resolve_develop(civ, world, acc=acc)
 
     defender = _get_civ(world, target_name)
     if defender:
-        result = resolve_war(civ, defender, world, seed=world.turn)
+        result = resolve_war(civ, defender, world, seed=world.turn, acc=acc)
         # Track active war (both orderings)
         pair = (civ.name, target_name)
         pair_rev = (target_name, civ.name)
@@ -293,7 +307,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState) -> Event:
 
 
 @register_action(ActionType.EMBARGO)
-def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
+def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Impose trade embargo on most hostile neighbor."""
     target_name = None
     if civ.name in world.relationships:
@@ -316,7 +330,11 @@ def _resolve_embargo(civ: Civilization, world: WorldState) -> Event:
                 ))
             else:
                 embargo_damage = 5
-            target.stability = clamp(target.stability - embargo_damage, STAT_FLOOR["stability"], 100)
+            if acc is not None:
+                target_idx = next(i for i, c in enumerate(world.civilizations) if c.name == target.name)
+                acc.add(target_idx, target, "stability", -embargo_damage, "signal")
+            else:
+                target.stability = clamp(target.stability - embargo_damage, STAT_FLOOR["stability"], 100)
         return Event(
             turn=world.turn, event_type="embargo", actors=[civ.name, target_name],
             description=f"{civ.name} imposed a trade embargo on {target_name}.",
@@ -334,19 +352,19 @@ REACTION_REGISTRY["region_lost"] = scorched_earth_check
 
 
 @register_action(ActionType.MOVE_CAPITAL)
-def _resolve_move_capital(civ: Civilization, world: WorldState) -> Event:
+def _resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Event:
     from chronicler.politics import resolve_move_capital
     return resolve_move_capital(civ, world)
 
 
 @register_action(ActionType.FUND_INSTABILITY)
-def _resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:
+def _resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> Event:
     from chronicler.politics import resolve_fund_instability
     return resolve_fund_instability(civ, world)
 
 
 @register_action(ActionType.INVEST_CULTURE)
-def _resolve_invest_culture(civ: Civilization, world: WorldState) -> Event:
+def _resolve_invest_culture(civ: Civilization, world: WorldState, acc=None) -> Event:
     from chronicler.culture import resolve_invest_culture
     return resolve_invest_culture(civ, world)
 
@@ -358,6 +376,7 @@ def resolve_war(
     defender: Civilization,
     world: WorldState,
     seed: int = 0,
+    acc=None,
 ) -> WarResult:
     """Resolve combat between two civilizations. Returns WarResult namedtuple."""
     from chronicler.tech import tech_war_multiplier
@@ -416,8 +435,14 @@ def resolve_war(
         ))
 
     # War costs treasury regardless of outcome
-    attacker.treasury = max(0, attacker.treasury - 20)
-    defender.treasury = max(0, defender.treasury - 10)
+    if acc is not None:
+        att_idx = next(i for i, c in enumerate(world.civilizations) if c.name == attacker.name)
+        def_idx = next(i for i, c in enumerate(world.civilizations) if c.name == defender.name)
+        acc.add(att_idx, attacker, "treasury", -20, "keep")
+        acc.add(def_idx, defender, "treasury", -10, "keep")
+    else:
+        attacker.treasury = max(0, attacker.treasury - 20)
+        defender.treasury = max(0, defender.treasury - 10)
 
     if att_power > def_power * 1.3:
         if contested:
@@ -436,24 +461,38 @@ def resolve_war(
                 for adj in contested.adjacencies:
                     known_set.add(adj)
                 attacker.known_regions = sorted(known_set)
-        attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
-        defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
-        defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(att_idx, attacker, "military", -10, "guard-action")
+            acc.add(def_idx, defender, "military", -20, "guard-action")
+            acc.add(def_idx, defender, "stability", -10, "signal")
+        else:
+            attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
+            defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
         return WarResult("attacker_wins", contested.name if contested else None)
     elif def_power > att_power * 1.3:
-        attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
-        defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
-        attacker.stability = clamp(attacker.stability - 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(att_idx, attacker, "military", -20, "guard-action")
+            acc.add(def_idx, defender, "military", -10, "guard-action")
+            acc.add(att_idx, attacker, "stability", -10, "signal")
+        else:
+            attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
+            attacker.stability = clamp(attacker.stability - 10, STAT_FLOOR["stability"], 100)
         return WarResult("defender_wins", contested.name if contested else None)
     else:
-        attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
-        defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
+        if acc is not None:
+            acc.add(att_idx, attacker, "military", -10, "guard-action")
+            acc.add(def_idx, defender, "military", -10, "guard-action")
+        else:
+            attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
         return WarResult("stalemate", None)
 
 
 # --- Trade resolution ---
 
-def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> None:
+def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState, acc=None) -> None:
     """Resolve trade: both sides gain treasury proportional to their economy."""
     perceived_econ_2 = get_perceived_stat(civ1, civ2, "economy", world)
     perceived_econ_1 = get_perceived_stat(civ2, civ1, "economy", world)
@@ -497,8 +536,14 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> 
         gain1 = int(gain1 * 1.5)
     gain1 = int(gain1 * _power_struggle_factor(civ1))
     gain2 = int(gain2 * _power_struggle_factor(civ2))
-    civ1.treasury += gain1
-    civ2.treasury += gain2
+    if acc is not None:
+        civ1_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ1.name)
+        civ2_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ2.name)
+        acc.add(civ1_idx, civ1, "treasury", gain1, "keep")
+        acc.add(civ2_idx, civ2, "treasury", gain2, "keep")
+    else:
+        civ1.treasury += gain1
+        civ2.treasury += gain2
     if civ1.name in world.relationships and civ2.name in world.relationships[civ1.name]:
         world.relationships[civ1.name][civ2.name].trade_volume += 1
     if civ2.name in world.relationships and civ1.name in world.relationships[civ2.name]:
@@ -507,7 +552,7 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState) -> 
 
 # --- Dispatcher ---
 
-def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> Event:
+def resolve_action(civ: Civilization, action: ActionType, world: WorldState, acc=None) -> Event:
     """Dispatch an action to its registered handler."""
     # EXPLORE has a different signature (world, civ) rather than (civ, world)
     if action == ActionType.EXPLORE:
@@ -515,7 +560,7 @@ def resolve_action(civ: Civilization, action: ActionType, world: WorldState) -> 
         return handle_explore(world, civ)
     handler = ACTION_REGISTRY.get(action)
     if handler:
-        result = handler(civ, world)
+        result = handler(civ, world, acc=acc)
         if result is None:
             return Event(
                 turn=world.turn, event_type="action", actors=[civ.name],

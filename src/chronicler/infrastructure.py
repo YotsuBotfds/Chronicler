@@ -124,7 +124,7 @@ TRAIT_BUILD_PRIORITY: dict[str, list[IType]] = {
 _DEFAULT_PRIORITY = [IType.ROADS, IType.FORTIFICATIONS, IType.IRRIGATION, IType.PORTS, IType.MINES]
 
 
-def handle_build(civ: Civilization, world: WorldState):
+def handle_build(civ: Civilization, world: WorldState, acc=None):
     """BUILD action handler. Registered via ACTION_REGISTRY[ActionType.BUILD].
     Replaces the old _resolve_build handler from M13b-1.
     """
