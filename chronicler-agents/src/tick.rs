@@ -331,6 +331,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
             is_displaced,
             region.trade_route_count,
             faction_influence,
+            &crate::signals::CivShock::default(),
         );
 
         pool.set_satisfaction(slot, sat);

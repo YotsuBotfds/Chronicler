@@ -97,7 +97,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState]) -> Region
     // Finalize occupation demand
     let occupation_demand: Vec<[f32; OCCUPATION_COUNT]> = (0..n)
         .map(|r| {
-            let ratios = target_occupation_ratio(regions[r].terrain, regions[r].soil, regions[r].water);
+            let ratios = target_occupation_ratio(regions[r].terrain, regions[r].soil, regions[r].water, [0.0; 5]);
             let pop = pop_count[r] as f32;
             let mut demand = [0.0f32; OCCUPATION_COUNT];
             for i in 0..OCCUPATION_COUNT {
