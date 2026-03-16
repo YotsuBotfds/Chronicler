@@ -179,6 +179,9 @@ impl AgentSimulator {
                     soil: soils.value(i),
                     water: waters.value(i),
                     forest_cover: forest_covers.value(i),
+                    adjacency_mask: 0,
+                    controller_civ: 255,
+                    trade_route_count: 0,
                 })
                 .collect();
 

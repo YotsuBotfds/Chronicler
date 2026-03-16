@@ -10,6 +10,9 @@ fn make_test_regions() -> Vec<RegionState> {
             soil: 0.5 + (i as f32) * 0.1,
             water: 0.4 + (i as f32) * 0.05,
             forest_cover: 0.3,
+            adjacency_mask: 0,
+            controller_civ: 255,
+            trade_route_count: 0,
         })
         .collect()
 }

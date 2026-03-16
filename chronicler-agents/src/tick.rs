@@ -103,6 +103,9 @@ mod tests {
             soil: 0.8,
             water: 0.6,
             forest_cover: 0.3,
+            adjacency_mask: 0,
+            controller_civ: 255,
+            trade_route_count: 0,
         }
     }
 
