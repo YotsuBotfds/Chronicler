@@ -6,7 +6,7 @@ use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
 use crate::agent::{
-    DECISION_STREAM_OFFSET,
+    DECISION_STREAM_OFFSET, PERSONALITY_STREAM_OFFSET,
     LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
     LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL,
     OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
@@ -209,6 +209,8 @@ pub fn tick_agents(
                     signals,
                     region_id,
                     &mut rng,
+                    master_seed,
+                    turn,
                 )
             })
             .collect()
@@ -242,9 +244,9 @@ pub fn tick_agents(
                 birth.civ,
                 crate::agent::Occupation::Farmer,
                 0,
-                0.0,
-                0.0,
-                0.0,
+                birth.personality[0],
+                birth.personality[1],
+                birth.personality[2],
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             // Set all 5 skill slots to SKILL_NEWBORN
@@ -408,6 +410,7 @@ struct BirthInfo {
     region: u16,
     civ: u8,
     parent_loyalty: f32,
+    personality: [f32; 3],
 }
 
 struct DemographicsPending {
@@ -424,6 +427,8 @@ fn tick_region_demographics(
     signals: &TickSignals,
     region_id: usize,
     rng: &mut ChaCha8Rng,
+    master_seed: [u8; 32],
+    turn: u32,
 ) -> DemographicsPending {
     let mut pending = DemographicsPending {
         deaths: Vec::new(),
@@ -432,6 +437,13 @@ fn tick_region_demographics(
     };
 
     let eco_stress = demographics::ecological_stress(region);
+
+    // Dedicated personality RNG (offset 700) decoupled from demographics RNG.
+    // Prevents adding/removing mortality checks from changing personality assignments.
+    let mut personality_rng = ChaCha8Rng::from_seed(master_seed);
+    personality_rng.set_stream(
+        region_id as u64 * 1000 + turn as u64 + PERSONALITY_STREAM_OFFSET,
+    );
 
     for &slot in slots {
         let age = pool.age(slot);
@@ -457,10 +469,16 @@ fn tick_region_demographics(
             // Fertility check (only for survivors)
             let fert_rate = demographics::fertility_rate(age, sat, occ, region.soil);
             if fert_rate > 0.0 && rng.gen::<f32>() < fert_rate {
+                let civ_id = pool.civ_affinity(slot);
+                let civ_mean = signals.personality_mean_for_civ(civ_id);
+                let personality = crate::demographics::assign_personality(
+                    &mut personality_rng, civ_mean,
+                );
                 pending.births.push(BirthInfo {
                     region: region_id as u16,
-                    civ: pool.civ_affinity(slot),
+                    civ: civ_id,
                     parent_loyalty: pool.loyalty(slot),
+                    personality,
                 });
             }
         }
