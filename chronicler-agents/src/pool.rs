@@ -190,6 +190,70 @@ impl AgentPool {
         self.count
     }
 
+    // --- Setters (M26) ---
+
+    #[inline]
+    pub fn set_satisfaction(&mut self, slot: usize, val: f32) {
+        self.satisfactions[slot] = val;
+    }
+
+    #[inline]
+    pub fn set_loyalty(&mut self, slot: usize, val: f32) {
+        self.loyalties[slot] = val;
+    }
+
+    #[inline]
+    pub fn set_occupation(&mut self, slot: usize, occ: u8) {
+        self.occupations[slot] = occ;
+    }
+
+    #[inline]
+    pub fn set_region(&mut self, slot: usize, region: u16) {
+        self.regions[slot] = region;
+    }
+
+    #[inline]
+    pub fn set_civ_affinity(&mut self, slot: usize, civ: u8) {
+        self.civ_affinities[slot] = civ;
+    }
+
+    #[inline]
+    pub fn set_displacement_turns(&mut self, slot: usize, turns: u8) {
+        self.displacement_turns[slot] = turns;
+    }
+
+    // --- Additional accessors (M26) ---
+
+    #[inline]
+    pub fn loyalty(&self, slot: usize) -> f32 {
+        self.loyalties[slot]
+    }
+
+    #[inline]
+    pub fn origin_region(&self, slot: usize) -> u16 {
+        self.origin_regions[slot]
+    }
+
+    #[inline]
+    pub fn displacement_turns(&self, slot: usize) -> u8 {
+        self.displacement_turns[slot]
+    }
+
+    // --- Skill (M26) ---
+
+    /// Grow current occupation's skill by SKILL_GROWTH_PER_TURN, capped at SKILL_MAX.
+    pub fn grow_skill(&mut self, slot: usize) {
+        use crate::agent::{SKILL_GROWTH_PER_TURN, SKILL_MAX};
+        let occ = self.occupations[slot] as usize;
+        let idx = slot * 5 + occ;
+        self.skills[idx] = (self.skills[idx] + SKILL_GROWTH_PER_TURN).min(SKILL_MAX);
+    }
+
+    /// Get skill value for a specific occupation.
+    pub fn skill(&self, slot: usize, occ: usize) -> f32 {
+        self.skills[slot * 5 + occ]
+    }
+
     /// Group live slot indices by region.
     /// Returns a Vec of length `num_regions`; each inner Vec holds slot indices.
     pub fn partition_by_region(&self, num_regions: u16) -> Vec<Vec<usize>> {
@@ -622,5 +686,88 @@ mod tests {
 
         let batch = pool.to_record_batch().unwrap();
         assert_eq!(batch.num_rows(), 800);
+    }
+
+    #[test]
+    fn test_set_satisfaction() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        assert!((pool.satisfaction(slot) - 0.5).abs() < 0.01);
+        pool.set_satisfaction(slot, 0.8);
+        assert!((pool.satisfaction(slot) - 0.8).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_set_loyalty() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 30);
+        pool.set_loyalty(slot, 0.2);
+        assert!((pool.loyalty(slot) - 0.2).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_set_occupation() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        pool.set_occupation(slot, Occupation::Merchant as u8);
+        assert_eq!(pool.occupation(slot), Occupation::Merchant as u8);
+    }
+
+    #[test]
+    fn test_set_region() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        pool.set_region(slot, 3);
+        assert_eq!(pool.region(slot), 3);
+    }
+
+    #[test]
+    fn test_set_civ_affinity() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        pool.set_civ_affinity(slot, 5);
+        assert_eq!(pool.civ_affinity(slot), 5);
+    }
+
+    #[test]
+    fn test_set_displacement_turns() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        pool.set_displacement_turns(slot, 3);
+        assert_eq!(pool.displacement_turns(slot), 3);
+    }
+
+    #[test]
+    fn test_grow_skill() {
+        use crate::agent::{SKILL_GROWTH_PER_TURN, SKILL_MAX};
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 25);
+        assert!((pool.skills[slot * 5 + 1]).abs() < 0.01);
+        pool.grow_skill(slot);
+        assert!((pool.skills[slot * 5 + 1] - SKILL_GROWTH_PER_TURN).abs() < 0.01);
+        pool.skills[slot * 5 + 1] = SKILL_MAX - 0.01;
+        pool.grow_skill(slot);
+        assert!((pool.skills[slot * 5 + 1] - SKILL_MAX).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_loyalty_accessor() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        assert!((pool.loyalty(slot) - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_origin_region_accessor() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(3, 0, Occupation::Farmer, 25);
+        assert_eq!(pool.origin_region(slot), 3);
+    }
+
+    #[test]
+    fn test_displacement_turns_accessor() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+        assert_eq!(pool.displacement_turns(slot), 0);
     }
 }
