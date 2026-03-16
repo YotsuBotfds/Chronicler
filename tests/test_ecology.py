@@ -796,3 +796,75 @@ def test_suspension_split_types():
     assert ResourceType.TIMBER in r.resource_suspensions
     assert "trade_route" in r.route_suspensions
     assert "timber" not in r.resource_suspensions  # No string keys in resource_suspensions
+
+
+# --- Tier 1 Structural Tests (Task 11) ---
+
+
+def test_depletion_linear_drawdown():
+    """Reserves decrease each turn with workers present."""
+    from chronicler.ecology import compute_resource_yields
+    from chronicler.models import Region, ResourceType, ClimatePhase, EMPTY_SLOT
+    r = Region(name="M", terrain="mountains", carrying_capacity=60, resources="mineral")
+    r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    prev = 1.0
+    for _ in range(50):
+        compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=20)
+        assert r.resource_reserves[0] < prev, "Reserves should decrease each turn"
+        prev = r.resource_reserves[0]
+
+
+def test_depletion_ramp_at_25_percent():
+    from chronicler.ecology import compute_resource_yields
+    from chronicler.models import Region, ResourceType, ClimatePhase, EMPTY_SLOT
+    r = Region(name="M", terrain="mountains", carrying_capacity=60, resources="mineral")
+    r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [0.20, 1.0, 1.0]
+    yields = compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    # reserve_ramp = min(1.0, 0.20/0.25) = 0.8
+    # 1.0 × 0.9 (spring ore) × 1.0 (mineral climate) × 1.0 (mineral ecology) × 0.8
+    expected = 1.0 * 0.9 * 1.0 * 1.0 * 0.8
+    assert abs(yields[0] - expected) < 0.001
+
+
+def test_depletion_exhaustion_floor():
+    from chronicler.ecology import compute_resource_yields
+    from chronicler.models import Region, ResourceType, ClimatePhase, EMPTY_SLOT
+    r = Region(name="M", terrain="mountains", carrying_capacity=60, resources="mineral")
+    r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [0.005, 1.0, 1.0]
+    yields = compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    assert abs(yields[0] - 0.04) < 0.01  # base × 0.04 trickle
+
+
+def test_ecology_mod_ore_is_one():
+    """Mineral ecology_mod should be 1.0 regardless of soil/water."""
+    from chronicler.ecology import compute_resource_yields
+    from chronicler.models import Region, ResourceType, ClimatePhase, EMPTY_SLOT
+    r = Region(name="M", terrain="mountains", carrying_capacity=60, resources="mineral")
+    r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    r.ecology.soil = 0.1  # Terrible soil shouldn't affect ore
+    r.ecology.water = 0.1
+    yields = compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    # 1.0 × 0.9 (spring ore) × 1.0 (temperate mineral) × 1.0 (mineral ecology) × 1.0 (full reserves)
+    expected = 1.0 * 0.9 * 1.0 * 1.0 * 1.0
+    assert abs(yields[0] - expected) < 0.001
+
+
+def test_empty_region_no_depletion():
+    """Zero workers -> no extraction -> no depletion."""
+    from chronicler.ecology import compute_resource_yields
+    from chronicler.models import Region, ResourceType, ClimatePhase, EMPTY_SLOT
+    r = Region(name="M", terrain="mountains", carrying_capacity=60, resources="mineral")
+    r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    for _ in range(100):
+        compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    assert r.resource_reserves[0] == 1.0  # No depletion with 0 workers
