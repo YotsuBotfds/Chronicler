@@ -1120,7 +1120,10 @@ def run_turn(
             turn_events.extend(agent_bridge.tick(world))
 
     # Phase 10: Consequences
-    turn_events.extend(phase_consequences(world, acc=acc))
+    # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.
+    # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
+    phase10_acc = acc if world.agent_mode == "hybrid" else None
+    turn_events.extend(phase_consequences(world, acc=phase10_acc))
 
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression
