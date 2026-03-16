@@ -761,7 +761,7 @@ git commit -m "perf(m29): parallelize satisfaction update per-region via rayon"
 
 - [ ] **Step 1: Generate flamegraph after satisfaction parallelization**
 
-Run: `cargo flamegraph --example flamegraph_run --root -- --agents 10000 --regions 24 --turns 500`
+Run in WSL: `cargo flamegraph --example flamegraph_run --root -- --agents 10000 --regions 24 --turns 500`
 
 Record: Compare against Task 6 baseline. Note:
 - How much did `update_satisfaction` decrease?
@@ -1253,7 +1253,7 @@ Expected: Both tests PASS (6K/24 < 3s, 10K/24 < 6s).
 
 - [ ] **Step 3: Generate final flamegraph**
 
-Run: `cargo flamegraph --example flamegraph_run --root -- --agents 10000 --regions 24 --turns 500`
+Run in WSL: `cargo flamegraph --example flamegraph_run --root -- --agents 10000 --regions 24 --turns 500`
 
 - [ ] **Step 4: Update BENCHMARK_README with final results**
 
