@@ -794,7 +794,8 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
     subsistence_base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
     famine_threshold = get_override(world, K_FAMINE_YIELD_THRESHOLD, 0.12)
     for region in world.regions:
-        worker_count = 0  # agents=off uses 0; agent_bridge sets this when agents=on
+        # agents=off: derive worker proxy from population (0 workers = no depletion, which is wrong)
+        worker_count = region.population // 5 if region.population > 0 else 0  # [CALIBRATE]
         yields = compute_resource_yields(region, season_id, climate_phase, worker_count, world)
         region_yields[region.name] = yields
 
@@ -1069,6 +1070,16 @@ def test_region_batch_has_resource_columns():
 Add new columns to the RecordBatch construction:
 
 ```python
+Also add "river" and "hills" to the `TERRAIN_MAP` dict at the top of `agent_bridge.py` (map both to plains index as default — they share similar ecology behavior):
+
+```python
+TERRAIN_MAP = {
+    # ... existing entries ...
+    "river": 0,   # Maps to plains for Rust satisfaction terrain modifiers
+    "hills": 0,   # Maps to plains for Rust satisfaction terrain modifiers
+}
+```
+
     # M34: Resource state
     "resource_type_0": pa.array([r.resource_types[0] for r in world.regions], type=pa.uint8()),
     "resource_type_1": pa.array([r.resource_types[1] for r in world.regions], type=pa.uint8()),
@@ -1407,5 +1418,4 @@ These are noted for the implementer but deferred to follow-up tasks:
 1. **Occupation demand shifts** (spec: "mineral region → soldier/merchant demand +1 tier") — wires into existing `DemandSignalManager`. Deferred because it requires the Rust agent tick to be running with M34 columns first. Can be a small follow-up PR.
 2. **Rust satisfaction wiring** — `resource_satisfaction` and `trade_satisfaction` are added to `satisfaction.rs` but not yet wired into the existing `compute_satisfaction` function's farmer/merchant base formulas. This requires replacing the `0.3×soil + 0.2×water` farmer base with a call to `resource_satisfaction`, which is a behavioral change gated on M32 landing first.
 3. **Tier 2 regression stubs** — `test_famine_frequency_drought` and `test_aggregate_economy_regression` need concrete implementations after a baseline is established from a full 200-seed run.
-4. **TERRAIN_MAP in agent_bridge.py** — does not include "river" or "hills". Add entries mapping to plains defaults if these terrains appear in scenarios.
-5. **hash() determinism** — `assign_resource_types` uses `hash(region.name)` for RNG seeding, matching existing `assign_resources` pattern. Python's `hash()` is non-deterministic across processes unless `PYTHONHASHSEED=0`. Existing precedent accepts this; flag for M47 if reproducibility issues arise.
+4. **hash() determinism** — `assign_resource_types` uses `hash(region.name)` for RNG seeding, matching existing `assign_resources` pattern. Python's `hash()` is non-deterministic across processes unless `PYTHONHASHSEED=0`. Existing precedent accepts this; flag for M47 if reproducibility issues arise.
