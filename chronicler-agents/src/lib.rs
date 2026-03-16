@@ -12,6 +12,7 @@ mod region;
 pub mod behavior;
 pub mod demographics;
 pub mod satisfaction;
+pub mod signals;
 mod tick;
 
 // Public re-exports for integration tests and benchmarks.
