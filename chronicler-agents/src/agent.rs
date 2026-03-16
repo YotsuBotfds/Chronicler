@@ -61,3 +61,14 @@ pub const SKILL_NEWBORN: f32 = 0.1;
 
 // War
 pub const WAR_CASUALTY_MULTIPLIER: f32 = 2.0;
+
+// Life-event bitflags for named character promotion (M30)
+pub const LIFE_EVENT_REBELLION: u8     = 1 << 0;
+pub const LIFE_EVENT_MIGRATION: u8     = 1 << 1;
+pub const LIFE_EVENT_WAR_SURVIVAL: u8  = 1 << 2;
+pub const LIFE_EVENT_LOYALTY_FLIP: u8  = 1 << 3;
+pub const LIFE_EVENT_OCC_SWITCH: u8    = 1 << 4;
+
+// Named character promotion thresholds (M30) [CALIBRATE: post-M28]
+pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
+pub const PROMOTION_DURATION_TURNS: u8 = 20;
