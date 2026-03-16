@@ -893,6 +893,7 @@ def run_turn(
     action_selector: ActionSelector,
     narrator: Narrator,
     seed: int = 0,
+    agent_bridge: object | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     turn_events: list[Event] = []
@@ -940,6 +941,10 @@ def run_turn(
     # M18: Terrain succession (uses low_forest_turns updated by tick_ecology)
     from chronicler.emergence import tick_terrain_succession
     turn_events.extend(tick_terrain_succession(world))
+
+    # ── Rust agent tick (between Phase 9 and Phase 10) ──
+    if agent_bridge is not None:
+        turn_events.extend(agent_bridge.tick(world))
 
     # Phase 10: Consequences
     turn_events.extend(phase_consequences(world))
