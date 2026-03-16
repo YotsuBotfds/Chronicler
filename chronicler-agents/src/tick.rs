@@ -82,8 +82,11 @@ fn tick_region_demographics(
 }
 
 fn ecological_stress(region: &RegionState) -> f32 {
-    let eco_health = (region.soil + region.water) / 2.0;
-    1.0 + 2.0 * (1.0 - eco_health)
+    // M26 per-variable formula (replaces M25 averaged formula).
+    // Range: 1.0 (both soil/water >= 0.5) to 2.0 (both at 0.0).
+    let soil_stress = (0.5 - region.soil) * ((0.5 - region.soil) > 0.0) as i32 as f32;
+    let water_stress = (0.5 - region.water) * ((0.5 - region.water) > 0.0) as i32 as f32;
+    1.0 + soil_stress + water_stress
 }
 
 #[cfg(test)]
@@ -106,7 +109,8 @@ mod tests {
     #[test]
     fn test_ecological_stress_healthy() {
         let r = make_healthy_region(0);
-        assert!((ecological_stress(&r) - 1.6).abs() < 0.01);
+        // soil=0.8, water=0.6 → both above 0.5 → stress = 1.0
+        assert!((ecological_stress(&r) - 1.0).abs() < 0.01);
     }
 
     #[test]
@@ -114,15 +118,34 @@ mod tests {
         let mut r = make_healthy_region(0);
         r.soil = 0.0;
         r.water = 0.0;
-        assert!((ecological_stress(&r) - 3.0).abs() < 0.01);
+        // max(0, 0.5-0.0) + max(0, 0.5-0.0) = 0.5 + 0.5 → stress = 2.0
+        assert!((ecological_stress(&r) - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_ecological_stress_partial() {
+        let mut r = make_healthy_region(0);
+        r.soil = 0.3;  // below 0.5
+        r.water = 0.7; // above 0.5
+        // max(0, 0.5-0.3) + max(0, 0.5-0.7) = 0.2 + 0.0 → stress = 1.2
+        assert!((ecological_stress(&r) - 1.2).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_ecological_stress_boundary() {
+        let mut r = make_healthy_region(0);
+        r.soil = 0.5;
+        r.water = 0.5;
+        // exactly at threshold → stress = 1.0
+        assert!((ecological_stress(&r) - 1.0).abs() < 0.01);
     }
 
     #[test]
     fn test_tick_agents_reduces_population() {
         let mut pool = AgentPool::new(0);
         let regions = vec![make_healthy_region(0)];
-        // Spawn at elder age (60+) so MORTALITY_ELDER (0.05) * eco_stress (1.6)
-        // = 0.08 per agent per tick — guarantees deaths in 500 agents.
+        // Spawn at elder age (60+) so MORTALITY_ELDER (0.05) * eco_stress (1.0)
+        // = 0.05 per agent per tick — guarantees deaths in 500 agents.
         for _ in 0..500 {
             pool.spawn(0, 0, Occupation::Farmer, 65);
         }
