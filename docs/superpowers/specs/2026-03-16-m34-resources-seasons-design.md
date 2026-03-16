@@ -254,6 +254,8 @@ if food_yield < FAMINE_YIELD_THRESHOLD:
 
 Multi-food regions use `max()` over food-type slots — the better crop saves you. Coastal Fish regions naturally resist drought famine (ecology_mod = 1.0).
 
+**Botanicals-only regions are Winter-fragile by design.** A Forest region whose only food source is Botanicals (secondary slot) has Winter season_mod = 0.2 — very low famine resistance. This is intentional: Forest primary is Timber (not food), so a forest region without Grain secondary is subsistence-marginal in winter. This creates migration pressure toward mixed-resource regions, which is correct behavior.
+
 Famine effects unchanged from M23: population drain, stability hit, refugee flow to adjacent regions. Event type stays `FAMINE`.
 
 ---
@@ -434,13 +436,14 @@ All `[CALIBRATE]` for M47:
 
 | Constant | Default | Purpose |
 |----------|---------|---------|
-| `RESOURCE_BASE[8]` | TBD | Base yield per resource type |
+| `RESOURCE_BASE[8]` | 1.0 (all types) | Base yield per resource type. Uniform starting point; modifier tables are the primary levers. |
 | `SEASON_MOD[8][4]` | See season table | Season × resource yield modifier |
 | `CLIMATE_MOD[5][4]` | See climate table | Class × climate phase yield modifier |
 | `DEPLETION_RATE` | ~0.009 | Per-turn mineral reserve drain at full exploitation |
-| `FAMINE_YIELD_THRESHOLD` | TBD | Below this food yield → famine event |
-| `PEAK_YIELD` | TBD | Yield ceiling for satisfaction normalization |
-| `WINTER_MIGRATION_BOOST` | TBD | Optional season push on migration utility (M32 hook) |
+| `FAMINE_YIELD_THRESHOLD` | 0.12 | Below this food yield → famine event. Sits below normal Winter Grain (0.168 at healthy ecology) but above drought Winter Grain (0.084). |
+| `PEAK_YIELD` | 1.0 | Yield ceiling for satisfaction normalization. Autumn Grain peak (~0.84) maps to sat ~0.82; normal Winter Grain (0.168) maps to sat ~0.05. |
+
+Note: `WINTER_MIGRATION_BOOST` removed from M34 scope — it is a forward hook for M32 to optionally wire. Defining it here would imply M34 must set it, contradicting the "optional" designation. The `season_id` field on RegionState provides the data; M32 decides whether to use it.
 
 ---
 
@@ -448,23 +451,50 @@ All `[CALIBRATE]` for M47:
 
 | File | Change | Lines (est.) |
 |------|--------|-------------|
-| `resources.py` | Replace `assign_resources()` with deterministic-primary + probabilistic-secondary scheme. Add resource type enum, terrain mapping tables, base yield generation. | ~120 |
-| `ecology.py` | Extend `tick_ecology()`: compute season, yield formula per resource per region, famine trigger migration. Add season/climate modifier tables. | ~150 |
-| `models.py` | Add `resource_types`, `resource_base_yields`, `resource_reserves` to Region model. | ~10 |
+| `resources.py` | Replace `assign_resources()` with deterministic-primary + probabilistic-secondary scheme. Add `ResourceType` int enum (replaces old `Resource` str enum), terrain mapping tables, base yield generation. | ~120 |
+| `ecology.py` | Extend `tick_ecology()`: compute season, yield formula per resource per region, famine trigger migration (replaces `water < 0.20` sentinel), resource suspension check. Add season/climate modifier tables. | ~160 |
+| `models.py` | Add `resource_types`, `resource_base_yields`, `resource_reserves` to Region model. Remove `specialized_resources` field. Deprecate old `Resource` enum (keep temporarily for scenario compat, add migration helper). | ~20 |
 | `agent_bridge.py` | Extend Arrow RecordBatch schema with resource/season columns. | ~20 |
 | `region.rs` | Add `resource_types`, `resource_yields`, `resource_reserves`, `season`, `season_id` to RegionState. | ~15 |
 | `satisfaction.rs` | Add `resource_satisfaction()`, `trade_satisfaction()`. Wire into farmer/merchant satisfaction. | ~40 |
+| `tech.py` | Migrate `RESOURCE_REQUIREMENTS` from old `Resource` enum to new `ResourceType` IDs. `IRON` → `ORE`, `FUEL` → `TIMBER`, `STONE` → `ORE`, `RARE_MINERALS` → `PRECIOUS`. | ~15 |
+| `tech_focus.py` | Migrate `_count_resource()` to read `resource_types` list instead of `specialized_resources`. | ~10 |
+| `simulation.py` | Migrate trade route economy calculations to use `resource_types` and `resource_yields` instead of `specialized_resources`. | ~15 |
+| `emergence.py` | Migrate barren-region check from `len(specialized_resources) == 0` to `resource_types[0] == 255`. Resource discovery event assigns new resource type IDs. | ~15 |
+| `scenario.py` | Support both old string-based and new int-based resource overrides for backward compat. | ~10 |
+| `climate.py` | Migrate `resource_suspensions` keys from string ("timber") to `ResourceType` int IDs. | ~5 |
 | Tests (Python) | Tier 1 unit tests, Tier 2 regression harness. | ~150 |
 | Tests (Rust) | Satisfaction formula unit tests. | ~30 |
 
-**Total:** ~400 lines Python, ~85 lines Rust, ~180 lines tests.
+**Total:** ~475 lines Python, ~85 lines Rust, ~180 lines tests.
+
+### Legacy Resource System Migration
+
+M34 replaces the old `Resource` string enum (`GRAIN, TIMBER, IRON, FUEL, STONE, RARE_MINERALS`) and `specialized_resources` field with the new `ResourceType` int enum and `resource_types` list. The migration mapping:
+
+| Old `Resource` | New `ResourceType` | Rationale |
+|----------------|-------------------|-----------|
+| `GRAIN` | `GRAIN (0)` | Direct mapping |
+| `TIMBER` | `TIMBER (1)` | Direct mapping |
+| `IRON` | `ORE (5)` | Iron is a mineral ore |
+| `FUEL` | `TIMBER (1)` | Fuel was wood/charcoal at pre-industrial tech levels |
+| `STONE` | `ORE (5)` | Stone quarrying is mechanically equivalent to mining |
+| `RARE_MINERALS` | `PRECIOUS (6)` | Rare minerals map to precious metals/gems |
+
+**`resource_suspensions` interaction:** The existing `resource_suspensions` dict in `climate.py` uses string keys (`"timber"`, `"trade_route"`). M34 migrates these to `ResourceType` int keys. The yield formula checks suspensions:
+
+```python
+# In tick_ecology, per resource slot:
+if resource_type in region.resource_suspensions:
+    current_yield = 0.0  # Suspended by disaster
+```
+
+The `"trade_route"` suspension key is not a resource type — it stays as a string-keyed entry, checked separately in the trade route calculation. Only resource-typed suspensions migrate to int keys.
 
 ### What Doesn't Change
 
 - `RegionEcology` model — soil/water/forest_cover unchanged
-- `climate.py` — climate phases, disasters unchanged
 - `terrain.py` — terrain effects unchanged
-- `emergence.py` — terrain succession unchanged (reads forest_cover, not yields)
 - `PendingDecisions` struct — same fields
 - `behavior.rs` — decision logic unchanged (reads satisfaction, which reads yields)
 - Bundle format — stays at current version
