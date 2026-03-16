@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 
 from chronicler.adjacency import graph_distance
 from chronicler.models import (
-    ActionType, Civilization, Disposition, Event, Leader, NamedEvent,
+    ActionType, Civilization, CivShock, Disposition, Event, Leader, NamedEvent,
     ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
 )
+from chronicler.accumulator import normalize_shock
 from chronicler.ecology import effective_capacity
 from chronicler.tuning import K_GOVERNING_COST, get_override
 from chronicler.utils import clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
@@ -232,10 +233,23 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         # M17d: Tradition inheritance through secession
         breakaway_civ.traditions = list(civ.traditions)
 
-        civ.military = max(civ.military - split_mil, 0)
-        civ.economy = max(civ.economy - split_eco, 0)
-        civ.treasury -= split_tre
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        if world.agent_mode == "hybrid":
+            world.pending_shocks.append(CivShock(civ_idx,
+                military_shock=normalize_shock(split_mil, civ.military),
+                economy_shock=normalize_shock(split_eco, civ.economy),
+                stability_shock=normalize_shock(10, civ.stability)))
+            civ.treasury -= split_tre  # treasury stays Python-side
+        elif acc is not None:
+            acc.add(civ_idx, civ, "military", -split_mil, "guard")
+            acc.add(civ_idx, civ, "economy", -split_eco, "guard")
+            acc.add(civ_idx, civ, "treasury", -split_tre, "keep")
+            acc.add(civ_idx, civ, "stability", -10, "signal")
+        else:
+            civ.military = max(civ.military - split_mil, 0)
+            civ.economy = max(civ.economy - split_eco, 0)
+            civ.treasury -= split_tre
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         civ.regions = remaining_regions
 
         for rn in breakaway_regions:
@@ -290,7 +304,14 @@ def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
             continue
 
         # Capital lost
-        civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        if world.agent_mode == "hybrid":
+            world.pending_shocks.append(CivShock(civ_idx,
+                stability_shock=normalize_shock(20, civ.stability)))
+        elif acc is not None:
+            acc.add(civ_idx, civ, "stability", -20, "signal")
+        else:
+            civ.stability = clamp(civ.stability - 20, STAT_FLOOR["stability"], 100)
 
         # Pick best remaining region (highest effective_capacity)
         from chronicler.ecology import effective_capacity
@@ -433,8 +454,17 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
 
         to_remove.append(vr)
         rebelled_overlords.add(vr.overlord)
-        vassal.stability = clamp(vassal.stability + 10, STAT_FLOOR["stability"], 100)
-        vassal.asabiya = min(vassal.asabiya + 0.2, 1.0)
+        vassal_idx = next(i for i, c in enumerate(world.civilizations) if c.name == vassal.name)
+        if world.agent_mode == "hybrid":
+            world.pending_shocks.append(CivShock(vassal_idx,
+                stability_shock=min(1.0, 10 / max(vassal.stability, 1))))
+            vassal.asabiya = min(vassal.asabiya + 0.2, 1.0)
+        elif acc is not None:
+            acc.add(vassal_idx, vassal, "stability", 10, "guard-shock")
+            acc.add(vassal_idx, vassal, "asabiya", 0.2, "keep")
+        else:
+            vassal.stability = clamp(vassal.stability + 10, STAT_FLOOR["stability"], 100)
+            vassal.asabiya = min(vassal.asabiya + 0.2, 1.0)
 
         if vr.vassal in world.relationships and vr.overlord in world.relationships[vr.vassal]:
             world.relationships[vr.vassal][vr.overlord].disposition = Disposition.HOSTILE
@@ -565,11 +595,25 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
             fed.members.remove(member)
             civ = next((c for c in world.civilizations if c.name == member), None)
             if civ:
-                civ.stability = clamp(civ.stability - 15, STAT_FLOOR["stability"], 100)
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                if world.agent_mode == "hybrid":
+                    world.pending_shocks.append(CivShock(civ_idx,
+                        stability_shock=normalize_shock(15, civ.stability)))
+                elif acc is not None:
+                    acc.add(civ_idx, civ, "stability", -15, "signal")
+                else:
+                    civ.stability = clamp(civ.stability - 15, STAT_FLOOR["stability"], 100)
             for remaining in fed.members:
                 rc = next((c for c in world.civilizations if c.name == remaining), None)
                 if rc:
-                    rc.stability = clamp(rc.stability - 5, STAT_FLOOR["stability"], 100)
+                    rc_idx = next(i for i, c in enumerate(world.civilizations) if c.name == rc.name)
+                    if world.agent_mode == "hybrid":
+                        world.pending_shocks.append(CivShock(rc_idx,
+                            stability_shock=normalize_shock(5, rc.stability)))
+                    elif acc is not None:
+                        acc.add(rc_idx, rc, "stability", -5, "signal")
+                    else:
+                        rc.stability = clamp(rc.stability - 5, STAT_FLOOR["stability"], 100)
 
         if len(fed.members) <= 1:
             feds_to_remove.append(fed)
@@ -678,7 +722,14 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
         detection_prob = target.culture / 100
         if rng.random() < detection_prob:
             pw.detected = True
-            target.stability = clamp(target.stability + 5, STAT_FLOOR["stability"], 100)
+            target_idx = next(i for i, c in enumerate(world.civilizations) if c.name == target.name)
+            if world.agent_mode == "hybrid":
+                world.pending_shocks.append(CivShock(target_idx,
+                    stability_shock=min(1.0, 5 / max(target.stability, 1))))
+            elif acc is not None:
+                acc.add(target_idx, target, "stability", 5, "guard-shock")
+            else:
+                target.stability = clamp(target.stability + 5, STAT_FLOOR["stability"], 100)
 
             rels = world.relationships.get(pw.sponsor, {})
             if pw.target_civ in rels:
@@ -796,7 +847,14 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
         for name in participants:
             civ = civ_map.get(name)
             if civ:
-                civ.stability = clamp(civ.stability - 5, STAT_FLOOR["stability"], 100)
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                if world.agent_mode == "hybrid":
+                    world.pending_shocks.append(CivShock(civ_idx,
+                        stability_shock=normalize_shock(5, civ.stability)))
+                elif acc is not None:
+                    acc.add(civ_idx, civ, "stability", -5, "signal")
+                else:
+                    civ.stability = clamp(civ.stability - 5, STAT_FLOOR["stability"], 100)
         events.append(Event(
             turn=world.turn, event_type="congress_collapse",
             actors=list(participants),

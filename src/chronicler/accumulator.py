@@ -39,6 +39,13 @@ STAT_TO_SHOCK_FIELD = {
 DEMAND_SCALE_FACTOR = 1.0
 
 
+def normalize_shock(delta: float, stat: float) -> float:
+    """Normalize a raw stat delta to a shock value in [-1.0, +1.0].
+    delta is a positive number representing the magnitude subtracted.
+    """
+    return max(-1.0, min(1.0, -abs(delta) / max(stat, 1)))
+
+
 class StatAccumulator:
     """Captures stat mutations and routes them by category."""
 

@@ -29,6 +29,7 @@ from chronicler.models import (
     ActionType,
     ActiveCondition,
     Civilization,
+    CivShock,
     Disposition,
     Event,
     Leader,
@@ -36,6 +37,7 @@ from chronicler.models import (
     TechEra,
     WorldState,
 )
+from chronicler.accumulator import normalize_shock
 from chronicler.tech import check_tech_advancement
 from chronicler.utils import (
     clamp,
@@ -792,12 +794,19 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
         for civ_name in condition.affected_civs:
             civ = _get_civ(world, civ_name)
             if civ and condition.severity >= 50:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
                 mult = get_severity_multiplier(civ)
                 if condition.condition_type == "drought":
                     drain = int(get_override(world, K_DROUGHT_ONGOING, 2))
                 else:
                     drain = int(get_override(world, K_CONDITION_ONGOING_DRAIN, 1))
-                civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+                if world.agent_mode == "hybrid":
+                    world.pending_shocks.append(CivShock(civ_idx,
+                        stability_shock=normalize_shock(int(drain * mult), civ.stability)))
+                elif acc is not None:
+                    acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+                else:
+                    civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
 
@@ -833,13 +842,18 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
                 lost = civ.regions[1:]
                 civ.regions = civ.regions[:1]
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
-                civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
-                civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
+                if world.agent_mode == "hybrid":
+                    world.pending_shocks.append(CivShock(civ_idx,
+                        military_shock=-0.5, economy_shock=-0.5))
+                else:
+                    civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
+                    civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
                 collapse_events.append(Event(
                     turn=world.turn,
                     event_type="collapse",
@@ -1017,6 +1031,15 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
     # NOTE: phase_fertility and _check_famine deleted by M23 — replaced by ecology.tick_ecology
 
 
+def get_civ_capacities(world: WorldState) -> dict[int, int]:
+    """Get total carrying capacity per civ for demand signal normalization."""
+    region_map = {r.name: r for r in world.regions}
+    return {
+        i: sum(region_map[rn].carrying_capacity for rn in civ.regions if rn in region_map)
+        for i, civ in enumerate(world.civilizations)
+    }
+
+
 # --- Turn orchestrator ---
 
 def run_turn(
@@ -1076,12 +1099,25 @@ def run_turn(
     from chronicler.emergence import tick_terrain_succession
     turn_events.extend(tick_terrain_succession(world))
 
-    # Apply all accumulated stat mutations (aggregate mode)
-    acc.apply(world)
-
-    # ── Rust agent tick (between Phase 9 and Phase 10) ──
-    if agent_bridge is not None:
-        turn_events.extend(agent_bridge.tick(world))
+    # Apply accumulated stat mutations and route agent signals
+    if world.agent_mode == "hybrid" and agent_bridge is not None:
+        acc.apply_keep(world)  # Apply treasury, asabiya, prestige
+        shocks = acc.to_shock_signals()
+        demands = acc.to_demand_signals(get_civ_capacities(world))
+        # Fold pending_shocks from last turn's Phase 10
+        shocks.extend(world.pending_shocks)
+        world.pending_shocks.clear()
+        # Tick existing demand signals (decay), then add new ones for next turn
+        demand_shifts = agent_bridge._demand_manager.tick()
+        for ds in demands:
+            agent_bridge._demand_manager.add(ds)
+        # Run agent tick with shock and demand data
+        turn_events.extend(agent_bridge.tick(world, shocks=shocks, demands=demand_shifts))
+    else:
+        acc.apply(world)
+        # Existing agent_bridge.tick() call for non-hybrid modes
+        if agent_bridge is not None:
+            turn_events.extend(agent_bridge.tick(world))
 
     # Phase 10: Consequences
     turn_events.extend(phase_consequences(world, acc=acc))
