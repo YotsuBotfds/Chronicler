@@ -23,15 +23,15 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
         civs: (0..num_civs)
             .map(|i| CivSignals {
                 civ_id: i as u8,
-                stability: 50,
-                is_at_war: false,
-                dominant_faction: 0,
-                faction_military: 0.33,
-                faction_merchant: 0.33,
-                faction_cultural: 0.34,
+                stability: if i == 2 { 20 } else { 55 },
+                is_at_war: i == 1 || i == 3,
+                dominant_faction: (i % 3) as u8,
+                faction_military: if i == 1 { 0.60 } else { 0.25 },
+                faction_merchant: if i == 1 { 0.20 } else { 0.40 },
+                faction_cultural: if i == 1 { 0.20 } else { 0.35 },
             })
             .collect(),
-        contested_regions: vec![false; num_regions],
+        contested_regions: (0..num_regions).map(|i| i == 1 || i == 3).collect(),
     }
 }
 
