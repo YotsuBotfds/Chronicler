@@ -238,7 +238,7 @@ impl AgentSimulator {
         Ok(())
     }
 
-    /// Advance simulation by one turn. Returns an empty events RecordBatch.
+    /// Advance simulation by one turn. Returns an events RecordBatch.
     pub fn tick(&mut self, turn: u32) -> PyResult<PyRecordBatch> {
         if !self.initialized {
             return Err(PyValueError::new_err(
@@ -246,9 +246,22 @@ impl AgentSimulator {
             ));
         }
         self.turn = turn;
-        crate::tick::tick_agents(&mut self.pool, &self.regions, self.master_seed, turn);
+
+        // Build default signals when none provided via FFI (M26 Task 11 will add proper signal ingestion).
+        let signals = crate::signals::TickSignals {
+            civs: Vec::new(),
+            contested_regions: vec![false; self.regions.len()],
+        };
+        let _events = crate::tick::tick_agents(
+            &mut self.pool,
+            &self.regions,
+            &signals,
+            self.master_seed,
+            turn,
+        );
 
         // Return an empty events RecordBatch with the full schema.
+        // M26 Task 11 will serialize _events into this batch.
         let schema = Arc::new(events_schema());
         let batch = RecordBatch::new_empty(schema);
         Ok(PyRecordBatch::new(batch))

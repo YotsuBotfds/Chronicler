@@ -1,4 +1,5 @@
 use chronicler_agents::{AgentPool, Occupation, RegionState, tick_agents};
+use chronicler_agents::signals::{CivSignals, TickSignals};
 
 fn make_test_regions() -> Vec<RegionState> {
     (0..5)
@@ -17,6 +18,23 @@ fn make_test_regions() -> Vec<RegionState> {
         .collect()
 }
 
+fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
+    TickSignals {
+        civs: (0..num_civs)
+            .map(|i| CivSignals {
+                civ_id: i as u8,
+                stability: 50,
+                is_at_war: false,
+                dominant_faction: 0,
+                faction_military: 0.33,
+                faction_merchant: 0.33,
+                faction_cultural: 0.34,
+            })
+            .collect(),
+        contested_regions: vec![false; num_regions],
+    }
+}
+
 fn make_test_pool(regions: &[RegionState]) -> AgentPool {
     let mut pool = AgentPool::new(0);
     for r in regions {
@@ -29,9 +47,10 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
 
 fn run_simulation(seed: [u8; 32], turns: u32) -> (usize, Vec<u16>) {
     let regions = make_test_regions();
+    let signals = make_default_signals(5, 5);
     let mut pool = make_test_pool(&regions);
     for turn in 0..turns {
-        tick_agents(&mut pool, &regions, seed, turn);
+        tick_agents(&mut pool, &regions, &signals, seed, turn);
     }
     let batch = pool.to_record_batch().unwrap();
     let ages_col = batch
