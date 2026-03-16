@@ -251,92 +251,109 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
     // Pre-compute region stats for demand/supply ratio
     let stats = compute_region_stats(pool, regions, signals);
 
-    for slot in 0..pool.capacity() {
-        if !pool.is_alive(slot) {
-            continue;
+    // Partition agents by region
+    let num_regions = regions.len();
+    let region_groups = pool.partition_by_region(num_regions as u16);
+
+    // Compute satisfaction per-region in parallel.
+    // Collect (slot, sat) pairs — avoids unsafe mutable aliasing on pool.satisfactions.
+    let updates: Vec<Vec<(usize, f32)>> = {
+        let pool_ref = &*pool;
+        region_groups
+            .par_iter()
+            .enumerate()
+            .map(|(region_id, slots)| {
+                if region_id >= regions.len() {
+                    return Vec::new();
+                }
+                let region = &regions[region_id];
+
+                slots
+                    .iter()
+                    .map(|&slot| {
+                        let occ = pool_ref.occupation(slot);
+                        let civ = pool_ref.civ_affinity(slot) as usize;
+
+                        let civ_sig = signals
+                            .civs
+                            .iter()
+                            .find(|c| c.civ_id as usize == civ);
+
+                        let civ_stability = civ_sig.map_or(50, |c| c.stability);
+                        let civ_at_war = civ_sig.map_or(false, |c| c.is_at_war);
+                        let region_contested = if region_id < signals.contested_regions.len() {
+                            signals.contested_regions[region_id]
+                        } else {
+                            false
+                        };
+
+                        let occ_idx = occ as usize;
+                        let supply = stats.occupation_supply[region_id][occ_idx] as f32;
+                        let demand = stats.occupation_demand[region_id][occ_idx];
+                        let ds_ratio = if supply > 0.0 {
+                            (demand - supply) / supply
+                        } else {
+                            0.0
+                        };
+
+                        let pop = stats.occupation_supply[region_id]
+                            .iter()
+                            .sum::<usize>() as f32;
+                        let cap = region.carrying_capacity as f32;
+                        let pop_over_cap = if cap > 0.0 { pop / cap } else { 1.0 };
+
+                        let occ_matches = match civ_sig {
+                            Some(cs) => match cs.dominant_faction {
+                                0 => occ == 1,
+                                1 => occ == 2,
+                                2 => occ == 3,
+                                _ => false,
+                            },
+                            None => false,
+                        };
+
+                        let is_displaced = pool_ref.displacement_turns(slot) > 0;
+
+                        let faction_influence = match civ_sig {
+                            Some(cs) => match occ {
+                                1 => cs.faction_military,
+                                2 => cs.faction_merchant,
+                                3 => cs.faction_cultural,
+                                _ => 0.0,
+                            },
+                            None => 0.0,
+                        };
+
+                        let shock = signals.shock_for_civ(pool_ref.civ_affinity(slot));
+
+                        let sat = satisfaction::compute_satisfaction(
+                            occ,
+                            region.soil,
+                            region.water,
+                            civ_stability,
+                            ds_ratio,
+                            pop_over_cap,
+                            civ_at_war,
+                            region_contested,
+                            occ_matches,
+                            is_displaced,
+                            region.trade_route_count,
+                            faction_influence,
+                            &shock,
+                        );
+
+                        (slot, sat)
+                    })
+                    .collect()
+            })
+            .collect()
+    };
+
+    // Apply collected satisfaction values sequentially
+    for region_updates in &updates {
+        for &(slot, sat) in region_updates {
+            pool.set_satisfaction(slot, sat);
         }
-
-        let r = pool.region(slot) as usize;
-        if r >= regions.len() {
-            continue;
-        }
-
-        let region = &regions[r];
-        let occ = pool.occupation(slot);
-        let civ = pool.civ_affinity(slot) as usize;
-
-        // Look up civ signals (default to stable peacetime if civ not in signals)
-        let civ_sig = signals
-            .civs
-            .iter()
-            .find(|c| c.civ_id as usize == civ);
-
-        let civ_stability = civ_sig.map_or(50, |c| c.stability);
-        let civ_at_war = civ_sig.map_or(false, |c| c.is_at_war);
-        let region_contested = if r < signals.contested_regions.len() {
-            signals.contested_regions[r]
-        } else {
-            false
-        };
-
-        // Demand/supply ratio for this agent's occupation
-        let occ_idx = occ as usize;
-        let supply = stats.occupation_supply[r][occ_idx] as f32;
-        let demand = stats.occupation_demand[r][occ_idx];
-        let ds_ratio = if supply > 0.0 {
-            (demand - supply) / supply
-        } else {
-            0.0
-        };
-
-        // Pop over capacity
-        let pop = stats.occupation_supply[r].iter().sum::<usize>() as f32;
-        let cap = region.carrying_capacity as f32;
-        let pop_over_cap = if cap > 0.0 { pop / cap } else { 1.0 };
-
-        // Occupation matches dominant faction?
-        let occ_matches = match civ_sig {
-            Some(cs) => match cs.dominant_faction {
-                0 => occ == 1, // military -> Soldier
-                1 => occ == 2, // merchant -> Merchant
-                2 => occ == 3, // cultural -> Scholar
-                _ => false,
-            },
-            None => false,
-        };
-
-        let is_displaced = pool.displacement_turns(slot) > 0;
-
-        // Faction influence for this agent's occupation
-        let faction_influence = match civ_sig {
-            Some(cs) => match occ {
-                1 => cs.faction_military,
-                2 => cs.faction_merchant,
-                3 => cs.faction_cultural,
-                _ => 0.0,
-            },
-            None => 0.0,
-        };
-
-        let shock = signals.shock_for_civ(pool.civ_affinity(slot));
-
-        let sat = satisfaction::compute_satisfaction(
-            occ,
-            region.soil,
-            region.water,
-            civ_stability,
-            ds_ratio,
-            pop_over_cap,
-            civ_at_war,
-            region_contested,
-            occ_matches,
-            is_displaced,
-            region.trade_route_count,
-            faction_influence,
-            &shock,
-        );
-
-        pool.set_satisfaction(slot, sat);
     }
 }
 
@@ -643,5 +660,61 @@ mod tests {
             }
         }
         assert!(any_changed, "satisfaction should be updated from default 0.5");
+    }
+
+    #[test]
+    fn test_satisfaction_parallel_matches_sequential() {
+        let mut regions = vec![
+            make_healthy_region(0),
+            make_healthy_region(1),
+            make_healthy_region(2),
+        ];
+        regions[0].adjacency_mask = 0b110;
+        regions[1].adjacency_mask = 0b101;
+        regions[2].adjacency_mask = 0b011;
+        regions[0].controller_civ = 0;
+        regions[1].controller_civ = 1;
+        regions[2].controller_civ = 0;
+
+        let signals = make_default_signals(2, 3);
+
+        let mut pool_a = AgentPool::new(0);
+        let mut pool_b = AgentPool::new(0);
+        let occupations = [
+            Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
+            Occupation::Scholar, Occupation::Priest,
+        ];
+        for r in 0..3u16 {
+            for j in 0..100 {
+                let occ = occupations[j % 5];
+                let age = (j % 60) as u16;
+                let civ = (r % 2) as u8;
+                pool_a.spawn(r, civ, occ, age);
+                pool_b.spawn(r, civ, occ, age);
+            }
+        }
+
+        update_satisfaction(&mut pool_a, &regions, &signals);
+        update_satisfaction(&mut pool_b, &regions, &signals);
+
+        // Verify computation actually happened (not still at default 0.5)
+        let any_changed = (0..pool_a.capacity())
+            .filter(|&s| pool_a.is_alive(s))
+            .any(|s| (pool_a.satisfaction(s) - 0.5).abs() > 0.01);
+        assert!(any_changed, "satisfaction should differ from default 0.5 after update");
+
+        // Verify all satisfaction values match between the two pools
+        for slot in 0..pool_a.capacity() {
+            if pool_a.is_alive(slot) {
+                let diff = (pool_a.satisfaction(slot) - pool_b.satisfaction(slot)).abs();
+                assert!(
+                    diff < 1e-6,
+                    "satisfaction mismatch at slot {}: {} vs {}",
+                    slot,
+                    pool_a.satisfaction(slot),
+                    pool_b.satisfaction(slot),
+                );
+            }
+        }
     }
 }
