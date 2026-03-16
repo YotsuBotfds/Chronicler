@@ -38,6 +38,39 @@ SUMMARY_TEMPLATES = {
 }
 
 
+VALUE_PERSONALITY_MAP = {
+    "Honor":     ( 0.15,  0.0,   0.0),
+    "Freedom":   ( 0.15,  0.0,   0.0),
+    "Cunning":   ( 0.0,   0.15,  0.0),
+    "Knowledge": ( 0.0,   0.15,  0.0),
+    "Tradition": ( 0.0,   0.0,   0.15),
+    "Order":     ( 0.0,   0.0,   0.15),
+}
+
+DOMAIN_PERSONALITY_MAP = {
+    "military": ( 0.10,  0.0,   0.0),
+    "trade":    ( 0.0,   0.10,  0.0),
+    "merchant": ( 0.0,   0.10,  0.0),
+}
+
+
+def civ_personality_mean(
+    values: list[str], domains: list[str],
+) -> tuple[float, float, float]:
+    """Compute personality mean from civ cultural values and domains."""
+    mean = [0.0, 0.0, 0.0]
+    for v in values:
+        if v in VALUE_PERSONALITY_MAP:
+            for i in range(3):
+                mean[i] += VALUE_PERSONALITY_MAP[v][i]
+    for d in domains:
+        for key, contrib in DOMAIN_PERSONALITY_MAP.items():
+            if key in d.lower():
+                for i in range(3):
+                    mean[i] += contrib[i]
+    return tuple(max(-0.3, min(0.3, m)) for m in mean)
+
+
 def build_region_batch(world: WorldState) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
@@ -100,6 +133,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
     shock_map = {s.civ_id: s for s in (shocks or [])}
     shock_stab, shock_eco, shock_mil, shock_cul = [], [], [], []
     ds_farmer, ds_soldier, ds_merchant, ds_scholar, ds_priest = [], [], [], [], []
+    mean_bold, mean_ambi, mean_ltrait = [], [], []
 
     for i, civ in enumerate(world.civilizations):
         civ_ids.append(i)
@@ -126,6 +160,13 @@ def build_signals(world: WorldState, shocks: list | None = None,
         ds_scholar.append(d[3])
         ds_priest.append(d[4])
 
+        civ_values = getattr(civ, 'values', [])
+        civ_domains = getattr(civ, 'domains', [])
+        pm = civ_personality_mean(civ_values, civ_domains)
+        mean_bold.append(pm[0])
+        mean_ambi.append(pm[1])
+        mean_ltrait.append(pm[2])
+
     return pa.record_batch({
         "civ_id": pa.array(civ_ids, type=pa.uint8()),
         "stability": pa.array(stabilities, type=pa.uint8()),
@@ -143,6 +184,9 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "demand_shift_merchant": pa.array(ds_merchant, type=pa.float32()),
         "demand_shift_scholar": pa.array(ds_scholar, type=pa.float32()),
         "demand_shift_priest": pa.array(ds_priest, type=pa.float32()),
+        "mean_boldness": pa.array(mean_bold, type=pa.float32()),
+        "mean_ambition": pa.array(mean_ambi, type=pa.float32()),
+        "mean_loyalty_trait": pa.array(mean_ltrait, type=pa.float32()),
     })
 
 
