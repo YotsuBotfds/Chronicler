@@ -415,3 +415,131 @@ def test_analyze_flag_parses():
     parser = _build_parser()
     args = parser.parse_args(["--analyze", "/some/path"])
     assert args.analyze == "/some/path"
+
+
+class TestAgentsFlag:
+    def test_agents_flag_parsed(self):
+        """--agents flag is parsed and stored on args."""
+        from chronicler.main import _build_parser
+        parser = _build_parser()
+        args = parser.parse_args(["--simulate-only", "--agents", "hybrid"])
+        assert args.agents == "hybrid"
+
+    def test_agents_flag_default_off(self):
+        """--agents defaults to 'off'."""
+        from chronicler.main import _build_parser
+        parser = _build_parser()
+        args = parser.parse_args([])
+        assert args.agents == "off"
+
+    def test_agents_flag_demographics_only(self):
+        """--agents accepts demographics-only."""
+        from chronicler.main import _build_parser
+        parser = _build_parser()
+        args = parser.parse_args(["--agents", "demographics-only"])
+        assert args.agents == "demographics-only"
+
+    def test_agents_flag_shadow(self):
+        """--agents accepts shadow."""
+        from chronicler.main import _build_parser
+        parser = _build_parser()
+        args = parser.parse_args(["--agents", "shadow"])
+        assert args.agents == "shadow"
+
+    def test_agents_flag_invalid_rejected(self):
+        """--agents rejects invalid values."""
+        from chronicler.main import _build_parser
+        parser = _build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--agents", "invalid"])
+
+
+class TestAgentsWiring:
+    """Integration tests: --agents flag wires into execute_run properly."""
+
+    def _mock_agent_bridge(self):
+        """Create a mock AgentBridge for tests (Rust crate may not be built)."""
+        mock_bridge = MagicMock()
+        mock_bridge.close = MagicMock()
+        return mock_bridge
+
+    def test_agents_hybrid_sets_agent_mode(self, tmp_path):
+        """--agents=hybrid sets world.agent_mode and creates AgentBridge."""
+        import sys
+        args = argparse.Namespace(
+            seed=42, turns=5, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+            simulate_only=True, agents="hybrid",
+        )
+        mock_bridge = self._mock_agent_bridge()
+        mock_ab_module = MagicMock()
+        mock_ab_module.AgentBridge = MagicMock(return_value=mock_bridge)
+        saved = sys.modules.get("chronicler.agent_bridge")
+        sys.modules["chronicler.agent_bridge"] = mock_ab_module
+        try:
+            result = execute_run(args)
+        finally:
+            if saved is None:
+                sys.modules.pop("chronicler.agent_bridge", None)
+            else:
+                sys.modules["chronicler.agent_bridge"] = saved
+        assert isinstance(result, RunResult)
+        assert result.total_turns == 5
+        mock_bridge.close.assert_called_once()
+        # Bundle should be produced
+        import json
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        assert bundle_path.exists()
+        with open(bundle_path) as f:
+            bundle = json.load(f)
+        assert len(bundle["history"]) == 5
+
+    def test_agents_off_no_agent_mode(self, tmp_path):
+        """--agents=off leaves world.agent_mode at None."""
+        from chronicler.world_gen import generate_world
+        args = argparse.Namespace(
+            seed=42, turns=3, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+            simulate_only=True, agents="off",
+        )
+        # Pre-create world so we can inspect it after the run
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        result = execute_run(args, world=world)
+        assert result.total_turns == 3
+        # agent_mode should remain None (not set)
+        assert world.agent_mode is None
+
+    def test_agents_shadow_sets_mode(self, tmp_path):
+        """--agents=shadow sets world.agent_mode='shadow'."""
+        from chronicler.world_gen import generate_world
+        args = argparse.Namespace(
+            seed=42, turns=3, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+            simulate_only=True, agents="shadow",
+        )
+        import sys
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        mock_bridge = self._mock_agent_bridge()
+        mock_ab_module = MagicMock()
+        mock_ab_module.AgentBridge = MagicMock(return_value=mock_bridge)
+        saved = sys.modules.get("chronicler.agent_bridge")
+        sys.modules["chronicler.agent_bridge"] = mock_ab_module
+        try:
+            result = execute_run(args, world=world)
+        finally:
+            if saved is None:
+                sys.modules.pop("chronicler.agent_bridge", None)
+            else:
+                sys.modules["chronicler.agent_bridge"] = saved
+        assert result.total_turns == 3
+        assert world.agent_mode == "shadow"
+        mock_bridge.close.assert_called_once()
