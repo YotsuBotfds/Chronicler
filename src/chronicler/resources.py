@@ -70,6 +70,32 @@ def assign_resource_types(regions: list[Region], seed: int) -> None:
                 break
 
 
+# M34→legacy bridge: ResourceType ID → old Resource enum values
+_RESOURCE_TYPE_TO_LEGACY: dict[int, list[Resource]] = {
+    ResourceType.GRAIN: [Resource.GRAIN],
+    ResourceType.TIMBER: [Resource.TIMBER],
+    ResourceType.BOTANICALS: [],  # No direct legacy equivalent
+    ResourceType.FISH: [],
+    ResourceType.SALT: [],
+    ResourceType.ORE: [Resource.IRON, Resource.STONE],
+    ResourceType.PRECIOUS: [Resource.RARE_MINERALS],
+    ResourceType.EXOTIC: [Resource.FUEL],
+}
+
+
+def populate_legacy_resources(regions: list[Region]) -> None:
+    """Auto-populate deprecated specialized_resources from resource_types."""
+    for region in regions:
+        if region.specialized_resources:
+            continue
+        legacy: list[Resource] = []
+        for rtype in region.resource_types:
+            if rtype == EMPTY_SLOT:
+                continue
+            legacy.extend(_RESOURCE_TYPE_TO_LEGACY.get(rtype, []))
+        region.specialized_resources = legacy
+
+
 TERRAIN_RESOURCE_PROBS: dict[str, dict[Resource, float]] = {
     "plains":    {Resource.GRAIN: 0.8, Resource.TIMBER: 0.3, Resource.IRON: 0.1, Resource.FUEL: 0.05, Resource.STONE: 0.1, Resource.RARE_MINERALS: 0.02},
     "forest":    {Resource.GRAIN: 0.3, Resource.TIMBER: 0.8, Resource.IRON: 0.1, Resource.FUEL: 0.1, Resource.STONE: 0.05, Resource.RARE_MINERALS: 0.05},

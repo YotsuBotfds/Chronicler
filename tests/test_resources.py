@@ -166,3 +166,16 @@ def test_assign_idempotent():
     original = r.resource_types[:]
     assign_resource_types([r], seed=99)  # Different seed
     assert r.resource_types == original
+
+
+# --- M34: Task 3 — Legacy Bridge tests ---
+
+from chronicler.resources import populate_legacy_resources
+
+
+def test_legacy_bridge_populates_specialized_resources():
+    r = Region(name="Test", terrain="plains", carrying_capacity=50, resources="fertile")
+    assign_resource_types([r], seed=42)
+    populate_legacy_resources([r])
+    assert len(r.specialized_resources) > 0
+    assert Resource.GRAIN in r.specialized_resources
