@@ -69,6 +69,32 @@ fn migrate_utility(satisfaction: f32, migration_opportunity: f32) -> f32 {
     raw.min(MIGRATE_CAP)
 }
 
+fn switch_utility(
+    occ: usize,
+    supply: &[usize; OCCUPATION_COUNT],
+    demand: &[f32; OCCUPATION_COUNT],
+) -> (f32, u8) {
+    let own_supply = supply[occ] as f32;
+    let own_demand = demand[occ].max(0.01);
+    let oversupply = (own_supply / own_demand - SWITCH_OVERSUPPLY_THRESH).max(0.0);
+
+    let mut best_alt: u8 = occ as u8;
+    let mut best_gap: f32 = 0.0;
+    for alt in 0..OCCUPATION_COUNT {
+        if alt == occ { continue; }
+        let alt_supply = supply[alt] as f32;
+        let alt_demand = demand[alt];
+        let gap = (alt_demand - alt_supply * SWITCH_UNDERSUPPLY_FACTOR).max(0.0);
+        if gap > best_gap {
+            best_gap = gap;
+            best_alt = alt as u8;
+        }
+    }
+
+    let utility = (W_SWITCH * oversupply * best_gap).min(SWITCH_CAP);
+    (utility, best_alt)
+}
+
 // ---------------------------------------------------------------------------
 // RegionStats — pre-computed per-region aggregates
 // ---------------------------------------------------------------------------
@@ -788,6 +814,41 @@ mod tests {
     fn test_migrate_utility_opportunity_below_hysteresis() {
         let u = super::migrate_utility(0.5, 0.03);
         assert_eq!(u, 0.0);
+    }
+
+    #[test]
+    fn test_switch_utility_no_oversupply() {
+        let supply = [5, 0, 0, 0, 0];
+        let demand = [10.0, 10.0, 10.0, 10.0, 10.0];
+        let (u, _) = super::switch_utility(0, &supply, &demand);
+        assert_eq!(u, 0.0);
+    }
+
+    #[test]
+    fn test_switch_utility_oversupply_no_undersupply() {
+        let supply = [20, 20, 20, 20, 20];
+        let demand = [5.0, 20.0, 20.0, 20.0, 20.0];
+        let (u, _) = super::switch_utility(0, &supply, &demand);
+        assert_eq!(u, 0.0);
+    }
+
+    #[test]
+    fn test_switch_utility_both_conditions() {
+        use crate::agent::{W_SWITCH, SWITCH_CAP};
+        let supply = [0, 5, 5, 5, 20];
+        let demand = [12.0, 5.0, 5.0, 5.0, 1.0];
+        let (u, best_alt) = super::switch_utility(4, &supply, &demand);
+        let expected = (W_SWITCH * 18.0 * 12.0).min(SWITCH_CAP);
+        assert!((u - expected).abs() < 0.01, "expected {}, got {}", expected, u);
+        assert_eq!(best_alt, 0);
+    }
+
+    #[test]
+    fn test_switch_utility_returns_best_alternative() {
+        let supply = [3, 0, 5, 5, 20];
+        let demand = [5.0, 10.0, 5.0, 5.0, 1.0];
+        let (_, best_alt) = super::switch_utility(4, &supply, &demand);
+        assert_eq!(best_alt, 1);
     }
 
     #[test]
