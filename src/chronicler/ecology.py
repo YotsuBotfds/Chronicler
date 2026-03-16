@@ -8,14 +8,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from chronicler.models import ClimatePhase, Event, InfrastructureType, RegionEcology
+from chronicler.models import EMPTY_SLOT, MINERAL_TYPES, ResourceType
 from chronicler.tuning import (
     K_SOIL_DEGRADATION, K_SOIL_RECOVERY, K_MINE_SOIL_DEGRADATION,
     K_WATER_DROUGHT, K_WATER_RECOVERY,
     K_FOREST_CLEARING, K_FOREST_REGROWTH, K_COOLING_FOREST_DAMAGE,
     K_IRRIGATION_WATER_BONUS, K_IRRIGATION_DROUGHT_MULT,
     K_AGRICULTURE_SOIL_BONUS, K_MECHANIZATION_MINE_MULT,
-    K_FAMINE_WATER_THRESHOLD,
+    K_FAMINE_WATER_THRESHOLD, K_DEPLETION_RATE,
     get_override,
+)
+from chronicler.resources import (
+    CLIMATE_CLASS_MOD, SEASON_MOD,
+    _CLIMATE_PHASE_INDEX, resource_class_index,
 )
 
 if TYPE_CHECKING:
@@ -48,6 +53,60 @@ def effective_capacity(region: Region) -> int:
     soil = region.ecology.soil
     water_factor = min(1.0, region.ecology.water / 0.5)
     return max(int(region.carrying_capacity * soil * water_factor), 1)
+
+
+def compute_resource_yields(
+    region: "Region",
+    season_id: int,
+    climate_phase: "ClimatePhase",
+    worker_count: int,
+    world: "WorldState | None" = None,
+) -> list[float]:
+    """Compute current yield per resource slot. Mutates resource_reserves for minerals."""
+    phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
+    yields = [0.0, 0.0, 0.0]
+
+    for slot in range(3):
+        rtype = region.resource_types[slot]
+        if rtype == EMPTY_SLOT:
+            continue
+
+        # Suspension check
+        if rtype in region.resource_suspensions:
+            continue
+
+        base = region.resource_base_yields[slot]
+        season_mod = SEASON_MOD[rtype][season_id]
+        class_idx = resource_class_index(rtype)
+        climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx]
+
+        # ecology_mod by class
+        if class_idx == 0:  # Crop
+            ecology_mod = region.ecology.soil * region.ecology.water
+        elif class_idx == 1:  # Forestry
+            ecology_mod = region.ecology.forest_cover
+        else:  # Marine, Mineral, Evaporite
+            ecology_mod = 1.0
+
+        # reserve_ramp (minerals only)
+        reserve_ramp = 1.0
+        if rtype in MINERAL_TYPES:
+            reserves = region.resource_reserves[slot]
+            # Depletion — only if there are workers and reserves remain
+            if reserves > 0.01 and worker_count > 0:
+                target_workers = max(1, effective_capacity(region) // 3)
+                extraction = base * (worker_count / target_workers)
+                depletion_rate = get_override(world, K_DEPLETION_RATE, 0.009) if world else 0.009
+                region.resource_reserves[slot] = max(0.0, reserves - extraction * depletion_rate)
+            reserves = region.resource_reserves[slot]
+            if reserves < 0.01:
+                yields[slot] = base * 0.04  # Exhausted trickle
+                continue
+            reserve_ramp = min(1.0, reserves / 0.25)
+
+        yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp
+
+    return yields
 
 
 def _pressure_multiplier(region: Region) -> float:

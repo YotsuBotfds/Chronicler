@@ -647,3 +647,91 @@ def test_resource_class_index():
     assert resource_class_index(ResourceType.ORE) == 3         # Mineral
     assert resource_class_index(ResourceType.PRECIOUS) == 3    # Mineral
     assert resource_class_index(ResourceType.SALT) == 4        # Evaporite
+
+
+# --- Task 5 (M34): compute_resource_yields ---
+
+from chronicler.ecology import compute_resource_yields
+from chronicler.models import EMPTY_SLOT, ResourceType
+
+
+def test_yield_crop_autumn_temperate():
+    """Crop: base × season × climate × ecology_mod (soil×water)."""
+    r = Region(name="P", terrain="plains", carrying_capacity=50, resources="fertile")
+    r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    r.ecology.soil = 0.8
+    r.ecology.water = 0.7
+    yields = compute_resource_yields(r, season_id=2, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    # 1.0 × 1.5 (autumn grain) × 1.0 (temperate crop) × (0.8×0.7=0.56) × 1.0
+    expected = 1.0 * 1.5 * 1.0 * 0.56 * 1.0
+    assert abs(yields[0] - expected) < 0.001
+
+
+def test_yield_timber_uses_forest_cover():
+    r = Region(name="F", terrain="forest", carrying_capacity=50, resources="timber")
+    r.resource_types = [ResourceType.TIMBER, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    r.ecology.forest_cover = 0.4
+    yields = compute_resource_yields(r, season_id=2, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    # 1.0 × 1.2 (autumn timber) × 1.0 (temperate forestry) × 0.4 (forest_cover) × 1.0
+    expected = 1.0 * 1.2 * 1.0 * 0.4 * 1.0
+    assert abs(yields[0] - expected) < 0.001
+
+
+def test_yield_fish_ecology_mod_one():
+    r = Region(name="C", terrain="coast", carrying_capacity=50, resources="maritime")
+    r.resource_types = [ResourceType.FISH, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    r.ecology.soil = 0.1  # Bad soil shouldn't affect fish
+    r.ecology.water = 0.1
+    yields = compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    # 1.0 × 1.0 (spring fish) × 1.0 × 1.0 (marine ecology_mod) × 1.0
+    assert abs(yields[0] - 1.0) < 0.001
+
+
+def test_yield_ore_uses_reserve_ramp():
+    r = Region(name="M", terrain="mountains", carrying_capacity=60, resources="mineral")
+    r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [0.10, 1.0, 1.0]  # Low reserves
+    yields = compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    # reserve_ramp = min(1.0, 0.10/0.25) = 0.4
+    # 1.0 × 0.9 (spring ore) × 1.0 (mineral climate) × 1.0 (mineral ecology) × 0.4
+    expected = 1.0 * 0.9 * 1.0 * 1.0 * 0.4
+    assert abs(yields[0] - expected) < 0.001
+
+
+def test_yield_empty_slot_zero():
+    r = Region(name="T", terrain="tundra", carrying_capacity=20, resources="barren")
+    r.resource_types = [ResourceType.EXOTIC, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    yields = compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    assert yields[1] == 0.0
+    assert yields[2] == 0.0
+
+
+def test_yield_suspension_zeroes():
+    """Suspended resource yields 0."""
+    r = Region(name="F", terrain="forest", carrying_capacity=50, resources="timber")
+    r.resource_types = [ResourceType.TIMBER, EMPTY_SLOT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 0.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    r.ecology.forest_cover = 0.9
+    r.resource_suspensions = {int(ResourceType.TIMBER): 5}
+    yields = compute_resource_yields(r, season_id=2, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+    assert yields[0] == 0.0
+
+
+def test_salt_exempt_from_depletion():
+    r = Region(name="C", terrain="coast", carrying_capacity=50, resources="maritime")
+    r.resource_types = [ResourceType.FISH, ResourceType.SALT, EMPTY_SLOT]
+    r.resource_base_yields = [1.0, 1.0, 0.0]
+    r.resource_reserves = [1.0, 1.0, 1.0]
+    for _ in range(500):
+        compute_resource_yields(r, season_id=1, climate_phase=ClimatePhase.TEMPERATE, worker_count=10)
+    assert r.resource_reserves[1] == 1.0  # Salt never depletes
