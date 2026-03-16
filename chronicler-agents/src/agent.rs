@@ -31,3 +31,33 @@ pub const MORTALITY_YOUNG: f32 = 0.005;
 pub const MORTALITY_ADULT: f32 = 0.01;
 pub const MORTALITY_ELDER: f32 = 0.05;
 pub const OCCUPATION_COUNT: usize = 5;
+
+pub const MAX_CIVS: usize = 255;
+const _: () = assert!(MAX_CIVS <= u8::MAX as usize);
+
+// Fertility
+pub const FERTILITY_AGE_MIN: u16 = 16;
+pub const FERTILITY_AGE_MAX: u16 = 45;
+pub const FERTILITY_BASE_FARMER: f32 = 0.03;
+pub const FERTILITY_BASE_OTHER: f32 = 0.015;
+pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.4;
+
+// Decision thresholds
+pub const REBEL_LOYALTY_THRESHOLD: f32 = 0.2;
+pub const REBEL_SATISFACTION_THRESHOLD: f32 = 0.2;
+pub const REBEL_MIN_COHORT: usize = 5;
+pub const MIGRATE_SATISFACTION_THRESHOLD: f32 = 0.3;
+pub const OCCUPATION_SWITCH_UNDERSUPPLY: f32 = 1.5;
+pub const OCCUPATION_SWITCH_OVERSUPPLY: f32 = 0.5;
+pub const LOYALTY_DRIFT_RATE: f32 = 0.02;
+pub const LOYALTY_RECOVERY_RATE: f32 = 0.01;
+pub const LOYALTY_FLIP_THRESHOLD: f32 = 0.3;
+
+// Skill
+pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
+pub const SKILL_GROWTH_PER_TURN: f32 = 0.05;
+pub const SKILL_MAX: f32 = 1.0;
+pub const SKILL_NEWBORN: f32 = 0.1;
+
+// War
+pub const WAR_CASUALTY_MULTIPLIER: f32 = 2.0;
