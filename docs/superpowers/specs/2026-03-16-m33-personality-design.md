@@ -290,7 +290,7 @@ pub fn spawn(
 ) -> usize
 ```
 
-Existing call sites (tests, initial spawn) pass `0.0, 0.0, 0.0` until wired with real values. Both the free-slot reuse path and the grow path set personality fields from the parameters.
+**Production call sites** (initial world-gen spawn, birth during tick) pass real personality values computed from civ means + noise. **Test helper call sites** default to `0.0, 0.0, 0.0` (neutral) unless a specific test exercises non-zero personality. Both the free-slot reuse path and the grow path set personality fields from the parameters.
 
 ---
 
