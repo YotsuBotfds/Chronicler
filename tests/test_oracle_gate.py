@@ -89,3 +89,61 @@ class TestAdapter:
         data = load_comparison_data(agg_dir, hyb_dir, checkpoints=[100, 250, 500])
         # Only Aram matches — 3 checkpoints x 1 civ x 1 seed
         assert len(data["turn"]) == 3
+
+
+from chronicler.shadow_oracle import OracleResult, CorrelationResult, OracleReport
+
+
+class TestReportFormatting:
+    def _make_report(self) -> OracleReport:
+        """Create a synthetic OracleReport for formatting tests."""
+        results = []
+        for metric in ["population", "military", "economy", "culture", "stability"]:
+            for turn in [100, 250, 500]:
+                passed = not (metric == "military" and turn == 500)
+                results.append(OracleResult(
+                    metric=metric, turn=turn,
+                    ks_stat=0.04 if passed else 0.25,
+                    ks_p=0.5 if passed else 0.001,
+                    ad_p=0.6 if passed else 0.0005,
+                    alpha=0.003,
+                ))
+        for m1, m2 in [("military", "economy"), ("culture", "stability")]:
+            for turn in [100, 250, 500]:
+                results.append(CorrelationResult(m1, m2, turn, delta=0.05))
+        return OracleReport(results)
+
+    def test_terminal_summary_contains_result(self):
+        from scripts.run_oracle_gate import format_terminal_report
+        report = self._make_report()
+        text = format_terminal_report(report, seeds=200, turns=500,
+                                      agg_dir="agg/", hyb_dir="hyb/",
+                                      report_path="report.json")
+        assert "14/15" in text
+        assert "PASS" in text
+        assert "FAIL" in text  # military at turn 500
+
+    def test_terminal_summary_shows_ks_pvalue(self):
+        from scripts.run_oracle_gate import format_terminal_report
+        report = self._make_report()
+        text = format_terminal_report(report, seeds=200, turns=500,
+                                      agg_dir="agg/", hyb_dir="hyb/",
+                                      report_path="report.json")
+        assert "0.001" in text  # the failing KS p-value
+
+    def test_build_json_report(self):
+        from scripts.run_oracle_gate import build_json_report
+        report = self._make_report()
+        data = {"turn": [100] * 200}  # dummy comparison data for raw correlations
+        for m in ["population", "military", "economy", "culture", "stability"]:
+            data[f"agent_{m}"] = list(range(200))
+            data[f"agg_{m}"] = list(range(200))
+        result = build_json_report(report, data, seeds=200, turns=500,
+                                   agg_dir="agg/", hyb_dir="hyb/")
+        assert result["summary"]["distribution_passed"] == 14
+        assert result["summary"]["overall"] == "PASS"
+        assert len(result["distribution_tests"]) == 15
+        assert len(result["correlation_tests"]) == 6
+        # Correlation tests include raw values
+        assert "agent_corr" in result["correlation_tests"][0]
+        assert "agg_corr" in result["correlation_tests"][0]
