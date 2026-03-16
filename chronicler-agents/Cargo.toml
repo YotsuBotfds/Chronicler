@@ -31,3 +31,6 @@ opt-level = 3
 [[bench]]
 name = "tick_bench"
 harness = false
+
+[[example]]
+name = "flamegraph_run"
