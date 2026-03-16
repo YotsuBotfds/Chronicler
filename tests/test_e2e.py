@@ -85,16 +85,18 @@ def test_m7_critical_gate_20_turns():
     world = generate_world(seed=42, num_regions=8, num_civs=4)
 
     # Boost starting stats to ensure tech advancement is reachable with M15 mechanics
-    from chronicler.models import Resource
+    from chronicler.models import Resource, ResourceType, EMPTY_SLOT
     for civ in world.civilizations:
         civ.economy = 60
         civ.culture = 60
         civ.population = 60
         civ.treasury = 200
-    # Ensure at least one civ has both IRON and TIMBER for TRIBAL→BRONZE
+    # Ensure at least one civ has both ORE and TIMBER for TRIBAL→BRONZE
+    # Set both specialized_resources (legacy) and resource_types (new system)
     for r in world.regions:
         if r.controller == world.civilizations[0].name:
             r.specialized_resources = [Resource.IRON, Resource.TIMBER, Resource.GRAIN]
+            r.resource_types = [ResourceType.ORE, ResourceType.TIMBER, ResourceType.GRAIN]
             break
 
     # Capture the founding civs before any secessions can create new short-lived civs

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from chronicler.models import Civilization, Event, Resource, TechEra, WorldState
+from chronicler.models import Civilization, Event, EMPTY_SLOT, ResourceType, TechEra, WorldState
 from chronicler.utils import clamp, STAT_FLOOR
 
 
@@ -54,22 +54,24 @@ def get_era_bonus(era: TechEra, key: str, default: float = 0.0) -> float:
     return ERA_BONUSES.get(era, {}).get(key, default)
 
 
-RESOURCE_REQUIREMENTS: dict[TechEra, tuple[set[Resource] | None, int]] = {
-    TechEra.TRIBAL: ({Resource.IRON, Resource.TIMBER}, 2),
-    TechEra.BRONZE: ({Resource.IRON, Resource.TIMBER, Resource.GRAIN}, 3),
+RESOURCE_REQUIREMENTS: dict[TechEra, tuple[set[int] | None, int]] = {
+    TechEra.TRIBAL: ({ResourceType.ORE, ResourceType.TIMBER}, 2),
+    TechEra.BRONZE: ({ResourceType.ORE, ResourceType.TIMBER, ResourceType.GRAIN}, 3),
     TechEra.IRON: (None, 3),
     TechEra.CLASSICAL: (None, 4),
     TechEra.MEDIEVAL: (None, 4),
     TechEra.RENAISSANCE: (None, 5),
-    TechEra.INDUSTRIAL: ({Resource.FUEL}, 5),
+    TechEra.INDUSTRIAL: ({ResourceType.TIMBER}, 5),  # FUEL → TIMBER
 }
 
 
-def _get_civ_resources(civ: Civilization, world: WorldState) -> set[Resource]:
-    resources: set[Resource] = set()
+def _get_civ_resources(civ: Civilization, world: WorldState) -> set[int]:
+    resources: set[int] = set()
     for r in world.regions:
         if r.controller == civ.name:
-            resources.update(r.specialized_resources)
+            for rtype in r.resource_types:
+                if rtype != EMPTY_SLOT:
+                    resources.add(rtype)
     return resources
 
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from chronicler.models import (
-    ActionType, Civilization, Event, InfrastructureType, Resource, TechEra, WorldState,
+    ActionType, Civilization, Event, InfrastructureType, ResourceType, TechEra, WorldState,
 )
 from chronicler.utils import clamp, STAT_FLOOR
 
@@ -56,8 +56,8 @@ def _count_terrain(civ: Civilization, world: WorldState, terrain: str) -> int:
     return sum(1 for r in world.regions if r.controller == civ.name and r.terrain == terrain)
 
 
-def _count_resource(civ: Civilization, world: WorldState, resource: Resource) -> int:
-    return sum(1 for r in world.regions if r.controller == civ.name and resource in r.specialized_resources)
+def _count_resource(civ: Civilization, world: WorldState, resource: int) -> int:
+    return sum(1 for r in world.regions if r.controller == civ.name and resource in r.resource_types)
 
 
 def _count_infra(civ: Civilization, world: WorldState, infra_type: InfrastructureType) -> int:
@@ -164,12 +164,12 @@ def _score_focus(focus: TechFocus, civ: Civilization, world: WorldState) -> floa
         return coastal * 3 + ports * 5
 
     elif focus == TechFocus.METALLURGY:
-        iron_regions = _count_resource(civ, world, Resource.IRON)
+        iron_regions = _count_resource(civ, world, ResourceType.ORE)
         mines = _count_infra(civ, world, InfrastructureType.MINES)
         return iron_regions * 4 + mines * 5
 
     elif focus == TechFocus.AGRICULTURE:
-        grain = _count_resource(civ, world, Resource.GRAIN)
+        grain = _count_resource(civ, world, ResourceType.GRAIN)
         irrigated = _count_infra(civ, world, InfrastructureType.IRRIGATION)
         return grain * 3 + irrigated * 5 + civ.population * 0.1
 
@@ -203,7 +203,7 @@ def _score_focus(focus: TechFocus, civ: Civilization, world: WorldState) -> floa
 
     elif focus == TechFocus.MECHANIZATION:
         mines = _count_infra(civ, world, InfrastructureType.MINES)
-        iron_regions = _count_resource(civ, world, Resource.IRON)
+        iron_regions = _count_resource(civ, world, ResourceType.ORE)
         return mines * 5 + iron_regions * 3 + civ.economy * 0.2
 
     elif focus == TechFocus.RAILWAYS:

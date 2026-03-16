@@ -1,5 +1,5 @@
 import pytest
-from chronicler.models import Civilization, Leader, Resource, TechEra, Event, WorldState, Region
+from chronicler.models import Civilization, Leader, Resource, ResourceType, EMPTY_SLOT, TechEra, Event, WorldState, Region
 from chronicler.tech import TECH_REQUIREMENTS, ERA_BONUSES, check_tech_advancement, apply_era_bonus, tech_war_multiplier
 
 
@@ -15,7 +15,12 @@ def tribal_civ():
 def tech_world(tribal_civ):
     return WorldState(
         name="Test", seed=42, turn=5,
-        regions=[Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile", controller="Test Civ", specialized_resources=[Resource.IRON, Resource.TIMBER])],
+        regions=[Region(
+            name="Region A", terrain="plains", carrying_capacity=80, resources="fertile",
+            controller="Test Civ",
+            specialized_resources=[Resource.IRON, Resource.TIMBER],
+            resource_types=[ResourceType.ORE, ResourceType.TIMBER, EMPTY_SLOT],
+        )],
         civilizations=[tribal_civ],
     )
 
@@ -125,7 +130,7 @@ def test_tech_war_multiplier_defender_advantage():
 
 
 def test_tech_blocked_without_resources(sample_world):
-    from chronicler.models import Resource
+    from chronicler.models import Resource, ResourceType, EMPTY_SLOT
     civ = sample_world.civilizations[0]
     civ.tech_era = TechEra.TRIBAL
     civ.culture = 40
@@ -134,12 +139,13 @@ def test_tech_blocked_without_resources(sample_world):
     for r in sample_world.regions:
         if r.controller == civ.name:
             r.specialized_resources = [Resource.GRAIN]
+            r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
     event = check_tech_advancement(civ, sample_world)
     assert event is None
 
 
 def test_tech_allowed_with_resources(sample_world):
-    from chronicler.models import Resource
+    from chronicler.models import Resource, ResourceType, EMPTY_SLOT
     civ = sample_world.civilizations[0]
     civ.tech_era = TechEra.TRIBAL
     civ.culture = 40
@@ -148,6 +154,7 @@ def test_tech_allowed_with_resources(sample_world):
     for r in sample_world.regions:
         if r.controller == civ.name:
             r.specialized_resources = [Resource.IRON, Resource.TIMBER]
+            r.resource_types = [ResourceType.ORE, ResourceType.TIMBER, EMPTY_SLOT]
             break
     event = check_tech_advancement(civ, sample_world)
     assert event is not None

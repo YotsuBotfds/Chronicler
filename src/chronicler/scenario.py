@@ -261,8 +261,16 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         if reg_override.adjacencies is not None:
             world.regions[target_idx].adjacencies = reg_override.adjacencies
         if reg_override.specialized_resources is not None:
-            from chronicler.models import Resource
-            world.regions[target_idx].specialized_resources = [Resource(r) for r in reg_override.specialized_resources]
+            from chronicler.models import Resource, ResourceType, EMPTY_SLOT
+            from chronicler.resources import populate_legacy_resources, RESOURCE_BASE
+            try:
+                types = [int(r) for r in reg_override.specialized_resources]
+                for i, rtype in enumerate(types[:3]):
+                    world.regions[target_idx].resource_types[i] = rtype
+                    world.regions[target_idx].resource_base_yields[i] = RESOURCE_BASE.get(rtype, 1.0)
+                populate_legacy_resources([world.regions[target_idx]])
+            except (ValueError, TypeError):
+                world.regions[target_idx].specialized_resources = [Resource(r) for r in reg_override.specialized_resources]
         if reg_override.ecology is not None:
             for key, value in reg_override.ecology.items():
                 setattr(world.regions[target_idx].ecology, key, value)
@@ -382,6 +390,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     compute_adjacencies(world.regions)
     from chronicler.resources import assign_resources
     assign_resources(world.regions, seed=world.seed)
+    from chronicler.resources import assign_resource_types, populate_legacy_resources
+    assign_resource_types(world.regions, seed=world.seed)
+    populate_legacy_resources(world.regions)
 
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}

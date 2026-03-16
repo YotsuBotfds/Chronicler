@@ -277,9 +277,11 @@ def test_tech_phase_runs(sample_world):
         civ.culture = 40
         civ.treasury = 100
     # Give controlled regions the resources needed for TRIBAL→BRONZE
+    from chronicler.models import ResourceType, EMPTY_SLOT
     for r in sample_world.regions:
         if r.controller:
             r.specialized_resources = [Resource.IRON, Resource.TIMBER]
+            r.resource_types = [ResourceType.ORE, ResourceType.TIMBER, EMPTY_SLOT]
 
     def stub_selector(civ, world):
         return ActionType.DEVELOP

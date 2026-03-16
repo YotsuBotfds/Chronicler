@@ -8,8 +8,8 @@ from __future__ import annotations
 import random
 
 from chronicler.models import (
-    ActiveCondition, Civilization, Event, PandemicRegion, Region,
-    Resource, TechEra, WorldState,
+    ActiveCondition, Civilization, EMPTY_SLOT, Event, PandemicRegion, Region,
+    ResourceType, TechEra, WorldState,
 )
 from chronicler.resources import get_active_trade_routes
 from chronicler.tech import _prev_era, remove_era_bonus
@@ -158,8 +158,8 @@ def _get_eligible_types(world: WorldState) -> dict[str, int]:
     if _find_volcano_triples(world):
         eligible["supervolcano"] = _EVENT_WEIGHTS["supervolcano"]
 
-    # Resource discovery: any region with 0 specialized resources
-    if any(len(r.specialized_resources) == 0 for r in world.regions):
+    # Resource discovery: any region with no resource types assigned
+    if any(r.resource_types[0] == EMPTY_SLOT for r in world.regions):
         eligible["resource_discovery"] = _EVENT_WEIGHTS["resource_discovery"]
 
     # Tech accident: any civ at INDUSTRIAL+
@@ -440,16 +440,24 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
 
 def _apply_resource_discovery(world: WorldState, seed: int) -> list[Event]:
     """Add strategic resources to a barren region."""
+    from chronicler.resources import RESOURCE_BASE, populate_legacy_resources
+
     rng = random.Random(seed + world.turn * 1031)
 
-    barren = [r for r in world.regions if len(r.specialized_resources) == 0]
+    barren = [r for r in world.regions if r.resource_types[0] == EMPTY_SLOT]
     if not barren:
         return []
 
     region = rng.choice(barren)
     count = rng.randint(1, 2)
-    new_resources = rng.sample([Resource.FUEL, Resource.RARE_MINERALS], k=count)
-    region.specialized_resources.extend(new_resources)
+    new_resource_types = rng.sample([ResourceType.TIMBER, ResourceType.PRECIOUS], k=count)
+    for rtype in new_resource_types:
+        for slot in range(3):
+            if region.resource_types[slot] == EMPTY_SLOT:
+                region.resource_types[slot] = rtype
+                region.resource_base_yields[slot] = RESOURCE_BASE[rtype] * (1.0 + rng.uniform(-0.2, 0.2))
+                break
+    populate_legacy_resources([region])
 
     controller = region.controller
     for adj_name in region.adjacencies:
@@ -467,7 +475,7 @@ def _apply_resource_discovery(world: WorldState, seed: int) -> list[Event]:
                     if adj_ctrl in world.relationships and other_adj.controller in world.relationships[adj_ctrl]:
                         world.relationships[adj_ctrl][other_adj.controller].disposition_drift -= 5
 
-    resource_names = ", ".join(r.value for r in new_resources)
+    resource_names = ", ".join(ResourceType(rtype).name.lower() for rtype in new_resource_types)
     return [Event(
         turn=world.turn,
         event_type="resource_discovery",

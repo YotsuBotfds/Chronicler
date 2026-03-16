@@ -1,6 +1,6 @@
 from chronicler.models import (
-    Civilization, Infrastructure, InfrastructureType, Leader, Region, Resource, TechEra,
-    ActionType, WorldState,
+    Civilization, EMPTY_SLOT, Infrastructure, InfrastructureType, Leader, Region, Resource,
+    ResourceType, TechEra, ActionType, WorldState,
 )
 from chronicler.tech_focus import (
     TechFocus, ERA_FOCUSES, select_tech_focus, _score_focus,
@@ -73,6 +73,7 @@ def test_iron_mining_civ_selects_metallurgy():
     regions = [
         _make_region(f"mountain_{i}", terrain="mountains", controller="TestCiv",
                      specialized_resources=[Resource.IRON],
+                     resource_types=[ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT],
                      infrastructure=[_make_infra(InfrastructureType.MINES)])
         for i in range(3)
     ]
@@ -203,6 +204,7 @@ def test_readvancement_after_regression_may_differ():
     # Change geography: now mining civ
     regions[0].terrain = "mountains"
     regions[0].specialized_resources = [Resource.IRON]
+    regions[0].resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
     regions[0].infrastructure = [_make_infra(InfrastructureType.MINES)]
 
     # Re-advance: should pick METALLURGY now
