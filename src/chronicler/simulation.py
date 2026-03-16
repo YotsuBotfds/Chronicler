@@ -90,7 +90,7 @@ def _get_civ(world: WorldState, name: str) -> Civilization | None:
 
 # --- Phase 1: Environment ---
 
-def phase_environment(world: WorldState, seed: int) -> list[Event]:
+def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Check for natural disasters. At most one environment event per turn."""
     from chronicler.climate import get_climate_phase, check_disasters, process_migration
 
@@ -133,8 +133,13 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
             for civ in affected:
                 mult = get_severity_multiplier(civ)
                 drain = int(get_override(world, K_DROUGHT_STABILITY, 3))
-                civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
-                civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
+                if acc is not None:
+                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    acc.add(civ_idx, civ, "stability", -drain, "signal")
+                    acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
+                else:
+                    civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
+                    civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="drought",
@@ -146,11 +151,18 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         elif event.event_type == "plague":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ_regions = [r for r in world.regions if r.controller == civ.name]
-                distribute_pop_loss(civ_regions, int(10 * mult))
-                sync_civ_population(civ, world)
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "population", -int(10 * mult), "guard")
+                else:
+                    civ_regions = [r for r in world.regions if r.controller == civ.name]
+                    distribute_pop_loss(civ_regions, int(10 * mult))
+                    sync_civ_population(civ, world)
                 drain = int(get_override(world, K_PLAGUE_STABILITY, 3))
-                civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "stability", -drain, "signal")
+                else:
+                    civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="plague",
@@ -162,7 +174,11 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         elif event.event_type == "earthquake":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
+                if acc is not None:
+                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
+                else:
+                    civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
 
         world.event_probabilities = apply_probability_cascade(
             event.event_type, world.event_probabilities
@@ -174,7 +190,7 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 
 # --- Phase 2: Automatic Effects ---
 
-def apply_automatic_effects(world: WorldState) -> list[Event]:
+def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Automatic per-turn effects — maintenance, trade, specialization, mercs."""
     from chronicler.resources import get_active_trade_routes, get_self_trade_civs
     from chronicler.infrastructure import tick_infrastructure
@@ -186,10 +202,13 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
     # 1. Military maintenance: free up to threshold, then (mil-threshold)//10 per turn
     free_threshold = int(get_override(world, K_MILITARY_FREE_THRESHOLD, 30))
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if civ.military > free_threshold:
             cost = (civ.military - free_threshold) // 10
-            civ.treasury -= cost
+            if acc is not None:
+                acc.add(civ_idx, civ, "treasury", -cost, "keep")
+            else:
+                civ.treasury -= cost
 
     # 2. Trade income
     cross_routes = get_active_trade_routes(world)
@@ -197,19 +216,31 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         a = _get_civ(world, civ_a)
         b = _get_civ(world, civ_b)
         if a:
-            a.treasury += 2
+            if acc is not None:
+                a_idx = next(i for i, c in enumerate(world.civilizations) if c.name == a.name)
+                acc.add(a_idx, a, "treasury", 2, "keep")
+            else:
+                a.treasury += 2
         if b:
-            b.treasury += 2
+            if acc is not None:
+                b_idx = next(i for i, c in enumerate(world.civilizations) if c.name == b.name)
+                acc.add(b_idx, b, "treasury", 2, "keep")
+            else:
+                b.treasury += 2
     for civ_name in get_self_trade_civs(world):
         c = _get_civ(world, civ_name)
         if c:
-            c.treasury += 3
+            if acc is not None:
+                c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                acc.add(c_idx, c, "treasury", 3, "keep")
+            else:
+                c.treasury += 3
 
     # Embargo set — used by both specialization and black market sections
     embargo_set = {(a, b) for a, b in world.embargoes} | {(b, a) for a, b in world.embargoes}
 
     # 3. Economic specialization
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         controlled = [r for r in world.regions if r.controller == civ.name]
         if not controlled:
             continue
@@ -235,13 +266,19 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
                                if (a, b) in embargo_set or (b, a) in embargo_set]
             if embargoed_routes:
                 penalty = int(civ.economy * 0.20)
-                civ.treasury -= penalty
+                if acc is not None:
+                    acc.add(civ_idx, civ, "treasury", -penalty, "keep")
+                else:
+                    civ.treasury -= penalty
             else:
                 bonus = int(civ.economy * 0.15)
-                civ.treasury += bonus
+                if acc is not None:
+                    acc.add(civ_idx, civ, "treasury", bonus, "keep")
+                else:
+                    civ.treasury += bonus
 
     # 4. Black market leakage for embargoed civs
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if not any(civ.name in pair for pair in embargo_set):
             continue
         # Check for adjacent non-embargoed neighbors
@@ -253,8 +290,12 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
                 if adj and adj.controller and adj.controller != civ.name:
                     pair = tuple(sorted([civ.name, adj.controller]))
                     if pair not in embargo_set:
-                        civ.treasury += 1  # 30% of normal trade (2), min 1
-                        civ.stability = clamp(civ.stability - 3, STAT_FLOOR["stability"], 100)
+                        if acc is not None:
+                            acc.add(civ_idx, civ, "treasury", 1, "keep")
+                            acc.add(civ_idx, civ, "stability", -3, "signal")
+                        else:
+                            civ.treasury += 1  # 30% of normal trade (2), min 1
+                            civ.stability = clamp(civ.stability - 3, STAT_FLOOR["stability"], 100)
                         break  # Only one black market route per civ per turn
             break  # Only check first controlled region for simplicity
 
@@ -263,14 +304,21 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         for civ_name in war:
             c = _get_civ(world, civ_name)
             if c:
-                c.treasury -= 3
-                if c.treasury <= 0:
-                    drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
-                    c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
+                if acc is not None:
+                    c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                    acc.add(c_idx, c, "treasury", -3, "keep")
+                    if c.treasury <= 0:
+                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
+                        acc.add(c_idx, c, "stability", -drain, "signal")
+                else:
+                    c.treasury -= 3
+                    if c.treasury <= 0:
+                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
+                        c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
 
     # 6. Mercenary system
     MAX_MERCS = 3
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         # Check merc pressure: military >> income
         if civ.military > 30 and civ.last_income > 0 and civ.military > civ.last_income * 3:
             civ.merc_pressure_turns += 1
@@ -279,7 +327,10 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         # Spawn mercenary company after 3 turns of pressure
         if civ.merc_pressure_turns >= 3 and len(world.mercenary_companies) < MAX_MERCS:
             strength = min(10, civ.military // 5)
-            civ.military = clamp(civ.military - strength, STAT_FLOOR["military"], 100)
+            if acc is not None:
+                acc.add(civ_idx, civ, "military", -strength, "guard")
+            else:
+                civ.military = clamp(civ.military - strength, STAT_FLOOR["military"], 100)
             region = civ.regions[0] if civ.regions else "unknown"
             world.mercenary_companies.append({
                 "strength": strength, "origin_civ": civ.name,
@@ -306,8 +357,13 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         if candidates:
             candidates.sort(key=lambda c: (c.military, -c.treasury))
             hirer = candidates[0]
-            hirer.treasury -= 10
-            hirer.military = clamp(hirer.military + merc["strength"], STAT_FLOOR["military"], 100)
+            if acc is not None:
+                hirer_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == hirer.name)
+                acc.add(hirer_idx, hirer, "treasury", -10, "keep")
+                acc.add(hirer_idx, hirer, "military", merc["strength"], "guard")
+            else:
+                hirer.treasury -= 10
+                hirer.military = clamp(hirer.military + merc["strength"], STAT_FLOOR["military"], 100)
             merc["hired_by"] = hirer.name
             merc["available"] = False
     # Decay unhired mercs
@@ -369,15 +425,18 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
 # --- Phase 3: Production ---
 
-def phase_production(world: WorldState) -> None:
+def phase_production(world: WorldState, acc=None) -> None:
     """Generate income and adjust population for each civilization."""
     from chronicler.ecology import effective_capacity
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         # Base income
         income = civ.economy // 5 + len(civ.regions) * 2
         # Condition penalty
         penalty = sum(c.severity for c in world.active_conditions if civ.name in c.affected_civs)
-        civ.treasury += max(0, income - penalty)
+        if acc is not None:
+            acc.add(civ_idx, civ, "treasury", max(0, income - penalty), "keep")
+        else:
+            civ.treasury += max(0, income - penalty)
         # Track last_income for mercenary spawn
         civ.last_income = max(0, income - penalty)
         # Population
@@ -391,20 +450,31 @@ def phase_production(world: WorldState) -> None:
             if civ_regions:
                 growth = max(5, 5 * len(civ_regions))
                 per_region = max(1, growth // len(civ_regions))
-                for r in civ_regions:
-                    add_region_pop(r, per_region)
-                sync_civ_population(civ, world)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "population", per_region * len(civ_regions), "guard")
+                else:
+                    for r in civ_regions:
+                        add_region_pop(r, per_region)
+                    sync_civ_population(civ, world)
         elif civ.stability <= 5 and civ.population > 1:
             if civ_regions:
-                target = max(civ_regions, key=lambda r: r.population)
-                drain_region_pop(target, 5)
-                sync_civ_population(civ, world)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "population", -5, "guard")
+                else:
+                    target = max(civ_regions, key=lambda r: r.population)
+                    drain_region_pop(target, 5)
+                    sync_civ_population(civ, world)
         # Passive repopulation: empty controlled regions slowly recover
         if civ_regions:
-            for r in civ_regions:
-                if r.population == 0:
-                    add_region_pop(r, 3)
-            sync_civ_population(civ, world)
+            empty_count = sum(1 for r in civ_regions if r.population == 0)
+            if acc is not None:
+                if empty_count > 0:
+                    acc.add(civ_idx, civ, "population", 3 * empty_count, "guard")
+            else:
+                for r in civ_regions:
+                    if r.population == 0:
+                        add_region_pop(r, 3)
+                sync_civ_population(civ, world)
 
         # M21: MECHANIZATION gives +2 treasury per active mine
         if civ.active_focus == "mechanization":
@@ -414,7 +484,10 @@ def phase_production(world: WorldState) -> None:
                 for i in r.infrastructure if i.type == InfrastructureType.MINES and i.active
             )
             if mine_count > 0:
-                civ.treasury += mine_count * 2
+                if acc is not None:
+                    acc.add(civ_idx, civ, "treasury", mine_count * 2, "keep")
+                else:
+                    civ.treasury += mine_count * 2
                 world.events_timeline.append(Event(
                     turn=world.turn, event_type="capability_mechanization",
                     actors=[civ.name], description=f"{civ.name} mechanization yields {mine_count * 2} from mines",
@@ -422,7 +495,7 @@ def phase_production(world: WorldState) -> None:
                 ))
 
     # Stability recovery: passive per-turn recovery, halved during severe conditions
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if civ.stability < 50:
             base_recovery = int(get_override(world, K_STABILITY_RECOVERY, 20))
             has_severe_condition = any(
@@ -430,7 +503,10 @@ def phase_production(world: WorldState) -> None:
                 for c in world.active_conditions
             )
             recovery = base_recovery // 2 if has_severe_condition else base_recovery
-            civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
+            if acc is not None:
+                acc.add(civ_idx, civ, "stability", recovery, "guard")
+            else:
+                civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
 
     # M16a: Prestige decay and trade bonus
     tick_prestige(world)
