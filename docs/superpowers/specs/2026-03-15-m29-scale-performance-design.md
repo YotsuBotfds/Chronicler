@@ -20,9 +20,9 @@ Safe to implement before oracle gate validation because none of this work depend
 
 Gated on M28 oracle gate passing. The satisfaction formula, decision thresholds, and coefficient values must be finalized before this work begins.
 
-4. **SIMD satisfaction verification** — Check whether the existing branchless formula auto-vectorizes; explicit SIMD only if it doesn't.
-5. **Decision short-circuit tuning** — Optimize branch ordering based on finalized formula.
-6. **Deferred Phase A findings** — Implement any optimizations flagged but deferred during Phase A (Arrow zero-copy, etc.).
+4a. **SIMD satisfaction verification** — Check whether the existing branchless formula auto-vectorizes; explicit SIMD only if it doesn't.
+4b. **Decision short-circuit tuning** — Optimize branch ordering based on finalized formula.
+4c. **Deferred Phase A findings** — Implement any optimizations flagged but deferred during Phase A (Arrow zero-copy, etc.).
 
 ### What M29 Does NOT Do
 
@@ -30,7 +30,7 @@ Gated on M28 oracle gate passing. The satisfaction formula, decision thresholds,
 - No constant tuning (covered by M27)
 - No algorithmic changes to decision logic (covered by M26)
 - No narrative enrichment (that's M30)
-- No new agent fields or pool structure changes
+- No new agent fields or pool structure changes (compaction rearranges existing slots but does not change the pool's field set or SoA layout)
 
 ## Benchmark Matrix & Profiling Infrastructure
 
@@ -58,7 +58,7 @@ The flamegraph runs first. Criterion benchmarks are then written targeting whate
 
 ### Macro Regression Gate
 
-A 500-turn timed integration test (not criterion) at 6K/24 and 10K/24. This is the "did the overall number get better or worse" check. Run via `cargo test --release` with a `#[ignore]` gate so it doesn't slow CI.
+A 500-turn timed integration test (not criterion) at 6K/24 and 10K/24. Purely Rust-side: 500 ticks plus partition/event overhead, no Python orchestration. Run via `cargo test --release` with a `#[ignore]` gate so it doesn't slow CI. Report the median of 3 runs; target must be met on all 3. The headroom between tick targets (e.g., 500 × 3ms = 1.5s) and macro targets (3s) accounts for per-turn overhead (partition, event allocation, region stats) which is measured but not independently targeted.
 
 ### Flamegraph Harness
 
@@ -81,7 +81,8 @@ Partition agents by region (same pattern as Phases 2-4), run satisfaction comput
 ### What Changes
 
 - `tick.rs` Phase 1 block: refactored from a single loop over all agents to a `par_iter` over region partitions.
-- Region stats (needed as read-only input): pre-computed once before the parallel pass. Phase 2 already does this — reuse that infrastructure.
+- Region stats (needed as read-only input): pre-computed once before the parallel pass. The tick's region-stats step already does this — reuse that infrastructure.
+- Parallel writes to `pool.satisfactions` are safe without synchronization: each region's partition writes to disjoint slot indices, so no two threads touch the same element. This differs from the decisions phase (which collects results for sequential application) because satisfaction is a pure per-agent write with no cross-agent dependencies.
 - No changes to the satisfaction formula itself.
 
 ### Phase 0 (Skill Growth)
@@ -96,28 +97,28 @@ Before/after flamegraph comparison. The 500-turn macro test confirms the overall
 
 Three investigations, all triggered by profiling data, not pre-committed.
 
-### 4a. Arrow FFI Overhead
+### 3a. Arrow FFI Overhead
 
-Measure the copy cost in `ffi.rs` (SoA vecs → Arrow builders). At 10K agents × ~42 bytes, this is ~420KB — expected to be sub-millisecond.
+Measure the copy cost in `ffi.rs` (SoA vecs → Arrow builders). At 10K agents the serialization touches ~420KB of SoA data across ~10 column builders — expected to be sub-millisecond.
 
 - **If sub-millisecond:** Document the measurement and move on.
 - **If unexpectedly slow:** Refactor Rust side to wrap `Vec` buffers directly via pyo3-arrow's zero-copy path. Python side stays unchanged.
 
 Expected outcome: non-issue.
 
-### 4b. Cache Efficiency After Mortality Spikes
+### 3b. Cache Efficiency After Mortality Spikes
 
 After high-mortality turns, dead slots scatter across SoA arrays. Measure whether this causes measurable cache-miss degradation.
 
 **Measurement method:** Synthetically create two identical pools at 10K agents:
 - **Packed:** All alive agents contiguous at the front of the SoA arrays.
-- **Scattered:** Alive agents distributed across 15K slots with dead gaps.
+- **Scattered:** Alive agents distributed across 15K slots with dead gaps (simulates peak pool size after a high-birth era followed by ~33% mortality).
 
 Benchmark the same tick on both pools. This isolates the cache effect from gameplay noise (decision paths, migration counts, birth rates all vary per-turn and would confound a live comparison).
 
-### 4c. Compaction (Contingent on 4b)
+### 3c. Compaction (Contingent on 3b)
 
-If 4b shows a real cache-miss problem: implement periodic full compaction every N turns (N=50 as starting point). O(n) copy, one tick's cost amortized over 50.
+If 3b shows a real cache-miss problem: implement periodic full compaction every N turns (N=50 as starting point). O(n) copy, one tick's cost amortized over 50.
 
 **Compaction is safe between ticks.** The `ids` array provides stable agent identity. `AgentEvent` uses `agent_id` (the monotonic ID from `pool.ids`), not slot index. Snapshots export via `get_snapshot()` which iterates alive slots and reads `ids[slot]`. Nothing caches slot indices between ticks. Compaction between ticks can freely rearrange slots without breaking any external references.
 
@@ -127,7 +128,7 @@ If 4b shows a real cache-miss problem: implement periodic full compaction every 
 
 M28 oracle gate passes. Satisfaction formula, decision thresholds, and coefficient values are finalized.
 
-### 5a. SIMD Satisfaction Verification
+### 4a. SIMD Satisfaction Verification
 
 The satisfaction formula is already branchless (M26 implemented `as f32` boolean casts for auto-vectorization). The work here is:
 
@@ -137,11 +138,11 @@ The satisfaction formula is already branchless (M26 implemented `as f32` boolean
 
 This is verification and a potential small fix, not a rewrite.
 
-### 5b. Decision Short-Circuit Tuning
+### 4b. Decision Short-Circuit Tuning
 
-Phase 2 evaluates decisions per-agent with early exits. Optimize the branch ordering based on the finalized formula — put the most-common rejection case first.
+The decision evaluation loop in `behavior.rs` evaluates decisions per-agent with early exits. Optimize the branch ordering based on the finalized formula — put the most-common rejection case first.
 
-### 5c. Deferred Phase A Findings
+### 4c. Deferred Phase A Findings
 
 If Arrow FFI or compaction were flagged as issues in Phase A but deferred, implement them here.
 
@@ -162,6 +163,18 @@ Phase B does not introduce new simulation features, new agent fields, or changes
 
 ## Dependencies
 
-- **M25–M27:** Landed. M29 optimizes the system they built.
+- **M25–M26:** Landed.
+- **M27 (System Integration):** In progress. Phase A does not depend on M27 landing.
 - **M28 (Oracle Gate):** Phase A runs in parallel with M28. Phase B is gated on M28 passing. Profiling infrastructure from Phase A also serves M28 (tick-time breakdowns help interpret oracle divergences).
 - **M30 (Narrative):** No dependency in either direction. M29 and M30 are independent.
+
+## Deliverables
+
+- Flamegraph analysis of 500-turn × 10K/24 run (before and after optimization)
+- Criterion benchmarks targeting flamegraph-identified hotspots across the benchmark matrix
+- 500-turn timed integration test (macro regression gate) at 6K/24 and 10K/24
+- Flamegraph harness binary (`examples/flamegraph_run.rs`)
+- Benchmark README documenting reference hardware specs and measurement protocol
+- Arrow FFI overhead measurement (documented even if result is "non-issue")
+- Cache-efficiency synthetic benchmark (packed vs. scattered pools)
+- Before/after performance comparison report
