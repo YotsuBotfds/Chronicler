@@ -1,17 +1,17 @@
 """Bridge between Python WorldState and Rust AgentSimulator."""
 from __future__ import annotations
 import logging
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
-from chronicler.models import AgentEventRecord, CivShock
+from chronicler.models import AgentEventRecord, CivShock, Event
 from chronicler.shadow import ShadowLogger
 
 if TYPE_CHECKING:
-    from chronicler.models import Event, WorldState
+    from chronicler.models import WorldState
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,18 @@ TERRAIN_MAP = {
     "forest": 3, "desert": 4, "tundra": 5,
 }
 FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2}
+
+EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
+                  3: "occupation_switch", 4: "loyalty_flip", 5: "birth"}
+OCCUPATION_NAMES = {0: "farmers", 1: "soldiers", 2: "merchants", 3: "scholars", 4: "priests"}
+
+SUMMARY_TEMPLATES = {
+    "mass_migration": "{count} {occ_majority} fled {source_region} for {target_region}",
+    "local_rebellion": "Rebellion erupted in {region} as {count} discontented {occ_majority} rose up",
+    "demographic_crisis": "{region} lost {pct}% of its population over {window} turns",
+    "occupation_shift": "{count} agents in {region} switched to {new_occupation}",
+    "loyalty_cascade": "{count} residents of {region} shifted allegiance to {target_civ}",
+}
 
 
 def build_region_batch(world: WorldState) -> pa.RecordBatch:
@@ -148,16 +160,171 @@ class AgentBridge:
 
         if self._mode == "hybrid":
             self._write_back(world)
-            return []  # Event aggregation added in Task 13
+            raw_events = self._convert_events(agent_events, world.turn)
+            world.agent_events_raw.extend(raw_events)
+            self._event_window.append(raw_events)
+            return self._aggregate_events(world)
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
             if self._shadow_logger:
                 self._shadow_logger.log_turn(world.turn, agent_aggs, world)
+            raw_events = self._convert_events(agent_events, world.turn)
+            world.agent_events_raw.extend(raw_events)
+            self._event_window.append(raw_events)
             return []
         elif self._mode == "demographics-only":
             self._apply_demographics_clamp(world)
             return []
         return []
+
+    def _convert_events(self, batch, turn):
+        """Convert Arrow events RecordBatch to AgentEventRecord list."""
+        records = []
+        for i in range(batch.num_rows):
+            records.append(AgentEventRecord(
+                turn=turn,
+                agent_id=batch.column("agent_id")[i].as_py(),
+                event_type=EVENT_TYPE_MAP[batch.column("event_type")[i].as_py()],
+                region=batch.column("region")[i].as_py(),
+                target_region=batch.column("target_region")[i].as_py(),
+                civ_affinity=batch.column("civ_affinity")[i].as_py(),
+                occupation=batch.column("occupation")[i].as_py(),
+            ))
+        return records
+
+    def _aggregate_events(self, world):
+        """Check thresholds and emit summary Events."""
+        summaries = []
+        current = list(self._event_window)[-1] if self._event_window else []
+        region_names = {i: r.name for i, r in enumerate(world.regions)}
+
+        # === Single-tick patterns ===
+
+        # Group current events by type and region
+        migrations_by_source = {}
+        rebellions_by_region = {}
+        switches_by_region = {}
+        for e in current:
+            if e.event_type == "migration":
+                migrations_by_source.setdefault(e.region, []).append(e)
+            elif e.event_type == "rebellion":
+                rebellions_by_region.setdefault(e.region, []).append(e)
+            elif e.event_type == "occupation_switch":
+                switches_by_region.setdefault(e.region, []).append(e)
+
+        # Mass migration: >=8 agents leave one region in one tick
+        for region_id, events in migrations_by_source.items():
+            if len(events) >= 8:
+                occ_counts = Counter(e.occupation for e in events)
+                occ_majority = OCCUPATION_NAMES[occ_counts.most_common(1)[0][0]]
+                targets = Counter(e.target_region for e in events)
+                target_id = targets.most_common(1)[0][0]
+                summaries.append(Event(
+                    turn=world.turn, event_type="mass_migration",
+                    actors=[],
+                    description=SUMMARY_TEMPLATES["mass_migration"].format(
+                        count=len(events), occ_majority=occ_majority,
+                        source_region=region_names.get(region_id, f"region {region_id}"),
+                        target_region=region_names.get(target_id, f"region {target_id}"),
+                    ),
+                    importance=5, source="agent",
+                ))
+
+        # Local rebellion: >=5 agents rebel in one region
+        for region_id, events in rebellions_by_region.items():
+            if len(events) >= 5:
+                occ_counts = Counter(e.occupation for e in events)
+                occ_majority = OCCUPATION_NAMES[occ_counts.most_common(1)[0][0]]
+                summaries.append(Event(
+                    turn=world.turn, event_type="local_rebellion",
+                    actors=[],
+                    description=SUMMARY_TEMPLATES["local_rebellion"].format(
+                        count=len(events), occ_majority=occ_majority,
+                        region=region_names.get(region_id, f"region {region_id}"),
+                    ),
+                    importance=7, source="agent",
+                ))
+
+        # Occupation shift: >25% of region switches in one tick
+        for region_id, events in switches_by_region.items():
+            region_pop = sum(1 for e in current if e.region == region_id)
+            if region_pop > 0 and len(events) / region_pop > 0.25:
+                new_occ_counts = Counter(e.occupation for e in events)
+                new_occ = OCCUPATION_NAMES[new_occ_counts.most_common(1)[0][0]]
+                summaries.append(Event(
+                    turn=world.turn, event_type="occupation_shift",
+                    actors=[],
+                    description=SUMMARY_TEMPLATES["occupation_shift"].format(
+                        count=len(events),
+                        region=region_names.get(region_id, f"region {region_id}"),
+                        new_occupation=new_occ,
+                    ),
+                    importance=5, source="agent",
+                ))
+
+        # === Multi-turn patterns ===
+
+        # Loyalty cascade: >=10 agents flip in one region over 5 turns
+        loyalty_flips_by_region = {}
+        window_depth = min(len(self._event_window), 5)
+        window_list = list(self._event_window)
+        for turn_events in window_list[-window_depth:]:
+            for e in turn_events:
+                if e.event_type == "loyalty_flip":
+                    loyalty_flips_by_region[e.region] = loyalty_flips_by_region.get(e.region, 0) + 1
+        for region_id, count in loyalty_flips_by_region.items():
+            if count >= 10:
+                recent_flips = [
+                    e for turn_events in window_list[-window_depth:]
+                    for e in turn_events
+                    if e.event_type == "loyalty_flip" and e.region == region_id
+                ]
+                target_civ_counts = Counter(e.civ_affinity for e in recent_flips)
+                target_civ_id = target_civ_counts.most_common(1)[0][0]
+                target_civ_name = (world.civilizations[target_civ_id].name
+                                  if target_civ_id < len(world.civilizations)
+                                  else f"civ {target_civ_id}")
+                summaries.append(Event(
+                    turn=world.turn, event_type="loyalty_cascade",
+                    actors=[],
+                    description=SUMMARY_TEMPLATES["loyalty_cascade"].format(
+                        count=count,
+                        region=region_names.get(region_id, f"region {region_id}"),
+                        target_civ=target_civ_name,
+                    ),
+                    importance=6, source="agent",
+                ))
+
+        # Demographic crisis: region loses >30% over window
+        if len(self._event_window) >= 2:
+            deaths_by_region = {}
+            births_by_region = {}
+            for turn_events in self._event_window:
+                for e in turn_events:
+                    if e.event_type == "death":
+                        deaths_by_region[e.region] = deaths_by_region.get(e.region, 0) + 1
+                    elif e.event_type == "birth":
+                        births_by_region[e.region] = births_by_region.get(e.region, 0) + 1
+            for region_id, deaths in deaths_by_region.items():
+                births = births_by_region.get(region_id, 0)
+                net_loss = deaths - births
+                if region_id < len(world.regions):
+                    region = world.regions[region_id]
+                    if region.population > 0 and net_loss > 0:
+                        loss_pct = net_loss / (region.population + net_loss) * 100
+                        if loss_pct > 30:
+                            summaries.append(Event(
+                                turn=world.turn, event_type="demographic_crisis",
+                                actors=[],
+                                description=SUMMARY_TEMPLATES["demographic_crisis"].format(
+                                    region=region_names.get(region_id, f"region {region_id}"),
+                                    pct=int(loss_pct),
+                                    window=len(self._event_window),
+                                ),
+                                importance=7, source="agent",
+                            ))
+
+        return summaries
 
     def _write_back(self, world: WorldState) -> None:
         """Write agent-derived stats to civ and region objects. Hybrid mode only."""
