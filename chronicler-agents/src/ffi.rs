@@ -76,6 +76,17 @@ pub fn events_schema() -> Schema {
     ])
 }
 
+pub fn promotions_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("agent_id", DataType::UInt32, false),
+        Field::new("role", DataType::UInt8, false),
+        Field::new("trigger", DataType::UInt8, false),
+        Field::new("skill", DataType::Float32, false),
+        Field::new("life_events", DataType::UInt8, false),
+        Field::new("origin_region", DataType::UInt16, false),
+    ])
+}
+
 /// Schema for `set_region_state()` input.
 #[allow(dead_code)]
 pub fn region_state_schema() -> Schema {
@@ -118,6 +129,7 @@ pub struct AgentSimulator {
     master_seed: [u8; 32],
     num_regions: usize,
     turn: u32,
+    registry: crate::named_characters::NamedCharacterRegistry,
     initialized: bool,
 }
 
@@ -137,6 +149,7 @@ impl AgentSimulator {
             master_seed,
             num_regions,
             turn: 0,
+            registry: crate::named_characters::NamedCharacterRegistry::new(),
             initialized: false,
         }
     }
@@ -330,6 +343,71 @@ impl AgentSimulator {
             .region_populations(self.num_regions)
             .map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
+    }
+
+    pub fn get_promotions(&mut self) -> PyResult<PyRecordBatch> {
+        let candidates = self.registry.find_candidates(&self.pool, self.turn);
+        let n = candidates.len();
+        let mut agent_ids = UInt32Builder::with_capacity(n);
+        let mut roles = UInt8Builder::with_capacity(n);
+        let mut triggers = UInt8Builder::with_capacity(n);
+        let mut skills = arrow::array::Float32Builder::with_capacity(n);
+        let mut life_events_col = UInt8Builder::with_capacity(n);
+        let mut origin_regions = UInt16Builder::with_capacity(n);
+
+        for &(slot, role, trigger) in &candidates {
+            let agent_id = self.pool.id(slot);
+            let occ = self.pool.occupations[slot] as usize;
+            let skill = self.pool.skills[slot * 5 + occ];
+
+            agent_ids.append_value(agent_id);
+            roles.append_value(role as u8);
+            triggers.append_value(trigger);
+            skills.append_value(skill);
+            life_events_col.append_value(self.pool.life_events[slot]);
+            origin_regions.append_value(self.pool.origin_regions[slot]);
+
+            // Register in the Rust-side registry.
+            // origin_civ_id = current civ at promotion time (best available;
+            // Python owns the richer GreatPerson.origin_civilization).
+            // born_turn = turn - age (when the agent was spawned).
+            let born = self.turn.saturating_sub(self.pool.age(slot) as u32) as u16;
+            self.registry.register(
+                agent_id,
+                role,
+                self.pool.civ_affinity(slot),
+                self.pool.civ_affinity(slot),
+                born,
+                self.turn as u16,
+                trigger,
+            );
+        }
+
+        let schema = Arc::new(promotions_schema());
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(agent_ids.finish()) as _,
+                Arc::new(roles.finish()) as _,
+                Arc::new(triggers.finish()) as _,
+                Arc::new(skills.finish()) as _,
+                Arc::new(life_events_col.finish()) as _,
+                Arc::new(origin_regions.finish()) as _,
+            ],
+        )
+        .map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
+
+    pub fn set_agent_civ(&mut self, agent_id: u32, new_civ_id: u8) -> PyResult<()> {
+        for slot in 0..self.pool.capacity() {
+            if self.pool.is_alive(slot) && self.pool.id(slot) == agent_id {
+                self.pool.set_civ_affinity(slot, new_civ_id);
+                self.registry.set_character_civ(agent_id, new_civ_id);
+                return Ok(());
+            }
+        }
+        Err(PyValueError::new_err(format!("agent_id {} not found or dead", agent_id)))
     }
 }
 

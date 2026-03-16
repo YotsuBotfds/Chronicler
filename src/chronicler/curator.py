@@ -87,6 +87,7 @@ def compute_base_scores(
     named_events: Sequence[NamedEvent],
     dominant_power: str,
     seed: int,
+    named_characters: set[str] | None = None,
 ) -> list[float]:
     """Score each event based on importance, named-event match, dominant
     power involvement, and rarity.
@@ -117,6 +118,12 @@ def compute_base_scores(
         # Rarity bonus
         if type_counts[ev.event_type] < 3:
             score += 2.0
+
+        # Character-reference bonus (M30) — +2.0 if any actor is a named character
+        # Saturation guard: max once per event regardless of how many characters
+        if named_characters:
+            if any(actor in named_characters for actor in ev.actors):
+                score += 2.0
 
         scores.append(score)
 
@@ -500,6 +507,7 @@ def curate(
     history: Sequence[TurnSnapshot],
     budget: int = 50,
     seed: int = 0,
+    named_characters: set[str] | None = None,
 ) -> tuple[list[NarrativeMoment], list[GapSummary]]:
     """Top-level curation pipeline.
 
@@ -522,7 +530,8 @@ def curate(
     dominant = compute_dominant_power(history, seed)
 
     # 2. Base scores
-    scores = compute_base_scores(sorted_events, named_events, dominant, seed)
+    scores = compute_base_scores(sorted_events, named_events, dominant, seed,
+                                  named_characters=named_characters)
 
     # 3. Causal links
     causal_links = compute_causal_links(sorted_events, scores)

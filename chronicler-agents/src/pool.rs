@@ -32,6 +32,9 @@ pub struct AgentPool {
     // Demographics
     pub ages: Vec<u16>,
     pub displacement_turns: Vec<u8>,
+    // Named character promotion (M30)
+    pub life_events: Vec<u8>,
+    pub promotion_progress: Vec<u8>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -57,6 +60,8 @@ impl AgentPool {
             skills: Vec::with_capacity(capacity * 5),
             ages: Vec::with_capacity(capacity),
             displacement_turns: Vec::with_capacity(capacity),
+            life_events: Vec::with_capacity(capacity),
+            promotion_progress: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 0,
@@ -91,6 +96,8 @@ impl AgentPool {
             }
             self.ages[slot] = age;
             self.displacement_turns[slot] = 0;
+            self.life_events[slot] = 0;
+            self.promotion_progress[slot] = 0;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -109,6 +116,8 @@ impl AgentPool {
             }
             self.ages.push(age);
             self.displacement_turns.push(0);
+            self.life_events.push(0);
+            self.promotion_progress.push(0);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -901,5 +910,42 @@ mod tests {
         let mut pool = AgentPool::new(4);
         let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
         assert_eq!(pool.displacement_turns(slot), 0);
+    }
+
+    #[test]
+    fn test_life_events_bitflag() {
+        use crate::agent::*;
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20);
+        assert_eq!(pool.life_events[slot], 0);
+        pool.life_events[slot] |= LIFE_EVENT_REBELLION;
+        assert_eq!(pool.life_events[slot], 1);
+        pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
+        assert_eq!(pool.life_events[slot], 0b00000011);
+        pool.life_events[slot] |= LIFE_EVENT_WAR_SURVIVAL | LIFE_EVENT_LOYALTY_FLIP | LIFE_EVENT_OCC_SWITCH;
+        assert_eq!(pool.life_events[slot], 0b00011111);
+    }
+
+    #[test]
+    fn test_promotion_progress_increments() {
+        use crate::agent::*;
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 20);
+        assert_eq!(pool.promotion_progress[slot], 0);
+        let occ = pool.occupations[slot] as usize;
+        pool.skills[slot * 5 + occ] = 0.95;
+        if pool.skills[slot * 5 + occ] > PROMOTION_SKILL_THRESHOLD {
+            pool.promotion_progress[slot] = pool.promotion_progress[slot].saturating_add(1);
+        }
+        assert_eq!(pool.promotion_progress[slot], 1);
+        pool.skills[slot * 5 + occ] = 0.5;
+        if pool.skills[slot * 5 + occ] <= PROMOTION_SKILL_THRESHOLD {
+            pool.promotion_progress[slot] = 0;
+        }
+        assert_eq!(pool.promotion_progress[slot], 0);
+        pool.promotion_progress[slot] = 15;
+        pool.occupations[slot] = Occupation::Merchant as u8;
+        pool.promotion_progress[slot] = 0;
+        assert_eq!(pool.promotion_progress[slot], 0);
     }
 }
