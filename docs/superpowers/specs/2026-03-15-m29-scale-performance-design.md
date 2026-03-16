@@ -6,19 +6,19 @@ M29 is a measurement-driven optimization milestone. No new simulation features �
 
 ## Scope & Phasing
 
-M29 is split into two phases with a hard gate between them.
+M29 is split into two phases. The M28 oracle gate has passed, so both phases can proceed — but the measurement-first discipline remains: Phase A establishes baselines and structural wins before Phase B touches formula-coupled code.
 
-### Phase A — Pre-M28 (start now)
+### Phase A — Measurement & Structural Optimization
 
-Safe to implement before oracle gate validation because none of this work depends on finalized formula coefficients or decision thresholds.
+Profiling infrastructure and structural changes that are independent of formula specifics.
 
 1. **Profiling infrastructure** — Extend `tick_bench.rs` with a benchmark matrix, add flamegraph harness, add 500-turn timed integration test as macro regression gate.
 2. **Phase 1 parallelization** — Parallelize satisfaction computation per-region via rayon. Phase 0 (skill growth) left sequential unless profiling justifies it.
 3. **Profile-driven investigations** — Arrow FFI overhead, cache efficiency after mortality spikes, compaction if warranted.
 
-### Phase B — Post-M28 Gate
+### Phase B — Formula-Coupled Optimization
 
-Gated on M28 oracle gate passing. The satisfaction formula, decision thresholds, and coefficient values must be finalized before this work begins.
+Depends on Phase A baselines. Now that M28 has passed and the satisfaction formula, decision thresholds, and coefficient values are finalized, this work can proceed once Phase A profiling is complete.
 
 4a. **SIMD satisfaction verification** — Check whether the existing branchless formula auto-vectorizes; explicit SIMD only if it doesn't.
 4b. **Decision short-circuit tuning** — Optimize branch ordering based on finalized formula.
@@ -30,7 +30,7 @@ Gated on M28 oracle gate passing. The satisfaction formula, decision thresholds,
 - No constant tuning (covered by M27)
 - No algorithmic changes to decision logic (covered by M26)
 - No narrative enrichment (that's M30)
-- No new agent fields or pool structure changes (compaction rearranges existing slots but does not change the pool's field set or SoA layout)
+- No new agent fields or pool structure changes (compaction rearranges existing slots but does not change the pool's field set or SoA layout). Note: M30 may add 2 bytes/agent (`life_events: u8`, `promotion_progress: u8`) during M29's timeframe; per-agent size monitored but not targeted.
 
 ## Benchmark Matrix & Profiling Infrastructure
 
@@ -72,7 +72,7 @@ AMD Ryzen 9 9950X. All performance targets and benchmark results are for this ma
 
 ### Target
 
-Phase 1 (satisfaction) currently iterates all alive agents sequentially. It reads multiple SoA arrays per agent (loyalty, skill, occupation, region stats) and writes to the satisfaction array. This is the primary structural optimization candidate.
+Phase 1 (satisfaction) currently iterates all alive agents sequentially. It reads multiple SoA arrays per agent (loyalty, skill, occupation, region stats) plus shock penalty and demand shift columns from `CivSignals` (added in M27), and writes to the satisfaction array. This is the primary structural optimization candidate.
 
 ### Approach
 
@@ -95,18 +95,22 @@ Before/after flamegraph comparison. The 500-turn macro test confirms the overall
 
 ## Profile-Driven Investigations (Phase A)
 
-Three investigations, all triggered by profiling data, not pre-committed.
+Four investigations, all triggered by profiling data, not pre-committed.
 
-### 3a. Arrow FFI Overhead
+### 3a. Signal Parsing Overhead
 
-Measure the copy cost in `ffi.rs` (SoA vecs → Arrow builders). At 10K agents the serialization touches ~420KB of SoA data across ~10 column builders — expected to be sub-millisecond.
+M27 added ~169 lines to `signals.rs` for shock/demand column parsing. This runs every tick and is a known area of interest — the flamegraph will show whether it's material. If it is, optimization options include pre-indexing signal columns or caching parsed results across the tick.
+
+### 3b. Arrow FFI Overhead
+
+Measure the copy cost in `ffi.rs` (SoA vecs → Arrow builders). At 10K agents the serialization touches the full SoA column set plus M27's shock/demand signal columns — expected to be sub-millisecond.
 
 - **If sub-millisecond:** Document the measurement and move on.
 - **If unexpectedly slow:** Refactor Rust side to wrap `Vec` buffers directly via pyo3-arrow's zero-copy path. Python side stays unchanged.
 
 Expected outcome: non-issue.
 
-### 3b. Cache Efficiency After Mortality Spikes
+### 3c. Cache Efficiency After Mortality Spikes
 
 After high-mortality turns, dead slots scatter across SoA arrays. Measure whether this causes measurable cache-miss degradation.
 
@@ -116,9 +120,9 @@ After high-mortality turns, dead slots scatter across SoA arrays. Measure whethe
 
 Benchmark the same tick on both pools. This isolates the cache effect from gameplay noise (decision paths, migration counts, birth rates all vary per-turn and would confound a live comparison).
 
-### 3c. Compaction (Contingent on 3b)
+### 3d. Compaction (Contingent on 3c)
 
-If 3b shows a real cache-miss problem: implement periodic full compaction every N turns (N=50 as starting point). O(n) copy, one tick's cost amortized over 50.
+If 3c shows a real cache-miss problem: implement periodic full compaction every N turns (N=50 as starting point). O(n) copy, one tick's cost amortized over 50.
 
 **Compaction is safe between ticks.** The `ids` array provides stable agent identity. `AgentEvent` uses `agent_id` (the monotonic ID from `pool.ids`), not slot index. Snapshots export via `get_snapshot()` which iterates alive slots and reads `ids[slot]`. Nothing caches slot indices between ticks. Compaction between ticks can freely rearrange slots without breaking any external references.
 
@@ -126,7 +130,7 @@ If 3b shows a real cache-miss problem: implement periodic full compaction every 
 
 ### Gate
 
-M28 oracle gate passes. Satisfaction formula, decision thresholds, and coefficient values are finalized.
+M28 oracle gate has passed. Satisfaction formula, decision thresholds, and coefficient values are finalized. Phase B proceeds after Phase A profiling establishes baselines.
 
 ### 4a. SIMD Satisfaction Verification
 
@@ -163,10 +167,9 @@ Phase B does not introduce new simulation features, new agent fields, or changes
 
 ## Dependencies
 
-- **M25–M26:** Landed.
-- **M27 (System Integration):** In progress. Phase A does not depend on M27 landing.
-- **M28 (Oracle Gate):** Phase A runs in parallel with M28. Phase B is gated on M28 passing. Profiling infrastructure from Phase A also serves M28 (tick-time breakdowns help interpret oracle divergences).
-- **M30 (Narrative):** No dependency in either direction. M29 and M30 are independent.
+- **M25–M27:** Landed. M27 added shock/demand terms to satisfaction and ~169 lines of signal parsing — reflected in this spec's profiling scope.
+- **M28 (Oracle Gate):** Landed. The Phase A/B gate is satisfied; both phases can proceed. Phase ordering (measurement before formula-coupled work) is maintained as engineering discipline, not a scheduling constraint.
+- **M30 (Narrative):** No dependency in either direction. M30 may add 2 bytes/agent to the pool during M29's timeframe (see scope boundary note).
 
 ## Deliverables
 
