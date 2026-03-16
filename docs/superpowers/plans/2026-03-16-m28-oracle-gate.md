@@ -63,8 +63,8 @@ In `_build_parser()` in `src/chronicler/main.py`, after the `--simulate-only` ar
 
 ```python
     parser.add_argument("--agents", type=str, default="off",
-                        choices=["off", "shadow", "hybrid"],
-                        help="Agent mode: off (aggregate), shadow (compare), hybrid (agent-driven)")
+                        choices=["off", "demographics-only", "shadow", "hybrid"],
+                        help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
