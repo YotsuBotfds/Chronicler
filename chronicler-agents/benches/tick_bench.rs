@@ -99,5 +99,14 @@ fn bench_tick_matrix(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_tick_matrix);
+fn bench_arrow_ffi(c: &mut Criterion) {
+    let (pool, _, _) = setup_pool(10_000, 24);
+    c.bench_function("arrow_snapshot_10k", |b| {
+        b.iter(|| {
+            let _ = black_box(pool.to_record_batch().unwrap());
+        })
+    });
+}
+
+criterion_group!(benches, bench_tick_matrix, bench_arrow_ffi);
 criterion_main!(benches);
