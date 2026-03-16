@@ -7,14 +7,50 @@ use std::collections::HashMap;
 
 use crate::agent::{
     LOYALTY_DRIFT_RATE, LOYALTY_FLIP_THRESHOLD, LOYALTY_RECOVERY_RATE,
-    MIGRATE_SATISFACTION_THRESHOLD, OCCUPATION_COUNT, OCCUPATION_SWITCH_OVERSUPPLY,
-    OCCUPATION_SWITCH_UNDERSUPPLY, REBEL_LOYALTY_THRESHOLD, REBEL_MIN_COHORT,
-    REBEL_SATISFACTION_THRESHOLD,
+    MIGRATE_CAP, MIGRATE_HYSTERESIS, MIGRATE_SATISFACTION_THRESHOLD, OCCUPATION_COUNT,
+    OCCUPATION_SWITCH_OVERSUPPLY, OCCUPATION_SWITCH_UNDERSUPPLY, REBEL_CAP,
+    REBEL_LOYALTY_THRESHOLD, REBEL_MIN_COHORT, REBEL_SATISFACTION_THRESHOLD,
+    SWITCH_CAP, SWITCH_OVERSUPPLY_THRESH, SWITCH_UNDERSUPPLY_FACTOR,
+    W_MIGRATE_OPP, W_MIGRATE_SAT, W_REBEL, W_SWITCH,
 };
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::satisfaction::target_occupation_ratio;
 use crate::signals::TickSignals;
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+
+// ---------------------------------------------------------------------------
+// Helpers — smoothstep, gumbel_argmax
+// ---------------------------------------------------------------------------
+
+fn smoothstep(x: usize, edge0: usize, edge1: usize) -> f32 {
+    if x <= edge0 { return 0.0; }
+    if x >= edge1 { return 1.0; }
+    let t = (x - edge0) as f32 / (edge1 - edge0) as f32;
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> usize {
+    if temperature <= 0.0 {
+        return utilities.iter().enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+    }
+    let mut best_idx = 0;
+    let mut best_val = f32::NEG_INFINITY;
+    for (i, &u) in utilities.iter().enumerate() {
+        let uniform: f32 = rng.gen::<f32>().max(f32::EPSILON);
+        let gumbel = -temperature * (-uniform.ln()).ln();
+        let perturbed = u + gumbel;
+        if perturbed > best_val {
+            best_val = perturbed;
+            best_idx = i;
+        }
+    }
+    best_idx
+}
 
 // ---------------------------------------------------------------------------
 // RegionStats — pre-computed per-region aggregates
@@ -559,6 +595,67 @@ mod tests {
         // All rebel, none migrate
         assert_eq!(pending.rebellions.len(), 6);
         assert_eq!(pending.migrations.len(), 0);
+    }
+
+    #[test]
+    fn test_smoothstep_below_edge0() {
+        assert_eq!(super::smoothstep(0, 3, 8), 0.0);
+        assert_eq!(super::smoothstep(2, 3, 8), 0.0);
+        assert_eq!(super::smoothstep(3, 3, 8), 0.0);
+    }
+
+    #[test]
+    fn test_smoothstep_above_edge1() {
+        assert_eq!(super::smoothstep(8, 3, 8), 1.0);
+        assert_eq!(super::smoothstep(10, 3, 8), 1.0);
+    }
+
+    #[test]
+    fn test_smoothstep_midpoint() {
+        let mid_low = super::smoothstep(5, 3, 8);
+        let mid_high = super::smoothstep(6, 3, 8);
+        assert!(mid_low > 0.0 && mid_low < 1.0);
+        assert!(mid_high > mid_low);
+    }
+
+    #[test]
+    fn test_gumbel_argmax_deterministic_at_zero_temp() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let utilities = [0.3, 0.8, 0.1, 0.5];
+        for _ in 0..10 {
+            let chosen = super::gumbel_argmax(&utilities, &mut rng, 0.0);
+            assert_eq!(chosen, 1);
+        }
+    }
+
+    #[test]
+    fn test_gumbel_argmax_respects_utility_ordering() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let mut wins = [0u32; 4];
+        for seed_byte in 0..100u8 {
+            let mut seed = [0u8; 32];
+            seed[0] = seed_byte;
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let utilities = [0.1, 1.5, 0.3, 0.5];
+            let chosen = super::gumbel_argmax(&utilities, &mut rng, 0.01);
+            wins[chosen] += 1;
+        }
+        assert!(wins[1] > 90, "expected index 1 to win >90 times, got {}", wins[1]);
+    }
+
+    #[test]
+    fn test_gumbel_argmax_zero_draws_at_zero_temp() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let mut rng_a = ChaCha8Rng::from_seed([0u8; 32]);
+        let mut rng_b = ChaCha8Rng::from_seed([0u8; 32]);
+        let _ = super::gumbel_argmax(&[0.1, 0.5, 0.3, 0.2], &mut rng_a, 0.0);
+        let val_a: f32 = rng_a.gen();
+        let val_b: f32 = rng_b.gen();
+        assert_eq!(val_a, val_b, "T=0 path should not consume RNG draws");
     }
 
     #[test]
