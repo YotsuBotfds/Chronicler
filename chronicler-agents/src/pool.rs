@@ -10,6 +10,7 @@ use arrow::record_batch::RecordBatch;
 
 use crate::agent::Occupation;
 use crate::ffi;
+use crate::region::RegionState;
 
 /// Struct-of-arrays agent pool. Each index is a "slot"; a slot may be dead.
 /// Use `is_alive(slot)` before accessing any field.
@@ -331,36 +332,89 @@ impl AgentPool {
     }
 
     /// Return a per-civ aggregate RecordBatch.
-    /// `population` is populated; `military`/`economy`/`culture`/`stability`
-    /// are zeroed in M25 and will be populated in M26.
-    pub fn compute_aggregates(&self) -> Result<RecordBatch, ArrowError> {
-        // Count live agents per civ.
-        let mut counts: HashMap<u8, u32> = HashMap::new();
-        for slot in 0..self.capacity() {
-            if self.is_alive(slot) {
-                *counts.entry(self.civ_affinities[slot]).or_insert(0) += 1;
+    /// Normalization uses civ carrying capacity (sum of controlled regions'
+    /// capacity) rather than live population.
+    pub fn compute_aggregates(&self, regions: &[RegionState]) -> Result<RecordBatch, ArrowError> {
+        // First pass: build civ -> controlled-region capacity mapping.
+        let mut civ_capacity: HashMap<u8, f64> = HashMap::new();
+        for r in regions {
+            if r.controller_civ != 255 {
+                *civ_capacity.entry(r.controller_civ).or_insert(0.0) += r.carrying_capacity as f64;
             }
         }
 
+        // Second pass: accumulate per-civ stats from alive agents.
+        struct CivAccum {
+            population: u32,
+            soldier_skill_sum: f64,
+            merchant_skill_sum: f64,
+            scholar_skill_sum: f64,
+            priest_skill_sum: f64,
+            satisfaction_sum: f64,
+            loyalty_sum: f64,
+        }
+
+        let mut accums: HashMap<u8, CivAccum> = HashMap::new();
+        for slot in 0..self.capacity() {
+            if !self.is_alive(slot) {
+                continue;
+            }
+            let civ = self.civ_affinities[slot];
+            let a = accums.entry(civ).or_insert(CivAccum {
+                population: 0,
+                soldier_skill_sum: 0.0,
+                merchant_skill_sum: 0.0,
+                scholar_skill_sum: 0.0,
+                priest_skill_sum: 0.0,
+                satisfaction_sum: 0.0,
+                loyalty_sum: 0.0,
+            });
+            a.population += 1;
+            a.soldier_skill_sum += self.skills[slot * 5 + 1] as f64;
+            a.merchant_skill_sum += self.skills[slot * 5 + 2] as f64;
+            a.scholar_skill_sum += self.skills[slot * 5 + 3] as f64;
+            a.priest_skill_sum += self.skills[slot * 5 + 4] as f64;
+            a.satisfaction_sum += self.satisfactions[slot] as f64;
+            a.loyalty_sum += self.loyalties[slot] as f64;
+        }
+
         // Sort by civ_id for deterministic output.
-        let mut sorted: Vec<(u8, u32)> = counts.into_iter().collect();
-        sorted.sort_by_key(|(civ, _)| *civ);
+        let mut sorted: Vec<u8> = accums.keys().copied().collect();
+        sorted.sort();
 
         let n = sorted.len();
         let mut civ_ids = UInt16Builder::with_capacity(n);
         let mut populations = UInt32Builder::with_capacity(n);
-        let mut military = UInt32Builder::with_capacity(n);
-        let mut economy = UInt32Builder::with_capacity(n);
-        let mut culture = UInt32Builder::with_capacity(n);
-        let mut stability = UInt32Builder::with_capacity(n);
+        let mut military_b = UInt32Builder::with_capacity(n);
+        let mut economy_b = UInt32Builder::with_capacity(n);
+        let mut culture_b = UInt32Builder::with_capacity(n);
+        let mut stability_b = UInt32Builder::with_capacity(n);
 
-        for (civ, pop) in sorted {
+        for civ in sorted {
+            let a = &accums[&civ];
+            let cap = civ_capacity.get(&civ).copied().unwrap_or(0.0);
+
             civ_ids.append_value(civ as u16);
-            populations.append_value(pop);
-            military.append_value(0);
-            economy.append_value(0);
-            culture.append_value(0);
-            stability.append_value(0);
+            populations.append_value(a.population);
+
+            if cap > 0.0 && a.population > 0 {
+                let mil = ((a.soldier_skill_sum / (cap * 0.15)).min(1.0) * 100.0) as u32;
+                let eco = ((a.merchant_skill_sum / (cap * 0.10)).min(1.0) * 100.0) as u32;
+                let cul = (((a.scholar_skill_sum + a.priest_skill_sum * 0.3) / (cap * 0.13)).min(1.0) * 100.0) as u32;
+                let mean_sat = a.satisfaction_sum / a.population as f64;
+                let mean_loy = a.loyalty_sum / a.population as f64;
+                let stab = ((mean_sat * mean_loy * 100.0).min(100.0)) as u32;
+
+                military_b.append_value(mil);
+                economy_b.append_value(eco);
+                culture_b.append_value(cul);
+                stability_b.append_value(stab);
+            } else {
+                military_b.append_value(0);
+                economy_b.append_value(0);
+                culture_b.append_value(0);
+                stability_b.append_value(0);
+            }
         }
 
         let schema = Arc::new(ffi::aggregates_schema());
@@ -369,10 +423,10 @@ impl AgentPool {
             vec![
                 Arc::new(civ_ids.finish()) as _,
                 Arc::new(populations.finish()) as _,
-                Arc::new(military.finish()) as _,
-                Arc::new(economy.finish()) as _,
-                Arc::new(culture.finish()) as _,
-                Arc::new(stability.finish()) as _,
+                Arc::new(military_b.finish()) as _,
+                Arc::new(economy_b.finish()) as _,
+                Arc::new(culture_b.finish()) as _,
+                Arc::new(stability_b.finish()) as _,
             ],
         )
     }
@@ -553,8 +607,9 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_aggregates_zeroes_non_population() {
+    fn test_compute_aggregates_no_controlled_regions() {
         use arrow::array::{UInt16Array, UInt32Array};
+        use crate::region::RegionState;
 
         let mut pool = AgentPool::new(8);
         // civ 0: 2 agents
@@ -563,7 +618,9 @@ mod tests {
         // civ 1: 1 agent
         pool.spawn(1, 1, Occupation::Scholar, 35);
 
-        let batch = pool.compute_aggregates().expect("compute_aggregates failed");
+        // No civ controls any region (controller_civ = 255 default).
+        let regions = vec![RegionState::new(0), RegionState::new(1)];
+        let batch = pool.compute_aggregates(&regions).expect("compute_aggregates failed");
 
         // Two civs.
         assert_eq!(batch.num_rows(), 2);
@@ -590,7 +647,7 @@ mod tests {
         assert_eq!(populations.value(0), 2); // civ 0 has 2
         assert_eq!(populations.value(1), 1); // civ 1 has 1
 
-        // military, economy, culture, stability — all zero in M25.
+        // No controlled regions -> zero capacity -> zeroed metrics.
         for col_idx in 2..=5 {
             let col = batch
                 .column(col_idx)
@@ -601,6 +658,81 @@ mod tests {
                 assert_eq!(col.value(row), 0, "col {} row {} should be zero", col_idx, row);
             }
         }
+    }
+
+    #[test]
+    fn test_compute_aggregates_populated() {
+        use arrow::array::UInt32Array;
+        use crate::region::RegionState;
+
+        let mut pool = AgentPool::new(16);
+
+        // Spawn 10 agents for civ 0, all in region 0.
+        // 3 soldiers, 2 merchants, 2 scholars, 1 priest, 2 farmers.
+        for _ in 0..3 {
+            pool.spawn(0, 0, Occupation::Soldier, 25);
+        }
+        for _ in 0..2 {
+            pool.spawn(0, 0, Occupation::Merchant, 25);
+        }
+        for _ in 0..2 {
+            pool.spawn(0, 0, Occupation::Scholar, 25);
+        }
+        pool.spawn(0, 0, Occupation::Priest, 25);
+        for _ in 0..2 {
+            pool.spawn(0, 0, Occupation::Farmer, 25);
+        }
+
+        // Set known skills for all agents of each occupation.
+        // Each soldier gets skill 0.8 at occ 1, each merchant 0.6 at occ 2, etc.
+        for slot in 0..pool.capacity() {
+            if !pool.is_alive(slot) { continue; }
+            match pool.occupation(slot) {
+                1 => pool.skills[slot * 5 + 1] = 0.8,  // soldier
+                2 => pool.skills[slot * 5 + 2] = 0.6,  // merchant
+                3 => pool.skills[slot * 5 + 3] = 0.7,  // scholar
+                4 => pool.skills[slot * 5 + 4] = 0.5,  // priest
+                _ => {}
+            }
+            pool.set_satisfaction(slot, 0.8);
+            pool.set_loyalty(slot, 0.6);
+        }
+
+        // Region controlled by civ 0, capacity = 100.
+        let mut region = RegionState::new(0);
+        region.carrying_capacity = 100;
+        region.controller_civ = 0;
+        let regions = vec![region];
+
+        let batch = pool.compute_aggregates(&regions).expect("compute_aggregates failed");
+        assert_eq!(batch.num_rows(), 1);
+
+        let populations = batch.column(1).as_any().downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(populations.value(0), 10);
+
+        // military = soldier_skill_sum / (cap * 0.15) capped at 1.0, * 100
+        // soldier_skill_sum = 3 * 0.8 = 2.4; cap * 0.15 = 100 * 0.15 = 15
+        // military = (2.4 / 15).min(1.0) * 100 = 16
+        let military = batch.column(2).as_any().downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(military.value(0), 16);
+
+        // economy = merchant_skill_sum / (cap * 0.10) capped at 1.0, * 100
+        // merchant_skill_sum = 2 * 0.6 = 1.2; cap * 0.10 = 10
+        // economy = (1.2 / 10).min(1.0) * 100 = 12
+        let economy = batch.column(3).as_any().downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(economy.value(0), 12);
+
+        // culture = (scholar_skill_sum + priest_skill_sum * 0.3) / (cap * 0.13), capped at 1.0, * 100
+        // scholar_skill_sum = 2 * 0.7 = 1.4; priest_skill_sum = 1 * 0.5 = 0.5
+        // culture = (1.4 + 0.5 * 0.3) / (100 * 0.13) = (1.4 + 0.15) / 13 = 1.55/13 = 0.1192...
+        // -> (0.1192 * 100) as u32 = 11
+        let culture = batch.column(4).as_any().downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(culture.value(0), 11);
+
+        // stability = mean(satisfaction) * mean(loyalty) * 100, capped at 100
+        // mean_sat = 0.8, mean_loy = 0.6 -> 0.8 * 0.6 * 100 = 48
+        let stability = batch.column(5).as_any().downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(stability.value(0), 48);
     }
 
     #[test]
