@@ -132,7 +132,7 @@ class TestStatAccumulatorApply:
         civ = _make_civ(0, stability=50)
         world = _make_world([civ])
         acc = StatAccumulator()
-        acc.add(civ, "stability", -10, "signal")
+        acc.add(0, civ, "stability", -10, "signal")
         acc.apply(world)
         assert civ.stability == 40
 
@@ -142,8 +142,8 @@ class TestStatAccumulatorApply:
         world = _make_world([civ])
         acc = StatAccumulator()
         # Two mutations to same stat — order matters for clamping
-        acc.add(civ, "stability", -50, "signal")
-        acc.add(civ, "stability", -50, "signal")
+        acc.add(0, civ, "stability", -50, "signal")
+        acc.add(0, civ, "stability", -50, "signal")
         acc.apply(world)
         # First: 80-50=30. Second: 30-50=-20 → clamped to floor (5 for stability)
         assert civ.stability == 5  # STAT_FLOOR["stability"]
@@ -153,7 +153,7 @@ class TestStatAccumulatorApply:
         civ = _make_civ(0, economy=95)
         world = _make_world([civ])
         acc = StatAccumulator()
-        acc.add(civ, "economy", 20, "guard-shock")
+        acc.add(0, civ,"economy", 20, "guard-shock")
         acc.apply(world)
         assert civ.economy == 100
 
@@ -163,7 +163,7 @@ class TestStatAccumulatorApply:
         civ = _make_civ(0, treasury=200)
         world = _make_world([civ])
         acc = StatAccumulator()
-        acc.add(civ, "treasury", 50, "keep")
+        acc.add(0, civ,"treasury", 50, "keep")
         acc.apply(world)
         assert civ.treasury == 250  # No upper bound
 
@@ -172,7 +172,7 @@ class TestStatAccumulatorApply:
         civ = _make_civ(0, treasury=10)
         world = _make_world([civ])
         acc = StatAccumulator()
-        acc.add(civ, "treasury", -30, "keep")
+        acc.add(0, civ,"treasury", -30, "keep")
         acc.apply(world)
         assert civ.treasury == 0  # Floors at 0, not negative
 
@@ -185,9 +185,9 @@ class TestStatAccumulatorRouting:
         civ = _make_civ(0, stability=50, treasury=100)
         world = _make_world([civ])
         acc = StatAccumulator()
-        acc.add(civ, "stability", -10, "signal")
-        acc.add(civ, "treasury", -5, "keep")
-        acc.add(civ, "military", 10, "guard-action")
+        acc.add(0, civ,"stability", -10, "signal")
+        acc.add(0, civ,"treasury", -5, "keep")
+        acc.add(0, civ,"military", 10, "guard-action")
         acc.apply_keep(world)
         assert civ.treasury == 95   # keep applied
         assert civ.stability == 50  # signal NOT applied
@@ -197,10 +197,10 @@ class TestStatAccumulatorRouting:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, stability=80, culture=50)
         acc = StatAccumulator()
-        acc.add(civ, "stability", -20, "signal")
-        acc.add(civ, "culture", 10, "guard-shock")
-        acc.add(civ, "treasury", -5, "keep")
-        acc.add(civ, "military", 10, "guard-action")
+        acc.add(0, civ,"stability", -20, "signal")
+        acc.add(0, civ,"culture", 10, "guard-shock")
+        acc.add(0, civ,"treasury", -5, "keep")
+        acc.add(0, civ,"military", 10, "guard-action")
         shocks = acc.to_shock_signals()
         assert len(shocks) == 1  # one civ
         assert shocks[0].stability_shock == pytest.approx(-0.25)  # -20/80
@@ -212,9 +212,9 @@ class TestStatAccumulatorRouting:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, military=50)
         acc = StatAccumulator()
-        acc.add(civ, "military", -10, "guard-action")
-        acc.add(civ, "stability", -5, "signal")
-        acc.add(civ, "treasury", -3, "keep")
+        acc.add(0, civ,"military", -10, "guard-action")
+        acc.add(0, civ,"stability", -5, "signal")
+        acc.add(0, civ,"treasury", -3, "keep")
         signals = acc.to_demand_signals({0: 60})
         assert len(signals) == 1
         assert signals[0].occupation == 1  # soldier
@@ -226,7 +226,7 @@ class TestStatAccumulatorRouting:
         civ = _make_civ(0, stability=50)
         world = _make_world([civ])
         acc = StatAccumulator()
-        acc.add(civ, "stability", 10, "guard")
+        acc.add(0, civ,"stability", 10, "guard")
         acc.apply_keep(world)
         assert civ.stability == 50  # not applied
         shocks = acc.to_shock_signals()
@@ -242,7 +242,7 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, stability=80)
         acc = StatAccumulator()
-        acc.add(civ, "stability", -20, "signal")
+        acc.add(0, civ,"stability", -20, "signal")
         shocks = acc.to_shock_signals()
         assert shocks[0].stability_shock == pytest.approx(-0.25)
 
@@ -250,7 +250,7 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, stability=20)
         acc = StatAccumulator()
-        acc.add(civ, "stability", -20, "signal")
+        acc.add(0, civ,"stability", -20, "signal")
         shocks = acc.to_shock_signals()
         assert shocks[0].stability_shock == pytest.approx(-1.0)
 
@@ -258,7 +258,7 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, stability=0)
         acc = StatAccumulator()
-        acc.add(civ, "stability", -20, "signal")
+        acc.add(0, civ,"stability", -20, "signal")
         shocks = acc.to_shock_signals()
         assert shocks[0].stability_shock == pytest.approx(-1.0)  # clamped, denominator guarded
 
@@ -266,7 +266,7 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, culture=50)
         acc = StatAccumulator()
-        acc.add(civ, "culture", 10, "guard-shock")
+        acc.add(0, civ,"culture", 10, "guard-shock")
         shocks = acc.to_shock_signals()
         assert shocks[0].culture_shock == pytest.approx(0.2)
 
@@ -274,8 +274,8 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, stability=100)
         acc = StatAccumulator()
-        acc.add(civ, "stability", -10, "signal")   # stat_at_time=100, shock=-0.1
-        acc.add(civ, "stability", -20, "signal")   # stat_at_time=100 (captured at add time), shock=-0.2
+        acc.add(0, civ,"stability", -10, "signal")   # stat_at_time=100, shock=-0.1
+        acc.add(0, civ,"stability", -20, "signal")   # stat_at_time=100 (captured at add time), shock=-0.2
         shocks = acc.to_shock_signals()
         assert shocks[0].stability_shock == pytest.approx(-0.3)
 
@@ -283,7 +283,7 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, stability=10)
         acc = StatAccumulator()
-        acc.add(civ, "stability", -20, "signal")  # -20/10 = -2.0 → clamped to -1.0
+        acc.add(0, civ,"stability", -20, "signal")  # -20/10 = -2.0 → clamped to -1.0
         shocks = acc.to_shock_signals()
         assert shocks[0].stability_shock == pytest.approx(-1.0)
 
@@ -291,7 +291,7 @@ class TestShockNormalization:
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, culture=5)
         acc = StatAccumulator()
-        acc.add(civ, "culture", 20, "guard-shock")  # 20/5 = 4.0 → clamped to 1.0
+        acc.add(0, civ,"culture", 20, "guard-shock")  # 20/5 = 4.0 → clamped to 1.0
         shocks = acc.to_shock_signals()
         assert shocks[0].culture_shock == pytest.approx(1.0)
 ```
@@ -357,9 +357,10 @@ class StatAccumulator:
     def __init__(self) -> None:
         self._changes: list[StatChange] = []
 
-    def add(self, civ: Civilization, stat: str, delta: float, category: str) -> None:
+    def add(self, civ_idx: int, civ: Civilization, stat: str, delta: float, category: str) -> None:
+        """Record a stat mutation. civ_idx is the index into world.civilizations."""
         self._changes.append(StatChange(
-            civ.id, stat, delta, category, getattr(civ, stat, 0),
+            civ_idx, stat, delta, category, getattr(civ, stat, 0),
         ))
 
     def apply(self, world: WorldState) -> None:
@@ -585,7 +586,7 @@ Every stat mutation in the codebase follows one of these patterns:
 civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
 # After:
 if acc is not None:
-    acc.add(civ, "stability", -drain, "signal")
+    acc.add(civ_idx, civ, "stability", -drain, "signal")
 else:
     civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
 ```
@@ -596,7 +597,7 @@ else:
 civ.treasury -= cost
 # After:
 if acc is not None:
-    acc.add(civ, "treasury", -cost, "keep")
+    acc.add(civ_idx, civ, "treasury", -cost, "keep")
 else:
     civ.treasury -= cost
 ```
@@ -608,7 +609,7 @@ add_region_pop(region, amount)
 sync_civ_population(civ, world)
 # After:
 if acc is not None:
-    acc.add(civ, "population", amount, "guard")
+    acc.add(civ_idx, civ, "population", amount, "guard")
 else:
     add_region_pop(region, amount)
     sync_civ_population(civ, world)
@@ -628,16 +629,16 @@ Read `simulation.py` and locate each mutation in `phase_environment` (~lines 93-
 
 | Line | Original | Category | Refactored |
 |------|----------|----------|------------|
-| ~136 | `civ.stability -= drain` | signal | `acc.add(civ, "stability", -drain, "signal")` |
-| ~137 | `civ.economy -= int(10 * mult)` | signal | `acc.add(civ, "economy", -int(10 * mult), "signal")` |
-| ~150 | `distribute_pop_loss(...)` + `sync_civ_population(...)` | guard | `acc.add(civ, "population", -int(10 * mult), "guard")` |
-| ~153 | `civ.stability -= drain` | signal | `acc.add(civ, "stability", -drain, "signal")` |
-| ~165 | `civ.economy -= int(10 * mult)` | signal | `acc.add(civ, "economy", -int(10 * mult), "signal")` |
+| ~136 | `civ.stability -= drain` | signal | `acc.add(civ_idx, civ, "stability", -drain, "signal")` |
+| ~137 | `civ.economy -= int(10 * mult)` | signal | `acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")` |
+| ~150 | `distribute_pop_loss(...)` + `sync_civ_population(...)` | guard | `acc.add(civ_idx, civ, "population", -int(10 * mult), "guard")` |
+| ~153 | `civ.stability -= drain` | signal | `acc.add(civ_idx, civ, "stability", -drain, "signal")` |
+| ~165 | `civ.economy -= int(10 * mult)` | signal | `acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")` |
 
 For each mutation, use the pattern:
 ```python
 if acc is not None:
-    acc.add(civ, "stability", -drain, "signal")
+    acc.add(civ_idx, civ, "stability", -drain, "signal")
 else:
     civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
 ```
@@ -701,7 +702,7 @@ git commit -m "refactor(m27): route phase 1-3 stat mutations through StatAccumul
 
 | Line | Mutation | Category |
 |------|----------|----------|
-| ~849 | `civ.asabiya += 0.05` | guard-shock |
+| ~849 | `civ.asabiya += 0.05` | keep |
 | ~850 | `civ.culture += 5` | guard-shock |
 | ~851 | `civ.prestige += 2` | keep |
 
@@ -1037,10 +1038,11 @@ pub struct CivSignals {
 
 - [ ] **Step 2: Update parse_civ_signals to read new columns with defaults**
 
-Each new column uses the pattern:
+Each new column uses `.and_then()` for safe type handling (matching M26's `parse_contested_regions` pattern — avoids panic if column exists but has wrong type):
 ```rust
 let shock_stability = batch.column_by_name("shock_stability")
-    .map(|c| c.as_any().downcast_ref::<Float32Array>().unwrap().value(i))
+    .and_then(|c| c.as_any().downcast_ref::<Float32Array>())
+    .map(|arr| arr.value(i))
     .unwrap_or(0.0);
 ```
 
@@ -1979,7 +1981,7 @@ When `world.agent_mode == "hybrid"` and a DIPLOMACY action resolves, inject a +0
 
 ```python
 if acc is not None and world.agent_mode == "hybrid":
-    acc.add(civ, "stability", 0.05 * civ.stability, "signal")
+    acc.add(civ_idx, civ, "stability", 0.05 * civ.stability, "signal")
 ```
 
 ### Population Guard Pattern

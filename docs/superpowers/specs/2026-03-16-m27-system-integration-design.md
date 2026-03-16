@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-16
 **Status:** Draft
-**Prerequisites:** M26 Agent Behavior + Shadow Oracle (spec locked, not yet built)
+**Prerequisites:** M26 Agent Behavior + Shadow Oracle (complete, merged)
 **Estimated size:** ~200 Rust, ~500 Python
 **Phase:** 5 (Agent-Based Population Model) — third milestone
 
@@ -81,10 +81,10 @@ class StatAccumulator:
     def __init__(self):
         self._changes: list[StatChange] = []
 
-    def add(self, civ: Civilization, stat: str, delta: float, category: str):
-        """Record a stat mutation with its classification."""
+    def add(self, civ_idx: int, civ: Civilization, stat: str, delta: float, category: str):
+        """Record a stat mutation. civ_idx is the index into world.civilizations."""
         self._changes.append(StatChange(
-            civ.id, stat, delta, category, getattr(civ, stat, 0)
+            civ_idx, stat, delta, category, getattr(civ, stat, 0)
         ))
 
     def apply(self, world: WorldState) -> None:
