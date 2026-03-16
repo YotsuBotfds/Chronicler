@@ -944,4 +944,41 @@ mod tests {
             assert!((delta - LOYALTY_RECOVERY_RATE).abs() < 0.001);
         }
     }
+
+    /// Structural regression: verify utility model with extreme conditions matches
+    /// Phase 5 short-circuit for a deeply-below-threshold rebel scenario.
+    /// Uses 10 agents at loyalty=0.0, sat=0.0 so rebel_utility = 1.5 (cap)
+    /// with smoothstep(10, 3, 8) = 1.0. Gap of 1.0 over STAY_BASE makes
+    /// Gumbel noise at T=0.3 negligible (~0.04% flip probability per agent).
+    #[test]
+    fn test_structural_regression_rebel_v1_vs_v2() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+
+        let mut pool = AgentPool::new(16);
+        let regions = vec![make_region(0)];
+
+        // 10 agents at absolute minimum (maximizes rebel utility to cap)
+        for _ in 0..10 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            pool.set_loyalty(slot, 0.0);
+            pool.set_satisfaction(slot, 0.0);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let slots: Vec<usize> = (0..10).collect();
+
+        // V1: Phase 5 short-circuit — all 10 rebel
+        let pd_v1 = evaluate_region_decisions_v1(&pool, &slots, &regions[0], &stats, 0);
+        assert_eq!(pd_v1.rebellions.len(), 10);
+
+        // V2: utility model — rebel_utility = 1.5, STAY_BASE = 0.5
+        // Gap of 1.0 with T=0.3 makes noise flip astronomically unlikely
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pd_v2 = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+
+        assert_eq!(pd_v2.rebellions.len(), pd_v1.rebellions.len(),
+            "structural regression: v2 rebels={} vs v1 rebels={}",
+            pd_v2.rebellions.len(), pd_v1.rebellions.len());
+    }
 }

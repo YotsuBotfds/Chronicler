@@ -198,7 +198,10 @@ pub fn tick_agents(
             .enumerate()
             .map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
-                rng.set_stream(region_id as u64 * 1000 + turn as u64);
+                rng.set_stream(
+                    region_id as u64 * 1000 + turn as u64
+                        + crate::agent::DEMOGRAPHICS_STREAM_OFFSET,
+                );
                 tick_region_demographics(
                     pool_ref,
                     slots,
