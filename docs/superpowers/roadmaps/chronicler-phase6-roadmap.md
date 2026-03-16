@@ -183,7 +183,7 @@ Each region gets 1–3 resources at world gen, determined by terrain + ecology:
 | Desert | Dates, spices | Gold | Caravan trade |
 | Tundra | — | Furs | Subsistence only |
 
-Each resource is a struct: `(type_id: u8, base_yield: f32, current_yield: f32, reserves: f32)`. Crops are renewable (yield fluctuates with ecology); minerals deplete (`reserves` drops with extraction, exhausted below 0.1 — output falls to 10% of base).
+Each resource is a struct: `(type_id: u8, base_yield: f32, current_yield: f32, reserves: f32)`. Crops are renewable (yield fluctuates with ecology); minerals deplete (`reserves` drops with extraction, exhausted below 0.1 — output falls to 10% of base). Resource type 255 = empty slot (not 0, since Wheat=0).
 
 Mineral depletion creates boom-bust cycles: a silver strike draws population, the region booms for 50-100 turns, the mine depletes, the economy collapses, population migrates to the next opportunity.
 
@@ -231,19 +231,23 @@ reserves -= extraction_rate × DEPLETION_RATE [CALIBRATE]
 if reserves < 0.1: current_yield = base_yield × 0.1  // exhausted
 ```
 
-Miner count = agents in region with occupation matching resource type (farmer for crops, soldier proximity for mines needing protection). Extraction rate scales linearly with workforce up to a cap.
+Worker count = agents with relevant occupation. Farmers work crops. There is no Miner occupation — farmers assigned to mineral-producing regions are treated as miners for extraction purposes (the occupation represents physical labor, not crop-specific farming). Soldier presence in mining regions provides a protection bonus (reduced raid risk). Extraction rate scales linearly with workforce up to a cap.
 
 ### Rust-Side Changes
 
 `RegionState` gains new fields:
 
 ```rust
-pub resource_types: [u8; 3],      // up to 3 resource IDs (0 = empty slot)
+pub resource_types: [u8; 3],      // up to 3 resource IDs (255 = empty slot)
 pub resource_yields: [f32; 3],    // current per-resource yield
 pub resource_reserves: [f32; 3],  // mineral depletion (1.0 = full, 0.0 = gone)
 pub season: u8,                   // 0-11 seasonal position
 pub climate_phase: u8,            // 0-3 drought/temperate/cooling/warming
 ```
+
+### FFI Data Path
+
+Season, climate_phase, resource_yields, and resource_reserves are computed Python-side in the ecology tick (Phase 9) and written into the RegionState RecordBatch before the Rust agent tick (between Phase 9 and 10). This matches the existing pattern: soil/water/forest are updated in Phase 9 and read by Rust. The agent tick reads yields from RegionState — it does not compute them. Season and climate_phase are global (all regions share the same seasonal position), but are stored per-region on RegionState for Rust-side access simplicity.
 
 ### Agent Integration
 
@@ -302,7 +306,7 @@ Disease severity modified by:
 - **Season:** Summer peaks for fever, winter peaks for plague
 - **Army movement:** Soldiers moving between regions carry disease (+0.01 severity per military migration event)
 
-Agent mortality in `demographics.rs` reads regional disease severity as an additive term on the base mortality rate. Existing M18 pandemic black swans become acute spikes (severity 0.10-0.20) on top of the endemic baseline (0.02-0.03).
+Agent mortality in `demographics.rs` reads regional disease severity as a separate parameter to `mortality_rate()` (not folded into `ecological_stress`, since disease is pathogenic, not environmental). Signature becomes: `mortality_rate(age, eco_stress, disease_severity, is_soldier_at_war)`. Existing M18 pandemic black swans become acute spikes (severity 0.10-0.20) on top of the endemic baseline (0.02-0.03).
 
 ### Resource Depletion Feedback
 
@@ -331,6 +335,10 @@ pub disease_severity: f32,        // 0.0-1.0 endemic disease level
 ```
 
 (Resource reserves already added in M34.)
+
+### Scope Note
+
+M35 combines four subsystems (rivers, disease, depletion feedback, environmental events). If implementation planning reveals this is too large for a single milestone, split into M35a (rivers + river trade corridors) and M35b (disease + depletion + environmental events). The roadmap keeps them together because they share the "material world consequences" theme, but the implementation plan should chunk them with review gates between.
 
 ### Validation
 
@@ -379,6 +387,12 @@ Per-tick probability of adopting a neighboring agent's value (within same region
 ### Narrative Integration
 
 Named characters include their cultural values in narration context. Cultural mismatch between a character and their civ creates narrative tension: "Kiran, who had long adopted Kethani customs, found herself defending Aramean borders."
+
+### Rust/Python Data Flow
+
+Cultural drift logic runs in a new Rust `culture_tick.rs` module (per-agent drift computation, seeded deterministically). The civ-level assimilation check ("60% of agents hold controller's values → region flips") runs Python-side in `culture.py`, reading agent cultural distribution via a new FFI aggregate method (`get_cultural_distribution(region_id) → dict[u8, int]`). Rust does not check the 60% threshold — it only drifts individual agents. Python reads the result and triggers civ-level state changes.
+
+Cultural drift RNG uses separate stream ranges from decisions: `region_id * 1000 + turn + 500`. Conversion (M37) uses `+ 600`.
 
 ### Validation
 
@@ -451,9 +465,9 @@ New casus belli for the action engine:
 
 ### Data Model
 
-- **Pool:** `beliefs: Vec<u8>` — 1 byte per agent. Pool size: ~59 → ~60 bytes.
+- **Pool:** `beliefs: Vec<u8>` — 1 byte per agent. Pool size: ~59 → ~60 bytes. Belief is set at spawn via new parameter to `pool.spawn()` (Rust-side) and inherited from parent during birth (read parent's belief in demographics birth path). Python bridge sets initial beliefs when spawning agents at world gen.
 - **Python:** `Belief` dataclass with faith_id, name, civ_origin, doctrines. Global `belief_registry: list[Belief]` on WorldState.
-- **Rust RegionState:** `majority_belief: u8` passed through FFI for satisfaction formula.
+- **Rust RegionState:** `majority_belief: u8` computed Python-side from agent belief distribution (via existing `get_snapshot()` or new aggregate FFI method), written into region update RecordBatch each turn alongside `controller_civ` and `trade_route_count`. Satisfaction formula in `satisfaction.rs` reads `majority_belief` from RegionState.
 
 ### Validation
 
@@ -500,7 +514,7 @@ High clergy influence modifies:
 - **Treasury:** Tithe mechanic — `TITHE_RATE × sum(merchant_wealth)` flows to treasury as religious tax. `[CALIBRATE]`
 - **Faction competition:** Clergy competes with military/merchant/cultural for policy influence. Four-way faction tension creates richer political dynamics than three-way.
 
-Faction influence normalization extends from 3 to 4 factions (0.08 floor per faction, sum to 1.0).
+Faction influence normalization extends from 3 to 4 factions (0.08 floor per faction, sum to 1.0). Rust-side changes required: new `faction_clergy: f32` field on `CivSignals`, new Arrow column in FFI schema, `dominant_faction` match in `tick.rs` extended to handle value `3`, occupation-match extended to map Priest (occ=4) to clergy faction. Python-side: `factions.py` normalization updated from floor 0.10/3 factions to floor 0.08/4 factions.
 
 ### Schisms
 
@@ -534,6 +548,10 @@ When a civ's dominant faith differs from a region's majority faith:
 - **Named event:** "Persecution of [faith] in [region]" (importance 6)
 - **Death overrides:** Persecution deaths get special narrative treatment (martyrdom → increases convert rate for that faith post-mortem)
 
+### Scope Note
+
+M38 combines five mechanics (temples, clergy faction, schisms, pilgrimages, persecution). If implementation planning reveals this is too large, split into M38a (temples + clergy faction) and M38b (schisms + pilgrimages + persecution). Temples and clergy are the institutional foundation; schisms/pilgrimages/persecution are emergent dynamics that build on it.
+
 ### Validation
 
 - **Institutional power:** Civs with temples convert faster than those without. Clergy influence visible in succession outcomes.
@@ -561,6 +579,8 @@ When a civ's dominant faith differs from a region's majority faith:
 One `u32` per agent: `parent_ids: Vec<u32>` in the SoA pool. Points to parent's `agent_id` (not slot index — stable across compaction). Value `0` = no parent (root agent, spawned at world gen).
 
 Storage: 4 bytes per agent. Pool size: ~60 → ~64 bytes.
+
+**Lookup strategy:** The current pool has no id-to-slot reverse map. Parent lookup (resolving agent_id to slot) is only needed during birth (for inheritance) and in Python (for dynasty detection). For birth: the parent is always alive at the time of birth, so a linear scan of alive agents is acceptable at birth frequency (~100-500 births/turn). For dynasty detection: Python-side `named_agents` dict already maps agent_id to GreatPerson. No new HashMap needed on Rust side.
 
 ### Birth Integration
 
@@ -1226,6 +1246,16 @@ Phase 6 adds per-agent computation:
 Net tick time increase: estimated ~30-50% from utility expansion. With M29 optimizations already landed (27-47× headroom), 0.25ms × 1.5 = 0.375ms for 10K/24. Still massively under the 5ms target. At 50K agents: ~1.9ms. Still under target.
 
 If scaling to 100K+ agents, M29 Phase B (SIMD verification, decision short-circuit tuning) becomes relevant.
+
+### Cross-System Feedback Loops
+
+Phase 6 creates multi-system feedback chains that need careful tuning:
+
+1. **Satisfaction stacking:** Cultural mismatch (M36) + religious mismatch (M37) + persecution penalty (M38) + low ecology can all reduce satisfaction simultaneously. The branchless satisfaction formula clamps to [0.0, 1.0], so the floor exists, but many agents simultaneously hitting 0.0 could produce mass rebellion cascading into system instability. M47 tuning should verify that realistic scenarios don't push >30% of a region's agents to floor satisfaction.
+
+2. **Treasury → temple → conversion → schism chain:** Temple construction (10 treasury, M38) depends on merchant-tax income (M41) which depends on trade profits (M42) which depend on supply (M43). A trade disruption can cascade into reduced treasury → no temple construction → slower conversion → demographic shift → schism. This is narratively rich but computationally creates a six-system loop. M47 should test this interaction chain specifically.
+
+3. **Environmental-disease-trade cascade:** Locust swarm (M35) → crop failure → supply shock (M43) → famine satisfaction → increased disease severity (M35) from malnutrition → mortality spike → population crash → trade collapse. Attenuation rates (50%/hop for shocks, disease severity caps) should prevent single events from producing civilization-ending spirals. M47 should run 200-seed stress tests with high-severity environmental events to verify dampening.
 
 ### Backward Compatibility
 
