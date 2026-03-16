@@ -34,3 +34,33 @@ All targets and results in this project are for this machine.
 | 500-turn run (6K/24) | < 3 s   |
 | 500-turn run (10K/24)| < 6 s   |
 | Arrow FFI per tick   | < 0.5ms |
+
+## Results (M29 Phase A)
+
+Measured on reference hardware (9950X), Windows, `--release` profile.
+
+### Macro Regression Gate (500 turns, median of 3)
+
+| Config   | Median   | Target  | Headroom |
+|----------|----------|---------|----------|
+| 6K / 24  | 0.109 s  | < 3.0 s | ~27x     |
+| 10K / 24 | 0.126 s  | < 6.0 s | ~47x     |
+
+### Arrow FFI Overhead
+
+| Config             | Mean    | Target   |
+|--------------------|---------|----------|
+| `to_record_batch` 10K | 131 µs  | < 500 µs |
+
+### Cache Efficiency (packed vs scattered)
+
+| Config                        | Mean     | Delta  |
+|-------------------------------|----------|--------|
+| Packed 10K (contiguous)       | 870 µs   | —      |
+| Scattered 10K in 15K (~33% dead) | 885 µs | +1.6%  |
+
+Compaction not warranted — fragmentation penalty is negligible.
+
+### Phase B Status
+
+**Deferred.** All performance targets met with 27-47x headroom. SIMD satisfaction verification, decision short-circuit tuning, and compaction have no profiling justification at current scale. Flamegraphs can be run post-merge for documentation if desired.
