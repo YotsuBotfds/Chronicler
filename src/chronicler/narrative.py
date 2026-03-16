@@ -16,6 +16,7 @@ from typing import Callable, Sequence
 from chronicler.llm import LLMClient
 from chronicler.models import (
     ActionType,
+    AgentContext,
     CausalLink,
     ChronicleEntry,
     CivThematicContext,
@@ -34,6 +35,110 @@ from chronicler.models import (
 
 _SUMMARY_STATS = ("population", "military", "economy", "culture", "stability")
 _STAT_THRESHOLD = 10
+
+
+# ---------------------------------------------------------------------------
+# M30: Agent context for narrator prompt
+# ---------------------------------------------------------------------------
+
+_DESPERATE_EVENTS = {"local_rebellion", "demographic_crisis"}
+_RESTLESS_EVENTS = {"loyalty_cascade", "brain_drain", "occupation_shift"}
+
+
+def compute_population_mood(events: list[Event]) -> str:
+    """Compute population mood from agent events. Worst wins."""
+    agent_types = {e.event_type for e in events if e.source == "agent"}
+    if agent_types & _DESPERATE_EVENTS:
+        return "desperate"
+    if agent_types & _RESTLESS_EVENTS:
+        return "restless"
+    return "content"
+
+
+def build_agent_context_block(ctx: AgentContext | None) -> str:
+    """Build the agent context section for the narrator prompt."""
+    if ctx is None:
+        return ""
+
+    lines = ["## Agent Context"]
+    lines.append(f"Population mood: {ctx.population_mood}")
+    lines.append(f"Displacement: {int(ctx.displacement_fraction * 100)}% of population displaced")
+    lines.append("")
+
+    if ctx.named_characters:
+        lines.append("Named characters present:")
+        for char in ctx.named_characters:
+            origin = (f", originally {char['origin_civ']}"
+                      if char.get("origin_civ") != char.get("civ") else "")
+            lines.append(
+                f"- {char['role']} {char['name']} ({char['civ']}{origin}) [{char['status']}]:"
+            )
+            history_parts = []
+            for h in char.get("recent_history", []):
+                history_parts.append(f"  {h['event']} in {h['region']} (turn {h['turn']})")
+            if history_parts:
+                lines.append(";".join(history_parts))
+        lines.append("")
+
+    lines.append("Guidelines:")
+    lines.append("- Refer to named characters BY NAME — do not anonymize or rename them")
+    lines.append("- Use their recent history for callbacks")
+    lines.append("- Use population mood to set atmospheric tone")
+    if ctx.displacement_fraction > 0.10:
+        lines.append("- Weave refugee/exile themes into the narrative")
+
+    lines.append("")
+    lines.append(
+        "Character Continuity: When a named character has appeared in previous "
+        "chronicle entries, maintain their name and identity. Do not re-introduce "
+        "them or invent backstory that contradicts their listed history. "
+        "The named characters list is authoritative."
+    )
+
+    return "\n".join(lines)
+
+
+def build_agent_context_for_moment(
+    moment: NarrativeMoment,
+    great_persons: list,
+    displacement_by_region: dict[int, float],
+    region_names: dict[int, str],
+) -> AgentContext | None:
+    """Build AgentContext if the moment has agent-source events."""
+    agent_events = [e for e in moment.events if e.source == "agent"]
+    if not agent_events:
+        return None
+
+    # Named characters active in this moment
+    chars = []
+    for gp in great_persons:
+        if not gp.active or gp.source != "agent":
+            continue
+        char = {
+            "name": gp.name,
+            "role": gp.role.title(),
+            "civ": gp.civilization,
+            "origin_civ": gp.origin_civilization,
+            "status": ("exiled" if gp.fate == "exile"
+                       else ("dead" if not gp.alive else "active")),
+            "recent_history": [
+                {"turn": 0, "event": d, "region": gp.region or "unknown"}
+                for d in gp.deeds[-3:]
+            ],
+        }
+        chars.append(char)
+
+    mood = compute_population_mood(agent_events)
+
+    # Average displacement across all tracked regions
+    disp_values = list(displacement_by_region.values())
+    avg_disp = sum(disp_values) / len(disp_values) if disp_values else 0.0
+
+    return AgentContext(
+        named_characters=chars[:10],  # cap for token budget
+        population_mood=mood,
+        displacement_fraction=avg_disp,
+    )
 
 
 def build_before_summary(
