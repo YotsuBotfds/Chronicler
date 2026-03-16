@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
+from chronicler.leaders import _pick_name, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event
 from chronicler.shadow import ShadowLogger
 
@@ -24,6 +25,7 @@ FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2}
 EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
                   3: "occupation_switch", 4: "loyalty_flip", 5: "birth"}
 OCCUPATION_NAMES = {0: "farmers", 1: "soldiers", 2: "merchants", 3: "scholars", 4: "priests"}
+ROLE_MAP = {0: "general", 1: "merchant", 2: "scientist", 3: "prophet", 4: "exile"}
 
 SUMMARY_TEMPLATES = {
     "mass_migration": "{count} {occ_majority} fled {source_region} for {target_region}",
@@ -31,6 +33,8 @@ SUMMARY_TEMPLATES = {
     "demographic_crisis": "{region} lost {pct}% of its population over {window} turns",
     "occupation_shift": "{count} agents in {region} switched to {new_occupation}",
     "loyalty_cascade": "{count} residents of {region} shifted allegiance to {target_civ}",
+    "economic_boom": "Economic boom in {region}: {count} workers switched to merchant trades over {window} turns",
+    "brain_drain": "{count} scholars fled {region} over {window} turns",
 }
 
 
@@ -152,6 +156,9 @@ class AgentBridge:
         self._shadow_logger: ShadowLogger | None = None
         if mode == "shadow" and shadow_output is not None:
             self._shadow_logger = ShadowLogger(shadow_output)
+        self.named_agents: dict[int, str] = {}  # agent_id → character name
+        self._origin_regions: dict[int, int] = {}  # agent_id → origin_region (for exile_return)
+        self._departure_turns: dict[int, int] = {}  # agent_id → turn they left origin_region
 
     def tick(self, world: WorldState, shocks=None, demands=None) -> list:
         self._sim.set_region_state(build_region_batch(world))
@@ -163,7 +170,7 @@ class AgentBridge:
             raw_events = self._convert_events(agent_events, world.turn)
             world.agent_events_raw.extend(raw_events)
             self._event_window.append(raw_events)
-            return self._aggregate_events(world)
+            return self._aggregate_events(world, self.named_agents)
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
             if self._shadow_logger:
@@ -192,8 +199,260 @@ class AgentBridge:
             ))
         return records
 
-    def _aggregate_events(self, world):
+    def _process_promotions(self, batch, world) -> list:
+        """Process promotion RecordBatch → create GreatPerson instances.
+
+        Also checks Python-side bypass triggers that Rust cannot evaluate:
+        - Serial migrant (3+ region changes) → Merchant
+        - Occupation versatility (3+ switches) → Scientist
+        These are checked against agent_events_raw history when the Rust-side
+        trigger is 0 (skill-based), to see if a more specific role applies.
+        """
+        import random
+        from chronicler.models import GreatPerson
+
+        created = []
+        for i in range(batch.num_rows):
+            agent_id = batch.column("agent_id")[i].as_py()
+            role_id = batch.column("role")[i].as_py()
+            trigger = batch.column("trigger")[i].as_py()
+            origin_region = batch.column("origin_region")[i].as_py()
+            role = ROLE_MAP[role_id]
+
+            # Python-side bypass: check event history for serial migrant / versatility
+            if trigger == 0:  # skill-based — check if a bypass applies
+                migration_count = sum(
+                    1 for e in world.agent_events_raw
+                    if e.agent_id == agent_id and e.event_type == "migration"
+                )
+                switch_count = sum(
+                    1 for e in world.agent_events_raw
+                    if e.agent_id == agent_id and e.event_type == "occupation_switch"
+                )
+                if migration_count >= 3:
+                    role = "merchant"
+                elif switch_count >= 3:
+                    role = "scientist"
+
+            # Pick civ — use origin_region's controller
+            civ = world.civilizations[0]
+            if origin_region < len(world.regions):
+                controller = world.regions[origin_region].controller
+                if controller:
+                    for c in world.civilizations:
+                        if c.name == controller:
+                            civ = c
+                            break
+
+            rng = random.Random(world.seed + world.turn + agent_id)
+            name = _pick_name(civ, world, rng)
+            trait = rng.choice(ALL_TRAITS)
+
+            gp = GreatPerson(
+                name=name,
+                role=role,
+                trait=trait,
+                civilization=civ.name,
+                origin_civilization=civ.name,
+                born_turn=world.turn,
+                source="agent",
+                agent_id=agent_id,
+            )
+            civ.great_persons.append(gp)
+            created.append(gp)
+            self.named_agents[agent_id] = name
+            self._origin_regions[agent_id] = origin_region
+
+        return created
+
+    def _process_deaths(self, raw_events, world) -> list:
+        """Cross-reference death events against named_agents. Return Events for named character deaths."""
+        from chronicler.models import Event
+
+        death_events = []
+        for e in raw_events:
+            if e.event_type != "death":
+                continue
+            if e.agent_id not in self.named_agents:
+                continue
+
+            name = self.named_agents[e.agent_id]
+            region_name = (world.regions[e.region].name
+                          if e.region < len(world.regions) else f"region {e.region}")
+
+            # Find and transition the GreatPerson
+            for civ in world.civilizations:
+                for gp in list(civ.great_persons):
+                    if gp.agent_id == e.agent_id:
+                        was_exile = gp.fate == "exile"
+                        gp.alive = False
+                        gp.active = False
+                        gp.fate = "dead"
+                        gp.death_turn = world.turn
+                        civ.great_persons.remove(gp)
+                        world.retired_persons.append(gp)
+
+                        desc = (f"{name} died in exile in {region_name}"
+                                if was_exile
+                                else f"{name} died in {region_name}")
+                        death_events.append(Event(
+                            turn=world.turn,
+                            event_type="character_death",
+                            actors=[name, civ.name],
+                            description=desc,
+                            importance=6,
+                            source="agent",
+                        ))
+                        break
+
+        return death_events
+
+    def _detect_character_events(self, raw_events, world) -> list:
+        """Detect notable_migration and exile_return from migration events."""
+        from chronicler.models import Event
+
+        character_events = []
+        for e in raw_events:
+            if e.event_type != "migration":
+                continue
+            if e.agent_id not in self.named_agents:
+                continue
+
+            name = self.named_agents[e.agent_id]
+            origin = self._origin_regions.get(e.agent_id)
+            source_name = (world.regions[e.region].name
+                          if e.region < len(world.regions) else f"region {e.region}")
+            target_name = (world.regions[e.target_region].name
+                          if e.target_region < len(world.regions) else f"region {e.target_region}")
+
+            # Track departure from origin
+            if origin is not None and e.region == origin and e.target_region != origin:
+                self._departure_turns.setdefault(e.agent_id, world.turn)
+
+            # Exile return: named char returns to origin_region after 30+ turns away
+            if (origin is not None
+                    and e.target_region == origin
+                    and e.agent_id in self._departure_turns):
+                turns_away = world.turn - self._departure_turns[e.agent_id]
+                if turns_away >= 30:
+                    character_events.append(Event(
+                        turn=world.turn,
+                        event_type="exile_return",
+                        actors=[name],
+                        description=f"{name} returned to {target_name} after {turns_away} turns in exile",
+                        importance=6,
+                        source="agent",
+                    ))
+                    del self._departure_turns[e.agent_id]
+                    continue  # don't also emit notable_migration
+
+            # Notable migration: any named character moves
+            character_events.append(Event(
+                turn=world.turn,
+                event_type="notable_migration",
+                actors=[name],
+                description=f"{name} migrated from {source_name} to {target_name}",
+                importance=4,
+                source="agent",
+            ))
+
+        return character_events
+
+    def apply_conquest_transitions(self, conquered_civ, conqueror_civ,
+                                   conquered_regions: list[str],
+                                   conqueror_civ_id: int,
+                                   host_civ_ids: dict | None = None,
+                                   turn: int = 0) -> list:
+        """Transition agent-source named characters on conquest.
+
+        Args:
+            conquered_civ: The conquered civilization object.
+            conqueror_civ: The conquering civilization object.
+            conquered_regions: List of region names that were conquered.
+            conqueror_civ_id: Numeric civ ID (u8) for the conqueror (for FFI).
+            host_civ_ids: Map of region_name → civ_id for refugees in surviving territory.
+            turn: Current turn number for event timestamps.
+        """
+        from chronicler.models import Event
+
+        events = []
+        conquered_region_set = set(conquered_regions)
+        if host_civ_ids is None:
+            host_civ_ids = {}
+
+        for gp in list(conquered_civ.great_persons):
+            if gp.source != "agent" or gp.agent_id is None:
+                continue
+
+            gp.fate = "exile"
+            gp.active = False
+
+            if gp.region in conquered_region_set:
+                # In conquered territory → hostage
+                gp.captured_by = conqueror_civ.name
+                try:
+                    self._sim.set_agent_civ(gp.agent_id, conqueror_civ_id)
+                except Exception:
+                    pass
+            else:
+                # In surviving territory → refugee, not captured
+                gp.captured_by = None
+                host_id = host_civ_ids.get(gp.region, conqueror_civ_id)
+                try:
+                    self._sim.set_agent_civ(gp.agent_id, host_id)
+                except Exception:
+                    pass
+
+            events.append(Event(
+                turn=turn,
+                event_type="conquest_exile",
+                actors=[gp.name, conquered_civ.name, conqueror_civ.name],
+                description=f"{gp.name} of {conquered_civ.name} exiled after conquest by {conqueror_civ.name}",
+                importance=5, source="agent",
+            ))
+
+        return events
+
+    def apply_secession_transitions(self, old_civ, new_civ,
+                                    seceding_regions: list[str],
+                                    new_civ_id: int,
+                                    turn: int = 0) -> list:
+        """Transition agent-source named characters on secession."""
+        from chronicler.models import Event
+
+        events = []
+        seceding_set = set(seceding_regions)
+
+        for gp in list(old_civ.great_persons):
+            if gp.source != "agent" or gp.agent_id is None:
+                continue
+            if gp.region not in seceding_set:
+                continue
+
+            gp.civilization = new_civ.name
+            # origin_civilization stays unchanged
+            old_civ.great_persons.remove(gp)
+            new_civ.great_persons.append(gp)
+
+            try:
+                self._sim.set_agent_civ(gp.agent_id, new_civ_id)
+            except Exception:
+                pass
+
+            events.append(Event(
+                turn=turn,
+                event_type="secession_defection",
+                actors=[gp.name, old_civ.name, new_civ.name],
+                description=f"{gp.name} defected with the secession of {gp.region}",
+                importance=5, source="agent",
+            ))
+
+        return events
+
+    def _aggregate_events(self, world, named_agents=None):
         """Check thresholds and emit summary Events."""
+        if named_agents is None:
+            named_agents = {}
         summaries = []
         current = list(self._event_window)[-1] if self._event_window else []
         region_names = {i: r.name for i, r in enumerate(world.regions)}
@@ -221,7 +480,7 @@ class AgentBridge:
                 target_id = targets.most_common(1)[0][0]
                 summaries.append(Event(
                     turn=world.turn, event_type="mass_migration",
-                    actors=[],
+                    actors=self._named_actors_in_region(region_id, named_agents, current),
                     description=SUMMARY_TEMPLATES["mass_migration"].format(
                         count=len(events), occ_majority=occ_majority,
                         source_region=region_names.get(region_id, f"region {region_id}"),
@@ -237,7 +496,7 @@ class AgentBridge:
                 occ_majority = OCCUPATION_NAMES[occ_counts.most_common(1)[0][0]]
                 summaries.append(Event(
                     turn=world.turn, event_type="local_rebellion",
-                    actors=[],
+                    actors=self._named_actors_in_region(region_id, named_agents, current),
                     description=SUMMARY_TEMPLATES["local_rebellion"].format(
                         count=len(events), occ_majority=occ_majority,
                         region=region_names.get(region_id, f"region {region_id}"),
@@ -253,7 +512,7 @@ class AgentBridge:
                 new_occ = OCCUPATION_NAMES[new_occ_counts.most_common(1)[0][0]]
                 summaries.append(Event(
                     turn=world.turn, event_type="occupation_shift",
-                    actors=[],
+                    actors=self._named_actors_in_region(region_id, named_agents, current),
                     description=SUMMARY_TEMPLATES["occupation_shift"].format(
                         count=len(events),
                         region=region_names.get(region_id, f"region {region_id}"),
@@ -286,7 +545,7 @@ class AgentBridge:
                                   else f"civ {target_civ_id}")
                 summaries.append(Event(
                     turn=world.turn, event_type="loyalty_cascade",
-                    actors=[],
+                    actors=self._named_actors_in_region(region_id, named_agents, recent_flips),
                     description=SUMMARY_TEMPLATES["loyalty_cascade"].format(
                         count=count,
                         region=region_names.get(region_id, f"region {region_id}"),
@@ -315,7 +574,7 @@ class AgentBridge:
                         if loss_pct > 30:
                             summaries.append(Event(
                                 turn=world.turn, event_type="demographic_crisis",
-                                actors=[],
+                                actors=self._named_actors_in_region(region_id, named_agents, current),
                                 description=SUMMARY_TEMPLATES["demographic_crisis"].format(
                                     region=region_names.get(region_id, f"region {region_id}"),
                                     pct=int(loss_pct),
@@ -324,7 +583,62 @@ class AgentBridge:
                                 importance=7, source="agent",
                             ))
 
+        # === M30 new event types ===
+
+        # Economic boom: >=10 occupation switches TO merchant over 20-turn window
+        # [CALIBRATE: post-M28, initial 10]
+        merchant_switches_by_region = {}
+        boom_window = min(len(self._event_window), 20)
+        boom_events = [e for t in list(self._event_window)[-boom_window:] for e in t]
+        for e in boom_events:
+            if e.event_type == "occupation_switch" and e.occupation == 2:  # merchant
+                merchant_switches_by_region[e.region] = \
+                    merchant_switches_by_region.get(e.region, 0) + 1
+        for region_id, count in merchant_switches_by_region.items():
+            if count >= 10:
+                summaries.append(Event(
+                    turn=world.turn, event_type="economic_boom",
+                    actors=self._named_actors_in_region(region_id, named_agents, boom_events),
+                    description=SUMMARY_TEMPLATES["economic_boom"].format(
+                        region=region_names.get(region_id, f"region {region_id}"),
+                        count=count, window=boom_window,
+                    ),
+                    importance=5, source="agent",
+                ))
+
+        # Brain drain: >=5 scholars leave region over 10-turn window
+        # [CALIBRATE: post-M28, initial 5]
+        scholar_departures_by_region = {}
+        drain_window = min(len(self._event_window), 10)
+        drain_events = [e for t in list(self._event_window)[-drain_window:] for e in t]
+        for e in drain_events:
+            if e.event_type == "migration" and e.occupation == 3:  # scholar
+                scholar_departures_by_region[e.region] = \
+                    scholar_departures_by_region.get(e.region, 0) + 1
+        for region_id, count in scholar_departures_by_region.items():
+            if count >= 5:
+                summaries.append(Event(
+                    turn=world.turn, event_type="brain_drain",
+                    actors=self._named_actors_in_region(region_id, named_agents, drain_events),
+                    description=SUMMARY_TEMPLATES["brain_drain"].format(
+                        count=count,
+                        region=region_names.get(region_id, f"region {region_id}"),
+                        window=drain_window,
+                    ),
+                    importance=5, source="agent",
+                ))
+
         return summaries
+
+    def _named_actors_in_region(self, region_id, named_agents, current_events):
+        """Find named character names involved in events for a given region."""
+        actors = []
+        for e in current_events:
+            if e.region == region_id and e.agent_id in named_agents:
+                name = named_agents[e.agent_id]
+                if name not in actors:
+                    actors.append(name)
+        return actors
 
     def _write_back(self, world: WorldState) -> None:
         """Write agent-derived stats to civ and region objects. Hybrid mode only."""
