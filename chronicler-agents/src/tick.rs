@@ -61,7 +61,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 2. Pre-compute region stats for decisions
     // -----------------------------------------------------------------------
-    let stats = compute_region_stats(pool, regions);
+    let stats = compute_region_stats(pool, regions, signals);
 
     // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
@@ -249,7 +249,7 @@ pub fn tick_agents(
 
 fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals) {
     // Pre-compute region stats for demand/supply ratio
-    let stats = compute_region_stats(pool, regions);
+    let stats = compute_region_stats(pool, regions, signals);
 
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) {
@@ -318,6 +318,8 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
             None => 0.0,
         };
 
+        let shock = signals.shock_for_civ(pool.civ_affinity(slot));
+
         let sat = satisfaction::compute_satisfaction(
             occ,
             region.soil,
@@ -331,7 +333,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
             is_displaced,
             region.trade_route_count,
             faction_influence,
-            &crate::signals::CivShock::default(),
+            &shock,
         );
 
         pool.set_satisfaction(slot, sat);
