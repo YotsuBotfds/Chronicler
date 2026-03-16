@@ -9,6 +9,7 @@ mod agent;
 mod ffi;
 mod pool;
 mod region;
+pub mod satisfaction;
 mod tick;
 
 // Public re-exports for integration tests and benchmarks.
