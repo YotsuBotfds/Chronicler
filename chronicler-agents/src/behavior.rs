@@ -53,6 +53,17 @@ fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> u
 }
 
 // ---------------------------------------------------------------------------
+// Utility functions
+// ---------------------------------------------------------------------------
+
+fn rebel_utility(loyalty: f32, satisfaction: f32, rebel_eligible: usize) -> f32 {
+    let raw = W_REBEL
+        * ((REBEL_LOYALTY_THRESHOLD - loyalty).max(0.0)
+            + (REBEL_SATISFACTION_THRESHOLD - satisfaction).max(0.0));
+    raw.min(REBEL_CAP) * smoothstep(rebel_eligible, REBEL_MIN_COHORT - 2, REBEL_MIN_COHORT + 3)
+}
+
+// ---------------------------------------------------------------------------
 // RegionStats — pre-computed per-region aggregates
 // ---------------------------------------------------------------------------
 
@@ -714,6 +725,38 @@ mod tests {
         }
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         assert_eq!(stats.migration_opportunity[0], 0.0);
+    }
+
+    #[test]
+    fn test_rebel_utility_zero_above_both_thresholds() {
+        let u = super::rebel_utility(0.5, 0.5, 10);
+        assert_eq!(u, 0.0);
+    }
+
+    #[test]
+    fn test_rebel_utility_partial_one_dimension() {
+        let u = super::rebel_utility(0.1, 0.5, 10);
+        assert!(u > 0.0);
+        let expected = 0.375_f32; // W_REBEL * (0.2 - 0.1) * smoothstep(10,3,8)=1.0
+        assert!((u - expected).abs() < 0.01, "expected ~{}, got {}", expected, u);
+    }
+
+    #[test]
+    fn test_rebel_utility_saturates_at_cap() {
+        use crate::agent::REBEL_CAP;
+        let u = super::rebel_utility(0.0, 0.0, 10);
+        assert!((u - REBEL_CAP).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_rebel_utility_smoothstep_cohort_gate() {
+        use crate::agent::REBEL_CAP;
+        let u_zero = super::rebel_utility(0.0, 0.0, 3);
+        assert_eq!(u_zero, 0.0);
+        let u_full = super::rebel_utility(0.0, 0.0, 8);
+        assert!((u_full - REBEL_CAP).abs() < 0.01);
+        let u_mid = super::rebel_utility(0.0, 0.0, 5);
+        assert!(u_mid > 0.0 && u_mid < REBEL_CAP);
     }
 
     #[test]
