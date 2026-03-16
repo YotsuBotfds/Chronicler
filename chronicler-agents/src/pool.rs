@@ -331,6 +331,9 @@ impl AgentPool {
         let mut skills = Float32Builder::with_capacity(live);
         let mut ages = UInt16Builder::with_capacity(live);
         let mut displacement_turns = UInt16Builder::with_capacity(live);
+        let mut boldness_col = Float32Builder::with_capacity(live);
+        let mut ambition_col = Float32Builder::with_capacity(live);
+        let mut loyalty_trait_col = Float32Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -351,6 +354,9 @@ impl AgentPool {
             ages.append_value(self.ages[slot]);
             // stored as u8, schema says UInt16
             displacement_turns.append_value(self.displacement_turns[slot] as u16);
+            boldness_col.append_value(self.boldness[slot]);
+            ambition_col.append_value(self.ambition[slot]);
+            loyalty_trait_col.append_value(self.loyalty_trait[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -367,6 +373,9 @@ impl AgentPool {
                 Arc::new(skills.finish()) as _,
                 Arc::new(ages.finish()) as _,
                 Arc::new(displacement_turns.finish()) as _,
+                Arc::new(boldness_col.finish()) as _,
+                Arc::new(ambition_col.finish()) as _,
+                Arc::new(loyalty_trait_col.finish()) as _,
             ],
         )
     }

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::array::{UInt8Builder, UInt16Builder, UInt32Builder};
+use arrow::array::{UInt8Builder, UInt16Builder, UInt32Builder, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
@@ -70,6 +70,9 @@ pub fn snapshot_schema() -> Schema {
         Field::new("skill", DataType::Float32, false),
         Field::new("age", DataType::UInt16, false),
         Field::new("displacement_turn", DataType::UInt16, false),
+        Field::new("boldness", DataType::Float32, false),
+        Field::new("ambition", DataType::Float32, false),
+        Field::new("loyalty_trait", DataType::Float32, false),
     ])
 }
 
@@ -114,6 +117,10 @@ pub fn promotions_schema() -> Schema {
         Field::new("skill", DataType::Float32, false),
         Field::new("life_events", DataType::UInt8, false),
         Field::new("origin_region", DataType::UInt16, false),
+        Field::new("boldness", DataType::Float32, false),
+        Field::new("ambition", DataType::Float32, false),
+        Field::new("loyalty_trait", DataType::Float32, false),
+        Field::new("personality_label", DataType::Utf8, true),
     ])
 }
 
@@ -384,6 +391,10 @@ impl AgentSimulator {
         let mut skills = arrow::array::Float32Builder::with_capacity(n);
         let mut life_events_col = UInt8Builder::with_capacity(n);
         let mut origin_regions = UInt16Builder::with_capacity(n);
+        let mut boldness_col = arrow::array::Float32Builder::with_capacity(n);
+        let mut ambition_col = arrow::array::Float32Builder::with_capacity(n);
+        let mut loyalty_trait_col = arrow::array::Float32Builder::with_capacity(n);
+        let mut label_col = StringBuilder::with_capacity(n, n * 16);
 
         for &(slot, role, trigger) in &candidates {
             let agent_id = self.pool.id(slot);
@@ -396,6 +407,17 @@ impl AgentSimulator {
             skills.append_value(skill);
             life_events_col.append_value(self.pool.life_events[slot]);
             origin_regions.append_value(self.pool.origin_regions[slot]);
+
+            let b = self.pool.boldness[slot];
+            let a = self.pool.ambition[slot];
+            let lt = self.pool.loyalty_trait[slot];
+            boldness_col.append_value(b);
+            ambition_col.append_value(a);
+            loyalty_trait_col.append_value(lt);
+            match personality_label(b, a, lt) {
+                Some(label) => label_col.append_value(label),
+                None => label_col.append_null(),
+            }
 
             // Register in the Rust-side registry.
             // origin_civ_id = current civ at promotion time (best available;
@@ -423,6 +445,10 @@ impl AgentSimulator {
                 Arc::new(skills.finish()) as _,
                 Arc::new(life_events_col.finish()) as _,
                 Arc::new(origin_regions.finish()) as _,
+                Arc::new(boldness_col.finish()) as _,
+                Arc::new(ambition_col.finish()) as _,
+                Arc::new(loyalty_trait_col.finish()) as _,
+                Arc::new(label_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;
