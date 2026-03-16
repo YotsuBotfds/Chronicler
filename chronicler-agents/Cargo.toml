@@ -13,6 +13,7 @@ pyo3-arrow = "0.17"
 arrow = { version = "58", default-features = false, features = ["ffi"] }
 rand = "0.8"
 rand_chacha = "0.3"
+rand_distr = "0.4"
 rayon = "1.10"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
