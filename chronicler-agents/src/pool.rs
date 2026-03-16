@@ -1,7 +1,15 @@
 //! AgentPool: struct-of-arrays storage for all agent fields.
 //! Arena free-list added in Task 11.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use arrow::array::{Float32Builder, UInt16Builder, UInt32Builder, UInt8Builder};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatch;
+
 use crate::agent::Occupation;
+use crate::ffi;
 
 /// Struct-of-arrays agent pool. Each index is a "slot"; a slot may be dead.
 /// Use `is_alive(slot)` before accessing any field.
@@ -165,6 +173,144 @@ impl AgentPool {
             }
         }
         buckets
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Arrow serialization
+// ---------------------------------------------------------------------------
+
+impl AgentPool {
+    /// Return an Arrow RecordBatch containing one row per alive agent.
+    /// Dead slots are filtered out.
+    pub fn to_record_batch(&self) -> Result<RecordBatch, ArrowError> {
+        let live: usize = self.count;
+
+        let mut ids = UInt32Builder::with_capacity(live);
+        let mut regions = UInt16Builder::with_capacity(live);
+        let mut origin_regions = UInt16Builder::with_capacity(live);
+        let mut civ_affinities = UInt16Builder::with_capacity(live);
+        let mut occupations = UInt8Builder::with_capacity(live);
+        let mut loyalties = Float32Builder::with_capacity(live);
+        let mut satisfactions = Float32Builder::with_capacity(live);
+        let mut skills = Float32Builder::with_capacity(live);
+        let mut ages = UInt16Builder::with_capacity(live);
+        let mut displacement_turns = UInt16Builder::with_capacity(live);
+
+        for slot in 0..self.capacity() {
+            if !self.is_alive(slot) {
+                continue;
+            }
+            ids.append_value(self.ids[slot]);
+            regions.append_value(self.regions[slot]);
+            origin_regions.append_value(self.origin_regions[slot]);
+            // stored as u8, schema says UInt16
+            civ_affinities.append_value(self.civ_affinities[slot] as u16);
+            occupations.append_value(self.occupations[slot]);
+            loyalties.append_value(self.loyalties[slot]);
+            satisfactions.append_value(self.satisfactions[slot]);
+            // Use occupation-specific skill (slot * 5 + occ_idx)
+            let occ_idx = self.occupations[slot] as usize;
+            let skill_val = self.skills[slot * 5 + occ_idx];
+            skills.append_value(skill_val);
+            ages.append_value(self.ages[slot]);
+            // stored as u8, schema says UInt16
+            displacement_turns.append_value(self.displacement_turns[slot] as u16);
+        }
+
+        let schema = Arc::new(ffi::snapshot_schema());
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(ids.finish()) as _,
+                Arc::new(regions.finish()) as _,
+                Arc::new(origin_regions.finish()) as _,
+                Arc::new(civ_affinities.finish()) as _,
+                Arc::new(occupations.finish()) as _,
+                Arc::new(loyalties.finish()) as _,
+                Arc::new(satisfactions.finish()) as _,
+                Arc::new(skills.finish()) as _,
+                Arc::new(ages.finish()) as _,
+                Arc::new(displacement_turns.finish()) as _,
+            ],
+        )
+    }
+
+    /// Return a per-civ aggregate RecordBatch.
+    /// `population` is populated; `military`/`economy`/`culture`/`stability`
+    /// are zeroed in M25 and will be populated in M26.
+    pub fn compute_aggregates(&self) -> Result<RecordBatch, ArrowError> {
+        // Count live agents per civ.
+        let mut counts: HashMap<u8, u32> = HashMap::new();
+        for slot in 0..self.capacity() {
+            if self.is_alive(slot) {
+                *counts.entry(self.civ_affinities[slot]).or_insert(0) += 1;
+            }
+        }
+
+        // Sort by civ_id for deterministic output.
+        let mut sorted: Vec<(u8, u32)> = counts.into_iter().collect();
+        sorted.sort_by_key(|(civ, _)| *civ);
+
+        let n = sorted.len();
+        let mut civ_ids = UInt16Builder::with_capacity(n);
+        let mut populations = UInt32Builder::with_capacity(n);
+        let mut military = UInt32Builder::with_capacity(n);
+        let mut economy = UInt32Builder::with_capacity(n);
+        let mut culture = UInt32Builder::with_capacity(n);
+        let mut stability = UInt32Builder::with_capacity(n);
+
+        for (civ, pop) in sorted {
+            civ_ids.append_value(civ as u16);
+            populations.append_value(pop);
+            military.append_value(0);
+            economy.append_value(0);
+            culture.append_value(0);
+            stability.append_value(0);
+        }
+
+        let schema = Arc::new(ffi::aggregates_schema());
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(civ_ids.finish()) as _,
+                Arc::new(populations.finish()) as _,
+                Arc::new(military.finish()) as _,
+                Arc::new(economy.finish()) as _,
+                Arc::new(culture.finish()) as _,
+                Arc::new(stability.finish()) as _,
+            ],
+        )
+    }
+
+    /// Return a per-region alive-count RecordBatch.
+    /// Rows are in region_id order (0..num_regions).
+    pub fn region_populations(&self, num_regions: usize) -> Result<RecordBatch, ArrowError> {
+        let mut counts = vec![0u32; num_regions];
+        for slot in 0..self.capacity() {
+            if self.is_alive(slot) {
+                let r = self.regions[slot] as usize;
+                if r < num_regions {
+                    counts[r] += 1;
+                }
+            }
+        }
+
+        let mut region_ids = UInt16Builder::with_capacity(num_regions);
+        let mut alive_counts = UInt32Builder::with_capacity(num_regions);
+        for (i, c) in counts.iter().enumerate() {
+            region_ids.append_value(i as u16);
+            alive_counts.append_value(*c);
+        }
+
+        let schema = Arc::new(ffi::region_populations_schema());
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(region_ids.finish()) as _,
+                Arc::new(alive_counts.finish()) as _,
+            ],
+        )
     }
 }
 

@@ -6,8 +6,10 @@
 use pyo3::prelude::*;
 
 mod agent;
+mod ffi;
 mod pool;
 mod region;
+mod tick;
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
@@ -20,7 +22,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 /// Python module entry point.
 #[pymodule]
-fn chronicler_agents(_m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // AgentSimulator will be registered here in Task 7
+fn chronicler_agents(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ffi::AgentSimulator>()?;
     Ok(())
 }
