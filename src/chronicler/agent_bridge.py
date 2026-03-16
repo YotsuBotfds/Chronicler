@@ -235,6 +235,7 @@ class AgentBridge:
         """Process promotion RecordBatch → create GreatPerson instances.
 
         Also checks Python-side bypass triggers that Rust cannot evaluate:
+        - Long displacement (50+ turns away from origin) → Exile
         - Serial migrant (3+ region changes) → Merchant
         - Occupation versatility (3+ switches) → Scientist
         These are checked against agent_events_raw history when the Rust-side
@@ -251,17 +252,23 @@ class AgentBridge:
             origin_region = batch.column("origin_region")[i].as_py()
             role = ROLE_MAP[role_id]
 
-            # Python-side bypass: check event history for serial migrant / versatility
+            # Python-side bypass: check event history for displacement / migrant / versatility
             if trigger == 0:  # skill-based — check if a bypass applies
-                migration_count = sum(
-                    1 for e in world.agent_events_raw
+                migration_events = [
+                    e for e in world.agent_events_raw
                     if e.agent_id == agent_id and e.event_type == "migration"
-                )
+                ]
                 switch_count = sum(
                     1 for e in world.agent_events_raw
                     if e.agent_id == agent_id and e.event_type == "occupation_switch"
                 )
-                if migration_count >= 3:
+                # Long displacement: 50+ turns since first migration away from origin
+                if (migration_events
+                        and agent_id in self._origin_regions
+                        and agent_id in self._departure_turns
+                        and (world.turn - self._departure_turns[agent_id]) >= 50):
+                    role = "exile"
+                elif len(migration_events) >= 3:
                     role = "merchant"
                 elif switch_count >= 3:
                     role = "scientist"
@@ -313,7 +320,10 @@ class AgentBridge:
                           if e.region < len(world.regions) else f"region {e.region}")
 
             # Find and transition the GreatPerson
+            found = False
             for civ in world.civilizations:
+                if found:
+                    break
                 for gp in list(civ.great_persons):
                     if gp.agent_id == e.agent_id:
                         was_exile = gp.fate == "exile"
@@ -335,6 +345,7 @@ class AgentBridge:
                             importance=6,
                             source="agent",
                         ))
+                        found = True
                         break
 
         return death_events

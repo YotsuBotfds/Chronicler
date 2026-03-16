@@ -131,17 +131,10 @@ impl NamedCharacterRegistry {
             return Some((role, 1));
         }
 
-        // Bypass 2: Long displacement (50+ turns)
-        if pool.displacement_turns(slot) >= 50 {
-            return Some((CharacterRole::Exile, 2));
-        }
-
-        // Bypass 3: Serial migrant (3+ region changes) — tracked by migration bit
-        // The migration bit only tells us they migrated at least once.
-        // For 3+ changes we need a counter. Since pool doesn't track migration count,
-        // this bypass is deferred to Python which can count from event history.
-
-        // Bypass 4: Occupation versatility (3+ switches) — same issue, deferred to Python.
+        // Bypasses 2-4 (long displacement, serial migrant, occupation versatility)
+        // are deferred to Python which can count from event history.
+        // displacement_turns is a 3-tick decrement counter, not an accumulator,
+        // so checking it here would be dead code.
 
         None
     }
