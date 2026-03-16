@@ -4,6 +4,70 @@ from __future__ import annotations
 import random
 
 from chronicler.models import Disposition, Event, InfrastructureType, Region, Resource, WorldState
+from chronicler.models import EMPTY_SLOT, ResourceType
+
+# --- M34: Resource type constants ---
+
+RESOURCE_BASE: dict[int, float] = {rt: 1.0 for rt in ResourceType}
+
+TERRAIN_PRIMARY: dict[str, int] = {
+    "plains": ResourceType.GRAIN, "forest": ResourceType.TIMBER,
+    "mountains": ResourceType.ORE, "coast": ResourceType.FISH,
+    "desert": ResourceType.EXOTIC, "tundra": ResourceType.EXOTIC,
+    "river": ResourceType.GRAIN, "hills": ResourceType.GRAIN,
+}
+
+TERRAIN_SECONDARY: dict[str, list[tuple[int, float]]] = {
+    "plains": [(ResourceType.BOTANICALS, 0.30)],
+    "forest": [(ResourceType.BOTANICALS, 0.50)],
+    "mountains": [(ResourceType.PRECIOUS, 0.40)],
+    "coast": [(ResourceType.SALT, 0.60)],
+    "desert": [(ResourceType.SALT, 0.50)],
+    "tundra": [(ResourceType.ORE, 0.15)],
+    "river": [(ResourceType.FISH, 0.40)],
+    "hills": [(ResourceType.ORE, 0.30)],
+}
+
+TERRAIN_TERTIARY: dict[str, list[tuple[int, float]]] = {
+    "plains": [(ResourceType.PRECIOUS, 0.05)],
+    "forest": [(ResourceType.ORE, 0.10)],
+    "mountains": [(ResourceType.SALT, 0.10)],
+    "coast": [(ResourceType.BOTANICALS, 0.15)],
+    "desert": [(ResourceType.PRECIOUS, 0.20)],
+    "tundra": [],
+    "river": [(ResourceType.BOTANICALS, 0.20)],
+    "hills": [(ResourceType.TIMBER, 0.20)],
+}
+
+
+def assign_resource_types(regions: list[Region], seed: int) -> None:
+    """M34: Assign resource_types and resource_base_yields per region."""
+    for region in regions:
+        if region.resource_types[0] != EMPTY_SLOT:
+            continue  # Already assigned
+        rng = random.Random(seed + hash(region.name))
+
+        # Slot 1: deterministic primary
+        primary = TERRAIN_PRIMARY.get(region.terrain, ResourceType.GRAIN)
+        region.resource_types[0] = primary
+        variance = rng.uniform(-0.2, 0.2)
+        region.resource_base_yields[0] = RESOURCE_BASE[primary] * (1.0 + variance)
+
+        # Slot 2: probabilistic secondary
+        for rtype, prob in TERRAIN_SECONDARY.get(region.terrain, []):
+            if rng.random() < prob:
+                region.resource_types[1] = rtype
+                variance = rng.uniform(-0.2, 0.2)
+                region.resource_base_yields[1] = RESOURCE_BASE[rtype] * (1.0 + variance)
+                break
+
+        # Slot 3: rare tertiary
+        for rtype, prob in TERRAIN_TERTIARY.get(region.terrain, []):
+            if rng.random() < prob:
+                region.resource_types[2] = rtype
+                variance = rng.uniform(-0.2, 0.2)
+                region.resource_base_yields[2] = RESOURCE_BASE[rtype] * (1.0 + variance)
+                break
 
 
 TERRAIN_RESOURCE_PROBS: dict[str, dict[Resource, float]] = {

@@ -104,3 +104,65 @@ def test_get_self_trade_civs(sample_world):
     r2.adjacencies = [r1.name]
     self_traders = get_self_trade_civs(sample_world)
     assert sample_world.civilizations[0].name in self_traders
+
+
+# --- M34: Task 2 — assign_resource_types tests ---
+
+from chronicler.models import EMPTY_SLOT
+from chronicler.resources import assign_resource_types
+
+
+def test_assign_primary_deterministic():
+    """Every terrain gets its locked primary resource."""
+    terrain_expected = {
+        "plains": ResourceType.GRAIN,
+        "forest": ResourceType.TIMBER,
+        "mountains": ResourceType.ORE,
+        "coast": ResourceType.FISH,
+        "desert": ResourceType.EXOTIC,
+        "tundra": ResourceType.EXOTIC,
+        "river": ResourceType.GRAIN,
+        "hills": ResourceType.GRAIN,
+    }
+    for terrain, expected in terrain_expected.items():
+        r = Region(name=f"Test_{terrain}", terrain=terrain, carrying_capacity=50, resources="fertile")
+        assign_resource_types([r], seed=42)
+        assert r.resource_types[0] == expected, f"{terrain} primary should be {expected.name}"
+
+
+def test_assign_slot1_never_empty():
+    """Slot 1 is always filled for any terrain, any seed."""
+    for seed in range(100):
+        for terrain in ("plains", "forest", "mountains", "coast", "desert", "tundra", "river", "hills"):
+            r = Region(name=f"R_{terrain}_{seed}", terrain=terrain, carrying_capacity=50, resources="fertile")
+            assign_resource_types([r], seed=seed)
+            assert r.resource_types[0] != EMPTY_SLOT, f"Slot 1 empty for {terrain} seed={seed}"
+
+
+def test_assign_base_yields_variance():
+    """Base yields have ±20% variance around RESOURCE_BASE."""
+    regions = []
+    for i in range(200):
+        r = Region(name=f"Plains_{i}", terrain="plains", carrying_capacity=50, resources="fertile")
+        regions.append(r)
+    assign_resource_types(regions, seed=12345)
+    yields = [r.resource_base_yields[0] for r in regions]
+    assert min(yields) >= 0.8 * 1.0  # RESOURCE_BASE * 0.8
+    assert max(yields) <= 1.2 * 1.0  # RESOURCE_BASE * 1.2
+    assert min(yields) < max(yields)  # Not all identical
+
+
+def test_assign_mineral_reserves_one():
+    """All resources start with reserves=1.0."""
+    r = Region(name="Peaks", terrain="mountains", carrying_capacity=50, resources="mineral")
+    assign_resource_types([r], seed=42)
+    assert all(res == 1.0 for res in r.resource_reserves)
+
+
+def test_assign_idempotent():
+    """Calling assign on already-assigned regions doesn't overwrite."""
+    r = Region(name="Test", terrain="plains", carrying_capacity=50, resources="fertile")
+    assign_resource_types([r], seed=42)
+    original = r.resource_types[:]
+    assign_resource_types([r], seed=99)  # Different seed
+    assert r.resource_types == original
