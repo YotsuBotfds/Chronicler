@@ -393,6 +393,8 @@ Three-tier validation: structural regression, behavioral regression, shadow char
 - Correlation structure: military/economy, culture/stability (via existing M19 analytics)
 
 **Expected divergences (to document, not fix):**
+- More single-dimension rebels (low loyalty + adequate satisfaction, or vice versa) — additive utility replaces Phase 5's AND gate. An agent with loyalty 0.05 but satisfaction 0.5 gets rebel utility > STAY_BASE. Arguably better behavior (disloyal agents should rebel regardless of economic satisfaction).
+- More rebellions in sparsely populated regions — smoothstep cohort gate (3, 8) enables small-group rebellions that Phase 5's hard >= 5 cutoff would block.
 - More migrations at satisfaction 0.25-0.30 (near threshold, Gumbel noise pushes some over)
 - Fewer "rebel when could migrate" cases (utility comparison replaces hard priority)
 - Slightly higher occupation switch variance (SWITCH_CAP close to STAY_BASE)
