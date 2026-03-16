@@ -167,15 +167,29 @@ class AgentBridge:
 
         if self._mode == "hybrid":
             self._write_back(world)
+            # M30 processing order
+            promotions_batch = self._sim.get_promotions()
+            self._process_promotions(promotions_batch, world)  # step 1
+
             raw_events = self._convert_events(agent_events, world.turn)
+            death_events = self._process_deaths(raw_events, world)  # step 2
             world.agent_events_raw.extend(raw_events)
+
+            char_events = self._detect_character_events(raw_events, world)  # step 3
+
             self._event_window.append(raw_events)
-            return self._aggregate_events(world, self.named_agents)
+            summaries = self._aggregate_events(world, self.named_agents)  # step 4
+
+            return summaries + char_events + death_events
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
             if self._shadow_logger:
                 self._shadow_logger.log_turn(world.turn, agent_aggs, world)
+            # M30 processing order (still track promotions in shadow mode)
+            promotions_batch = self._sim.get_promotions()
+            self._process_promotions(promotions_batch, world)
             raw_events = self._convert_events(agent_events, world.turn)
+            self._process_deaths(raw_events, world)
             world.agent_events_raw.extend(raw_events)
             self._event_window.append(raw_events)
             return []
@@ -692,6 +706,9 @@ class AgentBridge:
         """Clear stateful data for batch mode reuse."""
         self._event_window.clear()
         self._demand_manager.reset()
+        self.named_agents.clear()
+        self._origin_regions.clear()
+        self._departure_turns.clear()
 
     def close(self) -> None:
         if self._shadow_logger:

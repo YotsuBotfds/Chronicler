@@ -385,6 +385,54 @@ def test_conquest_refugee_not_captured():
     bridge._sim.set_agent_civ.assert_called_once_with(7, 2)
 
 
+def test_processing_order():
+    """Same-tick promote+migrate → notable_migration detected."""
+    bridge = AgentBridge.__new__(AgentBridge)
+    bridge.named_agents = {}
+    bridge._origin_regions = {}
+    bridge._departure_turns = {}
+
+    # Simulate: agent 42 gets promoted AND migrates on same tick
+    promo_batch = _make_promotion_batch([
+        {"agent_id": 42, "role": 0, "trigger": 1, "skill": 0.95,
+         "life_events": 0b00000011, "origin_region": 0},
+    ])
+
+    from chronicler.models import AgentEventRecord
+    raw_events = [
+        AgentEventRecord(turn=100, agent_id=42, event_type="migration",
+                        region=0, target_region=1, civ_affinity=0, occupation=1),
+    ]
+
+    world = MagicMock()
+    world.turn = 100
+    world.seed = 1
+    world.regions = [MagicMock(name="Bora"), MagicMock(name="Aram")]
+    world.regions[0].name = "Bora"
+    world.regions[1].name = "Aram"
+    civ = MagicMock()
+    civ.name = "Aram"
+    civ.great_persons = []
+    world.civilizations = [civ]
+    world.retired_persons = []
+
+    # Step 1: process promotions
+    with patch("chronicler.agent_bridge._pick_name", return_value="Kiran"):
+        bridge._process_promotions(promo_batch, world)
+
+    assert 42 in bridge.named_agents  # now registered
+
+    # Step 2: process deaths (none here)
+    death_events = bridge._process_deaths(raw_events, world)
+    assert len(death_events) == 0
+
+    # Step 3: detect character events — should find notable_migration
+    char_events = bridge._detect_character_events(raw_events, world)
+    notable = [e for e in char_events if e.event_type == "notable_migration"]
+    assert len(notable) == 1
+    assert "Kiran" in notable[0].actors
+
+
 def test_secession_transfer():
     """Secession → civilization updated, origin_civilization preserved."""
     from chronicler.models import GreatPerson
