@@ -502,7 +502,7 @@ def execute_run(
         interestingness_score=score_run(result, interestingness_weights),
     )
     bundle_path = output_path.parent / "chronicle_bundle.json"
-    write_bundle(bundle, bundle_path)
+    write_bundle(bundle, bundle_path, world=world)
     print(f"Viewer bundle written to {bundle_path}")
 
     return result
