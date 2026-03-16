@@ -25,7 +25,9 @@ M28 does not build new simulation features. It does not tune constants. It does 
 
 **No new logging infrastructure.** Each run produces a `chronicle_bundle.json` with per-turn `TurnSnapshot` containing civ stats. The oracle script reads these bundles directly via a thin adapter — no Arrow IPC shadow logs needed.
 
-**Oracle-only scope.** The 34 M19b exit criteria are evaluated separately using the existing batch analytics tooling. M28's script answers one new question: "do agent-derived stat distributions diverge from aggregate?" It does not duplicate analytics logic.
+**Oracle-only scope.** M28's script answers one new question: "do agent-derived stat distributions diverge from aggregate?" The remaining validation categories from the roadmap (war frequency, faction dynamics, ecology trajectories, event firing rates, civ lifetime) and the 34 M19b exit criteria are evaluated separately by running the existing batch analytics on the hybrid output (`python -m chronicler --analyze {hybrid-dir}`). M28 does not duplicate analytics logic.
+
+**Standalone script, not CLI subcommand.** The Phase 5 roadmap lists `chronicler validate-oracle` as the CLI interface. This spec supersedes that with a standalone `scripts/run_oracle_gate.py` — simpler for a one-time tool, consistent with the M19b batch runner pattern, no need to wire a subcommand into `main.py` for a script that runs once.
 
 **No threshold tuning knobs.** Pass criteria (>=12/15 distribution tests, correlation delta < 0.15) are defined in `shadow_oracle.py` and not exposed as CLI arguments. If thresholds need adjusting, the constants are updated in code with documentation.
 
@@ -84,7 +86,7 @@ Both aggregate and hybrid runs use the same seed sequence (0 through N-1, or mat
 
 ### Purpose
 
-Bridge between simulation bundle output and `shadow_oracle_report()` input format. This is the only new code beyond the orchestration script.
+Bridge between simulation bundle output and the oracle comparison logic. This is the only new code beyond the orchestration script.
 
 ### Input
 
@@ -129,11 +131,19 @@ Column-oriented dict matching the format returned by `load_shadow_data()`:
 }
 ```
 
+### Interface with `shadow_oracle.py`
+
+`shadow_oracle_report()` takes `list[Path]` (Arrow IPC files) and calls `load_shadow_data()` internally. M28's adapter produces a dict, not IPC files. Rather than writing temporary IPC files or modifying `shadow_oracle_report()`'s signature, the M28 script calls the comparison logic directly: it uses the adapter dict with `extract_at_turn()` and the `OracleResult`/`CorrelationResult` dataclasses from `shadow_oracle.py` to construct an `OracleReport`. The statistical tests (`ks_2samp`, `anderson_ksamp`) and the comparison loop are reimplemented inline in the gate script (~30 lines, mirroring `shadow_oracle_report()`'s loop structure). This keeps `shadow_oracle.py` unchanged while reusing its dataclasses and pass/fail logic.
+
 ### Matching Logic
 
 For each seed, at each checkpoint turn, for each civ present in *both* the aggregate and hybrid snapshots: emit one row with both sets of stats. Civs that exist in one run but not the other (due to agent-driven secession or conquest divergence) are excluded from comparison — they represent legitimate emergent divergence, not statistical noise.
 
 **Civ matching is by name**, consistent with how `TurnSnapshot.civ_stats` is keyed.
+
+### Partial Failures
+
+If a subprocess crashes for a single seed (e.g., OOM, unhandled edge case), the script reports the failure and continues. The comparison runs on available seed pairs and reports the count. A note in the terminal summary shows how many seeds completed vs. requested. If fewer than 80% of seeds complete, the script warns that results may not be statistically representative.
 
 ---
 
@@ -141,7 +151,7 @@ For each seed, at each checkpoint turn, for each civ present in *both* the aggre
 
 ### Oracle Comparison
 
-Reuses `shadow_oracle_report()` from `shadow_oracle.py` unchanged:
+Reuses dataclasses and parameters from `shadow_oracle.py`:
 
 - **5 metrics:** population, military, economy, culture, stability
 - **3 checkpoints:** turns 100, 250, 500
@@ -227,7 +237,7 @@ Parenthesized number is the KS p-value for quick scanning. Full statistics are i
 }
 ```
 
-Correlation tests include raw correlation values (not just delta) so we can distinguish "real structural divergence" from "both correlations near zero, delta is noise" — a pattern encountered during M19b tuning.
+Correlation tests include raw correlation values (not just delta) so we can distinguish "real structural divergence" from "both correlations near zero, delta is noise" — a pattern encountered during M19b tuning. The existing `CorrelationResult` dataclass in `shadow_oracle.py` stores only `delta`; the raw correlations are computed by the M28 report serializer from the adapter data, not by modifying the dataclass.
 
 ---
 
@@ -263,6 +273,8 @@ Context for interpreting the report, not code. These are known consequences of a
 
 - **Population noise:** Agent demographic model adds stochastic variance to smooth aggregate curves. Mean should match within ~10%; variance will be higher. This is inherent to individual-level birth/death vs. aggregate rate application.
 - **Secession geography:** Agent loyalty drift means secession regions may differ from the aggregate model's distance-based selection. Border populations shifting affinity is the whole point of the agent model.
+- **Migration frequency:** Agent model produces 2-5x more migrations (individual movement vs. population-level). Pattern (direction, terrain preference) should match even if frequency is higher.
+- **Rebellion timing:** Agent model may trigger rebellions 10-30 turns earlier than aggregate (local dissatisfaction clusters form before civ-level stability drops below threshold).
 
 If these patterns appear in the report, they confirm the agent model is working as designed. The question is whether the *magnitude* is within acceptable bounds.
 
@@ -271,7 +283,7 @@ If these patterns appear in the report, they confirm the agent model is working 
 ## Relationship to Other Milestones
 
 ### Inputs from M26
-- `shadow_oracle.py`: oracle comparison framework (KS + AD tests, OracleReport dataclass) — reused unchanged
+- `shadow_oracle.py`: oracle comparison framework — dataclasses (`OracleResult`, `CorrelationResult`, `OracleReport`) and helper functions reused; `shadow_oracle_report()` entry point not called directly (see Interface with `shadow_oracle.py` section)
 - `shadow.py`: ShadowLogger and Arrow IPC shadow logs — available for drill-down but not used by M28 script directly
 
 ### Inputs from M27
@@ -289,7 +301,7 @@ If these patterns appear in the report, they confirm the agent model is working 
 
 - No new simulation features — agents, behavior, integration are M25-M27
 - No constant tuning — `DEMAND_SCALE_FACTOR` and agent thresholds are calibrated in M27
-- No modifications to `shadow_oracle.py` — comparison framework is reused as-is
+- No modifications to `shadow_oracle.py` — dataclasses and helpers reused as-is
 - No CI/CD integration — this is a local developer script
 - No auto-generated markdown report — analysis document written collaboratively after reviewing data
 - No diagnostic heuristics — raw numbers at checkpoints, human interpretation
