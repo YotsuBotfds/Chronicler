@@ -55,7 +55,7 @@ Skip the skill gate, still require the life-event gate:
 
 ### Registry
 
-Rust-side `NamedCharacterRegistry`:
+Rust-side `NamedCharacterRegistry` in new module `named_characters.rs`:
 
 ```rust
 #[repr(u8)]
@@ -103,6 +103,12 @@ Promotion check runs O(n) after demographics in `tick.rs`.
 Called by Python bridge after `tick()`. Bridge creates
 `GreatPerson(source="agent", agent_id=...)`.
 
+### Name Generation
+
+Agent-promoted characters reuse the existing `_pick_name(civ, world, rng)` from
+`chronicler.leaders`, same as aggregate `GreatPerson` spawns. No new naming
+logic needed.
+
 ---
 
 ## 2. Event Detection & Agent Events
@@ -115,7 +121,7 @@ M30 adds curator scoring and narrator integration, no reimplementation.
 | Event              | Trigger                      | Importance |
 |--------------------|------------------------------|-----------|
 | `local_rebellion`  | ≥5 rebels in region          | 7 |
-| `mass_migration`   | ≥10 migrations in region     | 5 |
+| `mass_migration`   | ≥8 migrations in region      | 5 |
 | `loyalty_cascade`  | ≥10 affinity shifts in region | 6 |
 | `demographic_crisis` | Region loses >30% pop      | 7 |
 | `occupation_shift` | >25% switch in region        | 5 |
@@ -125,7 +131,7 @@ M30 adds curator scoring and narrator integration, no reimplementation.
 | Event              | Trigger | Importance | Detection |
 |--------------------|---------|-----------|-----------|
 | `notable_migration` | Named character moves regions | 4 | Python bridge, immediate |
-| `economic_boom`    | ≥N `occupation_switch` events *to* merchant in region over 20 turns | 5 | Python bridge, `_event_window` `[CALIBRATE: N post-M28]` |
+| `economic_boom`    | ≥10 `occupation_switch` events *to* merchant in region over 20 turns | 5 | Python bridge, `_event_window` `[CALIBRATE: post-M28, initial 10]` |
 | `brain_drain`      | ≥5 scholars leave region (migration where occ == scholar) | 5 | Python bridge, `_event_window` `[CALIBRATE: post-M28]` |
 | `exile_return`     | Named char returns to `origin_region` after 30+ turns | 6 | Python bridge, immediate |
 
@@ -292,7 +298,11 @@ contains agent-source events:
 - Named characters: from `GreatPerson` registry, filtered to characters active
   in the moment's region/civ, enriched with recent history
 - Population mood: derived from the moment's agent events using precedence table
-- Displacement fraction: from `world.agent_stats` if available
+- Displacement fraction: computed by `AgentBridge` during step 1 of the
+  processing order — count agents with `displacement_turn > 0` divided by total
+  alive agents in the region. Stored on `AgentBridge` as
+  `displacement_by_region: dict[int, float]` and read by the narrative pipeline.
+  No `world.agent_stats` dependency.
 
 ---
 
@@ -376,6 +386,10 @@ born_turn, promotion_turn, promotion_trigger, history Vec.
 | `source`   | `str`          | `"aggregate"` |
 | `agent_id` | `int \| None`  | `None`        |
 
+New `fate` value: `"exile"`. The existing vocabulary is `"active"`, `"retired"`,
+`"dead"`, `"ascended"`, `"ascended_to_leadership"`. M30 adds `"exile"` for
+conquest transitions. Death overrides exile (`fate="dead"` replaces `"exile"`).
+
 ### Python — `NarrationContext` (models.py)
 
 | Field           | Type                  | Default |
@@ -392,6 +406,7 @@ Fields: `named_characters` (list[dict]), `population_mood` (str),
 | Change | Detail |
 |--------|--------|
 | `named_agents: dict[int, str]` | New instance field |
+| `displacement_by_region: dict[int, float]` | Displacement fractions, computed during processing |
 | `_aggregate_events()` signature | Adds `named_agents` parameter |
 | Processing order | 4-step sequence per Section 2 |
 
@@ -464,5 +479,5 @@ real agent behavior data — the natural calibration point.
 | `PROMOTION_SKILL_THRESHOLD` | 0.9 | Does this produce 1-3 promotions per civ per game, or hundreds? |
 | `PROMOTION_DURATION_TURNS` | 20 | Combined with growth rate 0.05/turn, how selective is this? |
 | Character-reference bonus | +2.0 | Do character events dominate the curator, or blend naturally? |
-| `economic_boom` merchant-switch count | TBD | What does the distribution of merchant switches look like? |
+| `economic_boom` merchant-switch count | 10 | What does the distribution of merchant switches look like? |
 | `brain_drain` scholar departure count | 5 | Is 5 scholars leaving a region a rare event or commonplace? |
