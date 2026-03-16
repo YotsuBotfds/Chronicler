@@ -35,6 +35,25 @@ class Resource(str, Enum):
     RARE_MINERALS = "rare_minerals"
 
 
+class ResourceType(int, Enum):
+    """M34: Concrete resource types collapsed by mechanical equivalence."""
+    GRAIN = 0
+    TIMBER = 1
+    BOTANICALS = 2
+    FISH = 3
+    SALT = 4
+    ORE = 5
+    PRECIOUS = 6
+    EXOTIC = 7
+
+
+EMPTY_SLOT = 255
+
+# Mechanical class groupings for yield formula dispatch
+FOOD_TYPES = frozenset({ResourceType.GRAIN, ResourceType.FISH, ResourceType.BOTANICALS, ResourceType.EXOTIC})
+MINERAL_TYPES = frozenset({ResourceType.ORE, ResourceType.PRECIOUS})
+
+
 class Disposition(str, Enum):
     HOSTILE = "hostile"
     SUSPICIOUS = "suspicious"
@@ -148,9 +167,13 @@ class Region(BaseModel):
     famine_cooldown: int = Field(default=0, ge=0)
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
-    resource_suspensions: dict[str, int] = Field(default_factory=dict)
+    resource_suspensions: dict[int, int] = Field(default_factory=dict)
     depopulated_since: int | None = None
     ruin_quality: int = 0
+    route_suspensions: dict[str, int] = Field(default_factory=dict)
+    resource_types: list[int] = Field(default_factory=lambda: [255, 255, 255])
+    resource_base_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+    resource_reserves: list[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0])
 
 
 class Leader(BaseModel):

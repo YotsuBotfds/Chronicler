@@ -3,6 +3,32 @@ from chronicler.resources import assign_resources, get_active_trade_routes, get_
 from chronicler.models import Region, Resource, Disposition, Relationship
 
 
+# --- M34: ResourceType enum and Region extension tests ---
+
+from chronicler.models import ResourceType
+
+def test_resource_type_enum_values():
+    assert ResourceType.GRAIN == 0
+    assert ResourceType.TIMBER == 1
+    assert ResourceType.BOTANICALS == 2
+    assert ResourceType.FISH == 3
+    assert ResourceType.SALT == 4
+    assert ResourceType.ORE == 5
+    assert ResourceType.PRECIOUS == 6
+    assert ResourceType.EXOTIC == 7
+    assert len(ResourceType) == 8
+
+
+def test_region_resource_fields_defaults():
+    from chronicler.models import Region, EMPTY_SLOT
+    r = Region(name="Test", terrain="plains", carrying_capacity=50, resources="fertile")
+    assert r.resource_types == [EMPTY_SLOT, EMPTY_SLOT, EMPTY_SLOT]
+    assert r.resource_base_yields == [0.0, 0.0, 0.0]
+    assert r.resource_reserves == [1.0, 1.0, 1.0]
+    assert r.route_suspensions == {}
+    assert r.resource_suspensions == {}
+
+
 def test_resource_enum_values():
     assert Resource.GRAIN.value == "grain"
     assert Resource.RARE_MINERALS.value == "rare_minerals"
