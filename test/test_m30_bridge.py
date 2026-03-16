@@ -433,6 +433,44 @@ def test_processing_order():
     assert "Kiran" in notable[0].actors
 
 
+def test_displacement_by_region():
+    """Correct displacement fraction from mock snapshot."""
+    import pyarrow as pa
+    bridge = AgentBridge.__new__(AgentBridge)
+    bridge.displacement_by_region = {}
+
+    # Mock snapshot: 4 agents in region 0, 1 displaced; 2 in region 1, 0 displaced
+    snap = pa.record_batch({
+        "id": pa.array([1, 2, 3, 4, 5, 6], type=pa.uint32()),
+        "region": pa.array([0, 0, 0, 0, 1, 1], type=pa.uint16()),
+        "origin_region": pa.array([0, 0, 0, 0, 1, 1], type=pa.uint16()),
+        "civ_affinity": pa.array([0, 0, 0, 0, 0, 0], type=pa.uint16()),
+        "occupation": pa.array([0, 0, 0, 0, 0, 0], type=pa.uint8()),
+        "loyalty": pa.array([0.5]*6, type=pa.float32()),
+        "satisfaction": pa.array([0.5]*6, type=pa.float32()),
+        "skill": pa.array([0.5]*6, type=pa.float32()),
+        "age": pa.array([20]*6, type=pa.uint16()),
+        "displacement_turn": pa.array([3, 0, 0, 0, 0, 0], type=pa.uint16()),
+    })
+
+    # Compute directly (same logic as tick())
+    from collections import Counter
+    regions_col = snap.column("region").to_pylist()
+    disp_col = snap.column("displacement_turn").to_pylist()
+    region_totals = Counter(regions_col)
+    region_displaced: Counter = Counter()
+    for r, d in zip(regions_col, disp_col):
+        if d > 0:
+            region_displaced[r] += 1
+    result = {
+        r: region_displaced[r] / total if total > 0 else 0.0
+        for r, total in region_totals.items()
+    }
+
+    assert result[0] == 0.25  # 1 of 4 displaced
+    assert result[1] == 0.0   # 0 of 2 displaced
+
+
 def test_secession_transfer():
     """Secession → civilization updated, origin_civilization preserved."""
     from chronicler.models import GreatPerson

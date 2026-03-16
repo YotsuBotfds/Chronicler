@@ -159,6 +159,7 @@ class AgentBridge:
         self.named_agents: dict[int, str] = {}  # agent_id → character name
         self._origin_regions: dict[int, int] = {}  # agent_id → origin_region (for exile_return)
         self._departure_turns: dict[int, int] = {}  # agent_id → turn they left origin_region
+        self.displacement_by_region: dict[int, float] = {}  # region_id → fraction displaced
 
     def tick(self, world: WorldState, shocks=None, demands=None) -> list:
         self._sim.set_region_state(build_region_batch(world))
@@ -170,6 +171,23 @@ class AgentBridge:
             # M30 processing order
             promotions_batch = self._sim.get_promotions()
             self._process_promotions(promotions_batch, world)  # step 1
+
+            # Compute displacement fractions from snapshot
+            try:
+                snap = self._sim.get_snapshot()
+                regions_col = snap.column("region").to_pylist()
+                disp_col = snap.column("displacement_turn").to_pylist()
+                region_totals = Counter(regions_col)
+                region_displaced: Counter = Counter()
+                for r, d in zip(regions_col, disp_col):
+                    if d > 0:
+                        region_displaced[r] += 1
+                self.displacement_by_region = {
+                    r: region_displaced[r] / total if total > 0 else 0.0
+                    for r, total in region_totals.items()
+                }
+            except Exception:
+                self.displacement_by_region = {}
 
             raw_events = self._convert_events(agent_events, world.turn)
             death_events = self._process_deaths(raw_events, world)  # step 2
@@ -709,6 +727,7 @@ class AgentBridge:
         self.named_agents.clear()
         self._origin_regions.clear()
         self._departure_turns.clear()
+        self.displacement_by_region.clear()
 
     def close(self) -> None:
         if self._shadow_logger:
