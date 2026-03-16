@@ -559,14 +559,14 @@ def phase_action(
 
 # --- Asabiya dynamics (Turchin metaethnic frontier model) ---
 
-def apply_asabiya_dynamics(world: WorldState) -> None:
+def apply_asabiya_dynamics(world: WorldState, acc=None) -> None:
     """Update asabiya (collective solidarity) for each civilization."""
     r0 = 0.05   # Growth rate at frontiers
     delta = 0.02  # Decay rate in interior
 
     disp_threat = {Disposition.HOSTILE, Disposition.SUSPICIOUS}
 
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         has_frontier = False
         if civ.name in world.relationships:
             for _other, rel in world.relationships[civ.name].items():
@@ -586,12 +586,17 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
         if folk_bonus > 0:
             s = s + folk_bonus * 0.1  # scale per-turn contribution
 
-        civ.asabiya = round(max(0.0, min(1.0, s)), 4)
+        new_asabiya = round(max(0.0, min(1.0, s)), 4)
+        if acc is not None:
+            delta_val = new_asabiya - civ.asabiya
+            acc.add(civ_idx, civ, "asabiya", delta_val, "keep")
+        else:
+            civ.asabiya = new_asabiya
 
 
 # --- Phase 7: Random events ---
 
-def phase_random_events(world: WorldState, seed: int) -> list[Event]:
+def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Roll for 0-1 random external events (non-environment)."""
     events: list[Event] = []
     non_env = [k for k in world.event_probabilities if k not in ENVIRONMENT_EVENTS]
@@ -611,7 +616,7 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
 
         affected_civ = _get_civ(world, event.actors[0])
         if affected_civ:
-            _apply_event_effects(event.event_type, affected_civ, world)
+            _apply_event_effects(event.event_type, affected_civ, world, acc=acc)
 
         events.append(event)
 
@@ -620,15 +625,19 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
     return events
 
 
-def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) -> None:
+def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, acc=None) -> None:
     """Apply mechanical stat changes for a random event."""
+    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
     if event_type == "leader_death":
         import random as _random
         old_leader = civ.leader
         old_leader.alive = False
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_LEADER_DEATH_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
         check_rival_fall(civ, old_leader.name, world)
         # Check whether death triggers a succession crisis instead of immediate succession
@@ -650,42 +659,69 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
     elif event_type == "rebellion":
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_REBELLION_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
-        civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+            acc.add(civ_idx, civ, "military", -int(10 * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+            civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
     elif event_type == "discovery":
-        civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
-        civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "culture", 10, "guard-shock")
+            acc.add(civ_idx, civ, "economy", 10, "guard-shock")
+        else:
+            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+            civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
     elif event_type == "religious_movement":
-        civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_RELIGIOUS_MOVEMENT_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "culture", 10, "guard-shock")
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "cultural_renaissance":
-        civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
-        civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "culture", 20, "guard-shock")
+            acc.add(civ_idx, civ, "stability", 10, "guard-shock")
+        else:
+            civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
+            civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
         from chronicler.ecology import effective_capacity
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)
-            add_region_pop(target, 10)
-            sync_civ_population(civ, world)
+            if acc is not None:
+                acc.add(civ_idx, civ, "population", 10, "guard")
+            else:
+                target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)
+                add_region_pop(target, 10)
+                sync_civ_population(civ, world)
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_MIGRATION_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "border_incident":
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_BORDER_INCIDENT_STABILITY, 2))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
 
 def apply_injected_event(
-    event_type: str, target_civ_name: str, world: WorldState
+    event_type: str, target_civ_name: str, world: WorldState, acc=None
 ) -> list[Event]:
     """Process a manually injected event targeting a single civ."""
     civ = _get_civ(world, target_civ_name)
     if civ is None:
         return []
+
+    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
 
     event = Event(
         turn=world.turn,
@@ -696,8 +732,12 @@ def apply_injected_event(
     )
 
     if event_type == "drought":
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
-        civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -10, "signal")
+            acc.add(civ_idx, civ, "economy", -10, "signal")
+        else:
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="drought",
@@ -707,12 +747,18 @@ def apply_injected_event(
             )
         )
     elif event_type == "plague":
-        civ_regions = [r for r in world.regions if r.controller == civ.name]
-        if civ_regions:
-            target_r = max(civ_regions, key=lambda r: r.population)
-            drain_region_pop(target_r, 10)
-            sync_civ_population(civ, world)
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "population", -10, "guard")
+        else:
+            civ_regions = [r for r in world.regions if r.controller == civ.name]
+            if civ_regions:
+                target_r = max(civ_regions, key=lambda r: r.population)
+                drain_region_pop(target_r, 10)
+                sync_civ_population(civ, world)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -10, "signal")
+        else:
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="plague",
@@ -722,9 +768,12 @@ def apply_injected_event(
             )
         )
     elif event_type == "earthquake":
-        civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "economy", -10, "signal")
+        else:
+            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
     else:
-        _apply_event_effects(event_type, civ, world)
+        _apply_event_effects(event_type, civ, world, acc=acc)
 
     world.event_probabilities = apply_probability_cascade(
         event_type, world.event_probabilities
@@ -735,7 +784,7 @@ def apply_injected_event(
 
 # --- Phase 10: Consequences ---
 
-def phase_consequences(world: WorldState) -> list[Event]:
+def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
     for condition in world.active_conditions:
         condition.duration -= 1
@@ -905,11 +954,11 @@ def phase_technology(world: WorldState) -> list[Event]:
     return events
 
 
-def phase_cultural_milestones(world: WorldState) -> list[Event]:
+def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
     """Check cultural milestone thresholds for named works."""
     from chronicler.named_events import generate_cultural_work
     events = []
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         for threshold in [80, 100]:
             marker = f"culture_{threshold}"
             if civ.culture >= threshold and marker not in civ.cultural_milestones:
@@ -922,9 +971,14 @@ def phase_cultural_milestones(world: WorldState) -> list[Event]:
                 )
                 world.named_events.append(ne)
                 # M16a: Cultural works enhancement
-                civ.asabiya = min(1.0, civ.asabiya + 0.05)
-                civ.culture = clamp(civ.culture + 5, STAT_FLOOR["culture"], 100)
-                civ.prestige += 2
+                if acc is not None:
+                    acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
+                    acc.add(civ_idx, civ, "culture", 5, "guard-shock")
+                    acc.add(civ_idx, civ, "prestige", 2, "keep")
+                else:
+                    civ.asabiya = min(1.0, civ.asabiya + 0.05)
+                    civ.culture = clamp(civ.culture + 5, STAT_FLOOR["culture"], 100)
+                    civ.prestige += 2
                 events.append(Event(
                     turn=world.turn, event_type="cultural_work", actors=[civ.name],
                     description=ne.description, importance=6,
