@@ -6,7 +6,7 @@ use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
 use crate::agent::{
-    DECISION_STREAM_OFFSET,
+    DECISION_STREAM_OFFSET, PERSONALITY_STREAM_OFFSET,
     LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
     LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL,
     OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
@@ -209,6 +209,8 @@ pub fn tick_agents(
                     signals,
                     region_id,
                     &mut rng,
+                    master_seed,
+                    turn,
                 )
             })
             .collect()
@@ -242,6 +244,9 @@ pub fn tick_agents(
                 birth.civ,
                 crate::agent::Occupation::Farmer,
                 0,
+                birth.personality[0],
+                birth.personality[1],
+                birth.personality[2],
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             // Set all 5 skill slots to SKILL_NEWBORN
@@ -405,6 +410,7 @@ struct BirthInfo {
     region: u16,
     civ: u8,
     parent_loyalty: f32,
+    personality: [f32; 3],
 }
 
 struct DemographicsPending {
@@ -421,6 +427,8 @@ fn tick_region_demographics(
     signals: &TickSignals,
     region_id: usize,
     rng: &mut ChaCha8Rng,
+    master_seed: [u8; 32],
+    turn: u32,
 ) -> DemographicsPending {
     let mut pending = DemographicsPending {
         deaths: Vec::new(),
@@ -429,6 +437,13 @@ fn tick_region_demographics(
     };
 
     let eco_stress = demographics::ecological_stress(region);
+
+    // Dedicated personality RNG (offset 700) decoupled from demographics RNG.
+    // Prevents adding/removing mortality checks from changing personality assignments.
+    let mut personality_rng = ChaCha8Rng::from_seed(master_seed);
+    personality_rng.set_stream(
+        region_id as u64 * 1000 + turn as u64 + PERSONALITY_STREAM_OFFSET,
+    );
 
     for &slot in slots {
         let age = pool.age(slot);
@@ -454,10 +469,16 @@ fn tick_region_demographics(
             // Fertility check (only for survivors)
             let fert_rate = demographics::fertility_rate(age, sat, occ, region.soil);
             if fert_rate > 0.0 && rng.gen::<f32>() < fert_rate {
+                let civ_id = pool.civ_affinity(slot);
+                let civ_mean = signals.personality_mean_for_civ(civ_id);
+                let personality = crate::demographics::assign_personality(
+                    &mut personality_rng, civ_mean,
+                );
                 pending.births.push(BirthInfo {
                     region: region_id as u16,
-                    civ: pool.civ_affinity(slot),
+                    civ: civ_id,
                     parent_loyalty: pool.loyalty(slot),
+                    personality,
                 });
             }
         }
@@ -511,6 +532,9 @@ mod tests {
                     demand_shift_merchant: 0.0,
                     demand_shift_scholar: 0.0,
                     demand_shift_priest: 0.0,
+                    mean_boldness: 0.0,
+                    mean_ambition: 0.0,
+                    mean_loyalty_trait: 0.0,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
@@ -525,7 +549,7 @@ mod tests {
         // Spawn at elder age (60+) so MORTALITY_ELDER (0.05) * eco_stress (1.0)
         // = 0.05 per agent per tick -- guarantees deaths in 500 agents.
         for _ in 0..500 {
-            pool.spawn(0, 0, Occupation::Farmer, 65);
+            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0);
         }
         let mut seed = [0u8; 32];
         seed[0] = 42;
@@ -545,12 +569,12 @@ mod tests {
         let mut pool_a = AgentPool::new(0);
         let mut pool_b = AgentPool::new(0);
         for _ in 0..50 {
-            pool_a.spawn(0, 0, Occupation::Farmer, 0);
-            pool_b.spawn(0, 0, Occupation::Farmer, 0);
+            pool_a.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0);
+            pool_b.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0);
         }
         for _ in 0..50 {
-            pool_a.spawn(1, 1, Occupation::Soldier, 0);
-            pool_b.spawn(1, 1, Occupation::Soldier, 0);
+            pool_a.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0);
+            pool_b.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0);
         }
         for turn in 0..10 {
             tick_agents(&mut pool_a, &regions, &signals, seed, turn);
@@ -574,20 +598,20 @@ mod tests {
 
         // Mix of occupations, civs, ages
         for _ in 0..30 {
-            pool_a.spawn(0, 0, Occupation::Farmer, 25);
-            pool_b.spawn(0, 0, Occupation::Farmer, 25);
+            pool_a.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool_b.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
         }
         for _ in 0..20 {
-            pool_a.spawn(0, 0, Occupation::Soldier, 30);
-            pool_b.spawn(0, 0, Occupation::Soldier, 30);
+            pool_a.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0);
+            pool_b.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0);
         }
         for _ in 0..20 {
-            pool_a.spawn(1, 1, Occupation::Merchant, 22);
-            pool_b.spawn(1, 1, Occupation::Merchant, 22);
+            pool_a.spawn(1, 1, Occupation::Merchant, 22, 0.0, 0.0, 0.0);
+            pool_b.spawn(1, 1, Occupation::Merchant, 22, 0.0, 0.0, 0.0);
         }
         for _ in 0..30 {
-            pool_a.spawn(1, 1, Occupation::Scholar, 40);
-            pool_b.spawn(1, 1, Occupation::Scholar, 40);
+            pool_a.spawn(1, 1, Occupation::Scholar, 40, 0.0, 0.0, 0.0);
+            pool_b.spawn(1, 1, Occupation::Scholar, 40, 0.0, 0.0, 0.0);
         }
 
         let mut events_a_total = 0;
@@ -622,7 +646,7 @@ mod tests {
         let signals = make_default_signals(1, 1);
 
         for _ in 0..500 {
-            pool.spawn(0, 0, Occupation::Farmer, 65);
+            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0);
         }
 
         let mut seed = [0u8; 32];
@@ -656,7 +680,7 @@ mod tests {
         let regions = vec![make_healthy_region(0)];
         let signals = make_default_signals(1, 1);
 
-        let slot = pool.spawn(0, 0, Occupation::Soldier, 25);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0);
         let initial_skill = pool.skill(slot, 1); // Soldier = occ 1
         assert!(initial_skill.abs() < 0.01);
 
@@ -680,7 +704,7 @@ mod tests {
         let signals = make_default_signals(1, 1);
 
         for _ in 0..10 {
-            pool.spawn(0, 0, Occupation::Farmer, 25);
+            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
         }
 
         let mut seed = [0u8; 32];
@@ -729,8 +753,8 @@ mod tests {
                 let occ = occupations[j % 5];
                 let age = (j % 60) as u16;
                 let civ = (r % 2) as u8;
-                pool_a.spawn(r, civ, occ, age);
-                pool_b.spawn(r, civ, occ, age);
+                pool_a.spawn(r, civ, occ, age, 0.0, 0.0, 0.0);
+                pool_b.spawn(r, civ, occ, age, 0.0, 0.0, 0.0);
             }
         }
 

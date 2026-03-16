@@ -32,6 +32,30 @@ pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) ->
     base * ecology_mod * eligible
 }
 
+use rand::prelude::*;
+use rand_chacha::ChaCha8Rng;
+use rand_distr::StandardNormal;
+
+/// Assign personality from civ mean + Gaussian noise. Immutable after spawn.
+pub fn assign_personality(rng: &mut ChaCha8Rng, civ_mean: [f32; 3]) -> [f32; 3] {
+    let mut p = [0.0f32; 3];
+    for i in 0..3 {
+        let noise: f32 = rng.sample(StandardNormal);
+        p[i] = (civ_mean[i] + noise * SPAWN_PERSONALITY_NOISE).clamp(-1.0, 1.0);
+    }
+    p
+}
+
+/// Inherit personality from parent + tighter Gaussian noise. For M39 wiring.
+pub fn inherit_personality(rng: &mut ChaCha8Rng, parent: [f32; 3]) -> [f32; 3] {
+    let mut p = [0.0f32; 3];
+    for i in 0..3 {
+        let noise: f32 = rng.sample(StandardNormal);
+        p[i] = (parent[i] + noise * BIRTH_PERSONALITY_NOISE).clamp(-1.0, 1.0);
+    }
+    p
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +157,52 @@ mod tests {
     #[test]
     fn test_fertility_boundary_age_max() {
         assert!(fertility_rate(45, 0.6, 0, 0.8) > 0.0);
+    }
+
+    #[test]
+    fn test_assign_personality_neutral_mean() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let p = super::assign_personality(&mut rng, [0.0, 0.0, 0.0]);
+        for &v in &p {
+            assert!(v >= -1.0 && v <= 1.0, "personality out of range: {}", v);
+        }
+    }
+
+    #[test]
+    fn test_assign_personality_clamped() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        for seed_byte in 0..50u8 {
+            let mut seed = [0u8; 32];
+            seed[0] = seed_byte;
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let p = super::assign_personality(&mut rng, [0.3, -0.3, 0.3]);
+            for &v in &p {
+                assert!(v >= -1.0 && v <= 1.0, "personality out of range: {}", v);
+            }
+        }
+    }
+
+    #[test]
+    fn test_inherit_personality_tighter_noise() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let mut sum = [0.0f64; 3];
+        let n = 1000;
+        for seed_byte in 0..n {
+            let mut seed = [0u8; 32];
+            seed[0] = (seed_byte % 256) as u8;
+            seed[1] = (seed_byte / 256) as u8;
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let p = super::inherit_personality(&mut rng, [0.5, 0.5, 0.5]);
+            for i in 0..3 { sum[i] += p[i] as f64; }
+        }
+        for i in 0..3 {
+            let mean = sum[i] / n as f64;
+            assert!((mean - 0.5).abs() < 0.05,
+                "dimension {} mean {} too far from parent 0.5", i, mean);
+        }
     }
 }

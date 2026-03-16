@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::array::{UInt8Builder, UInt16Builder, UInt32Builder};
+use arrow::array::{UInt8Builder, UInt16Builder, UInt32Builder, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
@@ -10,7 +10,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
 
-use crate::agent::Occupation;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+
+use crate::agent::{Occupation, PERSONALITY_LABEL_THRESHOLD};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 
@@ -21,6 +24,36 @@ use crate::region::RegionState;
 /// Convert an Arrow error into a PyErr.
 pub fn arrow_err(e: ArrowError) -> PyErr {
     PyValueError::new_err(e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Personality label helper
+// ---------------------------------------------------------------------------
+
+/// Derive a narrative label from the dominant personality dimension.
+/// Returns None if all dimensions are below threshold (neutral personality).
+pub fn personality_label(boldness: f32, ambition: f32, loyalty_trait: f32) -> Option<&'static str> {
+    let dims: [(f32, f32, &str, &str); 3] = [
+        (boldness.abs(),      boldness,      "the Bold",      "the Cautious"),
+        (ambition.abs(),      ambition,      "the Ambitious",  "the Humble"),
+        (loyalty_trait.abs(), loyalty_trait,  "the Steadfast",  "the Fickle"),
+    ];
+
+    let mut max_idx = 0;
+    let mut max_abs = dims[0].0;
+    for i in 1..3 {
+        if dims[i].0 > max_abs {
+            max_abs = dims[i].0;
+            max_idx = i;
+        }
+    }
+
+    if max_abs < PERSONALITY_LABEL_THRESHOLD {
+        return None;
+    }
+
+    let (_, raw, pos, neg) = dims[max_idx];
+    Some(if raw > 0.0 { pos } else { neg })
 }
 
 // ---------------------------------------------------------------------------
@@ -40,6 +73,9 @@ pub fn snapshot_schema() -> Schema {
         Field::new("skill", DataType::Float32, false),
         Field::new("age", DataType::UInt16, false),
         Field::new("displacement_turn", DataType::UInt16, false),
+        Field::new("boldness", DataType::Float32, false),
+        Field::new("ambition", DataType::Float32, false),
+        Field::new("loyalty_trait", DataType::Float32, false),
     ])
 }
 
@@ -84,6 +120,10 @@ pub fn promotions_schema() -> Schema {
         Field::new("skill", DataType::Float32, false),
         Field::new("life_events", DataType::UInt8, false),
         Field::new("origin_region", DataType::UInt16, false),
+        Field::new("boldness", DataType::Float32, false),
+        Field::new("ambition", DataType::Float32, false),
+        Field::new("loyalty_trait", DataType::Float32, false),
+        Field::new("personality_label", DataType::Utf8, true),
     ])
 }
 
@@ -254,20 +294,32 @@ impl AgentSimulator {
                 let spawned = n_farmer + n_soldier + n_merchant + n_scholar;
                 let n_priest = if cap > spawned { cap - spawned } else { 0 };
 
+                // M33: personality assignment at initial spawn
+                let mut personality_rng = ChaCha8Rng::from_seed(self.master_seed);
+                personality_rng.set_stream(
+                    region_id as u64 * 1000 + crate::agent::PERSONALITY_STREAM_OFFSET,
+                );
+                let civ_mean = [0.0f32; 3]; // Civ means not yet available at initial spawn
+
                 for _ in 0..n_farmer {
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_soldier {
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_merchant {
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_scholar {
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_priest {
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2]);
                 }
             }
 
@@ -354,6 +406,10 @@ impl AgentSimulator {
         let mut skills = arrow::array::Float32Builder::with_capacity(n);
         let mut life_events_col = UInt8Builder::with_capacity(n);
         let mut origin_regions = UInt16Builder::with_capacity(n);
+        let mut boldness_col = arrow::array::Float32Builder::with_capacity(n);
+        let mut ambition_col = arrow::array::Float32Builder::with_capacity(n);
+        let mut loyalty_trait_col = arrow::array::Float32Builder::with_capacity(n);
+        let mut label_col = StringBuilder::with_capacity(n, n * 16);
 
         for &(slot, role, trigger) in &candidates {
             let agent_id = self.pool.id(slot);
@@ -366,6 +422,17 @@ impl AgentSimulator {
             skills.append_value(skill);
             life_events_col.append_value(self.pool.life_events[slot]);
             origin_regions.append_value(self.pool.origin_regions[slot]);
+
+            let b = self.pool.boldness[slot];
+            let a = self.pool.ambition[slot];
+            let lt = self.pool.loyalty_trait[slot];
+            boldness_col.append_value(b);
+            ambition_col.append_value(a);
+            loyalty_trait_col.append_value(lt);
+            match personality_label(b, a, lt) {
+                Some(label) => label_col.append_value(label),
+                None => label_col.append_null(),
+            }
 
             // Register in the Rust-side registry.
             // origin_civ_id = current civ at promotion time (best available;
@@ -393,6 +460,10 @@ impl AgentSimulator {
                 Arc::new(skills.finish()) as _,
                 Arc::new(life_events_col.finish()) as _,
                 Arc::new(origin_regions.finish()) as _,
+                Arc::new(boldness_col.finish()) as _,
+                Arc::new(ambition_col.finish()) as _,
+                Arc::new(loyalty_trait_col.finish()) as _,
+                Arc::new(label_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;
@@ -449,4 +520,34 @@ fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, Ar
             Arc::new(turns.finish()) as _,
         ],
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_personality_label_bold() {
+        assert_eq!(personality_label(0.8, 0.1, 0.2), Some("the Bold"));
+    }
+
+    #[test]
+    fn test_personality_label_neutral() {
+        assert_eq!(personality_label(0.2, 0.1, -0.3), None);
+    }
+
+    #[test]
+    fn test_personality_label_fickle() {
+        assert_eq!(personality_label(0.1, 0.2, -0.7), Some("the Fickle"));
+    }
+
+    #[test]
+    fn test_personality_label_ambitious() {
+        assert_eq!(personality_label(0.1, 0.9, 0.3), Some("the Ambitious"));
+    }
+
+    #[test]
+    fn test_personality_label_steadfast() {
+        assert_eq!(personality_label(0.1, 0.2, 0.8), Some("the Steadfast"));
+    }
 }

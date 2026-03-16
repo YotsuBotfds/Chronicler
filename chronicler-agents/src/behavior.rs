@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use crate::agent::{
+    BOLD_MIGRATE_WEIGHT, BOLD_REBEL_WEIGHT, AMBITION_SWITCH_WEIGHT, LOYALTY_TRAIT_WEIGHT,
     DECISION_TEMPERATURE, LOYALTY_DRIFT_RATE, LOYALTY_FLIP_THRESHOLD, LOYALTY_RECOVERY_RATE,
     MIGRATE_CAP, MIGRATE_HYSTERESIS, MIGRATE_SATISFACTION_THRESHOLD, OCCUPATION_COUNT,
     REBEL_CAP, REBEL_LOYALTY_THRESHOLD, REBEL_MIN_COHORT, REBEL_SATISFACTION_THRESHOLD,
@@ -29,6 +30,13 @@ fn smoothstep(x: usize, edge0: usize, edge1: usize) -> f32 {
     if x >= edge1 { return 1.0; }
     let t = (x - edge0) as f32 / (edge1 - edge0) as f32;
     t * t * (3.0 - 2.0 * t)
+}
+
+/// Maps a personality dimension [-1, +1] to a utility multiplier.
+/// Output clamped to >= 0.0 to prevent sign flips at high weights.
+#[inline]
+fn personality_modifier(dimension: f32, weight: f32) -> f32 {
+    (1.0 + dimension * weight).max(0.0)
 }
 
 fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> usize {
@@ -309,19 +317,29 @@ pub fn evaluate_region_decisions(
         let civ = pool.civ_affinity(slot);
         let occ = pool.occupation(slot) as usize;
 
-        // Compute utilities for all 4 actions.
-        // Zero-utility actions are gated to NEG_INFINITY so gumbel noise
-        // cannot select an action whose prerequisites are not met.
-        let u_rebel_raw = rebel_utility(loy, sat, stats.rebel_eligible[region_id]);
+        let bold = pool.boldness(slot);
+        let ambi = pool.ambition(slot);
+        let ltrait = pool.loyalty_trait(slot);
+
+        // Compute utilities: utility fn -> personality modifier -> NEG_INFINITY gate
+        // Modifier MUST be applied BEFORE the gate. 0.0 * modifier = 0.0 -> gated to NEG_INFINITY.
+        // If placed after, NEG_INFINITY * modifier produces garbage.
+        let u_rebel_raw = rebel_utility(loy, sat, stats.rebel_eligible[region_id])
+            * personality_modifier(bold, BOLD_REBEL_WEIGHT);
         let u_rebel = if u_rebel_raw > 0.0 { u_rebel_raw } else { f32::NEG_INFINITY };
-        let u_migrate_raw = migrate_utility(sat, stats.migration_opportunity[region_id]);
+
+        let u_migrate_raw = migrate_utility(sat, stats.migration_opportunity[region_id])
+            * personality_modifier(bold, BOLD_MIGRATE_WEIGHT);
         let u_migrate = if u_migrate_raw > 0.0 { u_migrate_raw } else { f32::NEG_INFINITY };
-        let (u_switch_raw, switch_target) = switch_utility(
+
+        let (u_switch_base, switch_target) = switch_utility(
             occ,
             &stats.occupation_supply[region_id],
             &stats.occupation_demand[region_id],
         );
+        let u_switch_raw = u_switch_base * personality_modifier(ambi, AMBITION_SWITCH_WEIGHT);
         let u_switch = if u_switch_raw > 0.0 { u_switch_raw } else { f32::NEG_INFINITY };
+
         let u_stay = STAY_BASE;
 
         let chosen = gumbel_argmax(
@@ -376,11 +394,14 @@ pub fn evaluate_region_decisions(
 
             if let Some(other_civ) = best_other_civ {
                 // Other civ is happier — drift away
-                if loy - LOYALTY_DRIFT_RATE < LOYALTY_FLIP_THRESHOLD {
+                // Personality-modified drift: steadfast (+1) drifts slower, mercenary (-1) faster
+                let effective_drift = LOYALTY_DRIFT_RATE
+                    * personality_modifier(-ltrait, LOYALTY_TRAIT_WEIGHT);
+                if loy - effective_drift < LOYALTY_FLIP_THRESHOLD {
                     // Would drop below flip threshold — flip civ
                     pending.loyalty_flips.push((slot, other_civ));
                 } else {
-                    pending.loyalty_drifts.push((slot, -LOYALTY_DRIFT_RATE));
+                    pending.loyalty_drifts.push((slot, -effective_drift));
                 }
             } else {
                 // No happier civ — recover loyalty
@@ -561,7 +582,7 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..6 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
         }
@@ -580,7 +601,7 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
         }
@@ -599,12 +620,12 @@ mod tests {
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].adjacency_mask = 0b10;
         for _ in 0..5 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.05);
             pool.set_loyalty(slot, 0.5);
         }
         for _ in 0..5 {
-            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.8);
             pool.set_loyalty(slot, 0.5);
         }
@@ -627,7 +648,7 @@ mod tests {
         let regions = vec![make_region(0)];
         let mut pool = AgentPool::new(32);
         for _ in 0..20 {
-            let slot = pool.spawn(0, 0, Occupation::Priest, 25);
+            let slot = pool.spawn(0, 0, Occupation::Priest, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.5);
             pool.set_loyalty(slot, 0.5);
         }
@@ -648,12 +669,12 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.5);
         }
         for _ in 0..3 {
-            let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.8);
         }
@@ -675,12 +696,12 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.25);
             pool.set_satisfaction(slot, 0.5);
         }
         for _ in 0..3 {
-            let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.9);
         }
@@ -703,12 +724,12 @@ mod tests {
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].adjacency_mask = 0b10;
         for _ in 0..6 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
         }
         for _ in 0..5 {
-            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.9);
         }
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
@@ -800,12 +821,12 @@ mod tests {
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].adjacency_mask = 0b10;
         for _ in 0..5 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.2);
             pool.set_loyalty(slot, 0.5);
         }
         for _ in 0..5 {
-            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.8);
             pool.set_loyalty(slot, 0.5);
         }
@@ -820,7 +841,7 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..5 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.2);
         }
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
@@ -926,12 +947,12 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.8);
         }
         for _ in 0..3 {
-            let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.5);
         }
@@ -960,7 +981,7 @@ mod tests {
 
         // 10 agents at absolute minimum (maximizes rebel utility to cap)
         for _ in 0..10 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.0);
             pool.set_satisfaction(slot, 0.0);
         }
@@ -980,5 +1001,242 @@ mod tests {
         assert_eq!(pd_v2.rebellions.len(), pd_v1.rebellions.len(),
             "structural regression: v2 rebels={} vs v1 rebels={}",
             pd_v2.rebellions.len(), pd_v1.rebellions.len());
+    }
+
+    // --- personality_modifier unit tests (M33) ---
+
+    #[test]
+    fn test_personality_modifier_neutral() {
+        let m = super::personality_modifier(0.0, 0.3);
+        assert!((m - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_personality_modifier_positive() {
+        let m = super::personality_modifier(1.0, 0.3);
+        assert!((m - 1.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_personality_modifier_negative() {
+        let m = super::personality_modifier(-1.0, 0.3);
+        assert!((m - 0.7).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_personality_modifier_floor_at_zero() {
+        let m = super::personality_modifier(-1.0, 1.5);
+        assert_eq!(m, 0.0);
+    }
+
+    /// M33 neutral regression: personality [0,0,0] must produce identical
+    /// decisions to M32 (modifier = 1.0 + 0.0 * weight = 1.0).
+    #[test]
+    fn test_m33_neutral_regression() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+
+        let mut pool = AgentPool::new(32);
+        let mut regions = vec![make_region(0), make_region(1)];
+        regions[0].adjacency_mask = 0b10;
+
+        for _ in 0..6 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool.set_loyalty(slot, 0.01);
+            pool.set_satisfaction(slot, 0.01);
+        }
+        for _ in 0..4 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool.set_satisfaction(slot, 0.1);
+            pool.set_loyalty(slot, 0.5);
+        }
+        for _ in 0..5 {
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool.set_satisfaction(slot, 0.8);
+            pool.set_loyalty(slot, 0.5);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let slots: Vec<usize> = (0..10).collect();
+
+        let mut rng_a = ChaCha8Rng::from_seed([42u8; 32]);
+        let mut rng_b = ChaCha8Rng::from_seed([42u8; 32]);
+        let pd_a = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng_a);
+        let pd_b = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng_b);
+
+        assert_eq!(pd_a.rebellions.len(), pd_b.rebellions.len());
+        assert_eq!(pd_a.migrations.len(), pd_b.migrations.len());
+        assert_eq!(pd_a.occupation_switches.len(), pd_b.occupation_switches.len());
+    }
+
+    /// M33 Tier 2: Bold agents rebel more than cautious agents in marginal conditions.
+    #[test]
+    fn test_m33_bold_rebels_more_than_cautious() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+
+        let regions = vec![make_region(0)];
+        let mut bold_rebels = 0u32;
+        let mut cautious_rebels = 0u32;
+
+        for seed_byte in 0..100u8 {
+            let mut seed = [0u8; 32];
+            seed[0] = seed_byte;
+
+            let mut pool = AgentPool::new(16);
+            for _ in 0..6 {
+                let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.8, 0.0, 0.0);
+                pool.set_loyalty(slot, 0.15);
+                pool.set_satisfaction(slot, 0.15);
+            }
+            let stats = compute_region_stats(&pool, &regions, &default_signals(1));
+            let slots: Vec<usize> = (0..6).collect();
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            bold_rebels += pd.rebellions.len() as u32;
+
+            let mut pool = AgentPool::new(16);
+            for _ in 0..6 {
+                let slot = pool.spawn(0, 0, Occupation::Farmer, 25, -0.8, 0.0, 0.0);
+                pool.set_loyalty(slot, 0.15);
+                pool.set_satisfaction(slot, 0.15);
+            }
+            let stats = compute_region_stats(&pool, &regions, &default_signals(1));
+            let slots: Vec<usize> = (0..6).collect();
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            cautious_rebels += pd.rebellions.len() as u32;
+        }
+
+        assert!(bold_rebels > cautious_rebels,
+            "bold agents should rebel more: bold={} cautious={}", bold_rebels, cautious_rebels);
+        assert!(bold_rebels > cautious_rebels + 20,
+            "margin too small: bold={} cautious={}", bold_rebels, cautious_rebels);
+    }
+
+    /// M33 Tier 2: Ambitious agents switch occupation more than content agents.
+    #[test]
+    fn test_m33_ambitious_switches_more_than_content() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+
+        let regions = vec![make_region(0)];
+        let mut ambitious_switches = 0u32;
+        let mut content_switches = 0u32;
+
+        for seed_byte in 0..100u8 {
+            let mut seed = [0u8; 32];
+            seed[0] = seed_byte;
+
+            // Ambitious cohort: 20 oversupplied priests with ambition=+0.8
+            let mut pool = AgentPool::new(32);
+            for _ in 0..20 {
+                let slot = pool.spawn(0, 0, Occupation::Priest, 25, 0.0, 0.8, 0.0);
+                pool.set_satisfaction(slot, 0.5);
+                pool.set_loyalty(slot, 0.5);
+            }
+            let stats = compute_region_stats(&pool, &regions, &default_signals(1));
+            let slots: Vec<usize> = (0..20).collect();
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            ambitious_switches += pd.occupation_switches.len() as u32;
+
+            // Content cohort: same setup with ambition=-0.8
+            let mut pool = AgentPool::new(32);
+            for _ in 0..20 {
+                let slot = pool.spawn(0, 0, Occupation::Priest, 25, 0.0, -0.8, 0.0);
+                pool.set_satisfaction(slot, 0.5);
+                pool.set_loyalty(slot, 0.5);
+            }
+            let stats = compute_region_stats(&pool, &regions, &default_signals(1));
+            let slots: Vec<usize> = (0..20).collect();
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            content_switches += pd.occupation_switches.len() as u32;
+        }
+
+        assert!(ambitious_switches > content_switches,
+            "ambitious agents should switch more: ambitious={} content={}",
+            ambitious_switches, content_switches);
+    }
+
+    /// M33 Tier 2: Steadfast agents drift slower than mercenary agents.
+    #[test]
+    fn test_m33_steadfast_drifts_less_than_mercenary() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        use crate::agent::LOYALTY_DRIFT_RATE;
+
+        let regions = vec![make_region(0)];
+
+        // Two civs in one region — triggers loyalty drift
+        let mut pool_steadfast = AgentPool::new(16);
+        for _ in 0..3 {
+            // Steadfast civ-0 agents (loyalty_trait=+0.8)
+            let slot = pool_steadfast.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.8);
+            pool_steadfast.set_loyalty(slot, 0.6);
+            pool_steadfast.set_satisfaction(slot, 0.5);
+        }
+        for _ in 0..3 {
+            // Happier civ-1 agents (triggers drift for civ-0)
+            let slot = pool_steadfast.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool_steadfast.set_loyalty(slot, 0.6);
+            pool_steadfast.set_satisfaction(slot, 0.8);
+        }
+        let stats = compute_region_stats(&pool_steadfast, &regions, &default_signals(1));
+        let slots: Vec<usize> = (0..3).collect();
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pd_steadfast = evaluate_region_decisions(
+            &pool_steadfast, &slots, &regions[0], &stats, 0, &mut rng,
+        );
+
+        let mut pool_mercenary = AgentPool::new(16);
+        for _ in 0..3 {
+            // Mercenary civ-0 agents (loyalty_trait=-0.8)
+            let slot = pool_mercenary.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, -0.8);
+            pool_mercenary.set_loyalty(slot, 0.6);
+            pool_mercenary.set_satisfaction(slot, 0.5);
+        }
+        for _ in 0..3 {
+            let slot = pool_mercenary.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool_mercenary.set_loyalty(slot, 0.6);
+            pool_mercenary.set_satisfaction(slot, 0.8);
+        }
+        let stats = compute_region_stats(&pool_mercenary, &regions, &default_signals(1));
+        let slots: Vec<usize> = (0..3).collect();
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pd_mercenary = evaluate_region_decisions(
+            &pool_mercenary, &slots, &regions[0], &stats, 0, &mut rng,
+        );
+
+        // Both should have drifts (multi-civ region, other civ happier)
+        assert!(!pd_steadfast.loyalty_drifts.is_empty(), "steadfast should still drift");
+        assert!(!pd_mercenary.loyalty_drifts.is_empty(), "mercenary should drift");
+
+        // Steadfast drift magnitude should be smaller than mercenary
+        let steadfast_mag: f32 = pd_steadfast.loyalty_drifts.iter()
+            .map(|(_, d)| d.abs()).sum();
+        let mercenary_mag: f32 = pd_mercenary.loyalty_drifts.iter()
+            .map(|(_, d)| d.abs()).sum();
+
+        // Steadfast: DRIFT_RATE * (1.0 + (-0.8) * 0.3) = 0.02 * 0.76 = 0.0152 per agent
+        // Mercenary: DRIFT_RATE * (1.0 + (0.8) * 0.3)  = 0.02 * 1.24 = 0.0248 per agent
+        assert!(steadfast_mag < mercenary_mag,
+            "steadfast drift {} should be less than mercenary drift {}",
+            steadfast_mag, mercenary_mag);
+
+        // Verify exact values for one drift
+        let expected_steadfast = LOYALTY_DRIFT_RATE * (1.0 + 0.8 * 0.3); // ltrait negated: -(-0.8) = 0.8... wait
+        // loyalty_trait = +0.8 (steadfast), modifier = (1.0 + (-0.8) * 0.3) = 0.76
+        let expected_steadfast_drift = LOYALTY_DRIFT_RATE * 0.76;
+        let expected_mercenary_drift = LOYALTY_DRIFT_RATE * 1.24;
+        for &(_, d) in &pd_steadfast.loyalty_drifts {
+            assert!((d.abs() - expected_steadfast_drift).abs() < 0.001,
+                "steadfast drift {} != expected {}", d.abs(), expected_steadfast_drift);
+        }
+        for &(_, d) in &pd_mercenary.loyalty_drifts {
+            assert!((d.abs() - expected_mercenary_drift).abs() < 0.001,
+                "mercenary drift {} != expected {}", d.abs(), expected_mercenary_drift);
+        }
     }
 }

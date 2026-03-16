@@ -24,6 +24,10 @@ pub struct CivSignals {
     pub demand_shift_merchant: f32,
     pub demand_shift_scholar: f32,
     pub demand_shift_priest: f32,
+    // M33 personality means (immutable per-civ):
+    pub mean_boldness: f32,
+    pub mean_ambition: f32,
+    pub mean_loyalty_trait: f32,
 }
 
 /// Parsed signals for one tick.
@@ -83,6 +87,12 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
     let demand_priest_col = batch.column_by_name("demand_shift_priest")
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let mean_boldness_col = batch.column_by_name("mean_boldness")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let mean_ambition_col = batch.column_by_name("mean_ambition")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let mean_loyalty_trait_col = batch.column_by_name("mean_loyalty_trait")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
 
     let mut result = Vec::with_capacity(batch.num_rows());
     for i in 0..batch.num_rows() {
@@ -103,6 +113,9 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             demand_shift_merchant: demand_merchant_col.map(|a| a.value(i)).unwrap_or(0.0),
             demand_shift_scholar: demand_scholar_col.map(|a| a.value(i)).unwrap_or(0.0),
             demand_shift_priest: demand_priest_col.map(|a| a.value(i)).unwrap_or(0.0),
+            mean_boldness: mean_boldness_col.map(|a| a.value(i)).unwrap_or(0.0),
+            mean_ambition: mean_ambition_col.map(|a| a.value(i)).unwrap_or(0.0),
+            mean_loyalty_trait: mean_loyalty_trait_col.map(|a| a.value(i)).unwrap_or(0.0),
         });
     }
     Ok(result)
@@ -160,6 +173,15 @@ impl TickSignals {
                 c.demand_shift_priest,
             ])
             .unwrap_or([0.0; 5])
+    }
+
+    /// Personality mean [boldness, ambition, loyalty_trait] for the given civ.
+    pub fn personality_mean_for_civ(&self, civ_id: u8) -> [f32; 3] {
+        self.civs
+            .iter()
+            .find(|c| c.civ_id == civ_id)
+            .map(|c| [c.mean_boldness, c.mean_ambition, c.mean_loyalty_trait])
+            .unwrap_or([0.0; 3])
     }
 }
 

@@ -69,6 +69,16 @@ pub const MIGRATE_HYSTERESIS: f32 = 0.05;
 pub const SWITCH_OVERSUPPLY_THRESH: f32 = 1.0 / OCCUPATION_SWITCH_OVERSUPPLY; // 2.0
 pub const SWITCH_UNDERSUPPLY_FACTOR: f32 = OCCUPATION_SWITCH_UNDERSUPPLY; // 1.5
 
+// Personality multipliers (M33) [CALIBRATE: M47]
+// Applied to utility outputs: modifier = (1.0 + dimension * WEIGHT).max(0.0)
+pub const BOLD_REBEL_WEIGHT: f32 = 0.3;
+pub const BOLD_MIGRATE_WEIGHT: f32 = 0.3;
+pub const AMBITION_SWITCH_WEIGHT: f32 = 0.3;
+pub const LOYALTY_TRAIT_WEIGHT: f32 = 0.3;
+pub const SPAWN_PERSONALITY_NOISE: f32 = 0.3;
+pub const BIRTH_PERSONALITY_NOISE: f32 = 0.15;
+pub const PERSONALITY_LABEL_THRESHOLD: f32 = 0.5;
+
 // RNG stream offsets — central registry to prevent collisions.
 // Each system gets a range of 100 offsets. Stream for region r at turn t:
 //   stream = r as u64 * 1000 + t as u64 + OFFSET

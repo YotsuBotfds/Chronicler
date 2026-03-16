@@ -62,6 +62,9 @@ fn main() {
                 demand_shift_merchant: 0.0,
                 demand_shift_scholar: 0.0,
                 demand_shift_priest: 0.0,
+                mean_boldness: 0.0,
+                mean_ambition: 0.0,
+                mean_loyalty_trait: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions as usize).map(|r| r % 5 == 0).collect(),
@@ -74,7 +77,7 @@ fn main() {
     ];
     for r in 0..num_regions {
         for j in 0..agents_per_region {
-            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16);
+            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0);
         }
     }
 
