@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "chronicler_agents"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pyo3 = { version = "0.28", features = ["extension-module"] }

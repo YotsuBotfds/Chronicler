@@ -11,6 +11,16 @@ mod pool;
 mod region;
 mod tick;
 
+// Public re-exports for integration tests and benchmarks.
+#[doc(hidden)]
+pub use agent::Occupation;
+#[doc(hidden)]
+pub use pool::AgentPool;
+#[doc(hidden)]
+pub use region::RegionState;
+#[doc(hidden)]
+pub use tick::tick_agents;
+
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
 #[cfg(not(target_os = "windows"))]
