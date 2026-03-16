@@ -1,13 +1,19 @@
 """Bridge between Python WorldState and Rust AgentSimulator."""
 from __future__ import annotations
+import logging
+from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 import pyarrow as pa
 from chronicler_agents import AgentSimulator
+from chronicler.demand_signals import DemandSignalManager
+from chronicler.models import AgentEventRecord, CivShock
 from chronicler.shadow import ShadowLogger
 
 if TYPE_CHECKING:
     from chronicler.models import Event, WorldState
+
+logger = logging.getLogger(__name__)
 
 TERRAIN_MAP = {
     "plains": 0, "mountains": 1, "coast": 2,
@@ -53,8 +59,16 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
     })
 
 
-def build_signals(world: WorldState) -> pa.RecordBatch:
-    """Build civ-signals Arrow RecordBatch from current WorldState."""
+def build_signals(world: WorldState, shocks: list | None = None,
+                  demands: dict | None = None) -> pa.RecordBatch:
+    """Build civ-signals Arrow RecordBatch from current WorldState.
+
+    Args:
+        world: Current simulation state.
+        shocks: Pre-summed shock values per civ (list[CivShock]).
+        demands: Per-civ demand shifts (5 floats per civ), output of
+            DemandSignalManager.tick().
+    """
     from chronicler.factions import get_dominant_faction
     from chronicler.models import FactionType
 
@@ -66,6 +80,11 @@ def build_signals(world: WorldState) -> pa.RecordBatch:
     civ_ids, stabilities, at_wars = [], [], []
     dom_factions, fac_mil, fac_mer, fac_cul = [], [], [], []
 
+    # Shock / demand column builders
+    shock_map = {s.civ_id: s for s in (shocks or [])}
+    shock_stab, shock_eco, shock_mil, shock_cul = [], [], [], []
+    ds_farmer, ds_soldier, ds_merchant, ds_scholar, ds_priest = [], [], [], [], []
+
     for i, civ in enumerate(world.civilizations):
         civ_ids.append(i)
         stabilities.append(min(civ.stability, 100))
@@ -76,6 +95,21 @@ def build_signals(world: WorldState) -> pa.RecordBatch:
         fac_mer.append(civ.factions.influence.get(FactionType.MERCHANT, 0.33))
         fac_cul.append(civ.factions.influence.get(FactionType.CULTURAL, 0.34))
 
+        # Per-civ shock values (default zeros via CivShock defaults)
+        s = shock_map.get(i, CivShock(i))
+        shock_stab.append(s.stability_shock)
+        shock_eco.append(s.economy_shock)
+        shock_mil.append(s.military_shock)
+        shock_cul.append(s.culture_shock)
+
+        # Per-civ demand shifts (5 occupation slots)
+        d = (demands or {}).get(i, [0.0] * 5)
+        ds_farmer.append(d[0])
+        ds_soldier.append(d[1])
+        ds_merchant.append(d[2])
+        ds_scholar.append(d[3])
+        ds_priest.append(d[4])
+
     return pa.record_batch({
         "civ_id": pa.array(civ_ids, type=pa.uint8()),
         "stability": pa.array(stabilities, type=pa.uint8()),
@@ -84,6 +118,15 @@ def build_signals(world: WorldState) -> pa.RecordBatch:
         "faction_military": pa.array(fac_mil, type=pa.float32()),
         "faction_merchant": pa.array(fac_mer, type=pa.float32()),
         "faction_cultural": pa.array(fac_cul, type=pa.float32()),
+        "shock_stability": pa.array(shock_stab, type=pa.float32()),
+        "shock_economy": pa.array(shock_eco, type=pa.float32()),
+        "shock_military": pa.array(shock_mil, type=pa.float32()),
+        "shock_culture": pa.array(shock_cul, type=pa.float32()),
+        "demand_shift_farmer": pa.array(ds_farmer, type=pa.float32()),
+        "demand_shift_soldier": pa.array(ds_soldier, type=pa.float32()),
+        "demand_shift_merchant": pa.array(ds_merchant, type=pa.float32()),
+        "demand_shift_scholar": pa.array(ds_scholar, type=pa.float32()),
+        "demand_shift_priest": pa.array(ds_priest, type=pa.float32()),
     })
 
 
@@ -92,16 +135,21 @@ class AgentBridge:
                  shadow_output: Path | None = None):
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         self._mode = mode
+        self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
+        self._demand_manager = DemandSignalManager()
         self._shadow_logger: ShadowLogger | None = None
         if mode == "shadow" and shadow_output is not None:
             self._shadow_logger = ShadowLogger(shadow_output)
 
-    def tick(self, world: WorldState) -> list[Event]:
+    def tick(self, world: WorldState, shocks=None, demands=None) -> list:
         self._sim.set_region_state(build_region_batch(world))
-        signals = build_signals(world)
-        _agent_events = self._sim.tick(world.turn, signals)
+        signals = build_signals(world, shocks=shocks, demands=demands)
+        agent_events = self._sim.tick(world.turn, signals)
 
-        if self._mode == "shadow":
+        if self._mode == "hybrid":
+            self._write_back(world)
+            return []  # Event aggregation added in Task 13
+        elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
             if self._shadow_logger:
                 self._shadow_logger.log_turn(world.turn, agent_aggs, world)
@@ -110,6 +158,43 @@ class AgentBridge:
             self._apply_demographics_clamp(world)
             return []
         return []
+
+    def _write_back(self, world: WorldState) -> None:
+        """Write agent-derived stats to civ and region objects. Hybrid mode only."""
+        aggs = self._sim.get_aggregates()
+        region_pops = self._sim.get_region_populations()
+
+        # Region populations from agent counts -- no clamp in hybrid mode
+        pop_map = dict(zip(
+            region_pops.column("region_id").to_pylist(),
+            region_pops.column("alive_count").to_pylist(),
+        ))
+        for i, region in enumerate(world.regions):
+            agent_pop = pop_map.get(i, 0)
+            if agent_pop > region.carrying_capacity * 2.0:
+                logger.warning(
+                    "Region %d pop %d exceeds 2x capacity %d",
+                    i, agent_pop, region.carrying_capacity,
+                )
+            region.population = agent_pop
+
+        # Build region-name lookup for civ population sums
+        region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+
+        # Civ stats from aggregates
+        civ_ids = aggs.column("civ_id").to_pylist()
+        for row_idx, civ_id in enumerate(civ_ids):
+            civ = world.civilizations[civ_id]
+            # Sum population across regions owned by this civ (regions is list[str])
+            civ.population = sum(
+                world.regions[region_name_to_idx[rname]].population
+                for rname in civ.regions
+                if rname in region_name_to_idx
+            )
+            civ.military = aggs.column("military")[row_idx].as_py()
+            civ.economy = aggs.column("economy")[row_idx].as_py()
+            civ.culture = aggs.column("culture")[row_idx].as_py()
+            civ.stability = aggs.column("stability")[row_idx].as_py()
 
     def _apply_demographics_clamp(self, world: WorldState) -> None:
         region_pops = self._sim.get_region_populations()
@@ -121,6 +206,11 @@ class AgentBridge:
             if region.controller is not None:
                 agent_pop = pop_map.get(i, 0)
                 region.population = min(agent_pop, int(region.carrying_capacity * 1.2))
+
+    def reset(self) -> None:
+        """Clear stateful data for batch mode reuse."""
+        self._event_window.clear()
+        self._demand_manager.reset()
 
     def close(self) -> None:
         if self._shadow_logger:
