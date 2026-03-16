@@ -94,6 +94,25 @@ class TestTickBehavior:
             assert count == snap_counts.get(rid, 0)
 
 
+class TestDemographicsOnlyIntegration:
+    def test_demographics_only_20_turns(self, sample_world):
+        # Seed region populations from carrying_capacity so the bridge has agents to tick
+        for region in sample_world.regions:
+            if region.controller is not None:
+                region.population = region.carrying_capacity
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        initial_pops = {r.name: r.population for r in sample_world.regions if r.controller is not None}
+        for turn in range(20):
+            sample_world.turn = turn
+            events = bridge.tick(sample_world)
+            assert events == []
+            for region in sample_world.regions:
+                if region.controller is not None:
+                    assert region.population <= int(region.carrying_capacity * 1.2)
+        final_pops = {r.name: r.population for r in sample_world.regions if r.controller is not None}
+        assert sum(final_pops.values()) < sum(initial_pops.values())
+
+
 class TestPythonDeterminism:
     def test_determinism_50_turns(self):
         sim_a = AgentSimulator(num_regions=3, seed=12345)
