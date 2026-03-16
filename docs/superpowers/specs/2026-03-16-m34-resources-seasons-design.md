@@ -117,10 +117,11 @@ Mountains have no food resource in any slot. ~50% of Forest regions (when Botani
 
 ```python
 SUBSISTENCE_BASELINE = 0.15  # [CALIBRATE]
-food_yield = max(SUBSISTENCE_BASELINE, max((y for ...), default=0.0))
+subsistence = SUBSISTENCE_BASELINE * climate_mod_for_crops
+food_yield = max(subsistence, max((y for ... if food_type), default=0.0))
 ```
 
-This is historically accurate — mountain villages survived on terrace agriculture and herding; forest communities foraged. The baseline sits just above `FAMINE_YIELD_THRESHOLD` (0.12), so non-food regions are food-marginal but not doomed. Drought or degraded ecology can still push them below threshold: `SUBSISTENCE_BASELINE × drought_mod = 0.15 × 0.5 = 0.075 < 0.12` → famine.
+This is historically accurate — mountain villages survived on terrace agriculture and herding; forest communities foraged. The baseline is modified by climate phase (same crop modifier), so drought reaches foragers: temperate = `0.15 × 1.0 = 0.15` (above threshold), drought = `0.15 × 0.5 = 0.075 < 0.12` → famine. See Famine Mechanics section for full pseudocode.
 
 **Why not add food to mountain/forest pools instead:** Inflates the tuning surface and changes the terrain identity. Mountains should be mineral regions, not grain regions with a side of ore.
 
@@ -252,7 +253,7 @@ reserve_ramp = min(1.0, reserves / 0.25)
 current_yield = base_yield × season_mod × reserve_ramp
 ```
 
-- `worker_count`: agents with farmer occupation in the region (farmer-as-miner). Uses `max(1, worker_count)` to guard division-by-zero in empty regions.
+- `worker_count`: agents with farmer occupation in the region (farmer-as-miner). Empty regions have `worker_count = 0`, giving `extraction_rate = 0` — no miners, no depletion.
 - `target_worker_count = max(1, effective_capacity(region) // 3)`: one-third of the region's effective carrying capacity. At full staffing (`worker_count >= target`), depletion runs at baseline rate. Under-populated regions deplete proportionally slower.
 - At `reserves < 0.01`: clamp to exhausted (`current_yield = base_yield × 0.04`). Near-zero trickle, not zero.
 - Salt exempt: `reserves` always 1.0, never decremented.
