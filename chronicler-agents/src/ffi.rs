@@ -10,6 +10,9 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
 
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+
 use crate::agent::{Occupation, PERSONALITY_LABEL_THRESHOLD};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
@@ -291,20 +294,32 @@ impl AgentSimulator {
                 let spawned = n_farmer + n_soldier + n_merchant + n_scholar;
                 let n_priest = if cap > spawned { cap - spawned } else { 0 };
 
+                // M33: personality assignment at initial spawn
+                let mut personality_rng = ChaCha8Rng::from_seed(self.master_seed);
+                personality_rng.set_stream(
+                    i as u64 * 1000 + crate::agent::PERSONALITY_STREAM_OFFSET,
+                );
+                let civ_mean = [0.0f32; 3]; // Civ means not yet available at initial spawn
+
                 for _ in 0..n_farmer {
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, 0.0, 0.0, 0.0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_soldier {
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, 0.0, 0.0, 0.0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_merchant {
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, 0.0, 0.0, 0.0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_scholar {
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, 0.0, 0.0, 0.0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2]);
                 }
                 for _ in 0..n_priest {
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, 0.0, 0.0, 0.0);
+                    let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2]);
                 }
             }
 
