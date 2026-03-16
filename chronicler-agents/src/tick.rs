@@ -6,6 +6,7 @@ use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
 use crate::agent::{
+    DECISION_STREAM_OFFSET,
     LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
     LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL,
     OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
@@ -88,12 +89,17 @@ pub fn tick_agents(
             .par_iter()
             .enumerate()
             .map(|(region_id, slots)| {
+                let mut rng = ChaCha8Rng::from_seed(master_seed);
+                rng.set_stream(
+                    region_id as u64 * 1000 + turn as u64 + DECISION_STREAM_OFFSET,
+                );
                 evaluate_region_decisions(
                     pool_ref,
                     slots,
                     &regions[region_id],
                     stats_ref,
                     region_id,
+                    &mut rng,
                 )
             })
             .collect()
@@ -192,7 +198,10 @@ pub fn tick_agents(
             .enumerate()
             .map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
-                rng.set_stream(region_id as u64 * 1000 + turn as u64);
+                rng.set_stream(
+                    region_id as u64 * 1000 + turn as u64
+                        + crate::agent::DEMOGRAPHICS_STREAM_OFFSET,
+                );
                 tick_region_demographics(
                     pool_ref,
                     slots,
