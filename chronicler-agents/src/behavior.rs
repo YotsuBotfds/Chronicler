@@ -1113,4 +1113,130 @@ mod tests {
         assert!(bold_rebels > cautious_rebels + 20,
             "margin too small: bold={} cautious={}", bold_rebels, cautious_rebels);
     }
+
+    /// M33 Tier 2: Ambitious agents switch occupation more than content agents.
+    #[test]
+    fn test_m33_ambitious_switches_more_than_content() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+
+        let regions = vec![make_region(0)];
+        let mut ambitious_switches = 0u32;
+        let mut content_switches = 0u32;
+
+        for seed_byte in 0..100u8 {
+            let mut seed = [0u8; 32];
+            seed[0] = seed_byte;
+
+            // Ambitious cohort: 20 oversupplied priests with ambition=+0.8
+            let mut pool = AgentPool::new(32);
+            for _ in 0..20 {
+                let slot = pool.spawn(0, 0, Occupation::Priest, 25, 0.0, 0.8, 0.0);
+                pool.set_satisfaction(slot, 0.5);
+                pool.set_loyalty(slot, 0.5);
+            }
+            let stats = compute_region_stats(&pool, &regions, &default_signals(1));
+            let slots: Vec<usize> = (0..20).collect();
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            ambitious_switches += pd.occupation_switches.len() as u32;
+
+            // Content cohort: same setup with ambition=-0.8
+            let mut pool = AgentPool::new(32);
+            for _ in 0..20 {
+                let slot = pool.spawn(0, 0, Occupation::Priest, 25, 0.0, -0.8, 0.0);
+                pool.set_satisfaction(slot, 0.5);
+                pool.set_loyalty(slot, 0.5);
+            }
+            let stats = compute_region_stats(&pool, &regions, &default_signals(1));
+            let slots: Vec<usize> = (0..20).collect();
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            content_switches += pd.occupation_switches.len() as u32;
+        }
+
+        assert!(ambitious_switches > content_switches,
+            "ambitious agents should switch more: ambitious={} content={}",
+            ambitious_switches, content_switches);
+    }
+
+    /// M33 Tier 2: Steadfast agents drift slower than mercenary agents.
+    #[test]
+    fn test_m33_steadfast_drifts_less_than_mercenary() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        use crate::agent::LOYALTY_DRIFT_RATE;
+
+        let regions = vec![make_region(0)];
+
+        // Two civs in one region — triggers loyalty drift
+        let mut pool_steadfast = AgentPool::new(16);
+        for _ in 0..3 {
+            // Steadfast civ-0 agents (loyalty_trait=+0.8)
+            let slot = pool_steadfast.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.8);
+            pool_steadfast.set_loyalty(slot, 0.6);
+            pool_steadfast.set_satisfaction(slot, 0.5);
+        }
+        for _ in 0..3 {
+            // Happier civ-1 agents (triggers drift for civ-0)
+            let slot = pool_steadfast.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool_steadfast.set_loyalty(slot, 0.6);
+            pool_steadfast.set_satisfaction(slot, 0.8);
+        }
+        let stats = compute_region_stats(&pool_steadfast, &regions, &default_signals(1));
+        let slots: Vec<usize> = (0..3).collect();
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pd_steadfast = evaluate_region_decisions(
+            &pool_steadfast, &slots, &regions[0], &stats, 0, &mut rng,
+        );
+
+        let mut pool_mercenary = AgentPool::new(16);
+        for _ in 0..3 {
+            // Mercenary civ-0 agents (loyalty_trait=-0.8)
+            let slot = pool_mercenary.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, -0.8);
+            pool_mercenary.set_loyalty(slot, 0.6);
+            pool_mercenary.set_satisfaction(slot, 0.5);
+        }
+        for _ in 0..3 {
+            let slot = pool_mercenary.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
+            pool_mercenary.set_loyalty(slot, 0.6);
+            pool_mercenary.set_satisfaction(slot, 0.8);
+        }
+        let stats = compute_region_stats(&pool_mercenary, &regions, &default_signals(1));
+        let slots: Vec<usize> = (0..3).collect();
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pd_mercenary = evaluate_region_decisions(
+            &pool_mercenary, &slots, &regions[0], &stats, 0, &mut rng,
+        );
+
+        // Both should have drifts (multi-civ region, other civ happier)
+        assert!(!pd_steadfast.loyalty_drifts.is_empty(), "steadfast should still drift");
+        assert!(!pd_mercenary.loyalty_drifts.is_empty(), "mercenary should drift");
+
+        // Steadfast drift magnitude should be smaller than mercenary
+        let steadfast_mag: f32 = pd_steadfast.loyalty_drifts.iter()
+            .map(|(_, d)| d.abs()).sum();
+        let mercenary_mag: f32 = pd_mercenary.loyalty_drifts.iter()
+            .map(|(_, d)| d.abs()).sum();
+
+        // Steadfast: DRIFT_RATE * (1.0 + (-0.8) * 0.3) = 0.02 * 0.76 = 0.0152 per agent
+        // Mercenary: DRIFT_RATE * (1.0 + (0.8) * 0.3)  = 0.02 * 1.24 = 0.0248 per agent
+        assert!(steadfast_mag < mercenary_mag,
+            "steadfast drift {} should be less than mercenary drift {}",
+            steadfast_mag, mercenary_mag);
+
+        // Verify exact values for one drift
+        let expected_steadfast = LOYALTY_DRIFT_RATE * (1.0 + 0.8 * 0.3); // ltrait negated: -(-0.8) = 0.8... wait
+        // loyalty_trait = +0.8 (steadfast), modifier = (1.0 + (-0.8) * 0.3) = 0.76
+        let expected_steadfast_drift = LOYALTY_DRIFT_RATE * 0.76;
+        let expected_mercenary_drift = LOYALTY_DRIFT_RATE * 1.24;
+        for &(_, d) in &pd_steadfast.loyalty_drifts {
+            assert!((d.abs() - expected_steadfast_drift).abs() < 0.001,
+                "steadfast drift {} != expected {}", d.abs(), expected_steadfast_drift);
+        }
+        for &(_, d) in &pd_mercenary.loyalty_drifts {
+            assert!((d.abs() - expected_mercenary_drift).abs() < 0.001,
+                "mercenary drift {} != expected {}", d.abs(), expected_mercenary_drift);
+        }
+    }
 }

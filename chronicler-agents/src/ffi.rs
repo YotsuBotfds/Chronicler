@@ -297,7 +297,7 @@ impl AgentSimulator {
                 // M33: personality assignment at initial spawn
                 let mut personality_rng = ChaCha8Rng::from_seed(self.master_seed);
                 personality_rng.set_stream(
-                    i as u64 * 1000 + crate::agent::PERSONALITY_STREAM_OFFSET,
+                    region_id as u64 * 1000 + crate::agent::PERSONALITY_STREAM_OFFSET,
                 );
                 let civ_mean = [0.0f32; 3]; // Civ means not yet available at initial spawn
 
