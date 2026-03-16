@@ -217,14 +217,25 @@ fn assign_personality(rng: &mut ChaCha8Rng, civ_mean: [f32; 3]) -> [f32; 3] {
 }
 ```
 
-Uses `PERSONALITY_STREAM_OFFSET = 700` from the RNG stream registry.
+### Dedicated Personality RNG
+
+`assign_personality` uses a **dedicated RNG** constructed with `PERSONALITY_STREAM_OFFSET = 700`, not the demographics RNG (offset 100). This decouples personality draw order from mortality/fertility draws — adding or removing a mortality check in a future milestone won't change personality assignments.
+
+```rust
+// Inside tick_region_demographics, after mortality/fertility phase:
+let mut personality_rng = ChaCha8Rng::from_seed(seed);
+personality_rng.set_stream(region_id as u64 * 1000 + turn as u64 + PERSONALITY_STREAM_OFFSET);
+// Use personality_rng for assign_personality() calls
+```
+
+Cost: one extra RNG construction per region per tick — negligible.
 
 ### Spawn Flow
 
 1. Python computes `civ_personality_mean(civ.values, civ.domains)` → 3 floats per civ
 2. Python sends civ means in `CivSignals` Arrow columns every tick
 3. At initial spawn: Rust `spawn()` receives 3 personality params (civ mean + noise, computed by caller)
-4. At birth during tick: parallel demographics phase reads `signals.civs[civ_id]` means, calls `assign_personality(rng, civ_mean)`, stores result in `BirthInfo`
+4. At birth during tick: parallel demographics phase constructs a dedicated personality RNG (offset 700), reads `signals.civs[civ_id]` means, calls `assign_personality(personality_rng, civ_mean)`, stores result in `BirthInfo`
 5. Sequential apply phase passes pre-computed personality to `pool.spawn()`
 6. Personality is set — never written again
 
@@ -271,7 +282,7 @@ pub fn spawn(
     &mut self,
     region: u16,
     civ_affinity: u8,
-    occupation: u8,
+    occupation: Occupation,
     age: u16,
     boldness: f32,
     ambition: f32,
