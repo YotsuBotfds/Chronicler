@@ -38,6 +38,9 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 demand_shift_merchant: 0.0,
                 demand_shift_scholar: 0.0,
                 demand_shift_priest: 0.0,
+                mean_boldness: 0.0,
+                mean_ambition: 0.0,
+                mean_loyalty_trait: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i == 1 || i == 3).collect(),
@@ -48,7 +51,7 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
     let mut pool = AgentPool::new(0);
     for r in regions {
         for _ in 0..r.carrying_capacity {
-            pool.spawn(r.region_id, r.region_id as u8, Occupation::Farmer, 0);
+            pool.spawn(r.region_id, r.region_id as u8, Occupation::Farmer, 0, 0.0, 0.0, 0.0);
         }
     }
     pool
