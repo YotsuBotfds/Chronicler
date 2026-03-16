@@ -53,6 +53,34 @@ pub const LOYALTY_DRIFT_RATE: f32 = 0.02;
 pub const LOYALTY_RECOVERY_RATE: f32 = 0.01;
 pub const LOYALTY_FLIP_THRESHOLD: f32 = 0.3;
 
+// Utility-based decision model (M32) [CALIBRATE: M47]
+// Three-tier calibration: 1) CAP ratios  2) DECISION_TEMPERATURE  3) Weights
+pub const STAY_BASE: f32 = 0.5;
+pub const REBEL_CAP: f32 = 1.5;
+pub const MIGRATE_CAP: f32 = 1.0;
+pub const SWITCH_CAP: f32 = 0.6;
+pub const DECISION_TEMPERATURE: f32 = 0.3;
+pub const W_REBEL: f32 = 3.75;
+pub const W_MIGRATE_SAT: f32 = 1.67;
+pub const W_MIGRATE_OPP: f32 = 1.67;
+pub const W_SWITCH: f32 = 0.03;
+pub const MIGRATE_HYSTERESIS: f32 = 0.05;
+// Derived from Phase 5 constants for use in utility functions:
+pub const SWITCH_OVERSUPPLY_THRESH: f32 = 1.0 / OCCUPATION_SWITCH_OVERSUPPLY; // 2.0
+pub const SWITCH_UNDERSUPPLY_FACTOR: f32 = OCCUPATION_SWITCH_UNDERSUPPLY; // 1.5
+
+// RNG stream offsets — central registry to prevent collisions.
+// Each system gets a range of 100 offsets. Stream for region r at turn t:
+//   stream = r as u64 * 1000 + t as u64 + OFFSET
+pub const DECISION_STREAM_OFFSET: u64     = 0;
+pub const DEMOGRAPHICS_STREAM_OFFSET: u64 = 100;
+pub const MIGRATION_STREAM_OFFSET: u64    = 200;
+// Phase 6 additions (reserved, wired when systems land):
+pub const CULTURE_DRIFT_OFFSET: u64       = 500;
+pub const CONVERSION_STREAM_OFFSET: u64   = 600;
+pub const PERSONALITY_STREAM_OFFSET: u64  = 700;
+pub const GOODS_ALLOC_STREAM_OFFSET: u64  = 800;
+
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
 pub const SKILL_GROWTH_PER_TURN: f32 = 0.05;
@@ -72,3 +100,57 @@ pub const LIFE_EVENT_OCC_SWITCH: u8    = 1 << 4;
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_utility_constants_valid() {
+        // CAP ordering: REBEL > MIGRATE > SWITCH > STAY
+        assert!(REBEL_CAP > MIGRATE_CAP, "REBEL_CAP must exceed MIGRATE_CAP");
+        assert!(MIGRATE_CAP > SWITCH_CAP, "MIGRATE_CAP must exceed SWITCH_CAP");
+        assert!(SWITCH_CAP > STAY_BASE, "SWITCH_CAP must exceed STAY_BASE");
+
+        // All CAPs and base must be positive
+        assert!(REBEL_CAP > 0.0);
+        assert!(MIGRATE_CAP > 0.0);
+        assert!(SWITCH_CAP > 0.0);
+        assert!(STAY_BASE > 0.0);
+
+        // Temperature non-negative
+        assert!(DECISION_TEMPERATURE >= 0.0);
+
+        // Weights positive
+        assert!(W_REBEL > 0.0);
+        assert!(W_MIGRATE_SAT > 0.0);
+        assert!(W_MIGRATE_OPP > 0.0);
+        assert!(W_SWITCH > 0.0);
+
+        // Hysteresis positive
+        assert!(MIGRATE_HYSTERESIS > 0.0);
+    }
+
+    #[test]
+    fn test_stream_offsets_no_collision() {
+        let offsets = [
+            DECISION_STREAM_OFFSET,
+            DEMOGRAPHICS_STREAM_OFFSET,
+            MIGRATION_STREAM_OFFSET,
+            CULTURE_DRIFT_OFFSET,
+            CONVERSION_STREAM_OFFSET,
+            PERSONALITY_STREAM_OFFSET,
+            GOODS_ALLOC_STREAM_OFFSET,
+        ];
+        // All offsets must be distinct
+        for i in 0..offsets.len() {
+            for j in (i + 1)..offsets.len() {
+                assert_ne!(
+                    offsets[i], offsets[j],
+                    "Stream offset collision: index {} and {} both equal {}",
+                    i, j, offsets[i]
+                );
+            }
+        }
+    }
+}
