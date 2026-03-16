@@ -81,7 +81,7 @@ Partition agents by region (same pattern as Phases 2-4), run satisfaction comput
 ### What Changes
 
 - `tick.rs` Phase 1 block: refactored from a single loop over all agents to a `par_iter` over region partitions.
-- Region stats (needed as read-only input): pre-computed once before the parallel pass. The tick's region-stats step already does this — reuse that infrastructure.
+- Region stats (needed as read-only input): currently computed inside `update_satisfaction` before the sequential loop. Refactoring extracts this call and passes pre-computed stats into the per-region parallel closures. Note: the decision phase's `compute_region_stats` call (tick step 2) must remain separate — it needs to read *updated* satisfaction values from step 1. This is a two-call pattern, not a single shared call.
 - Parallel writes to `pool.satisfactions` are safe without synchronization: each region's partition writes to disjoint slot indices, so no two threads touch the same element. This differs from the decisions phase (which collects results for sequential application) because satisfaction is a pure per-agent write with no cross-agent dependencies.
 - No changes to the satisfaction formula itself.
 
