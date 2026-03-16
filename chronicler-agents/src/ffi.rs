@@ -71,11 +71,13 @@ pub fn events_schema() -> Schema {
         Field::new("region", DataType::UInt16, false),
         Field::new("target_region", DataType::UInt16, false),
         Field::new("civ_affinity", DataType::UInt16, false),
+        Field::new("occupation", DataType::UInt8, false),
         Field::new("turn", DataType::UInt32, false),
     ])
 }
 
 /// Schema for `set_region_state()` input.
+#[allow(dead_code)]
 pub fn region_state_schema() -> Schema {
     Schema::new(vec![
         Field::new("region_id", DataType::UInt16, false),
@@ -89,6 +91,7 @@ pub fn region_state_schema() -> Schema {
 }
 
 /// Schema for civ_signals input to `tick()`.
+#[allow(dead_code)]
 pub fn civ_signals_schema() -> Schema {
     Schema::new(vec![
         Field::new("civ_id", DataType::UInt8, false),
@@ -225,8 +228,11 @@ impl AgentSimulator {
             for i in 0..n {
                 let cap = capacities.value(i) as usize;
                 let region_id = region_ids.value(i);
-                // Use civ_affinity = region_id as u8 (placeholder; M26 will assign proper civs)
-                let civ = (region_id % 256) as u8;
+                let civ = if self.regions[i].controller_civ != 255 {
+                    self.regions[i].controller_civ
+                } else {
+                    (region_id % 256) as u8  // fallback for uncontrolled
+                };
 
                 let n_farmer = (cap * 60 + 50) / 100;
                 let n_soldier = (cap * 15 + 50) / 100;
@@ -339,6 +345,7 @@ fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, Ar
     let mut regions = UInt16Builder::with_capacity(n);
     let mut target_regions = UInt16Builder::with_capacity(n);
     let mut civ_affinities = UInt16Builder::with_capacity(n);
+    let mut occupations = UInt8Builder::with_capacity(n);
     let mut turns = UInt32Builder::with_capacity(n);
 
     for e in events {
@@ -347,6 +354,7 @@ fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, Ar
         regions.append_value(e.region);
         target_regions.append_value(e.target_region);
         civ_affinities.append_value(e.civ_affinity as u16);
+        occupations.append_value(e.occupation);
         turns.append_value(e.turn);
     }
 
@@ -359,6 +367,7 @@ fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, Ar
             Arc::new(regions.finish()) as _,
             Arc::new(target_regions.finish()) as _,
             Arc::new(civ_affinities.finish()) as _,
+            Arc::new(occupations.finish()) as _,
             Arc::new(turns.finish()) as _,
         ],
     )

@@ -26,6 +26,7 @@ pub struct AgentEvent {
     pub region: u16,
     pub target_region: u16,
     pub civ_affinity: u8,
+    pub occupation: u8,
     pub turn: u32,
 }
 
@@ -97,6 +98,7 @@ pub fn tick_agents(
                 region,
                 target_region: 0,
                 civ_affinity: pool.civ_affinity(slot),
+                occupation: pool.occupation(slot),
                 turn,
             });
         }
@@ -111,6 +113,7 @@ pub fn tick_agents(
                 region: from,
                 target_region: to,
                 civ_affinity: pool.civ_affinity(slot),
+                occupation: pool.occupation(slot),
                 turn,
             });
         }
@@ -130,6 +133,7 @@ pub fn tick_agents(
                 region: pool.region(slot),
                 target_region: 0,
                 civ_affinity: pool.civ_affinity(slot),
+                occupation: pool.occupation(slot),
                 turn,
             });
             let _ = old_occ; // suppress unused warning
@@ -145,6 +149,7 @@ pub fn tick_agents(
                 region: pool.region(slot),
                 target_region: 0,
                 civ_affinity: new_civ,
+                occupation: pool.occupation(slot),
                 turn,
             });
         }
@@ -192,6 +197,7 @@ pub fn tick_agents(
                 region,
                 target_region: 0,
                 civ_affinity: pool.civ_affinity(slot),
+                occupation: pool.occupation(slot),
                 turn,
             });
             pool.kill(slot);
@@ -221,6 +227,7 @@ pub fn tick_agents(
                 region: birth.region,
                 target_region: 0,
                 civ_affinity: birth.civ,
+                occupation: crate::agent::Occupation::Farmer as u8,
                 turn,
             });
         }
