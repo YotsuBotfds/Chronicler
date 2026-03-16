@@ -358,7 +358,7 @@ class TestSeverityMultiplierWiring:
 
     def test_famine_damage_amplified_by_stress(self):
         """Famine damage should be amplified by stress."""
-        from chronicler.ecology import _check_famine
+        from chronicler.ecology import _check_famine_legacy
         world = _make_world()
         civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20, regions=["R1"])
         world.civilizations = [civ]
@@ -366,7 +366,7 @@ class TestSeverityMultiplierWiring:
         r = _make_region(name="R1", controller="Civ1", famine_cooldown=0, population=80)
         r.ecology.water = 0.01
         world.regions = [r]
-        _check_famine(world)
+        _check_famine_legacy(world)
         # Base famine: pop -5. With 1.5x stress multiplier: pop -= int(5*1.5) = 7
         assert civ.population < 80  # At least some damage
 

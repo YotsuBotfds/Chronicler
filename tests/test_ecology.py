@@ -504,13 +504,20 @@ class TestTickEcology:
 
 
 class TestFamineCheck:
-    def _make_world(self, water=0.15, pop=50):
+    def _make_world(self, water=0.15, pop=50, grain_base=0.10, soil=0.10):
+        """Build world with a GRAIN food slot so yield-based famine can trigger.
+
+        Default: soil=0.10, water=0.15, grain_base=0.10 -> yield very low -> famine.
+        """
         from chronicler.models import Leader, Civilization
         r = Region(
             name="TestRegion", terrain="plains", carrying_capacity=100,
             resources="fertile", population=pop, controller="TestCiv",
-            ecology=RegionEcology(soil=0.8, water=water, forest_cover=0.3),
+            ecology=RegionEcology(soil=soil, water=water, forest_cover=0.3),
         )
+        # Give region a GRAIN food slot so yield-based famine can fire
+        r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
+        r.resource_base_yields = [grain_base, 0.0, 0.0]
         civ = Civilization(
             name="TestCiv", population=pop, military=30, economy=40,
             culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
@@ -518,21 +525,23 @@ class TestFamineCheck:
         )
         return WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
 
-    def test_famine_fires_when_water_below_threshold(self):
-        w = self._make_world(water=0.15)
+    def test_famine_fires_when_food_yield_low(self):
+        # Low soil + low water + low base -> grain yield << 0.12 -> famine
+        w = self._make_world(water=0.15, soil=0.10, grain_base=0.10)
         events = tick_ecology(w, ClimatePhase.TEMPERATE)
         famine_events = [e for e in events if e.event_type == "famine"]
         assert len(famine_events) == 1
         assert "TestRegion" in famine_events[0].description
 
-    def test_no_famine_when_water_above_threshold(self):
-        w = self._make_world(water=0.5)
+    def test_no_famine_when_food_yield_high(self):
+        # High soil + high water + high base -> grain yield >> 0.12 -> no famine
+        w = self._make_world(water=0.6, soil=0.8, grain_base=1.0)
         events = tick_ecology(w, ClimatePhase.TEMPERATE)
         famine_events = [e for e in events if e.event_type == "famine"]
         assert len(famine_events) == 0
 
     def test_no_famine_during_cooldown(self):
-        w = self._make_world(water=0.15)
+        w = self._make_world(water=0.15, soil=0.10, grain_base=0.10)
         w.regions[0].famine_cooldown = 3
         events = tick_ecology(w, ClimatePhase.TEMPERATE)
         famine_events = [e for e in events if e.event_type == "famine"]
@@ -735,3 +744,42 @@ def test_salt_exempt_from_depletion():
     for _ in range(500):
         compute_resource_yields(r, season_id=1, climate_phase=ClimatePhase.TEMPERATE, worker_count=10)
     assert r.resource_reserves[1] == 1.0  # Salt never depletes
+
+
+# --- Task 6 (M34): check_food_yield ---
+
+from chronicler.ecology import check_food_yield
+from chronicler.models import FOOD_TYPES
+
+
+def test_famine_yield_based_triggers():
+    r = Region(name="P", terrain="plains", carrying_capacity=50, resources="fertile", controller="Civ1", population=20)
+    r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
+    assert check_food_yield(r, [0.05, 0.0, 0.0], ClimatePhase.TEMPERATE) is True   # Below 0.12
+
+
+def test_famine_yield_based_no_trigger():
+    r = Region(name="P", terrain="plains", carrying_capacity=50, resources="fertile", controller="Civ1", population=20)
+    r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
+    assert check_food_yield(r, [0.50, 0.0, 0.0], ClimatePhase.TEMPERATE) is False  # Above 0.12
+
+
+def test_subsistence_baseline_no_food_slots():
+    r = Region(name="M", terrain="mountains", carrying_capacity=50, resources="mineral", controller="Civ1", population=20)
+    r.resource_types = [ResourceType.ORE, ResourceType.PRECIOUS, EMPTY_SLOT]
+    # Temperate: subsistence = 0.15 * 1.0 = 0.15 > 0.12 -> no famine
+    assert check_food_yield(r, [0.9, 0.5, 0.0], ClimatePhase.TEMPERATE) is False
+
+
+def test_subsistence_drought_triggers_famine():
+    r = Region(name="M", terrain="mountains", carrying_capacity=50, resources="mineral", controller="Civ1", population=20)
+    r.resource_types = [ResourceType.ORE, ResourceType.PRECIOUS, EMPTY_SLOT]
+    # Drought: subsistence = 0.15 * 0.5 = 0.075 < 0.12 -> famine
+    assert check_food_yield(r, [0.9, 0.5, 0.0], ClimatePhase.DROUGHT) is True
+
+
+def test_multifood_uses_max():
+    r = Region(name="C", terrain="coast", carrying_capacity=50, resources="maritime", controller="Civ1", population=20)
+    r.resource_types = [ResourceType.FISH, ResourceType.BOTANICALS, EMPTY_SLOT]
+    # Fish yield low (0.05) but Botanicals high (0.50) -> no famine
+    assert check_food_yield(r, [0.05, 0.50, 0.0], ClimatePhase.TEMPERATE) is False

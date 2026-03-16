@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from chronicler.models import ClimatePhase, Event, InfrastructureType, RegionEcology
-from chronicler.models import EMPTY_SLOT, MINERAL_TYPES, ResourceType
+from chronicler.models import EMPTY_SLOT, FOOD_TYPES, MINERAL_TYPES, ResourceType
 from chronicler.tuning import (
     K_SOIL_DEGRADATION, K_SOIL_RECOVERY, K_MINE_SOIL_DEGRADATION,
     K_WATER_DROUGHT, K_WATER_RECOVERY,
@@ -16,6 +16,7 @@ from chronicler.tuning import (
     K_IRRIGATION_WATER_BONUS, K_IRRIGATION_DROUGHT_MULT,
     K_AGRICULTURE_SOIL_BONUS, K_MECHANIZATION_MINE_MULT,
     K_FAMINE_WATER_THRESHOLD, K_DEPLETION_RATE,
+    K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD,
     get_override,
 )
 from chronicler.resources import (
@@ -107,6 +108,37 @@ def compute_resource_yields(
         yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp
 
     return yields
+
+
+# Module-level storage for Arrow bridge to read yields after tick_ecology
+_last_region_yields: dict[str, list[float]] = {}
+
+
+def check_food_yield(
+    region: "Region",
+    yields: list[float],
+    climate_phase: "ClimatePhase",
+    threshold: float = 0.12,
+    subsistence_base: float = 0.15,
+) -> bool:
+    """Return True if region should enter famine (food yield below threshold)."""
+    phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
+    crop_climate_mod = CLIMATE_CLASS_MOD[0][phase_idx]  # Crop class index = 0
+
+    # Check if region has any food slots
+    has_food_slot = any(rtype in FOOD_TYPES for rtype in region.resource_types)
+
+    if has_food_slot:
+        # Use max food yield from slots
+        food_yield = max(
+            (y for rtype, y in zip(region.resource_types, yields) if rtype in FOOD_TYPES),
+            default=0.0,
+        )
+    else:
+        # Subsistence baseline affected by climate (for non-food terrains)
+        food_yield = subsistence_base * crop_climate_mod
+
+    return food_yield < threshold
 
 
 def _pressure_multiplier(region: Region) -> float:
@@ -207,8 +239,8 @@ def _clamp_ecology(region: Region) -> None:
     region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], round(region.ecology.forest_cover, 4)))
 
 
-def _check_famine(world: WorldState, acc=None) -> list[Event]:
-    """Region-level famine check: water < threshold."""
+def _check_famine_legacy(world: WorldState, acc=None) -> list[Event]:
+    """Legacy region-level famine check: water < threshold. Preserved but no longer called."""
     from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
     from chronicler.emergence import get_severity_multiplier
 
@@ -227,6 +259,70 @@ def _check_famine(world: WorldState, acc=None) -> list[Event]:
         if civ is None:
             continue
 
+        mult = get_severity_multiplier(civ)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "population", -int(5 * mult), "guard")
+        else:
+            drain_region_pop(region, int(5 * mult))
+            sync_civ_population(civ, world)
+        drain = int(get_override(world, "stability.drain.famine_immediate", 3))
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        region.famine_cooldown = 5
+
+        for adj_name in region.adjacencies:
+            adj = next((r for r in world.regions if r.name == adj_name), None)
+            if adj and adj.controller and adj.controller != civ.name:
+                neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
+                if neighbor:
+                    add_region_pop(adj, 5)
+                    sync_civ_population(neighbor, world)
+                    if acc is not None:
+                        neighbor_idx = next(i for i, c in enumerate(world.civilizations) if c.name == neighbor.name)
+                        acc.add(neighbor_idx, neighbor, "stability", -5, "signal")
+                    else:
+                        neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
+
+        events.append(Event(
+            turn=world.turn, event_type="famine", actors=[civ.name],
+            description=f"Famine strikes {region.name}, devastating {civ.name}.",
+            importance=8,
+        ))
+    return events
+
+
+def _check_famine_yield(
+    world: WorldState,
+    region_yields: dict[str, list[float]],
+    climate_phase: ClimatePhase,
+    threshold: float,
+    subsistence_base: float,
+    acc=None,
+) -> list[Event]:
+    """M34: Region-level famine check based on food yield."""
+    from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
+    from chronicler.emergence import get_severity_multiplier
+
+    events: list[Event] = []
+    for region in world.regions:
+        if region.controller is None or region.famine_cooldown > 0:
+            continue
+        if region.population <= 0:
+            continue
+
+        yields = region_yields.get(region.name, [0.0, 0.0, 0.0])
+        if not check_food_yield(region, yields, climate_phase, threshold, subsistence_base):
+            continue  # No famine
+
+        civ = next((c for c in world.civilizations if c.name == region.controller), None)
+        if civ is None:
+            continue
+
+        # --- Effects below are identical to _check_famine_legacy ---
         mult = get_severity_multiplier(civ)
         if acc is not None:
             civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
@@ -325,7 +421,19 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
         _apply_cross_effects(region)
         _clamp_ecology(region)
 
-    events = _check_famine(world, acc=acc)
+    # --- M34: Compute resource yields for all regions ---
+    from chronicler.resources import get_season_id
+    season_id = get_season_id(world.turn)
+    _last_region_yields.clear()
+    subsistence_base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
+    famine_threshold = get_override(world, K_FAMINE_YIELD_THRESHOLD, 0.12)
+    for region in world.regions:
+        worker_count = region.population // 5 if region.population > 0 else 0
+        yields = compute_resource_yields(region, season_id, climate_phase, worker_count, world)
+        _last_region_yields[region.name] = yields
+
+    # M34: Yield-based famine (replaces water-sentinel _check_famine_legacy)
+    events = _check_famine_yield(world, _last_region_yields, climate_phase, famine_threshold, subsistence_base, acc)
 
     from chronicler.traditions import apply_soil_floor
     apply_soil_floor(world)
