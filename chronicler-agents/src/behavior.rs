@@ -71,6 +71,10 @@ pub struct RegionStats {
     pub civ_counts: Vec<Vec<(u8, usize)>>,
     /// Per-region, per-civ mean satisfaction.
     pub civ_mean_satisfaction: Vec<Vec<(u8, f32)>>,
+    /// How much better the best adjacent region is (0 if none better).
+    pub migration_opportunity: Vec<f32>,
+    /// Region id of the best adjacent migration target (own id if none better).
+    pub best_migration_target: Vec<u16>,
 }
 
 /// Single O(n) pass over alive agents to build all region stats.
@@ -172,6 +176,25 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         civ_mean_satisfaction.push(means);
     }
 
+    let mut migration_opportunity = vec![0.0f32; n];
+    let mut best_migration_target = vec![0u16; n];
+    for r in 0..n {
+        let own_mean = mean_satisfaction[r];
+        let mut best_adj_mean = own_mean;
+        let mut best_adj_id: u16 = r as u16;
+        for bit in 0..32u32 {
+            if regions[r].adjacency_mask & (1 << bit) != 0 {
+                let adj = bit as usize;
+                if adj < n && mean_satisfaction[adj] > best_adj_mean {
+                    best_adj_mean = mean_satisfaction[adj];
+                    best_adj_id = adj as u16;
+                }
+            }
+        }
+        migration_opportunity[r] = (best_adj_mean - own_mean).max(0.0);
+        best_migration_target[r] = best_adj_id;
+    }
+
     RegionStats {
         rebel_eligible,
         mean_satisfaction,
@@ -179,6 +202,8 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         occupation_demand,
         civ_counts,
         civ_mean_satisfaction,
+        migration_opportunity,
+        best_migration_target,
     }
 }
 
@@ -656,6 +681,39 @@ mod tests {
         let val_a: f32 = rng_a.gen();
         let val_b: f32 = rng_b.gen();
         assert_eq!(val_a, val_b, "T=0 path should not consume RNG draws");
+    }
+
+    #[test]
+    fn test_migration_opportunity_computed() {
+        let mut pool = AgentPool::new(32);
+        let mut regions = vec![make_region(0), make_region(1)];
+        regions[0].adjacency_mask = 0b10;
+        for _ in 0..5 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            pool.set_satisfaction(slot, 0.2);
+            pool.set_loyalty(slot, 0.5);
+        }
+        for _ in 0..5 {
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            pool.set_satisfaction(slot, 0.8);
+            pool.set_loyalty(slot, 0.5);
+        }
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert!(stats.migration_opportunity[0] > 0.0);
+        assert_eq!(stats.best_migration_target[0], 1);
+        assert_eq!(stats.migration_opportunity[1], 0.0);
+    }
+
+    #[test]
+    fn test_migration_opportunity_no_adjacent() {
+        let mut pool = AgentPool::new(16);
+        let regions = vec![make_region(0)];
+        for _ in 0..5 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            pool.set_satisfaction(slot, 0.2);
+        }
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert_eq!(stats.migration_opportunity[0], 0.0);
     }
 
     #[test]
