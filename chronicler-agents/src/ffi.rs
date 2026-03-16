@@ -198,19 +198,19 @@ impl AgentSimulator {
                 let n_priest = if cap > spawned { cap - spawned } else { 0 };
 
                 for _ in 0..n_farmer {
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 25);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0);
                 }
                 for _ in 0..n_soldier {
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 25);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0);
                 }
                 for _ in 0..n_merchant {
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 25);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0);
                 }
                 for _ in 0..n_scholar {
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 25);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0);
                 }
                 for _ in 0..n_priest {
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 25);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, 0);
                 }
             }
 
