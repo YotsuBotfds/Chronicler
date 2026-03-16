@@ -91,6 +91,36 @@ class TestAdapter:
         assert len(data["turn"]) == 3
 
 
+class TestBatchRunner:
+    def test_run_single_seed_e2e(self, tmp_path):
+        """End-to-end plumbing test: 1 seed, 10 turns.
+
+        With 10 turns, no checkpoint turns (100/250/500) have data, so the
+        comparison is vacuously empty. This validates the subprocess wiring,
+        directory structure, and report generation — not statistical correctness.
+        """
+        import os
+        import subprocess
+
+        project_root = Path(__file__).parent.parent
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(project_root / "src")
+
+        result = subprocess.run(
+            [sys.executable, str(project_root / "scripts" / "run_oracle_gate.py"),
+             "--seeds", "1", "--turns", "10", "--parallel", "1",
+             "--output-dir", str(tmp_path / "gate")],
+            capture_output=True, text=True, timeout=300,
+            cwd=str(project_root), env=env,
+        )
+        assert result.returncode == 0, result.stderr
+        report_path = tmp_path / "gate" / "oracle_report.json"
+        assert report_path.exists()
+        with open(report_path) as f:
+            report = json.load(f)
+        assert report["metadata"]["seeds"] == 1
+
+
 from chronicler.shadow_oracle import OracleResult, CorrelationResult, OracleReport
 
 
