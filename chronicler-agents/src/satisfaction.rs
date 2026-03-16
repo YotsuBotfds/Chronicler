@@ -1,7 +1,36 @@
 //! Branchless satisfaction formula — computes per-agent satisfaction from
 //! ecology, civ state, and occupation context.
 
+use crate::region::RegionState;
 use crate::signals::CivShock;
+
+const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
+const PEAK_YIELD: f32 = 1.0;
+
+/// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7
+fn is_food(rtype: u8) -> bool {
+    matches!(rtype, 0 | 2 | 3 | 7)
+}
+
+pub fn resource_satisfaction(region: &RegionState) -> f32 {
+    let primary_yield = region.resource_yields[0];
+    let sat = (primary_yield - FAMINE_YIELD_THRESHOLD)
+            / (PEAK_YIELD - FAMINE_YIELD_THRESHOLD);
+    sat.clamp(0.0, 1.0)
+}
+
+pub fn trade_satisfaction(region: &RegionState) -> f32 {
+    let mut trade_score: f32 = 0.0;
+    for i in 0..3 {
+        let rtype = region.resource_types[i];
+        let yield_val = region.resource_yields[i];
+        if rtype != 255 && yield_val > 0.0 {
+            let weight = if is_food(rtype) { 0.15 } else { 0.35 };
+            trade_score += weight;
+        }
+    }
+    trade_score.clamp(0.1, 1.0)
+}
 
 /// Compute per-occupation shock penalty using general + specific pattern.
 /// All occupations get baseline sensitivity to all shocks,
@@ -97,6 +126,49 @@ pub fn target_occupation_ratio(terrain: u8, soil: f32, _water: f32, demand_shift
     for v in &mut r { *v /= sum; }
 
     r
+}
+
+#[cfg(test)]
+mod m34_tests {
+    use super::*;
+    use crate::region::RegionState;
+
+    fn make_region_with_resources(types: [u8; 3], yields: [f32; 3]) -> RegionState {
+        let mut r = RegionState::new(0);
+        r.resource_types = types;
+        r.resource_yields = yields;
+        r
+    }
+
+    #[test]
+    fn test_resource_satisfaction_at_peak() {
+        let r = make_region_with_resources([0, 255, 255], [1.0, 0.0, 0.0]);
+        let sat = resource_satisfaction(&r);
+        assert!((sat - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_resource_satisfaction_at_threshold() {
+        let r = make_region_with_resources([0, 255, 255], [0.12, 0.0, 0.0]);
+        let sat = resource_satisfaction(&r);
+        assert!(sat.abs() < 0.01);
+    }
+
+    #[test]
+    fn test_trade_satisfaction_mountains() {
+        // Ore(5) + Precious(6) = 0.35 + 0.35 = 0.7
+        let r = make_region_with_resources([5, 6, 255], [0.9, 0.5, 0.0]);
+        let sat = trade_satisfaction(&r);
+        assert!((sat - 0.7).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_trade_satisfaction_tundra_exotic_only() {
+        // Exotic(7) is food → weight 0.15
+        let r = make_region_with_resources([7, 255, 255], [0.5, 0.0, 0.0]);
+        let sat = trade_satisfaction(&r);
+        assert!((sat - 0.15).abs() < 0.01);
+    }
 }
 
 #[cfg(test)]

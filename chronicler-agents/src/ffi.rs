@@ -254,6 +254,41 @@ impl AgentSimulator {
             .column_by_name("is_contested")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
 
+        // Optional M34 columns — backward-compatible defaults.
+        let resource_type_0 = rb
+            .column_by_name("resource_type_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let resource_type_1 = rb
+            .column_by_name("resource_type_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let resource_type_2 = rb
+            .column_by_name("resource_type_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let resource_yield_0 = rb
+            .column_by_name("resource_yield_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_yield_1 = rb
+            .column_by_name("resource_yield_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_yield_2 = rb
+            .column_by_name("resource_yield_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_reserve_0 = rb
+            .column_by_name("resource_reserve_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_reserve_1 = rb
+            .column_by_name("resource_reserve_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_reserve_2 = rb
+            .column_by_name("resource_reserve_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let season_col = rb
+            .column_by_name("season")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let season_id_col = rb
+            .column_by_name("season_id")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -273,6 +308,23 @@ impl AgentSimulator {
                     controller_civ: controller_civs.map_or(255, |arr| arr.value(i)),
                     adjacency_mask: adjacency_masks.map_or(0, |arr| arr.value(i)),
                     trade_route_count: trade_route_counts.map_or(0, |arr| arr.value(i)),
+                    resource_types: [
+                        resource_type_0.map_or(255, |arr| arr.value(i)),
+                        resource_type_1.map_or(255, |arr| arr.value(i)),
+                        resource_type_2.map_or(255, |arr| arr.value(i)),
+                    ],
+                    resource_yields: [
+                        resource_yield_0.map_or(0.0, |arr| arr.value(i)),
+                        resource_yield_1.map_or(0.0, |arr| arr.value(i)),
+                        resource_yield_2.map_or(0.0, |arr| arr.value(i)),
+                    ],
+                    resource_reserves: [
+                        resource_reserve_0.map_or(1.0, |arr| arr.value(i)),
+                        resource_reserve_1.map_or(1.0, |arr| arr.value(i)),
+                        resource_reserve_2.map_or(1.0, |arr| arr.value(i)),
+                    ],
+                    season: season_col.map_or(0, |arr| arr.value(i)),
+                    season_id: season_id_col.map_or(0, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -342,6 +394,17 @@ impl AgentSimulator {
                 r.controller_civ = controller_civs.map_or(r.controller_civ, |arr| arr.value(i));
                 r.adjacency_mask = adjacency_masks.map_or(r.adjacency_mask, |arr| arr.value(i));
                 r.trade_route_count = trade_route_counts.map_or(r.trade_route_count, |arr| arr.value(i));
+                r.resource_types[0] = resource_type_0.map_or(r.resource_types[0], |arr| arr.value(i));
+                r.resource_types[1] = resource_type_1.map_or(r.resource_types[1], |arr| arr.value(i));
+                r.resource_types[2] = resource_type_2.map_or(r.resource_types[2], |arr| arr.value(i));
+                r.resource_yields[0] = resource_yield_0.map_or(r.resource_yields[0], |arr| arr.value(i));
+                r.resource_yields[1] = resource_yield_1.map_or(r.resource_yields[1], |arr| arr.value(i));
+                r.resource_yields[2] = resource_yield_2.map_or(r.resource_yields[2], |arr| arr.value(i));
+                r.resource_reserves[0] = resource_reserve_0.map_or(r.resource_reserves[0], |arr| arr.value(i));
+                r.resource_reserves[1] = resource_reserve_1.map_or(r.resource_reserves[1], |arr| arr.value(i));
+                r.resource_reserves[2] = resource_reserve_2.map_or(r.resource_reserves[2], |arr| arr.value(i));
+                r.season = season_col.map_or(r.season, |arr| arr.value(i));
+                r.season_id = season_id_col.map_or(r.season_id, |arr| arr.value(i));
             }
         }
         Ok(())

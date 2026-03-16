@@ -65,6 +65,11 @@ mod tests {
             region_id: 0, terrain: 0, carrying_capacity: 60, population: 40,
             soil, water, forest_cover: 0.3,
             adjacency_mask: 0, controller_civ: 0, trade_route_count: 0,
+            resource_types: [255, 255, 255],
+            resource_yields: [0.0, 0.0, 0.0],
+            resource_reserves: [1.0, 1.0, 1.0],
+            season: 0,
+            season_id: 0,
         }
     }
 

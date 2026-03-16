@@ -40,6 +40,11 @@ fn main() {
         },
         controller_civ: (r % 4) as u8,
         trade_route_count: 0,
+        resource_types: [255, 255, 255],
+        resource_yields: [0.0, 0.0, 0.0],
+        resource_reserves: [1.0, 1.0, 1.0],
+        season: 0,
+        season_id: 0,
     }).collect();
 
     let num_civs = (num_regions.min(8)) as usize;

@@ -28,11 +28,17 @@ pub struct RegionState {
     pub adjacency_mask: u32,     // bitmask: bit i = adjacent to region i (≤32 regions)
     pub controller_civ: u8,      // civ_id controlling region (255 = uncontrolled)
     pub trade_route_count: u8,
+    // M34: Resource state
+    pub resource_types: [u8; 3],
+    pub resource_yields: [f32; 3],
+    pub resource_reserves: [f32; 3],
+    pub season: u8,
+    pub season_id: u8,
 }
 
 impl RegionState {
     pub fn new(region_id: u16) -> Self {
-        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0 }
+        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0 }
     }
 }
 
