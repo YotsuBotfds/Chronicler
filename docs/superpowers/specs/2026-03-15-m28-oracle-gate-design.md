@@ -90,7 +90,9 @@ Bridge between simulation bundle output and the oracle comparison logic. This is
 
 ### Input
 
-Per-seed `chronicle_bundle.json` from both aggregate and hybrid directories. Each bundle contains:
+Per-seed `chronicle_bundle.json` from both aggregate and hybrid directories. The `history` array contains one `TurnSnapshot` per turn (every turn is recorded in `--simulate-only` mode). The adapter filters to checkpoint turns [100, 250, 500] by matching `snapshot["turn"]`, using the same `turn`-field lookup as the existing `_snapshot_at_turn()` helper in `analytics.py`.
+
+Each bundle's structure:
 
 ```json
 {
@@ -133,7 +135,15 @@ Column-oriented dict matching the format returned by `load_shadow_data()`:
 
 ### Interface with `shadow_oracle.py`
 
-`shadow_oracle_report()` takes `list[Path]` (Arrow IPC files) and calls `load_shadow_data()` internally. M28's adapter produces a dict, not IPC files. Rather than writing temporary IPC files or modifying `shadow_oracle_report()`'s signature, the M28 script calls the comparison logic directly: it uses the adapter dict with `extract_at_turn()` and the `OracleResult`/`CorrelationResult` dataclasses from `shadow_oracle.py` to construct an `OracleReport`. The statistical tests (`ks_2samp`, `anderson_ksamp`) and the comparison loop are reimplemented inline in the gate script (~30 lines, mirroring `shadow_oracle_report()`'s loop structure). This keeps `shadow_oracle.py` unchanged while reusing its dataclasses and pass/fail logic.
+`shadow_oracle_report()` takes `list[Path]` (Arrow IPC files) and calls `load_shadow_data()` internally. M28's adapter produces a dict, not IPC files. Rather than writing temporary IPC files, the implementation should extract the comparison loop from `shadow_oracle_report()` into a new function in `shadow_oracle.py` that accepts a pre-loaded dict:
+
+```python
+def compare_distributions(data: dict) -> OracleReport:
+    """Compare agent vs aggregate distributions from pre-loaded data."""
+    # Same logic as shadow_oracle_report(), but takes a dict instead of IPC paths.
+```
+
+Both `shadow_oracle_report()` (shadow IPC path) and the M28 gate script (bundle adapter path) call `compare_distributions()`. This avoids code duplication and ensures any future updates to the comparison logic apply to both callers. The refactor is minimal — `shadow_oracle_report()` becomes `load_shadow_data()` + `compare_distributions()`.
 
 ### Matching Logic
 
@@ -283,7 +293,7 @@ If these patterns appear in the report, they confirm the agent model is working 
 ## Relationship to Other Milestones
 
 ### Inputs from M26
-- `shadow_oracle.py`: oracle comparison framework — dataclasses (`OracleResult`, `CorrelationResult`, `OracleReport`) and helper functions reused; `shadow_oracle_report()` entry point not called directly (see Interface with `shadow_oracle.py` section)
+- `shadow_oracle.py`: oracle comparison framework — refactored to extract `compare_distributions()` for reuse; dataclasses (`OracleResult`, `CorrelationResult`, `OracleReport`) unchanged (see Interface with `shadow_oracle.py` section)
 - `shadow.py`: ShadowLogger and Arrow IPC shadow logs — available for drill-down but not used by M28 script directly
 
 ### Inputs from M27
@@ -301,7 +311,7 @@ If these patterns appear in the report, they confirm the agent model is working 
 
 - No new simulation features — agents, behavior, integration are M25-M27
 - No constant tuning — `DEMAND_SCALE_FACTOR` and agent thresholds are calibrated in M27
-- No modifications to `shadow_oracle.py` — dataclasses and helpers reused as-is
+- No modifications to `shadow_oracle.py` dataclasses — minor refactor extracts `compare_distributions()` for shared use
 - No CI/CD integration — this is a local developer script
 - No auto-generated markdown report — analysis document written collaboratively after reviewing data
 - No diagnostic heuristics — raw numbers at checkpoints, human interpretation
