@@ -86,7 +86,7 @@ def _check_resource_requirements(civ: Civilization, world: WorldState) -> bool:
     return True
 
 
-def check_tech_advancement(civ: Civilization, world: WorldState) -> Event | None:
+def check_tech_advancement(civ: Civilization, world: WorldState, acc=None) -> Event | None:
     reqs = TECH_REQUIREMENTS.get(civ.tech_era)
     if reqs is None:
         return None
@@ -104,7 +104,11 @@ def check_tech_advancement(civ: Civilization, world: WorldState) -> Event | None
         effective_cost = cost
     if civ.culture < min_culture or civ.economy < min_economy or civ.treasury < effective_cost:
         return None
-    civ.treasury -= effective_cost
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "treasury", -effective_cost, "keep")
+    else:
+        civ.treasury -= effective_cost
     new_era = _next_era(civ.tech_era)
     assert new_era is not None
     civ.tech_era = new_era

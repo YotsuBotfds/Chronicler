@@ -70,7 +70,7 @@ def _get_unknown_adjacent(world: WorldState, civ: Civilization) -> list[str]:
     return candidates
 
 
-def handle_explore(world: WorldState, civ: Civilization) -> Event:
+def handle_explore(world: WorldState, civ: Civilization, acc=None) -> Event:
     """EXPLORE action handler. Reveals 1 unknown adjacent region + its adjacencies."""
     candidates = _get_unknown_adjacent(world, civ)
     region_map = {r.name: r for r in world.regions}
@@ -88,7 +88,11 @@ def handle_explore(world: WorldState, civ: Civilization) -> Event:
     ).hexdigest(), 16)
     target_name = candidates[idx_hash % len(candidates)]
 
-    civ.treasury -= 5
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "treasury", -5, "keep")
+    else:
+        civ.treasury -= 5
 
     known_set = set(civ.known_regions) if civ.known_regions else set()
     known_set.add(target_name)
@@ -111,7 +115,7 @@ def handle_explore(world: WorldState, civ: Civilization) -> Event:
     ruin_event = None
     if target and target.depopulated_since is not None:
         if (world.turn - target.depopulated_since) >= 20 and target.ruin_quality > 0:
-            ruin_event = _discover_ruins(world, civ, target)
+            ruin_event = _discover_ruins(world, civ, target, acc=acc)
 
     event = Event(
         turn=world.turn, event_type="exploration",
@@ -180,14 +184,18 @@ def mark_depopulated(region: Region, turn: int) -> None:
 
 
 def _discover_ruins(
-    world: WorldState, civ: Civilization, region: Region,
+    world: WorldState, civ: Civilization, region: Region, acc=None,
 ) -> Event | None:
     """Culture boost with diminishing returns. Resets ruin state."""
     if region.ruin_quality <= 0:
         return None
 
     boost = int(region.ruin_quality * 5 * (1.0 - civ.culture / 100))
-    civ.culture = min(civ.culture + boost, 100)
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "culture", boost, "guard-shock")
+    else:
+        civ.culture = min(civ.culture + boost, 100)
 
     importance = 6 + min(region.ruin_quality, 4)
     event = Event(

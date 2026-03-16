@@ -354,19 +354,19 @@ REACTION_REGISTRY["region_lost"] = scorched_earth_check
 @register_action(ActionType.MOVE_CAPITAL)
 def _resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Event:
     from chronicler.politics import resolve_move_capital
-    return resolve_move_capital(civ, world)
+    return resolve_move_capital(civ, world, acc=acc)
 
 
 @register_action(ActionType.FUND_INSTABILITY)
 def _resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> Event:
     from chronicler.politics import resolve_fund_instability
-    return resolve_fund_instability(civ, world)
+    return resolve_fund_instability(civ, world, acc=acc)
 
 
 @register_action(ActionType.INVEST_CULTURE)
 def _resolve_invest_culture(civ: Civilization, world: WorldState, acc=None) -> Event:
     from chronicler.culture import resolve_invest_culture
-    return resolve_invest_culture(civ, world)
+    return resolve_invest_culture(civ, world, acc=acc)
 
 
 # --- Combat resolution (simplified Lanchester) ---
@@ -557,7 +557,7 @@ def resolve_action(civ: Civilization, action: ActionType, world: WorldState, acc
     # EXPLORE has a different signature (world, civ) rather than (civ, world)
     if action == ActionType.EXPLORE:
         from chronicler.exploration import handle_explore
-        return handle_explore(world, civ)
+        return handle_explore(world, civ, acc=acc)
     handler = ACTION_REGISTRY.get(action)
     if handler:
         result = handler(civ, world, acc=acc)

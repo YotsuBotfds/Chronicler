@@ -166,7 +166,11 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
         selected_type = min(affordable, key=lambda x: x[1])[0]
 
     spec = BUILD_SPECS[selected_type]
-    civ.treasury -= spec.cost
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "treasury", -spec.cost, "keep")
+    else:
+        civ.treasury -= spec.cost
     target_region.pending_build = PendingBuild(
         type=selected_type,
         builder_civ=civ.name,

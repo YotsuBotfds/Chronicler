@@ -111,7 +111,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     disaster_events = check_disasters(world, climate_phase)
     events.extend(disaster_events)
 
-    migration_events = process_migration(world)
+    migration_events = process_migration(world, acc=acc)
     events.extend(migration_events)
 
     # Legacy environment events (drought, plague, earthquake)
@@ -390,14 +390,14 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
         apply_balance_of_power, apply_fallen_empire, apply_twilight,
         apply_long_peace, update_peak_regions,
     )
-    events.extend(apply_governing_costs(world))
-    events.extend(collect_tribute(world))
-    events.extend(apply_proxy_wars(world))
-    events.extend(apply_exile_effects(world))
+    events.extend(apply_governing_costs(world, acc=acc))
+    events.extend(collect_tribute(world, acc=acc))
+    events.extend(apply_proxy_wars(world, acc=acc))
+    events.extend(apply_exile_effects(world, acc=acc))
     events.extend(apply_balance_of_power(world))
-    events.extend(apply_fallen_empire(world))
-    events.extend(apply_twilight(world))
-    events.extend(apply_long_peace(world))
+    events.extend(apply_fallen_empire(world, acc=acc))
+    events.extend(apply_twilight(world, acc=acc))
+    events.extend(apply_long_peace(world, acc=acc))
     update_peak_regions(world)
 
     # Trade knowledge sharing (fog of war)
@@ -406,7 +406,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     events.extend(knowledge_events)
 
     # M17b: Exile pretender stability drain
-    apply_exile_pretender_drain(world)
+    apply_exile_pretender_drain(world, acc=acc)
 
     # M17d: Tradition ongoing effects
     from chronicler.traditions import apply_tradition_effects
@@ -418,7 +418,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
 
     # M18: Pandemic tick
     from chronicler.emergence import tick_pandemic
-    events.extend(tick_pandemic(world))
+    events.extend(tick_pandemic(world, acc=acc))
 
     return events
 
@@ -509,7 +509,7 @@ def phase_production(world: WorldState, acc=None) -> None:
                 civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
 
     # M16a: Prestige decay and trade bonus
-    tick_prestige(world)
+    tick_prestige(world, acc=acc)
 
 
 # --- Phase 5: Action ---
@@ -622,7 +622,7 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
         events.append(event)
 
     from chronicler.politics import check_congress
-    events.extend(check_congress(world))
+    events.extend(check_congress(world, acc=acc))
     return events
 
 
@@ -806,7 +806,7 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
     # M16a: Cultural effects (order matters — assimilation drain feeds asabiya)
     apply_value_drift(world)
-    tick_cultural_assimilation(world)
+    tick_cultural_assimilation(world, acc=acc)
 
     # M16c: Cultural victory tracking (runs LAST in culture effects)
     check_cultural_victories(world)
@@ -818,15 +818,15 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
         check_federation_formation, check_federation_dissolution, update_allied_turns,
     )
     collapse_events: list[Event] = []
-    collapse_events.extend(check_capital_loss(world))
-    collapse_events.extend(check_secession(world))
+    collapse_events.extend(check_capital_loss(world, acc=acc))
+    collapse_events.extend(check_secession(world, acc=acc))
     update_allied_turns(world)
-    collapse_events.extend(check_vassal_rebellion(world))
+    collapse_events.extend(check_vassal_rebellion(world, acc=acc))
     collapse_events.extend(check_federation_formation(world))
-    collapse_events.extend(check_federation_dissolution(world))
+    collapse_events.extend(check_federation_dissolution(world, acc=acc))
     from chronicler.politics import check_proxy_detection, check_restoration
     from chronicler.politics import check_twilight_absorption, update_decline_tracking
-    collapse_events.extend(check_proxy_detection(world))
+    collapse_events.extend(check_proxy_detection(world, acc=acc))
     collapse_events.extend(check_restoration(world))
     collapse_events.extend(check_twilight_absorption(world))
     update_decline_tracking(world)
@@ -902,7 +902,7 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
-    collapse_events.extend(tick_factions(world))
+    collapse_events.extend(tick_factions(world, acc=acc))
 
     return collapse_events
 

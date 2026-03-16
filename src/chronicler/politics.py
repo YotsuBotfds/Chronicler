@@ -25,7 +25,7 @@ def war_key(a: str, b: str) -> str:
     return ":".join(sorted([a, b]))
 
 
-def apply_governing_costs(world: WorldState) -> list[Event]:
+def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply governing costs based on empire size and distance from capital."""
     events: list[Event] = []
     for civ in world.civilizations:
@@ -45,15 +45,24 @@ def apply_governing_costs(world: WorldState) -> list[Event]:
             treasury_cost += dist * 2
             stability_cost += dist * gov_cost_per_dist
 
-        civ.treasury -= treasury_cost
-        civ.stability = clamp(civ.stability - stability_cost, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "treasury", -treasury_cost, "keep")
+            acc.add(civ_idx, civ, "stability", -stability_cost, "signal")
+        else:
+            civ.treasury -= treasury_cost
+            civ.stability = clamp(civ.stability - stability_cost, STAT_FLOOR["stability"], 100)
     return events
 
 
-def resolve_move_capital(civ: Civilization, world: WorldState) -> Event:
+def resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Resolve MOVE_CAPITAL action: relocate capital to most central region."""
     from chronicler.models import ActiveCondition
-    civ.treasury -= 15
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "treasury", -15, "keep")
+    else:
+        civ.treasury -= 15
 
     def avg_distance(candidate: str) -> float:
         distances = []
@@ -95,7 +104,7 @@ _TRAIT_POOL = [
 ]
 
 
-def check_secession(world: WorldState) -> list[Event]:
+def check_secession(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check for civil war / secession in unstable empires."""
     events: list[Event] = []
     new_civs: list[Civilization] = []
@@ -271,7 +280,7 @@ def check_secession(world: WorldState) -> list[Event]:
     return events
 
 
-def check_capital_loss(world: WorldState) -> list[Event]:
+def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any civ lost its capital and handle reassignment."""
     events: list[Event] = []
     for civ in world.civilizations:
@@ -363,7 +372,7 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
     return events
 
 
-def collect_tribute(world: WorldState) -> list[Event]:
+def collect_tribute(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Collect tribute from vassals to overlords."""
     events: list[Event] = []
     civ_map = {c.name: c for c in world.civilizations}
@@ -376,13 +385,19 @@ def collect_tribute(world: WorldState) -> list[Event]:
         # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
         # If this fires, compute_accuracy has a bug.
         tribute = math.floor((perceived_econ if perceived_econ is not None else vassal.economy) * vr.tribute_rate)
-        vassal.treasury -= tribute
-        overlord.treasury += tribute
+        if acc is not None:
+            vassal_idx = next(i for i, c in enumerate(world.civilizations) if c.name == vassal.name)
+            overlord_idx = next(i for i, c in enumerate(world.civilizations) if c.name == overlord.name)
+            acc.add(vassal_idx, vassal, "treasury", -tribute, "keep")
+            acc.add(overlord_idx, overlord, "treasury", tribute, "keep")
+        else:
+            vassal.treasury -= tribute
+            overlord.treasury += tribute
         vr.turns_active += 1
     return events
 
 
-def check_vassal_rebellion(world: WorldState) -> list[Event]:
+def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if vassals rebel against weak overlords."""
     events: list[Event] = []
     civ_map = {c.name: c for c in world.civilizations}
@@ -529,7 +544,7 @@ def check_federation_formation(world: WorldState) -> list[Event]:
     return events
 
 
-def check_federation_dissolution(world: WorldState) -> list[Event]:
+def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any federation members want to exit."""
     events: list[Event] = []
     feds_to_remove = []
@@ -599,7 +614,7 @@ def trigger_federation_defense(attacker: str, defender: str, world: WorldState) 
 
 # --- Proxy war mechanics ---
 
-def apply_proxy_wars(world: WorldState) -> list[Event]:
+def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply ongoing proxy war costs and effects."""
     events: list[Event] = []
     civ_map = {c.name: c for c in world.civilizations}
@@ -612,10 +627,17 @@ def apply_proxy_wars(world: WorldState) -> list[Event]:
             to_remove.append(pw)
             continue
 
-        sponsor.treasury -= pw.treasury_per_turn
+        if acc is not None:
+            sponsor_idx = next(i for i, c in enumerate(world.civilizations) if c.name == sponsor.name)
+            target_idx = next(i for i, c in enumerate(world.civilizations) if c.name == target.name)
+            acc.add(sponsor_idx, sponsor, "treasury", -pw.treasury_per_turn, "keep")
+            acc.add(target_idx, target, "stability", -3, "signal")
+            acc.add(target_idx, target, "economy", -2, "signal")
+        else:
+            sponsor.treasury -= pw.treasury_per_turn
+            target.stability = clamp(target.stability - 3, STAT_FLOOR["stability"], 100)
+            target.economy = clamp(target.economy - 2, STAT_FLOOR["economy"], 100)
         pw.turns_active += 1
-        target.stability = clamp(target.stability - 3, STAT_FLOOR["stability"], 100)
-        target.economy = clamp(target.economy - 2, STAT_FLOOR["economy"], 100)
 
         if sponsor.treasury < 0:
             to_remove.append(pw)
@@ -640,7 +662,7 @@ def apply_proxy_wars(world: WorldState) -> list[Event]:
     return events
 
 
-def check_proxy_detection(world: WorldState) -> list[Event]:
+def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if proxy wars are detected by target civs."""
     events: list[Event] = []
     civ_map = {c.name: c for c in world.civilizations}
@@ -675,7 +697,7 @@ def check_proxy_detection(world: WorldState) -> list[Event]:
 
 # --- Diplomatic congress ---
 
-def check_congress(world: WorldState) -> list[Event]:
+def check_congress(world: WorldState, acc=None) -> list[Event]:
     """Phase 7: Check for diplomatic congress when 3+ civs at war."""
     events: list[Event] = []
 
@@ -799,7 +821,7 @@ def create_exile(eliminated: Civilization, conqueror: Civilization, world: World
     return exile
 
 
-def apply_exile_effects(world: WorldState) -> list[Event]:
+def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Drain absorber stability for each active exile modifier."""
     events: list[Event] = []
     civ_map = {c.name: c for c in world.civilizations}
@@ -808,7 +830,11 @@ def apply_exile_effects(world: WorldState) -> list[Event]:
     for exile in world.exile_modifiers:
         absorber = civ_map.get(exile.absorber_civ)
         if absorber:
-            absorber.stability = clamp(absorber.stability - 5, STAT_FLOOR["stability"], 100)
+            if acc is not None:
+                absorber_idx = next(i for i, c in enumerate(world.civilizations) if c.name == absorber.name)
+                acc.add(absorber_idx, absorber, "stability", -5, "signal")
+            else:
+                absorber.stability = clamp(absorber.stability - 5, STAT_FLOOR["stability"], 100)
         exile.turns_remaining -= 1
         if exile.turns_remaining <= 0:
             to_remove.append(exile)
@@ -950,13 +976,17 @@ def _is_fallen_empire(civ: Civilization) -> bool:
     return civ.peak_region_count >= 5 and len(civ.regions) == 1
 
 
-def apply_fallen_empire(world: WorldState) -> list[Event]:
+def apply_fallen_empire(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply fallen empire modifiers (asabiya boost)."""
     events: list[Event] = []
     for civ in world.civilizations:
         if not _is_fallen_empire(civ):
             continue
-        civ.asabiya = min(civ.asabiya + 0.05, 1.0)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
+        else:
+            civ.asabiya = min(civ.asabiya + 0.05, 1.0)
     return events
 
 
@@ -978,7 +1008,7 @@ def _in_twilight(civ: Civilization) -> bool:
     return civ.decline_turns >= 20 and len(civ.regions) == 1
 
 
-def apply_twilight(world: WorldState) -> list[Event]:
+def apply_twilight(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply twilight stat drains."""
     events: list[Event] = []
     for civ in world.civilizations:
@@ -986,10 +1016,18 @@ def apply_twilight(world: WorldState) -> list[Event]:
             continue
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            target_r = max(civ_regions, key=lambda r: r.population)
-            drain_region_pop(target_r, 3)
-            sync_civ_population(civ, world)
-        civ.culture = clamp(civ.culture - 2, STAT_FLOOR["culture"], 100)
+            if acc is not None:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                acc.add(civ_idx, civ, "population", -3, "guard")
+            else:
+                target_r = max(civ_regions, key=lambda r: r.population)
+                drain_region_pop(target_r, 3)
+                sync_civ_population(civ, world)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "culture", -2, "signal")
+        else:
+            civ.culture = clamp(civ.culture - 2, STAT_FLOOR["culture"], 100)
         if civ.decline_turns == 20:
             events.append(Event(
                 turn=world.turn, event_type="twilight",
@@ -1092,7 +1130,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
     return events
 
 
-def apply_long_peace(world: WorldState) -> list[Event]:
+def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply long peace effects when no wars for 30+ turns."""
     events: list[Event] = []
 
@@ -1109,14 +1147,24 @@ def apply_long_peace(world: WorldState) -> list[Event]:
     # Military restlessness
     for civ in living:
         if civ.military > 60:
-            civ.stability = clamp(civ.stability - 2, STAT_FLOOR["stability"], 100)
+            if acc is not None:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                acc.add(civ_idx, civ, "stability", -2, "signal")
+            else:
+                civ.stability = clamp(civ.stability - 2, STAT_FLOOR["stability"], 100)
 
     # Economic inequality
     if len(living) >= 2:
         richest = max(living, key=lambda c: c.economy)
         poorest = min(living, key=lambda c: c.economy)
-        richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
-        poorest.economy = clamp(poorest.economy - 1, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            richest_idx = next(i for i, c in enumerate(world.civilizations) if c.name == richest.name)
+            poorest_idx = next(i for i, c in enumerate(world.civilizations) if c.name == poorest.name)
+            acc.add(richest_idx, richest, "economy", 1, "guard")
+            acc.add(poorest_idx, poorest, "economy", -1, "guard")
+        else:
+            richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
+            poorest.economy = clamp(poorest.economy - 1, STAT_FLOOR["economy"], 100)
 
     # ALLIED disposition decay every 10 peace turns
     if world.peace_turns % 10 == 0:
@@ -1131,7 +1179,7 @@ def apply_long_peace(world: WorldState) -> list[Event]:
 
 # --- FUND_INSTABILITY resolution ---
 
-def resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:
+def resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Resolve FUND_INSTABILITY action: start covert destabilization."""
     civ_map = {c.name: c for c in world.civilizations}
 
@@ -1165,7 +1213,11 @@ def resolve_fund_instability(civ: Civilization, world: WorldState) -> Event:
         target_region = max(target.regions,
                            key=lambda rn: graph_distance(world.regions, target.capital_region, rn))
 
-    civ.treasury -= 8
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "treasury", -8, "keep")
+    else:
+        civ.treasury -= 8
     world.proxy_wars.append(ProxyWar(
         sponsor=civ.name, target_civ=target.name, target_region=target_region,
     ))

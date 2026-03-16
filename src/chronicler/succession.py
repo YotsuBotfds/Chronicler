@@ -238,7 +238,7 @@ def create_exiled_leader(
     return best_host.name
 
 
-def apply_exile_pretender_drain(world: WorldState) -> None:
+def apply_exile_pretender_drain(world: WorldState, acc=None) -> None:
     """For each active exile, drain stability from origin civ and boost host culture."""
     for civ in world.civilizations:
         for gp in civ.great_persons:
@@ -248,8 +248,16 @@ def apply_exile_pretender_drain(world: WorldState) -> None:
                 (c for c in world.civilizations if c.name == gp.origin_civilization), None
             )
             if origin and origin.regions:
-                origin.stability = max(origin.stability - 2, 0)
-            civ.culture = min(civ.culture + 3, 100)
+                if acc is not None:
+                    origin_idx = next(i for i, c in enumerate(world.civilizations) if c.name == origin.name)
+                    acc.add(origin_idx, origin, "stability", -2, "signal")
+                else:
+                    origin.stability = max(origin.stability - 2, 0)
+            if acc is not None:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                acc.add(civ_idx, civ, "culture", 3, "guard-shock")
+            else:
+                civ.culture = min(civ.culture + 3, 100)
 
 
 def check_exile_restoration(world: WorldState) -> list[Event]:

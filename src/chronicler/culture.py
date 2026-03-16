@@ -78,7 +78,7 @@ ASSIMILATION_STABILITY_DRAIN = 3
 RECONQUEST_COOLDOWN = 10
 
 
-def tick_cultural_assimilation(world: WorldState) -> None:
+def tick_cultural_assimilation(world: WorldState, acc=None) -> None:
     """Tick cultural assimilation for all regions."""
     for region in world.regions:
         if region.controller is None:
@@ -118,9 +118,13 @@ def tick_cultural_assimilation(world: WorldState) -> None:
                 (c for c in world.civilizations if c.name == region.controller), None
             )
             if controller:
-                controller.stability = clamp(
-                    controller.stability - ASSIMILATION_STABILITY_DRAIN, 0, 100
-                )
+                if acc is not None:
+                    ctrl_idx = next(i for i, c in enumerate(world.civilizations) if c.name == controller.name)
+                    acc.add(ctrl_idx, controller, "stability", -ASSIMILATION_STABILITY_DRAIN, "signal")
+                else:
+                    controller.stability = clamp(
+                        controller.stability - ASSIMILATION_STABILITY_DRAIN, 0, 100
+                    )
 
 
 PROPAGANDA_COST = 5
@@ -129,14 +133,18 @@ COUNTER_PROPAGANDA_COST = 3
 CULTURE_PROJECTION_THRESHOLD = 60
 
 
-def _counter_propaganda_reaction(world: WorldState, defender, region, seed: int) -> int:
+def _counter_propaganda_reaction(world: WorldState, defender, region, seed: int, acc=None) -> int:
     if defender.treasury >= COUNTER_PROPAGANDA_COST:
-        defender.treasury -= COUNTER_PROPAGANDA_COST
+        if acc is not None:
+            defender_idx = next(i for i, c in enumerate(world.civilizations) if c.name == defender.name)
+            acc.add(defender_idx, defender, "treasury", -COUNTER_PROPAGANDA_COST, "keep")
+        else:
+            defender.treasury -= COUNTER_PROPAGANDA_COST
         return -PROPAGANDA_ACCELERATION
     return 0
 
 
-def resolve_invest_culture(civ, world: WorldState):
+def resolve_invest_culture(civ, world: WorldState, acc=None):
     """Resolve INVEST_CULTURE action: project propaganda into a rival region."""
     import hashlib
     from chronicler.models import Event, NamedEvent
@@ -177,12 +185,16 @@ def resolve_invest_culture(civ, world: WorldState):
         tied.sort(key=lambda r: hashlib.sha256(f"{salt}:{r.name}".encode()).hexdigest())
     target = tied[0]
 
-    civ.treasury -= PROPAGANDA_COST
+    if acc is not None:
+        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        acc.add(civ_idx, civ, "treasury", -PROPAGANDA_COST, "keep")
+    else:
+        civ.treasury -= PROPAGANDA_COST
 
     defender = next((c for c in world.civilizations if c.name == target.controller), None)
     adjustment = 0
     if defender:
-        adjustment = _counter_propaganda_reaction(world, defender, target, world.seed)
+        adjustment = _counter_propaganda_reaction(world, defender, target, world.seed, acc=acc)
 
     # M21: MEDIA doubles propaganda acceleration
     if civ.active_focus == "media":
@@ -253,10 +265,18 @@ def check_cultural_victories(world: WorldState) -> None:
                 ))
 
 
-def tick_prestige(world: WorldState) -> None:
+def tick_prestige(world: WorldState, acc=None) -> None:
     """Decay prestige and award trade income bonus."""
     for civ in world.civilizations:
-        civ.prestige = max(0, civ.prestige - 1)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "prestige", -1, "keep")
+        else:
+            civ.prestige = max(0, civ.prestige - 1)
         trade_bonus = civ.prestige // 5
         if trade_bonus > 0:
-            civ.treasury += trade_bonus
+            if acc is not None:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                acc.add(civ_idx, civ, "treasury", trade_bonus, "keep")
+            else:
+                civ.treasury += trade_bonus
