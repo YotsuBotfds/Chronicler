@@ -37,6 +37,9 @@ pub struct AgentPool {
     /// Number of live agents (excludes dead slots).
     pub count: usize,
     next_id: u32,
+
+    /// Free-list: indices of dead slots available for reuse.
+    free_slots: Vec<usize>,
 }
 
 impl AgentPool {
@@ -56,11 +59,12 @@ impl AgentPool {
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 0,
+            free_slots: Vec::new(),
         }
     }
 
     /// Spawn a new agent. Returns the slot index.
-    /// No free-list yet — always pushes a new slot.
+    /// Reuses a dead slot from the free-list if available; otherwise grows vecs.
     pub fn spawn(
         &mut self,
         region: u16,
@@ -68,35 +72,61 @@ impl AgentPool {
         occupation: Occupation,
         age: u16,
     ) -> usize {
-        let slot = self.ids.len();
         let id = self.next_id;
         self.next_id += 1;
 
-        self.ids.push(id);
-        self.regions.push(region);
-        self.origin_regions.push(region);
-        self.civ_affinities.push(civ_affinity);
-        self.occupations.push(occupation as u8);
-        self.loyalties.push(0.5);
-        self.satisfactions.push(0.5);
-        // Five skill slots defaulting to 0.0
-        for _ in 0..5 {
-            self.skills.push(0.0);
+        if let Some(slot) = self.free_slots.pop() {
+            // Reuse dead slot — overwrite all fields.
+            self.ids[slot] = id;
+            self.regions[slot] = region;
+            self.origin_regions[slot] = region;
+            self.civ_affinities[slot] = civ_affinity;
+            self.occupations[slot] = occupation as u8;
+            self.loyalties[slot] = 0.5;
+            self.satisfactions[slot] = 0.5;
+            let skill_base = slot * 5;
+            for i in 0..5 {
+                self.skills[skill_base + i] = 0.0;
+            }
+            self.ages[slot] = age;
+            self.displacement_turns[slot] = 0;
+            self.alive[slot] = true;
+            self.count += 1;
+            slot
+        } else {
+            // No free slot — grow vecs.
+            let slot = self.ids.len();
+            self.ids.push(id);
+            self.regions.push(region);
+            self.origin_regions.push(region);
+            self.civ_affinities.push(civ_affinity);
+            self.occupations.push(occupation as u8);
+            self.loyalties.push(0.5);
+            self.satisfactions.push(0.5);
+            for _ in 0..5 {
+                self.skills.push(0.0);
+            }
+            self.ages.push(age);
+            self.displacement_turns.push(0);
+            self.alive.push(true);
+            self.count += 1;
+            slot
         }
-        self.ages.push(age);
-        self.displacement_turns.push(0);
-        self.alive.push(true);
-
-        self.count += 1;
-        slot
     }
 
-    /// Kill an agent by slot. Decrements live count.
+    /// Kill an agent by slot. Decrements live count and returns slot to free-list.
     pub fn kill(&mut self, slot: usize) {
         if self.is_alive(slot) {
             self.set_dead(slot);
             self.count -= 1;
+            self.free_slots.push(slot);
         }
+    }
+
+    /// Number of dead slots available for reuse.
+    #[inline]
+    pub fn free_slot_count(&self) -> usize {
+        self.free_slots.len()
     }
 
     // --- Liveness ---
@@ -552,5 +582,45 @@ mod tests {
         assert_eq!(alive_counts.value(0), 1); // region 0: _s2 alive
         assert_eq!(alive_counts.value(1), 0); // region 1: s1 dead
         assert_eq!(alive_counts.value(2), 1); // region 2: _s3 alive
+    }
+
+    #[test]
+    fn test_arena_stress_spawn_kill_respawn() {
+        let mut pool = AgentPool::new(0);
+        // Spawn 1000
+        for _ in 0..1000 {
+            pool.spawn(0, 0, Occupation::Farmer, 0);
+        }
+        assert_eq!(pool.alive_count(), 1000);
+        assert_eq!(pool.capacity(), 1000);
+
+        // Kill 800 in scattered pattern
+        let mut kill_order: Vec<usize> = (0..1000).step_by(5).collect();
+        for i in 0..1000 {
+            if kill_order.len() >= 800 {
+                break;
+            }
+            if !kill_order.contains(&i) {
+                kill_order.push(i);
+            }
+        }
+        kill_order.truncate(800);
+        for &slot in &kill_order {
+            pool.kill(slot);
+        }
+        assert_eq!(pool.alive_count(), 200);
+        assert_eq!(pool.free_slot_count(), 800);
+
+        // Respawn 600 — should reuse dead slots, no vec growth
+        let capacity_before = pool.capacity();
+        for _ in 0..600 {
+            pool.spawn(0, 0, Occupation::Soldier, 0);
+        }
+        assert_eq!(pool.alive_count(), 800);
+        assert_eq!(pool.capacity(), capacity_before); // no growth!
+        assert_eq!(pool.free_slot_count(), 200);
+
+        let batch = pool.to_record_batch().unwrap();
+        assert_eq!(batch.num_rows(), 800);
     }
 }
