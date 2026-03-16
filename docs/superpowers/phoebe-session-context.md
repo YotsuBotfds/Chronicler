@@ -2,7 +2,7 @@
 
 > Read this file at the start of every Phoebe session. It captures architectural state, design decisions, and current progress so you can pick up without re-reading the entire codebase.
 >
-> **Last updated:** 2026-03-16 (M27 merged. M28 merged. M29 plan approved, ready to execute. M30 design spec written. M31 outlined. Phase 6 roadmap drafted.)
+> **Last updated:** 2026-03-16 (M27-M29 merged. M30 in progress. M31 deferred to Phase 6 M47. Phase 6 roadmap expanded to 16 milestones with environment, religion, and supply chain systems.)
 
 ---
 
@@ -153,9 +153,9 @@ Rust crate (`chronicler-agents`) providing agent-based population simulation. Ag
 | M26 | Agent Behavior + Shadow Oracle | **MERGED.** 14 commits, 69 Rust + 6 Python test classes. |
 | M27 | System Integration | **MERGED.** 15 tasks, StatAccumulator routing 76+ mutations, shock/demand signals, Phase 10 guards. Phase 10 acc bug fixed (pass acc=None in aggregate mode). |
 | M28 | Oracle Gate | **MERGED.** 5 tasks, `--agents` CLI flag, `compare_distributions()` extracted, batch orchestration, adapter + reports. anderson_ksamp + NaN fixes applied. |
-| M29 | Scale & Performance | **Plan approved.** 14 tasks, 4 chunks. Profiling infrastructure + satisfaction parallelization + profile-driven investigations + Phase B formula-coupled optimizations. Ready to execute. |
-| M30 | Agent Narrative | **Design spec written.** 7 sections: promotion (two-gate + bypass), events (4 new + 5 existing wired), curator (+2.0 character bonus), narration (AgentContext, mood, arc), lifecycle (conquest/secession/death), data model, testing (26 tests). |
-| M31 | Agent Tuning Pass | **Outlined.** Calibrate M30 thresholds, narrative quality review, bundle_version: 2. Same pattern as M19b. |
+| M29 | Scale & Performance | **MERGED.** Phase A complete (7 commits). Profiling infrastructure, satisfaction parallelization, benchmarks. All targets met with 27-47x headroom. Phase B deferred — no profiling justification. |
+| M30 | Agent Narrative | **IN PROGRESS.** 16 tasks across 5 chunks. Spec + plan written. Promotion, events, curator, narrator, lifecycle. |
+| ~~M31~~ | ~~Agent Tuning Pass~~ | **DEFERRED.** Folded into Phase 6 M47 (full-system calibration). All M30 thresholds recalibrated alongside 25+ Phase 6 constants. |
 
 ### M27: Merged — Key Architecture
 
