@@ -170,7 +170,7 @@ def _get_eligible_types(world: WorldState) -> dict[str, int]:
     return eligible
 
 
-def check_black_swans(world: WorldState, seed: int) -> list[Event]:
+def check_black_swans(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Roll for black swan event. Called after Phase 1 (Environment)."""
     if world.black_swan_cooldown > 0:
         return []
@@ -194,9 +194,10 @@ def check_black_swans(world: WorldState, seed: int) -> list[Event]:
     world.black_swan_cooldown = int(get_override(world, K_BLACK_SWAN_COOLDOWN, world.black_swan_cooldown_turns))
 
     # Dispatch to specific handler
+    if chosen == "supervolcano":
+        return _apply_supervolcano(world, seed, acc=acc)
     handlers = {
         "pandemic": _apply_pandemic_origin,
-        "supervolcano": _apply_supervolcano,
         "resource_discovery": _apply_resource_discovery,
         "tech_accident": _apply_tech_accident,
     }

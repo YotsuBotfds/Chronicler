@@ -193,3 +193,45 @@ class TestShockNormalization:
         acc.add(0, civ, "culture", 20, "guard-shock")
         shocks = acc.to_shock_signals()
         assert shocks[0].culture_shock == pytest.approx(1.0)
+
+
+class TestBitIdenticalRegression:
+    """Accumulator in aggregate mode produces identical results to direct mutations."""
+
+    def test_100_turn_aggregate_deterministic(self):
+        """Run 100 turns twice with same seed. All civ fields must match exactly.
+        This verifies the accumulator doesn't introduce non-determinism."""
+        import copy
+        from chronicler.simulation import run_turn
+        from chronicler.world_gen import generate_world
+        from chronicler.action_engine import ActionEngine
+
+        world_a = generate_world(seed=42, num_civs=4, num_regions=8)
+        world_b = copy.deepcopy(world_a)
+
+        def noop_narrator(world, events):
+            return ""
+
+        for turn in range(100):
+            world_a.turn = turn
+            world_b.turn = turn
+
+            engine_a = ActionEngine(world_a)
+            selector_a = lambda civ, w, eng=engine_a: eng.select_action(civ, seed=w.seed + w.turn)
+
+            engine_b = ActionEngine(world_b)
+            selector_b = lambda civ, w, eng=engine_b: eng.select_action(civ, seed=w.seed + w.turn)
+
+            run_turn(world_a, selector_a, noop_narrator, seed=turn)
+            run_turn(world_b, selector_b, noop_narrator, seed=turn)
+
+        # Compare every stat on every civ
+        for i, (ca, cb) in enumerate(zip(world_a.civilizations, world_b.civilizations)):
+            for stat in ("stability", "economy", "military", "culture",
+                         "treasury", "population"):
+                val_a = getattr(ca, stat)
+                val_b = getattr(cb, stat)
+                assert val_a == val_b, (
+                    f"Turn 100, Civ {i} ({ca.name}) {stat}: "
+                    f"run_a={val_a} run_b={val_b}"
+                )

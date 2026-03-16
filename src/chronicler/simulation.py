@@ -909,11 +909,11 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
 # --- Phase 4: Technology ---
 
-def phase_technology(world: WorldState) -> list[Event]:
+def phase_technology(world: WorldState, acc=None) -> list[Event]:
     """Phase 4: Check tech advancement for each civ."""
     events = []
     for civ in world.civilizations:
-        event = check_tech_advancement(civ, world)
+        event = check_tech_advancement(civ, world, acc=acc)
         if event:
             events.append(event)
             # M21: Remove old focus effects, select and apply new
@@ -1027,7 +1027,10 @@ def run_turn(
     agent_bridge: object | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
+    from chronicler.accumulator import StatAccumulator
+
     turn_events: list[Event] = []
+    acc = StatAccumulator()
 
     # --- M18: Start-of-turn snapshots ---
     for civ in world.civilizations:
@@ -1036,29 +1039,29 @@ def run_turn(
         civ.capital_start_of_turn = civ.capital_region
 
     # Phase 1: Environment
-    turn_events.extend(phase_environment(world, seed=seed))
+    turn_events.extend(phase_environment(world, seed=seed, acc=acc))
 
     # M18: Black swan check (after climate disasters)
     from chronicler.emergence import check_black_swans
-    turn_events.extend(check_black_swans(world, seed=seed))
+    turn_events.extend(check_black_swans(world, seed=seed, acc=acc))
 
     # Phase 2: Automatic Effects (NEW)
-    turn_events.extend(apply_automatic_effects(world))
+    turn_events.extend(apply_automatic_effects(world, acc=acc))
 
     # Phase 3: Production
-    phase_production(world)
+    phase_production(world, acc=acc)
 
     # Phase 4: Technology
-    turn_events.extend(phase_technology(world))
+    turn_events.extend(phase_technology(world, acc=acc))
 
     # Phase 5: Action (selection + resolution)
-    turn_events.extend(phase_action(world, action_selector=action_selector))
+    turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
 
     # Phase 6: Cultural Milestones
-    turn_events.extend(phase_cultural_milestones(world))
+    turn_events.extend(phase_cultural_milestones(world, acc=acc))
 
     # Phase 7: Random Events
-    turn_events.extend(phase_random_events(world, seed=seed + 100))
+    turn_events.extend(phase_random_events(world, seed=seed + 100, acc=acc))
 
     # Phase 8: Leader Dynamics
     turn_events.extend(phase_leader_dynamics(world, seed=seed))
@@ -1067,18 +1070,21 @@ def run_turn(
     from chronicler.ecology import tick_ecology
     from chronicler.climate import get_climate_phase
     climate_phase = get_climate_phase(world.turn, world.climate_config)
-    turn_events.extend(tick_ecology(world, climate_phase))
+    turn_events.extend(tick_ecology(world, climate_phase, acc=acc))
 
     # M18: Terrain succession (uses low_forest_turns updated by tick_ecology)
     from chronicler.emergence import tick_terrain_succession
     turn_events.extend(tick_terrain_succession(world))
+
+    # Apply all accumulated stat mutations (aggregate mode)
+    acc.apply(world)
 
     # ── Rust agent tick (between Phase 9 and Phase 10) ──
     if agent_bridge is not None:
         turn_events.extend(agent_bridge.tick(world))
 
     # Phase 10: Consequences
-    turn_events.extend(phase_consequences(world))
+    turn_events.extend(phase_consequences(world, acc=acc))
 
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression
