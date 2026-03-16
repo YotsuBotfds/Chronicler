@@ -202,6 +202,10 @@ def build_json_report(
             agg_m2 = np.array(comparison_data[f"agg_{r.metric2}"])[mask]
             agent_corr = float(np.corrcoef(agent_m1, agent_m2)[0, 1]) if len(agent_m1) >= 3 else 0.0
             agg_corr = float(np.corrcoef(agg_m1, agg_m2)[0, 1]) if len(agg_m1) >= 3 else 0.0
+            if np.isnan(agent_corr):
+                agent_corr = 0.0
+            if np.isnan(agg_corr):
+                agg_corr = 0.0
             corr_tests.append({
                 "metric1": r.metric1,
                 "metric2": r.metric2,

@@ -91,7 +91,8 @@ def compare_distributions(data: dict) -> OracleReport:
             if len(agent_vals) < 2 or len(agg_vals) < 2:
                 continue
             ks_stat, ks_p = ks_2samp(agent_vals, agg_vals)
-            ad_stat, _, ad_p = anderson_ksamp([agent_vals, agg_vals])
+            ad_result = anderson_ksamp([agent_vals, agg_vals])
+            ad_stat, ad_p = ad_result.statistic, ad_result.significance_level
             results.append(OracleResult(metric, turn, ks_stat, ks_p, ad_p, bonferroni_alpha))
 
     correlation_checks = [("military", "economy"), ("culture", "stability")]
