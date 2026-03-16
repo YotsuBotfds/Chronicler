@@ -1,4 +1,4 @@
-//! Benchmark: 6K agents x 1 tick. Target: < 0.5ms on 9950X.
+//! Benchmark: tick performance across agent/region configurations. Target: < 0.5ms on 9950X.
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BatchSize};
 use chronicler_agents::{AgentPool, Occupation, RegionState, tick_agents};
 use chronicler_agents::signals::{CivSignals, TickSignals};
@@ -29,26 +29,75 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
     }
 }
 
-fn setup_6k_pool() -> (AgentPool, Vec<RegionState>, TickSignals) {
-    let regions: Vec<RegionState> = (0..24u16).map(|i| RegionState {
-        region_id: i, terrain: 0, carrying_capacity: 250, population: 250,
-        soil: 0.7, water: 0.5, forest_cover: 0.3,
-        adjacency_mask: 0, controller_civ: (i % 4) as u8, trade_route_count: 0,
+fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionState>, TickSignals) {
+    let agents_per_region = num_agents / num_regions as usize;
+    let regions: Vec<RegionState> = (0..num_regions).map(|i| RegionState {
+        region_id: i,
+        terrain: 0,
+        carrying_capacity: agents_per_region as u16,
+        population: agents_per_region as u16,
+        soil: 0.7,
+        water: 0.5,
+        forest_cover: 0.3,
+        adjacency_mask: if num_regions <= 32 {
+            (if i > 0 { 1u32 << (i - 1) } else { 0 })
+                | (if i < num_regions - 1 { 1u32 << (i + 1) } else { 0 })
+        } else {
+            0
+        },
+        controller_civ: (i % 4) as u8,
+        trade_route_count: 0,
     }).collect();
-    let signals = make_default_signals(4, 24);
-    let mut pool = AgentPool::new(6000);
-    for r in &regions { for _ in 0..250 { pool.spawn(r.region_id, r.controller_civ, Occupation::Farmer, 0); } }
+    let num_civs = (num_regions.min(8)) as usize;
+    let signals = make_default_signals(num_civs, num_regions as usize);
+    let mut pool = AgentPool::new(num_agents);
+    let occupations = [
+        Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
+        Occupation::Scholar, Occupation::Priest,
+    ];
+    for r in 0..num_regions {
+        for j in 0..agents_per_region {
+            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16);
+        }
+    }
     (pool, regions, signals)
 }
 
-fn bench_tick_6k(c: &mut Criterion) {
-    let mut seed = [0u8; 32]; seed[0] = 42;
-    c.bench_function("tick_6k_agents", |b| {
-        b.iter_batched(setup_6k_pool, |(mut pool, regions, signals)| {
-            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0);
-        }, BatchSize::SmallInput)
-    });
+fn setup_6k_pool() -> (AgentPool, Vec<RegionState>, TickSignals) {
+    setup_pool(6000, 24)
 }
 
-criterion_group!(benches, bench_tick_6k);
+fn bench_tick_matrix(c: &mut Criterion) {
+    let mut seed = [0u8; 32]; seed[0] = 42;
+
+    let configs: &[(usize, u16, &str)] = &[
+        (6_000,  24, "6k_24r"),
+        (10_000, 24, "10k_24r"),
+        (10_000, 40, "10k_40r"),
+        (15_000, 40, "15k_40r"),
+        (10_000, 10, "10k_10r_stress"),
+    ];
+
+    let mut group = c.benchmark_group("tick_matrix");
+    for &(agents, regions, label) in configs {
+        group.bench_function(label, |b| {
+            b.iter_batched(
+                || setup_pool(agents, regions),
+                |(mut pool, regs, sigs)| {
+                    tick_agents(
+                        black_box(&mut pool),
+                        black_box(&regs),
+                        black_box(&sigs),
+                        seed,
+                        0,
+                    );
+                },
+                BatchSize::SmallInput,
+            )
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, bench_tick_matrix);
 criterion_main!(benches);
