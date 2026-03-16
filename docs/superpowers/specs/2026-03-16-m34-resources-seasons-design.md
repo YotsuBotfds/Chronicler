@@ -109,6 +109,21 @@ Old (M23): `famine if water < 0.20`. New (M34): `famine if food_yield < FAMINE_Y
 
 Routing famine through yields validates the M34 architecture — the new system actually bears load.
 
+### Subsistence Baseline for Non-Food Terrains
+
+Mountains have no food resource in any slot. ~50% of Forest regions (when Botanicals doesn't roll) have only Timber. With the famine trigger migrated to food yield, these regions would be in permanent famine — not "migration pressure," but uninhabitable.
+
+**Resolution: every region gets a subsistence food baseline** representing foraging, hunting, small gardens, and terraced farming — independent of resource slots:
+
+```python
+SUBSISTENCE_BASELINE = 0.15  # [CALIBRATE]
+food_yield = max(SUBSISTENCE_BASELINE, max((y for ...), default=0.0))
+```
+
+This is historically accurate — mountain villages survived on terrace agriculture and herding; forest communities foraged. The baseline sits just above `FAMINE_YIELD_THRESHOLD` (0.12), so non-food regions are food-marginal but not doomed. Drought or degraded ecology can still push them below threshold: `SUBSISTENCE_BASELINE × drought_mod = 0.15 × 0.5 = 0.075 < 0.12` → famine.
+
+**Why not add food to mountain/forest pools instead:** Inflates the tuning surface and changes the terrain identity. Mountains should be mineral regions, not grain regions with a side of ore.
+
 ### Infrastructure Modifies Ecology Only
 
 IRRIGATION gives +0.03 water recovery. This already boosts crop yields because it sustains the water multiplier in ecology_mod near 1.0 during drought. Adding a direct yield bonus would double-dip.
@@ -127,6 +142,10 @@ The causal chain: Infrastructure → ecology stat → yield formula. No shortcut
 | Coast | Fish | Salt (60%) | Botanicals (15%) |
 | Desert | Exotic | Salt (50%) | Precious (20%) |
 | Tundra | Exotic | Ore (15%) | — |
+| River | Grain | Fish (40%) | Botanicals (20%) |
+| Hills | Grain | Ore (30%) | Timber (20%) |
+
+All 8 terrain types from the existing `TERRAIN_RESOURCE_PROBS` are covered. River and Hills are used in scenarios and the adjacency system (`SEA_ROUTE_TERRAINS` includes river).
 
 All probabilities `[CALIBRATE]` for M47. Assignment runs once at world-gen in Python (`resources.py`), replacing the current `assign_resources()`.
 
@@ -233,8 +252,8 @@ reserve_ramp = min(1.0, reserves / 0.25)
 current_yield = base_yield × season_mod × reserve_ramp
 ```
 
-- `worker_count`: agents with farmer occupation in the region (farmer-as-miner).
-- `target_worker_count`: carrying capacity scaled by resource richness. Under-populated regions deplete slower.
+- `worker_count`: agents with farmer occupation in the region (farmer-as-miner). Uses `max(1, worker_count)` to guard division-by-zero in empty regions.
+- `target_worker_count = max(1, effective_capacity(region) // 3)`: one-third of the region's effective carrying capacity. At full staffing (`worker_count >= target`), depletion runs at baseline rate. Under-populated regions deplete proportionally slower.
 - At `reserves < 0.01`: clamp to exhausted (`current_yield = base_yield × 0.04`). Near-zero trickle, not zero.
 - Salt exempt: `reserves` always 1.0, never decremented.
 - Target: rich mineral regions reach exhaustion in 80-150 turns at full exploitation.
@@ -242,13 +261,17 @@ current_yield = base_yield × season_mod × reserve_ramp
 ### Famine Mechanics
 
 ```python
-# Compute max food yield across food-type slots
-food_yield = max(yield for slot in region.resources if slot.type in FOOD_TYPES)
+# Compute max food yield across food-type slots, with subsistence floor
 # FOOD_TYPES = {GRAIN, FISH, BOTANICALS, EXOTIC}
+slot_food = max((y for rtype, y in zip(region.resource_types, yields)
+                 if rtype in FOOD_TYPES), default=0.0)
+food_yield = max(SUBSISTENCE_BASELINE, slot_food)
 
 if food_yield < FAMINE_YIELD_THRESHOLD:
     emit FAMINE event
 ```
+
+The `default=0.0` handles regions with zero food slots (Mountains, some Forests). `SUBSISTENCE_BASELINE` (0.15) provides a floor above the famine threshold under normal conditions, but drought can push it below: `0.15 × 0.5 = 0.075 < 0.12`.
 
 `FAMINE_YIELD_THRESHOLD` `[CALIBRATE]`: must sit below `base × 0.3 × 1.0 × healthy_ecology` (normal Winter — no famine) but above `base × 0.3 × 0.5 × degraded_ecology` (drought Winter with stress — famine). Target: 5-15% of turns during drought phases, near-zero during temperate.
 
@@ -327,7 +350,7 @@ Rust agent tick:
 Replaces current ecology-derived satisfaction component with concrete yield read:
 
 ```rust
-fn resource_satisfaction(agent: &Agent, region: &RegionState) -> f32 {
+fn resource_satisfaction(region: &RegionState) -> f32 {
     let primary_yield = region.resource_yields[0];
     let sat = (primary_yield - FAMINE_YIELD_THRESHOLD)
             / (PEAK_YIELD - FAMINE_YIELD_THRESHOLD);
@@ -337,25 +360,29 @@ fn resource_satisfaction(agent: &Agent, region: &RegionState) -> f32 {
 
 The farmer doesn't care *why* yields are low (drought? bad soil? winter?) — they see the number. All causal complexity lives Python-side; Rust stays simple.
 
+**Intentional decoupling: satisfaction measures labor productivity, not food supply.** A Mountain farmer with high Ore yield has high satisfaction (productive mining) even if the region relies on subsistence food. Famine is a separate system — it fires from the Python-side food yield check, not from Rust satisfaction. This means "high satisfaction + active famine" can co-occur in mineral regions during drought, which is correct: the miners are productive but the food supply failed. The two signals drive different agent behaviors (satisfaction → stay/switch, famine → population drain + migration). M42 (Goods Production) can later couple food availability into satisfaction if needed.
+
 ### Merchant Satisfaction
 
 Reads trade good availability:
 
 ```rust
 fn trade_satisfaction(region: &RegionState) -> f32 {
-    let tradeable = region.resource_types.iter()
+    let mut trade_score: f32 = 0.0;
+    for (&rtype, &yield_val) in region.resource_types.iter()
         .zip(region.resource_yields.iter())
-        .filter(|(&rtype, &yield_val)| rtype != 255 && !is_food(rtype) && yield_val > 0.0)
-        .count();
-    match tradeable {
-        0 => 0.2,  // Nothing to trade
-        1 => 0.6,  // Basic trade
-        _ => 1.0,  // Trade hub
+    {
+        if rtype != 255 && yield_val > 0.0 {
+            // Non-food resources contribute more to trade satisfaction
+            let weight = if is_food(rtype) { 0.15 } else { 0.35 };
+            trade_score += weight;
+        }
     }
+    trade_score.clamp(0.1, 1.0)
 }
 ```
 
-Merchants care about variety of tradeable goods, not raw yield volume. Mountains with Ore + Precious = trade hub. Tundra with only Exotic = marginal.
+Continuous rather than step-function — avoids 0.4 satisfaction jumps from gaining/losing a single trade good. Non-food resources (Ore, Precious, Salt) contribute more than food. Mountains with Ore + Precious = 0.7. Tundra with only Exotic (food) = 0.25. Coast with Fish + Salt = 0.50. Desert with Exotic + Salt + Precious = 0.85.
 
 ### Occupation Demand Shifts
 
@@ -388,7 +415,7 @@ Deterministic, no RNG, fast.
 | Test | Assertion |
 |------|-----------|
 | Resource assignment coverage | Every region has slot 1 filled. No slot 1 = 255. |
-| Terrain-primary mapping | Plains→Grain, Forest→Timber, Mountains→Ore, Coast→Fish, Desert→Exotic, Tundra→Exotic. Exhaustive. |
+| Terrain-primary mapping | Plains→Grain, Forest→Timber, Mountains→Ore, Coast→Fish, Desert→Exotic, Tundra→Exotic, River→Grain, Hills→Grain. All 8 terrains covered. |
 | Yield formula per class | Given fixed inputs (base=1.0, season=Autumn, climate=TEMPERATE, soil=0.8, water=0.7), assert expected output for each of 5 resource classes. |
 | Depletion math | Starting reserves=1.0, N turns extraction at full workers. Reserves decrease linearly. Ramp kicks in at 0.25. Exhaustion floor at reserves < 0.01. |
 | Season clock | `turn % 12 → season`, `season // 3 → season_id`. Boundary: turn 2 → Spring close, turn 3 → Summer open. |
@@ -396,6 +423,8 @@ Deterministic, no RNG, fast.
 | Salt exemption | Salt after 500 turns extraction: reserves still 1.0. |
 | Multi-food fallback | Coast with Fish + Botanicals: famine reads max(Fish yield, Botanicals yield). |
 | ecology_mod correctness | Crop soil=0.5, water=0.6 → 0.3. Timber forest=0.4 → 0.4. Ore → 1.0. |
+| Subsistence baseline | Mountains (no food slots): food_yield = SUBSISTENCE_BASELINE (0.15), not 0.0. No crash. |
+| Subsistence + drought | Mountains during DROUGHT: subsistence × 0.5 = 0.075 < 0.12 → FAMINE. |
 
 ### Tier 2: Behavioral Regression (200 Seeds)
 
@@ -440,6 +469,7 @@ All `[CALIBRATE]` for M47:
 | `SEASON_MOD[8][4]` | See season table | Season × resource yield modifier |
 | `CLIMATE_MOD[5][4]` | See climate table | Class × climate phase yield modifier |
 | `DEPLETION_RATE` | ~0.009 | Per-turn mineral reserve drain at full exploitation |
+| `SUBSISTENCE_BASELINE` | 0.15 | Food floor for non-food terrains (Mountains, some Forests). Above famine threshold (0.12) in temperate; below in drought (0.075). |
 | `FAMINE_YIELD_THRESHOLD` | 0.12 | Below this food yield → famine event. Sits below normal Winter Grain (0.168 at healthy ecology) but above drought Winter Grain (0.084). |
 | `PEAK_YIELD` | 1.0 | Yield ceiling for satisfaction normalization. Autumn Grain peak (~0.84) maps to sat ~0.82; normal Winter Grain (0.168) maps to sat ~0.05. |
 
@@ -453,7 +483,7 @@ Note: `WINTER_MIGRATION_BOOST` removed from M34 scope — it is a forward hook f
 |------|--------|-------------|
 | `resources.py` | Replace `assign_resources()` with deterministic-primary + probabilistic-secondary scheme. Add `ResourceType` int enum (replaces old `Resource` str enum), terrain mapping tables, base yield generation. | ~120 |
 | `ecology.py` | Extend `tick_ecology()`: compute season, yield formula per resource per region, famine trigger migration (replaces `water < 0.20` sentinel), resource suspension check. Add season/climate modifier tables. | ~160 |
-| `models.py` | Add `resource_types`, `resource_base_yields`, `resource_reserves` to Region model. Remove `specialized_resources` field. Deprecate old `Resource` enum (keep temporarily for scenario compat, add migration helper). | ~20 |
+| `models.py` | Add `resource_types`, `resource_base_yields`, `resource_reserves` to Region model. Keep `specialized_resources` as deprecated (auto-populated from `resource_types` for backward compat; removed in M47). Add `ResourceType` int enum. Split `resource_suspensions: dict[str, int]` into `resource_suspensions: dict[int, int]` + `route_suspensions: dict[str, int]`. | ~30 |
 | `agent_bridge.py` | Extend Arrow RecordBatch schema with resource/season columns. | ~20 |
 | `region.rs` | Add `resource_types`, `resource_yields`, `resource_reserves`, `season`, `season_id` to RegionState. | ~15 |
 | `satisfaction.rs` | Add `resource_satisfaction()`, `trade_satisfaction()`. Wire into farmer/merchant satisfaction. | ~40 |
@@ -462,7 +492,7 @@ Note: `WINTER_MIGRATION_BOOST` removed from M34 scope — it is a forward hook f
 | `simulation.py` | Migrate trade route economy calculations to use `resource_types` and `resource_yields` instead of `specialized_resources`. | ~15 |
 | `emergence.py` | Migrate barren-region check from `len(specialized_resources) == 0` to `resource_types[0] == 255`. Resource discovery event assigns new resource type IDs. | ~15 |
 | `scenario.py` | Support both old string-based and new int-based resource overrides for backward compat. | ~10 |
-| `climate.py` | Migrate `resource_suspensions` keys from string ("timber") to `ResourceType` int IDs. | ~5 |
+| `climate.py` | Wildfire writes `ResourceType.TIMBER` to `resource_suspensions` (int key). Sandstorm writes `"trade_route"` to `route_suspensions` (string key). | ~10 |
 | Tests (Python) | Tier 1 unit tests, Tier 2 regression harness. | ~150 |
 | Tests (Rust) | Satisfaction formula unit tests. | ~30 |
 
@@ -470,7 +500,7 @@ Note: `WINTER_MIGRATION_BOOST` removed from M34 scope — it is a forward hook f
 
 ### Legacy Resource System Migration
 
-M34 replaces the old `Resource` string enum (`GRAIN, TIMBER, IRON, FUEL, STONE, RARE_MINERALS`) and `specialized_resources` field with the new `ResourceType` int enum and `resource_types` list. The migration mapping:
+M34 introduces the new `ResourceType` int enum and `resource_types` list as the canonical resource system. The old `Resource` string enum and `specialized_resources` field are **deprecated but retained** in M34 for backward compatibility — `specialized_resources` is auto-populated from `resource_types` via a migration helper at world-gen and scenario load. All internal systems migrate to read `resource_types`; `specialized_resources` is removed in M47 cleanup. The migration mapping:
 
 | Old `Resource` | New `ResourceType` | Rationale |
 |----------------|-------------------|-----------|
@@ -481,15 +511,22 @@ M34 replaces the old `Resource` string enum (`GRAIN, TIMBER, IRON, FUEL, STONE, 
 | `STONE` | `ORE (5)` | Stone quarrying is mechanically equivalent to mining |
 | `RARE_MINERALS` | `PRECIOUS (6)` | Rare minerals map to precious metals/gems |
 
-**`resource_suspensions` interaction:** The existing `resource_suspensions` dict in `climate.py` uses string keys (`"timber"`, `"trade_route"`). M34 migrates these to `ResourceType` int keys. The yield formula checks suspensions:
+**`resource_suspensions` split:** The existing `resource_suspensions: dict[str, int]` mixes resource keys (`"timber"`) with non-resource keys (`"trade_route"`). M34 splits this into two clean dicts:
+
+- `resource_suspensions: dict[int, int]` — keyed by `ResourceType` int ID, checked in yield formula
+- `route_suspensions: dict[str, int]` — keyed by route name string, checked in trade route calculation
 
 ```python
 # In tick_ecology, per resource slot:
 if resource_type in region.resource_suspensions:
     current_yield = 0.0  # Suspended by disaster
+
+# In trade route calculation:
+if "trade_route" in region.route_suspensions:
+    # skip this route
 ```
 
-The `"trade_route"` suspension key is not a resource type — it stays as a string-keyed entry, checked separately in the trade route calculation. Only resource-typed suspensions migrate to int keys.
+`climate.py` updated to write `ResourceType.TIMBER` (int) to `resource_suspensions` on wildfire, and `"trade_route"` to `route_suspensions` on sandstorm. The `simulation.py` countdown loop iterates both dicts.
 
 ### What Doesn't Change
 
