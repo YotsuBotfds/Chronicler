@@ -77,19 +77,22 @@ Agents get a flat `+RIVER_MIGRATION_BONUS` (+0.1 `[CALIBRATE]`) when evaluating 
 
 ### Scenario Config
 
-```json
-"rivers": [
-    {"name": "Amber River", "path": [3, 7, 12, 5]},
-    {"name": "Iron Creek", "path": [8, 14, 11]}
-]
+Scenario configs are YAML. A `rivers` field is added to `ScenarioConfig`:
+
+```yaml
+rivers:
+  - name: "Amber River"
+    path: ["Riverlands", "Greenfields", "Marshfen", "Coasthaven"]
+  - name: "Iron Creek"
+    path: ["Ironpeak", "Stonewall", "Dustmere"]
 ```
 
-Index 0 in the path is headwaters, last index is delta. World-gen assigns `river_mask` bits: Amber River = bit 0, Iron Creek = bit 1, etc., in definition order.
+River paths use **region names** (strings), consistent with how `Region.adjacencies`, `Civilization.regions`, and `region_map` all identify regions by name throughout the codebase. Index 0 in the path is headwaters, last entry is delta. World-gen assigns `river_mask` bits: first river = bit 0, second = bit 1, etc., in definition order.
 
 ### Validation at Scenario Load
 
-- Every region ID in a river path must exist in the scenario's region list
-- Consecutive regions in the path must be terrain-adjacent
+- Every region name in a river path must exist in the scenario's region list
+- Consecutive regions in the path must be terrain-adjacent (present in each other's `adjacencies`)
 - Max 32 rivers per scenario (u32 bitmask limit)
 - River path length must be 2–32 regions (minimum 2 to form a connection)
 
@@ -97,11 +100,11 @@ Index 0 in the path is headwaters, last index is delta. World-gen assigns `river
 
 ## World-Gen Bonuses
 
-Applied once during world-gen, after M34's `assign_resources()`:
+Applied once during world-gen, after M34's `assign_resources()` runs in `world_gen.py`:
 
 ### Water Baseline
 
-For each region where `river_mask != 0`, add `+RIVER_WATER_BONUS` (+0.15 `[CALIBRATE]`) to initial water value. Clamped to [0.0, 1.0].
+For each region where `river_mask != 0`, add `+RIVER_WATER_BONUS` (+0.15 `[CALIBRATE]`) to initial water value. Clamped by the existing `_clamp_ecology()` bounds: floor of `_FLOOR_WATER` (0.10) and terrain-specific cap (e.g., Plains 0.70, Coast 0.90).
 
 This is a geographic fact — river regions start wetter. The ecology tick's existing water recovery/loss dynamics operate on this higher baseline naturally. During drought, river regions still lose water, but they start from a higher point, so they cross danger thresholds later. Drought resistance is emergent from the higher baseline, not a special-case per-tick guard.
 
@@ -113,9 +116,11 @@ For each region where `river_mask != 0`, multiply carrying capacity by `RIVER_CA
 
 After M34's `assign_resources()`, for each region where `river_mask != 0`:
 
-- If Fish is already in the region's resource slots: skip
-- If an empty slot exists: assign Fish
+- If Fish (M34's `ResourceType` ID 3) is already in the region's `resource_types` slots: skip
+- If an empty slot exists (`resource_types[i] == 255`): assign Fish
 - If all 3 slots are full: skip (don't displace existing resources)
+
+**M34 dependency:** This relies on M34's 3-slot `resource_types` array with 255 sentinel for empty slots, and Fish as `ResourceType` ID 3. Both are introduced by M34.
 
 A Mountain region on a river (gorge) with `[Ore, Precious, Salt]` filling all 3 slots keeps its original resources. Mountain rivers are for water and trade, not fishing. The +0.15 water baseline still applies.
 
@@ -138,20 +143,21 @@ For each river in `world.rivers`, walk the path from headwaters to delta. Any re
 ### Computation
 
 ```python
-seen: set[tuple[int, int]] = set()  # (source_region, target_region) dedup
+seen: set[tuple[str, str]] = set()  # (source_region_name, target_region_name) dedup
 for river in world.rivers:
-    for i, region_id in enumerate(river.path):
-        region = region_map[region_id]
+    for i, region_name in enumerate(river.path):
+        region = region_map[region_name]
         if region.ecology.forest_cover < DEFORESTATION_THRESHOLD:
-            for downstream_id in river.path[i+1:]:
-                if (region_id, downstream_id) not in seen:
-                    seen.add((region_id, downstream_id))
-                    region_map[downstream_id].ecology.water -= DEFORESTATION_WATER_LOSS
+            for downstream_name in river.path[i+1:]:
+                if (region_name, downstream_name) not in seen:
+                    seen.add((region_name, downstream_name))
+                    region_map[downstream_name].ecology.water -= DEFORESTATION_WATER_LOSS
+# After all cascades, _clamp_ecology() runs as usual (floor 0.10, terrain cap)
 ```
 
 ### Deduplication
 
-The dedup key is `(source_region_id, target_region_id)`. This ensures:
+The dedup key is `(source_region_name, target_region_name)`. This ensures:
 
 - A given deforested region penalizes a given downstream region **only once**, even if they share multiple rivers
 - Two **different** deforested regions on different rivers **both** penalize a shared downstream region (cascades union)
@@ -159,7 +165,7 @@ The dedup key is `(source_region_id, target_region_id)`. This ensures:
 ### Cascade Properties
 
 - **Instant** — no multi-turn propagation delay. Consistent with the ecology system's instantaneous behavior for all other effects.
-- **Water clamped** to [0.0, 1.0] after all cascade losses applied. Double-cascade at a confluence naturally can't push below zero.
+- **Water clamped** by `_clamp_ecology()` after all cascade losses — terrain-specific cap and floor of 0.10. Double-cascade at a confluence can't push below the floor.
 - **Threshold effect, not proportional** — only triggers on `forest_cover < 0.2`. Moderate forestry (logging down to 0.25) is safe; dropping below 0.2 hits hard. This creates a strategic cliff that civs can learn to respect or ignore at their peril.
 - **Headwater regions are immune** (nothing upstream). Delta regions are most exposed.
 
@@ -183,7 +189,7 @@ A single bitwise AND — no river path lookup needed at migration time. Source a
 
 ### What Changes in Rust
 
-- `behavior.rs`: In migration target evaluation loop, after computing base attractiveness for each neighbor, check river-sharing condition and add bonus if true
+- `behavior.rs`: In `compute_region_stats()`, during `migration_opportunity` / `best_migration_target` pre-computation, check river-sharing condition and add bonus before target selection
 - New constant: `RIVER_MIGRATION_BONUS: f32 = 0.1`
 
 ### What Doesn't Change
@@ -203,9 +209,9 @@ River valleys fill up organically. Agents along a river corridor preferentially 
 ### River Struct (Python-side, `models.py`)
 
 ```python
-class River:
+class River(BaseModel):
     name: str           # "Amber River" — narrative identity
-    path: list[int]     # Region indices, ordered headwaters → delta
+    path: list[str]     # Region names, ordered headwaters → delta
 ```
 
 Stored on `WorldState` as `rivers: list[River]`. The ecology tick needs river iteration for cascade computation, and the curator/narrator needs river names for events.
@@ -221,7 +227,7 @@ Total addition: 4 bytes per region. At ~150 regions: ~600 bytes. Negligible.
 
 ### FFI Extension
 
-`ffi.rs` reads the `river_mask` column from the Arrow RecordBatch into `RegionState`. No new FFI mechanism — just one additional column.
+`ffi.rs` reads the `river_mask` column from the Arrow RecordBatch into `RegionState`. Follows the existing optional-column pattern (like `adjacency_mask`, `controller_civ`) — non-river scenarios that omit the column default to `river_mask = 0`. No new FFI mechanism — just one additional column.
 
 ### Data Flow Per Turn
 
@@ -232,7 +238,7 @@ Phase 9 (tick_ecology):
      - For each river, walk path headwaters → delta
      - Deforested upstream regions (forest_cover < 0.2) inflict water loss downstream
      - Dedup via (source, target) seen set
-  3. Water clamped to [0.0, 1.0]
+  3. _clamp_ecology() runs (floor 0.10, terrain-specific cap)
   4. Resource yields computed (M34) — now reflecting river water bonuses and cascade losses
 
 agent_bridge.py:
@@ -267,8 +273,8 @@ Constants location: wherever M34's resource constants land. Follow consistency �
 | File | Change | Lines (est.) |
 |------|--------|-------------|
 | `models.py` | Add `River` class (name + path). Add `rivers: list[River]` to `WorldState`. | ~10 |
-| `scenarios.py` | Parse `"rivers"` from scenario config. Validate: region IDs exist, consecutive regions terrain-adjacent. Assign `river_mask` bits in definition order. | ~40 |
-| `simulation.py` | In world-gen: apply water baseline bonus, capacity multiplier, Fish resource assignment for river regions (`river_mask != 0`). | ~30 |
+| `scenario.py` | Add `rivers` field to `ScenarioConfig`. Parse and validate: region names exist, consecutive regions terrain-adjacent. Assign `river_mask` bits in definition order. | ~40 |
+| `world_gen.py` | After `assign_resources()`: apply water baseline bonus, capacity multiplier, Fish resource assignment for river regions (`river_mask != 0`). | ~30 |
 | `ecology.py` | In Phase 9, after soil/water/forest updates: upstream deforestation cascade computation with `(source, target)` dedup. | ~50 |
 | `region.rs` | Add `river_mask: u32` field to `RegionState`. | ~3 |
 | `behavior.rs` | In migration target evaluation: bitwise AND river-sharing check, add `RIVER_MIGRATION_BONUS` to attractiveness. | ~15 |
@@ -298,7 +304,7 @@ Constants location: wherever M34's resource constants land. Follow consistency �
 | Fish assignment | River regions with empty resource slot get Fish assigned. |
 | Full-slot preservation | Full-slot river regions keep original resources (no Fish forced). |
 | Confluence bitmask | Confluence regions (2+ rivers) have multiple bits set but receive bonuses only once. |
-| Scenario validation: bad ID | Reject river path containing region ID not in scenario. |
+| Scenario validation: bad name | Reject river path containing region name not in scenario. |
 | Scenario validation: non-adjacent | Reject river path with non-adjacent consecutive entries. |
 
 ### Tier 2: Behavioral (Integration Tests, Multi-Turn Runs)
@@ -310,7 +316,7 @@ Constants location: wherever M34's resource constants land. Follow consistency �
 | Cascade union | Two different deforested regions on different rivers both penalize shared confluence. |
 | No cascade when healthy | All upstream regions `forest_cover ≥ 0.2` → zero cascade water loss. |
 | Migration preference | Over N turns, agents migrate along river corridors at measurably higher rate than equivalent non-river paths (statistical — Gumbel noise means individual decisions vary). |
-| Water clamp | Cascade losses don't push water below 0.0. |
+| Water clamp | Cascade losses don't push water below `_FLOOR_WATER` (0.10). |
 
 ### Tier 3: Narrative (Scenario Regression, Manual Inspection)
 
