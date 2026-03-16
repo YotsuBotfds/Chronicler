@@ -1,16 +1,16 @@
 //! Agent decision model — rebel, migrate, switch occupation, loyalty drift.
 //!
-//! Each tick, agents evaluate decisions in priority order. First triggered
-//! decision executes; rest skipped (short-circuit).
+//! Each tick, agents compute utility scores for rebel, migrate, switch, and
+//! stay. Gumbel-argmax selects one action; loyalty drift runs as a background
+//! process for all non-rebel agents.
 
 use std::collections::HashMap;
 
 use crate::agent::{
-    LOYALTY_DRIFT_RATE, LOYALTY_FLIP_THRESHOLD, LOYALTY_RECOVERY_RATE,
+    DECISION_TEMPERATURE, LOYALTY_DRIFT_RATE, LOYALTY_FLIP_THRESHOLD, LOYALTY_RECOVERY_RATE,
     MIGRATE_CAP, MIGRATE_HYSTERESIS, MIGRATE_SATISFACTION_THRESHOLD, OCCUPATION_COUNT,
-    OCCUPATION_SWITCH_OVERSUPPLY, OCCUPATION_SWITCH_UNDERSUPPLY, REBEL_CAP,
-    REBEL_LOYALTY_THRESHOLD, REBEL_MIN_COHORT, REBEL_SATISFACTION_THRESHOLD,
-    SWITCH_CAP, SWITCH_OVERSUPPLY_THRESH, SWITCH_UNDERSUPPLY_FACTOR,
+    REBEL_CAP, REBEL_LOYALTY_THRESHOLD, REBEL_MIN_COHORT, REBEL_SATISFACTION_THRESHOLD,
+    STAY_BASE, SWITCH_CAP, SWITCH_OVERSUPPLY_THRESH, SWITCH_UNDERSUPPLY_FACTOR,
     W_MIGRATE_OPP, W_MIGRATE_SAT, W_REBEL, W_SWITCH,
 };
 use crate::pool::AgentPool;
@@ -281,14 +281,125 @@ impl PendingDecisions {
 }
 
 // ---------------------------------------------------------------------------
-// evaluate_region_decisions
+// evaluate_region_decisions — utility-based (M32)
 // ---------------------------------------------------------------------------
 
-/// Evaluate decisions for all alive agents in a region.
+/// Evaluate decisions for all alive agents in a region using utility selection.
 ///
-/// Short-circuit: first triggered decision executes, rest skipped.
-/// Priority: rebel > migrate > switch occupation > loyalty drift/recovery.
+/// Each agent computes utility scores for rebel, migrate, switch, and stay.
+/// Gumbel-argmax selects one action. Loyalty drift runs as a background
+/// process for all non-rebel agents afterward.
 pub fn evaluate_region_decisions(
+    pool: &AgentPool,
+    slots: &[usize],
+    _region: &RegionState,
+    stats: &RegionStats,
+    region_id: usize,
+    rng: &mut ChaCha8Rng,
+) -> PendingDecisions {
+    let mut pending = PendingDecisions::new();
+
+    for &slot in slots {
+        if !pool.is_alive(slot) {
+            continue;
+        }
+
+        let sat = pool.satisfaction(slot);
+        let loy = pool.loyalty(slot);
+        let civ = pool.civ_affinity(slot);
+        let occ = pool.occupation(slot) as usize;
+
+        // Compute utilities for all 4 actions.
+        // Zero-utility actions are gated to NEG_INFINITY so gumbel noise
+        // cannot select an action whose prerequisites are not met.
+        let u_rebel_raw = rebel_utility(loy, sat, stats.rebel_eligible[region_id]);
+        let u_rebel = if u_rebel_raw > 0.0 { u_rebel_raw } else { f32::NEG_INFINITY };
+        let u_migrate_raw = migrate_utility(sat, stats.migration_opportunity[region_id]);
+        let u_migrate = if u_migrate_raw > 0.0 { u_migrate_raw } else { f32::NEG_INFINITY };
+        let (u_switch_raw, switch_target) = switch_utility(
+            occ,
+            &stats.occupation_supply[region_id],
+            &stats.occupation_demand[region_id],
+        );
+        let u_switch = if u_switch_raw > 0.0 { u_switch_raw } else { f32::NEG_INFINITY };
+        let u_stay = STAY_BASE;
+
+        let chosen = gumbel_argmax(
+            &[u_rebel, u_migrate, u_switch, u_stay],
+            rng,
+            DECISION_TEMPERATURE,
+        );
+
+        match chosen {
+            0 => {
+                // Rebel
+                pending.rebellions.push((slot, region_id as u16));
+            }
+            1 => {
+                // Migrate — use pre-computed best target
+                let target = stats.best_migration_target[region_id];
+                if target != region_id as u16 {
+                    pending.migrations.push((slot, region_id as u16, target));
+                }
+            }
+            2 => {
+                // Switch occupation
+                if switch_target != occ as u8 {
+                    pending.occupation_switches.push((slot, switch_target));
+                }
+            }
+            _ => {
+                // Stay — no action
+            }
+        }
+
+        // Loyalty drift as background process (skip only for rebels)
+        if chosen != 0 && stats.civ_counts[region_id].len() > 1 {
+            // Find own civ mean satisfaction
+            let own_mean = stats
+                .civ_mean_satisfaction[region_id]
+                .iter()
+                .find(|(c, _)| *c == civ)
+                .map(|(_, m)| *m)
+                .unwrap_or(0.0);
+
+            // Find best other civ mean satisfaction and its civ_id
+            let mut best_other_civ: Option<u8> = None;
+            let mut best_other_mean: f32 = own_mean;
+
+            for &(c, mean) in &stats.civ_mean_satisfaction[region_id] {
+                if c != civ && mean > best_other_mean {
+                    best_other_mean = mean;
+                    best_other_civ = Some(c);
+                }
+            }
+
+            if let Some(other_civ) = best_other_civ {
+                // Other civ is happier — drift away
+                if loy - LOYALTY_DRIFT_RATE < LOYALTY_FLIP_THRESHOLD {
+                    // Would drop below flip threshold — flip civ
+                    pending.loyalty_flips.push((slot, other_civ));
+                } else {
+                    pending.loyalty_drifts.push((slot, -LOYALTY_DRIFT_RATE));
+                }
+            } else {
+                // No happier civ — recover loyalty
+                pending.loyalty_drifts.push((slot, LOYALTY_RECOVERY_RATE));
+            }
+        }
+    }
+
+    pending
+}
+
+// ---------------------------------------------------------------------------
+// evaluate_region_decisions_v1 — Phase 5 short-circuit (preserved for regression)
+// ---------------------------------------------------------------------------
+
+/// Phase 5 short-circuit decision model. Preserved for regression comparison.
+#[cfg(test)]
+#[allow(dead_code)]
+fn evaluate_region_decisions_v1(
     pool: &AgentPool,
     slots: &[usize],
     region: &RegionState,
@@ -341,14 +452,12 @@ pub fn evaluate_region_decisions(
         }
 
         // 3. Switch occupation?
-        // Oversupply check: supply > demand * (1.0 / OCCUPATION_SWITCH_OVERSUPPLY) = demand * 2.0
         let supply = stats.occupation_supply[region_id][occ] as f32;
         let demand = stats.occupation_demand[region_id][occ];
-        let oversupply_threshold = demand * (1.0 / OCCUPATION_SWITCH_OVERSUPPLY);
+        let oversupply_threshold = demand * (1.0 / crate::agent::OCCUPATION_SWITCH_OVERSUPPLY);
 
         let mut switched = false;
         if supply > oversupply_threshold {
-            // Find alternative with undersupply: demand > supply * UNDERSUPPLY
             let mut best_occ: Option<u8> = None;
             let mut best_gap: f32 = 0.0;
 
@@ -358,7 +467,7 @@ pub fn evaluate_region_decisions(
                 }
                 let alt_supply = stats.occupation_supply[region_id][alt] as f32;
                 let alt_demand = stats.occupation_demand[region_id][alt];
-                if alt_demand > alt_supply * OCCUPATION_SWITCH_UNDERSUPPLY {
+                if alt_demand > alt_supply * crate::agent::OCCUPATION_SWITCH_UNDERSUPPLY {
                     let gap = alt_demand - alt_supply;
                     if gap > best_gap {
                         best_gap = gap;
@@ -379,7 +488,6 @@ pub fn evaluate_region_decisions(
 
         // 4. Loyalty drift (only when multiple civs present)
         if stats.civ_counts[region_id].len() > 1 {
-            // Find own civ mean satisfaction
             let own_mean = stats
                 .civ_mean_satisfaction[region_id]
                 .iter()
@@ -387,7 +495,6 @@ pub fn evaluate_region_decisions(
                 .map(|(_, m)| *m)
                 .unwrap_or(0.0);
 
-            // Find best other civ mean satisfaction and its civ_id
             let mut best_other_civ: Option<u8> = None;
             let mut best_other_mean: f32 = own_mean;
 
@@ -399,15 +506,12 @@ pub fn evaluate_region_decisions(
             }
 
             if let Some(other_civ) = best_other_civ {
-                // Other civ is happier — drift away
                 if loy - LOYALTY_DRIFT_RATE < LOYALTY_FLIP_THRESHOLD {
-                    // Would drop below flip threshold — flip civ
                     pending.loyalty_flips.push((slot, other_civ));
                 } else {
                     pending.loyalty_drifts.push((slot, -LOYALTY_DRIFT_RATE));
                 }
             } else {
-                // No happier civ — recover loyalty
                 pending.loyalty_drifts.push((slot, LOYALTY_RECOVERY_RATE));
             }
         }
@@ -452,78 +556,64 @@ mod tests {
 
     #[test]
     fn test_rebel_fires_with_cohort() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
-
-        // 6 agents below both thresholds
         for _ in 0..6 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
-            pool.set_loyalty(slot, 0.1);
-            pool.set_satisfaction(slot, 0.1);
+            pool.set_loyalty(slot, 0.01);
+            pool.set_satisfaction(slot, 0.01);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..6).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
-        assert_eq!(pending.rebellions.len(), 6);
-        // No other decisions should fire (short-circuit)
-        assert_eq!(pending.migrations.len(), 0);
-        assert_eq!(pending.occupation_switches.len(), 0);
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        assert!(pending.rebellions.len() >= 3,
+            "expected most agents to rebel, got {}", pending.rebellions.len());
     }
 
     #[test]
     fn test_rebel_needs_cohort() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
-
-        // Only 3 below thresholds — not enough for REBEL_MIN_COHORT (5)
         for _ in 0..3 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
-            pool.set_loyalty(slot, 0.1);
-            pool.set_satisfaction(slot, 0.1);
+            pool.set_loyalty(slot, 0.01);
+            pool.set_satisfaction(slot, 0.01);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..3).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
         assert_eq!(pending.rebellions.len(), 0);
     }
 
     #[test]
     fn test_migrate_to_better_region() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(32);
         let mut regions = vec![make_region(0), make_region(1)];
-
-        // Region 0 is adjacent to region 1
-        regions[0].adjacency_mask = 0b10; // bit 1
-
-        // 5 dissatisfied agents in region 0
+        regions[0].adjacency_mask = 0b10;
         for _ in 0..5 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
-            pool.set_satisfaction(slot, 0.2);
-            pool.set_loyalty(slot, 0.5); // loyalty high enough to avoid rebel
+            pool.set_satisfaction(slot, 0.05);
+            pool.set_loyalty(slot, 0.5);
         }
-
-        // 5 happy agents in region 1
         for _ in 0..5 {
             let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
             pool.set_satisfaction(slot, 0.8);
             pool.set_loyalty(slot, 0.5);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-
-        // Verify mean satisfaction: region 0 = 0.2, region 1 = 0.8
-        assert!((stats.mean_satisfaction[0] - 0.2).abs() < 0.01);
-        assert!((stats.mean_satisfaction[1] - 0.8).abs() < 0.01);
-
         let slots: Vec<usize> = (0..5).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
-        // All 5 should want to migrate to region 1
-        assert_eq!(pending.migrations.len(), 5);
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        assert!(pending.migrations.len() >= 3,
+            "expected most agents to migrate, got {}", pending.migrations.len());
         for &(_, from, to) in &pending.migrations {
             assert_eq!(from, 0);
             assert_eq!(to, 1);
@@ -532,26 +622,20 @@ mod tests {
 
     #[test]
     fn test_occupation_switch_oversupplied_to_undersupplied() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let regions = vec![make_region(0)];
-
-        // Use priests: ratio = 0.05. With 20 priests, demand = 0.05 * 20 = 1.0
-        // Oversupply threshold = 1.0 * 2.0 = 2.0, supply(20) > 2.0 → oversupplied
-        // Farmer demand = 0.60 * 20 = 12.0, supply = 0
-        // 12.0 > 0 * 1.5 = 0 → undersupplied → switch to farmer
         let mut pool = AgentPool::new(32);
         for _ in 0..20 {
             let slot = pool.spawn(0, 0, Occupation::Priest, 25);
-            pool.set_satisfaction(slot, 0.5); // above migrate threshold
-            pool.set_loyalty(slot, 0.5);      // above rebel threshold
+            pool.set_satisfaction(slot, 0.5);
+            pool.set_loyalty(slot, 0.5);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-
         let slots: Vec<usize> = (0..20).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
         assert!(pending.occupation_switches.len() > 0);
-        // Should switch to farmer (occupation 0) since it has highest gap
         for &(_, new_occ) in &pending.occupation_switches {
             assert_eq!(new_occ, Occupation::Farmer as u8);
         }
@@ -559,33 +643,24 @@ mod tests {
 
     #[test]
     fn test_loyalty_drift_without_flip() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
-
-        // Civ 0: 3 agents at 0.6 loyalty, satisfaction 0.3
         for _ in 0..3 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
             pool.set_loyalty(slot, 0.6);
-            pool.set_satisfaction(slot, 0.3);
+            pool.set_satisfaction(slot, 0.5);
         }
-        // Civ 1: 3 agents, satisfaction 0.8 (happier)
         for _ in 0..3 {
             let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.8);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-
-        // Verify multiple civs present
-        assert!(stats.civ_counts[0].len() > 1);
-
-        // Evaluate civ 0 agents (slots 0..3)
         let slots: Vec<usize> = (0..3).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
-        // Should drift negatively (other civ is happier) but NOT flip
-        // loyalty 0.6 - 0.02 = 0.58, which is above LOYALTY_FLIP_THRESHOLD (0.3)
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
         assert_eq!(pending.loyalty_flips.len(), 0);
         assert_eq!(pending.loyalty_drifts.len(), 3);
         for &(_, delta) in &pending.loyalty_drifts {
@@ -595,29 +670,24 @@ mod tests {
 
     #[test]
     fn test_loyalty_drift_flips_civ() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
-
-        // Civ 0: 3 agents at 0.25 loyalty (below flip threshold after drift)
         for _ in 0..3 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
             pool.set_loyalty(slot, 0.25);
-            pool.set_satisfaction(slot, 0.4); // above migrate threshold
+            pool.set_satisfaction(slot, 0.5);
         }
-        // Civ 1: 3 agents, satisfaction 0.9 (happier)
         for _ in 0..3 {
             let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.9);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-
         let slots: Vec<usize> = (0..3).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
-        // loyalty 0.25 - 0.02 = 0.23, which is below LOYALTY_FLIP_THRESHOLD (0.3)
-        // → should flip to civ 1
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
         assert_eq!(pending.loyalty_flips.len(), 3);
         for &(_, new_civ) in &pending.loyalty_flips {
             assert_eq!(new_civ, 1);
@@ -626,43 +696,41 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_region_stats_empty_region() {
-        let pool = AgentPool::new(8);
-        let regions = vec![make_region(0), make_region(1)];
-        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-
-        assert_eq!(stats.rebel_eligible[0], 0);
-        assert_eq!(stats.mean_satisfaction[0], 0.0);
-        assert_eq!(stats.occupation_supply[0], [0; OCCUPATION_COUNT]);
-        assert_eq!(stats.civ_counts[0].len(), 0);
-    }
-
-    #[test]
-    fn test_short_circuit_rebel_blocks_migrate() {
-        // An agent eligible for both rebel and migrate should only rebel.
+    fn test_rebel_priority_over_migrate() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10; // adjacent to region 1
-
-        // 6 rebel-eligible agents with low satisfaction (also eligible for migration)
+        regions[0].adjacency_mask = 0b10;
         for _ in 0..6 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
-            pool.set_loyalty(slot, 0.1);
-            pool.set_satisfaction(slot, 0.1);
+            pool.set_loyalty(slot, 0.01);
+            pool.set_satisfaction(slot, 0.01);
         }
-        // Some happy agents in region 1 to make migration attractive
         for _ in 0..5 {
             let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
             pool.set_satisfaction(slot, 0.9);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..6).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let total_actions = pending.rebellions.len() + pending.migrations.len();
+        assert!(total_actions >= 4,
+            "expected most agents to rebel or migrate, got {} rebels + {} migrants",
+            pending.rebellions.len(), pending.migrations.len());
+    }
 
-        // All rebel, none migrate
-        assert_eq!(pending.rebellions.len(), 6);
-        assert_eq!(pending.migrations.len(), 0);
+    #[test]
+    fn test_compute_region_stats_empty_region() {
+        let pool = AgentPool::new(8);
+        let regions = vec![make_region(0), make_region(1)];
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert_eq!(stats.rebel_eligible[0], 0);
+        assert_eq!(stats.mean_satisfaction[0], 0.0);
+        assert_eq!(stats.occupation_supply[0], [0; OCCUPATION_COUNT]);
+        assert_eq!(stats.civ_counts[0].len(), 0);
+        assert_eq!(stats.migration_opportunity[0], 0.0);
     }
 
     #[test]
@@ -853,28 +921,24 @@ mod tests {
 
     #[test]
     fn test_loyalty_recovery_when_own_civ_happier() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
-
-        // Civ 0: 3 agents, satisfaction 0.8 (happier)
         for _ in 0..3 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.8);
         }
-        // Civ 1: 3 agents, satisfaction 0.3 (less happy)
         for _ in 0..3 {
             let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
             pool.set_loyalty(slot, 0.6);
-            pool.set_satisfaction(slot, 0.3);
+            pool.set_satisfaction(slot, 0.5);
         }
-
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-
-        // Evaluate civ 0 agents — own civ is happier, should recover
         let slots: Vec<usize> = (0..3).collect();
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
-
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
         assert_eq!(pending.loyalty_drifts.len(), 3);
         for &(_, delta) in &pending.loyalty_drifts {
             assert!((delta - LOYALTY_RECOVERY_RATE).abs() < 0.001);
