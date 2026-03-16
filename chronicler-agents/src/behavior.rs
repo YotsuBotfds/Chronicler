@@ -63,6 +63,12 @@ fn rebel_utility(loyalty: f32, satisfaction: f32, rebel_eligible: usize) -> f32 
     raw.min(REBEL_CAP) * smoothstep(rebel_eligible, REBEL_MIN_COHORT - 2, REBEL_MIN_COHORT + 3)
 }
 
+fn migrate_utility(satisfaction: f32, migration_opportunity: f32) -> f32 {
+    let raw = W_MIGRATE_SAT * (MIGRATE_SATISFACTION_THRESHOLD - satisfaction).max(0.0)
+        + W_MIGRATE_OPP * (migration_opportunity - MIGRATE_HYSTERESIS).max(0.0);
+    raw.min(MIGRATE_CAP)
+}
+
 // ---------------------------------------------------------------------------
 // RegionStats — pre-computed per-region aggregates
 // ---------------------------------------------------------------------------
@@ -757,6 +763,31 @@ mod tests {
         assert!((u_full - REBEL_CAP).abs() < 0.01);
         let u_mid = super::rebel_utility(0.0, 0.0, 5);
         assert!(u_mid > 0.0 && u_mid < REBEL_CAP);
+    }
+
+    #[test]
+    fn test_migrate_utility_zero_above_threshold_no_opportunity() {
+        let u = super::migrate_utility(0.5, 0.0);
+        assert_eq!(u, 0.0);
+    }
+
+    #[test]
+    fn test_migrate_utility_satisfaction_below_threshold() {
+        let u = super::migrate_utility(0.1, 0.0);
+        assert!((u - 0.334).abs() < 0.01, "expected ~0.334, got {}", u);
+    }
+
+    #[test]
+    fn test_migrate_utility_saturates_at_cap() {
+        use crate::agent::MIGRATE_CAP;
+        let u = super::migrate_utility(0.0, 1.0);
+        assert!((u - MIGRATE_CAP).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_migrate_utility_opportunity_below_hysteresis() {
+        let u = super::migrate_utility(0.5, 0.03);
+        assert_eq!(u, 0.0);
     }
 
     #[test]
