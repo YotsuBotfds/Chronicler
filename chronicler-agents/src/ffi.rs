@@ -521,3 +521,33 @@ fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, Ar
         ],
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_personality_label_bold() {
+        assert_eq!(personality_label(0.8, 0.1, 0.2), Some("the Bold"));
+    }
+
+    #[test]
+    fn test_personality_label_neutral() {
+        assert_eq!(personality_label(0.2, 0.1, -0.3), None);
+    }
+
+    #[test]
+    fn test_personality_label_fickle() {
+        assert_eq!(personality_label(0.1, 0.2, -0.7), Some("the Fickle"));
+    }
+
+    #[test]
+    fn test_personality_label_ambitious() {
+        assert_eq!(personality_label(0.1, 0.9, 0.3), Some("the Ambitious"));
+    }
+
+    #[test]
+    fn test_personality_label_steadfast() {
+        assert_eq!(personality_label(0.1, 0.2, 0.8), Some("the Steadfast"));
+    }
+}
