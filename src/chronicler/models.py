@@ -242,7 +242,7 @@ class GreatPerson(BaseModel):
     origin_civilization: str
     alive: bool = True
     active: bool = True
-    fate: str = "active"  # "active", "retired", "dead", "ascended"
+    fate: str = "active"  # "active", "retired", "dead", "ascended", "exile"
     born_turn: int
     death_turn: int | None = None
     deeds: list[str] = Field(default_factory=list)
@@ -253,6 +253,8 @@ class GreatPerson(BaseModel):
     cultural_identity: str | None = None
     movement_id: str | None = None  # NOTE: Movement.id is str, not int
     recognized_by: list[str] = Field(default_factory=list)
+    source: str = "aggregate"  # "aggregate" or "agent"
+    agent_id: int | None = None
 
 
 class Event(BaseModel):
@@ -564,6 +566,13 @@ class NarrativeMoment(BaseModel):
     bonus_applied: float  # internal, not serialized to bundle
 
 
+class AgentContext(BaseModel):
+    """Agent narrative context for the narrator prompt (M30)."""
+    named_characters: list[dict] = Field(default_factory=list)
+    population_mood: str = "content"  # "desperate" > "restless" > "content"
+    displacement_fraction: float = 0.0
+
+
 class NarrationContext(BaseModel):
     """Per-moment LLM context for batch narration."""
     moment: NarrativeMoment
@@ -575,6 +584,7 @@ class NarrationContext(BaseModel):
     consequences: list[str]
     previous_prose: str | None
     civ_context: dict[str, CivThematicContext]
+    agent_context: AgentContext | None = None
 
 
 class ChronicleEntry(BaseModel):
