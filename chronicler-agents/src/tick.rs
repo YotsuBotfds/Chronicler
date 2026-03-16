@@ -514,6 +514,9 @@ mod tests {
                     demand_shift_merchant: 0.0,
                     demand_shift_scholar: 0.0,
                     demand_shift_priest: 0.0,
+                    mean_boldness: 0.0,
+                    mean_ambition: 0.0,
+                    mean_loyalty_trait: 0.0,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
