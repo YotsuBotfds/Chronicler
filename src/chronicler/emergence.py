@@ -170,7 +170,7 @@ def _get_eligible_types(world: WorldState) -> dict[str, int]:
     return eligible
 
 
-def check_black_swans(world: WorldState, seed: int) -> list[Event]:
+def check_black_swans(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Roll for black swan event. Called after Phase 1 (Environment)."""
     if world.black_swan_cooldown > 0:
         return []
@@ -194,9 +194,10 @@ def check_black_swans(world: WorldState, seed: int) -> list[Event]:
     world.black_swan_cooldown = int(get_override(world, K_BLACK_SWAN_COOLDOWN, world.black_swan_cooldown_turns))
 
     # Dispatch to specific handler
+    if chosen == "supervolcano":
+        return _apply_supervolcano(world, seed, acc=acc)
     handlers = {
         "pandemic": _apply_pandemic_origin,
-        "supervolcano": _apply_supervolcano,
         "resource_discovery": _apply_resource_discovery,
         "tech_accident": _apply_tech_accident,
     }
@@ -253,7 +254,7 @@ def _apply_pandemic_origin(world: WorldState, seed: int) -> list[Event]:
     )]
 
 
-def tick_pandemic(world: WorldState) -> list[Event]:
+def tick_pandemic(world: WorldState, acc=None) -> list[Event]:
     """Per-turn pandemic tick: apply damage, spread, decrement timers. Phase 2."""
     if not world.pandemic_state:
         return []
@@ -283,9 +284,14 @@ def tick_pandemic(world: WorldState) -> list[Event]:
         ]
         if not affected_regions:
             affected_regions = [r for r in world.regions if r.controller == civ_name]
-        distribute_pop_loss(affected_regions, pop_loss)
-        sync_civ_population(civ, world)
-        civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "population", -pop_loss, "guard")
+            acc.add(civ_idx, civ, "economy", -eco_loss, "signal")
+        else:
+            distribute_pop_loss(affected_regions, pop_loss)
+            sync_civ_population(civ, world)
+            civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
 
         # Leader kill check: 5% per infected civ
         rng = random.Random(world.seed + world.turn * 1013 + hash(civ_name))
@@ -357,7 +363,7 @@ def tick_pandemic(world: WorldState) -> list[Event]:
     return events
 
 
-def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
+def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Supervolcano: devastate a cluster of 3 adjacent regions."""
     rng = random.Random(seed + world.turn * 1021)
 
@@ -383,9 +389,14 @@ def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
             affected_civs.add(region.controller)
             civ = next((c for c in world.civilizations if c.name == region.controller), None)
             if civ:
-                drain_region_pop(region, 20)
-                sync_civ_population(civ, world)
-                civ.stability = clamp(civ.stability - 15, STAT_FLOOR.get("stability", 0), 100)
+                if acc is not None:
+                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    acc.add(civ_idx, civ, "population", -20, "guard")
+                    acc.add(civ_idx, civ, "stability", -15, "signal")
+                else:
+                    drain_region_pop(region, 20)
+                    sync_civ_population(civ, world)
+                    civ.stability = clamp(civ.stability - 15, STAT_FLOOR.get("stability", 0), 100)
 
     world.climate_config.phase_offset += 1
 
@@ -409,7 +420,11 @@ def _apply_supervolcano(world: WorldState, seed: int) -> list[Event]:
     for civ_name in affected_civs:
         civ = next((c for c in world.civilizations if c.name == civ_name), None)
         if civ and civ.folk_heroes:
-            civ.asabiya = min(1.0, civ.asabiya + 0.05)
+            if acc is not None:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
+            else:
+                civ.asabiya = min(1.0, civ.asabiya + 0.05)
 
     region_names = [r.name for r in cluster]
     events.append(Event(

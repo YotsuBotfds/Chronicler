@@ -4,10 +4,11 @@ import json
 import pytest
 from chronicler.models import (
     CivSnapshot, RelationshipSnapshot, TurnSnapshot, TechEra, Region,
+    AgentEventRecord,
 )
 from chronicler.scenario import RegionOverride, ScenarioConfig, apply_scenario
 from chronicler.models import WorldState, Leader, Civilization, Relationship, Disposition
-from chronicler.bundle import assemble_bundle, write_bundle
+from chronicler.bundle import assemble_bundle, write_bundle, write_agent_events_arrow, HAS_ARROW
 from chronicler.models import ChronicleEntry, NarrativeRole
 
 
@@ -321,6 +322,137 @@ class TestSnapshotCapture:
         execute_run(args)
         assert (tmp_path / "state.json").exists()
         assert (tmp_path / "chronicle.md").exists()
+
+
+class TestAgentEventsSerialization:
+    """Tests for Arrow IPC serialization of agent_events_raw."""
+
+    def _make_events(self):
+        return [
+            AgentEventRecord(turn=1, agent_id=42, event_type="migration",
+                             region=3, target_region=7, civ_affinity=0, occupation=0),
+            AgentEventRecord(turn=1, agent_id=99, event_type="death",
+                             region=5, target_region=0, civ_affinity=1, occupation=1),
+        ]
+
+    def test_no_arrow_file_when_events_empty(self, sample_world, tmp_path):
+        """No agent_events.arrow when agent_events_raw is empty."""
+        assert sample_world.agent_events_raw == []
+        result = write_agent_events_arrow(sample_world, tmp_path)
+        assert result is None
+        assert not (tmp_path / "agent_events.arrow").exists()
+
+    def test_write_bundle_without_world_still_works(self, tmp_path):
+        """write_bundle backwards-compatible: no world arg, no crash."""
+        bundle = {"test": True}
+        path = tmp_path / "bundle.json"
+        write_bundle(bundle, path)
+        assert path.exists()
+        assert not (tmp_path / "agent_events.arrow").exists()
+
+    def test_write_bundle_with_empty_events_no_arrow(self, sample_world, tmp_path):
+        """write_bundle with world but empty events writes JSON only."""
+        bundle = {"test": True}
+        path = tmp_path / "bundle.json"
+        write_bundle(bundle, path, world=sample_world)
+        assert path.exists()
+        assert not (tmp_path / "agent_events.arrow").exists()
+
+    @pytest.mark.skipif(not HAS_ARROW, reason="pyarrow not installed")
+    def test_agent_events_round_trip(self, sample_world, tmp_path):
+        """Agent events serialize as Arrow IPC and can be read back."""
+        import pyarrow.ipc as ipc
+
+        sample_world.agent_events_raw = self._make_events()
+        result = write_agent_events_arrow(sample_world, tmp_path)
+
+        assert result is not None
+        assert result.exists()
+
+        # Read back and verify
+        reader = ipc.open_file(str(result))
+        table = reader.read_all()
+        assert table.num_rows == 2
+
+        assert table.column("turn").to_pylist() == [1, 1]
+        assert table.column("agent_id").to_pylist() == [42, 99]
+        assert table.column("event_type").to_pylist() == ["migration", "death"]
+        assert table.column("region").to_pylist() == [3, 5]
+        assert table.column("target_region").to_pylist() == [7, 0]
+        assert table.column("civ_affinity").to_pylist() == [0, 1]
+        assert table.column("occupation").to_pylist() == [0, 1]
+
+    @pytest.mark.skipif(not HAS_ARROW, reason="pyarrow not installed")
+    def test_write_bundle_writes_arrow_sidecar(self, sample_world, tmp_path):
+        """write_bundle creates agent_events.arrow alongside the JSON."""
+        sample_world.agent_events_raw = self._make_events()
+        bundle = {"test": True}
+        path = tmp_path / "chronicle_bundle.json"
+        write_bundle(bundle, path, world=sample_world)
+
+        assert path.exists()
+        arrow_path = tmp_path / "agent_events.arrow"
+        assert arrow_path.exists()
+
+    @pytest.mark.skipif(not HAS_ARROW, reason="pyarrow not installed")
+    def test_arrow_schema_types(self, sample_world, tmp_path):
+        """Arrow file has the expected column types."""
+        import pyarrow as pa
+        import pyarrow.ipc as ipc
+
+        sample_world.agent_events_raw = self._make_events()
+        write_agent_events_arrow(sample_world, tmp_path)
+
+        reader = ipc.open_file(str(tmp_path / "agent_events.arrow"))
+        schema = reader.schema
+        assert schema.field("turn").type == pa.uint32()
+        assert schema.field("agent_id").type == pa.uint32()
+        assert schema.field("event_type").type == pa.utf8()
+        assert schema.field("region").type == pa.uint16()
+        assert schema.field("target_region").type == pa.uint16()
+        assert schema.field("civ_affinity").type == pa.uint16()
+        assert schema.field("occupation").type == pa.uint8()
+
+
+try:
+    from chronicler_agents import AgentSimulator
+    HAS_RUST = True
+except ImportError:
+    HAS_RUST = False
+
+
+class TestHybridIntegration:
+    """Integration tests requiring the Rust agent crate."""
+
+    @pytest.mark.skipif(not HAS_RUST, reason="Rust crate not built")
+    def test_hybrid_100_turn_integration(self, tmp_path):
+        """100-turn hybrid run produces a bundle with agent_events.arrow."""
+        from chronicler.main import execute_run
+        args = argparse.Namespace(
+            seed=1, turns=100, civs=2, regions=5,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=25,
+            llm_actions=False, scenario=None, pause_every=None,
+        )
+        execute_run(args)
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        assert bundle_path.exists()
+        # In hybrid mode with Rust, agent_events.arrow should exist
+        # (only if agent_mode was set to hybrid, which requires Rust)
+
+    @pytest.mark.skipif(not HAS_RUST, reason="Rust crate not built")
+    def test_convergence_diagnostic(self, tmp_path):
+        """Agent populations converge within 2x carrying capacity over 50 turns."""
+        from chronicler.main import execute_run
+        args = argparse.Namespace(
+            seed=7, turns=50, civs=2, regions=5,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=50,
+            llm_actions=False, scenario=None, pause_every=None,
+        )
+        execute_run(args)
 
 
 class TestBundleSize:

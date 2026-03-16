@@ -228,7 +228,7 @@ def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
 # Per-turn faction tick (phase 10 — consequences)
 # ---------------------------------------------------------------------------
 
-def tick_factions(world) -> list[Event]:
+def tick_factions(world, acc=None) -> list[Event]:
     """Main per-turn faction tick. Runs in phase 10 (consequences)."""
     events: list[Event] = []
     current_turn = world.turn
@@ -338,9 +338,14 @@ def tick_factions(world) -> list[Event]:
         elif civ.factions.power_struggle:
             civ.factions.power_struggle_turns += 1
             from chronicler.emergence import get_severity_multiplier
-            civ.stability -= int(3 * get_severity_multiplier(civ))
-            if civ.stability < 0:
-                civ.stability = 0
+            drain = int(3 * get_severity_multiplier(civ))
+            if acc is not None:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                acc.add(civ_idx, civ, "stability", -drain, "signal")
+            else:
+                civ.stability -= drain
+                if civ.stability < 0:
+                    civ.stability = 0
             if civ.factions.power_struggle_turns > 5:
                 events.extend(resolve_power_struggle(civ, world))
         elif civ.factions.power_struggle_cooldown <= 0:

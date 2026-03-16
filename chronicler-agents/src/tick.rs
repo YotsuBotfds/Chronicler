@@ -61,7 +61,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 2. Pre-compute region stats for decisions
     // -----------------------------------------------------------------------
-    let stats = compute_region_stats(pool, regions);
+    let stats = compute_region_stats(pool, regions, signals);
 
     // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
@@ -249,7 +249,7 @@ pub fn tick_agents(
 
 fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals) {
     // Pre-compute region stats for demand/supply ratio
-    let stats = compute_region_stats(pool, regions);
+    let stats = compute_region_stats(pool, regions, signals);
 
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) {
@@ -318,6 +318,8 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
             None => 0.0,
         };
 
+        let shock = signals.shock_for_civ(pool.civ_affinity(slot));
+
         let sat = satisfaction::compute_satisfaction(
             occ,
             region.soil,
@@ -331,6 +333,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
             is_displaced,
             region.trade_route_count,
             faction_influence,
+            &shock,
         );
 
         pool.set_satisfaction(slot, sat);
@@ -442,6 +445,15 @@ mod tests {
                     faction_military: 0.33,
                     faction_merchant: 0.33,
                     faction_cultural: 0.34,
+                    shock_stability: 0.0,
+                    shock_economy: 0.0,
+                    shock_military: 0.0,
+                    shock_culture: 0.0,
+                    demand_shift_farmer: 0.0,
+                    demand_shift_soldier: 0.0,
+                    demand_shift_merchant: 0.0,
+                    demand_shift_scholar: 0.0,
+                    demand_shift_priest: 0.0,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],

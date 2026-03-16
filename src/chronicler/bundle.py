@@ -2,11 +2,21 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
+
+try:
+    import pyarrow as pa
+    import pyarrow.ipc as ipc
+    HAS_ARROW = True
+except ImportError:
+    HAS_ARROW = False
+
+logger = logging.getLogger(__name__)
 
 
 def assemble_bundle(
@@ -46,7 +56,46 @@ def assemble_bundle(
     }
 
 
-def write_bundle(bundle: dict[str, Any], path: Path) -> None:
-    """Write assembled bundle to a JSON file."""
+def write_bundle(bundle: dict[str, Any], path: Path,
+                  world: WorldState | None = None) -> None:
+    """Write assembled bundle to a JSON file.
+
+    If *world* is provided and contains agent_events_raw, an Arrow IPC
+    sidecar file ``agent_events.arrow`` is written next to the JSON bundle.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(bundle, indent=2))
+
+    if world is not None:
+        write_agent_events_arrow(world, path.parent)
+
+
+def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None:
+    """Serialize ``world.agent_events_raw`` as Arrow IPC.
+
+    Returns the path written, or *None* when skipped (no events or no pyarrow).
+    """
+    if not getattr(world, "agent_events_raw", None):
+        return None
+    if not HAS_ARROW:
+        logger.debug("pyarrow not available; skipping agent_events.arrow")
+        return None
+
+    events = world.agent_events_raw
+    batch = pa.record_batch({
+        "turn": pa.array([e.turn for e in events], type=pa.uint32()),
+        "agent_id": pa.array([e.agent_id for e in events], type=pa.uint32()),
+        "event_type": pa.array([e.event_type for e in events], type=pa.utf8()),
+        "region": pa.array([e.region for e in events], type=pa.uint16()),
+        "target_region": pa.array([e.target_region for e in events], type=pa.uint16()),
+        "civ_affinity": pa.array([e.civ_affinity for e in events], type=pa.uint16()),
+        "occupation": pa.array([e.occupation for e in events], type=pa.uint8()),
+    })
+
+    out_path = bundle_dir / "agent_events.arrow"
+    with pa.OSFile(str(out_path), "wb") as f:
+        writer = ipc.new_file(f, batch.schema)
+        writer.write_batch(batch)
+        writer.close()
+
+    return out_path

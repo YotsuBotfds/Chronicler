@@ -14,6 +14,16 @@ pub struct CivSignals {
     pub faction_military: f32,
     pub faction_merchant: f32,
     pub faction_cultural: f32,
+    // M27 additions:
+    pub shock_stability: f32,
+    pub shock_economy: f32,
+    pub shock_military: f32,
+    pub shock_culture: f32,
+    pub demand_shift_farmer: f32,
+    pub demand_shift_soldier: f32,
+    pub demand_shift_merchant: f32,
+    pub demand_shift_scholar: f32,
+    pub demand_shift_priest: f32,
 }
 
 /// Parsed signals for one tick.
@@ -54,6 +64,26 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         .as_any().downcast_ref::<Float32Array>()
         .ok_or_else(|| ArrowError::CastError("faction_cultural not Float32".into()))?;
 
+    // M27 optional columns — default to 0.0 if absent
+    let shock_stability_col = batch.column_by_name("shock_stability")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let shock_economy_col = batch.column_by_name("shock_economy")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let shock_military_col = batch.column_by_name("shock_military")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let shock_culture_col = batch.column_by_name("shock_culture")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let demand_farmer_col = batch.column_by_name("demand_shift_farmer")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let demand_soldier_col = batch.column_by_name("demand_shift_soldier")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let demand_merchant_col = batch.column_by_name("demand_shift_merchant")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let demand_scholar_col = batch.column_by_name("demand_shift_scholar")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let demand_priest_col = batch.column_by_name("demand_shift_priest")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+
     let mut result = Vec::with_capacity(batch.num_rows());
     for i in 0..batch.num_rows() {
         result.push(CivSignals {
@@ -64,6 +94,15 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             faction_military: fac_mil.value(i),
             faction_merchant: fac_mer.value(i),
             faction_cultural: fac_cul.value(i),
+            shock_stability: shock_stability_col.map(|a| a.value(i)).unwrap_or(0.0),
+            shock_economy: shock_economy_col.map(|a| a.value(i)).unwrap_or(0.0),
+            shock_military: shock_military_col.map(|a| a.value(i)).unwrap_or(0.0),
+            shock_culture: shock_culture_col.map(|a| a.value(i)).unwrap_or(0.0),
+            demand_shift_farmer: demand_farmer_col.map(|a| a.value(i)).unwrap_or(0.0),
+            demand_shift_soldier: demand_soldier_col.map(|a| a.value(i)).unwrap_or(0.0),
+            demand_shift_merchant: demand_merchant_col.map(|a| a.value(i)).unwrap_or(0.0),
+            demand_shift_scholar: demand_scholar_col.map(|a| a.value(i)).unwrap_or(0.0),
+            demand_shift_priest: demand_priest_col.map(|a| a.value(i)).unwrap_or(0.0),
         });
     }
     Ok(result)
@@ -81,6 +120,47 @@ pub fn parse_contested_regions(batch: &RecordBatch, num_regions: usize) -> Vec<b
         }
     }
     result
+}
+
+/// Aggregated shock values for a single civilization.
+#[derive(Clone, Debug, Default)]
+pub struct CivShock {
+    pub stability: f32,
+    pub economy: f32,
+    pub military: f32,
+    pub culture: f32,
+}
+
+impl TickSignals {
+    /// Look up the shock components for the given civ, defaulting to zeros.
+    pub fn shock_for_civ(&self, civ_id: u8) -> CivShock {
+        self.civs
+            .iter()
+            .find(|c| c.civ_id == civ_id)
+            .map(|c| CivShock {
+                stability: c.shock_stability,
+                economy: c.shock_economy,
+                military: c.shock_military,
+                culture: c.shock_culture,
+            })
+            .unwrap_or_default()
+    }
+
+    /// Demand-shift array [farmer, soldier, merchant, scholar, priest] for the
+    /// given civ, defaulting to zeros.
+    pub fn demand_shifts_for_civ(&self, civ_id: u8) -> [f32; 5] {
+        self.civs
+            .iter()
+            .find(|c| c.civ_id == civ_id)
+            .map(|c| [
+                c.demand_shift_farmer,
+                c.demand_shift_soldier,
+                c.demand_shift_merchant,
+                c.demand_shift_scholar,
+                c.demand_shift_priest,
+            ])
+            .unwrap_or([0.0; 5])
+    }
 }
 
 #[cfg(test)]
@@ -167,5 +247,94 @@ mod tests {
         ]).unwrap();
         let result = parse_contested_regions(&batch, 3);
         assert_eq!(result, vec![false, false, false]);
+    }
+
+    fn make_full_civ_signals_batch() -> RecordBatch {
+        RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![75u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![true])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![1u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.5f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.3f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.2f32])) as _),
+            ("shock_stability", Arc::new(Float32Array::from(vec![-0.25f32])) as _),
+            ("shock_economy", Arc::new(Float32Array::from(vec![-0.1f32])) as _),
+            ("shock_military", Arc::new(Float32Array::from(vec![0.0f32])) as _),
+            ("shock_culture", Arc::new(Float32Array::from(vec![0.15f32])) as _),
+            ("demand_shift_farmer", Arc::new(Float32Array::from(vec![0.0f32])) as _),
+            ("demand_shift_soldier", Arc::new(Float32Array::from(vec![0.17f32])) as _),
+            ("demand_shift_merchant", Arc::new(Float32Array::from(vec![0.0f32])) as _),
+            ("demand_shift_scholar", Arc::new(Float32Array::from(vec![0.0f32])) as _),
+            ("demand_shift_priest", Arc::new(Float32Array::from(vec![0.0f32])) as _),
+        ]).unwrap()
+    }
+
+    #[test]
+    fn test_parse_extended_civ_signals() {
+        let batch = make_full_civ_signals_batch();
+        let civs = parse_civ_signals(&batch).unwrap();
+        assert_eq!(civs.len(), 1);
+        assert_eq!(civs[0].civ_id, 0);
+        assert_eq!(civs[0].stability, 75);
+        assert!(civs[0].is_at_war);
+        assert_eq!(civs[0].dominant_faction, 1);
+        assert!((civs[0].faction_military - 0.5).abs() < 0.01);
+        assert!((civs[0].faction_merchant - 0.3).abs() < 0.01);
+        assert!((civs[0].faction_cultural - 0.2).abs() < 0.01);
+        // M27 shock fields
+        assert!((civs[0].shock_stability - (-0.25)).abs() < 0.01);
+        assert!((civs[0].shock_economy - (-0.1)).abs() < 0.01);
+        assert!((civs[0].shock_military - 0.0).abs() < 0.01);
+        assert!((civs[0].shock_culture - 0.15).abs() < 0.01);
+        // M27 demand shift fields
+        assert!((civs[0].demand_shift_farmer - 0.0).abs() < 0.01);
+        assert!((civs[0].demand_shift_soldier - 0.17).abs() < 0.01);
+        assert!((civs[0].demand_shift_merchant - 0.0).abs() < 0.01);
+        assert!((civs[0].demand_shift_scholar - 0.0).abs() < 0.01);
+        assert!((civs[0].demand_shift_priest - 0.0).abs() < 0.01);
+
+        // Test accessors via TickSignals
+        let ts = TickSignals { civs, contested_regions: vec![] };
+        let shock = ts.shock_for_civ(0);
+        assert!((shock.stability - (-0.25)).abs() < 0.01);
+        assert!((shock.economy - (-0.1)).abs() < 0.01);
+        assert!((shock.military - 0.0).abs() < 0.01);
+        assert!((shock.culture - 0.15).abs() < 0.01);
+
+        let demand = ts.demand_shifts_for_civ(0);
+        assert!((demand[0] - 0.0).abs() < 0.01);
+        assert!((demand[1] - 0.17).abs() < 0.01);
+        assert!((demand[2] - 0.0).abs() < 0.01);
+        assert!((demand[3] - 0.0).abs() < 0.01);
+        assert!((demand[4] - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_backward_compatible_without_m27_columns() {
+        // Use the original M26 batch (no shock/demand columns)
+        let batch = make_civ_batch();
+        let civs = parse_civ_signals(&batch).unwrap();
+        assert_eq!(civs.len(), 2);
+        // All M27 fields should default to 0.0
+        for c in &civs {
+            assert_eq!(c.shock_stability, 0.0);
+            assert_eq!(c.shock_economy, 0.0);
+            assert_eq!(c.shock_military, 0.0);
+            assert_eq!(c.shock_culture, 0.0);
+            assert_eq!(c.demand_shift_farmer, 0.0);
+            assert_eq!(c.demand_shift_soldier, 0.0);
+            assert_eq!(c.demand_shift_merchant, 0.0);
+            assert_eq!(c.demand_shift_scholar, 0.0);
+            assert_eq!(c.demand_shift_priest, 0.0);
+        }
+
+        // Accessors on missing civ should also return zeros
+        let ts = TickSignals { civs, contested_regions: vec![] };
+        let shock = ts.shock_for_civ(99);
+        assert_eq!(shock.stability, 0.0);
+        assert_eq!(shock.economy, 0.0);
+        let demand = ts.demand_shifts_for_civ(99);
+        assert_eq!(demand, [0.0; 5]);
     }
 }

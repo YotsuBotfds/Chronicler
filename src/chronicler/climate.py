@@ -163,7 +163,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
     return events
 
 
-def process_migration(world: WorldState) -> list[Event]:
+def process_migration(world: WorldState, acc=None) -> list[Event]:
     """Called at end of phase 1, after disasters."""
     from chronicler.ecology import effective_capacity
     from chronicler.utils import add_region_pop, sync_all_populations
@@ -215,7 +215,11 @@ def process_migration(world: WorldState) -> list[Event]:
                         (c for c in world.civilizations if c.name == ctrl_name), None
                     )
                     if recv_civ:
-                        recv_civ.stability = max(recv_civ.stability - 3, 0)
+                        if acc is not None:
+                            recv_idx = next(i for i, c in enumerate(world.civilizations) if c.name == recv_civ.name)
+                            acc.add(recv_idx, recv_civ, "stability", -3, "signal")
+                        else:
+                            recv_civ.stability = max(recv_civ.stability - 3, 0)
 
             region.population = max(region.population - surplus, 0)
             importance = min(5 + surplus // 10, 9)

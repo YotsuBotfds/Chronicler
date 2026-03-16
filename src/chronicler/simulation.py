@@ -29,6 +29,7 @@ from chronicler.models import (
     ActionType,
     ActiveCondition,
     Civilization,
+    CivShock,
     Disposition,
     Event,
     Leader,
@@ -36,6 +37,7 @@ from chronicler.models import (
     TechEra,
     WorldState,
 )
+from chronicler.accumulator import normalize_shock
 from chronicler.tech import check_tech_advancement
 from chronicler.utils import (
     clamp,
@@ -90,7 +92,7 @@ def _get_civ(world: WorldState, name: str) -> Civilization | None:
 
 # --- Phase 1: Environment ---
 
-def phase_environment(world: WorldState, seed: int) -> list[Event]:
+def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Check for natural disasters. At most one environment event per turn."""
     from chronicler.climate import get_climate_phase, check_disasters, process_migration
 
@@ -111,7 +113,7 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
     disaster_events = check_disasters(world, climate_phase)
     events.extend(disaster_events)
 
-    migration_events = process_migration(world)
+    migration_events = process_migration(world, acc=acc)
     events.extend(migration_events)
 
     # Legacy environment events (drought, plague, earthquake)
@@ -133,8 +135,13 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
             for civ in affected:
                 mult = get_severity_multiplier(civ)
                 drain = int(get_override(world, K_DROUGHT_STABILITY, 3))
-                civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
-                civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
+                if acc is not None:
+                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    acc.add(civ_idx, civ, "stability", -drain, "signal")
+                    acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
+                else:
+                    civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
+                    civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="drought",
@@ -146,11 +153,18 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         elif event.event_type == "plague":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ_regions = [r for r in world.regions if r.controller == civ.name]
-                distribute_pop_loss(civ_regions, int(10 * mult))
-                sync_civ_population(civ, world)
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "population", -int(10 * mult), "guard")
+                else:
+                    civ_regions = [r for r in world.regions if r.controller == civ.name]
+                    distribute_pop_loss(civ_regions, int(10 * mult))
+                    sync_civ_population(civ, world)
                 drain = int(get_override(world, K_PLAGUE_STABILITY, 3))
-                civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "stability", -drain, "signal")
+                else:
+                    civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
             world.active_conditions.append(
                 ActiveCondition(
                     condition_type="plague",
@@ -162,7 +176,11 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
         elif event.event_type == "earthquake":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
+                if acc is not None:
+                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
+                else:
+                    civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
 
         world.event_probabilities = apply_probability_cascade(
             event.event_type, world.event_probabilities
@@ -174,7 +192,7 @@ def phase_environment(world: WorldState, seed: int) -> list[Event]:
 
 # --- Phase 2: Automatic Effects ---
 
-def apply_automatic_effects(world: WorldState) -> list[Event]:
+def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Automatic per-turn effects — maintenance, trade, specialization, mercs."""
     from chronicler.resources import get_active_trade_routes, get_self_trade_civs
     from chronicler.infrastructure import tick_infrastructure
@@ -186,10 +204,13 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
     # 1. Military maintenance: free up to threshold, then (mil-threshold)//10 per turn
     free_threshold = int(get_override(world, K_MILITARY_FREE_THRESHOLD, 30))
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if civ.military > free_threshold:
             cost = (civ.military - free_threshold) // 10
-            civ.treasury -= cost
+            if acc is not None:
+                acc.add(civ_idx, civ, "treasury", -cost, "keep")
+            else:
+                civ.treasury -= cost
 
     # 2. Trade income
     cross_routes = get_active_trade_routes(world)
@@ -197,19 +218,31 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         a = _get_civ(world, civ_a)
         b = _get_civ(world, civ_b)
         if a:
-            a.treasury += 2
+            if acc is not None:
+                a_idx = next(i for i, c in enumerate(world.civilizations) if c.name == a.name)
+                acc.add(a_idx, a, "treasury", 2, "keep")
+            else:
+                a.treasury += 2
         if b:
-            b.treasury += 2
+            if acc is not None:
+                b_idx = next(i for i, c in enumerate(world.civilizations) if c.name == b.name)
+                acc.add(b_idx, b, "treasury", 2, "keep")
+            else:
+                b.treasury += 2
     for civ_name in get_self_trade_civs(world):
         c = _get_civ(world, civ_name)
         if c:
-            c.treasury += 3
+            if acc is not None:
+                c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                acc.add(c_idx, c, "treasury", 3, "keep")
+            else:
+                c.treasury += 3
 
     # Embargo set — used by both specialization and black market sections
     embargo_set = {(a, b) for a, b in world.embargoes} | {(b, a) for a, b in world.embargoes}
 
     # 3. Economic specialization
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         controlled = [r for r in world.regions if r.controller == civ.name]
         if not controlled:
             continue
@@ -235,13 +268,19 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
                                if (a, b) in embargo_set or (b, a) in embargo_set]
             if embargoed_routes:
                 penalty = int(civ.economy * 0.20)
-                civ.treasury -= penalty
+                if acc is not None:
+                    acc.add(civ_idx, civ, "treasury", -penalty, "keep")
+                else:
+                    civ.treasury -= penalty
             else:
                 bonus = int(civ.economy * 0.15)
-                civ.treasury += bonus
+                if acc is not None:
+                    acc.add(civ_idx, civ, "treasury", bonus, "keep")
+                else:
+                    civ.treasury += bonus
 
     # 4. Black market leakage for embargoed civs
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if not any(civ.name in pair for pair in embargo_set):
             continue
         # Check for adjacent non-embargoed neighbors
@@ -253,8 +292,12 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
                 if adj and adj.controller and adj.controller != civ.name:
                     pair = tuple(sorted([civ.name, adj.controller]))
                     if pair not in embargo_set:
-                        civ.treasury += 1  # 30% of normal trade (2), min 1
-                        civ.stability = clamp(civ.stability - 3, STAT_FLOOR["stability"], 100)
+                        if acc is not None:
+                            acc.add(civ_idx, civ, "treasury", 1, "keep")
+                            acc.add(civ_idx, civ, "stability", -3, "signal")
+                        else:
+                            civ.treasury += 1  # 30% of normal trade (2), min 1
+                            civ.stability = clamp(civ.stability - 3, STAT_FLOOR["stability"], 100)
                         break  # Only one black market route per civ per turn
             break  # Only check first controlled region for simplicity
 
@@ -263,14 +306,21 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         for civ_name in war:
             c = _get_civ(world, civ_name)
             if c:
-                c.treasury -= 3
-                if c.treasury <= 0:
-                    drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
-                    c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
+                if acc is not None:
+                    c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                    acc.add(c_idx, c, "treasury", -3, "keep")
+                    if c.treasury <= 0:
+                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
+                        acc.add(c_idx, c, "stability", -drain, "signal")
+                else:
+                    c.treasury -= 3
+                    if c.treasury <= 0:
+                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
+                        c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
 
     # 6. Mercenary system
     MAX_MERCS = 3
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         # Check merc pressure: military >> income
         if civ.military > 30 and civ.last_income > 0 and civ.military > civ.last_income * 3:
             civ.merc_pressure_turns += 1
@@ -279,7 +329,10 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         # Spawn mercenary company after 3 turns of pressure
         if civ.merc_pressure_turns >= 3 and len(world.mercenary_companies) < MAX_MERCS:
             strength = min(10, civ.military // 5)
-            civ.military = clamp(civ.military - strength, STAT_FLOOR["military"], 100)
+            if acc is not None:
+                acc.add(civ_idx, civ, "military", -strength, "guard")
+            else:
+                civ.military = clamp(civ.military - strength, STAT_FLOOR["military"], 100)
             region = civ.regions[0] if civ.regions else "unknown"
             world.mercenary_companies.append({
                 "strength": strength, "origin_civ": civ.name,
@@ -306,8 +359,13 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         if candidates:
             candidates.sort(key=lambda c: (c.military, -c.treasury))
             hirer = candidates[0]
-            hirer.treasury -= 10
-            hirer.military = clamp(hirer.military + merc["strength"], STAT_FLOOR["military"], 100)
+            if acc is not None:
+                hirer_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == hirer.name)
+                acc.add(hirer_idx, hirer, "treasury", -10, "keep")
+                acc.add(hirer_idx, hirer, "military", merc["strength"], "guard")
+            else:
+                hirer.treasury -= 10
+                hirer.military = clamp(hirer.military + merc["strength"], STAT_FLOOR["military"], 100)
             merc["hired_by"] = hirer.name
             merc["available"] = False
     # Decay unhired mercs
@@ -334,14 +392,14 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
         apply_balance_of_power, apply_fallen_empire, apply_twilight,
         apply_long_peace, update_peak_regions,
     )
-    events.extend(apply_governing_costs(world))
-    events.extend(collect_tribute(world))
-    events.extend(apply_proxy_wars(world))
-    events.extend(apply_exile_effects(world))
+    events.extend(apply_governing_costs(world, acc=acc))
+    events.extend(collect_tribute(world, acc=acc))
+    events.extend(apply_proxy_wars(world, acc=acc))
+    events.extend(apply_exile_effects(world, acc=acc))
     events.extend(apply_balance_of_power(world))
-    events.extend(apply_fallen_empire(world))
-    events.extend(apply_twilight(world))
-    events.extend(apply_long_peace(world))
+    events.extend(apply_fallen_empire(world, acc=acc))
+    events.extend(apply_twilight(world, acc=acc))
+    events.extend(apply_long_peace(world, acc=acc))
     update_peak_regions(world)
 
     # Trade knowledge sharing (fog of war)
@@ -350,7 +408,7 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
     events.extend(knowledge_events)
 
     # M17b: Exile pretender stability drain
-    apply_exile_pretender_drain(world)
+    apply_exile_pretender_drain(world, acc=acc)
 
     # M17d: Tradition ongoing effects
     from chronicler.traditions import apply_tradition_effects
@@ -362,22 +420,25 @@ def apply_automatic_effects(world: WorldState) -> list[Event]:
 
     # M18: Pandemic tick
     from chronicler.emergence import tick_pandemic
-    events.extend(tick_pandemic(world))
+    events.extend(tick_pandemic(world, acc=acc))
 
     return events
 
 
 # --- Phase 3: Production ---
 
-def phase_production(world: WorldState) -> None:
+def phase_production(world: WorldState, acc=None) -> None:
     """Generate income and adjust population for each civilization."""
     from chronicler.ecology import effective_capacity
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         # Base income
         income = civ.economy // 5 + len(civ.regions) * 2
         # Condition penalty
         penalty = sum(c.severity for c in world.active_conditions if civ.name in c.affected_civs)
-        civ.treasury += max(0, income - penalty)
+        if acc is not None:
+            acc.add(civ_idx, civ, "treasury", max(0, income - penalty), "keep")
+        else:
+            civ.treasury += max(0, income - penalty)
         # Track last_income for mercenary spawn
         civ.last_income = max(0, income - penalty)
         # Population
@@ -391,20 +452,31 @@ def phase_production(world: WorldState) -> None:
             if civ_regions:
                 growth = max(5, 5 * len(civ_regions))
                 per_region = max(1, growth // len(civ_regions))
-                for r in civ_regions:
-                    add_region_pop(r, per_region)
-                sync_civ_population(civ, world)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "population", per_region * len(civ_regions), "guard")
+                else:
+                    for r in civ_regions:
+                        add_region_pop(r, per_region)
+                    sync_civ_population(civ, world)
         elif civ.stability <= 5 and civ.population > 1:
             if civ_regions:
-                target = max(civ_regions, key=lambda r: r.population)
-                drain_region_pop(target, 5)
-                sync_civ_population(civ, world)
+                if acc is not None:
+                    acc.add(civ_idx, civ, "population", -5, "guard")
+                else:
+                    target = max(civ_regions, key=lambda r: r.population)
+                    drain_region_pop(target, 5)
+                    sync_civ_population(civ, world)
         # Passive repopulation: empty controlled regions slowly recover
         if civ_regions:
-            for r in civ_regions:
-                if r.population == 0:
-                    add_region_pop(r, 3)
-            sync_civ_population(civ, world)
+            empty_count = sum(1 for r in civ_regions if r.population == 0)
+            if acc is not None:
+                if empty_count > 0:
+                    acc.add(civ_idx, civ, "population", 3 * empty_count, "guard")
+            else:
+                for r in civ_regions:
+                    if r.population == 0:
+                        add_region_pop(r, 3)
+                sync_civ_population(civ, world)
 
         # M21: MECHANIZATION gives +2 treasury per active mine
         if civ.active_focus == "mechanization":
@@ -414,7 +486,10 @@ def phase_production(world: WorldState) -> None:
                 for i in r.infrastructure if i.type == InfrastructureType.MINES and i.active
             )
             if mine_count > 0:
-                civ.treasury += mine_count * 2
+                if acc is not None:
+                    acc.add(civ_idx, civ, "treasury", mine_count * 2, "keep")
+                else:
+                    civ.treasury += mine_count * 2
                 world.events_timeline.append(Event(
                     turn=world.turn, event_type="capability_mechanization",
                     actors=[civ.name], description=f"{civ.name} mechanization yields {mine_count * 2} from mines",
@@ -422,7 +497,7 @@ def phase_production(world: WorldState) -> None:
                 ))
 
     # Stability recovery: passive per-turn recovery, halved during severe conditions
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if civ.stability < 50:
             base_recovery = int(get_override(world, K_STABILITY_RECOVERY, 20))
             has_severe_condition = any(
@@ -430,10 +505,13 @@ def phase_production(world: WorldState) -> None:
                 for c in world.active_conditions
             )
             recovery = base_recovery // 2 if has_severe_condition else base_recovery
-            civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
+            if acc is not None:
+                acc.add(civ_idx, civ, "stability", recovery, "guard")
+            else:
+                civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
 
     # M16a: Prestige decay and trade bonus
-    tick_prestige(world)
+    tick_prestige(world, acc=acc)
 
 
 # --- Phase 5: Action ---
@@ -444,6 +522,7 @@ _CRISIS_HALVED_STATS = ("economy", "culture", "military", "stability", "populati
 def phase_action(
     world: WorldState,
     action_selector: ActionSelector,
+    acc=None,
 ) -> list[Event]:
     """Each civilization takes one action from the constrained menu."""
     events: list[Event] = []
@@ -456,7 +535,7 @@ def phase_action(
             pre_stats = {s: getattr(civ, s) for s in _CRISIS_HALVED_STATS}
 
         action = action_selector(civ, world)
-        event = resolve_action(civ, action, world)
+        event = resolve_action(civ, action, world, acc=acc)
 
         # Crisis halving: reduce positive stat gains by 50%
         if in_crisis:
@@ -483,14 +562,14 @@ def phase_action(
 
 # --- Asabiya dynamics (Turchin metaethnic frontier model) ---
 
-def apply_asabiya_dynamics(world: WorldState) -> None:
+def apply_asabiya_dynamics(world: WorldState, acc=None) -> None:
     """Update asabiya (collective solidarity) for each civilization."""
     r0 = 0.05   # Growth rate at frontiers
     delta = 0.02  # Decay rate in interior
 
     disp_threat = {Disposition.HOSTILE, Disposition.SUSPICIOUS}
 
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         has_frontier = False
         if civ.name in world.relationships:
             for _other, rel in world.relationships[civ.name].items():
@@ -510,12 +589,17 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
         if folk_bonus > 0:
             s = s + folk_bonus * 0.1  # scale per-turn contribution
 
-        civ.asabiya = round(max(0.0, min(1.0, s)), 4)
+        new_asabiya = round(max(0.0, min(1.0, s)), 4)
+        if acc is not None:
+            delta_val = new_asabiya - civ.asabiya
+            acc.add(civ_idx, civ, "asabiya", delta_val, "keep")
+        else:
+            civ.asabiya = new_asabiya
 
 
 # --- Phase 7: Random events ---
 
-def phase_random_events(world: WorldState, seed: int) -> list[Event]:
+def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Roll for 0-1 random external events (non-environment)."""
     events: list[Event] = []
     non_env = [k for k in world.event_probabilities if k not in ENVIRONMENT_EVENTS]
@@ -535,24 +619,28 @@ def phase_random_events(world: WorldState, seed: int) -> list[Event]:
 
         affected_civ = _get_civ(world, event.actors[0])
         if affected_civ:
-            _apply_event_effects(event.event_type, affected_civ, world)
+            _apply_event_effects(event.event_type, affected_civ, world, acc=acc)
 
         events.append(event)
 
     from chronicler.politics import check_congress
-    events.extend(check_congress(world))
+    events.extend(check_congress(world, acc=acc))
     return events
 
 
-def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) -> None:
+def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, acc=None) -> None:
     """Apply mechanical stat changes for a random event."""
+    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
     if event_type == "leader_death":
         import random as _random
         old_leader = civ.leader
         old_leader.alive = False
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_LEADER_DEATH_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
         check_rival_fall(civ, old_leader.name, world)
         # Check whether death triggers a succession crisis instead of immediate succession
@@ -574,42 +662,69 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState) 
     elif event_type == "rebellion":
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_REBELLION_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
-        civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+            acc.add(civ_idx, civ, "military", -int(10 * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+            civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
     elif event_type == "discovery":
-        civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
-        civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "culture", 10, "guard-shock")
+            acc.add(civ_idx, civ, "economy", 10, "guard-shock")
+        else:
+            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+            civ.economy = clamp(civ.economy + 10, STAT_FLOOR["economy"], 100)
     elif event_type == "religious_movement":
-        civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_RELIGIOUS_MOVEMENT_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "culture", 10, "guard-shock")
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.culture = clamp(civ.culture + 10, STAT_FLOOR["culture"], 100)
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "cultural_renaissance":
-        civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
-        civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "culture", 20, "guard-shock")
+            acc.add(civ_idx, civ, "stability", 10, "guard-shock")
+        else:
+            civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
+            civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     elif event_type == "migration":
         from chronicler.ecology import effective_capacity
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)
-            add_region_pop(target, 10)
-            sync_civ_population(civ, world)
+            if acc is not None:
+                acc.add(civ_idx, civ, "population", 10, "guard")
+            else:
+                target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)
+                add_region_pop(target, 10)
+                sync_civ_population(civ, world)
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_MIGRATION_STABILITY, 4))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "border_incident":
         mult = get_severity_multiplier(civ)
         drain = int(get_override(world, K_BORDER_INCIDENT_STABILITY, 2))
-        civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+        else:
+            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
 
 def apply_injected_event(
-    event_type: str, target_civ_name: str, world: WorldState
+    event_type: str, target_civ_name: str, world: WorldState, acc=None
 ) -> list[Event]:
     """Process a manually injected event targeting a single civ."""
     civ = _get_civ(world, target_civ_name)
     if civ is None:
         return []
+
+    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
 
     event = Event(
         turn=world.turn,
@@ -620,8 +735,12 @@ def apply_injected_event(
     )
 
     if event_type == "drought":
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
-        civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -10, "signal")
+            acc.add(civ_idx, civ, "economy", -10, "signal")
+        else:
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="drought",
@@ -631,12 +750,18 @@ def apply_injected_event(
             )
         )
     elif event_type == "plague":
-        civ_regions = [r for r in world.regions if r.controller == civ.name]
-        if civ_regions:
-            target_r = max(civ_regions, key=lambda r: r.population)
-            drain_region_pop(target_r, 10)
-            sync_civ_population(civ, world)
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "population", -10, "guard")
+        else:
+            civ_regions = [r for r in world.regions if r.controller == civ.name]
+            if civ_regions:
+                target_r = max(civ_regions, key=lambda r: r.population)
+                drain_region_pop(target_r, 10)
+                sync_civ_population(civ, world)
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -10, "signal")
+        else:
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="plague",
@@ -646,9 +771,12 @@ def apply_injected_event(
             )
         )
     elif event_type == "earthquake":
-        civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
+        if acc is not None:
+            acc.add(civ_idx, civ, "economy", -10, "signal")
+        else:
+            civ.economy = clamp(civ.economy - 10, STAT_FLOOR["economy"], 100)
     else:
-        _apply_event_effects(event_type, civ, world)
+        _apply_event_effects(event_type, civ, world, acc=acc)
 
     world.event_probabilities = apply_probability_cascade(
         event_type, world.event_probabilities
@@ -659,19 +787,26 @@ def apply_injected_event(
 
 # --- Phase 10: Consequences ---
 
-def phase_consequences(world: WorldState) -> list[Event]:
+def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
     for condition in world.active_conditions:
         condition.duration -= 1
         for civ_name in condition.affected_civs:
             civ = _get_civ(world, civ_name)
             if civ and condition.severity >= 50:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
                 mult = get_severity_multiplier(civ)
                 if condition.condition_type == "drought":
                     drain = int(get_override(world, K_DROUGHT_ONGOING, 2))
                 else:
                     drain = int(get_override(world, K_CONDITION_ONGOING_DRAIN, 1))
-                civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+                if world.agent_mode == "hybrid":
+                    world.pending_shocks.append(CivShock(civ_idx,
+                        stability_shock=normalize_shock(int(drain * mult), civ.stability)))
+                elif acc is not None:
+                    acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+                else:
+                    civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
     world.active_conditions = [c for c in world.active_conditions if c.duration > 0]
 
@@ -680,7 +815,7 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     # M16a: Cultural effects (order matters — assimilation drain feeds asabiya)
     apply_value_drift(world)
-    tick_cultural_assimilation(world)
+    tick_cultural_assimilation(world, acc=acc)
 
     # M16c: Cultural victory tracking (runs LAST in culture effects)
     check_cultural_victories(world)
@@ -692,28 +827,33 @@ def phase_consequences(world: WorldState) -> list[Event]:
         check_federation_formation, check_federation_dissolution, update_allied_turns,
     )
     collapse_events: list[Event] = []
-    collapse_events.extend(check_capital_loss(world))
-    collapse_events.extend(check_secession(world))
+    collapse_events.extend(check_capital_loss(world, acc=acc))
+    collapse_events.extend(check_secession(world, acc=acc))
     update_allied_turns(world)
-    collapse_events.extend(check_vassal_rebellion(world))
+    collapse_events.extend(check_vassal_rebellion(world, acc=acc))
     collapse_events.extend(check_federation_formation(world))
-    collapse_events.extend(check_federation_dissolution(world))
+    collapse_events.extend(check_federation_dissolution(world, acc=acc))
     from chronicler.politics import check_proxy_detection, check_restoration
     from chronicler.politics import check_twilight_absorption, update_decline_tracking
-    collapse_events.extend(check_proxy_detection(world))
+    collapse_events.extend(check_proxy_detection(world, acc=acc))
     collapse_events.extend(check_restoration(world))
     collapse_events.extend(check_twilight_absorption(world))
     update_decline_tracking(world)
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:
+                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
                 lost = civ.regions[1:]
                 civ.regions = civ.regions[:1]
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
-                civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
-                civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
+                if world.agent_mode == "hybrid":
+                    world.pending_shocks.append(CivShock(civ_idx,
+                        military_shock=-0.5, economy_shock=-0.5))
+                else:
+                    civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
+                    civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
                 collapse_events.append(Event(
                     turn=world.turn,
                     event_type="collapse",
@@ -776,18 +916,18 @@ def phase_consequences(world: WorldState) -> list[Event]:
 
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
-    collapse_events.extend(tick_factions(world))
+    collapse_events.extend(tick_factions(world, acc=acc))
 
     return collapse_events
 
 
 # --- Phase 4: Technology ---
 
-def phase_technology(world: WorldState) -> list[Event]:
+def phase_technology(world: WorldState, acc=None) -> list[Event]:
     """Phase 4: Check tech advancement for each civ."""
     events = []
     for civ in world.civilizations:
-        event = check_tech_advancement(civ, world)
+        event = check_tech_advancement(civ, world, acc=acc)
         if event:
             events.append(event)
             # M21: Remove old focus effects, select and apply new
@@ -829,11 +969,11 @@ def phase_technology(world: WorldState) -> list[Event]:
     return events
 
 
-def phase_cultural_milestones(world: WorldState) -> list[Event]:
+def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
     """Check cultural milestone thresholds for named works."""
     from chronicler.named_events import generate_cultural_work
     events = []
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         for threshold in [80, 100]:
             marker = f"culture_{threshold}"
             if civ.culture >= threshold and marker not in civ.cultural_milestones:
@@ -846,9 +986,14 @@ def phase_cultural_milestones(world: WorldState) -> list[Event]:
                 )
                 world.named_events.append(ne)
                 # M16a: Cultural works enhancement
-                civ.asabiya = min(1.0, civ.asabiya + 0.05)
-                civ.culture = clamp(civ.culture + 5, STAT_FLOOR["culture"], 100)
-                civ.prestige += 2
+                if acc is not None:
+                    acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
+                    acc.add(civ_idx, civ, "culture", 5, "guard-shock")
+                    acc.add(civ_idx, civ, "prestige", 2, "keep")
+                else:
+                    civ.asabiya = min(1.0, civ.asabiya + 0.05)
+                    civ.culture = clamp(civ.culture + 5, STAT_FLOOR["culture"], 100)
+                    civ.prestige += 2
                 events.append(Event(
                     turn=world.turn, event_type="cultural_work", actors=[civ.name],
                     description=ne.description, importance=6,
@@ -886,6 +1031,15 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
     # NOTE: phase_fertility and _check_famine deleted by M23 — replaced by ecology.tick_ecology
 
 
+def get_civ_capacities(world: WorldState) -> dict[int, int]:
+    """Get total carrying capacity per civ for demand signal normalization."""
+    region_map = {r.name: r for r in world.regions}
+    return {
+        i: sum(region_map[rn].carrying_capacity for rn in civ.regions if rn in region_map)
+        for i, civ in enumerate(world.civilizations)
+    }
+
+
 # --- Turn orchestrator ---
 
 def run_turn(
@@ -896,7 +1050,10 @@ def run_turn(
     agent_bridge: object | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
+    from chronicler.accumulator import StatAccumulator
+
     turn_events: list[Event] = []
+    acc = StatAccumulator()
 
     # --- M18: Start-of-turn snapshots ---
     for civ in world.civilizations:
@@ -905,29 +1062,29 @@ def run_turn(
         civ.capital_start_of_turn = civ.capital_region
 
     # Phase 1: Environment
-    turn_events.extend(phase_environment(world, seed=seed))
+    turn_events.extend(phase_environment(world, seed=seed, acc=acc))
 
     # M18: Black swan check (after climate disasters)
     from chronicler.emergence import check_black_swans
-    turn_events.extend(check_black_swans(world, seed=seed))
+    turn_events.extend(check_black_swans(world, seed=seed, acc=acc))
 
     # Phase 2: Automatic Effects (NEW)
-    turn_events.extend(apply_automatic_effects(world))
+    turn_events.extend(apply_automatic_effects(world, acc=acc))
 
     # Phase 3: Production
-    phase_production(world)
+    phase_production(world, acc=acc)
 
     # Phase 4: Technology
-    turn_events.extend(phase_technology(world))
+    turn_events.extend(phase_technology(world, acc=acc))
 
     # Phase 5: Action (selection + resolution)
-    turn_events.extend(phase_action(world, action_selector=action_selector))
+    turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
 
     # Phase 6: Cultural Milestones
-    turn_events.extend(phase_cultural_milestones(world))
+    turn_events.extend(phase_cultural_milestones(world, acc=acc))
 
     # Phase 7: Random Events
-    turn_events.extend(phase_random_events(world, seed=seed + 100))
+    turn_events.extend(phase_random_events(world, seed=seed + 100, acc=acc))
 
     # Phase 8: Leader Dynamics
     turn_events.extend(phase_leader_dynamics(world, seed=seed))
@@ -936,18 +1093,37 @@ def run_turn(
     from chronicler.ecology import tick_ecology
     from chronicler.climate import get_climate_phase
     climate_phase = get_climate_phase(world.turn, world.climate_config)
-    turn_events.extend(tick_ecology(world, climate_phase))
+    turn_events.extend(tick_ecology(world, climate_phase, acc=acc))
 
     # M18: Terrain succession (uses low_forest_turns updated by tick_ecology)
     from chronicler.emergence import tick_terrain_succession
     turn_events.extend(tick_terrain_succession(world))
 
-    # ── Rust agent tick (between Phase 9 and Phase 10) ──
-    if agent_bridge is not None:
-        turn_events.extend(agent_bridge.tick(world))
+    # Apply accumulated stat mutations and route agent signals
+    if world.agent_mode == "hybrid" and agent_bridge is not None:
+        acc.apply_keep(world)  # Apply treasury, asabiya, prestige
+        shocks = acc.to_shock_signals()
+        demands = acc.to_demand_signals(get_civ_capacities(world))
+        # Fold pending_shocks from last turn's Phase 10
+        shocks.extend(world.pending_shocks)
+        world.pending_shocks.clear()
+        # Tick existing demand signals (decay), then add new ones for next turn
+        demand_shifts = agent_bridge._demand_manager.tick()
+        for ds in demands:
+            agent_bridge._demand_manager.add(ds)
+        # Run agent tick with shock and demand data
+        turn_events.extend(agent_bridge.tick(world, shocks=shocks, demands=demand_shifts))
+    else:
+        acc.apply(world)
+        # Existing agent_bridge.tick() call for non-hybrid modes
+        if agent_bridge is not None:
+            turn_events.extend(agent_bridge.tick(world))
 
     # Phase 10: Consequences
-    turn_events.extend(phase_consequences(world))
+    # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.
+    # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
+    phase10_acc = acc if world.agent_mode == "hybrid" else None
+    turn_events.extend(phase_consequences(world, acc=phase10_acc))
 
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression

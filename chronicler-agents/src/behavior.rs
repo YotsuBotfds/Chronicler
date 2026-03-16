@@ -14,6 +14,7 @@ use crate::agent::{
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::satisfaction::target_occupation_ratio;
+use crate::signals::TickSignals;
 
 // ---------------------------------------------------------------------------
 // RegionStats — pre-computed per-region aggregates
@@ -37,7 +38,7 @@ pub struct RegionStats {
 }
 
 /// Single O(n) pass over alive agents to build all region stats.
-pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState]) -> RegionStats {
+pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: &TickSignals) -> RegionStats {
     let n = regions.len();
 
     let mut rebel_eligible = vec![0usize; n];
@@ -97,7 +98,12 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState]) -> Region
     // Finalize occupation demand
     let occupation_demand: Vec<[f32; OCCUPATION_COUNT]> = (0..n)
         .map(|r| {
-            let ratios = target_occupation_ratio(regions[r].terrain, regions[r].soil, regions[r].water);
+            let demand_shifts = if regions[r].controller_civ != 255 {
+                signals.demand_shifts_for_civ(regions[r].controller_civ)
+            } else {
+                [0.0; 5]
+            };
+            let ratios = target_occupation_ratio(regions[r].terrain, regions[r].soil, regions[r].water, demand_shifts);
             let pop = pop_count[r] as f32;
             let mut demand = [0.0f32; OCCUPATION_COUNT];
             for i in 0..OCCUPATION_COUNT {
@@ -316,6 +322,14 @@ mod tests {
     use crate::agent::Occupation;
     use crate::pool::AgentPool;
     use crate::region::RegionState;
+    use crate::signals::TickSignals;
+
+    fn default_signals(num_regions: usize) -> TickSignals {
+        TickSignals {
+            civs: vec![],
+            contested_regions: vec![false; num_regions],
+        }
+    }
 
     fn make_region(id: u16) -> RegionState {
         RegionState {
@@ -344,7 +358,7 @@ mod tests {
             pool.set_satisfaction(slot, 0.1);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..6).collect();
         let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
 
@@ -366,7 +380,7 @@ mod tests {
             pool.set_satisfaction(slot, 0.1);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..3).collect();
         let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
 
@@ -395,7 +409,7 @@ mod tests {
             pool.set_loyalty(slot, 0.5);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
 
         // Verify mean satisfaction: region 0 = 0.2, region 1 = 0.8
         assert!((stats.mean_satisfaction[0] - 0.2).abs() < 0.01);
@@ -427,7 +441,7 @@ mod tests {
             pool.set_loyalty(slot, 0.5);      // above rebel threshold
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
 
         let slots: Vec<usize> = (0..20).collect();
         let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
@@ -457,7 +471,7 @@ mod tests {
             pool.set_satisfaction(slot, 0.8);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
 
         // Verify multiple civs present
         assert!(stats.civ_counts[0].len() > 1);
@@ -493,7 +507,7 @@ mod tests {
             pool.set_satisfaction(slot, 0.9);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
 
         let slots: Vec<usize> = (0..3).collect();
         let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
@@ -511,7 +525,7 @@ mod tests {
     fn test_compute_region_stats_empty_region() {
         let pool = AgentPool::new(8);
         let regions = vec![make_region(0), make_region(1)];
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
 
         assert_eq!(stats.rebel_eligible[0], 0);
         assert_eq!(stats.mean_satisfaction[0], 0.0);
@@ -538,7 +552,7 @@ mod tests {
             pool.set_satisfaction(slot, 0.9);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..6).collect();
         let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0);
 
@@ -565,7 +579,7 @@ mod tests {
             pool.set_satisfaction(slot, 0.3);
         }
 
-        let stats = compute_region_stats(&pool, &regions);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
 
         // Evaluate civ 0 agents — own civ is happier, should recover
         let slots: Vec<usize> = (0..3).collect();

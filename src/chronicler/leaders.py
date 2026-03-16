@@ -184,7 +184,7 @@ def _pick_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
     return full_name
 
 
-def generate_successor(civ: Civilization, world: WorldState, seed: int, force_type: str | None = None) -> Leader:
+def generate_successor(civ: Civilization, world: WorldState, seed: int, force_type: str | None = None, acc=None) -> Leader:
     rng = random.Random(seed + world.turn + hash(civ.name))
     old_leader = civ.leader
     if force_type:
@@ -215,17 +215,31 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
     from chronicler.succession import inherit_grudges
     inherit_grudges(old_leader, new_leader)
     if stype == "general":
-        civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
-        civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "stability", -10, "guard-shock")
+            acc.add(civ_idx, civ, "military", 10, "guard-shock")
+        else:
+            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+            civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)
     elif stype == "usurper":
-        civ.stability = clamp(civ.stability - 30, STAT_FLOOR["stability"], 100)
-        civ.asabiya = min(civ.asabiya + 0.1, 1.0)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "stability", -30, "guard-shock")
+            acc.add(civ_idx, civ, "asabiya", 0.1, "keep")
+        else:
+            civ.stability = clamp(civ.stability - 30, STAT_FLOOR["stability"], 100)
+            civ.asabiya = min(civ.asabiya + 0.1, 1.0)
         world.named_events.append(NamedEvent(
             name=f"The {civ.name} Coup", event_type="coup", turn=world.turn,
             actors=[civ.name], description=f"{name} seizes power from {old_leader.name}", importance=8,
         ))
     elif stype == "elected":
-        civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
+        if acc is not None:
+            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            acc.add(civ_idx, civ, "stability", 10, "guard-shock")
+        else:
+            civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
     civ.action_counts = {}
     return new_leader
 
@@ -273,12 +287,16 @@ def update_rivalries(attacker: Civilization, defender: Civilization, world: Worl
     defender.leader.rival_civ = attacker.name
 
 
-def check_rival_fall(civ: Civilization, dead_leader_name: str, world: WorldState) -> Event | None:
+def check_rival_fall(civ: Civilization, dead_leader_name: str, world: WorldState, acc=None) -> Event | None:
     for other_civ in world.civilizations:
         if other_civ.name == civ.name:
             continue
         if other_civ.leader.rival_leader == dead_leader_name:
-            other_civ.culture = clamp(other_civ.culture + 10, STAT_FLOOR["culture"], 100)
+            if acc is not None:
+                other_idx = next(i for i, c in enumerate(world.civilizations) if c.name == other_civ.name)
+                acc.add(other_idx, other_civ, "culture", 10, "guard-shock")
+            else:
+                other_civ.culture = clamp(other_civ.culture + 10, STAT_FLOOR["culture"], 100)
             other_civ.leader.rival_leader = None
             other_civ.leader.rival_civ = None
             world.named_events.append(NamedEvent(
