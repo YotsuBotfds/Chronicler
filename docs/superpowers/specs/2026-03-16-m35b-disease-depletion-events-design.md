@@ -2,7 +2,7 @@
 
 > **Status:** Design approved. Ready for implementation planning.
 >
-> **Depends on:** M34 (resources & seasons) for resource types, yield arrays, seasonal enum, reserves field. M35a (rivers & trade corridors) for `river_mask` (flood event targeting), water quality baseline. M32 (utility-based decisions) for agent decision framework. M18 (emergence) for existing black swan pipeline and `disaster_cooldowns`.
+> **Depends on:** M34 (resources & seasons) for resource types, yield arrays, seasonal enum, reserves field. M35a (rivers & trade corridors) for `river_mask` (flood event targeting), water quality baseline. M32 (utility-based decisions) for agent decision framework. M18 (emergence) for existing black swan pipeline, `world.pandemic_state`, and climate system's per-region `disaster_cooldowns`.
 >
 > **Scope:** Endemic disease as ongoing demographic pressure, resource depletion feedback loops, and condition-triggered environmental events. ~250-325 lines across 8 files (Python + Rust + tests).
 
@@ -68,7 +68,7 @@ M18 pandemic black swans remain as-is. Their severity adds to endemic severity i
 
 **Why narratively correct:** M18 pandemics are random — the plague comes without warning, not as a consequence of overcrowding. Endemic flares have rational causes (army passage, water quality). The distinction between causal (M35b) and acausal (M18) disease is narratively valuable. Two systems producing the same mortality number for different narrative reasons is correct, not redundant.
 
-**Shared cooldown:** M18 pandemic events and M35b flare events share the `disaster_cooldowns` dict so they don't stack on the same region in the same turn window. M18 already writes to `disaster_cooldowns`, so M35b reads it before triggering a flare.
+**Cooldown interaction:** M18 pandemics use a separate mechanism: `world.black_swan_cooldown` (global int) and `world.pandemic_state` (list of active `PandemicRegion`). M35b environmental events use per-region `region.disaster_cooldowns` (same dict as the climate system). To prevent stacking disease flares with active pandemics, the flare trigger check skips regions where the region name appears in `world.pandemic_state` (a pandemic is already active there). This reads M18 state without modifying M18 code. Environmental events use `disaster_cooldowns` exclusively — no interaction with `world.black_swan_cooldown`.
 
 ### Decision 6: Python-Primary Computation
 
@@ -187,32 +187,34 @@ A 0.11 spike decays as: 0.11 -> 0.088 -> 0.074 -> 0.065 -> ... back near baselin
 `mortality_rate()` signature in `demographics.rs` changes from:
 
 ```rust
-fn mortality_rate(age: u8, eco_stress: f32) -> f32
+fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool) -> f32
 ```
 
 to:
 
 ```rust
-fn mortality_rate(age: u8, eco_stress: f32, disease_severity: f32, pandemic_severity: f32) -> f32
+fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, disease_severity: f32) -> f32
 ```
 
-`disease_severity` is the `endemic_severity` f32 read from RegionState. `pandemic_severity` is the existing M18 value (unchanged). Both are additive in the mortality computation. Rust doesn't compute disease — it consumes one number.
+`disease_severity` is the `endemic_severity` f32 read from RegionState. The existing `is_soldier_at_war` parameter is preserved — it applies a 2x mortality multiplier for soldiers on active fronts (M26). `disease_severity` is additive in the mortality computation alongside `eco_stress`. Rust doesn't compute disease — it consumes one number.
+
+Note: M18 pandemic mortality is handled separately via `StatAccumulator` population drains in `tick_pandemic()`, not through this function. The `disease_severity` parameter carries only endemic severity (M35b).
 
 ### Disease Severity Summary Table
 
-| System | Trigger | Severity Range | Duration | Cooldown |
-|--------|---------|---------------|----------|----------|
-| Endemic baseline | Terrain + climate (world-gen) | 0.01-0.02 | Permanent | -- |
-| Endemic flare | Overcrowding, army, water quality, season | 0.08-0.15 (baseline + triggers, capped) | 3-8 turns (decay) | Shared |
-| M18 pandemic | Random black swan (unchanged) | 0.10-0.20 | Existing | Shared |
+| System | Trigger | Severity Range | Duration | Mortality Path |
+|--------|---------|---------------|----------|----------------|
+| Endemic baseline | Terrain + climate (world-gen) | 0.01-0.02 | Permanent | `disease_severity` param in `mortality_rate()` |
+| Endemic flare | Overcrowding, army, water quality, season | 0.08-0.15 (baseline + triggers, capped) | 3-8 turns (decay) | `disease_severity` param in `mortality_rate()` |
+| M18 pandemic | Random black swan (unchanged) | 0.10-0.20 | Existing | StatAccumulator population drain (unchanged) |
 
-All feed into one mortality path. One cooldown pool prevents stacking. M18 untouched.
+Endemic disease feeds into per-agent mortality via `disease_severity`. M18 pandemics apply population loss through StatAccumulator (unchanged). Flare triggers skip regions with active M18 pandemics (read `world.pandemic_state`, no M18 code modification). Environmental events use per-region `disaster_cooldowns` to prevent stacking.
 
 ---
 
 ## Environmental Events
 
-Four condition-triggered events added to `emergence.py`. All share `region.disaster_cooldowns` with M18 black swans.
+Four condition-triggered events added to `emergence.py`. All use per-region `region.disaster_cooldowns` (same dict as the climate system's earthquake/volcanic events). M18 black swans use a separate global cooldown (`world.black_swan_cooldown`) and are not affected.
 
 ### New Function
 
@@ -306,16 +308,16 @@ extraction_pressure = worker_count / max(1, sustainable_workers)
 overextracting = extraction_pressure > 1.0
 ```
 
-Where `worker_count` is the number of agents with the relevant occupation in the region. `WORKERS_PER_YIELD_UNIT` is a single constant in `ecology.py`, tunable in M47.
+Where `worker_count` is the number of agents with the relevant occupation in the region. `WORKERS_PER_YIELD_UNIT` (default: 200 `[CALIBRATE]`) is a single constant in `ecology.py`, tunable in M47. At this default, a region with effective_yield 0.8 sustains 160 workers; a population of 200+ workers in that region produces extraction_pressure > 1.0.
 
-**Tracking:** `overextraction_streak: int` on Region. Incremented when `overextracting` is True. Reset to 0 when extraction drops below sustainable yield.
+**Tracking:** `overextraction_streaks: dict[int, int]` on Region, keyed by resource slot index. Each depletable resource tracks its own streak independently. Incremented per-resource when `overextracting` is True for that resource. Reset to 0 when extraction drops below sustainable yield. A region with both Grain and Fish tracks two independent streaks — Grain can be overextracted while Fish is sustainable.
 
 **Applies to:** Depletable resource classes only — Crop (Grain, Botanicals), Marine (Fish), Mineral (already has extraction mechanics in M34). Not Exotic (trade goods, not extraction-limited).
 
-**Effect at streak >= 35:**
+**Effect at streak >= 35 (per resource):**
 
 - `resource_effective_yields[resource]` permanently decreases by 10%
-- `overextraction_streak` resets to 0 (can degrade again if overextraction continues)
+- `overextraction_streaks[resource]` resets to 0 (can degrade again if overextraction continues)
 - Event emitted: `"resource_depletion"` with resource type and region
 
 ### Yield Arrays
@@ -351,7 +353,7 @@ Uses the existing emergence pipeline. No new mechanism.
 | `disease_baseline` | `float` | Region | 0.01 | Terrain-determined endemic floor |
 | `endemic_severity` | `float` | Region | 0.01 | Current effective disease severity (fluctuates) |
 | `soil_pressure_streak` | `int` | Region | 0 | Consecutive turns of overcrowded crop production |
-| `overextraction_streak` | `int` | Region | 0 | Consecutive turns of unsustainable worker pressure |
+| `overextraction_streaks` | `dict[int, int]` | Region | `{}` | Per-resource consecutive turns of unsustainable worker pressure, keyed by slot index |
 | `resource_effective_yields` | `list[float]` | Region | Copy of `resource_base_yields` | Mutable working yields |
 
 ### Rust (`region.rs`)
@@ -388,8 +390,8 @@ agent_bridge.py:
   7. endemic_severity column added to region state RecordBatch
 
 Rust agent tick:
-  8. demographics.rs reads endemic_severity + pandemic_severity
-     - mortality_rate(age, eco_stress, disease_severity, pandemic_severity)
+  8. demographics.rs reads endemic_severity from RegionState
+     - mortality_rate(age, eco_stress, is_soldier_at_war, disease_severity)
 ```
 
 ---
@@ -414,7 +416,7 @@ All `[CALIBRATE]` for M47:
 | `SOIL_PRESSURE_STREAK_LIMIT` | 30 | Python (ecology) | Turns before soil degradation doubles |
 | `OVEREXTRACTION_STREAK_LIMIT` | 35 | Python (ecology) | Turns before permanent yield reduction |
 | `OVEREXTRACTION_YIELD_PENALTY` | 0.10 | Python (ecology) | Fraction of effective_yield lost per event |
-| `WORKERS_PER_YIELD_UNIT` | TBD | Python (ecology) | Sustainable worker count per unit of effective yield |
+| `WORKERS_PER_YIELD_UNIT` | 200 | Python (ecology) | Sustainable worker count per unit of effective yield |
 | `LOCUST_PROBABILITY` | 0.15 | Python (emergence) | Per-eligible-turn chance of locust swarm |
 | `FLOOD_PROBABILITY` | 0.20 | Python (emergence) | Per-eligible-turn chance of flood |
 | `COLLAPSE_PROBABILITY` | 0.10 | Python (emergence) | Per-eligible-turn chance of mine collapse |
@@ -433,10 +435,10 @@ Constants location: follow M34's pattern for where resource/ecology constants li
 |------|--------|-------------|
 | `ecology.py` | `compute_disease_severity()`: baseline lookup, flare trigger checks, additive spikes, cap, decay. Soil exhaustion loop: streak tracking, degradation doubling. Overextraction loop: worker pressure computation, yield degradation. | +80-100 |
 | `emergence.py` | `check_environmental_events()`: 4 event check functions with condition gates + probability rolls. Break-on-first-fire loop. `ecological_recovery` black swan entry. | +60-80 |
-| `demographics.rs` | `mortality_rate()` signature: add `disease_severity: f32` and `pandemic_severity: f32` parameters. Additive mortality computation. | +5-10 |
+| `demographics.rs` | `mortality_rate()` signature: add `disease_severity: f32` parameter (existing `is_soldier_at_war` preserved). Additive mortality computation. | +5-10 |
 | `region.rs` | Add `endemic_severity: f32` to `RegionState` struct. | +3 |
 | `agent_bridge.py` | Pass `endemic_severity` to Rust via region state Arrow RecordBatch. | +3-5 |
-| `models.py` | New fields on Region: `disease_baseline`, `endemic_severity`, `soil_pressure_streak`, `overextraction_streak`, `resource_effective_yields`. | +10-15 |
+| `models.py` | New fields on Region: `disease_baseline`, `endemic_severity`, `soil_pressure_streak`, `overextraction_streaks`, `resource_effective_yields`. | +10-15 |
 | `world_gen.py` | Initialize `disease_baseline` (terrain lookup), `endemic_severity` (= baseline), `resource_effective_yields` (copy of `resource_base_yields`) at world-gen. | +10-15 |
 | Tests | Disease demographics, flare trigger gate tests, environmental event condition gates, depletion streak tests, cap enforcement, regression checks. | +80-100 |
 
