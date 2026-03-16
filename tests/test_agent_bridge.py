@@ -129,6 +129,55 @@ class TestDemographicsOnlyIntegration:
         assert sum(final_pops.values()) < sum(initial_pops.values()) * 2
 
 
+class TestRegionBatchResourceColumns:
+    """M34: Region batch includes resource/season columns."""
+
+    def test_region_batch_has_resource_columns(self, sample_world):
+        from chronicler.agent_bridge import build_region_batch
+        import pyarrow as pa
+
+        batch = build_region_batch(sample_world)
+
+        # All new column names are present
+        assert "resource_type_0" in batch.schema.names
+        assert "resource_type_1" in batch.schema.names
+        assert "resource_type_2" in batch.schema.names
+        assert "resource_yield_0" in batch.schema.names
+        assert "resource_yield_1" in batch.schema.names
+        assert "resource_yield_2" in batch.schema.names
+        assert "resource_reserve_0" in batch.schema.names
+        assert "resource_reserve_1" in batch.schema.names
+        assert "resource_reserve_2" in batch.schema.names
+        assert "season" in batch.schema.names
+        assert "season_id" in batch.schema.names
+
+        # Arrow types are correct
+        assert batch.schema.field("resource_type_0").type == pa.uint8()
+        assert batch.schema.field("resource_type_1").type == pa.uint8()
+        assert batch.schema.field("resource_type_2").type == pa.uint8()
+        assert batch.schema.field("resource_yield_0").type == pa.float32()
+        assert batch.schema.field("resource_yield_1").type == pa.float32()
+        assert batch.schema.field("resource_yield_2").type == pa.float32()
+        assert batch.schema.field("resource_reserve_0").type == pa.float32()
+        assert batch.schema.field("resource_reserve_1").type == pa.float32()
+        assert batch.schema.field("resource_reserve_2").type == pa.float32()
+        assert batch.schema.field("season").type == pa.uint8()
+        assert batch.schema.field("season_id").type == pa.uint8()
+
+        # Row count matches number of regions
+        assert batch.num_rows == len(sample_world.regions)
+
+        # season and season_id are consistent with turn=0
+        from chronicler.resources import get_season_step, get_season_id
+        expected_season = get_season_step(sample_world.turn)
+        expected_season_id = get_season_id(sample_world.turn)
+        assert batch.column("season").to_pylist() == [expected_season] * batch.num_rows
+        assert batch.column("season_id").to_pylist() == [expected_season_id] * batch.num_rows
+
+        # resource_yield_0 defaults to 0.0 when ecology hasn't run
+        assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
+
+
 class TestPythonDeterminism:
     def test_determinism_50_turns(self):
         sim_a = AgentSimulator(num_regions=3, seed=12345)

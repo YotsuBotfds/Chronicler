@@ -9,6 +9,7 @@ from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.leaders import _pick_name, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event
+from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
 
 if TYPE_CHECKING:
@@ -19,6 +20,8 @@ logger = logging.getLogger(__name__)
 TERRAIN_MAP = {
     "plains": 0, "mountains": 1, "coast": 2,
     "forest": 3, "desert": 4, "tundra": 5,
+    "river": 0,   # Maps to plains for Rust terrain modifiers
+    "hills": 0,   # Maps to plains for Rust terrain modifiers
 }
 FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2}
 
@@ -71,6 +74,15 @@ def civ_personality_mean(
     return tuple(max(-0.3, min(0.3, m)) for m in mean)
 
 
+def _get_yield(region, slot: int) -> float:
+    """Read yield from ecology module's last computation, or 0.0."""
+    from chronicler.ecology import _last_region_yields
+    ry = _last_region_yields.get(region.name)
+    if ry is not None:
+        return ry[slot]
+    return 0.0
+
+
 def build_region_batch(world: WorldState) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
@@ -105,6 +117,18 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         "adjacency_mask": pa.array(adj_masks, type=pa.uint32()),
         "trade_route_count": pa.array([0 for _ in world.regions], type=pa.uint8()),
         "is_contested": pa.array([r.name in contested_regions_set for r in world.regions], type=pa.bool_()),
+        # M34: Resource state
+        "resource_type_0": pa.array([r.resource_types[0] for r in world.regions], type=pa.uint8()),
+        "resource_type_1": pa.array([r.resource_types[1] for r in world.regions], type=pa.uint8()),
+        "resource_type_2": pa.array([r.resource_types[2] for r in world.regions], type=pa.uint8()),
+        "resource_yield_0": pa.array([_get_yield(r, 0) for r in world.regions], type=pa.float32()),
+        "resource_yield_1": pa.array([_get_yield(r, 1) for r in world.regions], type=pa.float32()),
+        "resource_yield_2": pa.array([_get_yield(r, 2) for r in world.regions], type=pa.float32()),
+        "resource_reserve_0": pa.array([r.resource_reserves[0] for r in world.regions], type=pa.float32()),
+        "resource_reserve_1": pa.array([r.resource_reserves[1] for r in world.regions], type=pa.float32()),
+        "resource_reserve_2": pa.array([r.resource_reserves[2] for r in world.regions], type=pa.float32()),
+        "season": pa.array([get_season_step(world.turn) for _ in world.regions], type=pa.uint8()),
+        "season_id": pa.array([get_season_id(world.turn) for _ in world.regions], type=pa.uint8()),
     })
 
 
