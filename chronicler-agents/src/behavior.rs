@@ -561,7 +561,7 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..6 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
         }
@@ -580,7 +580,7 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
         }
@@ -599,12 +599,12 @@ mod tests {
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].adjacency_mask = 0b10;
         for _ in 0..5 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.05);
             pool.set_loyalty(slot, 0.5);
         }
         for _ in 0..5 {
-            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.8);
             pool.set_loyalty(slot, 0.5);
         }
@@ -627,7 +627,7 @@ mod tests {
         let regions = vec![make_region(0)];
         let mut pool = AgentPool::new(32);
         for _ in 0..20 {
-            let slot = pool.spawn(0, 0, Occupation::Priest, 25);
+            let slot = pool.spawn(0, 0, Occupation::Priest, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.5);
             pool.set_loyalty(slot, 0.5);
         }
@@ -648,12 +648,12 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.5);
         }
         for _ in 0..3 {
-            let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.8);
         }
@@ -675,12 +675,12 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.25);
             pool.set_satisfaction(slot, 0.5);
         }
         for _ in 0..3 {
-            let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.9);
         }
@@ -703,12 +703,12 @@ mod tests {
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].adjacency_mask = 0b10;
         for _ in 0..6 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
         }
         for _ in 0..5 {
-            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.9);
         }
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
@@ -800,12 +800,12 @@ mod tests {
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].adjacency_mask = 0b10;
         for _ in 0..5 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.2);
             pool.set_loyalty(slot, 0.5);
         }
         for _ in 0..5 {
-            let slot = pool.spawn(1, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.8);
             pool.set_loyalty(slot, 0.5);
         }
@@ -820,7 +820,7 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..5 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_satisfaction(slot, 0.2);
         }
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
@@ -926,12 +926,12 @@ mod tests {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
         for _ in 0..3 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.8);
         }
         for _ in 0..3 {
-            let slot = pool.spawn(0, 1, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.6);
             pool.set_satisfaction(slot, 0.5);
         }
@@ -960,7 +960,7 @@ mod tests {
 
         // 10 agents at absolute minimum (maximizes rebel utility to cap)
         for _ in 0..10 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0);
             pool.set_loyalty(slot, 0.0);
             pool.set_satisfaction(slot, 0.0);
         }

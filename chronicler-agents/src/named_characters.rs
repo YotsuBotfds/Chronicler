@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn test_promotion_two_gates() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Soldier, 20);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 20, 0.0, 0.0, 0.0);
         let registry = NamedCharacterRegistry::new();
 
         // No life events, no promotion progress → no candidates
@@ -203,7 +203,7 @@ mod tests {
     fn test_bypass_triggers() {
         let mut pool = AgentPool::new(4);
         // Priest with rebellion → Prophet
-        let slot = pool.spawn(0, 0, Occupation::Priest, 20);
+        let slot = pool.spawn(0, 0, Occupation::Priest, 20, 0.0, 0.0, 0.0);
         pool.life_events[slot] |= LIFE_EVENT_REBELLION;
         let registry = NamedCharacterRegistry::new();
         let candidates = registry.find_candidates(&pool, 100);
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn test_set_agent_civ() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 20);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0);
         assert_eq!(pool.civ_affinity(slot), 0);
         pool.set_civ_affinity(slot, 3);
         assert_eq!(pool.civ_affinity(slot), 3);
