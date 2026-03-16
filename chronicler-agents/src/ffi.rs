@@ -10,7 +10,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
 
-use crate::agent::Occupation;
+use crate::agent::{Occupation, PERSONALITY_LABEL_THRESHOLD};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 
@@ -21,6 +21,36 @@ use crate::region::RegionState;
 /// Convert an Arrow error into a PyErr.
 pub fn arrow_err(e: ArrowError) -> PyErr {
     PyValueError::new_err(e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Personality label helper
+// ---------------------------------------------------------------------------
+
+/// Derive a narrative label from the dominant personality dimension.
+/// Returns None if all dimensions are below threshold (neutral personality).
+pub fn personality_label(boldness: f32, ambition: f32, loyalty_trait: f32) -> Option<&'static str> {
+    let dims: [(f32, f32, &str, &str); 3] = [
+        (boldness.abs(),      boldness,      "the Bold",      "the Cautious"),
+        (ambition.abs(),      ambition,      "the Ambitious",  "the Humble"),
+        (loyalty_trait.abs(), loyalty_trait,  "the Steadfast",  "the Fickle"),
+    ];
+
+    let mut max_idx = 0;
+    let mut max_abs = dims[0].0;
+    for i in 1..3 {
+        if dims[i].0 > max_abs {
+            max_abs = dims[i].0;
+            max_idx = i;
+        }
+    }
+
+    if max_abs < PERSONALITY_LABEL_THRESHOLD {
+        return None;
+    }
+
+    let (_, raw, pos, neg) = dims[max_idx];
+    Some(if raw > 0.0 { pos } else { neg })
 }
 
 // ---------------------------------------------------------------------------
