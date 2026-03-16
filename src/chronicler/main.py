@@ -160,6 +160,14 @@ def execute_run(
     if getattr(args, "tuning_overrides", None):
         world.tuning_overrides = args.tuning_overrides
 
+    # M28: Agent mode wiring
+    agent_mode = getattr(args, "agents", "off")
+    agent_bridge = None
+    if agent_mode in ("demographics-only", "shadow", "hybrid"):
+        world.agent_mode = agent_mode
+        from chronicler.agent_bridge import AgentBridge
+        agent_bridge = AgentBridge(world, mode=agent_mode)
+
     # Initialize memory streams if not provided
     if memories is None:
         memories = {
@@ -213,6 +221,7 @@ def execute_run(
             action_selector=action_selector,
             narrator=_noop_narrator or engine.narrator,
             seed=seed + turn_num,
+            agent_bridge=agent_bridge,
         )
 
         # Capture per-turn snapshot for viewer bundle
@@ -381,6 +390,10 @@ def execute_run(
         # Progress indicator
         if world.turn % 10 == 0:
             print(f"  Turn {world.turn}/{num_turns} complete")
+
+    # M28: Close agent bridge
+    if agent_bridge is not None:
+        agent_bridge.close()
 
     # Compile final chronicle
     actual_turns = world.turn - start_turn
@@ -588,6 +601,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="WebSocket server port for live mode (default: 8765)")
     parser.add_argument("--simulate-only", action="store_true",
                         help="Run simulation without LLM narrative generation")
+    parser.add_argument("--agents", type=str, default="off",
+                        choices=["off", "demographics-only", "shadow", "hybrid"],
+                        help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

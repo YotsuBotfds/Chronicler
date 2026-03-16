@@ -72,31 +72,36 @@ def extract_at_turn(data: dict, column: str, turn: int) -> np.ndarray:
     return values[mask]
 
 
-def shadow_oracle_report(shadow_ipc_paths: list[Path]) -> OracleReport:
+def compare_distributions(data: dict) -> OracleReport:
+    """Compare agent vs aggregate distributions from pre-loaded columnar data.
+
+    data: dict with keys 'turn', 'agent_{metric}', 'agg_{metric}' for each of
+    population, military, economy, culture, stability.
+    """
     checkpoints = [100, 250, 500]
     metrics = ["population", "military", "economy", "culture", "stability"]
     bonferroni_alpha = 0.05 / (len(metrics) * len(checkpoints))
 
-    all_data = load_shadow_data(shadow_ipc_paths)
     results: list[OracleResult | CorrelationResult] = []
 
     for metric in metrics:
         for turn in checkpoints:
-            agent_vals = extract_at_turn(all_data, f"agent_{metric}", turn)
-            agg_vals = extract_at_turn(all_data, f"agg_{metric}", turn)
+            agent_vals = extract_at_turn(data, f"agent_{metric}", turn)
+            agg_vals = extract_at_turn(data, f"agg_{metric}", turn)
             if len(agent_vals) < 2 or len(agg_vals) < 2:
                 continue
             ks_stat, ks_p = ks_2samp(agent_vals, agg_vals)
-            ad_stat, _, ad_p = anderson_ksamp([agent_vals, agg_vals])
+            ad_result = anderson_ksamp([agent_vals, agg_vals])
+            ad_stat, ad_p = ad_result.statistic, ad_result.significance_level
             results.append(OracleResult(metric, turn, ks_stat, ks_p, ad_p, bonferroni_alpha))
 
     correlation_checks = [("military", "economy"), ("culture", "stability")]
     for m1, m2 in correlation_checks:
         for turn in checkpoints:
-            agent_m1 = extract_at_turn(all_data, f"agent_{m1}", turn)
-            agent_m2 = extract_at_turn(all_data, f"agent_{m2}", turn)
-            agg_m1 = extract_at_turn(all_data, f"agg_{m1}", turn)
-            agg_m2 = extract_at_turn(all_data, f"agg_{m2}", turn)
+            agent_m1 = extract_at_turn(data, f"agent_{m1}", turn)
+            agent_m2 = extract_at_turn(data, f"agent_{m2}", turn)
+            agg_m1 = extract_at_turn(data, f"agg_{m1}", turn)
+            agg_m2 = extract_at_turn(data, f"agg_{m2}", turn)
             if len(agent_m1) < 3 or len(agg_m1) < 3:
                 continue
             corr_delta = abs(
@@ -106,3 +111,9 @@ def shadow_oracle_report(shadow_ipc_paths: list[Path]) -> OracleReport:
             results.append(CorrelationResult(m1, m2, turn, corr_delta))
 
     return OracleReport(results)
+
+
+def shadow_oracle_report(shadow_ipc_paths: list[Path]) -> OracleReport:
+    """Compare agent vs aggregate distributions from Arrow IPC shadow logs."""
+    all_data = load_shadow_data(shadow_ipc_paths)
+    return compare_distributions(all_data)
