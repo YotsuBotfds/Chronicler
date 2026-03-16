@@ -9,6 +9,7 @@ mod agent;
 mod ffi;
 mod pool;
 mod region;
+pub mod demographics;
 pub mod satisfaction;
 mod tick;
 
