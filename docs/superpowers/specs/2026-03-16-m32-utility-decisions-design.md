@@ -93,7 +93,7 @@ fn rebel_utility(loyalty: f32, satisfaction: f32, rebel_eligible: usize) -> f32 
 }
 ```
 
-- Zero when loyalty > threshold OR satisfaction > threshold.
+- Zero when loyalty > threshold AND satisfaction > threshold. If only one dimension is below threshold, the agent still gets partial rebel utility from that dimension — an agent with terrible satisfaction but acceptable loyalty is not fully content.
 - Linear rise below thresholds. Saturates at `REBEL_CAP`.
 - Smoothstep cohort gate replaces Phase 5's hard `>= 5` cutoff. Effectively zero below 3 agents, full weight above 8.
 
@@ -141,6 +141,7 @@ fn switch_utility(
 - **Multiplicative coupling:** `oversupply * undersupply_gap`. Zero when either term is zero — the AND gate from Phase 5 falls out naturally. No point switching away from an oversupplied role if there's nowhere useful to go.
 - Returns `(utility, best_alternative_occupation)` tuple. Target captured during the O(4) scan — no redundant scan in the execution path.
 - Per-agent: different agents have different current occupations, so utility varies per-agent within the same region (unlike migration, which is per-region).
+- **Note:** The undersupply gap formula uses `alt_demand - alt_supply * SWITCH_UNDERSUPPLY_FACTOR` (factor-adjusted), while Phase 5 ranks alternatives by `alt_demand - alt_supply` (raw gap). Both have the same zero-crossing, but ranking among multiple undersupplied alternatives may differ. This is an intentional improvement — factor-adjusted gap is more meaningful for utility scaling.
 
 ### Stay
 
@@ -186,7 +187,7 @@ fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> u
 - Gumbel(0, beta) noise: `-beta * ln(-ln(U))` where U ~ Uniform(0,1). Equivalent to softmax sampling with temperature beta.
 - **T=0 fast path:** Avoids `0.0 * -inf = NaN` from IEEE 754. Explicit deterministic argmax with `partial_cmp` for f32 ordering.
 - **`f32::EPSILON` clamp:** Guards against `U=0.0` (probability ~2^-24) which produces `ln(0) = -inf`. Costs nothing, eliminates the edge case.
-- Each call consumes exactly 4 RNG draws (one per action). Deterministic agent processing order (by slot index within each region) guarantees reproducibility.
+- **RNG draw count:** When T>0, each call consumes exactly 4 RNG draws (one per action). When T<=0, the deterministic fast path consumes zero draws (early return before the loop). Reproducibility is guaranteed within a given temperature setting — not across temperature changes. Agents are processed by slot index within each region for deterministic ordering.
 
 ### Smoothstep Helper
 
@@ -299,7 +300,7 @@ pub const PERSONALITY_STREAM_OFFSET: u64  = 700;
 pub const GOODS_ALLOC_STREAM_OFFSET: u64  = 800;
 ```
 
-M32 wires `DECISION_STREAM_OFFSET` in `tick.rs`. Existing demographics/migration RNG paths may use a different mechanism today — noted for M47 reconciliation into the registry.
+M32 wires `DECISION_STREAM_OFFSET` in `tick.rs`. M32 should also update the existing demographics RNG construction in `tick.rs` to use `DEMOGRAPHICS_STREAM_OFFSET` — a one-line edit that prevents a known stream collision (both currently use implicit offset 0) rather than deferring the collision to M47.
 
 RNG construction in `tick.rs`:
 
@@ -324,7 +325,7 @@ rng.set_stream(region_id as u64 * 1000 + turn as u64 + DECISION_STREAM_OFFSET);
 | `W_REBEL` | 3.75 | = REBEL_CAP / (LOY_THRESH + SAT_THRESH). Max distress hits cap. |
 | `W_MIGRATE_SAT` | 1.67 | Scaled so max satisfaction deficit + typical opportunity hits MIGRATE_CAP |
 | `W_MIGRATE_OPP` | 1.67 | Symmetric with satisfaction weight as starting point |
-| `W_SWITCH` | TBD | Depends on population distribution; calibrate empirically at implementation |
+| `W_SWITCH` | 0.03 | At typical max oversupply ~2.0 and max gap ~10, product=20. 0.03*20=0.6=SWITCH_CAP. `[CALIBRATE]` — sensitive to population distribution. |
 | `MIGRATE_HYSTERESIS` | 0.05 | Phase 5's adjacency delta requirement |
 
 ### Existing Constants (unchanged, from Phase 5)
@@ -366,6 +367,8 @@ Three-tier validation: structural regression, behavioral regression, shadow char
 ### Tier 2: Behavioral Regression (Statistical)
 
 **Setup:** Operational weights (W_REBEL=3.75, etc.), T=0.
+
+**Why T=0:** Isolates weight-only divergence from noise-induced divergence, making tolerance bounds meaningful. At T>0, Gumbel noise would add variance that obscures whether the weights themselves produce bounded behavior.
 
 **Purpose:** Verify that near-threshold softening is bounded. With operational weights, agents barely below Phase 5 thresholds may not act — this is **intended behavior** (the utility model captures threshold ambiguity that binary gates cannot). But aggregate rates must stay within tolerance.
 
