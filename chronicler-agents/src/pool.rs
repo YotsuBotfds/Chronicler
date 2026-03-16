@@ -395,4 +395,162 @@ mod tests {
         assert!(pool.id(s0) < pool.id(s1));
         assert!(pool.id(s1) < pool.id(s2));
     }
+
+    // --- Arrow round-trip tests (Task 9) ---
+
+    #[test]
+    fn test_to_record_batch_filters_dead() {
+        use arrow::array::{UInt16Array, UInt32Array, UInt8Array};
+
+        let mut pool = AgentPool::new(8);
+        let s0 = pool.spawn(0, 1, Occupation::Farmer, 20);
+        let s1 = pool.spawn(1, 2, Occupation::Soldier, 30);
+        let s2 = pool.spawn(0, 1, Occupation::Merchant, 40);
+
+        // Kill the second agent; only s0 and s2 should appear in the batch.
+        pool.kill(s1);
+
+        let batch = pool.to_record_batch().expect("to_record_batch failed");
+
+        // Two live rows, dead slot filtered out.
+        assert_eq!(batch.num_rows(), 2, "expected 2 alive rows");
+
+        // Schema column names.
+        let schema = batch.schema();
+        assert_eq!(schema.field(0).name(), "id");
+        assert_eq!(schema.field(1).name(), "region");
+        assert_eq!(schema.field(2).name(), "origin_region");
+        assert_eq!(schema.field(3).name(), "civ_affinity");
+        assert_eq!(schema.field(4).name(), "occupation");
+        assert_eq!(schema.field(8).name(), "age");
+
+        // Verify values for the two surviving rows (s0 first, s2 second).
+        let ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        assert_eq!(ids.value(0), pool.id(s0));
+        assert_eq!(ids.value(1), pool.id(s2));
+
+        let regions = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        assert_eq!(regions.value(0), 0); // s0 in region 0
+        assert_eq!(regions.value(1), 0); // s2 in region 0
+
+        let civ_affinities = batch
+            .column(3)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        assert_eq!(civ_affinities.value(0), 1);
+        assert_eq!(civ_affinities.value(1), 1);
+
+        let occupations = batch
+            .column(4)
+            .as_any()
+            .downcast_ref::<UInt8Array>()
+            .unwrap();
+        assert_eq!(occupations.value(0), Occupation::Farmer as u8);
+        assert_eq!(occupations.value(1), Occupation::Merchant as u8);
+    }
+
+    #[test]
+    fn test_compute_aggregates_zeroes_non_population() {
+        use arrow::array::{UInt16Array, UInt32Array};
+
+        let mut pool = AgentPool::new(8);
+        // civ 0: 2 agents
+        pool.spawn(0, 0, Occupation::Farmer, 25);
+        pool.spawn(0, 0, Occupation::Soldier, 30);
+        // civ 1: 1 agent
+        pool.spawn(1, 1, Occupation::Scholar, 35);
+
+        let batch = pool.compute_aggregates().expect("compute_aggregates failed");
+
+        // Two civs.
+        assert_eq!(batch.num_rows(), 2);
+
+        let schema = batch.schema();
+        assert_eq!(schema.field(0).name(), "civ_id");
+        assert_eq!(schema.field(1).name(), "population");
+        assert_eq!(schema.field(2).name(), "military");
+        assert_eq!(schema.field(5).name(), "stability");
+
+        let civ_ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        assert_eq!(civ_ids.value(0), 0);
+        assert_eq!(civ_ids.value(1), 1);
+
+        let populations = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        assert_eq!(populations.value(0), 2); // civ 0 has 2
+        assert_eq!(populations.value(1), 1); // civ 1 has 1
+
+        // military, economy, culture, stability — all zero in M25.
+        for col_idx in 2..=5 {
+            let col = batch
+                .column(col_idx)
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap();
+            for row in 0..batch.num_rows() {
+                assert_eq!(col.value(row), 0, "col {} row {} should be zero", col_idx, row);
+            }
+        }
+    }
+
+    #[test]
+    fn test_region_populations() {
+        use arrow::array::{UInt16Array, UInt32Array};
+
+        let mut pool = AgentPool::new(8);
+        let s0 = pool.spawn(0, 0, Occupation::Farmer, 25);  // region 0
+        let s1 = pool.spawn(1, 0, Occupation::Soldier, 30); // region 1
+        let _s2 = pool.spawn(0, 0, Occupation::Merchant, 35); // region 0
+        let _s3 = pool.spawn(2, 0, Occupation::Scholar, 40);  // region 2
+
+        // Kill s1 — region 1 should now have 0 live agents.
+        pool.kill(s1);
+        // Kill s0 — region 0 should now have 1 live agent.
+        pool.kill(s0);
+
+        let batch = pool
+            .region_populations(3)
+            .expect("region_populations failed");
+
+        // 3 rows (one per region).
+        assert_eq!(batch.num_rows(), 3);
+
+        let schema = batch.schema();
+        assert_eq!(schema.field(0).name(), "region_id");
+        assert_eq!(schema.field(1).name(), "alive_count");
+
+        let region_ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        assert_eq!(region_ids.value(0), 0);
+        assert_eq!(region_ids.value(1), 1);
+        assert_eq!(region_ids.value(2), 2);
+
+        let alive_counts = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        assert_eq!(alive_counts.value(0), 1); // region 0: _s2 alive
+        assert_eq!(alive_counts.value(1), 0); // region 1: s1 dead
+        assert_eq!(alive_counts.value(2), 1); // region 2: _s3 alive
+    }
 }
