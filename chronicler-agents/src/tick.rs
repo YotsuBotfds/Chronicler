@@ -5,7 +5,11 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
-use crate::agent::{OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH};
+use crate::agent::{
+    LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
+    LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL,
+    OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
+};
 use crate::behavior::{compute_region_stats, evaluate_region_decisions};
 use crate::demographics;
 use crate::pool::AgentPool;
@@ -50,6 +54,15 @@ pub fn tick_agents(
     for slot in 0..pool.capacity() {
         if pool.is_alive(slot) {
             pool.grow_skill(slot);
+            // Update promotion progress for named character promotion
+            let occ = pool.occupations[slot] as usize;
+            let skill = pool.skills[slot * 5 + occ];
+            if skill > crate::agent::PROMOTION_SKILL_THRESHOLD {
+                pool.promotion_progress[slot] =
+                    pool.promotion_progress[slot].saturating_add(1);
+            } else {
+                pool.promotion_progress[slot] = 0;
+            }
         }
     }
 
@@ -92,6 +105,7 @@ pub fn tick_agents(
     for pd in &pending_decisions {
         // Rebellions
         for &(slot, region) in &pd.rebellions {
+            pool.life_events[slot] |= LIFE_EVENT_REBELLION;
             events.push(AgentEvent {
                 agent_id: pool.id(slot),
                 event_type: 1,
@@ -107,6 +121,7 @@ pub fn tick_agents(
         for &(slot, from, to) in &pd.migrations {
             pool.set_region(slot, to);
             pool.set_displacement_turns(slot, 3);
+            pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
             events.push(AgentEvent {
                 agent_id: pool.id(slot),
                 event_type: 2,
@@ -127,6 +142,8 @@ pub fn tick_agents(
             if pool.skills[skill_idx] < SKILL_RESET_ON_SWITCH {
                 pool.skills[skill_idx] = SKILL_RESET_ON_SWITCH;
             }
+            pool.life_events[slot] |= LIFE_EVENT_OCC_SWITCH;
+            pool.promotion_progress[slot] = 0;
             events.push(AgentEvent {
                 agent_id: pool.id(slot),
                 event_type: 3,
@@ -143,6 +160,7 @@ pub fn tick_agents(
         for &(slot, new_civ) in &pd.loyalty_flips {
             pool.set_civ_affinity(slot, new_civ);
             pool.set_loyalty(slot, 0.5);
+            pool.life_events[slot] |= LIFE_EVENT_LOYALTY_FLIP;
             events.push(AgentEvent {
                 agent_id: pool.id(slot),
                 event_type: 4,
@@ -230,6 +248,19 @@ pub fn tick_agents(
                 occupation: crate::agent::Occupation::Farmer as u8,
                 turn,
             });
+        }
+    }
+
+    // Mark war survival for agents in contested regions who survived
+    for (region_id, slots) in region_groups.iter().enumerate() {
+        if region_id < signals.contested_regions.len()
+            && signals.contested_regions[region_id]
+        {
+            for &slot in slots {
+                if pool.is_alive(slot) {
+                    pool.life_events[slot] |= LIFE_EVENT_WAR_SURVIVAL;
+                }
+            }
         }
     }
 
