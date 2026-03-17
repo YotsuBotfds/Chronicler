@@ -10,6 +10,7 @@ use crate::agent::{
     BOLD_MIGRATE_WEIGHT, BOLD_REBEL_WEIGHT, AMBITION_SWITCH_WEIGHT, LOYALTY_TRAIT_WEIGHT,
     DECISION_TEMPERATURE, LOYALTY_DRIFT_RATE, LOYALTY_FLIP_THRESHOLD, LOYALTY_RECOVERY_RATE,
     MIGRATE_CAP, MIGRATE_HYSTERESIS, MIGRATE_SATISFACTION_THRESHOLD, OCCUPATION_COUNT,
+    PERSECUTION_MIGRATE_BOOST, PERSECUTION_REBEL_BOOST,
     REBEL_CAP, REBEL_LOYALTY_THRESHOLD, REBEL_MIN_COHORT, REBEL_SATISFACTION_THRESHOLD,
     STAY_BASE, SWITCH_CAP, SWITCH_OVERSUPPLY_THRESH, SWITCH_UNDERSUPPLY_FACTOR,
     W_MIGRATE_OPP, W_MIGRATE_SAT, W_REBEL, W_SWITCH,
@@ -314,7 +315,7 @@ impl PendingDecisions {
 pub fn evaluate_region_decisions(
     pool: &AgentPool,
     slots: &[usize],
-    _region: &RegionState,
+    region_state: &RegionState,
     stats: &RegionStats,
     region_id: usize,
     rng: &mut ChaCha8Rng,
@@ -338,13 +339,19 @@ pub fn evaluate_region_decisions(
         // Compute utilities: utility fn -> personality modifier -> NEG_INFINITY gate
         // Modifier MUST be applied BEFORE the gate. 0.0 * modifier = 0.0 -> gated to NEG_INFINITY.
         // If placed after, NEG_INFINITY * modifier produces garbage.
-        let u_rebel_raw = rebel_utility(loy, sat, stats.rebel_eligible[region_id])
+        let mut rebel_util = rebel_utility(loy, sat, stats.rebel_eligible[region_id])
             * personality_modifier(bold, BOLD_REBEL_WEIGHT);
-        let u_rebel = if u_rebel_raw > 0.0 { u_rebel_raw } else { f32::NEG_INFINITY };
-
-        let u_migrate_raw = migrate_utility(sat, stats.migration_opportunity[region_id])
+        let mut migrate_util = migrate_utility(sat, stats.migration_opportunity[region_id])
             * personality_modifier(bold, BOLD_MIGRATE_WEIGHT);
-        let u_migrate = if u_migrate_raw > 0.0 { u_migrate_raw } else { f32::NEG_INFINITY };
+
+        // M38b: Persecution boosts for agents whose belief differs from the majority
+        if pool.beliefs[slot] != region_state.majority_belief {
+            rebel_util += PERSECUTION_REBEL_BOOST * region_state.persecution_intensity;
+            migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
+        }
+
+        let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
+        let u_migrate = if migrate_util > 0.0 { migrate_util } else { f32::NEG_INFINITY };
 
         let (u_switch_base, switch_target) = switch_utility(
             occ,
@@ -600,6 +607,9 @@ mod tests {
             conquest_conversion_active: false,
             majority_belief: 0xFF,
             has_temple: false,
+            persecution_intensity: 0.0,
+            schism_convert_from: 0xFF,
+            schism_convert_to: 0xFF,
         }
     }
 

@@ -155,6 +155,13 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
                 return True
         return False
 
+    # Read schism values into locals, then clear (one-turn signals)
+    schism_from_vals = [r.schism_convert_from for r in world.regions]
+    schism_to_vals = [r.schism_convert_to for r in world.regions]
+    for r in world.regions:
+        r.schism_convert_from = 0xFF
+        r.schism_convert_to = 0xFF
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -215,6 +222,11 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         ),
         "initial_belief": pa.array(initial_belief_arr, type=pa.uint8()),
         "has_temple": pa.array([_has_temple(r, world) for r in world.regions], type=pa.bool_()),
+        "persecution_intensity": pa.array(
+            [r.persecution_intensity for r in world.regions], type=pa.float32()
+        ),
+        "schism_convert_from": pa.array(schism_from_vals, type=pa.uint8()),
+        "schism_convert_to": pa.array(schism_to_vals, type=pa.uint8()),
     })
 
     # M36: Clear transient culture investment flag after reading it.

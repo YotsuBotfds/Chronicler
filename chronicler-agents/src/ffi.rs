@@ -336,6 +336,17 @@ impl AgentSimulator {
             .column_by_name("has_temple")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
 
+        // Optional M38b columns — persecution & schism
+        let persecution_intensity_col = rb
+            .column_by_name("persecution_intensity")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let schism_convert_from_col = rb
+            .column_by_name("schism_convert_from")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let schism_convert_to_col = rb
+            .column_by_name("schism_convert_to")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+
         // M37: Initial belief for spawn (per-region, controller civ's faith_id)
         let initial_belief_col = rb
             .column_by_name("initial_belief")
@@ -390,6 +401,9 @@ impl AgentSimulator {
                     conquest_conversion_active: conquest_conversion_active_col.map_or(false, |arr| arr.value(i)),
                     majority_belief: majority_belief_col.map_or(0xFF, |arr| arr.value(i)),
                     has_temple: has_temple_col.map_or(false, |c| c.value(i)),
+                    persecution_intensity: persecution_intensity_col.map_or(0.0, |arr| arr.value(i)),
+                    schism_convert_from: schism_convert_from_col.map_or(0xFF, |arr| arr.value(i)),
+                    schism_convert_to: schism_convert_to_col.map_or(0xFF, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -490,6 +504,9 @@ impl AgentSimulator {
                 r.conquest_conversion_active = conquest_conversion_active_col.map_or(r.conquest_conversion_active, |arr| arr.value(i));
                 r.majority_belief = majority_belief_col.map_or(r.majority_belief, |arr| arr.value(i));
                 r.has_temple = has_temple_col.map_or(false, |arr| arr.value(i));
+                r.persecution_intensity = persecution_intensity_col.map_or(r.persecution_intensity, |arr| arr.value(i));
+                r.schism_convert_from = schism_convert_from_col.map_or(0xFF, |arr| arr.value(i));
+                r.schism_convert_to = schism_convert_to_col.map_or(0xFF, |arr| arr.value(i));
             }
         }
         Ok(())

@@ -144,6 +144,7 @@ pub fn compute_satisfaction_with_culture(
     agent_belief: u8,
     majority_belief: u8,
     has_temple: bool,
+    persecution_intensity: f32,
 ) -> f32 {
     let base_sat = compute_satisfaction(
         occupation,
@@ -170,13 +171,18 @@ pub fn compute_satisfaction_with_culture(
     } else {
         0.0
     };
+    // M38b: Persecution penalty
+    let mut penalty = 0.0f32;
+    if agent_belief != majority_belief {
+        penalty += crate::agent::PERSECUTION_SAT_WEIGHT * persecution_intensity;
+    }
     // M38a: temple priest bonus — faith-blind (Decision 6)
     let temple_bonus = if occupation == 4 && has_temple {
         0.10  // TEMPLE_PRIEST_BONUS [CALIBRATE]
     } else {
         0.0
     };
-    let total_non_eco_penalty = apply_penalty_cap(cultural_pen + religious_pen);
+    let total_non_eco_penalty = apply_penalty_cap(cultural_pen + religious_pen + penalty);
     (base_sat - total_non_eco_penalty + temple_bonus).clamp(0.0, 1.0)
 }
 
@@ -277,6 +283,7 @@ mod m36_tests {
             [4, 3, 2], [4, 3, 2],
             0xFF, 0xFF,
             false,
+            0.0,
         );
         assert!((base - with_culture).abs() < 0.001);
     }
@@ -296,6 +303,7 @@ mod m37_tests {
             [0, 1, 2], [0, 1, 2],
             3, 3,  // belief matches majority
             false,
+            0.0,
         );
         let sat_none = compute_satisfaction_with_culture(
             0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
@@ -303,6 +311,7 @@ mod m37_tests {
             [0, 1, 2], [0, 1, 2],
             0xFF, 0xFF,  // BELIEF_NONE
             false,
+            0.0,
         );
         assert!((sat_match - sat_none).abs() < 0.001);
     }
@@ -315,6 +324,7 @@ mod m37_tests {
             [0, 1, 2], [0, 1, 2],
             3, 3,
             false,
+            0.0,
         );
         let sat_mismatch = compute_satisfaction_with_culture(
             0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
@@ -322,6 +332,7 @@ mod m37_tests {
             [0, 1, 2], [0, 1, 2],
             3, 5,  // different belief
             false,
+            0.0,
         );
         let expected_diff = crate::agent::RELIGIOUS_MISMATCH_WEIGHT;
         assert!((sat_match - sat_mismatch - expected_diff).abs() < 0.001);

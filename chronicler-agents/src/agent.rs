@@ -136,6 +136,11 @@ pub const SUSCEPTIBILITY_THRESHOLD: f32 = 0.4;  // satisfaction below this → 2
 pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
 pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability
 
+// M38b: Persecution
+pub const PERSECUTION_SAT_WEIGHT: f32 = 0.15;
+pub const PERSECUTION_REBEL_BOOST: f32 = 0.30;
+pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.20;
+
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;
