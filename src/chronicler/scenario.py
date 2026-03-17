@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field
 
 from chronicler.models import (
     ActiveCondition, Civilization, ClimateConfig, Disposition, Region, Relationship,
-    TechEra, TerrainTransitionRule, WorldState,
+    River, TechEra, TerrainTransitionRule, WorldState,
+    ResourceType, EMPTY_SLOT,
 )
 from chronicler.utils import sync_civ_population
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
@@ -97,6 +98,7 @@ class ScenarioConfig(BaseModel):
     chaos_multiplier: float = Field(default=1.0, ge=0.0)
     black_swan_cooldown_turns: int = Field(default=30, ge=0)
     terrain_transition_rules: list[TerrainTransitionRule] | None = None  # None = use WorldState defaults
+    rivers: list[River] = Field(default_factory=list)
 
 
 def load_scenario(path: Path) -> ScenarioConfig:
@@ -261,7 +263,7 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         if reg_override.adjacencies is not None:
             world.regions[target_idx].adjacencies = reg_override.adjacencies
         if reg_override.specialized_resources is not None:
-            from chronicler.models import Resource, ResourceType, EMPTY_SLOT
+            from chronicler.models import Resource
             from chronicler.resources import populate_legacy_resources, RESOURCE_BASE
             try:
                 types = [int(r) for r in reg_override.specialized_resources]
@@ -393,6 +395,54 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     from chronicler.resources import assign_resource_types, populate_legacy_resources
     assign_resource_types(world.regions, seed=world.seed)
     populate_legacy_resources(world.regions)
+
+    # --- Step 9: River assignment (M35a) ---
+    if len(config.rivers) > 32:
+        raise ValueError(f"Maximum 32 rivers supported (got {len(config.rivers)})")
+    region_map = {r.name: r for r in world.regions}
+    world.rivers = []
+    for river_idx, river in enumerate(config.rivers):
+        for rname in river.path:
+            if rname not in region_map:
+                raise ValueError(f"River '{river.name}': region '{rname}' not found in scenario")
+        for i in range(len(river.path) - 1):
+            r_curr = region_map[river.path[i]]
+            r_next_name = river.path[i + 1]
+            if r_next_name not in r_curr.adjacencies:
+                raise ValueError(
+                    f"River '{river.name}': '{river.path[i]}' and '{r_next_name}' are not adjacent"
+                )
+        world.rivers.append(river)
+    # Assign river_mask bits
+    for river_idx, river in enumerate(world.rivers):
+        bit = 1 << river_idx
+        for rname in river.path:
+            region_map[rname].river_mask |= bit
+
+    # Apply river bonuses (once per region, not per river)
+    from chronicler.tuning import get_override, K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER
+    from chronicler.ecology import _clamp_ecology
+    from chronicler.resources import RESOURCE_BASE
+    import random as _rng_mod
+    water_bonus = get_override(world, K_RIVER_WATER_BONUS, 0.15)
+    cap_mult = get_override(world, K_RIVER_CAPACITY_MULTIPLIER, 1.2)
+    for region in world.regions:
+        if region.river_mask == 0:
+            continue
+        # Water baseline
+        region.ecology.water += water_bonus
+        _clamp_ecology(region)
+        # Carrying capacity
+        region.carrying_capacity = int(region.carrying_capacity * cap_mult)
+        # Fish resource (Phoebe N-2: must also set base_yield)
+        if ResourceType.FISH not in region.resource_types:
+            for slot in range(3):
+                if region.resource_types[slot] == EMPTY_SLOT:
+                    region.resource_types[slot] = ResourceType.FISH
+                    rng = _rng_mod.Random(world.seed + hash(region.name) + 0xF15F)
+                    variance = rng.uniform(-0.2, 0.2)
+                    region.resource_base_yields[slot] = RESOURCE_BASE[ResourceType.FISH] * (1.0 + variance)
+                    break
 
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}

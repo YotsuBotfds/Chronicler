@@ -45,6 +45,7 @@ fn main() {
         resource_reserves: [1.0, 1.0, 1.0],
         season: 0,
         season_id: 0,
+        river_mask: 0,
     }).collect();
 
     let num_civs = (num_regions.min(8)) as usize;

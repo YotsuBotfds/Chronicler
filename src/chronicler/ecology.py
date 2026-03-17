@@ -17,6 +17,7 @@ from chronicler.tuning import (
     K_AGRICULTURE_SOIL_BONUS, K_MECHANIZATION_MINE_MULT,
     K_FAMINE_WATER_THRESHOLD, K_DEPLETION_RATE,
     K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD,
+    K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
     get_override,
 )
 from chronicler.resources import (
@@ -423,6 +424,26 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
             region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
         _apply_cross_effects(region)
         _clamp_ecology(region)
+
+    # --- M35a: Upstream deforestation cascade ---
+    if world.rivers:
+        deforest_thresh = get_override(world, K_DEFORESTATION_THRESHOLD, 0.2)
+        deforest_loss = get_override(world, K_DEFORESTATION_WATER_LOSS, 0.05)
+        region_map = {r.name: r for r in world.regions}
+        cascade_affected: set[str] = set()
+        seen: set[tuple[str, str]] = set()
+        for river in world.rivers:
+            for i, rname in enumerate(river.path):
+                region = region_map[rname]
+                if region.ecology.forest_cover < deforest_thresh:
+                    for downstream_name in river.path[i + 1:]:
+                        if (rname, downstream_name) not in seen:
+                            seen.add((rname, downstream_name))
+                            region_map[downstream_name].ecology.water -= deforest_loss
+                            cascade_affected.add(downstream_name)
+        # Phoebe N-1: second clamp pass for cascade-affected regions
+        for rname in cascade_affected:
+            _clamp_ecology(region_map[rname])
 
     # --- M34: Compute resource yields for all regions ---
     from chronicler.resources import get_season_id

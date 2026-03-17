@@ -48,6 +48,11 @@ K_SUBSISTENCE_BASELINE = "ecology.subsistence_baseline"
 K_FAMINE_YIELD_THRESHOLD = "ecology.famine_yield_threshold"
 K_PEAK_YIELD = "ecology.peak_yield"
 K_DEPLETION_RATE = "ecology.depletion_rate"
+# M35a: Rivers
+K_RIVER_WATER_BONUS = "ecology.river_water_bonus"
+K_RIVER_CAPACITY_MULTIPLIER = "ecology.river_capacity_multiplier"
+K_DEFORESTATION_THRESHOLD = "ecology.deforestation_threshold"
+K_DEFORESTATION_WATER_LOSS = "ecology.deforestation_water_loss"
 
 # Military
 K_MILITARY_FREE_THRESHOLD = "military.maintenance_free_threshold"
@@ -78,6 +83,8 @@ KNOWN_OVERRIDES: set[str] = {
     K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD, K_PEAK_YIELD, K_DEPLETION_RATE,
     K_MILITARY_FREE_THRESHOLD, K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
+    K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER,
+    K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
 }
 
 
