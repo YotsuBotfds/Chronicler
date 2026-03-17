@@ -25,23 +25,29 @@ Content:
 - Codebase stats line (Python, Rust, React/TS)
 - API narration planned note
 
-### Section 2: Architecture (~80 lines)
+### Section 2: Architecture (~85 lines)
 
 Stable reference Cici needs to avoid mistakes.
 
 Content:
 - 10-phase turn loop + agent tick (ASCII diagram, ~20 lines)
 - Python key files table (~15 lines, no line counts — those go stale)
-- Rust crate file table (~12 lines): lib.rs, agent.rs, pool.rs, ffi.rs, region.rs, tick.rs, satisfaction.rs, decisions.rs, demographics.rs, named_characters.rs
+- Rust crate file table (~12 lines): lib.rs, agent.rs, pool.rs, ffi.rs, region.rs, tick.rs, satisfaction.rs, behavior.rs, demographics.rs, named_characters.rs, conversion_tick.rs, culture_tick.rs, signals.rs
 - ActionType enum with "use these exact names" warning (~5 lines)
 - StatAccumulator: 4 routing categories (keep/guard/guard-action/signal) + `civ_idx` parameter on every call (~8 lines)
 - Bundle format one-liner
 - Feature flags one-liner
-- Key gotcha: "Civilization has no `id` field — use index into world.civilizations"
+- Data model gotchas (~5 lines):
+  - `civ.regions` is `list[str]` (names), not `list[Region]` — resolve via `region_map`
+  - `Region` has no `region_id` field — use index into `world.regions`
+  - `Civilization` has no `id` field — use index into `world.civilizations`
+  - `Civilization` has no `alive` field — check `len(civ.regions) > 0`
+  - `GreatPerson` has no agent-pool fields (belief, occupation, etc.) — lookup via snapshot by `agent_id`
+  - `build_region_batch()` return-then-cleanup is dead code — clear transient state BEFORE the return
 
 Why no line counts: they go stale after every milestone. File roles are stable; sizes aren't.
 
-### Section 3: Cross-Cutting Rules (~10 lines)
+### Section 3: Cross-Cutting Rules (~14 lines)
 
 Invariants that every session must respect:
 - Negative stat changes through M18 severity multiplier (except treasury, ecology)
@@ -50,6 +56,10 @@ Invariants that every session must respect:
 - `--agents=off` produces Phase 4 bit-identical output
 - Phase 10 receives `acc=None` in aggregate mode
 - Bundle format: consumer code doesn't know if stats came from agents or aggregates
+- Non-ecological satisfaction penalties capped at -0.40 total (cultural + religious + persecution = budget) [Decision 10]
+- RNG stream offsets registered in `agent.rs` `STREAM_OFFSETS` block — any new RNG source needs a unique offset [Decision 11]
+- Religion is a fourth faction (clergy), not a value dimension — regression baseline required before wiring [Decision 9]
+- Milestone ordering: environment → culture → religion → family (each system needs the prior substrate) [Decision 7]
 
 ### Section 4: Session Workflow (~10 lines)
 
@@ -95,7 +105,7 @@ Slim file (~50-80 lines). Structured as:
 ### Sections
 1. **Active Pre-Merge Items** — milestones implemented but not yet merged, with specific pending fixes
 2. **Locked Design Decisions for Upcoming Milestones** — Phoebe-approved decisions that constrain future implementation
-3. **Known Gotchas / Deferred Items** — active constraints, calibration notes, deferred work
+3. **Known Gotchas / Deferred Items** — active constraints, calibration notes, deferred work, known bugs (e.g., `_culture_investment_active` dead code in `build_region_batch()` — cleanup code after `return` in `agent_bridge.py`)
 
 ### Content to extract (by milestone)
 From current session context lines 272-809:
