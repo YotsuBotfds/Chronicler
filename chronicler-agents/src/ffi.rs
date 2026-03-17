@@ -79,6 +79,7 @@ pub fn snapshot_schema() -> Schema {
         Field::new("cultural_value_0", DataType::UInt8, false),
         Field::new("cultural_value_1", DataType::UInt8, false),
         Field::new("cultural_value_2", DataType::UInt8, false),
+        Field::new("belief", DataType::UInt8, false),
     ])
 }
 
@@ -316,6 +317,25 @@ impl AgentSimulator {
             .column_by_name("controller_values_2")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
+        // Optional M37 columns — conversion signals
+        let conversion_rate_col = rb
+            .column_by_name("conversion_rate")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let conversion_target_belief_col = rb
+            .column_by_name("conversion_target_belief")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let conquest_conversion_active_col = rb
+            .column_by_name("conquest_conversion_active")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let majority_belief_col = rb
+            .column_by_name("majority_belief")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+
+        // M37: Initial belief for spawn (per-region, controller civ's faith_id)
+        let initial_belief_col = rb
+            .column_by_name("initial_belief")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -360,10 +380,10 @@ impl AgentSimulator {
                         ctrl_val_1.map_or(0xFF, |arr| arr.value(i)),
                         ctrl_val_2.map_or(0xFF, |arr| arr.value(i)),
                     ],
-                    conversion_rate: 0.0,
-                    conversion_target_belief: 0xFF,
-                    conquest_conversion_active: false,
-                    majority_belief: 0xFF,
+                    conversion_rate: conversion_rate_col.map_or(0.0, |arr| arr.value(i)),
+                    conversion_target_belief: conversion_target_belief_col.map_or(0xFF, |arr| arr.value(i)),
+                    conquest_conversion_active: conquest_conversion_active_col.map_or(false, |arr| arr.value(i)),
+                    majority_belief: majority_belief_col.map_or(0xFF, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -452,6 +472,10 @@ impl AgentSimulator {
                     ctrl_val_1.map_or(0xFF, |arr| arr.value(i)),
                     ctrl_val_2.map_or(0xFF, |arr| arr.value(i)),
                 ];
+                r.conversion_rate = conversion_rate_col.map_or(r.conversion_rate, |arr| arr.value(i));
+                r.conversion_target_belief = conversion_target_belief_col.map_or(r.conversion_target_belief, |arr| arr.value(i));
+                r.conquest_conversion_active = conquest_conversion_active_col.map_or(r.conquest_conversion_active, |arr| arr.value(i));
+                r.majority_belief = majority_belief_col.map_or(r.majority_belief, |arr| arr.value(i));
             }
         }
         Ok(())
