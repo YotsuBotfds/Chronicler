@@ -289,6 +289,11 @@ impl AgentSimulator {
             .column_by_name("season_id")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
+        // Optional M35a column
+        let river_mask_col = rb
+            .column_by_name("river_mask")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt32Array>());
+
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -325,6 +330,7 @@ impl AgentSimulator {
                     ],
                     season: season_col.map_or(0, |arr| arr.value(i)),
                     season_id: season_id_col.map_or(0, |arr| arr.value(i)),
+                    river_mask: river_mask_col.map_or(0, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -405,6 +411,7 @@ impl AgentSimulator {
                 r.resource_reserves[2] = resource_reserve_2.map_or(r.resource_reserves[2], |arr| arr.value(i));
                 r.season = season_col.map_or(r.season, |arr| arr.value(i));
                 r.season_id = season_id_col.map_or(r.season_id, |arr| arr.value(i));
+                r.river_mask = river_mask_col.map_or(r.river_mask, |arr| arr.value(i));
             }
         }
         Ok(())
