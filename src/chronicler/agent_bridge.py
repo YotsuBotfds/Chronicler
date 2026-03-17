@@ -121,6 +121,22 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
             vals.append(VALUE_EMPTY)
         return vals
 
+    # M37: Build initial_belief per region before the batch dict
+    initial_belief_arr = []
+    for region in world.regions:
+        civ_name = region.controller
+        if civ_name and world.belief_registry:
+            civ_idx = next(
+                (j for j, c in enumerate(world.civilizations) if c.name == civ_name),
+                None,
+            )
+            if civ_idx is not None and civ_idx < len(world.belief_registry):
+                initial_belief_arr.append(world.belief_registry[civ_idx].faith_id)
+            else:
+                initial_belief_arr.append(0xFF)
+        else:
+            initial_belief_arr.append(0xFF)
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -166,6 +182,20 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         "controller_values_2": pa.array(
             [_controller_values(r)[2] for r in world.regions], type=pa.uint8(),
         ),
+        # M37: Conversion signals
+        "conversion_rate": pa.array(
+            [r.conversion_rate_signal for r in world.regions], type=pa.float32(),
+        ),
+        "conversion_target_belief": pa.array(
+            [r.conversion_target_signal for r in world.regions], type=pa.uint8(),
+        ),
+        "conquest_conversion_active": pa.array(
+            [r.conquest_conversion_active for r in world.regions], type=pa.bool_(),
+        ),
+        "majority_belief": pa.array(
+            [r.majority_belief for r in world.regions], type=pa.uint8(),
+        ),
+        "initial_belief": pa.array(initial_belief_arr, type=pa.uint8()),
     })
 
     # M36: Clear transient culture investment flag after reading it.
