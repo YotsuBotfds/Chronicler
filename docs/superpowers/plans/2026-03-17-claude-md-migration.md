@@ -44,16 +44,17 @@ Create `docs/superpowers/progress/phase-6-progress.md` with this exact content:
 
 - **`_culture_investment_active` sticky flag:** Set in `resolve_invest_culture()` but never reset. Once a region receives INVEST_CULTURE, flag persists forever, giving perpetual drift bonus. Fix: clear in `build_region_batch()` after reading, or reset at turn start.
 
-### M38a: Temples & Clergy Faction (pre-merge, 2 fixes needed)
+### M38a: Temples & Clergy Faction (fixes applied, ready for merge)
 
-1. **Tithe produces float treasury:** `TITHE_RATE * trade_income` is float, `civ.treasury` is int. Causes pydantic ValidationError. Fix: `civ.treasury += int(tithe)` in `factions.py`.
-2. **Temple conquest lifecycle is dead code:** `destroy_temple_on_conquest()` and `destroy_temple_for_replacement()` exist but are never called from production code. `handle_build()` blocks ALL temple building in templed regions (including foreign temples). Fix: add faith-aware check in `handle_build`, wire `destroy_temple_on_conquest` into war resolution.
+Both pre-merge fixes landed on main:
+- `a199c40` — tithe truncated to int
+- `0bee24e` — temple conquest lifecycle wired into production code
 
 ---
 
 ## Locked Design Decisions for Upcoming Milestones
 
-### M38b: Schisms, Pilgrimages & Persecution (spec reviewed, plan not written)
+### M38b: Schisms, Pilgrimages & Persecution (spec and plan Phoebe-reviewed, implementation in progress)
 
 - **B-1:** Neutral-axis schisms produce identical doctrines (`-0 = 0`). Fix: when axis value is 0, set to +1/-1 based on trigger context.
 - **B-2:** Schism belief reassignment has one-turn delay (Phase 10 detection, agent tick already ran). Documented as intentional.
@@ -62,7 +63,7 @@ Create `docs/superpowers/progress/phase-6-progress.md` with this exact content:
 - **G-3:** Pilgrimage pseudocode uses `gp.agent.belief` but `GreatPerson` has `agent_id`, not `agent` ref. Clarify data access path (lookup via snapshot by `agent_id`).
 - **G-4:** Trigger 4 needs `last_conquered_turn` on Region — specify default value for existing regions.
 
-### M39: Family & Lineage (design reviewed, spec not written)
+### M39: Family & Lineage (implementation in progress)
 
 1. **Inherit at birth, drift handles assimilation.** Child inherits parent's cultural values and belief. M36 drift and M37 conversion apply normally afterward. No special inheritance flags.
 2. **Dead ancestors valid, parent-child only (no grandparent chain).** Skip-a-generation requires pool lookback for non-promoted parents — unreliable when parent dies. `parent_id in named_agents` dict gives O(1) detection.
@@ -78,7 +79,7 @@ Create `docs/superpowers/progress/phase-6-progress.md` with this exact content:
 - **M34 farmer-as-miner:** Has forward dependency on M41 wealth dispatch.
 - **M44 (API narration):** Free-floating — schedule flexibly between heavy milestones.
 - **Viewer extensions (M21-M24, M40):** Tech focus badge, faction influence bar, ecology hover, intel indicator — all deferred to Phase 6 M46.
-- **Spec-ahead strategy:** M39 design fully locked. Tier 1 spec-able: M41, M44. Tier 2 (after M38b plan): M45.
+- **Spec-ahead strategy:** Tier 1 spec-able: M41, M44. Tier 2: M45.
 ```
 
 - [ ] **Step 3: Verify the file exists and looks right**
@@ -246,8 +247,8 @@ EMBARGO, MOVE_CAPITAL, FUND_INSTABILITY, EXPLORE, INVEST_CULTURE
 
 Phase 6 — Living Society. Roadmap: `docs/superpowers/roadmaps/chronicler-phase6-roadmap.md`
 
-**Active:** M39 (Parentage & Dynasties) — design Phoebe-reviewed (5 decisions locked), ready for spec
-**Pending:** M38a merge (tithe int fix + conquest lifecycle), M38b spec fixes (2 bugs, 4 gaps), M36 pre-merge fix
+**Active:** M39 (Parentage & Dynasties) — implementation in progress. M38b — implementation in progress.
+**Pending:** M36 pre-merge fix (`_culture_investment_active` sticky flag)
 **See:** `docs/superpowers/progress/phase-6-progress.md`
 
 ---
