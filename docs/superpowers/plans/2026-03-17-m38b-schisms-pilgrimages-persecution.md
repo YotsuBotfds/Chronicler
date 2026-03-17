@@ -32,25 +32,69 @@
 
 ---
 
-## Implementation Notes (Read Before Starting)
+## Implementation Notes (BINDING — pseudocode must follow these)
 
-**These patterns apply throughout the plan. The pseudocode in tasks uses simplified names — adapt to these realities:**
+**Every function in this plan must conform to these patterns. If pseudocode contradicts a note, the note wins.**
 
-1. **`civ.regions` is `list[str]` (region names), not `list[Region]`.** Build a region map: `region_map = {r.name: r for r in world.regions}` and resolve via `region_map[name]`. Every function that iterates civ regions needs this.
+### Data Model Realities
 
-2. **Regions have no `region_id` field.** Use `world.regions.index(region)` or the region map for identification. The snapshot's `"region"` column contains positional indices into `world.regions`.
+1. **`civ.regions` is `list[str]` (region names), not `list[Region]`.** Every function that touches civ regions MUST build `region_map = {r.name: r for r in world.regions}` and resolve via `region_map[name]`. The pseudocode uses this pattern throughout.
+
+2. **Regions have no `region_id` field.** Build `region_idx = {r.name: i for i, r in enumerate(world.regions)}`. The snapshot's `"region"` column contains positional indices. Use `region_idx[region.name]` to match snapshot data to Region objects.
 
 3. **Civilization has no `alive` field.** Check `len(civ.regions) > 0` instead.
 
-4. **GreatPerson constructor requires:** `name`, `role`, `trait`, `civilization`, `origin_civilization`, `born_turn`. Test helpers must supply all. Fields like `belief`, `occupation`, `loyalty_trait`, `skill` are NOT on the current model — they need to be added as part of Task 8 (pilgrimage model fields) or accessed via snapshot lookup.
+4. **`Belief` constructor requires `civ_origin: int`.** All calls to `Belief(...)` and test helpers `_make_belief(...)` must include `civ_origin`. In `fire_schism()`, use the civ that triggered the schism. In test helpers, use 0.
 
-5. **Infrastructure constructor requires:** `type: InfrastructureType`, `builder_civ: str`, `built_turn: int`. Has `faith_id` and `temple_prestige` as optional fields. No `name` or `region_name` — region association is via the region's `infrastructure` list.
+5. **Region constructor requires `terrain`, `resources`, `carrying_capacity`** (no defaults). Test helpers: `Region(name="r", terrain="plains", resources=[], carrying_capacity=200, population=100)`.
 
-6. **Dead agents for martyrdom:** `world._dead_agents_this_turn` does not exist. Implementation must extract deaths from the agent bridge event processing (event_type=0 in `EVENT_TYPE_MAP`) or from snapshot diffs between turns. Stash deaths in Phase 10 or pass from the agent tick event handler.
+### GreatPerson & Pilgrimage Data Access
 
-7. **Persecution event tracking:** Region is a Pydantic model — avoid setting arbitrary attributes (`region._persecution_event_fired`). Use a `set[str]` tracking set (keyed by region name) passed to the function instead.
+6. **GreatPerson constructor requires:** `name`, `role`, `trait`, `civilization`, `origin_civilization`, `born_turn`. Test helpers must supply all six.
 
-8. **`apply_penalty_cap` integration:** The current call is `apply_penalty_cap(cultural_pen + religious_pen)`. Persecution must be added INSIDE this call: `apply_penalty_cap(cultural_pen + religious_pen + persecution_pen)`.
+7. **GreatPerson has NO `belief`, `occupation`, `loyalty_trait`, `skill`, or `life_events` fields.** All pilgrimage data access MUST go through snapshot lookups by `gp.agent_id`, using a pre-built `{agent_id: row_index}` dict from the snapshot. The only exception: Task 8 adds `pilgrimage_destination`, `pilgrimage_return_turn`, and `arc_type` as new GreatPerson fields (these are Python-only pilgrimage state, not agent pool data). For the return skill boost, cache it on GreatPerson as `pilgrimage_skill_bonus: float = 0.0` and apply it in the existing great person sync path.
+
+8. **Infrastructure has no `name` or `region_name`.** Constructor: `Infrastructure(type=InfrastructureType.TEMPLES, builder_civ="X", built_turn=0)`. Region association is via `region.infrastructure` list membership. Collect temples as `list[tuple[str, Infrastructure]]` (region_name, infrastructure) to preserve the mapping.
+
+### Rust Integration
+
+9. **`compute_satisfaction_with_culture()` takes individual parameters, not `&RegionState`.** Add `persecution_intensity: f32` as a new parameter. Update the call site in `update_satisfaction()` in tick.rs to pass `regions[region_id].persecution_intensity`.
+
+10. **Persecution utility boosts go INSIDE `evaluate_region_decisions()` in behavior.rs**, not at the call site in tick.rs. `evaluate_region_decisions()` receives `&RegionState` and has access to both agent belief and region data. Add the boost to rebel/migrate utility computation before Gumbel noise is applied. The call to `rebel_utility()` and `migrate_utility()` can receive the persecution boost as an additional parameter, or the boost can be added to the returned value before the softmax.
+
+11. **Schism column cleanup BEFORE `return` in `build_region_batch()`.** The M36 `_culture_investment_active` cleanup at lines 220-225 of agent_bridge.py is after the return — this is a known sticky-flag bug. Do NOT repeat this pattern. Read schism values into local variables, clear the Region fields, then build the batch from locals:
+
+```python
+# In build_region_batch(), BEFORE constructing the RecordBatch:
+schism_from_vals = [r.schism_convert_from for r in regions]
+schism_to_vals = [r.schism_convert_to for r in regions]
+for r in regions:
+    r.schism_convert_from = 0xFF
+    r.schism_convert_to = 0xFF
+# Then use schism_from_vals / schism_to_vals in the batch dict
+```
+
+### Death & Event Data
+
+12. **Dead agent delivery for martyrdom:** `world._dead_agents_this_turn` does not exist. Wire it: in `agent_bridge.tick()`, after processing death events (event_type=0), stash the dead agent records on `world._dead_agents_this_turn = dead_list`. Clear at start of each turn. The plan's `compute_martyrdom_boosts()` then reads this. Alternative: pass dead agent records as a parameter from simulation.py's agent tick call.
+
+13. **Persecution event tracking:** Region is a Pydantic model with `extra='forbid'` — cannot set arbitrary attributes. Pass a `persecuted_regions: set[str]` tracking set to `compute_persecution()` and persist it on the world object between turns.
+
+### Other Fixes
+
+14. **Clergy influence lookup:** `civ.clergy_influence` does not exist. Access via `civ.factions.influence.get(FactionType.CLERGY, 0.0)` (or the equivalent field path on FactionState).
+
+15. **`last_conquered_turn` must be SET, not just defaulted.** Add a step to wire `region.last_conquered_turn = world.turn` in `resolve_war()` in `action_engine.py` (or wherever region ownership changes). Without this, schism trigger Priority 4 (conquest) never fires.
+
+16. **`LIFE_EVENT_PILGRIMAGE` defined once** in `religion.py`. Import where needed. Don't duplicate.
+
+17. **`git add -A` forbidden.** Use specific file paths in all commit steps.
+
+18. **Recursive schism naming:** Use `f"{original.name} (Reformed)"` with a counter suffix if the name already contains "(Reformed)": `f"{base_name} (Reformed {n})"`.
+
+### Q-1 Resolution
+
+**The MINORITY faith splits.** The trigger (>30% minority in a region) means the minority faith has grown large enough for internal doctrinal pressure. All minority-faith agents in the region adopt the splinter. They remain a minority (same percentage) but with modified doctrine. The cascade: splinter is immediately a persecutable minority → persecution → martyrdom → conversion spread.
 
 ---
 
@@ -136,12 +180,16 @@ In `src/chronicler/agent_bridge.py`, in `build_region_batch()` after the existin
         ),
 ```
 
-After building the batch, clear transient schism state (following the M36 `_culture_investment_active` pattern at lines 220-225):
+**IMPORTANT: Clear transient state BEFORE building the batch** (see Implementation Note 11). Do NOT place cleanup after the `return` statement. Read values into locals, clear fields, then use locals in the batch:
 
 ```python
+    # Read schism values into locals, then clear (Note 11)
+    schism_from_vals = [r.schism_convert_from for r in regions]
+    schism_to_vals = [r.schism_convert_to for r in regions]
     for r in regions:
         r.schism_convert_from = 0xFF
         r.schism_convert_to = 0xFF
+    # Use schism_from_vals / schism_to_vals in the RecordBatch dict below
 ```
 
 - [ ] **Step 2: Add Rust constants to agent.rs**
@@ -155,38 +203,34 @@ pub const PERSECUTION_REBEL_BOOST: f32 = 0.30;
 pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.20;
 ```
 
-- [ ] **Step 3: Read persecution_intensity in satisfaction.rs**
+- [ ] **Step 3: Add `persecution_intensity` parameter to `compute_satisfaction_with_culture()`**
 
-In `chronicler-agents/src/satisfaction.rs`, in `compute_satisfaction_with_culture()` (around lines 165-172 where religious mismatch is applied), add after the religious mismatch penalty:
+In `chronicler-agents/src/satisfaction.rs`, add `persecution_intensity: f32` as a new parameter to `compute_satisfaction_with_culture()`. Inside the function, after the religious mismatch penalty (around line 172), add:
 
 ```rust
     // M38b: Persecution penalty (only affects religious minorities in Militant civs)
-    // persecution_intensity is pre-computed by Python: 0.0 = no persecution
-    let persecution_intensity = region_batch.persecution_intensity;
-    if belief != region_batch.majority_belief {
+    if belief != majority_belief {
         penalty += PERSECUTION_SAT_WEIGHT * persecution_intensity;
     }
 ```
 
-The existing `apply_penalty_cap()` clamps the total — no change needed there.
+The existing `apply_penalty_cap()` call already clamps `penalty` — persecution is included in the sum BEFORE the cap.
 
-- [ ] **Step 4: Add persecution utility boosts in tick.rs (at call site)**
+Then update the call site in `update_satisfaction()` in tick.rs to pass `regions[region_id].persecution_intensity`.
 
-`rebel_utility()` and `migrate_utility()` in `behavior.rs` have narrow signatures (no region state access). Add the persecution boost **at the call site in tick.rs** where both agent state and region batch are available:
+- [ ] **Step 4: Add persecution utility boosts inside `evaluate_region_decisions()` in behavior.rs**
+
+`evaluate_region_decisions()` receives `&RegionState` which will have `persecution_intensity` after ffi.rs parsing. Inside this function, after computing `rebel_util` from `rebel_utility()` and `migrate_util` from `migrate_utility()`, add the persecution boosts BEFORE Gumbel noise is applied:
 
 ```rust
-// In tick.rs, after computing rebel_util from rebel_utility():
-if pool.belief[slot] != region_batch.majority_belief {
-    rebel_util += PERSECUTION_REBEL_BOOST * region_batch.persecution_intensity;
-}
-
-// Same for migrate_util after migrate_utility():
-if pool.belief[slot] != region_batch.majority_belief {
-    migrate_util += PERSECUTION_MIGRATE_BOOST * region_batch.persecution_intensity;
+// Inside evaluate_region_decisions(), after rebel_utility() and migrate_utility() calls:
+if pool.belief[slot] != region_state.majority_belief {
+    rebel_util += PERSECUTION_REBEL_BOOST * region_state.persecution_intensity;
+    migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
 }
 ```
 
-This avoids changing the utility function signatures.
+This has access to both agent state and region data. Do NOT add at the tick.rs call site — decisions are already finalized when `evaluate_region_decisions()` returns.
 
 - [ ] **Step 5: Add Arrow schema entries in ffi.rs**
 
@@ -345,6 +389,7 @@ def compute_persecution(
     belief_registry: list[Belief],
     snapshot,
     current_turn: int,
+    persecuted_regions: set[str],  # tracking set, persists across turns
 ) -> list[dict]:
     """Detect persecution in Militant civs and compute intensity per region.
 
@@ -354,14 +399,18 @@ def compute_persecution(
         return []
 
     events: list[dict] = []
-    region_ids = snapshot.column("region").to_pylist()
-    beliefs = snapshot.column("belief").to_pylist()
-    civ_affinities = snapshot.column("civ_affinity").to_pylist()
 
-    # Build per-region faith counts (consolidate with compute_majority_belief)
+    # Build region map and index (Note 1, Note 2)
+    region_map = {r.name: r for r in regions}
+    region_idx = {r.name: i for i, r in enumerate(regions)}
+
+    # Build per-region faith counts from snapshot
+    snap_regions = snapshot.column("region").to_pylist()  # positional indices
+    snap_beliefs = snapshot.column("belief").to_pylist()
+
     region_faith_counts: dict[int, Counter] = {}
     region_agent_counts: dict[int, int] = {}
-    for rid, faith, civ_id in zip(region_ids, beliefs, civ_affinities):
+    for rid, faith in zip(snap_regions, snap_beliefs):
         if faith == 0xFF:
             continue
         if rid not in region_faith_counts:
@@ -371,19 +420,20 @@ def compute_persecution(
         region_agent_counts[rid] += 1
 
     for civ in civs:
-        if not civ.alive:
+        if len(civ.regions) == 0:  # Note 3: no civ.alive
             continue
         if civ.civ_majority_faith == 0xFF:
             continue
         civ_faith = belief_registry[civ.civ_majority_faith]
         if civ_faith.doctrines[DOCTRINE_STANCE] != 1:
-            # Not Militant — no persecution
-            for r in civ.regions:
-                r.persecution_intensity = 0.0
+            # Not Militant — clear persecution on all civ regions
+            for rname in civ.regions:
+                region_map[rname].persecution_intensity = 0.0
             continue
 
-        for region in civ.regions:
-            rid = region.region_id
+        for rname in civ.regions:  # Note 1: iterate names, resolve via map
+            region = region_map[rname]
+            rid = region_idx[rname]
             faith_counts = region_faith_counts.get(rid, Counter())
             total = region_agent_counts.get(rid, 0)
             if total == 0:
@@ -400,23 +450,22 @@ def compute_persecution(
             intensity = 1.0 * (1.0 - minority_ratio)
             region.persecution_intensity = intensity
 
-            # Persecution named event (first turn only — track with flag)
-            if not getattr(region, '_persecution_event_fired', False):
+            # Persecution named event (first turn only — Note 13: use tracking set)
+            if rname not in persecuted_regions:
                 events.append({
                     "type": "Persecution",
                     "importance": 6,
-                    "region": region.name,
+                    "region": rname,
                     "faith": belief_registry[civ.civ_majority_faith].name,
                 })
-                region._persecution_event_fired = True
+                persecuted_regions.add(rname)
 
             # Mass migration check
-            persecuted_ratio = minority_count / total
-            if persecuted_ratio > MASS_MIGRATION_THRESHOLD:
+            if minority_ratio > MASS_MIGRATION_THRESHOLD:
                 events.append({
                     "type": "Mass Migration",
                     "importance": 6,
-                    "region": region.name,
+                    "region": rname,
                 })
 
     return events
@@ -424,34 +473,30 @@ def compute_persecution(
 
 def compute_martyrdom_boosts(
     regions: list[Region],
-    civs: list[Civilization],
-    belief_registry: list[Belief],
-    dead_agents: list | None,
+    dead_agents: list[dict] | None,
 ) -> None:
     """Update martyrdom_boost for regions with persecution deaths.
 
-    A persecution death: dead agent in a persecuted region (intensity > 0)
-    whose belief differed from the civ's majority faith.
+    dead_agents: list of dicts with "region_idx" (int) and "belief" (int),
+    stashed by agent_bridge.tick() in world._dead_agents_this_turn (Note 12).
     """
     if dead_agents:
-        # Build region→deaths map
-        region_has_persecution_death: set[int] = set()
+        # Check each dead agent against their region's persecution state
+        regions_with_persecution_death: set[int] = set()
         for agent in dead_agents:
-            rid = agent.get("region")
+            rid = agent.get("region_idx")
             belief = agent.get("belief", 0xFF)
-            if rid is None or belief == 0xFF:
+            if rid is None or belief == 0xFF or rid >= len(regions):
                 continue
-            # Find region and check persecution
-            # (Implementation: look up region by rid, check persecution_intensity > 0
-            #  and belief != civ majority faith)
-            region_has_persecution_death.add(rid)
+            region = regions[rid]
+            if region.persecution_intensity > 0:
+                regions_with_persecution_death.add(rid)
 
-        for region in (r for regions_list in [c.regions for c in civs] for r in regions_list):
-            if region.region_id in region_has_persecution_death and region.persecution_intensity > 0:
-                region.martyrdom_boost = min(
-                    region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
-                    MARTYRDOM_BOOST_CAP,
-                )
+        for rid in regions_with_persecution_death:
+            regions[rid].martyrdom_boost = min(
+                regions[rid].martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
+                MARTYRDOM_BOOST_CAP,
+            )
 
     # Decay all regions
     decay_martyrdom_boosts(regions)
@@ -479,14 +524,17 @@ In `src/chronicler/simulation.py`, in `phase_consequences()` after `decay_conque
 
 ```python
         # M38b: Persecution
+        # Persist tracking set on world (Note 13)
+        if not hasattr(world, '_persecuted_regions'):
+            world._persecuted_regions = set()
         persecution_events = compute_persecution(
             world.regions, world.civilizations, world.belief_registry,
-            _snap, world.turn,
+            _snap, world.turn, world._persecuted_regions,
         )
         turn_events.extend(persecution_events)
         compute_martyrdom_boosts(
-            world.regions, world.civilizations, world.belief_registry,
-            getattr(world, '_dead_agents_this_turn', None),
+            world.regions,
+            getattr(world, '_dead_agents_this_turn', None),  # Note 12: wired in agent_bridge.tick()
         )
 ```
 
@@ -905,6 +953,7 @@ In `src/chronicler/religion.py`:
 
 ```python
 def detect_schisms(
+    regions: list[Region],
     civs: list[Civilization],
     belief_registry: list[Belief],
     snapshot,
@@ -920,13 +969,17 @@ def detect_schisms(
         return []
 
     events = []
-    region_ids = snapshot.column("region").to_pylist()
-    beliefs = snapshot.column("belief").to_pylist()
+    # Note 1, Note 2: build region map and index
+    region_map = {r.name: r for r in regions}
+    region_idx = {r.name: i for i, r in enumerate(regions)}
+
+    snap_regions = snapshot.column("region").to_pylist()
+    snap_beliefs = snapshot.column("belief").to_pylist()
 
     # Build per-region faith counts
     region_faith_counts: dict[int, Counter] = {}
     region_totals: dict[int, int] = {}
-    for rid, faith in zip(region_ids, beliefs):
+    for rid, faith in zip(snap_regions, snap_beliefs):
         if faith == 0xFF:
             continue
         if rid not in region_faith_counts:
@@ -936,7 +989,7 @@ def detect_schisms(
         region_totals[rid] += 1
 
     for civ in civs:
-        if not civ.alive or civ.civ_majority_faith == 0xFF:
+        if len(civ.regions) == 0 or civ.civ_majority_faith == 0xFF:  # Note 3
             continue
         if len(belief_registry) >= MAX_FAITHS:
             break
@@ -945,8 +998,10 @@ def detect_schisms(
         best_ratio = 0.0
         best_faith_id = -1
 
-        for region in civ.regions:
-            rid = region.region_id
+        for rname in civ.regions:  # Note 1: iterate names
+            rid = region_idx.get(rname)
+            if rid is None:
+                continue
             counts = region_faith_counts.get(rid, Counter())
             total = region_totals.get(rid, 0)
             if total == 0:
@@ -956,7 +1011,7 @@ def detect_schisms(
                     continue
                 ratio = count / total
                 if ratio > SCHISM_MINORITY_THRESHOLD and ratio > best_ratio:
-                    best_region = region
+                    best_region = region_map[rname]
                     best_ratio = ratio
                     best_faith_id = faith_id
 
@@ -986,8 +1041,9 @@ def fire_schism(
 
     original = belief_registry[original_faith_id]
 
-    # Determine axis to flip
-    clergy_influence = getattr(civ, 'clergy_influence', 0.0)
+    # Note 14: clergy influence from FactionState, not civ attribute
+    from chronicler.models import FactionType
+    clergy_influence = civ.factions.influence.get(FactionType.CLERGY, 0.0)
     axis, new_val = determine_schism_axis(
         region, original, current_turn, clergy_influence,
     )
@@ -996,19 +1052,25 @@ def fire_schism(
     new_doctrine = list(original.doctrines)
     new_doctrine[axis] = new_val
 
-    # Generate schism name
-    splinter_name = f"Reformed {original.name}"
+    # Note 18: schism naming with counter
+    base_name = original.name.split(" (Reformed")[0]
+    existing_reformed = sum(1 for b in belief_registry if base_name in b.name and "Reformed" in b.name)
+    if existing_reformed == 0:
+        splinter_name = f"{base_name} (Reformed)"
+    else:
+        splinter_name = f"{base_name} (Reformed {existing_reformed + 1})"
 
-    # Register new faith
+    # Register new faith — Note 4: Belief requires civ_origin
     splinter_id = len(belief_registry)
     splinter = Belief(
         name=splinter_name,
         doctrines=new_doctrine,
         faith_id=splinter_id,
+        civ_origin=original.civ_origin,  # inherits from parent faith
     )
     belief_registry.append(splinter)
 
-    # Set region batch signals for Rust to process next turn
+    # Set region batch signals for Rust to process next turn (Note 11)
     region.schism_convert_from = original_faith_id
     region.schism_convert_to = splinter_id
 
@@ -1037,7 +1099,7 @@ def detect_reformation(
     """
     events = []
     for civ in civs:
-        if not civ.alive:
+        if len(civ.regions) == 0:  # Note 3
             continue
         majority_ratio = getattr(civ, '_majority_faith_ratio', 0.0)
         if (civ.civ_majority_faith != civ.previous_majority_faith
@@ -1060,7 +1122,8 @@ In `phase_consequences()`, after the persecution block:
 ```python
         # M38b: Schisms
         schism_events = detect_schisms(
-            world.civilizations, world.belief_registry, _snap, world.turn,
+            world.regions, world.civilizations, world.belief_registry,
+            _snap, world.turn,
         )
         turn_events.extend(schism_events)
 
@@ -1128,7 +1191,7 @@ Also add the life event constant to wherever life event bits are defined:
 LIFE_EVENT_PILGRIMAGE = 1 << 7  # 128, bit 7 (M37 confirms spare)
 ```
 
-- [ ] **Step 2: Add pilgrimage constants to religion.py**
+- [ ] **Step 2: Add pilgrimage constants to religion.py (Note 16: define LIFE_EVENT_PILGRIMAGE here only)**
 
 ```python
 # M38b: Pilgrimages
@@ -1138,7 +1201,15 @@ PILGRIMAGE_SKILL_BOOST = 0.10
 LIFE_EVENT_PILGRIMAGE = 1 << 7  # 128
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Wire `last_conquered_turn` in war resolution (Note 15)**
+
+Find `resolve_war()` in `src/chronicler/action_engine.py` (or wherever region ownership changes). After the region is transferred to the conquering civ, add:
+
+```python
+region.last_conquered_turn = world.turn
+```
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/chronicler/models.py src/chronicler/religion.py
@@ -1290,16 +1361,44 @@ import random
 
 def check_pilgrimages(
     great_persons: list[GreatPerson],
-    temples: list[Infrastructure],
+    temples: list[tuple[str, Infrastructure]],  # Note 8: (region_name, infra) tuples
     snapshot,
     current_turn: int,
     belief_registry: list,
 ) -> list[dict]:
     """Check for pilgrimage departures and returns.
 
+    Note 7: GreatPerson has no belief/occupation/skill/life_events fields.
+    All agent data accessed via snapshot lookup by gp.agent_id.
+
     Returns list of named event dicts.
     """
     events = []
+
+    # Note 7: build agent_id → snapshot row index map (O(1) lookups)
+    agent_idx_map: dict[int, int] = {}
+    if snapshot is not None and snapshot.num_rows > 0:
+        ids = snapshot.column("id").to_pylist()
+        agent_idx_map = {aid: i for i, aid in enumerate(ids)}
+        snap_beliefs = snapshot.column("belief").to_pylist()
+        snap_occupations = snapshot.column("occupation").to_pylist()
+        snap_loyalty = snapshot.column("loyalty").to_pylist()
+    else:
+        snap_beliefs = []
+        snap_occupations = []
+        snap_loyalty = []
+
+    def _agent_belief(gp: GreatPerson) -> int:
+        idx = agent_idx_map.get(gp.agent_id) if gp.agent_id else None
+        return snap_beliefs[idx] if idx is not None else 0xFF
+
+    def _agent_occupation(gp: GreatPerson) -> int:
+        idx = agent_idx_map.get(gp.agent_id) if gp.agent_id else None
+        return snap_occupations[idx] if idx is not None else -1
+
+    def _agent_loyalty(gp: GreatPerson) -> float | None:
+        idx = agent_idx_map.get(gp.agent_id) if gp.agent_id else None
+        return snap_loyalty[idx] if idx is not None else None
 
     # Check returns first
     for gp in great_persons:
@@ -1307,50 +1406,53 @@ def check_pilgrimages(
             continue
         if current_turn < (gp.pilgrimage_return_turn or 0):
             continue
-        # Return effects
-        gp.skill = min(1.0, (gp.skill or 0.0) + PILGRIMAGE_SKILL_BOOST)
+        # Return effects — Note 7: skill boost cached on GP, life_events not available
+        gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
         gp.arc_type = "Prophet"
-        gp.life_events = (gp.life_events or 0) | LIFE_EVENT_PILGRIMAGE
         dest = gp.pilgrimage_destination
         gp.pilgrimage_destination = None
         gp.pilgrimage_return_turn = None
+        belief = _agent_belief(gp)
         events.append({
             "type": "Pilgrimage Return",
             "importance": 5,
             "character": gp.name,
             "title": "Prophet",
-            "faith": belief_registry[gp.belief].name if gp.belief < len(belief_registry) else "unknown",
+            "faith": belief_registry[belief].name if belief < len(belief_registry) else "unknown",
         })
 
     # Check departures
-    faiths_departed = set()
+    faiths_departed: set[int] = set()
     for gp in great_persons:
         if gp.pilgrimage_destination is not None:
             continue
         if gp.arc_type == "Prophet":
             continue
-        belief = getattr(gp, 'belief', 0xFF)
+
+        belief = _agent_belief(gp)
         if belief == 0xFF or belief in faiths_departed:
             continue
 
-        is_priest = getattr(gp, 'occupation', -1) == _PRIEST_OCCUPATION
-        is_loyal_trait = getattr(gp, 'loyalty_trait', 0.0) > 0.5
+        is_priest = _agent_occupation(gp) == _PRIEST_OCCUPATION
+        # Loyalty trait: check if GP has it cached (from M33 promotion), else skip
+        loyalty_trait = getattr(gp, 'loyalty_trait', None)
+        is_loyal_trait = (loyalty_trait is not None and loyalty_trait > 0.5)
         if not (is_priest or is_loyal_trait):
             continue
 
         # Dynamic loyalty from snapshot
-        agent_loyalty = _get_agent_loyalty(snapshot, gp.agent_id)
-        if agent_loyalty is None or agent_loyalty <= 0.5:
+        agent_loy = _agent_loyalty(gp)
+        if agent_loy is None or agent_loy <= 0.5:
             continue
 
-        # Find highest-prestige temple of their faith
-        matching_temples = [t for t in temples if t.faith_id == belief]
-        if not matching_temples:
+        # Find highest-prestige temple of their faith — Note 8: temples are (rname, infra) tuples
+        matching = [(rn, t) for rn, t in temples if t.faith_id == belief]
+        if not matching:
             continue
-        destination = max(matching_temples, key=lambda t: t.temple_prestige)
+        dest_rname, dest_temple = max(matching, key=lambda x: x[1].temple_prestige)
 
         # Begin pilgrimage
-        gp.pilgrimage_destination = destination.region_name
+        gp.pilgrimage_destination = dest_rname
         gp.pilgrimage_return_turn = current_turn + random.randint(
             PILGRIMAGE_DURATION_MIN, PILGRIMAGE_DURATION_MAX,
         )
@@ -1359,23 +1461,11 @@ def check_pilgrimages(
             "type": "Pilgrimage Departure",
             "importance": 4,
             "character": gp.name,
-            "destination": destination.region_name,
+            "destination": dest_rname,
             "faith": belief_registry[belief].name if belief < len(belief_registry) else "unknown",
         })
 
     return events
-
-
-def _get_agent_loyalty(snapshot, agent_id: int | None) -> float | None:
-    """Look up dynamic loyalty from snapshot by agent_id."""
-    if snapshot is None or agent_id is None:
-        return None
-    ids = snapshot.column("id").to_pylist()
-    try:
-        idx = ids.index(agent_id)
-        return snapshot.column("loyalty").to_pylist()[idx]
-    except (ValueError, IndexError):
-        return None
 ```
 
 - [ ] **Step 4: Wire in simulation.py**
@@ -1383,8 +1473,8 @@ def _get_agent_loyalty(snapshot, agent_id: int | None) -> float | None:
 In `phase_consequences()`, after schism/reformation calls:
 
 ```python
-        # M38b: Pilgrimages
-        all_temples = [inf for r in world.regions
+        # M38b: Pilgrimages — Note 8: collect as (region_name, infra) tuples
+        all_temples = [(r.name, inf) for r in world.regions
                        for inf in getattr(r, 'infrastructure', [])
                        if getattr(inf, 'faith_id', -1) >= 0]
         all_great_persons = [gp for c in world.civilizations
@@ -1553,6 +1643,6 @@ Expected: all PASS.
 - [ ] **Step 4: Final commit**
 
 ```bash
-git add -A
+git add src/chronicler/simulation.py src/chronicler/action_engine.py
 git commit -m "feat(m38b): wire secession modifier and verify --agents=off compatibility"
 ```
