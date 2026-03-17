@@ -56,7 +56,7 @@ Replace 60 inline `civ_index` lookups across 13 files (62 total occurrences minu
 | politics.py | 21 |
 | simulation.py | 9 |
 | action_engine.py | 6 |
-| ecology.py | 4 (6 total minus 2 inside `_check_famine_legacy`) |
+| ecology.py | 3 (6 total minus 3 inside `_check_famine_legacy`) |
 | leaders.py | 4 |
 | culture.py | 5 |
 | emergence.py | 3 |
