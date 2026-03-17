@@ -339,6 +339,27 @@ def compute_conversion_signals(
     return results
 
 
+def compute_conversion_deltas(current_beliefs, prev_beliefs, civ_majority_faiths, regions):
+    """Per-region count of agents who converted to controller's faith this turn."""
+    deltas = {}
+    for region_id, curr_dist in current_beliefs.items():
+        if region_id >= len(regions):
+            continue
+        region = regions[region_id]
+        controller = getattr(region, 'controller', None)
+        if controller is None:
+            continue
+        target_faith = civ_majority_faiths.get(controller, -1)
+        if target_faith < 0:
+            continue
+        curr_count = curr_dist.get(target_faith, 0)
+        prev_count = prev_beliefs.get(region_id, {}).get(target_faith, 0)
+        delta = curr_count - prev_count
+        if delta > 0:
+            deltas[region_id] = delta
+    return deltas
+
+
 def decay_conquest_boosts(regions: list[Region]) -> None:
     """Linearly decay each region's ``conquest_conversion_boost`` toward zero.
 

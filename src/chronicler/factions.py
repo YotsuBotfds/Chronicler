@@ -21,6 +21,17 @@ from chronicler.utils import civ_index
 
 FACTION_FLOOR = 0.08  # M38a: floor per faction (was 0.10 for 3 factions)
 
+# M38a: clergy event shift constants
+EVT_TEMPLE_BUILT = 0.03
+EVT_CONVERSION_SUCCESS = 0.01
+EVT_HOLY_WAR_WON = 0.04
+EVT_TEMPLE_DESTROYED = -0.03
+EVT_PRIEST_LOSS = -0.01
+
+# M38a: tithe constants
+TITHE_RATE = 0.10
+TITHE_THRESHOLD = 0.15
+
 # ---------------------------------------------------------------------------
 # Mapping tables
 # ---------------------------------------------------------------------------
@@ -243,7 +254,13 @@ def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
 # Per-turn faction tick (phase 10 — consequences)
 # ---------------------------------------------------------------------------
 
-def tick_factions(world, acc=None) -> list[Event]:
+def compute_tithe_base(civ, snapshot=None):
+    """M38a: trade_income proxy. M41 swaps to sum(merchant_wealth)."""
+    return getattr(civ, 'trade_income', 0) or getattr(civ, 'last_income', 0)
+
+
+def tick_factions(world, acc=None, conversion_deltas=None, region_populations=None,
+                  prev_priest_counts=None, curr_priest_counts=None) -> list[Event]:
     """Main per-turn faction tick. Runs in phase 10 (consequences)."""
     events: list[Event] = []
     current_turn = world.turn
@@ -269,6 +286,9 @@ def tick_factions(world, acc=None) -> list[Event]:
                    (not is_attacker and "defender_wins" in event.description):
                     # War win
                     civ.factions.influence[FactionType.MILITARY] += 0.05
+                    # M38a: holy war clergy boost
+                    if "holy_war" in event.description.lower():
+                        civ.factions.influence[FactionType.CLERGY] += EVT_HOLY_WAR_WON
                 else:
                     # War loss — merchants profit from power vacuums
                     civ.factions.influence[FactionType.MILITARY] -= 0.05
@@ -295,6 +315,13 @@ def tick_factions(world, acc=None) -> list[Event]:
                 if focus_name and focus_name in FOCUS_FACTION_MAP:
                     civ.factions.influence[FOCUS_FACTION_MAP[focus_name]] += 0.025
 
+            # M38a: clergy events
+            elif event.event_type == "build_started" and "temples" in event.description.lower():
+                civ.factions.influence[FactionType.CLERGY] += EVT_TEMPLE_BUILT
+
+            elif event.event_type == "temple_destroyed":
+                civ.factions.influence[FactionType.CLERGY] += EVT_TEMPLE_DESTROYED
+
         # 3. State-based shifts (halved)
         if civ.treasury <= 0:
             civ.factions.influence[FactionType.MERCHANT] -= 0.075
@@ -316,6 +343,33 @@ def tick_factions(world, acc=None) -> list[Event]:
             elif gp.role == "scientist":
                 if civ.active_focus and civ.active_focus in FOCUS_FACTION_MAP:
                     civ.factions.influence[FOCUS_FACTION_MAP[civ.active_focus]] += 0.01
+
+        # 4b. M38a: conversion success (per-civ, max +0.01/turn) — requires snapshot
+        if conversion_deltas is not None:
+            for region_id, converted_count in conversion_deltas.items():
+                if region_id >= len(world.regions):
+                    continue
+                region = world.regions[region_id]
+                if getattr(region, 'controller', None) == civ.name:
+                    region_pop = region_populations.get(region_id, 0) if region_populations else 0
+                    if region_pop > 0 and converted_count / region_pop >= 0.05:
+                        civ.factions.influence[FactionType.CLERGY] += EVT_CONVERSION_SUCCESS
+                        break  # per-civ cap
+
+        # 4c. M38a: priest death above baseline (requires snapshot)
+        if prev_priest_counts is not None and civ.name in prev_priest_counts:
+            prev_count = prev_priest_counts[civ.name]
+            curr_count = curr_priest_counts.get(civ.name, 0) if curr_priest_counts else 0
+            if prev_count > 0:
+                loss_fraction = (prev_count - curr_count) / prev_count
+                loss_steps = int(loss_fraction / 0.05)
+                if loss_steps > 0:
+                    civ.factions.influence[FactionType.CLERGY] += EVT_PRIEST_LOSS * loss_steps
+
+        # 4d. M38a: tithe collection
+        if civ.factions.influence.get(FactionType.CLERGY, 0) >= TITHE_THRESHOLD:
+            tithe = TITHE_RATE * compute_tithe_base(civ)
+            civ.treasury += tithe
 
         # 5. Normalize influence
         normalize_influence(civ.factions)
