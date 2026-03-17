@@ -52,6 +52,32 @@ pub fn compute_shock_penalty(occupation: u8, shock: &CivShock) -> f32 {
     general + specific
 }
 
+/// Count overlap between two sets of 3 cultural values (0xFF = empty/ignored).
+/// Returns distance = 3 - overlap_count.
+#[inline]
+pub fn cultural_distance(agent_values: [u8; 3], controller_values: [u8; 3]) -> u8 {
+    let mut overlap: u8 = 0;
+    for &av in &agent_values {
+        if av == crate::agent::CULTURAL_VALUE_EMPTY { continue; }
+        for &cv in &controller_values {
+            if cv == crate::agent::CULTURAL_VALUE_EMPTY { continue; }
+            if av == cv { overlap += 1; break; }
+        }
+    }
+    3 - overlap
+}
+
+#[inline]
+pub fn compute_cultural_penalty(agent_values: [u8; 3], controller_values: [u8; 3]) -> f32 {
+    let dist = cultural_distance(agent_values, controller_values);
+    dist as f32 * crate::agent::CULTURAL_MISMATCH_WEIGHT
+}
+
+#[inline]
+pub fn apply_penalty_cap(total_penalty: f32) -> f32 {
+    total_penalty.min(crate::agent::PENALTY_CAP)
+}
+
 /// Compute satisfaction for a single agent. All inputs pre-fetched.
 /// Branchless: bool-as-f32 masks for auto-vectorization.
 pub fn compute_satisfaction(
@@ -98,6 +124,44 @@ pub fn compute_satisfaction(
         .clamp(0.0, 1.0)
 }
 
+/// Wraps compute_satisfaction(), subtracting the cultural mismatch penalty (capped).
+pub fn compute_satisfaction_with_culture(
+    occupation: u8,
+    soil: f32,
+    water: f32,
+    civ_stability: u8,
+    demand_supply_ratio: f32,
+    pop_over_capacity: f32,
+    civ_at_war: bool,
+    region_contested: bool,
+    occ_matches_faction: bool,
+    is_displaced: bool,
+    trade_routes: u8,
+    faction_influence: f32,
+    shock: &CivShock,
+    agent_values: [u8; 3],
+    controller_values: [u8; 3],
+) -> f32 {
+    let base_sat = compute_satisfaction(
+        occupation,
+        soil,
+        water,
+        civ_stability,
+        demand_supply_ratio,
+        pop_over_capacity,
+        civ_at_war,
+        region_contested,
+        occ_matches_faction,
+        is_displaced,
+        trade_routes,
+        faction_influence,
+        shock,
+    );
+    let cultural_pen = compute_cultural_penalty(agent_values, controller_values);
+    let total_non_eco_penalty = apply_penalty_cap(cultural_pen);
+    (base_sat - total_non_eco_penalty).clamp(0.0, 1.0)
+}
+
 /// Target occupation ratios for a region based on terrain and ecology.
 /// Returns [farmer, soldier, merchant, scholar, priest] ratios summing to ~1.0.
 /// Cold path — called once per region per tick, not per agent.
@@ -126,6 +190,76 @@ pub fn target_occupation_ratio(terrain: u8, soil: f32, _water: f32, demand_shift
     for v in &mut r { *v /= sum; }
 
     r
+}
+
+#[cfg(test)]
+mod m36_tests {
+    use super::*;
+
+    #[test]
+    fn test_cultural_distance_full_overlap() {
+        assert_eq!(cultural_distance([4, 3, 2], [4, 3, 2]), 0);
+    }
+
+    #[test]
+    fn test_cultural_distance_partial_overlap() {
+        assert_eq!(cultural_distance([4, 3, 2], [3, 2, 0]), 1);
+    }
+
+    #[test]
+    fn test_cultural_distance_no_overlap() {
+        assert_eq!(cultural_distance([4, 3, 2], [0, 1, 5]), 3);
+    }
+
+    #[test]
+    fn test_cultural_distance_order_independent() {
+        assert_eq!(cultural_distance([4, 3, 2], [2, 4, 3]), 0);
+        assert_eq!(cultural_distance([4, 3, 2], [0, 3, 4]), 1);
+    }
+
+    #[test]
+    fn test_cultural_distance_with_empty_slots() {
+        // 0xFF sentinel should not self-match
+        assert_eq!(cultural_distance([4, 3, 0xFF], [4, 3, 0xFF]), 1);
+    }
+
+    #[test]
+    fn test_cultural_penalty_zero_distance() {
+        let pen = compute_cultural_penalty([4, 3, 2], [4, 3, 2]);
+        assert_eq!(pen, 0.0);
+    }
+
+    #[test]
+    fn test_cultural_penalty_max_distance() {
+        let pen = compute_cultural_penalty([4, 3, 2], [0, 1, 5]);
+        assert!((pen - 0.15).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_penalty_cap_clamps() {
+        let total = apply_penalty_cap(0.45);
+        assert!((total - 0.40).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_penalty_cap_no_clamp_when_under() {
+        let total = apply_penalty_cap(0.10);
+        assert!((total - 0.10).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_zero_penalty_neutral_satisfaction() {
+        // Matching cultural values → zero penalty → satisfaction unchanged
+        let shock = &crate::signals::CivShock::default();
+        let base = compute_satisfaction(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, shock,
+        );
+        let with_culture = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, shock,
+            [4, 3, 2], [4, 3, 2],
+        );
+        assert!((base - with_culture).abs() < 0.001);
+    }
 }
 
 #[cfg(test)]
