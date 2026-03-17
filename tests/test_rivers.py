@@ -1,5 +1,10 @@
 import pytest
 from chronicler.models import River, WorldState
+from chronicler.tuning import (
+    K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER,
+    K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
+    KNOWN_OVERRIDES,
+)
 
 
 class TestRiverModel:
@@ -15,3 +20,17 @@ class TestRiverModel:
     def test_world_state_has_rivers(self):
         ws = WorldState(name="Test", seed=42)
         assert ws.rivers == []
+
+
+class TestRiverConstants:
+    def test_river_constants_exist(self):
+        assert K_RIVER_WATER_BONUS == "ecology.river_water_bonus"
+        assert K_RIVER_CAPACITY_MULTIPLIER == "ecology.river_capacity_multiplier"
+        assert K_DEFORESTATION_THRESHOLD == "ecology.deforestation_threshold"
+        assert K_DEFORESTATION_WATER_LOSS == "ecology.deforestation_water_loss"
+
+    def test_river_constants_in_known_overrides(self):
+        assert K_RIVER_WATER_BONUS in KNOWN_OVERRIDES
+        assert K_RIVER_CAPACITY_MULTIPLIER in KNOWN_OVERRIDES
+        assert K_DEFORESTATION_THRESHOLD in KNOWN_OVERRIDES
+        assert K_DEFORESTATION_WATER_LOSS in KNOWN_OVERRIDES
