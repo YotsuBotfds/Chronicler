@@ -369,7 +369,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
         # 4d. M38a: tithe collection
         if civ.factions.influence.get(FactionType.CLERGY, 0) >= TITHE_THRESHOLD:
             tithe = TITHE_RATE * compute_tithe_base(civ)
-            civ.treasury += tithe
+            civ.treasury += int(tithe)
 
         # 5. Normalize influence
         normalize_influence(civ.factions)
