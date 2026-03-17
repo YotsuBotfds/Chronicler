@@ -4,7 +4,7 @@
 >
 > **Depends on:** M38a (temples & clergy) for `temple_prestige`, `faith_id` on temples, clergy faction influence. M37 (belief systems) for belief registry, `compute_conversion_signals()`, `conquest_conversion_boost` lifecycle pattern, `NAMED_PROPHET_MULTIPLIER`, `civ_majority_faith`. M36 (cultural identity) for penalty cap infrastructure (Decision 10). M30 (named characters) for GreatPerson model and promotion.
 >
-> **Scope:** Three subsystems — persecution (Rust penalty signal + Python detection), schisms (Python faith splitting + Rust conversion spread), pilgrimages (Python-only narrative arcs on GreatPerson). Minimal Rust changes (~15 lines in satisfaction.rs and tick.rs). One new region batch column. No new Rust modules. ~100-120 lines Rust, ~250-300 lines Python, ~300 lines tests.
+> **Scope:** Three subsystems — persecution (Rust penalty signal + Python detection), schisms (Python faith splitting + Rust conversion spread via region batch signal), pilgrimages (Python-only narrative arcs on GreatPerson). Minimal Rust changes (~20 lines in satisfaction.rs, tick.rs, and conversion processing). Three new region batch columns (`persecution_intensity: f32`, `schism_convert_from: u8`, `schism_convert_to: u8`). No new Rust modules. ~100-120 lines Rust, ~250-300 lines Python, ~300 lines tests.
 >
 > **Implementation order:** Persecution → Schisms → Pilgrimages (each independently shippable).
 >
@@ -262,10 +262,16 @@ def fire_schism(region, original_faith_id):
     )
     splinter_id = belief_registry.append(splinter)
 
-    # Convert all agents of original faith in region (cross-civ)
-    for agent in region.agents:
-        if agent.belief == original_faith_id:
-            agent.belief = splinter_id
+    # Deliver schism belief reassignment via region batch signal.
+    # Python cannot write agent.belief directly (same constraint as Decision 6).
+    # Two new columns on the region RecordBatch for the schism turn only:
+    #   schism_convert_from: u8  (original faith_id, or 255 = no schism)
+    #   schism_convert_to: u8    (splinter faith_id)
+    # Rust processes this in the conversion tick: any agent in the region
+    # whose belief == schism_convert_from gets belief set to schism_convert_to.
+    # Columns reset to 255 (no-op) after processing. ~5 lines in Rust.
+    region.schism_convert_from = original_faith_id
+    region.schism_convert_to = splinter_id
 
     emit_named_event("Schism", importance=7, details={
         "original_faith": original.name,
@@ -281,10 +287,13 @@ When a region's majority faith differs from its civ's majority faith (which a sc
 
 ### Reformation Detection
 
-Reformation fires when the splinter faith exceeds `REFORMATION_THRESHOLD` (60%) of the civ's agents — not merely a plurality. This prevents minor faith shuffles from triggering civilization-defining events. `compute_civ_majority_faith()` from M37 returns the most common belief and its ratio; the reformation check adds the threshold gate.
+Reformation fires when the splinter faith exceeds `REFORMATION_THRESHOLD` (60%) of the civ's agents — not merely a plurality. This prevents minor faith shuffles from triggering civilization-defining events.
+
+**Note:** M37's `compute_civ_majority_faith()` currently returns only the faith index (`u8`), not the ratio. M38b requires extending it to also return the majority ratio (fraction of civ agents holding the majority faith). This is a minor change to the existing function — add a count during the same snapshot scan that identifies the majority, divide by total civ population. The implementation plan should include this extension.
 
 ```python
 # Per-turn check after conversion processing:
+# (compute_civ_majority_faith extended to return (faith_id, ratio))
 majority_faith, majority_ratio = compute_civ_majority_faith(civ)
 if (majority_faith != civ.previous_majority_faith
         and majority_ratio >= REFORMATION_THRESHOLD):
@@ -296,7 +305,7 @@ if (majority_faith != civ.previous_majority_faith
     civ.previous_majority_faith = majority_faith
 ```
 
-One new field: `civ.previous_majority_faith` to detect the transition. The threshold ensures reformation is a decisive shift, not demographic noise.
+One new field: `civ.previous_majority_faith` to detect the transition. Initialized to `civ.civ_majority_faith` at world-gen (prevents spurious reformation event on turn 1). The threshold ensures reformation is a decisive shift, not demographic noise.
 
 ### Self-Similarity
 
@@ -335,6 +344,9 @@ for gp in great_persons:
 
     agent = gp.agent
     is_priest = agent.occupation == OCC_PRIEST
+    # personality.loyal: fixed trait from M33 (0.0-1.0, set at birth)
+    # agent.loyalty: current satisfaction-derived value (dynamic)
+    # Both must be high — the agent is dispositionally faithful AND currently loyal
     is_loyal = agent.personality.loyal > 0.5
 
     if not (is_priest or is_loyal):
@@ -482,6 +494,7 @@ A regular priest who isn't yet a GreatPerson can be promoted through pilgrimage,
 | `PILGRIMAGE_DURATION_MIN` | 5 | Pilgrimages | Turns |
 | `PILGRIMAGE_DURATION_MAX` | 10 | Pilgrimages | Turns |
 | `PILGRIMAGE_SKILL_BOOST` | +0.10 | Pilgrimages | On return |
+| `LIFE_EVENT_PILGRIMAGE` | `1 << 7` (128) | Pilgrimages | Bit 7 on GreatPerson.life_events (M37 confirms bit 7 is spare) |
 
 ---
 
