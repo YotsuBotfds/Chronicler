@@ -18,6 +18,12 @@ from chronicler.tuning import (
     K_FAMINE_WATER_THRESHOLD, K_DEPLETION_RATE,
     K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD,
     K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
+    K_DISEASE_SEVERITY_CAP, K_DISEASE_DECAY_RATE,
+    K_FLARE_OVERCROWDING_THRESHOLD, K_FLARE_OVERCROWDING_SPIKE,
+    K_FLARE_ARMY_SPIKE, K_FLARE_WATER_SPIKE, K_FLARE_SEASON_SPIKE,
+    K_SOIL_PRESSURE_THRESHOLD, K_SOIL_PRESSURE_STREAK_LIMIT,
+    K_OVEREXTRACTION_STREAK_LIMIT, K_OVEREXTRACTION_YIELD_PENALTY,
+    K_WORKERS_PER_YIELD_UNIT,
     get_override,
 )
 from chronicler.resources import (
@@ -374,6 +380,88 @@ def _update_ecology_counters(world: WorldState) -> None:
             region.forest_regrowth_turns += 1
         else:
             region.forest_regrowth_turns = 0
+
+
+def compute_disease_severity(
+    region: "Region",
+    world: "WorldState | None",
+    pre_water: float,
+    season_id: int = 0,
+) -> None:
+    """Update region.endemic_severity based on flare triggers or decay.
+
+    Must be called at the top of the ecology tick, before water/soil updates.
+    pre_water is the region's current water value at tick start.
+    """
+    cap = get_override(world, K_DISEASE_SEVERITY_CAP, 0.15) if world else 0.15
+    decay_rate = get_override(world, K_DISEASE_DECAY_RATE, 0.25) if world else 0.25
+    overcrowding_thresh = get_override(world, K_FLARE_OVERCROWDING_THRESHOLD, 0.8) if world else 0.8
+    overcrowding_spike = get_override(world, K_FLARE_OVERCROWDING_SPIKE, 0.04) if world else 0.04
+    army_spike = get_override(world, K_FLARE_ARMY_SPIKE, 0.03) if world else 0.03
+    water_spike = get_override(world, K_FLARE_WATER_SPIKE, 0.02) if world else 0.02
+    season_spike = get_override(world, K_FLARE_SEASON_SPIKE, 0.02) if world else 0.02
+
+    baseline = region.disease_baseline
+    severity = region.endemic_severity
+    triggered = False
+
+    # --- Overcrowding ---
+    if region.carrying_capacity > 0 and region.population > overcrowding_thresh * region.carrying_capacity:
+        severity += overcrowding_spike
+        triggered = True
+
+    # --- Army passage (previous turn) ---
+    if world is not None and hasattr(world, "agent_events_raw") and world.agent_events_raw:
+        prev_turn = world.turn - 1
+        region_idx = next((i for i, r in enumerate(world.regions) if r is region), None)
+        if region_idx is not None:
+            army_arrived = any(
+                e.event_type == "migration"
+                and e.occupation == 1
+                and e.target_region == region_idx
+                for e in world.agent_events_raw
+                if e.turn == prev_turn
+            )
+            if army_arrived:
+                severity += army_spike
+                triggered = True
+
+    # --- Water quality: low water on non-desert terrain ---
+    if region.terrain != "desert" and pre_water < 0.3:
+        severity += water_spike
+        triggered = True
+
+    # --- Water quality: inter-turn water drop > 0.1 ---
+    if region.terrain != "desert" and region.prev_turn_water >= 0:
+        water_delta = region.prev_turn_water - pre_water
+        if water_delta > 0.1 and not (pre_water < 0.3):  # Don't double-count with low-water
+            severity += water_spike
+            triggered = True
+
+    # --- Seasonal peak ---
+    is_fever = region.disease_baseline >= 0.02
+    is_cholera = region.terrain == "desert"
+    if is_fever and not is_cholera and season_id == 1:  # Summer for Fever
+        severity += season_spike
+        triggered = True
+    elif not is_fever and not is_cholera and region.disease_baseline <= 0.01 and season_id == 3:  # Winter for Plague
+        severity += season_spike
+        triggered = True
+
+    # --- Pandemic skip: don't flare during active M18 pandemic ---
+    if world is not None and hasattr(world, "pandemic_state"):
+        if any(p.region_name == region.name for p in world.pandemic_state):
+            severity = region.endemic_severity  # Reset to pre-trigger value
+            triggered = False
+
+    if triggered:
+        region.endemic_severity = min(severity, cap)
+    else:
+        region.endemic_severity -= decay_rate * (region.endemic_severity - baseline)
+
+    # Floor at baseline
+    if region.endemic_severity < baseline:
+        region.endemic_severity = baseline
 
 
 def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> list[Event]:
