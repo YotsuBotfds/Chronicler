@@ -239,7 +239,7 @@ Checked top-to-bottom, first match wins. Deterministic: same trigger always prod
 | 1 | Active persecution in the schism region (`persecution_intensity > 0`) | Stance (Militant↔Pacifist) | "The oppressed rejected the sword" / "The persecuted took up arms" |
 | 2 | Clergy faction dominance (`clergy_influence > 0.40`) | Structure (Hierarchical↔Egalitarian) | "The faithful rebelled against the priesthood" / "The flock demanded order" |
 | 3 | Trade-dependent region (`food_imported_ratio > 0.60`) | Ethics (Ascetic↔Prosperity) | Inert until M43; fallback handles |
-| 4 | Region changed hands within last 10 turns (`current_turn - region.last_conquered_turn < 10`; requires `last_conquered_turn: int` on Region, set by WAR resolution in Phase 5 — if field does not exist, implementation plan must add it) | Outreach (Insular↔Proselytizing) | "The conquered closed their doors" / "The conquered sought converts" |
+| 4 | Region changed hands within last 10 turns (`current_turn - region.last_conquered_turn < 10`; requires `last_conquered_turn: int` on Region, set by WAR resolution in Phase 5 — if field does not exist, implementation plan must add it; default `-1` for existing/unconquered regions so the trigger never fires for them) | Outreach (Insular↔Proselytizing) | "The conquered closed their doors" / "The conquered sought converts" |
 | 5 | **Fallback** (no trigger matches) | Axis with lowest absolute value | Organic drift — "theological dispute" |
 
 **The trade-dependent trigger (row 3) requires M43.** Until M43 ships, that row is inert — the trigger condition never evaluates true because trade dependency detection doesn't exist. The fallback handles the case gracefully.
@@ -253,7 +253,17 @@ def fire_schism(region, original_faith_id):
     # Copy doctrine, flip one axis based on trigger
     new_doctrine = original.doctrine.copy()
     axis, direction = determine_schism_axis(region, original)
-    new_doctrine[axis] = -new_doctrine[axis]  # Opposite pole
+    # Handle neutral axis (0 → -0 = 0 would produce identical doctrine).
+    # When the axis is 0, pick a pole based on trigger context:
+    #   Persecution-triggered Stance → Pacifist (-1)
+    #   Clergy-triggered Structure → Egalitarian (-1)
+    #   Conquest-triggered Outreach → Insular (-1)
+    #   Trade-triggered Ethics → Prosperity (+1)
+    #   Fallback → +1 (arbitrary but deterministic)
+    if new_doctrine[axis] == 0:
+        new_doctrine[axis] = SCHISM_NEUTRAL_POLE_MAP.get(axis, 1)
+    else:
+        new_doctrine[axis] = -new_doctrine[axis]  # Opposite pole
 
     # Register new faith
     splinter = Belief(
@@ -270,6 +280,13 @@ def fire_schism(region, original_faith_id):
     # Rust processes this in the conversion tick: any agent in the region
     # whose belief == schism_convert_from gets belief set to schism_convert_to.
     # Columns reset to 255 (no-op) after processing. ~5 lines in Rust.
+    #
+    # ONE-TURN DELAY (intentional): Schism fires in Phase 10, but the agent
+    # tick already ran this turn. Rust processes schism_convert columns during
+    # the *next* turn's agent tick. During the gap, agents are still counted
+    # as the original faith in all snapshot-based calculations. This matches
+    # how other Phase 10 signals propagate (clergy events, prestige ticks) —
+    # the schism is "announced" this turn, the population "responds" next turn.
     region.schism_convert_from = original_faith_id
     region.schism_convert_to = splinter_id
 
@@ -330,6 +347,14 @@ M37's belief registry has `MAX_FAITHS = 16`. With 4-6 starting civs, 10-12 slots
 
 Per-turn check in Phase 10 for eligible named characters. Guards prevent overfire:
 
+**Data access:** GreatPerson does not hold a direct agent reference — it has `agent_id: int | None`. All agent state is accessed through the snapshot or cached GreatPerson fields:
+
+- **Belief:** `gp.belief` — cached on GreatPerson from snapshot at promotion time, updated each turn in Phase 10 named-character sync (same pattern as M30).
+- **Occupation:** `gp.occupation` — cached on GreatPerson, same sync.
+- **Loyalty trait (fixed):** `gp.loyalty_trait` — set at promotion from M33's personality batch. This is the fixed personality disposition, not dynamic loyalty.
+- **Dynamic loyalty:** Read from agent snapshot by `agent_id` lookup. Available at Phase 10 (snapshot taken after agent tick).
+- **Skill boost on return:** `gp.skill` — Python-side GreatPerson field, no FFI needed.
+
 ```python
 # Max one departure per faith per turn
 faiths_departed_this_turn = set()
@@ -339,24 +364,24 @@ for gp in great_persons:
         continue  # Already on pilgrimage
     if gp.arc_type == "Prophet":
         continue  # Already completed a pilgrimage
-    if gp.agent.belief in faiths_departed_this_turn:
+    if gp.belief in faiths_departed_this_turn:
         continue  # One departure per faith per turn
 
-    agent = gp.agent
-    is_priest = agent.occupation == OCC_PRIEST
-    # personality.loyal: fixed trait from M33 (0.0-1.0, set at birth)
-    # agent.loyalty: current satisfaction-derived value (dynamic)
-    # Both must be high — the agent is dispositionally faithful AND currently loyal
-    is_loyal = agent.personality.loyal > 0.5
+    is_priest = gp.occupation == OCC_PRIEST
+    # gp.loyalty_trait: fixed personality trait from M33 (0.0-1.0, set at birth)
+    # agent_loyalty: current satisfaction-derived value (dynamic, from snapshot)
+    # Both must be high — dispositionally faithful AND currently loyal
+    is_loyal = gp.loyalty_trait > 0.5
 
     if not (is_priest or is_loyal):
         continue
-    if agent.loyalty <= 0.5:
+    agent_loyalty = snapshot_get_loyalty(gp.agent_id)
+    if agent_loyalty is None or agent_loyalty <= 0.5:
         continue
 
     # Find highest-prestige temple of their faith
     destination = max(
-        (t for t in temples if t.faith_id == agent.belief),
+        (t for t in temples if t.faith_id == gp.belief),
         key=lambda t: t.temple_prestige,
         default=None,
     )
@@ -364,7 +389,7 @@ for gp in great_persons:
         continue  # No temple of their faith exists
 
     begin_pilgrimage(gp, destination)
-    faiths_departed_this_turn.add(agent.belief)
+    faiths_departed_this_turn.add(gp.belief)
 ```
 
 ### Pilgrimage Lifecycle
@@ -376,7 +401,7 @@ def begin_pilgrimage(gp, destination):
     emit_named_event("Pilgrimage Departure", importance=4, details={
         "character": gp.name,
         "destination": destination.region.name,
-        "faith": belief_registry[gp.agent.belief].name,
+        "faith": belief_registry[gp.belief].name,
     })
 
 def check_pilgrimage_returns(current_turn):
@@ -386,8 +411,8 @@ def check_pilgrimage_returns(current_turn):
         if current_turn < gp.pilgrimage_return_turn:
             continue
 
-        # Return effects
-        gp.agent.skill += 0.10  # Occupation skill boost
+        # Return effects (all Python-side GreatPerson fields, no FFI)
+        gp.skill += PILGRIMAGE_SKILL_BOOST
         gp.arc_type = "Prophet"
         gp.life_events |= LIFE_EVENT_PILGRIMAGE  # Bit 7
         gp.pilgrimage_destination = None
@@ -396,7 +421,7 @@ def check_pilgrimage_returns(current_turn):
         emit_named_event("Pilgrimage Return", importance=5, details={
             "character": gp.name,
             "title": "Prophet",
-            "faith": belief_registry[gp.agent.belief].name,
+            "faith": belief_registry[gp.belief].name,
         })
 ```
 
@@ -411,7 +436,14 @@ pilgrimage_return_turn: int | None = None   # Turn to fire return event
 
 ### Prophet Promotion Bypass
 
-A regular priest who isn't yet a GreatPerson can be promoted through pilgrimage, bypassing the normal skill-based promotion path. The candidate selection loop should include promotion-eligible priests (high loyalty, meet pilgrimage criteria) and promote them to GreatPerson as part of `begin_pilgrimage()`. Must verify promotion slot limit isn't exceeded before promoting.
+A regular priest who isn't yet a GreatPerson can be promoted through pilgrimage, bypassing the normal skill-based promotion path. This requires a separate scan of the agent snapshot for non-promoted priests who meet pilgrimage criteria:
+
+1. After the main `great_persons` loop, scan the snapshot for priests with `loyalty > 0.5` AND `personality.loyal > 0.5` who are NOT in the `great_persons` dict (i.e., not yet promoted).
+2. Check `len(great_persons) < MAX_GREAT_PERSONS` (M30 slot limit) before promoting.
+3. Promote the candidate to GreatPerson (creating the GreatPerson record with cached fields from snapshot), then call `begin_pilgrimage()`.
+4. At most one promotion-via-pilgrimage per faith per turn (same `faiths_departed_this_turn` guard).
+
+This scan is infrequent — only fires when no existing GreatPerson qualifies and a non-promoted priest does. The implementation plan should place it after the main GreatPerson loop as a fallback path.
 
 ### M37 Interaction
 
@@ -441,6 +473,7 @@ A regular priest who isn't yet a GreatPerson can be promoted through pilgrimage,
 **Schisms:**
 - Trigger detection: verify >30% minority fires, ≤30% doesn't
 - Axis mapping: test all 5 trigger conditions + fallback, verify correct axis flips
+- Neutral-axis handling: verify axis value 0 produces a non-zero pole (not 0 → -0 = 0)
 - Local agent assignment: verify all faith-matching agents in region convert (cross-civ)
 - One-per-civ-per-turn: verify highest minority ratio wins when multiple regions qualify
 - Registry cap guard: verify no schism fires when `len(belief_registry) >= MAX_FAITHS`
@@ -495,6 +528,33 @@ A regular priest who isn't yet a GreatPerson can be promoted through pilgrimage,
 | `PILGRIMAGE_DURATION_MAX` | 10 | Pilgrimages | Turns |
 | `PILGRIMAGE_SKILL_BOOST` | +0.10 | Pilgrimages | On return |
 | `LIFE_EVENT_PILGRIMAGE` | `1 << 7` (128) | Pilgrimages | Bit 7 on GreatPerson.life_events (M37 confirms bit 7 is spare) |
+
+---
+
+## File Changes
+
+| File | Changes | Est. Lines |
+|------|---------|-----------|
+| `src/pool/satisfaction.rs` | Read `persecution_intensity` from region batch, add to penalty sum before Decision 10 cap | ~8 |
+| `src/pool/tick.rs` | Read `persecution_intensity`, add rebel/migrate utility modifiers; process `schism_convert_from`/`schism_convert_to` belief reassignment | ~12 |
+| `src/pool/ffi.rs` | Add 3 new region batch columns (`persecution_intensity: f32`, `schism_convert_from: u8`, `schism_convert_to: u8`) to Arrow schema | ~15 |
+| `src/chronicler/religion.py` | Persecution detection, intensity computation, martyrdom boost lifecycle, schism detection, `fire_schism()`, `determine_schism_axis()`, reformation detection | ~150-180 |
+| `src/chronicler/simulation.py` | Wire persecution/schism/pilgrimage calls in Phase 10; consolidated snapshot scan for minority counts + faith distribution | ~30-40 |
+| `src/chronicler/models.py` | `martyrdom_boost` on Region, `previous_majority_faith` on Civ, `last_conquered_turn` on Region (if absent), `pilgrimage_destination`/`pilgrimage_return_turn` on GreatPerson | ~15-20 |
+| `src/chronicler/named_characters.py` | Pilgrimage candidate selection, lifecycle, Prophet promotion bypass, `check_pilgrimage_returns()` | ~60-80 |
+| `test/` | Tier 1 per-subsystem tests + Tier 2 interaction harness | ~300 |
+
+---
+
+## `--agents=off` Behavior
+
+All three subsystems depend on agent snapshots and are inert when `--agents=off`:
+
+- **Persecution:** `snapshot_count_where()` returns no agents → `minority_count = 0` → no persecution detected. `persecution_intensity` remains 0.0 on all regions.
+- **Schisms:** `count_beliefs_in_region()` returns empty → no minority threshold met → no schisms fire. `schism_convert_from`/`schism_convert_to` remain 255 (no-op).
+- **Pilgrimages:** `great_persons` list is empty (no agents → no promotions) → no pilgrimage candidates.
+
+**Implementation:** Guard each subsystem's Phase 10 entry point with `if _snap is None: return`. Same pattern as M37's `compute_conversion_signals()` and M38a's `compute_clergy_influence()`.
 
 ---
 
