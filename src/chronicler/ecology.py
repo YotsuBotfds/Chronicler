@@ -134,6 +134,9 @@ def check_food_yield(
             (y for rtype, y in zip(region.resource_types, yields) if rtype in FOOD_TYPES),
             default=0.0,
         )
+        # Fall back to subsistence if all food slots suspended (e.g., wildfire)
+        if food_yield == 0.0:
+            food_yield = subsistence_base * crop_climate_mod
     else:
         # Subsistence baseline affected by climate (for non-food terrains)
         food_yield = subsistence_base * crop_climate_mod
