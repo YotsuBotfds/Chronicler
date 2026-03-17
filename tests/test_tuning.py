@@ -52,3 +52,33 @@ def test_get_override_returns_override(make_world):
 def test_get_override_returns_default(make_world):
     world = make_world(num_civs=2)
     assert get_override(world, "nonexistent.key", 10.0) == 10.0
+
+
+def test_m35b_disease_constants_registered():
+    from chronicler.tuning import KNOWN_OVERRIDES
+    assert "ecology.disease_baseline_fever" in KNOWN_OVERRIDES
+    assert "ecology.disease_baseline_cholera" in KNOWN_OVERRIDES
+    assert "ecology.disease_baseline_plague" in KNOWN_OVERRIDES
+    assert "ecology.disease_severity_cap" in KNOWN_OVERRIDES
+    assert "ecology.disease_decay_rate" in KNOWN_OVERRIDES
+    assert "ecology.flare_overcrowding_threshold" in KNOWN_OVERRIDES
+    assert "ecology.flare_overcrowding_spike" in KNOWN_OVERRIDES
+    assert "ecology.flare_army_spike" in KNOWN_OVERRIDES
+    assert "ecology.flare_water_spike" in KNOWN_OVERRIDES
+    assert "ecology.flare_season_spike" in KNOWN_OVERRIDES
+    assert "ecology.soil_pressure_threshold" in KNOWN_OVERRIDES
+    assert "ecology.soil_pressure_streak_limit" in KNOWN_OVERRIDES
+    assert "ecology.overextraction_streak_limit" in KNOWN_OVERRIDES
+    assert "ecology.overextraction_yield_penalty" in KNOWN_OVERRIDES
+    assert "ecology.workers_per_yield_unit" in KNOWN_OVERRIDES
+
+
+def test_m35b_emergence_constants_registered():
+    from chronicler.tuning import KNOWN_OVERRIDES
+    assert "emergence.locust_probability" in KNOWN_OVERRIDES
+    assert "emergence.flood_probability" in KNOWN_OVERRIDES
+    assert "emergence.collapse_probability" in KNOWN_OVERRIDES
+    assert "emergence.drought_intensification_probability" in KNOWN_OVERRIDES
+    assert "emergence.collapse_mortality_spike" in KNOWN_OVERRIDES
+    assert "emergence.ecological_recovery_probability" in KNOWN_OVERRIDES
+    assert "emergence.ecological_recovery_fraction" in KNOWN_OVERRIDES

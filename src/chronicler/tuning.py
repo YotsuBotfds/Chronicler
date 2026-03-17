@@ -53,6 +53,31 @@ K_RIVER_WATER_BONUS = "ecology.river_water_bonus"
 K_RIVER_CAPACITY_MULTIPLIER = "ecology.river_capacity_multiplier"
 K_DEFORESTATION_THRESHOLD = "ecology.deforestation_threshold"
 K_DEFORESTATION_WATER_LOSS = "ecology.deforestation_water_loss"
+# M35b: Disease
+K_DISEASE_BASELINE_FEVER = "ecology.disease_baseline_fever"
+K_DISEASE_BASELINE_CHOLERA = "ecology.disease_baseline_cholera"
+K_DISEASE_BASELINE_PLAGUE = "ecology.disease_baseline_plague"
+K_DISEASE_SEVERITY_CAP = "ecology.disease_severity_cap"
+K_DISEASE_DECAY_RATE = "ecology.disease_decay_rate"
+K_FLARE_OVERCROWDING_THRESHOLD = "ecology.flare_overcrowding_threshold"
+K_FLARE_OVERCROWDING_SPIKE = "ecology.flare_overcrowding_spike"
+K_FLARE_ARMY_SPIKE = "ecology.flare_army_spike"
+K_FLARE_WATER_SPIKE = "ecology.flare_water_spike"
+K_FLARE_SEASON_SPIKE = "ecology.flare_season_spike"
+# M35b: Depletion
+K_SOIL_PRESSURE_THRESHOLD = "ecology.soil_pressure_threshold"
+K_SOIL_PRESSURE_STREAK_LIMIT = "ecology.soil_pressure_streak_limit"
+K_OVEREXTRACTION_STREAK_LIMIT = "ecology.overextraction_streak_limit"
+K_OVEREXTRACTION_YIELD_PENALTY = "ecology.overextraction_yield_penalty"
+K_WORKERS_PER_YIELD_UNIT = "ecology.workers_per_yield_unit"
+# M35b: Environmental events
+K_LOCUST_PROBABILITY = "emergence.locust_probability"
+K_FLOOD_PROBABILITY = "emergence.flood_probability"
+K_COLLAPSE_PROBABILITY = "emergence.collapse_probability"
+K_DROUGHT_INTENSIFICATION_PROBABILITY = "emergence.drought_intensification_probability"
+K_COLLAPSE_MORTALITY_SPIKE = "emergence.collapse_mortality_spike"
+K_ECOLOGICAL_RECOVERY_PROBABILITY = "emergence.ecological_recovery_probability"
+K_ECOLOGICAL_RECOVERY_FRACTION = "emergence.ecological_recovery_fraction"
 
 # Military
 K_MILITARY_FREE_THRESHOLD = "military.maintenance_free_threshold"
@@ -85,6 +110,16 @@ KNOWN_OVERRIDES: set[str] = {
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
     K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER,
     K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
+    K_DISEASE_BASELINE_FEVER, K_DISEASE_BASELINE_CHOLERA, K_DISEASE_BASELINE_PLAGUE,
+    K_DISEASE_SEVERITY_CAP, K_DISEASE_DECAY_RATE,
+    K_FLARE_OVERCROWDING_THRESHOLD, K_FLARE_OVERCROWDING_SPIKE,
+    K_FLARE_ARMY_SPIKE, K_FLARE_WATER_SPIKE, K_FLARE_SEASON_SPIKE,
+    K_SOIL_PRESSURE_THRESHOLD, K_SOIL_PRESSURE_STREAK_LIMIT,
+    K_OVEREXTRACTION_STREAK_LIMIT, K_OVEREXTRACTION_YIELD_PENALTY,
+    K_WORKERS_PER_YIELD_UNIT,
+    K_LOCUST_PROBABILITY, K_FLOOD_PROBABILITY, K_COLLAPSE_PROBABILITY,
+    K_DROUGHT_INTENSIFICATION_PROBABILITY, K_COLLAPSE_MORTALITY_SPIKE,
+    K_ECOLOGICAL_RECOVERY_PROBABILITY, K_ECOLOGICAL_RECOVERY_FRACTION,
 }
 
 
