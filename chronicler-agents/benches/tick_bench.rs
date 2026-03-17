@@ -23,6 +23,9 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 demand_shift_merchant: 0.0,
                 demand_shift_scholar: 0.0,
                 demand_shift_priest: 0.0,
+                mean_boldness: 0.0,
+                mean_ambition: 0.0,
+                mean_loyalty_trait: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i % 5 == 0).collect(),
@@ -47,6 +50,19 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         },
         controller_civ: (i % 4) as u8,
         trade_route_count: 0,
+        resource_types: [255, 255, 255],
+        resource_yields: [0.0, 0.0, 0.0],
+        resource_reserves: [1.0, 1.0, 1.0],
+        season: 0,
+        season_id: 0,
+        river_mask: 0,
+        endemic_severity: 0.0,
+        culture_investment_active: false,
+        controller_values: [0xFF, 0xFF, 0xFF],
+        conversion_rate: 0.0,
+        conversion_target_belief: 0xFF,
+        conquest_conversion_active: false,
+        majority_belief: 0xFF,
     }).collect();
     let num_civs = (num_regions.min(8)) as usize;
     let signals = make_default_signals(num_civs, num_regions as usize);
@@ -57,7 +73,7 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
     ];
     for r in 0..num_regions {
         for j in 0..agents_per_region {
-            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16);
+            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0, 0, 1, 2, chronicler_agents::BELIEF_NONE);
         }
     }
     (pool, regions, signals)

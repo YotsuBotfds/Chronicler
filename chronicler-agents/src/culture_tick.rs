@@ -193,7 +193,7 @@ mod tests {
     fn make_test_pool(n: usize, values: &[[u8; 3]]) -> AgentPool {
         let mut pool = AgentPool::new(n);
         for v in values {
-            pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, v[0], v[1], v[2]);
+            pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, v[0], v[1], v[2], crate::agent::BELIEF_NONE);
         }
         pool
     }

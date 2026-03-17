@@ -250,6 +250,7 @@ pub fn tick_agents(
                 birth.cultural_values[0],
                 birth.cultural_values[1],
                 birth.cultural_values[2],
+                crate::agent::BELIEF_NONE,
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             // Set all 5 skill slots to SKILL_NEWBORN
@@ -550,6 +551,10 @@ mod tests {
             endemic_severity: 0.0,
             culture_investment_active: false,
             controller_values: [0xFF, 0xFF, 0xFF],
+            conversion_rate: 0.0,
+            conversion_target_belief: 0xFF,
+            conquest_conversion_active: false,
+            majority_belief: 0xFF,
         }
     }
 
@@ -590,7 +595,7 @@ mod tests {
         // Spawn at elder age (60+) so MORTALITY_ELDER (0.05) * eco_stress (1.0)
         // = 0.05 per agent per tick -- guarantees deaths in 500 agents.
         for _ in 0..500 {
-            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         let mut seed = [0u8; 32];
         seed[0] = 42;
@@ -610,12 +615,12 @@ mod tests {
         let mut pool_a = AgentPool::new(0);
         let mut pool_b = AgentPool::new(0);
         for _ in 0..50 {
-            pool_a.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2);
-            pool_b.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool_a.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool_b.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for _ in 0..50 {
-            pool_a.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2);
-            pool_b.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool_a.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool_b.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for turn in 0..10 {
             tick_agents(&mut pool_a, &regions, &signals, seed, turn);
@@ -639,20 +644,20 @@ mod tests {
 
         // Mix of occupations, civs, ages
         for _ in 0..30 {
-            pool_a.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
-            pool_b.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool_a.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool_b.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for _ in 0..20 {
-            pool_a.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2);
-            pool_b.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool_a.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool_b.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for _ in 0..20 {
-            pool_a.spawn(1, 1, Occupation::Merchant, 22, 0.0, 0.0, 0.0, 0, 1, 2);
-            pool_b.spawn(1, 1, Occupation::Merchant, 22, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool_a.spawn(1, 1, Occupation::Merchant, 22, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool_b.spawn(1, 1, Occupation::Merchant, 22, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for _ in 0..30 {
-            pool_a.spawn(1, 1, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2);
-            pool_b.spawn(1, 1, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool_a.spawn(1, 1, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool_b.spawn(1, 1, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
 
         let mut events_a_total = 0;
@@ -687,7 +692,7 @@ mod tests {
         let signals = make_default_signals(1, 1);
 
         for _ in 0..500 {
-            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
 
         let mut seed = [0u8; 32];
@@ -721,7 +726,7 @@ mod tests {
         let regions = vec![make_healthy_region(0)];
         let signals = make_default_signals(1, 1);
 
-        let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         let initial_skill = pool.skill(slot, 1); // Soldier = occ 1
         assert!(initial_skill.abs() < 0.01);
 
@@ -745,7 +750,7 @@ mod tests {
         let signals = make_default_signals(1, 1);
 
         for _ in 0..10 {
-            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
 
         let mut seed = [0u8; 32];
@@ -794,8 +799,8 @@ mod tests {
                 let occ = occupations[j % 5];
                 let age = (j % 60) as u16;
                 let civ = (r % 2) as u8;
-                pool_a.spawn(r, civ, occ, age, 0.0, 0.0, 0.0, 0, 1, 2);
-                pool_b.spawn(r, civ, occ, age, 0.0, 0.0, 0.0, 0, 1, 2);
+                pool_a.spawn(r, civ, occ, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                pool_b.spawn(r, civ, occ, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             }
         }
 

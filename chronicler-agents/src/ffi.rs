@@ -394,23 +394,23 @@ impl AgentSimulator {
 
                 for _ in 0..n_farmer {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
                 }
                 for _ in 0..n_soldier {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
                 }
                 for _ in 0..n_merchant {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
                 }
                 for _ in 0..n_scholar {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
                 }
                 for _ in 0..n_priest {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
                 }
             }
 

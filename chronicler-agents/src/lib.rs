@@ -21,6 +21,8 @@ pub mod culture_tick;
 #[doc(hidden)]
 pub use agent::Occupation;
 #[doc(hidden)]
+pub use agent::BELIEF_NONE;
+#[doc(hidden)]
 pub use pool::AgentPool;
 #[doc(hidden)]
 pub use region::RegionState;

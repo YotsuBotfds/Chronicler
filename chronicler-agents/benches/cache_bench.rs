@@ -25,6 +25,9 @@ fn make_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 demand_shift_merchant: 0.0,
                 demand_shift_scholar: 0.0,
                 demand_shift_priest: 0.0,
+                mean_boldness: 0.0,
+                mean_ambition: 0.0,
+                mean_loyalty_trait: 0.0,
             })
             .collect(),
         contested_regions: vec![false; num_regions],
@@ -40,6 +43,19 @@ fn setup_packed() -> (AgentPool, Vec<RegionState>, TickSignals) {
         population: agents_per_region as u16, soil: 0.7, water: 0.5,
         forest_cover: 0.3, adjacency_mask: 0, controller_civ: (r % 4) as u8,
         trade_route_count: 0,
+        resource_types: [255, 255, 255],
+        resource_yields: [0.0, 0.0, 0.0],
+        resource_reserves: [1.0, 1.0, 1.0],
+        season: 0,
+        season_id: 0,
+        river_mask: 0,
+        endemic_severity: 0.0,
+        culture_investment_active: false,
+        controller_values: [0xFF, 0xFF, 0xFF],
+        conversion_rate: 0.0,
+        conversion_target_belief: 0xFF,
+        conquest_conversion_active: false,
+        majority_belief: 0xFF,
     }).collect();
     let signals = make_signals(4, num_regions as usize);
     let mut pool = AgentPool::new(10_000);
@@ -47,7 +63,7 @@ fn setup_packed() -> (AgentPool, Vec<RegionState>, TickSignals) {
                 Occupation::Scholar, Occupation::Priest];
     for r in 0..num_regions {
         for j in 0..agents_per_region {
-            pool.spawn(r, (r % 4) as u8, occs[j % 5], (j % 60) as u16);
+            pool.spawn(r, (r % 4) as u8, occs[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0, 0, 1, 2, chronicler_agents::BELIEF_NONE);
         }
     }
     (pool, regions, signals)
@@ -63,6 +79,19 @@ fn setup_scattered() -> (AgentPool, Vec<RegionState>, TickSignals) {
         population: agents_per_region as u16, soil: 0.7, water: 0.5,
         forest_cover: 0.3, adjacency_mask: 0, controller_civ: (r % 4) as u8,
         trade_route_count: 0,
+        resource_types: [255, 255, 255],
+        resource_yields: [0.0, 0.0, 0.0],
+        resource_reserves: [1.0, 1.0, 1.0],
+        season: 0,
+        season_id: 0,
+        river_mask: 0,
+        endemic_severity: 0.0,
+        culture_investment_active: false,
+        controller_values: [0xFF, 0xFF, 0xFF],
+        conversion_rate: 0.0,
+        conversion_target_belief: 0xFF,
+        conquest_conversion_active: false,
+        majority_belief: 0xFF,
     }).collect();
     let signals = make_signals(4, num_regions as usize);
     // Spawn 15K agents, then kill every 3rd to leave 10K alive across 15K slots
@@ -72,7 +101,7 @@ fn setup_scattered() -> (AgentPool, Vec<RegionState>, TickSignals) {
     let total_per_region = 15_000 / num_regions as usize;
     for r in 0..num_regions {
         for j in 0..total_per_region {
-            pool.spawn(r, (r % 4) as u8, occs[j % 5], (j % 60) as u16);
+            pool.spawn(r, (r % 4) as u8, occs[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0, 0, 1, 2, chronicler_agents::BELIEF_NONE);
         }
     }
     // Kill every 3rd slot to create scattered dead gaps
