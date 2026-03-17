@@ -247,9 +247,9 @@ pub fn tick_agents(
                 birth.personality[0],
                 birth.personality[1],
                 birth.personality[2],
-                crate::agent::CULTURAL_VALUE_EMPTY,
-                crate::agent::CULTURAL_VALUE_EMPTY,
-                crate::agent::CULTURAL_VALUE_EMPTY,
+                birth.cultural_values[0],
+                birth.cultural_values[1],
+                birth.cultural_values[2],
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             // Set all 5 skill slots to SKILL_NEWBORN
@@ -265,6 +265,21 @@ pub fn tick_agents(
                 occupation: crate::agent::Occupation::Farmer as u8,
                 turn,
             });
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // 6. Cultural drift (M36)
+    // -----------------------------------------------------------------------
+    {
+        let region_groups = pool.partition_by_region(num_regions as u16);
+        for (region_id, slots) in region_groups.iter().enumerate() {
+            if !slots.is_empty() {
+                crate::culture_tick::culture_tick(
+                    pool, slots, &regions[region_id],
+                    master_seed, turn, region_id,
+                );
+            }
         }
     }
 
@@ -374,7 +389,13 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
 
                         let shock = signals.shock_for_civ(pool_ref.civ_affinity(slot));
 
-                        let sat = satisfaction::compute_satisfaction(
+                        let agent_values = [
+                            pool_ref.cultural_value_0[slot],
+                            pool_ref.cultural_value_1[slot],
+                            pool_ref.cultural_value_2[slot],
+                        ];
+
+                        let sat = satisfaction::compute_satisfaction_with_culture(
                             occ,
                             region.soil,
                             region.water,
@@ -388,6 +409,8 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                             region.trade_route_count,
                             faction_influence,
                             &shock,
+                            agent_values,
+                            region.controller_values,
                         );
 
                         (slot, sat)
@@ -414,6 +437,7 @@ struct BirthInfo {
     civ: u8,
     parent_loyalty: f32,
     personality: [f32; 3],
+    cultural_values: [u8; 3],
 }
 
 struct DemographicsPending {
@@ -482,6 +506,11 @@ fn tick_region_demographics(
                     civ: civ_id,
                     parent_loyalty: pool.loyalty(slot),
                     personality,
+                    cultural_values: [
+                        pool.cultural_value_0[slot],
+                        pool.cultural_value_1[slot],
+                        pool.cultural_value_2[slot],
+                    ],
                 });
             }
         }

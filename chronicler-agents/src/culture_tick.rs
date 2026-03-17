@@ -8,7 +8,9 @@
 
 use crate::agent;
 use crate::pool::AgentPool;
+use crate::region::RegionState;
 use rand::Rng;
+use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
 /// Environmental bias table: resource_type (0-7) → value bias weights (6 values).
@@ -24,6 +26,44 @@ const ENV_BIAS_TABLE: [[f32; 6]; 8] = [
     [0.0, 0.0, 0.0, 0.5, 0.0, 1.0], // PRECIOUS(6):   Cunning(primary), Knowledge(secondary)
     [1.0, 0.0, 0.0, 0.5, 0.0, 0.0], // EXOTIC(7):     Freedom(primary), Knowledge(secondary)
 ];
+
+/// Run cultural drift for all agents in a region.
+/// Called as Rust tick stage 5, after demographics.
+pub fn culture_tick(
+    pool: &mut AgentPool,
+    slots: &[usize],
+    region: &RegionState,
+    master_seed: [u8; 32],
+    turn: u32,
+    region_id: usize,
+) {
+    if slots.is_empty() { return; }
+
+    // 1. Recompute frequency distribution
+    let mut dist = compute_cultural_distribution(pool, slots);
+
+    // 2. Apply environmental bias from resources
+    apply_environmental_bias(&mut dist, &region.resource_types, region.population);
+
+    // 3. If INVEST_CULTURE active, add bonus weight to controller's values
+    if region.culture_investment_active {
+        let bonus = (region.population as f32 * agent::INVEST_CULTURE_BONUS) as u16;
+        for &cv in &region.controller_values {
+            if cv != agent::CULTURAL_VALUE_EMPTY && (cv as usize) < agent::NUM_CULTURAL_VALUES {
+                dist[cv as usize] = dist[cv as usize].saturating_add(bonus);
+            }
+        }
+    }
+
+    // 4. Per-agent drift with dedicated RNG stream
+    let mut rng = ChaCha8Rng::from_seed(master_seed);
+    rng.set_stream(region_id as u64 * 1000 + turn as u64 + agent::CULTURE_DRIFT_OFFSET);
+
+    for &slot in slots {
+        if !pool.alive[slot] { continue; }
+        drift_agent(slot, pool, &dist, agent::CULTURAL_DRIFT_RATE, &mut rng);
+    }
+}
 
 /// Count how many agents in `slots` hold each cultural value.
 /// Named agents (IS_NAMED bit set) contribute NAMED_CULTURE_WEIGHT instead of 1.
