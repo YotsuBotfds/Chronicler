@@ -8,6 +8,8 @@
 
 use crate::agent;
 use crate::pool::AgentPool;
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
 
 /// Environmental bias table: resource_type (0-7) → value bias weights (6 values).
 /// Sparse: most entries are 0.0. Primary bias = 1.0, secondary = 0.5.
@@ -80,6 +82,69 @@ pub fn apply_environmental_bias(
     }
 }
 
+/// Attempt to drift each of an agent's cultural value slots.
+/// Returns true if any value changed.
+///
+/// Slots are processed tertiary-first (index 2 → 0). For each slot, a probability
+/// roll is made against `base_drift_rate * DRIFT_SLOT_WEIGHTS[value_slot]` plus an
+/// optional dissatisfaction bonus. If the roll passes, a new value is sampled from
+/// `distribution` excluding all three of the agent's current values (re-read each
+/// iteration to avoid intra-tick duplicates).
+pub fn drift_agent(
+    slot: usize,
+    pool: &mut AgentPool,
+    distribution: &[u16; agent::NUM_CULTURAL_VALUES],
+    base_drift_rate: f32,
+    rng: &mut ChaCha8Rng,
+) -> bool {
+    let mut changed = false;
+
+    let sat_bonus = if pool.satisfactions[slot] < agent::DISSATISFIED_THRESHOLD {
+        agent::DISSATISFIED_DRIFT_BONUS
+    } else {
+        0.0
+    };
+
+    for value_slot in (0..3).rev() {  // Tertiary first, primary last
+        // Re-read current values each iteration to prevent intra-tick duplicates.
+        let current_values = [
+            pool.cultural_value_0[slot],
+            pool.cultural_value_1[slot],
+            pool.cultural_value_2[slot],
+        ];
+
+        let slot_rate = (base_drift_rate + sat_bonus) * agent::DRIFT_SLOT_WEIGHTS[value_slot];
+        if rng.gen::<f32>() >= slot_rate { continue; }
+
+        // Sample new value from distribution, excluding current values.
+        let total_weight: u32 = distribution.iter().enumerate()
+            .filter(|(idx, _)| !current_values.contains(&(*idx as u8)))
+            .map(|(_, &w)| w as u32)
+            .sum();
+
+        if total_weight == 0 { continue; }
+
+        let mut roll = rng.gen_range(0..total_weight);
+        let mut new_val = current_values[value_slot];
+        for (idx, &w) in distribution.iter().enumerate() {
+            if current_values.contains(&(idx as u8)) { continue; }
+            if roll < w as u32 { new_val = idx as u8; break; }
+            roll -= w as u32;
+        }
+
+        if new_val != current_values[value_slot] {
+            match value_slot {
+                0 => pool.cultural_value_0[slot] = new_val,
+                1 => pool.cultural_value_1[slot] = new_val,
+                2 => pool.cultural_value_2[slot] = new_val,
+                _ => unreachable!(),
+            }
+            changed = true;
+        }
+    }
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +210,44 @@ mod tests {
             let nonzero = row.iter().filter(|&&v| v > 0.0).count();
             assert!(nonzero <= 2, "Resource {} has {} nonzero entries", rtype, nonzero);
         }
+    }
+
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    #[test]
+    fn test_drift_no_duplicate_values() {
+        let mut pool = make_test_pool(4, &[[4, 3, 2]]);
+        let mut rng = ChaCha8Rng::seed_from_u64(42);
+        let dist = [100u16, 0, 0, 0, 0, 0]; // Heavy Freedom bias
+        for _ in 0..100 {
+            drift_agent(0, &mut pool, &dist, 1.0, &mut rng);
+            let v0 = pool.cultural_value_0[0];
+            let v1 = pool.cultural_value_1[0];
+            let v2 = pool.cultural_value_2[0];
+            assert!(v0 != v1 || v0 == agent::CULTURAL_VALUE_EMPTY);
+            assert!(v0 != v2 || v0 == agent::CULTURAL_VALUE_EMPTY);
+            assert!(v1 != v2 || v1 == agent::CULTURAL_VALUE_EMPTY);
+        }
+    }
+
+    #[test]
+    fn test_drift_slot_weighted_rates() {
+        let mut slot_0_drifts = 0u32;
+        let mut slot_2_drifts = 0u32;
+        for seed in 0..10_000u64 {
+            let mut pool = make_test_pool(4, &[[4, 3, 2]]);
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            let dist = [50u16, 50, 0, 0, 0, 50];
+            let orig_0 = pool.cultural_value_0[0];
+            let orig_2 = pool.cultural_value_2[0];
+            drift_agent(0, &mut pool, &dist, agent::CULTURAL_DRIFT_RATE, &mut rng);
+            if pool.cultural_value_0[0] != orig_0 { slot_0_drifts += 1; }
+            if pool.cultural_value_2[0] != orig_2 { slot_2_drifts += 1; }
+        }
+        let ratio = slot_2_drifts as f64 / slot_0_drifts.max(1) as f64;
+        assert!(ratio > 2.0 && ratio < 4.5,
+            "Drift ratio slot2/slot0 = {:.2} (expected ~3.0), s0={}, s2={}",
+            ratio, slot_0_drifts, slot_2_drifts);
     }
 }
