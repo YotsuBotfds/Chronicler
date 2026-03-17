@@ -222,6 +222,12 @@ class Region(BaseModel):
     conquest_conversion_active: bool = False      # one-shot flag set by action engine
     conversion_rate_signal: float = 0.0          # for bridge
     conversion_target_signal: int = 0xFF         # for bridge
+    # M38b: Persecution
+    persecution_intensity: float = 0.0         # 0.0 = no persecution; computed in Phase 10
+    martyrdom_boost: float = 0.0               # decays linearly, same lifecycle as conquest_conversion_boost
+    schism_convert_from: int = 0xFF            # 255 = no schism this turn
+    schism_convert_to: int = 0xFF              # 255 = no schism this turn
+    last_conquered_turn: int = -1              # -1 = never conquered; set by WAR resolution
 
 
 class Leader(BaseModel):
@@ -285,6 +291,7 @@ class Civilization(BaseModel):
     founded_turn: int = 0
     max_precap_weight: float = 0.0  # M19b: transient, tracks max weight before 2.5x cap
     civ_majority_faith: int = 0  # M37: computed from agent snapshot each turn
+    previous_majority_faith: int = 0           # initialized to civ_majority_faith at world-gen
 
 
 class Relationship(BaseModel):
