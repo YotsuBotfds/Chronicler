@@ -412,25 +412,32 @@ impl AgentSimulator {
                 );
                 let civ_mean = [0.0f32; 3]; // Civ means not yet available at initial spawn
 
+                // M37: use controller civ's faith_id as initial belief if provided
+                let belief = if let Some(col) = &initial_belief_col {
+                    col.value(i)
+                } else {
+                    crate::agent::BELIEF_NONE
+                };
+
                 for _ in 0..n_farmer {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_soldier {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_merchant {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_scholar {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_priest {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::BELIEF_NONE);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
             }
 
