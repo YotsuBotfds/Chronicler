@@ -46,7 +46,7 @@
 
 4. **`Belief` constructor requires `civ_origin: int`.** All calls to `Belief(...)` and test helpers `_make_belief(...)` must include `civ_origin`. In `fire_schism()`, use the civ that triggered the schism. In test helpers, use 0.
 
-5. **Region constructor requires `terrain`, `resources`, `carrying_capacity`** (no defaults). Test helpers: `Region(name="r", terrain="plains", resources=[], carrying_capacity=200, population=100)`.
+5. **Region constructor requires `terrain`, `resources`, `carrying_capacity`** (no defaults). Test helpers: `Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)`.
 
 ### GreatPerson & Pilgrimage Data Access
 
@@ -281,12 +281,13 @@ from chronicler.religion import (
 def _make_belief(stance: int) -> Belief:
     """Helper: create a Belief with specified Stance doctrine."""
     doctrines = [0, 0, stance, 0, 0]  # DOCTRINE_STANCE = index 2
-    return Belief(name=f"faith_s{stance}", doctrines=doctrines, faith_id=0)
+    return Belief(name=f"faith_s{stance}", doctrines=doctrines, faith_id=0, civ_origin=0)
 
 
 def _make_region(population: int, minority_count: int) -> Region:
     """Helper: region stub with population and minority tracking."""
-    r = Region(name="test_region", population=population)
+    r = Region(name="test_region", terrain="plains", resources="fertile",
+               carrying_capacity=500, population=population)
     r._test_minority_count = minority_count
     return r
 
@@ -339,14 +340,14 @@ class TestMartyrdomBoost:
     """Martyrdom boost: set, stack to cap, decay linearly."""
 
     def test_single_event_adds_boost(self):
-        r = Region(name="r", population=100)
+        r = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         r.martyrdom_boost = 0.0
         r.martyrdom_boost = min(r.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
                                 MARTYRDOM_BOOST_CAP)
         assert abs(r.martyrdom_boost - 0.05) < 1e-6
 
     def test_stacks_to_cap(self):
-        r = Region(name="r", population=100)
+        r = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         r.martyrdom_boost = 0.0
         for _ in range(10):
             r.martyrdom_boost = min(r.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
@@ -354,7 +355,7 @@ class TestMartyrdomBoost:
         assert abs(r.martyrdom_boost - MARTYRDOM_BOOST_CAP) < 1e-6
 
     def test_decay_reduces_boost(self):
-        r = Region(name="r", population=100)
+        r = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         r.martyrdom_boost = MARTYRDOM_BOOST_PER_EVENT  # 0.05
         decay_step = MARTYRDOM_BOOST_PER_EVENT / MARTYRDOM_DECAY_TURNS
         r.martyrdom_boost = max(0.0, r.martyrdom_boost - decay_step)
@@ -362,7 +363,7 @@ class TestMartyrdomBoost:
         assert r.martyrdom_boost > 0.0
 
     def test_decay_to_zero(self):
-        r = Region(name="r", population=100)
+        r = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         r.martyrdom_boost = MARTYRDOM_BOOST_PER_EVENT
         for _ in range(MARTYRDOM_DECAY_TURNS + 1):
             decay_step = MARTYRDOM_BOOST_PER_EVENT / MARTYRDOM_DECAY_TURNS
@@ -709,8 +710,8 @@ civ_majority = compute_civ_majority_faith(_snap)
 Update to unpack the new return type:
 ```python
 civ_majority_with_ratio = compute_civ_majority_faith(_snap)
-for civ in world.civilizations:
-    entry = civ_majority_with_ratio.get(civ.civ_id)
+for cid, civ in enumerate(world.civilizations):
+    entry = civ_majority_with_ratio.get(cid)
     if entry is not None:
         civ.civ_majority_faith, civ._majority_faith_ratio = entry
 ```
@@ -806,7 +807,7 @@ def _make_belief(name, stance=0, structure=0, ethics=0, outreach=0, theology=0):
     return Belief(
         name=name,
         doctrines=[theology, ethics, stance, outreach, structure],
-        faith_id=0,
+        faith_id=0, civ_origin=0,
     )
 
 
@@ -829,14 +830,14 @@ class TestAxisMapping:
     """Issue-driven deterministic axis selection."""
 
     def test_persecution_flips_stance(self):
-        region = Region(name="r", population=100)
+        region = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         region.persecution_intensity = 0.5  # Active persecution
         belief = _make_belief("test", stance=1)
         axis, _ = determine_schism_axis(region, belief)
         assert axis == DOCTRINE_STANCE
 
     def test_clergy_dominance_flips_structure(self):
-        region = Region(name="r", population=100)
+        region = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         region.persecution_intensity = 0.0
         region._clergy_influence = 0.45  # > 0.40 threshold
         belief = _make_belief("test")
@@ -844,7 +845,7 @@ class TestAxisMapping:
         assert axis == DOCTRINE_STRUCTURE
 
     def test_conquest_flips_outreach(self):
-        region = Region(name="r", population=100)
+        region = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         region.persecution_intensity = 0.0
         region.last_conquered_turn = 95  # < 10 turns ago if current=100
         belief = _make_belief("test")
@@ -852,7 +853,7 @@ class TestAxisMapping:
         assert axis == DOCTRINE_OUTREACH
 
     def test_fallback_picks_lowest_abs_axis(self):
-        region = Region(name="r", population=100)
+        region = Region(name="r", terrain="plains", resources="fertile", carrying_capacity=200, population=100)
         region.persecution_intensity = 0.0
         region.last_conquered_turn = -1
         # All axes nonzero except ethics (0)
@@ -1183,6 +1184,7 @@ Find the GreatPerson model in `models.py` (around lines 309-330). Add:
     pilgrimage_destination: str | None = None
     pilgrimage_return_turn: int | None = None
     arc_type: str | None = None           # "Prophet" on pilgrimage return; M45 uses this
+    pilgrimage_skill_bonus: float = 0.0   # applied in GP sync path on return
 ```
 
 Also add the life event constant to wherever life event bits are defined:
@@ -1240,27 +1242,25 @@ from chronicler.religion import (
 )
 
 
-def _make_gp(belief=0, occupation=4, loyalty_trait=0.7, arc_type=None,
-             pilgrimage_destination=None):
-    """Helper: create GreatPerson stub."""
-    gp = GreatPerson(name="TestPriest", role="prophet", origin_civilization="Civ1")
-    gp.belief = belief
-    gp.occupation = occupation
-    gp.loyalty_trait = loyalty_trait
-    gp.arc_type = arc_type
-    gp.pilgrimage_destination = pilgrimage_destination
-    gp.pilgrimage_return_turn = None
-    gp.skill = 0.5
-    gp.life_events = 0
+def _make_gp(arc_type=None, pilgrimage_destination=None, agent_id=1):
+    """Helper: create GreatPerson with all required fields (Note 6).
+    Agent data (belief, occupation, loyalty) accessed via snapshot, not GP fields."""
+    gp = GreatPerson(
+        name="TestPriest", role="prophet", trait="pious",
+        civilization="Civ1", origin_civilization="Civ1", born_turn=0,
+        arc_type=arc_type, pilgrimage_destination=pilgrimage_destination,
+        agent_id=agent_id,
+    )
     return gp
 
 
 def _make_temple(faith_id=0, prestige=10, region_name="TempleRegion"):
-    """Helper: create temple stub."""
-    t = Infrastructure(name="Temple", region_name=region_name)
-    t.faith_id = faith_id
-    t.temple_prestige = prestige
-    return t
+    """Helper: create (region_name, Infrastructure) tuple (Note 8)."""
+    t = Infrastructure(
+        type=InfrastructureType.TEMPLES, builder_civ="TestCiv",
+        built_turn=0, faith_id=faith_id, temple_prestige=prestige,
+    )
+    return (region_name, t)
 
 
 class TestCandidateGuards:
@@ -1274,57 +1274,39 @@ class TestCandidateGuards:
         gp = _make_gp(arc_type="Prophet")
         assert gp.arc_type == "Prophet"  # guard fires
 
-    def test_low_loyalty_trait_skipped(self):
-        gp = _make_gp(loyalty_trait=0.3, occupation=4)
-        # Not loyal enough AND is priest → priest qualifies by occupation
-        # but non-priest with low loyalty_trait should be skipped
-        gp.occupation = 2  # merchant, not priest
-        assert gp.loyalty_trait <= 0.5
-
-    def test_priest_qualifies_regardless_of_loyalty_trait(self):
-        gp = _make_gp(loyalty_trait=0.3, occupation=4)
-        # Priests qualify by occupation alone
-        assert gp.occupation == 4
-
 
 class TestDestinationSelection:
-    """Selects highest-prestige temple of the pilgrim's faith."""
+    """Selects highest-prestige temple of the pilgrim's faith (Note 8: tuples)."""
 
     def test_highest_prestige_wins(self):
         t1 = _make_temple(faith_id=0, prestige=5)
         t2 = _make_temple(faith_id=0, prestige=15)
         t3 = _make_temple(faith_id=1, prestige=20)  # wrong faith
-        candidates = [t for t in [t1, t2, t3] if t.faith_id == 0]
-        best = max(candidates, key=lambda t: t.temple_prestige)
-        assert best.temple_prestige == 15
+        candidates = [(rn, t) for rn, t in [t1, t2, t3] if t.faith_id == 0]
+        best_rn, best_t = max(candidates, key=lambda x: x[1].temple_prestige)
+        assert best_t.temple_prestige == 15
 
     def test_no_temple_of_faith_skips(self):
         t1 = _make_temple(faith_id=1, prestige=10)
-        candidates = [t for t in [t1] if t.faith_id == 0]
+        candidates = [(rn, t) for rn, t in [t1] if t.faith_id == 0]
         assert len(candidates) == 0
 
 
 class TestPilgrimageReturn:
-    """Return effects: skill boost, Prophet title, life event bit."""
+    """Return effects: skill bonus cached, Prophet title set."""
 
-    def test_skill_boost_applied(self):
+    def test_skill_bonus_cached(self):
         gp = _make_gp()
-        gp.skill += PILGRIMAGE_SKILL_BOOST
-        assert abs(gp.skill - 0.6) < 1e-6
+        gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
+        assert abs(gp.pilgrimage_skill_bonus - 0.10) < 1e-6
 
     def test_prophet_arc_type_set(self):
         gp = _make_gp()
         gp.arc_type = "Prophet"
         assert gp.arc_type == "Prophet"
 
-    def test_life_event_bit_set(self):
-        gp = _make_gp()
-        gp.life_events |= LIFE_EVENT_PILGRIMAGE
-        assert gp.life_events & LIFE_EVENT_PILGRIMAGE
-
     def test_pilgrimage_fields_cleared(self):
-        gp = _make_gp()
-        gp.pilgrimage_destination = "SomeRegion"
+        gp = _make_gp(pilgrimage_destination="SomeRegion")
         gp.pilgrimage_return_turn = 50
         # On return:
         gp.pilgrimage_destination = None
@@ -1383,10 +1365,14 @@ def check_pilgrimages(
         snap_beliefs = snapshot.column("belief").to_pylist()
         snap_occupations = snapshot.column("occupation").to_pylist()
         snap_loyalty = snapshot.column("loyalty").to_pylist()
+        # M33 personality trait — column name may vary, check snapshot schema
+        snap_loyalty_trait = (snapshot.column("loyalty_trait").to_pylist()
+                              if "loyalty_trait" in snapshot.schema.names else [])
     else:
         snap_beliefs = []
         snap_occupations = []
         snap_loyalty = []
+        snap_loyalty_trait = []
 
     def _agent_belief(gp: GreatPerson) -> int:
         idx = agent_idx_map.get(gp.agent_id) if gp.agent_id else None
@@ -1399,6 +1385,12 @@ def check_pilgrimages(
     def _agent_loyalty(gp: GreatPerson) -> float | None:
         idx = agent_idx_map.get(gp.agent_id) if gp.agent_id else None
         return snap_loyalty[idx] if idx is not None else None
+
+    def _agent_loyalty_trait(gp: GreatPerson) -> float:
+        idx = agent_idx_map.get(gp.agent_id) if gp.agent_id else None
+        if idx is not None and idx < len(snap_loyalty_trait):
+            return snap_loyalty_trait[idx]
+        return 0.0
 
     # Check returns first
     for gp in great_persons:
@@ -1434,9 +1426,8 @@ def check_pilgrimages(
             continue
 
         is_priest = _agent_occupation(gp) == _PRIEST_OCCUPATION
-        # Loyalty trait: check if GP has it cached (from M33 promotion), else skip
-        loyalty_trait = getattr(gp, 'loyalty_trait', None)
-        is_loyal_trait = (loyalty_trait is not None and loyalty_trait > 0.5)
+        # Loyalty trait from snapshot (M33 personality column)
+        is_loyal_trait = _agent_loyalty_trait(gp) > 0.5
         if not (is_priest or is_loyal_trait):
             continue
 
