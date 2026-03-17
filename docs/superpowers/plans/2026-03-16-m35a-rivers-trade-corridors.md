@@ -247,6 +247,16 @@ class TestRiverValidation:
         with pytest.raises(ValueError, match="not found"):
             apply_scenario(world, config)
 
+    def test_too_many_rivers_raises(self):
+        world, config, _ = self._make_world_and_config([])
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else "X"
+        config.rivers = [
+            River(name=f"River {i}", path=[r0.name, adj_name]) for i in range(33)
+        ]
+        with pytest.raises(ValueError, match="Maximum 32"):
+            apply_scenario(world, config)
+
     def test_river_with_non_adjacent_regions_raises(self):
         world, config, _ = self._make_world_and_config([])
         # Find two non-adjacent regions
@@ -273,6 +283,8 @@ In `src/chronicler/scenario.py`, after Step 8 (after line 395, after `populate_l
 
 ```python
     # --- Step 9: River assignment (M35a) ---
+    if len(config.rivers) > 32:
+        raise ValueError(f"Maximum 32 rivers supported (got {len(config.rivers)})")
     region_map = {r.name: r for r in world.regions}
     world.rivers = []
     for river_idx, river in enumerate(config.rivers):
