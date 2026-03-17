@@ -360,6 +360,10 @@ impl AgentSimulator {
                         ctrl_val_1.map_or(0xFF, |arr| arr.value(i)),
                         ctrl_val_2.map_or(0xFF, |arr| arr.value(i)),
                     ],
+                    conversion_rate: 0.0,
+                    conversion_target_belief: 0xFF,
+                    conquest_conversion_active: false,
+                    majority_belief: 0xFF,
                 })
                 .collect();
 
