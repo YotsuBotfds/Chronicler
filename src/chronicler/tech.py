@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from chronicler.models import Civilization, Event, EMPTY_SLOT, ResourceType, TechEra, WorldState
-from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.utils import civ_index, clamp, STAT_FLOOR
 
 
 _ERA_ORDER = list(TechEra)
@@ -107,7 +107,7 @@ def check_tech_advancement(civ: Civilization, world: WorldState, acc=None) -> Ev
     if civ.culture < min_culture or civ.economy < min_economy or civ.treasury < effective_cost:
         return None
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -effective_cost, "keep")
     else:
         civ.treasury -= effective_cost

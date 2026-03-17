@@ -7,7 +7,7 @@ import random
 from chronicler.models import (
     ActiveCondition, Civilization, Event, Leader, NamedEvent, TechEra, WorldState,
 )
-from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.utils import civ_index, clamp, STAT_FLOOR
 
 
 _DOMAIN_TO_ARCHETYPE: dict[str, str] = {
@@ -216,7 +216,7 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
     inherit_grudges(old_leader, new_leader)
     if stype == "general":
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "stability", -10, "guard-shock")
             acc.add(civ_idx, civ, "military", 10, "guard-shock")
         else:
@@ -224,7 +224,7 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
             civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)
     elif stype == "usurper":
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "stability", -30, "guard-shock")
             acc.add(civ_idx, civ, "asabiya", 0.1, "keep")
         else:
@@ -236,7 +236,7 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         ))
     elif stype == "elected":
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "stability", 10, "guard-shock")
         else:
             civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
@@ -293,7 +293,7 @@ def check_rival_fall(civ: Civilization, dead_leader_name: str, world: WorldState
             continue
         if other_civ.leader.rival_leader == dead_leader_name:
             if acc is not None:
-                other_idx = next(i for i, c in enumerate(world.civilizations) if c.name == other_civ.name)
+                other_idx = civ_index(world, other_civ.name)
                 acc.add(other_idx, other_civ, "culture", 10, "guard-shock")
             else:
                 other_civ.culture = clamp(other_civ.culture + 10, STAT_FLOOR["culture"], 100)

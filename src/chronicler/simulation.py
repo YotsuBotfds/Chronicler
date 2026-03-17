@@ -41,7 +41,9 @@ from chronicler.models import (
 from chronicler.accumulator import normalize_shock
 from chronicler.tech import check_tech_advancement
 from chronicler.utils import (
+    civ_index,
     clamp,
+    get_civ,
     STAT_FLOOR,
     sync_civ_population,
     sync_all_populations,
@@ -80,15 +82,6 @@ from chronicler.tuning import (
 
 ActionSelector = Callable[[Civilization, WorldState], ActionType]
 Narrator = Callable[[WorldState, list[Event]], str]
-
-
-# --- Helpers ---
-
-def _get_civ(world: WorldState, name: str) -> Civilization | None:
-    for c in world.civilizations:
-        if c.name == name:
-            return c
-    return None
 
 
 # --- Phase 1: Environment ---
@@ -143,7 +136,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
                 mult = get_severity_multiplier(civ)
                 drain = int(get_override(world, K_DROUGHT_STABILITY, 3))
                 if acc is not None:
-                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    civ_idx = civ_index(world, civ.name)
                     acc.add(civ_idx, civ, "stability", -drain, "signal")
                     acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
                 else:
@@ -160,7 +153,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
         elif event.event_type == "plague":
             for civ in affected:
                 mult = get_severity_multiplier(civ)
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 if acc is not None:
                     acc.add(civ_idx, civ, "population", -int(10 * mult), "guard")
                 else:
@@ -184,7 +177,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             for civ in affected:
                 mult = get_severity_multiplier(civ)
                 if acc is not None:
-                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    civ_idx = civ_index(world, civ.name)
                     acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
                 else:
                     civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
@@ -222,22 +215,22 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     # 2. Trade income
     cross_routes = get_active_trade_routes(world)
     for civ_a, civ_b in cross_routes:
-        a = _get_civ(world, civ_a)
-        b = _get_civ(world, civ_b)
+        a = get_civ(world, civ_a)
+        b = get_civ(world, civ_b)
         if a:
             if acc is not None:
-                a_idx = next(i for i, c in enumerate(world.civilizations) if c.name == a.name)
+                a_idx = civ_index(world, a.name)
                 acc.add(a_idx, a, "treasury", 2, "keep")
             else:
                 a.treasury += 2
         if b:
             if acc is not None:
-                b_idx = next(i for i, c in enumerate(world.civilizations) if c.name == b.name)
+                b_idx = civ_index(world, b.name)
                 acc.add(b_idx, b, "treasury", 2, "keep")
             else:
                 b.treasury += 2
     for civ_name in get_self_trade_civs(world):
-        c = _get_civ(world, civ_name)
+        c = get_civ(world, civ_name)
         if c:
             if acc is not None:
                 c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
@@ -312,7 +305,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     # 5. Ongoing war costs: -3/turn per active war
     for war in world.active_wars:
         for civ_name in war:
-            c = _get_civ(world, civ_name)
+            c = get_civ(world, civ_name)
             if c:
                 if acc is not None:
                     c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
@@ -361,7 +354,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
         candidates = []
         for war in world.active_wars:
             for civ_name in war:
-                c = _get_civ(world, civ_name)
+                c = get_civ(world, civ_name)
                 if c and c.treasury >= 10:
                     candidates.append(c)
         if candidates:
@@ -625,7 +618,7 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
             event.event_type, world.event_probabilities
         )
 
-        affected_civ = _get_civ(world, event.actors[0])
+        affected_civ = get_civ(world, event.actors[0])
         if affected_civ:
             _apply_event_effects(event.event_type, affected_civ, world, acc=acc)
 
@@ -638,7 +631,7 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
 
 def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, acc=None) -> None:
     """Apply mechanical stat changes for a random event."""
-    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+    civ_idx = civ_index(world, civ.name)
     if event_type == "leader_death":
         import random as _random
         old_leader = civ.leader
@@ -728,11 +721,11 @@ def apply_injected_event(
     event_type: str, target_civ_name: str, world: WorldState, acc=None
 ) -> list[Event]:
     """Process a manually injected event targeting a single civ."""
-    civ = _get_civ(world, target_civ_name)
+    civ = get_civ(world, target_civ_name)
     if civ is None:
         return []
 
-    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+    civ_idx = civ_index(world, civ.name)
 
     event = Event(
         turn=world.turn,
@@ -800,9 +793,9 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     for condition in world.active_conditions:
         condition.duration -= 1
         for civ_name in condition.affected_civs:
-            civ = _get_civ(world, civ_name)
+            civ = get_civ(world, civ_name)
             if civ and condition.severity >= 50:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 mult = get_severity_multiplier(civ)
                 if condition.condition_type == "drought":
                     drain = int(get_override(world, K_DROUGHT_ONGOING, 2))
@@ -891,7 +884,7 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 lost = civ.regions[1:]
                 civ.regions = civ.regions[:1]
                 for region in world.regions:

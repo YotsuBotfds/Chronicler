@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
 from chronicler.models import Event, InfrastructureType as IType, Infrastructure, PendingBuild
+from chronicler.utils import civ_index
 
 
 @dataclass(frozen=True)
@@ -167,7 +168,7 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
 
     spec = BUILD_SPECS[selected_type]
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -spec.cost, "keep")
     else:
         civ.treasury -= spec.cost

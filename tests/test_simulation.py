@@ -496,27 +496,3 @@ class TestApplyInjectedEvent:
         apply_injected_event("drought", civ.name, sample_world)
         # drought handler creates an ActiveCondition
         assert len(sample_world.active_conditions) > old_conditions
-
-
-def test_famine_stability_drain_respects_tuning_override(make_world):
-    """Famine stability drain uses tuning override when present."""
-    from chronicler.ecology import _check_famine_legacy
-
-    world = make_world(num_civs=2)
-    world.tuning_overrides = {"stability.drain.famine_immediate": 2}
-    civ = world.civilizations[0]
-    civ.stability = 50
-    original_stability = civ.stability
-
-    # Set a region to trigger famine (water below threshold 0.20)
-    region = world.regions[0]
-    region.ecology.water = 0.01
-    region.population = 50
-    region.famine_cooldown = 0
-    region.controller = civ.name
-
-    _check_famine_legacy(world)
-
-    # With override of 2 (and severity_multiplier=1.0 for healthy civ),
-    # stability should drop by 2 (not default 3)
-    assert civ.stability == original_stability - 2

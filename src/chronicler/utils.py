@@ -61,3 +61,19 @@ def add_region_pop(region, amount: int, cap=None) -> None:
         from chronicler.ecology import effective_capacity
         cap = effective_capacity(region)
     region.population = min(region.population + amount, cap)
+
+
+def civ_index(world, name: str) -> int:
+    """Return the index of the named civilization in world.civilizations.
+
+    Raises StopIteration if not found.
+    """
+    return next(i for i, c in enumerate(world.civilizations) if c.name == name)
+
+
+def get_civ(world, name: str):
+    """Return the Civilization with the given name, or None."""
+    for c in world.civilizations:
+        if c.name == name:
+            return c
+    return None

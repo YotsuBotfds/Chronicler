@@ -13,6 +13,7 @@ from chronicler.models import (
     Leader,
     WorldState,
 )
+from chronicler.utils import civ_index
 
 # ---------------------------------------------------------------------------
 # Mapping tables
@@ -340,7 +341,7 @@ def tick_factions(world, acc=None) -> list[Event]:
             from chronicler.emergence import get_severity_multiplier
             drain = int(3 * get_severity_multiplier(civ))
             if acc is not None:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "stability", -drain, "signal")
             else:
                 civ.stability -= drain

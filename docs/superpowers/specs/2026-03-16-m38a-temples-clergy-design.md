@@ -72,7 +72,15 @@ Same pattern as military/merchant/cultural. When `clergy_influence >= 0.15`, gen
 
 **Known simplification.** At +0.10 affecting only minority-faith priests in templed regions, the impact is negligible. If M38b needs faith-specific temple support (e.g., persecution exemption for priests of the temple's faith), a second signal (`temple_faith_id: u8` on RegionState) should be added at that milestone.
 
-### Decision 7: Majority-Faith Divergence Cascade Is Intentional
+### Decision 7: Prophet Great Persons Map to Clergy Faction
+
+`GP_ROLE_TO_FACTION["prophet"]` changes from `FactionType.CULTURAL` to `FactionType.CLERGY`. Prophet great persons shift their per-turn faction bonus from cultural to clergy.
+
+**Why:** Prophets are religious leaders, not cultural ones. With clergy as a distinct faction, the prophet GP's institutional home is clergy. Leaving prophets mapped to cultural means the cultural faction gets a bonus from a religious event, while the clergy faction — designed to represent religious institutional power — doesn't benefit from its own great person archetype.
+
+**Behavioral impact on cultural faction:** Cultural faction loses the prophet GP bonus it currently receives. This weakens cultural slightly in civs that produce prophets (typically high-priest-count civs). The effect is small — prophet GPs are rare (1-3 per 500-turn run), and the per-turn bonus decays. The Decision 9 regression baseline will capture any measurable shift.
+
+### Decision 8: Majority-Faith Divergence Cascade Is Intentional
 
 If a civ's `civ_majority_faith` diverges from a temple's `faith_id` (due to M37 conversion), the temple stops providing the priest satisfaction bonus (`has_temple` computed as `temple.faith_id == controller.civ_majority_faith`). This is intentional — institutional support requires political alignment. The cascade (lower satisfaction → fewer priests → lower clergy influence) is an emergent consequence.
 
@@ -107,7 +115,7 @@ temple_prestige: int = 0  # +1/turn, consumed by M38b pilgrimages
 | +50% conversion rate | Multiplicative boost to `conversion_rate`, only when `temple.faith_id == conversion_target_belief` | Python signal computation |
 | +0.10 priest satisfaction | `has_temple` bool on RegionState → Rust `satisfaction.rs` | Rust, faith-blind (Decision 6) |
 | +1 prestige/turn on temple | `temple_prestige += 1` each turn | Python Phase 10, M38b consumer |
-| +1 prestige/turn on civ | Existing civ prestige system | Python Phase 10 |
+| +1 prestige/turn on civ | `civ.prestige += CIV_PRESTIGE_PER_TEMPLE` per active temple | Python Phase 10 (one-turn delay — not visible to Phase 4 prestige decay or Phase 6 cultural milestones until next turn; intentional, matches temple prestige tick timing) |
 
 ### Temple Conquest Lifecycle
 
@@ -168,6 +176,26 @@ Added to `tick_factions()`, same mechanism as military/merchant/cultural:
 | Priest death above baseline (≥5% priest population loss) | -0.01 per 5% loss | Phase 10 (demographics delta) | Per-civ |
 
 **Conversion success is per-civ, not per-region.** A Proselytizing civ with 10 regions under active missionary pressure gets at most +0.01/turn from conversion, not +0.01 per converting region. This matches the other factions' pattern where events are per-civ (one event per war won, not per-region conquered simultaneously).
+
+**Conversion success metric definition:** "≥5% of any region converted this turn" means: in any region controlled by this civ, the number of agents whose `belief` changed to the civ's `civ_majority_faith` this turn is ≥5% of the region's total agent population. The metric compares the current snapshot's belief distribution against the previous turn's distribution for that region.
+
+**Data flow:** M37's `compute_majority_belief()` already scans the agent snapshot per-region in Phase 10. The conversion success detection piggybacks on this scan — `tick_factions()` receives the per-region belief delta (count of agents who changed to the civ's faith this turn) as a pre-computed dict from the Phase 10 snapshot analysis in `religion.py`. No direct snapshot access from `tick_factions()`. The dict is computed once, consumed by both conversion signal computation and clergy event detection.
+
+```python
+# religion.py — computed during Phase 10 snapshot analysis:
+def compute_conversion_deltas(current_snapshot, prev_snapshot) -> dict[int, int]:
+    """Per-region count of agents who converted to controller's faith this turn."""
+    ...
+
+# factions.py — tick_factions() reads the pre-computed dict:
+if conversion_deltas is not None:  # None in --agents=off
+    for region_id, converted_count in conversion_deltas.items():
+        if region.controller_civ == civ_id:
+            region_pop = region_populations[region_id]
+            if region_pop > 0 and converted_count / region_pop >= 0.05:
+                clergy_shift += EVT_CONVERSION_SUCCESS
+                break  # per-civ cap: max one +0.01 per turn
+```
 
 ### Clergy Action Weight Modifiers
 
@@ -414,7 +442,17 @@ Report output: `docs/superpowers/analytics/m38a-temples-clergy-report.md`.
 - `pool.rs` — no new agent fields
 - `tick.rs` — no new stages
 - Bundle format unchanged
-- `--agents=off` mode: faction system is Python-only, works without agents. Tithes and faction shifts function normally. Temple conversion boost applies to M37 conversion signals (zero in `--agents=off`, so boost is no-op). Priest satisfaction bonus moot without agents. Behavior unchanged.
+- `--agents=off` mode: faction system is Python-only, works without agents. Tithes and faction shifts function normally. Temple conversion boost applies to M37 conversion signals (zero in `--agents=off`, so boost is no-op). Priest satisfaction bonus moot without agents. Clergy influence events by agent dependency:
+
+  | Event | `--agents=off` | Why |
+  |-------|---------------|-----|
+  | Temple built | **Active** | Python BUILD action, no agent dependency |
+  | Conversion success | **Inert** | Requires agent snapshot to detect ≥5% belief change |
+  | Holy war won | **Active** | Python WAR resolution, no agent dependency |
+  | Temple destroyed | **Active** | Python conquest/BUILD logic, no agent dependency |
+  | Priest death | **Inert** | Requires agent demographics delta from snapshot |
+
+  With conversion success and priest death inert, clergy influence in `--agents=off` is driven entirely by temple and holy war events. This is consistent — without agents, there are no priests to convert or die. `tick_factions()` must guard these two events behind `if snapshot is not None`.
 
 ---
 
@@ -428,9 +466,9 @@ These notes are for the implementation plan, not the spec itself:
 
 3. **Verify WAR × clergy computation order** in `action_engine.py`. Faction weight (multiplicative) and holy war bonus (additive) interact — confirm Militant clergy-dominant civs still fight holy wars, just less eagerly than Militant military-dominant civs.
 
-4. **Update `GP_ROLE_TO_FACTION` mapping.** Currently `"prophet"` maps to `FactionType.CULTURAL`. With clergy as a 4th faction, prophets should map to `FactionType.CLERGY` — prophet GPs give per-turn bonus to clergy faction, not cultural.
+4. **Extract `FACTION_FLOOR` as named constant.** The current `normalize_influence()` hardcodes `floor = 0.10`. Extract to `FACTION_FLOOR` before changing the value to 0.08.
 
-5. **Extract `FACTION_FLOOR` as named constant.** The current `normalize_influence()` hardcodes `floor = 0.10`. Extract to `FACTION_FLOOR` before changing the value to 0.08.
+5. **Temple prestige is uncapped** — `+1/turn` accumulates indefinitely. This is M38b's concern (pilgrimage targeting scales with prestige), not M38a's. Add a comment noting it for M38b awareness.
 
 ---
 

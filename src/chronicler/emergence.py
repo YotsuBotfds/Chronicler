@@ -21,7 +21,7 @@ from chronicler.tuning import (
     K_ECOLOGICAL_RECOVERY_PROBABILITY, K_ECOLOGICAL_RECOVERY_FRACTION,
     get_override,
 )
-from chronicler.utils import clamp, STAT_FLOOR, distribute_pop_loss, drain_region_pop, sync_civ_population
+from chronicler.utils import civ_index, clamp, STAT_FLOOR, distribute_pop_loss, drain_region_pop, sync_civ_population
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ def tick_pandemic(world: WorldState, acc=None) -> list[Event]:
         if not affected_regions:
             affected_regions = [r for r in world.regions if r.controller == civ_name]
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "population", -pop_loss, "guard")
             acc.add(civ_idx, civ, "economy", -eco_loss, "signal")
         else:
@@ -393,7 +393,7 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
             civ = next((c for c in world.civilizations if c.name == region.controller), None)
             if civ:
                 if acc is not None:
-                    civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                    civ_idx = civ_index(world, civ.name)
                     acc.add(civ_idx, civ, "population", -20, "guard")
                     acc.add(civ_idx, civ, "stability", -15, "signal")
                 else:
@@ -424,7 +424,7 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
         civ = next((c for c in world.civilizations if c.name == civ_name), None)
         if civ and civ.folk_heroes:
             if acc is not None:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
             else:
                 civ.asabiya = min(1.0, civ.asabiya + 0.05)

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
 from chronicler.models import ClimateConfig, ClimatePhase, Event, InfrastructureType, Disposition, ResourceType
+from chronicler.utils import civ_index
 
 
 PHASE_SCHEDULE: list[tuple[float, ClimatePhase]] = [
@@ -216,7 +217,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
                     )
                     if recv_civ:
                         if acc is not None:
-                            recv_idx = next(i for i, c in enumerate(world.civilizations) if c.name == recv_civ.name)
+                            recv_idx = civ_index(world, recv_civ.name)
                             acc.add(recv_idx, recv_civ, "stability", -3, "signal")
                         else:
                             recv_civ.stability = max(recv_civ.stability - 3, 0)

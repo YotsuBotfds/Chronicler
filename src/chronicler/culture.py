@@ -6,7 +6,7 @@ from collections import Counter
 
 from chronicler.agent_bridge import VALUE_TO_ID
 from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
-from chronicler.utils import clamp
+from chronicler.utils import civ_index, clamp
 
 VALUE_OPPOSITIONS: dict[str, str] = {
     "Freedom": "Order",
@@ -222,7 +222,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
             )
             if controller:
                 if acc is not None:
-                    ctrl_idx = next(i for i, c in enumerate(world.civilizations) if c.name == controller.name)
+                    ctrl_idx = civ_index(world, controller.name)
                     acc.add(ctrl_idx, controller, "stability", -ASSIMILATION_STABILITY_DRAIN, "signal")
                 else:
                     controller.stability = clamp(
@@ -239,7 +239,7 @@ CULTURE_PROJECTION_THRESHOLD = 60
 def _counter_propaganda_reaction(world: WorldState, defender, region, seed: int, acc=None) -> int:
     if defender.treasury >= COUNTER_PROPAGANDA_COST:
         if acc is not None:
-            defender_idx = next(i for i, c in enumerate(world.civilizations) if c.name == defender.name)
+            defender_idx = civ_index(world, defender.name)
             acc.add(defender_idx, defender, "treasury", -COUNTER_PROPAGANDA_COST, "keep")
         else:
             defender.treasury -= COUNTER_PROPAGANDA_COST
@@ -289,7 +289,7 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
     target = tied[0]
 
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -PROPAGANDA_COST, "keep")
     else:
         civ.treasury -= PROPAGANDA_COST
@@ -375,14 +375,14 @@ def tick_prestige(world: WorldState, acc=None) -> None:
     """Decay prestige and award trade income bonus."""
     for civ in world.civilizations:
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "prestige", -1, "keep")
         else:
             civ.prestige = max(0, civ.prestige - 1)
         trade_bonus = civ.prestige // 5
         if trade_bonus > 0:
             if acc is not None:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "treasury", trade_bonus, "keep")
             else:
                 civ.treasury += trade_bonus

@@ -30,6 +30,7 @@ from chronicler.resources import (
     CLIMATE_CLASS_MOD, SEASON_MOD,
     _CLIMATE_PHASE_INDEX, resource_class_index,
 )
+from chronicler.utils import civ_index
 
 if TYPE_CHECKING:
     from chronicler.models import Region, WorldState
@@ -251,62 +252,6 @@ def _clamp_ecology(region: Region) -> None:
     region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], round(region.ecology.forest_cover, 4)))
 
 
-def _check_famine_legacy(world: WorldState, acc=None) -> list[Event]:
-    """Legacy region-level famine check: water < threshold. Preserved but no longer called."""
-    from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
-    from chronicler.emergence import get_severity_multiplier
-
-    events: list[Event] = []
-    threshold = get_override(world, K_FAMINE_WATER_THRESHOLD, 0.20)
-
-    for region in world.regions:
-        if region.controller is None or region.famine_cooldown > 0:
-            continue
-        if region.ecology.water >= threshold:
-            continue
-        if region.population <= 0:
-            continue
-
-        civ = next((c for c in world.civilizations if c.name == region.controller), None)
-        if civ is None:
-            continue
-
-        mult = get_severity_multiplier(civ)
-        if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
-            acc.add(civ_idx, civ, "population", -int(5 * mult), "guard")
-        else:
-            drain_region_pop(region, int(5 * mult))
-            sync_civ_population(civ, world)
-        drain = int(get_override(world, "stability.drain.famine_immediate", 3))
-        if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
-            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
-        else:
-            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
-        region.famine_cooldown = 5
-
-        for adj_name in region.adjacencies:
-            adj = next((r for r in world.regions if r.name == adj_name), None)
-            if adj and adj.controller and adj.controller != civ.name:
-                neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
-                if neighbor:
-                    add_region_pop(adj, 5)
-                    sync_civ_population(neighbor, world)
-                    if acc is not None:
-                        neighbor_idx = next(i for i, c in enumerate(world.civilizations) if c.name == neighbor.name)
-                        acc.add(neighbor_idx, neighbor, "stability", -5, "signal")
-                    else:
-                        neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
-
-        events.append(Event(
-            turn=world.turn, event_type="famine", actors=[civ.name],
-            description=f"Famine strikes {region.name}, devastating {civ.name}.",
-            importance=8,
-        ))
-    return events
-
-
 def _check_famine_yield(
     world: WorldState,
     region_yields: dict[str, list[float]],
@@ -334,17 +279,17 @@ def _check_famine_yield(
         if civ is None:
             continue
 
-        # --- Effects below are identical to _check_famine_legacy ---
+        # --- Famine effects ---
         mult = get_severity_multiplier(civ)
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "population", -int(5 * mult), "guard")
         else:
             drain_region_pop(region, int(5 * mult))
             sync_civ_population(civ, world)
         drain = int(get_override(world, "stability.drain.famine_immediate", 3))
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
         else:
             civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
@@ -358,7 +303,7 @@ def _check_famine_yield(
                     add_region_pop(adj, 5)
                     sync_civ_population(neighbor, world)
                     if acc is not None:
-                        neighbor_idx = next(i for i, c in enumerate(world.civilizations) if c.name == neighbor.name)
+                        neighbor_idx = civ_index(world, neighbor.name)
                         acc.add(neighbor_idx, neighbor, "stability", -5, "signal")
                     else:
                         neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
@@ -630,7 +575,7 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
         yields = compute_resource_yields(region, season_id, climate_phase, worker_count, world)
         _last_region_yields[region.name] = yields
 
-    # M34: Yield-based famine (replaces water-sentinel _check_famine_legacy)
+    # M34: Yield-based famine check
     events = _check_famine_yield(world, _last_region_yields, climate_phase, famine_threshold, subsistence_base, acc)
 
     from chronicler.traditions import apply_soil_floor

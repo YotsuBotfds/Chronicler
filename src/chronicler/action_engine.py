@@ -13,7 +13,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent, TechEra, WorldState,
     DOCTRINE_STANCE, Belief,
 )
-from chronicler.utils import clamp, STAT_FLOOR
+from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
 
@@ -66,20 +66,13 @@ def _power_struggle_factor(civ: Civilization) -> float:
     return 0.8 if civ.factions.power_struggle else 1.0
 
 
-def _get_civ(world: WorldState, name: str) -> Civilization | None:
-    for c in world.civilizations:
-        if c.name == name:
-            return c
-    return None
-
-
 # --- Action handlers ---
 
 @register_action(ActionType.DEVELOP)
 def _resolve_develop(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Invest in infrastructure: spend treasury to boost economy or culture."""
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
     cost = 5 + civ.economy // 10
     if civ.treasury >= cost:
         if acc is not None:
@@ -112,8 +105,8 @@ def _resolve_develop(civ: Civilization, world: WorldState, acc=None) -> Event:
 @register_action(ActionType.EXPAND)
 def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Claim an uncontrolled region."""
-    civ_index = next((i for i, c in enumerate(world.civilizations) if c.name == civ.name), 0)
-    rng = random.Random(world.turn * 1000 + civ_index)
+    civ_idx = civ_index(world, civ.name)
+    rng = random.Random(world.turn * 1000 + civ_idx)
     unclaimed = [r for r in world.regions if r.controller is None]
     # Filter out harsh terrain if below IRON era
     if not _era_at_least(civ.tech_era, TechEra.IRON) and civ.active_focus != "exploration":
@@ -123,7 +116,7 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
         target.controller = civ.name
         civ.regions.append(target.name)
         if acc is not None:
-            acc.add(civ_index, civ, "military", -10, "guard-action")
+            acc.add(civ_idx, civ, "military", -10, "guard-action")
         else:
             civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
         # M19b: Track exploration capability firing into harsh terrain pre-Iron
@@ -154,7 +147,7 @@ def _resolve_trade_action(civ: Civilization, world: WorldState, acc=None) -> Eve
             d = DISPOSITION_ORDER.get(rel.disposition, 0)
             if d > best_disp:
                 best_disp = d
-                best_partner = _get_civ(world, other_name)
+                best_partner = get_civ(world, other_name)
 
     if best_partner and best_disp >= 2:  # At least neutral
         resolve_trade(civ, best_partner, world, acc=acc)
@@ -226,7 +219,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
         for other_name, rel in world.relationships[civ.name].items():
             if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                 continue
-            other_civ = _get_civ(world, other_name)
+            other_civ = get_civ(world, other_name)
             if other_civ is None:
                 continue
             perceived_mil = get_perceived_stat(civ, other_civ, "military", world)
@@ -247,7 +240,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
         # No HOSTILE/SUSPICIOUS target exists — fall back to peaceful action
         return _resolve_develop(civ, world, acc=acc)
 
-    defender = _get_civ(world, target_name)
+    defender = get_civ(world, target_name)
     if defender:
         result = resolve_war(civ, defender, world, seed=world.turn, acc=acc)
         # Track active war (both orderings)
@@ -320,7 +313,7 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
                     break
     if target_name:
         world.embargoes.append((civ.name, target_name))
-        target = _get_civ(world, target_name)
+        target = get_civ(world, target_name)
         if target:
             # M21: BANKING halves incoming embargo stability damage
             if target.active_focus == "banking":
@@ -333,7 +326,7 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
             else:
                 embargo_damage = 5
             if acc is not None:
-                target_idx = next(i for i, c in enumerate(world.civilizations) if c.name == target.name)
+                target_idx = civ_index(world, target.name)
                 acc.add(target_idx, target, "stability", -embargo_damage, "signal")
             else:
                 target.stability = clamp(target.stability - embargo_damage, STAT_FLOOR["stability"], 100)
@@ -445,8 +438,8 @@ def resolve_war(
 
     # War costs treasury regardless of outcome
     if acc is not None:
-        att_idx = next(i for i, c in enumerate(world.civilizations) if c.name == attacker.name)
-        def_idx = next(i for i, c in enumerate(world.civilizations) if c.name == defender.name)
+        att_idx = civ_index(world, attacker.name)
+        def_idx = civ_index(world, defender.name)
         acc.add(att_idx, attacker, "treasury", -20, "keep")
         acc.add(def_idx, defender, "treasury", -10, "keep")
     else:
@@ -558,8 +551,8 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState, acc
     gain1 = int(gain1 * _power_struggle_factor(civ1))
     gain2 = int(gain2 * _power_struggle_factor(civ2))
     if acc is not None:
-        civ1_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ1.name)
-        civ2_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ2.name)
+        civ1_idx = civ_index(world, civ1.name)
+        civ2_idx = civ_index(world, civ2.name)
         acc.add(civ1_idx, civ1, "treasury", gain1, "keep")
         acc.add(civ2_idx, civ2, "treasury", gain2, "keep")
     else:

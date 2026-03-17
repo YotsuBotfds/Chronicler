@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
 from chronicler.models import Event, Relationship
+from chronicler.utils import civ_index
 
 
 def initialize_fog(world: WorldState) -> None:
@@ -89,7 +90,7 @@ def handle_explore(world: WorldState, civ: Civilization, acc=None) -> Event:
     target_name = candidates[idx_hash % len(candidates)]
 
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -5, "keep")
     else:
         civ.treasury -= 5
@@ -192,7 +193,7 @@ def _discover_ruins(
 
     boost = int(region.ruin_quality * 5 * (1.0 - civ.culture / 100))
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "culture", boost, "guard-shock")
     else:
         civ.culture = min(civ.culture + boost, 100)

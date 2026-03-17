@@ -14,7 +14,7 @@ from chronicler.models import (
 from chronicler.accumulator import normalize_shock
 from chronicler.ecology import effective_capacity
 from chronicler.tuning import K_GOVERNING_COST, get_override
-from chronicler.utils import clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
+from chronicler.utils import civ_index, clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
 from chronicler.intelligence import get_perceived_stat
 
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
             stability_cost += dist * gov_cost_per_dist
 
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "treasury", -treasury_cost, "keep")
             acc.add(civ_idx, civ, "stability", -stability_cost, "signal")
         else:
@@ -60,7 +60,7 @@ def resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Even
     """Resolve MOVE_CAPITAL action: relocate capital to most central region."""
     from chronicler.models import ActiveCondition
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -15, "keep")
     else:
         civ.treasury -= 15
@@ -233,7 +233,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         # M17d: Tradition inheritance through secession
         breakaway_civ.traditions = list(civ.traditions)
 
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(civ_idx,
                 military_shock=normalize_shock(split_mil, civ.military),
@@ -304,7 +304,7 @@ def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
             continue
 
         # Capital lost
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(civ_idx,
                 stability_shock=normalize_shock(20, civ.stability)))
@@ -407,8 +407,8 @@ def collect_tribute(world: WorldState, acc=None) -> list[Event]:
         # If this fires, compute_accuracy has a bug.
         tribute = math.floor((perceived_econ if perceived_econ is not None else vassal.economy) * vr.tribute_rate)
         if acc is not None:
-            vassal_idx = next(i for i, c in enumerate(world.civilizations) if c.name == vassal.name)
-            overlord_idx = next(i for i, c in enumerate(world.civilizations) if c.name == overlord.name)
+            vassal_idx = civ_index(world, vassal.name)
+            overlord_idx = civ_index(world, overlord.name)
             acc.add(vassal_idx, vassal, "treasury", -tribute, "keep")
             acc.add(overlord_idx, overlord, "treasury", tribute, "keep")
         else:
@@ -454,7 +454,7 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
 
         to_remove.append(vr)
         rebelled_overlords.add(vr.overlord)
-        vassal_idx = next(i for i, c in enumerate(world.civilizations) if c.name == vassal.name)
+        vassal_idx = civ_index(world, vassal.name)
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(vassal_idx,
                 stability_shock=min(1.0, 10 / max(vassal.stability, 1))))
@@ -595,7 +595,7 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
             fed.members.remove(member)
             civ = next((c for c in world.civilizations if c.name == member), None)
             if civ:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 if world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(civ_idx,
                         stability_shock=normalize_shock(15, civ.stability)))
@@ -606,7 +606,7 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
             for remaining in fed.members:
                 rc = next((c for c in world.civilizations if c.name == remaining), None)
                 if rc:
-                    rc_idx = next(i for i, c in enumerate(world.civilizations) if c.name == rc.name)
+                    rc_idx = civ_index(world, rc.name)
                     if world.agent_mode == "hybrid":
                         world.pending_shocks.append(CivShock(rc_idx,
                             stability_shock=normalize_shock(5, rc.stability)))
@@ -672,8 +672,8 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
             continue
 
         if acc is not None:
-            sponsor_idx = next(i for i, c in enumerate(world.civilizations) if c.name == sponsor.name)
-            target_idx = next(i for i, c in enumerate(world.civilizations) if c.name == target.name)
+            sponsor_idx = civ_index(world, sponsor.name)
+            target_idx = civ_index(world, target.name)
             acc.add(sponsor_idx, sponsor, "treasury", -pw.treasury_per_turn, "keep")
             acc.add(target_idx, target, "stability", -3, "signal")
             acc.add(target_idx, target, "economy", -2, "signal")
@@ -722,7 +722,7 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
         detection_prob = target.culture / 100
         if rng.random() < detection_prob:
             pw.detected = True
-            target_idx = next(i for i, c in enumerate(world.civilizations) if c.name == target.name)
+            target_idx = civ_index(world, target.name)
             if world.agent_mode == "hybrid":
                 world.pending_shocks.append(CivShock(target_idx,
                     stability_shock=min(1.0, 5 / max(target.stability, 1))))
@@ -847,7 +847,7 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
         for name in participants:
             civ = civ_map.get(name)
             if civ:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 if world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(civ_idx,
                         stability_shock=normalize_shock(5, civ.stability)))
@@ -889,7 +889,7 @@ def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
         absorber = civ_map.get(exile.absorber_civ)
         if absorber:
             if acc is not None:
-                absorber_idx = next(i for i, c in enumerate(world.civilizations) if c.name == absorber.name)
+                absorber_idx = civ_index(world, absorber.name)
                 acc.add(absorber_idx, absorber, "stability", -5, "signal")
             else:
                 absorber.stability = clamp(absorber.stability - 5, STAT_FLOOR["stability"], 100)
@@ -1041,7 +1041,7 @@ def apply_fallen_empire(world: WorldState, acc=None) -> list[Event]:
         if not _is_fallen_empire(civ):
             continue
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
         else:
             civ.asabiya = min(civ.asabiya + 0.05, 1.0)
@@ -1075,14 +1075,14 @@ def apply_twilight(world: WorldState, acc=None) -> list[Event]:
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
             if acc is not None:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "population", -3, "guard")
             else:
                 target_r = max(civ_regions, key=lambda r: r.population)
                 drain_region_pop(target_r, 3)
                 sync_civ_population(civ, world)
         if acc is not None:
-            civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+            civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "culture", -2, "signal")
         else:
             civ.culture = clamp(civ.culture - 2, STAT_FLOOR["culture"], 100)
@@ -1206,7 +1206,7 @@ def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
     for civ in living:
         if civ.military > 60:
             if acc is not None:
-                civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+                civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "stability", -2, "signal")
             else:
                 civ.stability = clamp(civ.stability - 2, STAT_FLOOR["stability"], 100)
@@ -1216,8 +1216,8 @@ def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
         richest = max(living, key=lambda c: c.economy)
         poorest = min(living, key=lambda c: c.economy)
         if acc is not None:
-            richest_idx = next(i for i, c in enumerate(world.civilizations) if c.name == richest.name)
-            poorest_idx = next(i for i, c in enumerate(world.civilizations) if c.name == poorest.name)
+            richest_idx = civ_index(world, richest.name)
+            poorest_idx = civ_index(world, poorest.name)
             acc.add(richest_idx, richest, "economy", 1, "guard")
             acc.add(poorest_idx, poorest, "economy", -1, "guard")
         else:
@@ -1272,7 +1272,7 @@ def resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> 
                            key=lambda rn: graph_distance(world.regions, target.capital_region, rn))
 
     if acc is not None:
-        civ_idx = next(i for i, c in enumerate(world.civilizations) if c.name == civ.name)
+        civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -8, "keep")
     else:
         civ.treasury -= 8
