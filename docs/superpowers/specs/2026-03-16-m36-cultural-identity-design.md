@@ -328,7 +328,7 @@ Report output: `docs/superpowers/analytics/m36-cultural-identity-report.md`. M47
 | `ffi.rs` | Extend RecordBatch schema with cultural value columns + new region batch columns. Update spawn FFI callers to pass cultural values. | ~25 |
 | `lib.rs` | Module export for `culture_tick` | ~2 |
 | `culture.py` | Replace `tick_cultural_assimilation()`, modify `apply_value_drift()`, add `compute_civ_cultural_profile()` | ~100 |
-| `agent_bridge.py` | Add `culture_investment_active` and `controller_values` to signal columns | ~15 |
+| `agent_bridge.py` | Add `culture_investment_active` and `controller_values_0/1/2` to per-region batch (`build_region_batch`) | ~15 |
 | `action_engine.py` | INVEST_CULTURE handler sets signal flag instead of direct mutation | ~10 |
 | Tests (Rust) | Tier 1 unit tests for distance, drift, penalty cap, env bias | ~120 |
 | Tests (Python) | Tier 1 initial assignment + Tier 2 regression harness | ~130 |
