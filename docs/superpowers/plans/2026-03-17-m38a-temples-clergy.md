@@ -405,7 +405,21 @@ class FactionState(BaseModel):
     )
 ```
 
-- [ ] **Step 5: Extract FACTION_FLOOR constant and update normalize_influence()**
+- [ ] **Step 5: Add FactionState backward compatibility for pre-M38a bundles**
+
+Add a Pydantic `model_validator` on `FactionState` that injects `CLERGY` at floor if missing when loading from saved bundles:
+
+```python
+@model_validator(mode="after")
+def _ensure_clergy(self) -> "FactionState":
+    if FactionType.CLERGY not in self.influence:
+        self.influence[FactionType.CLERGY] = 0.08  # floor
+    return self
+```
+
+This ensures civs loaded from pre-M38a bundles get clergy at the normalization floor rather than KeyError.
+
+- [ ] **Step 6: Extract FACTION_FLOOR constant and update normalize_influence()**
 
 In `factions.py`, add constant at module level (after imports, before dicts):
 
@@ -527,16 +541,20 @@ elif gp.role == "prophet":
     civ.factions.influence[FactionType.CLERGY] += 0.015  # M38a: was CULTURAL
 ```
 
-- [ ] **Step 5: Verify "clergy" succession type is handled downstream**
+- [ ] **Step 5: Add "clergy" to recognized succession types**
 
-Check `resolve_crisis_with_factions()` in `factions.py` (around line 496) for the `force_type` logic. It currently recognizes `"general"`, `"elected"`, `"heir"`, and `"usurper"`. Add `"clergy"` handling — clergy succession produces a leader with high loyalty trait:
+In `resolve_crisis_with_factions()` in `factions.py` (around line 496), find the `force_type` tuple that recognizes `("general", "elected", "heir", "usurper")`. Add `"clergy"` to this tuple.
+
+Then add clergy-specific leader traits in `generate_successor()` (or wherever force_type is consumed to set leader attributes). Per the spec (Decision 5), clergy succession produces a leader matching the priest-archetype:
 
 ```python
 elif force_type == "clergy":
-    new_leader.primary_trait = "diplomatic"  # clergy leaders favor diplomacy
+    new_leader.primary_trait = "cautious"  # institutional conservatism
+    # Spec: high loyalty, Tradition primary, Order secondary
+    # These are applied via the personality/cultural value systems if present
 ```
 
-If no `force_type` block exists for unknown types, verify the fallback behavior is acceptable.
+**Important:** Do NOT use `"diplomatic"` — the spec says high loyalty trait, Tradition, Order. The trait name should match whatever the existing succession system uses for conservative/institutional leaders. Read `generate_successor()` to find the correct trait vocabulary before writing this.
 
 - [ ] **Step 6: Run tests to verify they pass**
 
@@ -1134,7 +1152,7 @@ def compute_conversion_deltas(
     deltas = {}
     for region_id, curr_dist in current_beliefs.items():
         region = regions[region_id]
-        controller = getattr(region, 'controller_civ', None)
+        controller = getattr(region, 'controller', None)
         if controller is None:
             continue
         target_faith = civ_majority_faiths.get(controller, -1)
@@ -1384,11 +1402,11 @@ In `religion.py`, in `compute_conversion_signals()`, after computing the base `c
 
 ```python
 # M38a: temple conversion boost — faith-bound guard clause
+from chronicler.infrastructure import TEMPLE_CONVERSION_BOOST  # at function top
 for infra in region.infrastructure:
     if (infra.type == InfrastructureType.TEMPLES
             and infra.active
             and getattr(infra, 'faith_id', -1) == target_faith):
-        from chronicler.infrastructure import TEMPLE_CONVERSION_BOOST
         conversion_rate *= (1.0 + TEMPLE_CONVERSION_BOOST)
         break
 ```
@@ -1483,16 +1501,24 @@ CIV_PRESTIGE_PER_TEMPLE = 1  # [CALIBRATE]
 def tick_temple_prestige(world):
     """Per-turn: increment temple prestige and award civ prestige.
 
+    Civ prestige is awarded to the region controller, not the original builder.
+    After conquest, the conqueror inherits the temple and its prestige contribution.
     Note: temple_prestige is uncapped — accumulates indefinitely.
     M38b pilgrimage targeting consumes this value.
+
+    Phase 10 placement: prestige from temples is awarded one turn late because
+    it's computed alongside faction ticks in Phase 10, separate from Phase 6
+    cultural prestige awards. Acceptable because temple prestige is slow-moving
+    (+1/turn) and the one-turn delay has negligible behavioral impact.
     """
     civ_temple_counts = {}
     for region in world.regions:
+        controller = getattr(region, 'controller', None)
         for infra in region.infrastructure:
             if infra.type == IType.TEMPLES and infra.active:
                 infra.temple_prestige += TEMPLE_PRESTIGE_PER_TURN
-                civ_name = infra.builder_civ
-                civ_temple_counts[civ_name] = civ_temple_counts.get(civ_name, 0) + 1
+                if controller:
+                    civ_temple_counts[controller] = civ_temple_counts.get(controller, 0) + 1
 
     for civ in world.civilizations:
         count = civ_temple_counts.get(civ.name, 0)
@@ -1716,7 +1742,74 @@ git commit -m "test(m38a): integration tests for temple lifecycle and 4-faction 
 
 ---
 
-### Task 17: Verify WAR × clergy computation order
+### Task 17: Decision 9 regression baseline (Tier 2)
+
+**Files:**
+- Create: `test/test_m38a_regression.py`
+
+- [ ] **Step 1: Write the regression baseline test**
+
+Create `test/test_m38a_regression.py`. This is the primary safety net for the 3→4 faction renormalization:
+
+```python
+"""M38a Tier 2 regression: Decision 9 baseline.
+
+Verifies that adding clergy at floor with 0 events doesn't break
+existing 3-faction behavior beyond tolerance.
+"""
+import pytest
+from chronicler.models import FactionType, FactionState
+from chronicler.factions import normalize_influence, FACTION_FLOOR
+
+
+def test_decision9_action_distributions():
+    """With clergy at floor (0.08) and no clergy events, the remaining
+    3 factions' relative proportions should be within ±2% of the pre-M38a
+    3-faction baseline.
+
+    Method: create FactionState with CLERGY at floor, normalize, verify
+    that MIL:MER:CUL ratios are preserved within tolerance."""
+    # Simulate pre-M38a: 3-faction state
+    baseline = {FactionType.MILITARY: 0.40, FactionType.MERCHANT: 0.35, FactionType.CULTURAL: 0.25}
+    baseline_ratios = {ft: v / sum(baseline.values()) for ft, v in baseline.items()
+                       if ft != FactionType.CLERGY}
+
+    # Post-M38a: same 3-faction values + clergy at floor
+    fs = FactionState()
+    fs.influence = {
+        FactionType.MILITARY: 0.40,
+        FactionType.MERCHANT: 0.35,
+        FactionType.CULTURAL: 0.25,
+        FactionType.CLERGY: FACTION_FLOOR,
+    }
+    normalize_influence(fs)
+
+    # Check 3-faction ratios preserved within ±2%
+    non_clergy_total = sum(v for ft, v in fs.influence.items() if ft != FactionType.CLERGY)
+    for ft in [FactionType.MILITARY, FactionType.MERCHANT, FactionType.CULTURAL]:
+        actual_ratio = fs.influence[ft] / non_clergy_total
+        expected_ratio = baseline_ratios[ft]
+        assert abs(actual_ratio - expected_ratio) < 0.02, \
+            f"{ft}: ratio {actual_ratio:.3f} vs baseline {expected_ratio:.3f} exceeds ±2%"
+```
+
+- [ ] **Step 2: Run the regression test**
+
+Run: `python -m pytest test/test_m38a_regression.py -v`
+Expected: PASS
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add test/test_m38a_regression.py
+git commit -m "test(m38a): Decision 9 regression baseline for 3->4 faction renormalization"
+```
+
+Note: The full Tier 2 harness (200 seeds × 200 turns with succession match rate ≥95%, economy ±10%, etc.) requires end-to-end simulation runs and is best implemented as a follow-up once all production code is landed. This task covers the structural regression that validates the normalization change itself.
+
+---
+
+### Task 18: Verify WAR × clergy computation order
 
 **Files:** (no changes — verification only)
 
@@ -1739,7 +1832,7 @@ No code change — verification only. Add a comment to the test file if needed.
 
 ---
 
-### Task 18: Final cleanup and verification
+### Task 19: Final cleanup and verification
 
 - [ ] **Step 1: Run full Rust test suite**
 
