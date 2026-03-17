@@ -1,8 +1,8 @@
 # Chronicler Phase 6 Roadmap — Living Society
 
-> **Status:** Draft. Pending Phoebe architectural review.
+> **Status:** Reviewed. Phoebe architectural review applied 2026-03-16. Ready for spec work.
 >
-> **Phase 5 prerequisite:** All M25–M31 milestones landed. Oracle gate passed (M28). Agent narrative calibrated (M31). Performance targets met (M29).
+> **Phase 5 prerequisite:** All M25–M30 milestones landed. M31 deferred to M47 (full-system calibration). Oracle gate passed (M28). Performance targets met (M29).
 >
 > **Toolchain:** Same as Phase 5 — Python 3.12, Rust stable, pyo3-arrow, jemalloc (cfg-gated). Phase 6 adds `anthropic` SDK as optional dependency for API narration.
 
@@ -73,6 +73,30 @@ The existing trade route system (adjacency-based, disposition-gated, embargo-cap
 ### Decision 9: Religion Is a Fourth Faction, Not a Value Dimension
 
 Religion gets institutional power (temples, clergy influence, tithes) and its own faction weight competing with military/merchant/cultural. This is stronger than treating religion as another cultural value — it creates political tension between secular and religious authority, which is a primary driver of civilizational history.
+
+**Regression requirement (Phoebe review):** Before wiring clergy into factions.py, establish a baseline regression test: with clergy influence forced to 0 and 3-faction normalization, behavior must be bit-identical to Phase 5. Renormalization from 3→4 factions (0.10 floor → 0.08 floor) costs each existing faction ~2.5% base influence, which shifts succession outcomes and action weights subtly.
+
+### Decision 10: Satisfaction Penalty Budget (Phoebe Review)
+
+Phase 6 adds multiple satisfaction penalties that stack: cultural mismatch (M36), religious mismatch (M37), persecution (M38), on top of existing ecological stress. The branchless formula clamps to [0.0, 1.0], but mass floor-hitting causes cascading rebellions that destabilize the simulation.
+
+**Design-time cap:** Total non-ecological satisfaction penalties (cultural + religious + persecution + class tension) capped at -0.4. This guarantees at least 0.1 headroom above the rebellion threshold (0.2) even in worst-case scenarios where ecology is neutral (1.0). Wire this cap into `satisfaction.rs` at M36 (when the first non-ecological penalty is added). M47 tunes individual penalty weights within this budget, not the budget itself.
+
+### Decision 11: RNG Stream Registry (Phoebe Review)
+
+Phase 5 uses ChaCha8Rng with stream splitting per region per turn. Phase 6 adds cultural drift, conversion, goods allocation, and personality assignment — each needing separate streams. Define a central `STREAM_OFFSETS` constant block in `agent.rs` to prevent collisions:
+
+```
+DECISION_STREAM_OFFSET     = 0
+DEMOGRAPHICS_STREAM_OFFSET = 100
+MIGRATION_STREAM_OFFSET    = 200
+CULTURE_DRIFT_OFFSET       = 500
+CONVERSION_STREAM_OFFSET   = 600
+PERSONALITY_STREAM_OFFSET  = 700
+GOODS_ALLOC_STREAM_OFFSET  = 800
+```
+
+Add this at M32 (first new RNG consumer) and extend as systems land.
 
 ---
 
@@ -233,6 +257,8 @@ if reserves < 0.1: current_yield = base_yield × 0.1  // exhausted
 
 Worker count = agents with relevant occupation. Farmers work crops. There is no Miner occupation — farmers assigned to mineral-producing regions are treated as miners for extraction purposes (the occupation represents physical labor, not crop-specific farming). Soldier presence in mining regions provides a protection bonus (reduced raid risk). Extraction rate scales linearly with workforce up to a cap.
 
+**Forward dependency (Phoebe review):** The farmer-as-miner abstraction works for extraction, but M41 (wealth) needs to dispatch wealth calculation by resource type, not occupation alone. A "farmer" mining silver should earn at the mineral extraction rate, not the crop rate. M41's spec must account for this.
+
 ### Rust-Side Changes
 
 `RegionState` gains new fields:
@@ -275,9 +301,9 @@ Season, climate_phase, resource_yields, and resource_reserves are computed Pytho
 
 ---
 
-## M35: Rivers, Disease & Environmental Events
+## M35a: Rivers & Trade Corridors
 
-**Goal:** Add river systems as trade/migration corridors, endemic disease as ongoing demographic pressure, resource depletion feedback loops, and environmental events that disrupt regional economies.
+**Goal:** Add river systems as a second adjacency layer providing trade/migration corridors and upstream-downstream ecological coupling.
 
 ### River Systems
 
@@ -288,6 +314,33 @@ Rivers as a second adjacency layer connecting non-neighboring regions:
 - **Trade corridors:** Trade routes along rivers get 0.5× transport cost (M43). This makes river regions natural trade hubs.
 - **Migration corridors:** Migration along rivers has reduced utility threshold — agents prefer following waterways.
 - **Upstream-downstream coupling:** Deforestation (forest_cover < 0.2) in an upstream river region → water loss (-0.05/turn) in downstream regions. Creates cascading ecology where mismanagement upstream devastates downstream.
+
+### Rust-Side Changes
+
+`RegionState` gains:
+
+```rust
+pub river_mask: u32,              // river adjacency bitmask
+```
+
+### Validation
+
+- **River geography:** River regions have higher water, carrying capacity, and trade value than non-river neighbors.
+- **Cascading effects:** Upstream deforestation produces measurable water loss in downstream river regions.
+
+### Deliverables
+
+- River system definition in scenario format + world gen assignment
+- River adjacency on RegionState (Rust: `region.rs`)
+- Upstream-downstream deforestation coupling (Python: `ecology.py`)
+- Migration corridor utility modifier (Rust: `behavior.rs`)
+- Tests: river bonuses, cascading ecology, migration corridor preference
+
+---
+
+## M35b: Disease, Depletion & Environmental Events
+
+**Goal:** Add endemic disease as ongoing demographic pressure, resource depletion feedback loops, and environmental events that disrupt regional economies.
 
 ### Endemic Disease
 
@@ -311,7 +364,7 @@ Agent mortality in `demographics.rs` reads regional disease severity as a separa
 ### Resource Depletion Feedback
 
 - **Monoculture penalty:** Region producing only 1 crop type for 50+ consecutive turns → soil degradation rate doubles. Crop rotation (2+ crop types) → 0.5× degradation rate.
-- **Deforestation cascade:** Forest loss in upstream river region → water loss downstream (described above).
+- **Deforestation cascade:** Forest loss in upstream river region → water loss downstream (covered in M35a).
 - **Overgrazing/overfishing:** If extraction rate exceeds sustainable yield for 20+ turns, base_yield permanently decreases by 10%. Creates irreversible environmental damage.
 
 ### Environmental Events
@@ -321,7 +374,7 @@ New events integrated into emergence system:
 | Event | Trigger | Effect | Duration |
 |-------|---------|--------|----------|
 | Locust swarm | Plains/desert, summer, crop yield > 0.5 | Crop yield → 0 in target region | 3-5 turns |
-| Flood | River region, spring, water > 0.8 | Destroy infrastructure; +0.2 soil (silt deposit) | 1 turn |
+| Flood | River region (M35a), spring, water > 0.8 | Destroy infrastructure; +0.2 soil (silt deposit) | 1 turn |
 | Mine collapse | Mountain region, reserves < 0.3 | Extraction halved; 5-10 agent deaths | 10 turns |
 | Drought intensification | Existing drought phase + summer | Carry capacity halved temporarily | 6 turns |
 
@@ -330,32 +383,22 @@ New events integrated into emergence system:
 `RegionState` gains:
 
 ```rust
-pub river_mask: u32,              // river adjacency bitmask
 pub disease_severity: f32,        // 0.0-1.0 endemic disease level
 ```
 
-(Resource reserves already added in M34.)
-
-### Scope Note
-
-M35 combines four subsystems (rivers, disease, depletion feedback, environmental events). If implementation planning reveals this is too large for a single milestone, split into M35a (rivers + river trade corridors) and M35b (disease + depletion + environmental events). The roadmap keeps them together because they share the "material world consequences" theme, but the implementation plan should chunk them with review gates between.
-
 ### Validation
 
-- **River geography:** River regions have higher water, carrying capacity, and trade value than non-river neighbors.
 - **Disease demographics:** Regions with high endemic severity show 2-5% higher mortality than clean regions over 500 turns.
 - **Depletion:** Monoculture regions degrade faster than diversified regions (measurable soil difference after 100 turns).
-- **Cascading effects:** Upstream deforestation produces measurable water loss in downstream river regions.
 
 ### Deliverables
 
-- River system definition in scenario format + world gen assignment
 - Endemic disease computation in ecology tick (Python: `ecology.py`)
 - Disease severity on RegionState (Rust: `region.rs`)
 - Mortality modifier integration (Rust: `demographics.rs`)
 - Environmental events in emergence system (Python: `emergence.py`)
-- Monoculture/deforestation feedback loops (Python: `ecology.py`)
-- Tests: river bonuses, disease demographics, depletion feedback, cascading ecology
+- Monoculture/overfishing feedback loops (Python: `ecology.py`)
+- Tests: disease demographics, depletion feedback, environmental event triggers
 
 ---
 
@@ -487,9 +530,9 @@ New casus belli for the action engine:
 
 ---
 
-## M38: Religious Institutions & Schisms
+## M38a: Temples & Clergy Faction
 
-**Goal:** Add institutional religious power — temples, clergy political influence, schisms, pilgrimages, and persecution — making religion a political force, not just a cultural attribute.
+**Goal:** Add institutional religious power — temples and clergy as a fourth political faction competing with military/merchant/cultural.
 
 ### Temples
 
@@ -516,6 +559,42 @@ High clergy influence modifies:
 
 Faction influence normalization extends from 3 to 4 factions (0.08 floor per faction, sum to 1.0). Rust-side changes required: new `faction_clergy: f32` field on `CivSignals`, new Arrow column in FFI schema, `dominant_faction` match in `tick.rs` extended to handle value `3`, occupation-match extended to map Priest (occ=4) to clergy faction. Python-side: `factions.py` normalization updated from floor 0.10/3 factions to floor 0.08/4 factions.
 
+**Regression requirement (Decision 9):** Before wiring clergy, establish baseline: clergy influence = 0 + 3-faction normalization must produce Phase 5-identical behavior.
+
+### Validation
+
+- **Institutional power:** Civs with temples convert faster than those without. Clergy influence visible in succession outcomes.
+- **Faction regression:** With clergy influence forced to 0, three original factions behave identically to Phase 5.
+
+### Clergy Influence Events
+
+Clergy influence shifts via events in `tick_factions()`, matching the event-driven pattern of the other three factions. The roadmap formula (`sum(priest_loyalty × priest_count) / total_civ_population`) describes the target correlation, not the M38a computation method. Agent-derived faction influence for all four factions is a candidate for M47 or Phase 7.
+
+| Event | Shift | Detection Location |
+|-------|-------|--------------------|
+| Temple built | +0.03 | Phase 5 (`infrastructure.py`) |
+| Conversion success (per-civ, max +0.01/turn, ≥5% threshold) | +0.01 | Phase 10 (`religion.py` — snapshot analysis) |
+| Holy war won (Militant conquest of different-faith region) | +0.04 | Phase 5 (`action_engine.py`) |
+| Temple destroyed (conquest or BUILD replacement) | -0.03 | Phase 5 (`infrastructure.py`) |
+| Priest population loss (per 5% above baseline) | -0.01 | Phase 10 (`religion.py` — demographics delta) |
+
+Conversion success and priest-loss detection require the agent snapshot and do not fire in `--agents=off` mode. In `--agents=off`, clergy influence shifts are limited to temple and conquest events — clergy climbs more slowly, which is acceptable given the Decision 9 regression baseline captures `--agents=off` behavior before clergy is wired.
+
+### Deliverables
+
+- Temple infrastructure type with `faith_id` and `temple_prestige` (Python: `infrastructure.py`)
+- Fourth faction (clergy) with influence normalization (Python: `factions.py`)
+- Clergy influence event detection: temple/conquest events in `infrastructure.py`, conversion success and priest-loss in `religion.py` (Phase 10 snapshot analysis)
+- Clergy faction in Rust: `faction_clergy` field, Arrow column, `dominant_faction` extension
+- Baseline regression test (clergy=0, 3-faction equivalence)
+- Tests: temple effects, clergy influence on succession and action weights, tithe mechanics
+
+---
+
+## M38b: Schisms, Pilgrimages & Persecution
+
+**Goal:** Add emergent religious dynamics — schisms split faiths, pilgrimages create character arcs, persecution drives migration and rebellion.
+
 ### Schisms
 
 When agents within a civ hold divergent beliefs (>30% minority faith in any region):
@@ -532,7 +611,7 @@ Schisms create the conditions for civil war and secession — a region that hold
 
 Named characters with high loyalty + priest occupation (or any occupation with Loyal > 0.5 personality) may pilgrimage:
 
-- **Destination:** Highest-prestige temple region in their faith
+- **Destination:** Highest-prestige temple region in their faith (requires M38a temples)
 - **Mechanism:** Migration event with special flag (not counted as displacement)
 - **During pilgrimage:** Agent is in destination region, gains +0.15 satisfaction
 - **Return (after 5-10 turns):** Skill boost (+0.1 to current occupation), potential Prophet bypass promotion trigger
@@ -543,30 +622,23 @@ Named characters with high loyalty + priest occupation (or any occupation with L
 When a civ's dominant faith differs from a region's majority faith:
 
 - **Persecution intensity:** `Militant_doctrine × (1 - minority_ratio)` — stronger doctrine + smaller minority = harsher persecution
-- **Agent effects:** Persecuted agents get satisfaction penalty (-0.15), increased rebel utility (+0.3), increased migrate utility (+0.2)
+- **Agent effects:** Persecuted agents get satisfaction penalty (-0.15), increased rebel utility (+0.3), increased migrate utility (+0.2). **Note:** Persecution penalty counts toward the -0.4 non-ecological satisfaction budget (Decision 10).
 - **Mass persecution:** If >20 agents persecuted in same region → mass migration event (refugee wave, importance 6)
 - **Named event:** "Persecution of [faith] in [region]" (importance 6)
 - **Death overrides:** Persecution deaths get special narrative treatment (martyrdom → increases convert rate for that faith post-mortem)
 
-### Scope Note
-
-M38 combines five mechanics (temples, clergy faction, schisms, pilgrimages, persecution). If implementation planning reveals this is too large, split into M38a (temples + clergy faction) and M38b (schisms + pilgrimages + persecution). Temples and clergy are the institutional foundation; schisms/pilgrimages/persecution are emergent dynamics that build on it.
-
 ### Validation
 
-- **Institutional power:** Civs with temples convert faster than those without. Clergy influence visible in succession outcomes.
 - **Schism dynamics:** Schisms correlate with multi-region civs holding diverse populations. Small homogeneous civs rarely schism.
 - **Persecution cascades:** Militant persecution of a minority produces observable migration waves and rebel spikes.
 - **Pilgrimage frequency:** 1-3 pilgrimages per 500-turn run per faith. `[CALIBRATE]`
 
 ### Deliverables
 
-- Temple infrastructure type (Python: `simulation.py`)
-- Fourth faction (clergy) with influence normalization (Python: `factions.py`)
 - Schism detection and faith splitting logic (Python: new `religion.py` or `culture.py` extension)
 - Pilgrimage mechanics in agent bridge
-- Persecution effects on satisfaction and utility
-- Tests: institutional effects, schism triggers, persecution cascades, pilgrimage frequency
+- Persecution effects on satisfaction and utility (within Decision 10 budget)
+- Tests: schism triggers, persecution cascades, pilgrimage frequency
 
 ---
 
@@ -717,7 +789,7 @@ Per-tick wealth change based on occupation, resource context (M34), and market c
 | Soldier | War spoils (if region contested or civ at war) | `SOLDIER_SPOILS` if at_war, else 0 |
 | Merchant | Trade route count × undersupply bonus × goods value | `MERCHANT_INCOME × (1 + undersupply_ratio) × goods_factor` |
 | Scholar | Flat rate (institutional support) | `SCHOLAR_INCOME` `[CALIBRATE]` |
-| Priest | Flat rate + satisfaction bonus + tithe share (M38) | `PRIEST_INCOME + mean_satisfaction × 0.5` |
+| Priest | Flat rate + satisfaction bonus + tithe share (M38a) | `PRIEST_INCOME + mean_satisfaction × 0.5 + TITHE_RATE × compute_tithe_base(civ) / priest_count` |
 
 Wealth decays by `WEALTH_DECAY` per turn (upkeep/consumption). Clamped to [0.0, `MAX_WEALTH`].
 
@@ -735,12 +807,16 @@ Extend the existing per-region supply/demand occupation ratio with resource-spec
 Per-civ Gini coefficient computed from agent wealth distribution (O(n log n) sort, once per turn per civ):
 
 - High Gini (>0.6): rebellion utility boost for low-wealth agents. "The poor rebel against the rich."
-- Very high Gini (>0.8): `class_tension` shock signal to satisfaction formula
+- Very high Gini (>0.8): `class_tension` shock signal to satisfaction formula. **Note:** Class tension penalty counts toward the -0.4 non-ecological satisfaction budget (Decision 10).
 - Gini reported in analytics and available in `AgentContext` for narration
+
+**Implementation note (Phoebe review):** Compute Gini Python-side from the snapshot RecordBatch rather than Rust-side. The snapshot already crosses FFI; sorting 1K floats in numpy is trivial and avoids per-civ temporary allocations in Rust. The `class_tension` signal feeds back to Rust via the existing shock signal path.
 
 ### Treasury Integration
 
 Civ-level treasury gains a tax component: `TAX_RATE × sum(merchant_wealth_in_civ)`. This replaces part of the aggregate income calculation in agent mode, making treasury partially agent-derived. War destruction reduces soldier wealth; famine reduces farmer wealth — these cascade into treasury via reduced tax base.
+
+**M38a dependency:** Priest wealth includes a tithe share — `TITHE_RATE × compute_tithe_base(civ) / priest_count`. M41 reads M38a's `compute_tithe_base()` helper (which M41 also swaps from `trade_income` to `sum(merchant_wealth)`) and divides the total tithe equally among the civ's priests. This creates a feedback loop: more merchant wealth → higher tithes → wealthier priests → higher clergy satisfaction → more priests → higher clergy influence. The loop is dampened by the tithe rate (5-15% of base) and priest count (dividing among more priests reduces per-priest share).
 
 ### Deliverables
 
@@ -1269,23 +1345,25 @@ Phase 6 creates multi-system feedback chains that need careful tuning:
 
 | Milestone | Est. Days | Risk | Notes |
 |-----------|----------|------|-------|
-| M32 Utility Decisions | 5–7 | Medium | Utility tuning is iterative; regression against Phase 5 |
+| M32 Utility Decisions | 5–7 | Medium | Utility tuning is iterative; regression against Phase 5. Add STREAM_OFFSETS (Decision 11). |
 | M33 Personality | 4–6 | Medium | Personality × utility interaction: large parameter space |
-| M34 Resources & Seasons | 5–7 | Medium | Extends ecology.py; resource type registry and yield formulas |
-| M35 Rivers, Disease & Events | 5–7 | Medium–High | River topology at world gen; disease integration with demographics |
-| M36 Cultural Identity | 5–7 | Medium–High | Touches existing Phase 3 culture.py code |
+| M34 Resources & Seasons | 5–7 | Medium | Extends ecology.py; resource type registry and yield formulas. Farmer-as-miner → M41 forward dep. |
+| M35a Rivers & Trade Corridors | 3–4 | Medium | River topology at world gen; upstream-downstream coupling |
+| M35b Disease, Depletion & Events | 3–4 | Medium | Disease integration with demographics; mortality_rate signature change |
+| M36 Cultural Identity | 5–7 | Medium–High | Touches existing Phase 3 culture.py code. Wire satisfaction budget cap (Decision 10). |
 | M37 Belief Systems | 5–7 | Medium | New system but clean integration points via satisfaction + utility |
-| M38 Religious Institutions | 5–7 | Medium–High | Fourth faction modifies political dynamics; schism logic is complex |
+| M38a Temples & Clergy Faction | 3–4 | Medium–High | Fourth faction modifies political dynamics; regression baseline required (Decision 9) |
+| M38b Schisms, Pilgrimages & Persecution | 3–4 | Medium | Emergent dynamics on M38a foundation; persecution within sat budget |
 | M39 Family & Lineage | 4–6 | Low–Medium | Structurally simple; dynasty detection has edge cases |
 | M40 Social Networks | 4–6 | Medium | Formation rules need careful scoping |
-| M41 Wealth & Markets | 5–7 | Medium–High | Economic integration affects treasury and action weights |
+| M41 Wealth & Markets | 5–7 | Medium–High | Economic integration affects treasury and action weights. Gini computed Python-side. |
 | M42 Goods & Trade | 5–7 | Medium | New goods model but builds on existing trade route infrastructure |
-| M43 Transport & Shocks | 5–7 | Medium–High | Shock propagation is the most complex new algorithm |
-| M44 API Narration | 3–4 | Low | AnthropicClient exists; mostly wiring and quality comparison |
+| M43 Transport & Shocks | 5–7 | Medium–High | Shock propagation is the most complex new algorithm. Conservation law test here (not M42). |
+| M44 API Narration | 3–4 | Low | AnthropicClient exists; mostly wiring and quality comparison. Free-floating — can schedule flexibly. |
 | M45 Character Arcs | 4–5 | Medium | Arc classification is heuristic; new archetypes for religion |
 | M46 Viewer | 7–9 | Medium | Largest viewer milestone; ~2000 lines TS |
-| M47 Tuning | 4–6 | Low–Medium | More constants to tune but proven pattern (M19b/M31) |
-| **Total** | **75–105** | | ~3× Phase 5 scope |
+| M47 Tuning | 4–6 | Low–Medium | More constants to tune but proven pattern (M19b/M31). Includes deferred M31 constants. |
+| **Total** | **77–111** | | 18 milestones (~3× Phase 5 scope) |
 
 ---
 
@@ -1304,28 +1382,126 @@ Phase 6 creates multi-system feedback chains that need careful tuning:
 | Endemic disease makes all regions unlivable | Medium | Disease severity capped; interaction with water quality provides player agency via irrigation |
 | Phase 6 tick time exceeds targets at 50K+ agents | Medium | M29 Phase B (SIMD) available; utility computation is embarrassingly parallel |
 | Phase 3 code integration (culture.py, economics) introduces regressions | High | Bit-identical regression test for `--agents=off`; shadow comparison for hybrid mode |
-| 16-milestone phase is too large to manage | Medium | Each milestone is independently shippable; natural review gates between system pairs |
+| 18-milestone phase is too large to manage | Medium | Each milestone is independently shippable; natural review gates between system pairs. M35/M38 split reduces per-milestone integration risk. |
+| Satisfaction stacking destabilizes simulation | Medium | Decision 10 caps non-ecological penalties at -0.4; wired at M36; individual weights tuned in M47 |
+
+---
+
+## Code Health Notes
+
+Items identified during external code review (2026-03-17) that don't warrant immediate action but should be addressed at the noted milestones.
+
+**M42 — Wire `trade_route_count` into region batch.** `build_region_batch()` in agent_bridge.py sends hardcoded zeros for `trade_route_count`. The Rust side reads this for merchant satisfaction (`satisfaction.rs`: `0.4 + (trade_routes as f32 / 3.0).min(1.0) * 0.3`). When M42 implements trade routes, wire real per-region trade route counts into the batch. Merchants currently receive no trade-route satisfaction bonus.
+
+**M47 — Evaluate `analytics.py` size.** At 1500 lines, it's the largest Python file. Functions are genuinely independent (per-metric extractors with no shared state). If it grows further during Phase 6, consider splitting by metric category (economy, demographics, culture, religion). Not urgent — the functions don't interact.
+
+**M47 — Consider `civ_index()` caching.** The centralized `civ_index()` helper (added 2026-03-17 cleanup) does an O(N) scan over `world.civilizations`. At N=4-12 this is negligible. If civ count exceeds ~20 (e.g. via M38b schism-spawned successor states), add a `_civ_name_to_idx: dict[str, int]` cache on WorldState, invalidated on civ list mutation.
 
 ---
 
 ## Phase 7 Considerations
 
-Ideas evaluated during Phase 6 planning that were deferred as out-of-scope.
+Ideas evaluated during Phase 6 planning that were deferred as out-of-scope, plus architectural notes toward the long-term goal of saturating the 9950X (16C/32T, 192GB DDR5) on a single seed.
 
-### Marriage & Household Economics
-Spousal relationships, household income pooling, marriage alliances between named characters across civs. Deferred because: single-parent lineage (M39) captures the key narrative arc (dynasty) without the economic modeling complexity of households.
+### Phase 7 Theme: Deep Society — Saturating the Hardware
 
-### Agent-Level Diplomacy
+Phase 6 ends with ~50K agents at ~68 bytes each, tick time ~1.9ms, using 2-3 cores. The 9950X is idle >95% of the time. Phase 7 transforms agents from isolated decision-makers in abstract regions into spatially-aware members of emergent institutions, targeting 500K-1M agents with 50-200ms parallel tick across 12-16 cores.
+
+**Scale targets:**
+
+| Phase | Agents | Bytes/agent | Per-tick compute | Core utilization |
+|-------|--------|-------------|------------------|-----------------|
+| 5 | 3-6K | 44 | ~0.25ms | 1 core |
+| 6 | 10-50K | 68 | ~1.9ms | 2-3 cores |
+| 7 | 500K-1M | ~180 | 50-200ms | 12-16 cores |
+
+The jump from 68 to ~180 bytes/agent reflects agent interiority (memory, needs, deep relationships) — see "Agent Interiority" section below. At 1M agents × 180 bytes = 180MB total pool, well within L3 cache miss territory but trivial for 192GB DDR5. The compute cost scales with agent count, not bytes — memory/needs are O(1) per agent, relationships are O(k) where k=8.
+
+### Compute-Hungry Systems (Phase 7 Candidates)
+
+**Spatial positioning within regions (~4 bytes/agent, O(n) neighbor checks):**
+Agents get continuous (x,y) within their region. Proximity drives social influence, disease transmission, resource access. Each agent checks ~20-50 neighbors per tick. At 500K agents, 10-25M proximity checks per tick — parallelizable, cache-friendly, fills cores.
+
+**Marriage market & households (O(n) matching per region):**
+Pair matching within regions. Household income pooling, inheritance, joint migration decisions. Extends M39 single-parent lineage into full family units. 250K eligible agents × matching = significant per-tick compute.
+
+**Settlement emergence (clustering per tick):**
+Agents cluster into proto-cities based on density. Urban/rural distinction creates different economic and social dynamics. DBSCAN-like clustering on spatial positions — O(n log n) per region. Cities emerge from agent behavior, not from scripted thresholds.
+
+**Agent-level trade (merchant pathfinding):**
+Instead of abstract trade routes, merchant agents physically carry goods along paths. Route planning, load optimization, arbitrage decisions. Each merchant evaluates ~5-10 routes per tick. Extends M42-M43 supply chain into agent-level economic simulation.
+
+**Military units (tactical agent groups):**
+Armies are groups of soldier agents that march, siege, fight. Battle resolution depends on terrain, supply lines, morale, formation. Turns WAR action from an abstract roll into a mini-wargame grounded in agent state.
+
+**Information propagation (graph algorithms):**
+Agents pass rumors, trade offers, threat warnings through social edges. BFS/diffusion across agent networks — O(edges) per tick. At 500K agents with ~5 edges each, 2.5M edge traversals per tick.
+
+### Agent Interiority — The Depth Unlock
+
+Phase 6 gives agents traits, values, beliefs, and occupations. Phase 7 gives them *inner lives*. This is the difference between a statistical population model and a society simulator. Three systems, all Rust-side SoA extensions:
+
+**Agent memory (~32 bytes/agent, O(1) per tick):**
+Ring buffer of last N events with emotional valence and decay. Each memory is packed: `event_type(u8) + actor_id(u16) + turn(u16) + intensity(i8) + decay_rate(u8)` = 8 bytes × 4 memories = 32 bytes. Memories decay per tick (intensity × decay_rate). Memories feed satisfaction (grief from deaths, pride from victories), decision utility (agent who survived a holy war has modified WAR utility), relationship formation (shared trauma bonds agents), and named character arcs (a convert who remembers persecution becomes a prophet). At 500K agents × 32 bytes = 16MB — trivial. The compute cost is the interaction: memories modify satisfaction, utility weights, and conversion susceptibility, adding ~3-5 conditional reads per agent per tick.
+
+**Needs system (~32 bytes/agent, O(1) per tick):**
+6-8 needs (spiritual, social, safety, material comfort, autonomy, purpose) as f32 floats that decay per tick and are restored by conditions. Unmet needs shift utility weights — a spiritually starved agent overvalues temples, a socially isolated agent seeks community, a safety-deprived agent prioritizes migration. Needs create *individual motivation* distinct from satisfaction (which is aggregate well-being). An agent can have high satisfaction but unmet spiritual need — they're materially comfortable but seeking meaning. At 8 × 4 bytes = 32 bytes/agent, 500K agents = 16MB. Per-tick cost: 8 decay operations + condition checks = negligible. The value is in emergent behavior diversity — agents with identical traits but different need states make different decisions.
+
+**Deep relationships (~48 bytes/agent, O(k) per tick where k=8):**
+Per-agent relationship graph: top 8 relationships stored as packed `(target_id: u32, sentiment: i8, bond_type: u8)` = 6 bytes × 8 = 48 bytes. Bond types: kin, mentor, rival, friend, co-religionist, grudge. Relationships form through shared region + shared events (requires memory system), shared faith, family (M39). Sentiment drifts based on ongoing interactions. Grudge bonds persist across generations via BirthInfo — a noble family whose ancestor was executed carries the grudge for 2-3 generations, modifying disposition toward the killer's civ. At 500K agents × 48 bytes = 24MB. Per-tick: 8 sentiment updates = negligible. The cost is in formation/dissolution: checking shared events, proximity, faith alignment each tick for potential new bonds.
+
+**Artifacts and significant items (per-civ, not per-agent):**
+Not per-sock like DF. Significant items only: holy relics, hereditary weapons, trade luxury goods, works of art. Each artifact has an origin story (creator, turn, event), current holder, and history chain. Temple artifacts increase prestige. Inherited weapons carry family legacy. Captured relics are casus belli. ~50-200 artifacts per civ, stored Python-side (low volume, high narrative value). Artifacts bridge agent interiority and civilization narrative — "the sword forged by the first prophet, carried through 3 wars, now held by a general who doesn't share the faith."
+
+**Combined memory budget for agent interiority:**
+
+| System | Bytes/agent | At 500K | At 1M |
+|--------|-------------|---------|-------|
+| Phase 6 baseline | ~68 | 34MB | 68MB |
+| Memory ring buffer | ~32 | 16MB | 32MB |
+| Needs system | ~32 | 16MB | 32MB |
+| Deep relationships | ~48 | 24MB | 48MB |
+| **Phase 7 total** | **~180** | **90MB** | **180MB** |
+
+180MB for 1M agents with inner lives. The 192GB DDR5 is 1,000× headroom.
+
+### Amdahl's Law: Python → Rust Migration
+
+The serial bottleneck is Python phases 1-9. Phase 7 would migrate the heaviest Python phases to Rust with rayon:
+
+- **Ecology tick** → Rust (per-region, embarrassingly parallel)
+- **Economy tick** → Rust (trade route computation becomes agent-level)
+- **Politics tick** → Rust (secession/federation checks read agent distributions directly)
+
+Python loop becomes orchestration only — call Rust for each phase, collect results, feed to narrator. The 10-phase structure stays; execution moves to Rust.
+
+### 192GB DDR5 Utilization
+
+At 1M agents × 96 bytes = 96MB agent pool. With spatial indices, trade graphs, social networks, settlement structures: ~500MB-1GB total simulation state. The 192GB enables:
+
+- **Multi-seed parallelism:** 32 seeds simultaneously (32 × 1GB = 32GB)
+- **Full history retention:** 1M agents × 500 turns × key fields for deep narrative cross-reference
+- **Narration context:** Complete chronicle in memory for API narration with full callback support
+
+### Deferred Items (from Phase 6 Planning)
+
+**Marriage & Household Economics:**
+Spousal relationships, household income pooling, marriage alliances between named characters across civs. Deferred because: single-parent lineage (M39) captures the key narrative arc (dynasty) without the economic modeling complexity of households. Phase 7 revisits with spatial proximity enabling realistic pair formation.
+
+**Agent-Level Diplomacy:**
 Named characters negotiating on behalf of civs — envoys, hostage exchanges, marriage alliances. Deferred because: the aggregate diplomacy system (Phase 3) handles inter-civ relations; agent diplomacy would need to integrate with disposition, treaties, and federation mechanics simultaneously.
 
-### Procedural Scenario Generation
-Algorithmically generated maps with terrain constraints, resource placement rules, and narrative seeds. Deferred because: the YAML scenario system works; procedural generation is an orthogonal feature.
+**Procedural Scenario Generation:**
+Algorithmically generated maps with terrain constraints, resource placement rules, and narrative seeds. Deferred because: the YAML scenario system works; procedural generation is an orthogonal feature. Phase 7's continuous terrain would make procedural generation more natural (heightmap + erosion → rivers → resource placement).
 
-### Multiplayer / Shared World
+**Multiplayer / Shared World:**
 Multiple users controlling different civs in the same simulation. Deferred because: this is an entirely different product architecture (networking, conflict resolution, UI redesign).
 
-### Metamodel Validation
-Surrogate model of the ABM for response surface comparison. Deferred because: internal consistency tests (M47) are sufficient for the current model complexity.
+**Metamodel Validation:**
+Surrogate model of the ABM for response surface comparison. Deferred because: internal consistency tests (M47) are sufficient for the current model complexity. At 500K+ agents, metamodel validation becomes more valuable for parameter space exploration.
 
-### Agent-Scale Scaling (100K+)
-Scaling beyond 50K agents to 100K+ for city-level simulation detail. Deferred because: 50K agents with Phase 6 systems already provides extraordinary detail per seed. 100K+ may require architectural changes (spatial partitioning, GPU compute) that are better evaluated after Phase 6 lands.
+**Multi-Generational Memory:**
+Dynasties that remember ancestral grievances. When an agent dies, their strongest memories (top 2 by intensity) are compressed into a `legacy_memory` on their children via BirthInfo. A noble family whose great-grandfather was executed by a rival civ carries a grudge bond for 2-3 generations, modifying disposition and WAR utility toward that civ. Requires the agent memory system as prerequisite. The narrative payoff is enormous — "this war was started because of an execution 80 turns ago" — and the compute cost is negligible (2 extra memory slots per birth event).
+
+**Agent-Scale Scaling (100K+):**
+Core Phase 7 goal. M29 Phase B (SIMD verification, decision short-circuit tuning) activates here. Spatial partitioning and cache optimization become mandatory at 500K+ agents (pool exceeds L2, per-region exceeds L1).
