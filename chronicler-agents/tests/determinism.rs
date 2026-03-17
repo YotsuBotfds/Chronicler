@@ -27,6 +27,7 @@ fn make_test_regions() -> Vec<RegionState> {
             conversion_target_belief: 0xFF,
             conquest_conversion_active: false,
             majority_belief: 0xFF,
+            has_temple: false,
         })
         .collect()
 }
@@ -54,6 +55,7 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 mean_boldness: 0.0,
                 mean_ambition: 0.0,
                 mean_loyalty_trait: 0.0,
+                faction_clergy: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i == 1 || i == 3).collect(),

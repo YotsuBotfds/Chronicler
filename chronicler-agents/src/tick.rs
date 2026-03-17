@@ -575,6 +575,7 @@ mod tests {
             conversion_target_belief: 0xFF,
             conquest_conversion_active: false,
             majority_belief: 0xFF,
+            has_temple: false,
         }
     }
 
@@ -601,6 +602,7 @@ mod tests {
                     mean_boldness: 0.0,
                     mean_ambition: 0.0,
                     mean_loyalty_trait: 0.0,
+                    faction_clergy: 0.0,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],

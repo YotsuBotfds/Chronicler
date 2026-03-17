@@ -14,6 +14,7 @@ pub struct CivSignals {
     pub faction_military: f32,
     pub faction_merchant: f32,
     pub faction_cultural: f32,
+    pub faction_clergy: f32,
     // M27 additions:
     pub shock_stability: f32,
     pub shock_economy: f32,
@@ -68,6 +69,11 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         .as_any().downcast_ref::<Float32Array>()
         .ok_or_else(|| ArrowError::CastError("faction_cultural not Float32".into()))?;
 
+    // M38a optional column — default to 0.0 if absent
+    let faction_clergy_col = batch
+        .column_by_name("faction_clergy")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+
     // M27 optional columns — default to 0.0 if absent
     let shock_stability_col = batch.column_by_name("shock_stability")
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
@@ -104,6 +110,7 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             faction_military: fac_mil.value(i),
             faction_merchant: fac_mer.value(i),
             faction_cultural: fac_cul.value(i),
+            faction_clergy: faction_clergy_col.map_or(0.0, |c| c.value(i)),
             shock_stability: shock_stability_col.map(|a| a.value(i)).unwrap_or(0.0),
             shock_economy: shock_economy_col.map(|a| a.value(i)).unwrap_or(0.0),
             shock_military: shock_military_col.map(|a| a.value(i)).unwrap_or(0.0),

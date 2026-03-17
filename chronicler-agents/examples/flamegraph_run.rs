@@ -53,6 +53,7 @@ fn main() {
         conversion_target_belief: 0xFF,
         conquest_conversion_active: false,
         majority_belief: 0xFF,
+        has_temple: false,
     }).collect();
 
     let num_civs = (num_regions.min(8)) as usize;
@@ -78,6 +79,7 @@ fn main() {
                 mean_boldness: 0.0,
                 mean_ambition: 0.0,
                 mean_loyalty_trait: 0.0,
+                faction_clergy: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions as usize).map(|r| r % 5 == 0).collect(),

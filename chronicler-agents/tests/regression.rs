@@ -30,6 +30,7 @@ fn make_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 mean_boldness: 0.0,
                 mean_ambition: 0.0,
                 mean_loyalty_trait: 0.0,
+                faction_clergy: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i % 5 == 0).collect(),
@@ -67,6 +68,7 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         conversion_target_belief: 0xFF,
         conquest_conversion_active: false,
         majority_belief: 0xFF,
+        has_temple: false,
     }).collect();
     let num_civs = (num_regions.min(8)) as usize;
     let signals = make_signals(num_civs, num_regions as usize);
