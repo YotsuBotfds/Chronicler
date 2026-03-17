@@ -61,6 +61,8 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         season_id: 0,
         river_mask: 0,
         endemic_severity: 0.0,
+        culture_investment_active: false,
+        controller_values: [0xFF, 0xFF, 0xFF],
     }).collect();
     let num_civs = (num_regions.min(8)) as usize;
     let signals = make_signals(num_civs, num_regions as usize);

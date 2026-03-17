@@ -361,6 +361,9 @@ impl AgentPool {
         let mut boldness_col = Float32Builder::with_capacity(live);
         let mut ambition_col = Float32Builder::with_capacity(live);
         let mut loyalty_trait_col = Float32Builder::with_capacity(live);
+        let mut cultural_value_0_col = UInt8Builder::with_capacity(live);
+        let mut cultural_value_1_col = UInt8Builder::with_capacity(live);
+        let mut cultural_value_2_col = UInt8Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -384,6 +387,9 @@ impl AgentPool {
             boldness_col.append_value(self.boldness[slot]);
             ambition_col.append_value(self.ambition[slot]);
             loyalty_trait_col.append_value(self.loyalty_trait[slot]);
+            cultural_value_0_col.append_value(self.cultural_value_0[slot]);
+            cultural_value_1_col.append_value(self.cultural_value_1[slot]);
+            cultural_value_2_col.append_value(self.cultural_value_2[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -403,6 +409,9 @@ impl AgentPool {
                 Arc::new(boldness_col.finish()) as _,
                 Arc::new(ambition_col.finish()) as _,
                 Arc::new(loyalty_trait_col.finish()) as _,
+                Arc::new(cultural_value_0_col.finish()) as _,
+                Arc::new(cultural_value_1_col.finish()) as _,
+                Arc::new(cultural_value_2_col.finish()) as _,
             ],
         )
     }

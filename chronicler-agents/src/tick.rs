@@ -519,6 +519,8 @@ mod tests {
             season_id: 0,
             river_mask: 0,
             endemic_severity: 0.0,
+            culture_investment_active: false,
+            controller_values: [0xFF, 0xFF, 0xFF],
         }
     }
 
