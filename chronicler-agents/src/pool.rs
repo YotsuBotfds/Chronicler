@@ -43,6 +43,8 @@ pub struct AgentPool {
     pub cultural_value_0: Vec<u8>,   // Primary (stickiest, 1/3× drift rate)
     pub cultural_value_1: Vec<u8>,   // Secondary (2/3× drift rate)
     pub cultural_value_2: Vec<u8>,   // Tertiary (base drift rate)
+    // Belief (M37)—indexes into Python-side belief_registry
+    pub beliefs: Vec<u8>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -76,6 +78,7 @@ impl AgentPool {
             cultural_value_0: Vec::with_capacity(capacity),
             cultural_value_1: Vec::with_capacity(capacity),
             cultural_value_2: Vec::with_capacity(capacity),
+            beliefs: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 0,
@@ -97,6 +100,7 @@ impl AgentPool {
         cultural_value_0: u8,
         cultural_value_1: u8,
         cultural_value_2: u8,
+        belief: u8,
     ) -> usize {
         let id = self.next_id;
         self.next_id += 1;
@@ -124,6 +128,7 @@ impl AgentPool {
             self.cultural_value_0[slot] = cultural_value_0;
             self.cultural_value_1[slot] = cultural_value_1;
             self.cultural_value_2[slot] = cultural_value_2;
+            self.beliefs[slot] = belief;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -150,6 +155,7 @@ impl AgentPool {
             self.cultural_value_0.push(cultural_value_0);
             self.cultural_value_1.push(cultural_value_1);
             self.cultural_value_2.push(cultural_value_2);
+            self.beliefs.push(belief);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -364,6 +370,7 @@ impl AgentPool {
         let mut cultural_value_0_col = UInt8Builder::with_capacity(live);
         let mut cultural_value_1_col = UInt8Builder::with_capacity(live);
         let mut cultural_value_2_col = UInt8Builder::with_capacity(live);
+        let mut belief_col = UInt8Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -390,6 +397,7 @@ impl AgentPool {
             cultural_value_0_col.append_value(self.cultural_value_0[slot]);
             cultural_value_1_col.append_value(self.cultural_value_1[slot]);
             cultural_value_2_col.append_value(self.cultural_value_2[slot]);
+            belief_col.append_value(self.beliefs[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -412,6 +420,7 @@ impl AgentPool {
                 Arc::new(cultural_value_0_col.finish()) as _,
                 Arc::new(cultural_value_1_col.finish()) as _,
                 Arc::new(cultural_value_2_col.finish()) as _,
+                Arc::new(belief_col.finish()) as _,
             ],
         )
     }
@@ -559,7 +568,7 @@ mod tests {
     #[test]
     fn test_spawn_into_empty_pool() {
         let mut pool = AgentPool::new(8);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(slot, 0);
         assert!(pool.is_alive(slot));
         assert_eq!(pool.alive_count(), 1);
@@ -572,8 +581,8 @@ mod tests {
     #[test]
     fn test_kill_marks_dead_and_decrements_count() {
         let mut pool = AgentPool::new(8);
-        let s0 = pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s1 = pool.spawn(1, 1, Occupation::Merchant, 40, 0.0, 0.0, 0.0, 0, 1, 2);
+        let s0 = pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s1 = pool.spawn(1, 1, Occupation::Merchant, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(pool.alive_count(), 2);
 
         pool.kill(s0);
@@ -589,7 +598,7 @@ mod tests {
     #[test]
     fn test_increment_age() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Scholar, 59, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Scholar, 59, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         pool.increment_age(slot);
         assert_eq!(pool.age(slot), 60);
         // Saturating at u16::MAX
@@ -601,9 +610,9 @@ mod tests {
     #[test]
     fn test_partition_by_region_with_dead_agent() {
         let mut pool = AgentPool::new(8);
-        let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s1 = pool.spawn(1, 0, Occupation::Priest, 35, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s2 = pool.spawn(0, 0, Occupation::Merchant, 28, 0.0, 0.0, 0.0, 0, 1, 2);
+        let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s1 = pool.spawn(1, 0, Occupation::Priest, 35, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s2 = pool.spawn(0, 0, Occupation::Merchant, 28, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
 
         pool.kill(s1);
 
@@ -622,9 +631,9 @@ mod tests {
     #[test]
     fn test_ids_are_monotonic() {
         let mut pool = AgentPool::new(8);
-        let s0 = pool.spawn(0, 0, Occupation::Farmer, 10, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s1 = pool.spawn(0, 0, Occupation::Soldier, 20, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s2 = pool.spawn(0, 0, Occupation::Scholar, 30, 0.0, 0.0, 0.0, 0, 1, 2);
+        let s0 = pool.spawn(0, 0, Occupation::Farmer, 10, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s1 = pool.spawn(0, 0, Occupation::Soldier, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s2 = pool.spawn(0, 0, Occupation::Scholar, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!(pool.id(s0) < pool.id(s1));
         assert!(pool.id(s1) < pool.id(s2));
     }
@@ -636,9 +645,9 @@ mod tests {
         use arrow::array::{UInt16Array, UInt32Array, UInt8Array};
 
         let mut pool = AgentPool::new(8);
-        let s0 = pool.spawn(0, 1, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s1 = pool.spawn(1, 2, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2);
-        let s2 = pool.spawn(0, 1, Occupation::Merchant, 40, 0.0, 0.0, 0.0, 0, 1, 2);
+        let s0 = pool.spawn(0, 1, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s1 = pool.spawn(1, 2, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let s2 = pool.spawn(0, 1, Occupation::Merchant, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
 
         // Kill the second agent; only s0 and s2 should appear in the batch.
         pool.kill(s1);
@@ -698,10 +707,10 @@ mod tests {
 
         let mut pool = AgentPool::new(8);
         // civ 0: 2 agents
-        pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
-        pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2);
+        pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         // civ 1: 1 agent
-        pool.spawn(1, 1, Occupation::Scholar, 35, 0.0, 0.0, 0.0, 0, 1, 2);
+        pool.spawn(1, 1, Occupation::Scholar, 35, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
 
         // No civ controls any region (controller_civ = 255 default).
         let regions = vec![RegionState::new(0), RegionState::new(1)];
@@ -755,17 +764,17 @@ mod tests {
         // Spawn 10 agents for civ 0, all in region 0.
         // 3 soldiers, 2 merchants, 2 scholars, 1 priest, 2 farmers.
         for _ in 0..3 {
-            pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for _ in 0..2 {
-            pool.spawn(0, 0, Occupation::Merchant, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Merchant, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         for _ in 0..2 {
-            pool.spawn(0, 0, Occupation::Scholar, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Scholar, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
-        pool.spawn(0, 0, Occupation::Priest, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        pool.spawn(0, 0, Occupation::Priest, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         for _ in 0..2 {
-            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
 
         // Set known skills for all agents of each occupation.
@@ -825,10 +834,10 @@ mod tests {
         use arrow::array::{UInt16Array, UInt32Array};
 
         let mut pool = AgentPool::new(8);
-        let s0 = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);  // region 0
-        let s1 = pool.spawn(1, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2); // region 1
-        let _s2 = pool.spawn(0, 0, Occupation::Merchant, 35, 0.0, 0.0, 0.0, 0, 1, 2); // region 0
-        let _s3 = pool.spawn(2, 0, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2);  // region 2
+        let s0 = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);  // region 0
+        let s1 = pool.spawn(1, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE); // region 1
+        let _s2 = pool.spawn(0, 0, Occupation::Merchant, 35, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE); // region 0
+        let _s3 = pool.spawn(2, 0, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);  // region 2
 
         // Kill s1 — region 1 should now have 0 live agents.
         pool.kill(s1);
@@ -870,7 +879,7 @@ mod tests {
         let mut pool = AgentPool::new(0);
         // Spawn 1000
         for _ in 0..1000 {
-            pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         assert_eq!(pool.alive_count(), 1000);
         assert_eq!(pool.capacity(), 1000);
@@ -895,7 +904,7 @@ mod tests {
         // Respawn 600 — should reuse dead slots, no vec growth
         let capacity_before = pool.capacity();
         for _ in 0..600 {
-            pool.spawn(0, 0, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2);
+            pool.spawn(0, 0, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         assert_eq!(pool.alive_count(), 800);
         assert_eq!(pool.capacity(), capacity_before); // no growth!
@@ -908,7 +917,7 @@ mod tests {
     #[test]
     fn test_set_satisfaction() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!((pool.satisfaction(slot) - 0.5).abs() < 0.01);
         pool.set_satisfaction(slot, 0.8);
         assert!((pool.satisfaction(slot) - 0.8).abs() < 0.01);
@@ -917,7 +926,7 @@ mod tests {
     #[test]
     fn test_set_loyalty() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         pool.set_loyalty(slot, 0.2);
         assert!((pool.loyalty(slot) - 0.2).abs() < 0.01);
     }
@@ -925,7 +934,7 @@ mod tests {
     #[test]
     fn test_set_occupation() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         pool.set_occupation(slot, Occupation::Merchant as u8);
         assert_eq!(pool.occupation(slot), Occupation::Merchant as u8);
     }
@@ -933,7 +942,7 @@ mod tests {
     #[test]
     fn test_set_region() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         pool.set_region(slot, 3);
         assert_eq!(pool.region(slot), 3);
     }
@@ -941,7 +950,7 @@ mod tests {
     #[test]
     fn test_set_civ_affinity() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         pool.set_civ_affinity(slot, 5);
         assert_eq!(pool.civ_affinity(slot), 5);
     }
@@ -949,7 +958,7 @@ mod tests {
     #[test]
     fn test_set_displacement_turns() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         pool.set_displacement_turns(slot, 3);
         assert_eq!(pool.displacement_turns(slot), 3);
     }
@@ -958,7 +967,7 @@ mod tests {
     fn test_grow_skill() {
         use crate::agent::{SKILL_GROWTH_PER_TURN, SKILL_MAX};
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!((pool.skills[slot * 5 + 1]).abs() < 0.01);
         pool.grow_skill(slot);
         assert!((pool.skills[slot * 5 + 1] - SKILL_GROWTH_PER_TURN).abs() < 0.01);
@@ -970,21 +979,21 @@ mod tests {
     #[test]
     fn test_loyalty_accessor() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!((pool.loyalty(slot) - 0.5).abs() < 0.01);
     }
 
     #[test]
     fn test_origin_region_accessor() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(3, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(3, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(pool.origin_region(slot), 3);
     }
 
     #[test]
     fn test_displacement_turns_accessor() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(pool.displacement_turns(slot), 0);
     }
 
@@ -992,7 +1001,7 @@ mod tests {
     fn test_life_events_bitflag() {
         use crate::agent::*;
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(pool.life_events[slot], 0);
         pool.life_events[slot] |= LIFE_EVENT_REBELLION;
         assert_eq!(pool.life_events[slot], 1);
@@ -1006,7 +1015,7 @@ mod tests {
     fn test_promotion_progress_increments() {
         use crate::agent::*;
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Soldier, 20, 0.0, 0.0, 0.0, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Soldier, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(pool.promotion_progress[slot], 0);
         let occ = pool.occupations[slot] as usize;
         pool.skills[slot * 5 + occ] = 0.95;
@@ -1028,7 +1037,7 @@ mod tests {
     #[test]
     fn test_spawn_cultural_values() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, 4, 3, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, 4, 3, 2, crate::agent::BELIEF_NONE);
         assert_eq!(pool.cultural_value_0[slot], 4);
         assert_eq!(pool.cultural_value_1[slot], 3);
         assert_eq!(pool.cultural_value_2[slot], 2);
@@ -1037,9 +1046,9 @@ mod tests {
     #[test]
     fn test_spawn_reuse_slot_cultural_values() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, 4, 3, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, 4, 3, 2, crate::agent::BELIEF_NONE);
         pool.kill(slot);
-        let reused = pool.spawn(0, 1, Occupation::Soldier, 18, 0.6, 0.4, 0.5, 0, 1, 5);
+        let reused = pool.spawn(0, 1, Occupation::Soldier, 18, 0.6, 0.4, 0.5, 0, 1, 5, crate::agent::BELIEF_NONE);
         assert_eq!(reused, slot);
         assert_eq!(pool.cultural_value_0[reused], 0);
         assert_eq!(pool.cultural_value_1[reused], 1);
@@ -1049,11 +1058,28 @@ mod tests {
     #[test]
     fn test_is_named_bit() {
         let mut pool = AgentPool::new(4);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, 0, 1, 2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.5, 0.5, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!(!pool.is_named(slot));
         pool.life_events[slot] |= crate::agent::IS_NAMED;
         assert!(pool.is_named(slot));
         pool.life_events[slot] |= crate::agent::LIFE_EVENT_REBELLION;
         assert!(pool.is_named(slot)); // IS_NAMED survives other bits
+    }
+
+    #[test]
+    fn test_spawn_sets_belief() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 3);
+        assert_eq!(pool.beliefs[slot], 3);
+    }
+
+    #[test]
+    fn test_spawn_reuse_sets_belief() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 5);
+        pool.kill(slot);
+        let slot2 = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 7);
+        assert_eq!(slot, slot2);
+        assert_eq!(pool.beliefs[slot2], 7);
     }
 }

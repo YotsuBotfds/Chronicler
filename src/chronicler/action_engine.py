@@ -11,9 +11,11 @@ from typing import Callable, NamedTuple
 
 from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent, TechEra, WorldState,
+    DOCTRINE_STANCE, Belief,
 )
 from chronicler.utils import clamp, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
+from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
 
 
 class WarResult(NamedTuple):
@@ -397,6 +399,13 @@ def resolve_war(
     if _era_at_least(defender.tech_era, TechEra.MEDIEVAL):
         def_asabiya = min(def_asabiya + 0.2, 1.0)
 
+    # M37: Religious defense bonus
+    if (world.belief_registry
+        and hasattr(attacker, 'civ_majority_faith')
+        and hasattr(defender, 'civ_majority_faith')
+        and attacker.civ_majority_faith != defender.civ_majority_faith):
+        def_asabiya = min(def_asabiya + HOLY_WAR_DEFENDER_STABILITY / 100.0, 1.0)
+
     att_power = (attacker.military ** 2) * att_asabiya + rng.uniform(0, 3)
     def_power = (defender.military ** 2) * def_asabiya + rng.uniform(0, 3)
 
@@ -461,6 +470,18 @@ def resolve_war(
                 for adj in contested.adjacencies:
                     known_set.add(adj)
                 attacker.known_regions = sorted(known_set)
+            # M37: Conquest conversion
+            if (world.belief_registry
+                and hasattr(attacker, 'civ_majority_faith')
+                and hasattr(defender, 'civ_majority_faith')
+                and attacker.civ_majority_faith != defender.civ_majority_faith):
+                attacker_belief = next(
+                    (b for b in world.belief_registry if b.faith_id == attacker.civ_majority_faith), None
+                )
+                is_militant = attacker_belief and attacker_belief.doctrines[DOCTRINE_STANCE] == 1
+                if is_militant:
+                    contested.conquest_conversion_active = True
+                contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
         if acc is not None:
             acc.add(att_idx, attacker, "military", -10, "guard-action")
             acc.add(def_idx, defender, "military", -20, "guard-action")
@@ -732,6 +753,22 @@ class ActionEngine:
         for action in ActionType:
             if weights[action] > 0:
                 weights[action] *= get_faction_weight_modifier(civ, action)
+
+        # M37: Holy war weight modifier
+        if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):
+            attacker_faith = civ.civ_majority_faith
+            attacker_belief = next(
+                (b for b in self.world.belief_registry if b.faith_id == attacker_faith), None
+            )
+            if attacker_belief and attacker_belief.doctrines[DOCTRINE_STANCE] == 1:  # Militant
+                # Check if any hostile/suspicious neighbor has different faith
+                if civ.name in self.world.relationships:
+                    for other_name, rel in self.world.relationships[civ.name].items():
+                        if rel.disposition in ("hostile", "suspicious"):
+                            other = next((c for c in self.world.civilizations if c.name == other_name), None)
+                            if other and hasattr(other, 'civ_majority_faith') and other.civ_majority_faith != attacker_faith:
+                                weights[ActionType.WAR] += HOLY_WAR_WEIGHT_BONUS
+                                break
 
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3

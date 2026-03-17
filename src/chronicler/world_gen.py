@@ -252,6 +252,13 @@ def generate_world(
         region.endemic_severity = region.disease_baseline
         region.resource_effective_yields = list(region.resource_base_yields)
 
+    # M37: Generate one faith per civ
+    if world.civilizations:
+        from chronicler.religion import generate_faiths
+        civ_values = [c.values for c in world.civilizations]
+        civ_names = [c.name for c in world.civilizations]
+        world.belief_registry = generate_faiths(civ_values, civ_names, seed=world.seed)
+
     return world
 
 
