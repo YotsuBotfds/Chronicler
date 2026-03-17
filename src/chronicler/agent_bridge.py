@@ -131,6 +131,8 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         "season_id": pa.array([get_season_id(world.turn) for _ in world.regions], type=pa.uint8()),
         # M35a: River mask
         "river_mask": pa.array([r.river_mask for r in world.regions], type=pa.uint32()),
+        # M35b: Endemic disease severity
+        "endemic_severity": pa.array([r.endemic_severity for r in world.regions], type=pa.float32()),
     })
 
 

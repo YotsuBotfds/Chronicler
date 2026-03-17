@@ -294,6 +294,11 @@ impl AgentSimulator {
             .column_by_name("river_mask")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt32Array>());
 
+        // Optional M35b column
+        let endemic_severity_col = rb
+            .column_by_name("endemic_severity")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -331,6 +336,7 @@ impl AgentSimulator {
                     season: season_col.map_or(0, |arr| arr.value(i)),
                     season_id: season_id_col.map_or(0, |arr| arr.value(i)),
                     river_mask: river_mask_col.map_or(0, |arr| arr.value(i)),
+                    endemic_severity: endemic_severity_col.map_or(0.0, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -412,6 +418,7 @@ impl AgentSimulator {
                 r.season = season_col.map_or(r.season, |arr| arr.value(i));
                 r.season_id = season_id_col.map_or(r.season_id, |arr| arr.value(i));
                 r.river_mask = river_mask_col.map_or(r.river_mask, |arr| arr.value(i));
+                r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
             }
         }
         Ok(())

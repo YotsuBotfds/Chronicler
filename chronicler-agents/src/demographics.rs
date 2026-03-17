@@ -13,14 +13,14 @@ pub fn ecological_stress(region: &RegionState) -> f32 {
 /// War casualty multiplier applies to all soldier age brackets — intentional
 /// divergence from roadmap draft which restricted to 20–60. Soldiers of any
 /// age on an active front face elevated mortality.
-pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool) -> f32 {
+pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, disease_severity: f32) -> f32 {
     let base = match age {
         0..AGE_ADULT => MORTALITY_YOUNG,
         AGE_ADULT..AGE_ELDER => MORTALITY_ADULT,
         _ => MORTALITY_ELDER,
     };
     let war_mult = 1.0 + (WAR_CASUALTY_MULTIPLIER - 1.0) * is_soldier_at_war as i32 as f32;
-    base * eco_stress * war_mult
+    base * eco_stress * war_mult + disease_severity
 }
 
 pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) -> f32 {
@@ -71,6 +71,7 @@ mod tests {
             season: 0,
             season_id: 0,
             river_mask: 0,
+            endemic_severity: 0.0,
         }
     }
 
@@ -96,27 +97,47 @@ mod tests {
 
     #[test]
     fn test_mortality_young_peaceful() {
-        let rate = mortality_rate(10, 1.0, false);
+        let rate = mortality_rate(10, 1.0, false, 0.0);
         assert!((rate - MORTALITY_YOUNG).abs() < 0.001);
     }
 
     #[test]
     fn test_mortality_adult_stressed() {
-        let rate = mortality_rate(30, 1.5, false);
+        let rate = mortality_rate(30, 1.5, false, 0.0);
         assert!((rate - MORTALITY_ADULT * 1.5).abs() < 0.001);
     }
 
     #[test]
     fn test_mortality_soldier_at_war() {
-        let rate = mortality_rate(30, 1.0, true);
+        let rate = mortality_rate(30, 1.0, true, 0.0);
         assert!((rate - MORTALITY_ADULT * WAR_CASUALTY_MULTIPLIER).abs() < 0.001);
     }
 
     #[test]
     fn test_mortality_elder_war_stressed() {
-        let rate = mortality_rate(65, 1.5, true);
+        let rate = mortality_rate(65, 1.5, true, 0.0);
         let expected = MORTALITY_ELDER * 1.5 * WAR_CASUALTY_MULTIPLIER;
         assert!((rate - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_mortality_with_disease() {
+        let rate = mortality_rate(30, 1.0, false, 0.05);
+        let expected = MORTALITY_ADULT + 0.05;
+        assert!((rate - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_mortality_disease_plus_war() {
+        let rate = mortality_rate(30, 1.0, true, 0.10);
+        let expected = MORTALITY_ADULT * WAR_CASUALTY_MULTIPLIER + 0.10;
+        assert!((rate - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_mortality_no_disease() {
+        let rate = mortality_rate(30, 1.0, false, 0.0);
+        assert!((rate - MORTALITY_ADULT).abs() < 0.001);
     }
 
     #[test]

@@ -459,7 +459,7 @@ fn tick_region_demographics(
             .map_or(false, |c| c.is_at_war);
         let is_soldier_at_war = occ == 1 && civ_at_war;
 
-        let mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war);
+        let mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);
 
         if rng.gen::<f32>() < mort_rate {
             pending.deaths.push((slot, region_id as u16));
@@ -515,6 +515,7 @@ mod tests {
             season: 0,
             season_id: 0,
             river_mask: 0,
+            endemic_severity: 0.0,
         }
     }
 
