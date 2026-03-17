@@ -34,33 +34,77 @@ def _downgrade_disposition(current: Disposition) -> Disposition:
     return _DISPOSITION_ORDER[max(idx - 1, 0)]
 
 
-def apply_value_drift(world: WorldState) -> None:
-    """Accumulate disposition drift from shared/opposing values."""
+def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
+    """Accumulate disposition drift from shared/opposing values.
+
+    When agent_snapshot is provided (M36 bottom-up path), compute drift from
+    per-civ cultural value frequency profiles derived from agent data.
+    When None, fall back to the M16 civ-level value comparison.
+    """
     from chronicler.movements import SCHISM_DIVERGENCE_THRESHOLD
 
     civs = world.civilizations
-    for i, civ_a in enumerate(civs):
-        for civ_b in civs[i + 1:]:
-            shared = sum(1 for v in civ_a.values if v in civ_b.values)
-            opposing = sum(
-                1 for va in civ_a.values for vb in civ_b.values
-                if VALUE_OPPOSITIONS.get(va) == vb
-            )
-            net_drift = (shared * 2) - (opposing * 2)
-            if net_drift == 0:
-                continue
 
-            for a_name, b_name in [(civ_a.name, civ_b.name), (civ_b.name, civ_a.name)]:
-                rel = world.relationships.get(a_name, {}).get(b_name)
-                if rel is None:
+    if agent_snapshot is not None:
+        # --- M36 bottom-up path: derive drift from agent cultural profiles ---
+        profiles = compute_civ_cultural_profile(agent_snapshot)
+        # Build civ_id -> civ mapping using list index as civ_id
+        civ_id_map = {i: civ for i, civ in enumerate(civs)}
+        all_values = set()
+        for prof in profiles.values():
+            all_values.update(prof.keys())
+
+        for i, civ_a in enumerate(civs):
+            for j, civ_b in enumerate(civs):
+                if j <= i:
                     continue
-                rel.disposition_drift += net_drift
-                if rel.disposition_drift >= 10:
-                    rel.disposition = upgrade_disposition(rel.disposition)
-                    rel.disposition_drift = 0
-                elif rel.disposition_drift <= -10:
-                    rel.disposition = _downgrade_disposition(rel.disposition)
-                    rel.disposition_drift = 0
+                prof_a = profiles.get(i, Counter())
+                prof_b = profiles.get(j, Counter())
+                total_a = sum(prof_a.values()) or 1
+                total_b = sum(prof_b.values()) or 1
+                shared_frac = sum(
+                    min(prof_a.get(v, 0) / total_a, prof_b.get(v, 0) / total_b)
+                    for v in all_values
+                )
+                net_drift = int((shared_frac - 0.3) * 10)
+                if net_drift == 0:
+                    continue
+
+                for a_name, b_name in [(civ_a.name, civ_b.name), (civ_b.name, civ_a.name)]:
+                    rel = world.relationships.get(a_name, {}).get(b_name)
+                    if rel is None:
+                        continue
+                    rel.disposition_drift += net_drift
+                    if rel.disposition_drift >= 10:
+                        rel.disposition = upgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
+                    elif rel.disposition_drift <= -10:
+                        rel.disposition = _downgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
+    else:
+        # --- M16 civ-level fallback ---
+        for i, civ_a in enumerate(civs):
+            for civ_b in civs[i + 1:]:
+                shared = sum(1 for v in civ_a.values if v in civ_b.values)
+                opposing = sum(
+                    1 for va in civ_a.values for vb in civ_b.values
+                    if VALUE_OPPOSITIONS.get(va) == vb
+                )
+                net_drift = (shared * 2) - (opposing * 2)
+                if net_drift == 0:
+                    continue
+
+                for a_name, b_name in [(civ_a.name, civ_b.name), (civ_b.name, civ_a.name)]:
+                    rel = world.relationships.get(a_name, {}).get(b_name)
+                    if rel is None:
+                        continue
+                    rel.disposition_drift += net_drift
+                    if rel.disposition_drift >= 10:
+                        rel.disposition = upgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
+                    elif rel.disposition_drift <= -10:
+                        rel.disposition = _downgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
 
     # Movement co-adoption effects (accumulate only — threshold applied next cycle)
     for movement in world.movements:
@@ -270,6 +314,9 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
     from chronicler.action_engine import _power_struggle_factor
     net_acceleration = int(net_acceleration * _power_struggle_factor(civ))
     target.foreign_control_turns += net_acceleration
+
+    # M36: Set signal flag for Rust culture_tick to boost drift toward controller values
+    target._culture_investment_active = True
 
     world.named_events.append(NamedEvent(
         name=f"Propaganda in {target.name}",
