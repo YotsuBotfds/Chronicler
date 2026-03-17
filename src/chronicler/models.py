@@ -179,6 +179,7 @@ class Region(BaseModel):
     resource_types: list[int] = Field(default_factory=lambda: [255, 255, 255])
     resource_base_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     resource_reserves: list[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0])
+    river_mask: int = 0
 
 
 class Leader(BaseModel):

@@ -96,3 +96,59 @@ class TestRiverValidation:
             config.rivers = [River(name="Bad River", path=[r0.name, non_adj.name])]
             with pytest.raises(ValueError, match="not adjacent"):
                 apply_scenario(world, config)
+
+
+class TestRiverMaskAssignment:
+    def test_river_mask_assigned(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies in test world")
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        region_map = {r.name: r for r in world.regions}
+        assert region_map[r0.name].river_mask & 1 != 0
+        assert region_map[adj_name].river_mask & 1 != 0
+
+    def test_non_river_region_mask_zero(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies in test world")
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        river_region_names = {r0.name, adj_name}
+        for r in world.regions:
+            if r.name not in river_region_names:
+                assert r.river_mask == 0, f"{r.name} should have river_mask=0"
+
+    def test_confluence_has_multiple_bits(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        shared = None
+        for r in world.regions:
+            if len(r.adjacencies) >= 2:
+                shared = r
+                break
+        if shared is None:
+            pytest.skip("No region with 2+ adjacencies")
+        a1, a2 = shared.adjacencies[0], shared.adjacencies[1]
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[
+                River(name="River A", path=[a1, shared.name]),
+                River(name="River B", path=[a2, shared.name]),
+            ],
+        )
+        apply_scenario(world, config)
+        region_map = {r.name: r for r in world.regions}
+        mask = region_map[shared.name].river_mask
+        assert mask & 1 != 0
+        assert mask & 2 != 0

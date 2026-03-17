@@ -412,6 +412,11 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
                     f"River '{river.name}': '{river.path[i]}' and '{r_next_name}' are not adjacent"
                 )
         world.rivers.append(river)
+    # Assign river_mask bits
+    for river_idx, river in enumerate(world.rivers):
+        bit = 1 << river_idx
+        for rname in river.path:
+            region_map[rname].river_mask |= bit
 
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}
