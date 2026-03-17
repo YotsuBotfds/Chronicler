@@ -101,10 +101,16 @@ No physical agent movement. The agent stays in their home region in the Rust poo
 Per-turn check in Phase 10 for each region in each civ:
 
 ```python
+# Doctrine lookup: belief_registry[faith_id].doctrines is list[int],
+# DOCTRINE_STANCE = 2, values: -1 (Pacifist), 0 (Neutral), +1 (Militant)
+civ_faith = belief_registry[civ.civ_majority_faith]
+if civ_faith.doctrines[DOCTRINE_STANCE] != 1:  # Only Militant faiths persecute
+    continue
+
 for region in civ.regions:
-    if civ.faith.stance != 1:  # Only Militant faiths persecute
-        continue
-    minority_count = count_agents_where(
+    # Count minority agents from the agent snapshot (same scan used for
+    # compute_majority_belief; implementation should consolidate into one pass)
+    minority_count = snapshot_count_where(
         region, lambda a: a.belief != civ.civ_majority_faith
     )
     if minority_count == 0:
@@ -149,8 +155,16 @@ Percentage-based, not absolute count. A 50-agent region needs 8 persecuted agent
 
 Reuses M37's `conquest_conversion_boost` lifecycle pattern — one new `Float32` on Region:
 
+**What counts as a persecution death:** Any agent death (from demographics mortality) where the dead agent was in a region with `persecution_intensity > 0` AND the agent's belief differed from the civ's majority faith. This is a Python-side check on the snapshot diff (dead agents list) — no Rust-side death tagging needed. The proxy is imprecise (an old-age death of a minority agent counts), but at population scale the correlation between persecution and minority deaths is strong enough. The narrative engine can distinguish cause-of-death for named characters.
+
 ```python
-# On persecution deaths in a region:
+# Count persecution deaths from snapshot diff (Python, Phase 10):
+for dead_agent in region.deaths_this_turn:
+    if (region.persecution_intensity > 0
+            and dead_agent.belief != civ.civ_majority_faith):
+        persecution_deaths_in_region += 1
+
+# Martyrdom boost (same lifecycle as conquest_conversion_boost):
 if persecution_deaths_in_region > 0:
     region.martyrdom_boost = min(
         region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
@@ -199,11 +213,15 @@ best_region = None
 best_minority_ratio = 0.0
 
 for region in civ.regions:
-    for faith_id, count in region.faith_distribution.items():
+    # faith_counts: dict[int, int] computed from agent snapshot
+    # (same snapshot scan as persecution minority_count and
+    # compute_majority_belief — consolidate into one pass)
+    faith_counts = count_beliefs_in_region(snapshot, region)
+    for faith_id, count in faith_counts.items():
         if faith_id == civ.civ_majority_faith:
             continue
         ratio = count / region.population
-        if ratio > 0.30 and ratio > best_minority_ratio:
+        if ratio > SCHISM_MINORITY_THRESHOLD and ratio > best_minority_ratio:
             best_region = region
             best_minority_ratio = ratio
             schism_faith_id = faith_id
@@ -221,7 +239,7 @@ Checked top-to-bottom, first match wins. Deterministic: same trigger always prod
 | 1 | Active persecution in the schism region (`persecution_intensity > 0`) | Stance (Militant↔Pacifist) | "The oppressed rejected the sword" / "The persecuted took up arms" |
 | 2 | Clergy faction dominance (`clergy_influence > 0.40`) | Structure (Hierarchical↔Egalitarian) | "The faithful rebelled against the priesthood" / "The flock demanded order" |
 | 3 | Trade-dependent region (`food_imported_ratio > 0.60`) | Ethics (Ascetic↔Prosperity) | Inert until M43; fallback handles |
-| 4 | Region changed hands within last 10 turns | Outreach (Insular↔Proselytizing) | "The conquered closed their doors" / "The conquered sought converts" |
+| 4 | Region changed hands within last 10 turns (`current_turn - region.last_conquered_turn < 10`; requires `last_conquered_turn: int` on Region, set by WAR resolution in Phase 5 — if field does not exist, implementation plan must add it) | Outreach (Insular↔Proselytizing) | "The conquered closed their doors" / "The conquered sought converts" |
 | 5 | **Fallback** (no trigger matches) | Axis with lowest absolute value | Organic drift — "theological dispute" |
 
 **The trade-dependent trigger (row 3) requires M43.** Until M43 ships, that row is inert — the trigger condition never evaluates true because trade dependency detection doesn't exist. The fallback handles the case gracefully.
@@ -263,18 +281,22 @@ When a region's majority faith differs from its civ's majority faith (which a sc
 
 ### Reformation Detection
 
+Reformation fires when the splinter faith exceeds `REFORMATION_THRESHOLD` (60%) of the civ's agents — not merely a plurality. This prevents minor faith shuffles from triggering civilization-defining events. `compute_civ_majority_faith()` from M37 returns the most common belief and its ratio; the reformation check adds the threshold gate.
+
 ```python
 # Per-turn check after conversion processing:
-if civ.civ_majority_faith != civ.previous_majority_faith:
+majority_faith, majority_ratio = compute_civ_majority_faith(civ)
+if (majority_faith != civ.previous_majority_faith
+        and majority_ratio >= REFORMATION_THRESHOLD):
     emit_named_event("Reformation", importance=8, details={
         "civ": civ.name,
         "old_faith": belief_registry[civ.previous_majority_faith].name,
-        "new_faith": belief_registry[civ.civ_majority_faith].name,
+        "new_faith": belief_registry[majority_faith].name,
     })
-    civ.previous_majority_faith = civ.civ_majority_faith
+    civ.previous_majority_faith = majority_faith
 ```
 
-One new field: `civ.previous_majority_faith` to detect the transition. `compute_civ_majority_faith()` from M37 already computes the most common belief — this checks if it changed.
+One new field: `civ.previous_majority_faith` to detect the transition. The threshold ensures reformation is a decisive shift, not demographic noise.
 
 ### Self-Similarity
 
