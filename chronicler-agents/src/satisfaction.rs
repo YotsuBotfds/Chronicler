@@ -143,6 +143,7 @@ pub fn compute_satisfaction_with_culture(
     controller_values: [u8; 3],
     agent_belief: u8,
     majority_belief: u8,
+    has_temple: bool,
 ) -> f32 {
     let base_sat = compute_satisfaction(
         occupation,
@@ -169,8 +170,14 @@ pub fn compute_satisfaction_with_culture(
     } else {
         0.0
     };
+    // M38a: temple priest bonus — faith-blind (Decision 6)
+    let temple_bonus = if occupation == 4 && has_temple {
+        0.10  // TEMPLE_PRIEST_BONUS [CALIBRATE]
+    } else {
+        0.0
+    };
     let total_non_eco_penalty = apply_penalty_cap(cultural_pen + religious_pen);
-    (base_sat - total_non_eco_penalty).clamp(0.0, 1.0)
+    (base_sat - total_non_eco_penalty + temple_bonus).clamp(0.0, 1.0)
 }
 
 /// Target occupation ratios for a region based on terrain and ecology.
@@ -269,6 +276,7 @@ mod m36_tests {
             0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, shock,
             [4, 3, 2], [4, 3, 2],
             0xFF, 0xFF,
+            false,
         );
         assert!((base - with_culture).abs() < 0.001);
     }
@@ -287,12 +295,14 @@ mod m37_tests {
             &CivShock::default(),
             [0, 1, 2], [0, 1, 2],
             3, 3,  // belief matches majority
+            false,
         );
         let sat_none = compute_satisfaction_with_culture(
             0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
             &CivShock::default(),
             [0, 1, 2], [0, 1, 2],
             0xFF, 0xFF,  // BELIEF_NONE
+            false,
         );
         assert!((sat_match - sat_none).abs() < 0.001);
     }
@@ -304,12 +314,14 @@ mod m37_tests {
             &CivShock::default(),
             [0, 1, 2], [0, 1, 2],
             3, 3,
+            false,
         );
         let sat_mismatch = compute_satisfaction_with_culture(
             0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
             &CivShock::default(),
             [0, 1, 2], [0, 1, 2],
             3, 5,  // different belief
+            false,
         );
         let expected_diff = crate::agent::RELIGIOUS_MISMATCH_WEIGHT;
         assert!((sat_match - sat_mismatch - expected_diff).abs() < 0.001);

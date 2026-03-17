@@ -384,9 +384,10 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
 
                         let occ_matches = match civ_sig {
                             Some(cs) => match cs.dominant_faction {
-                                0 => occ == 1,
-                                1 => occ == 2,
-                                2 => occ == 3,
+                                0 => occ == 1,  // military -> soldiers
+                                1 => occ == 2,  // merchant -> merchants
+                                2 => occ == 3,  // cultural -> scholars
+                                3 => occ == 4,  // M38a: clergy -> priests
                                 _ => false,
                             },
                             None => false,
@@ -399,6 +400,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                                 1 => cs.faction_military,
                                 2 => cs.faction_merchant,
                                 3 => cs.faction_cultural,
+                                4 => cs.faction_clergy,   // M38a
                                 _ => 0.0,
                             },
                             None => 0.0,
@@ -430,6 +432,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                             region.controller_values,
                             pool_ref.beliefs[slot],
                             region.majority_belief,
+                            region.has_temple,
                         );
 
                         (slot, sat)
