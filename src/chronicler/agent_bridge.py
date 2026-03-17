@@ -168,6 +168,13 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         ),
     })
 
+    # M36: Clear transient culture investment flag after reading it.
+    # Without this, the flag persists from the turn it was set, giving
+    # perpetual drift bonus instead of single-turn.
+    for r in world.regions:
+        if hasattr(r, '_culture_investment_active'):
+            del r._culture_investment_active
+
 
 def build_signals(world: WorldState, shocks: list | None = None,
                   demands: dict | None = None) -> pa.RecordBatch:
