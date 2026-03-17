@@ -134,25 +134,34 @@ let satisfaction = (base_satisfaction - total_penalty).clamp(0.0, 1.0);
 
 ## Tick Architecture
 
-### Phase Placement: 6th Rust Tick Phase
+### Phase Placement: 6th Rust Tick Stage
 
-The culture drift tick runs as phase 6, after demographics:
+The culture drift tick runs as Rust tick stage 6, after demographics:
 
 ```
-skill → satisfaction → stats → decisions → demographics → culture_drift
+Rust tick stages (internal, not Python phases):
+  0: skill → 1: satisfaction → 2: stats → 3: decisions → 4: demographics → 5: culture_drift
 ```
 
-**Why after demographics, not before satisfaction:** Mutation ordering guarantees. Each existing phase reads state set by a prior phase (this tick) or carried from last tick. No phase reads state that a later phase will mutate. Culture drift reads satisfaction (computed phase 2) and the frequency distribution (affected by migration in phase 4 and demographics in phase 5). Satisfaction reads cultural values from *last turn*. This makes the one-turn staleness explicit and uniform.
+Note: These are Rust-internal tick stages, distinct from the Python turn loop phases (Phase 1-10). The Rust tick executes between Python Phase 9 (Ecology) and Phase 10 (Consequences).
+
+**Why after demographics, not before satisfaction:** Mutation ordering guarantees. Each stage reads state set by a prior stage (this tick) or carried from last tick. No stage reads state that a later stage will mutate. Culture drift reads satisfaction (computed stage 1) and the frequency distribution (affected by migration in stage 3 and demographics in stage 4). Satisfaction reads cultural values from *last turn*. This makes the one-turn staleness explicit and uniform.
 
 ### Data Flow
 
 ```
-Python → Rust (per-region signals, Arrow columns):
+Python → Rust (per-region batch in build_region_batch, agent_bridge.py):
   resource_types[3], resource_yields[3]     (M34, existing)
-  culture_investment_active: bool            (new — set in Phase 8 action engine)
-  controller_values: [u8; 3]                 (new — padded with 0xFF for <3 values)
+  culture_investment_active: bool            (new — set in Python Phase 5 action engine)
+  controller_values_0/1/2: u8               (new — looked up from controller civ's values,
+                                              padded with 0xFF for <3 values)
 
-Rust culture_tick (phase 6 of tick):
+  Note: These go in the per-region RecordBatch (build_region_batch), NOT the
+  per-civ signal batch (build_signals). The region batch already has controller_civ;
+  we denormalize the controller's cultural values into the region batch so Rust
+  doesn't need to cross-reference civ signals during culture_tick.
+
+Rust culture_tick (stage 5 of tick):
   1. Recompute frequency [u16; 6] from region's agents
      - Named agents (is_named bit set) contribute NAMED_CULTURE_WEIGHT (5×)
   2. Add environmental bias from resource_types (sparse table, slot-weighted)
@@ -171,7 +180,7 @@ Rust → Python (via existing snapshot RecordBatch):
   No new output columns needed
 ```
 
-**INVEST_CULTURE signal lifetime:** Selected in Phase 8 (action engine), consumed in Rust tick between Phase 9-10. Same pattern as M27 `DemandSignals` — set in action resolution, consumed in Rust tick.
+**INVEST_CULTURE signal lifetime:** Selected in Python Phase 5 (action engine), signal set in `agent_bridge.py` when building the region batch, consumed in the Rust tick which executes between Python Phase 9 and Phase 10. Same pattern as M27 `DemandSignals` — set in action resolution, consumed in Rust tick.
 
 ### culture.py Replacement
 
@@ -188,11 +197,13 @@ Three distinct functions change:
 
 **`apply_value_drift()` — modified.** Current: civ-level disposition effects from value overlap between civs. New: reads per-civ cultural profile aggregated from agents. "What fraction of civ A's population shares any values with civ B's population?" A civ that conquered culturally diverse territory gets a messier aggregate profile, affecting diplomacy. Military expansion has a diplomatic cost through cultural dilution.
 
-**`compute_civ_cultural_profile()` — new helper.** Computes `dict[int, Counter[u8]]` from the agent snapshot — per-civ value frequency across all regions. Called once at start of Phase 6 (Culture), passed to both `apply_value_drift()` and `tick_cultural_assimilation()`. One scan of the snapshot, two consumers.
+**`compute_civ_cultural_profile()` — new helper.** Computes `dict[int, Counter[u8]]` from the agent snapshot — per-civ value frequency across all regions. Called once in Phase 10 (Consequences) before `apply_value_drift()` and `tick_cultural_assimilation()`, which both run there. One scan of the snapshot, two consumers.
 
 **INVEST_CULTURE handler — modified.** No longer directly mutates cultural state. Sets `culture_investment_active = True` in the region's signals for the Rust tick. Same Python-actions → signal-flags → Rust-consumption pattern from M27.
 
-**Snapshot timing:** Phase 6 (Culture) runs before the Rust tick (Phase 9-10). `compute_civ_cultural_profile()` reads the snapshot from the *previous* turn's Rust tick, which includes last turn's drift results. One-turn lag, consistent with the mutation ordering guarantee.
+**Snapshot timing:** `tick_cultural_assimilation()` and `apply_value_drift()` run in Phase 10 (Consequences), after the Rust tick completes between Phase 9 and 10. This means `compute_civ_cultural_profile()` reads the snapshot from *this turn's* Rust tick — including this turn's drift results. The assimilation check sees the latest cultural state.
+
+**Agent mode guard:** In `--agents=off` mode, no agent snapshot exists. `tick_cultural_assimilation()` must detect this and fall back to the M16 timer-based path (`foreign_control_turns >= 15`). Similarly, `apply_value_drift()` falls back to civ-level value comparison. This ensures `--agents=off` behavior is unchanged from pre-M36. Guard: `if agent_snapshot is not None: [agent-driven path] else: [timer path]`.
 
 ---
 
@@ -209,18 +220,24 @@ pub cultural_value_1: Vec<u8>,   // Secondary (2/3× drift rate)
 pub cultural_value_2: Vec<u8>,   // Tertiary (base drift rate)
 ```
 
-**`is_named` bit:** Packed into spare bits of existing `life_events: u8` field. Set on named character promotion via Python bridge. Read during culture tick frequency computation (5× weight contribution). Composes with M40 social networks.
+**`is_named` bit:** Bit 5 (`1 << 5 = 0x20`) of existing `life_events: u8` field. Bits 0-4 are used by existing life events (REBELLION, MIGRATION, WAR_SURVIVAL, LOYALTY_FLIP, OCC_SWITCH). Bits 6-7 remain spare for M37 (belief marker) and future use. Set on named character promotion via Python bridge. Read during culture tick frequency computation (5× weight contribution). Composes with M40 social networks.
+
+```rust
+pub const IS_NAMED: u8 = 1 << 5;  // bit 5 of life_events
+```
 
 **Pool size growth:** +3 bytes per agent (58 → 61 bytes).
 
-### Rust-Side Signal Extensions (signals.rs)
+### Rust-Side Region Batch Extensions (region.rs / ffi.rs)
 
-New per-region signal columns in Arrow RecordBatch:
+New columns in the per-region Arrow RecordBatch (parsed into `RegionState`):
 
 ```rust
-culture_investment_active: bool,  // INVEST_CULTURE action this turn
-controller_values: [u8; 3],       // Controlling civ's cultural values, 0xFF = empty slot
+culture_investment_active: bool,       // INVEST_CULTURE action this turn
+controller_values: [u8; 3],            // Controlling civ's cultural values, 0xFF = empty
 ```
+
+These are denormalized into the region batch by `build_region_batch()` in `agent_bridge.py`. The controller's values are looked up from `world.civilizations[controller_civ].values` and written as `controller_values_0/1/2` columns. This avoids Rust needing to cross-reference civ signals during culture_tick.
 
 ### New Rust Module: culture_tick.rs
 
@@ -229,7 +246,7 @@ Contains:
 - `fn compute_cultural_distribution(pool, region_agents, named_weight) → [u16; 6]`
 - `fn apply_environmental_bias(dist, resource_types, resource_slot_weights, population) → [u16; 6]`
 - `fn drift_agent(agent_idx, pool, distribution, drift_rate, slot_weights, rng) → bool`
-- `fn culture_tick(pool, region_state, signals, rng)` — orchestrates phase 6
+- `fn culture_tick(pool, region_state, signals, rng)` — orchestrates Rust tick stage 5
 
 ### Python-Side: No Model Changes
 
@@ -277,7 +294,7 @@ All `[CALIBRATE]` for M47:
 |------|-----------|----------|
 | Assimilation timing: occupied regions flip within 40-80 turns (median) | ±20 turns | Agent-driven assimilation produces reasonable timelines |
 | INVEST_CULTURE acceleration: cultural investment assimilates 30-50% faster than organic | ±15% | Signal propagation + drift bonus |
-| Satisfaction regression: with `--agents=off`, culture phase output bit-identical to pre-M36 | Exact | Aggregate mode untouched |
+| `--agents=off` regression: culture functions (assimilation, value drift) use M16 timer path, output identical to pre-M36 | Exact | Fallback guard works; no agent snapshot → no agent-driven logic |
 | Economy regression: treasury, trade, action distribution within ±10% of baseline | ±10% | Satisfaction penalty doesn't cascade into economic destabilization |
 | `compute_civ_cultural_profile()` consistency: profile from snapshot matches direct agent query | Exact | Helper correctness |
 
@@ -303,12 +320,12 @@ Report output: `docs/superpowers/analytics/m36-cultural-identity-report.md`. M47
 
 | File | Change | Lines (est.) |
 |------|--------|-------------|
-| `pool.rs` | Add `cultural_value_0/1/2: Vec<u8>`, pack `is_named` into `life_events` spare bits | ~25 |
+| `pool.rs` | Add `cultural_value_0/1/2: Vec<u8>`, pack `is_named` bit 5 into `life_events`. Extend `spawn()` signature with `cultural_value_0/1/2: u8` params; initialize in both free-slot reuse and grow-vec paths. | ~40 |
 | `culture_tick.rs` | **New module.** Frequency distribution, env bias, per-agent drift, orchestration | ~180 |
-| `tick.rs` | Add phase 6 call to `culture_tick()` | ~10 |
+| `tick.rs` | Add stage 5 call to `culture_tick()`. Update spawn callers (demographics births) to pass cultural values from parent's civ. | ~20 |
 | `satisfaction.rs` | Inline cultural distance computation, penalty cap infrastructure, subtraction from base | ~50 |
-| `signals.rs` | Add `culture_investment_active`, `controller_values` to signal parsing | ~15 |
-| `ffi.rs` | Extend RecordBatch schema with cultural value columns + new signal columns | ~20 |
+| `region.rs` | Add `culture_investment_active`, `controller_values` fields to `RegionState` | ~10 |
+| `ffi.rs` | Extend RecordBatch schema with cultural value columns + new region batch columns. Update spawn FFI callers to pass cultural values. | ~25 |
 | `lib.rs` | Module export for `culture_tick` | ~2 |
 | `culture.py` | Replace `tick_cultural_assimilation()`, modify `apply_value_drift()`, add `compute_civ_cultural_profile()` | ~100 |
 | `agent_bridge.py` | Add `culture_investment_active` and `controller_values` to signal columns | ~15 |
@@ -325,7 +342,7 @@ Report output: `docs/superpowers/analytics/m36-cultural-identity-report.md`. M47
 - `politics.py` — secession/federation mechanics unchanged (read cultural_identity, which still exists)
 - `simulation.py` — turn loop phase ordering unchanged
 - Bundle format — stays at current version
-- `--agents=off` mode — culture phase output bit-identical to pre-M36
+- `--agents=off` mode — culture functions detect missing snapshot and fall back to M16 timer-based path; behavior unchanged from pre-M36
 
 ---
 
