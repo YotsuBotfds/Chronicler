@@ -220,6 +220,33 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
     )
 
 
+TEMPLE_PRESTIGE_PER_TURN = 1
+CIV_PRESTIGE_PER_TEMPLE = 1
+
+
+def tick_temple_prestige(world):
+    """Per-turn: increment temple prestige and award civ prestige.
+
+    Civ prestige is awarded to the region controller, not the original builder.
+    Phase 10 placement: one-turn delay intentional — temple prestige is slow-moving
+    (+1/turn) and the delay has negligible behavioral impact.
+    Note: temple_prestige is uncapped — M38b pilgrimage targeting consumes it.
+    """
+    civ_temple_counts = {}
+    for region in world.regions:
+        controller = getattr(region, 'controller', None)
+        for infra in region.infrastructure:
+            if infra.type == IType.TEMPLES and infra.active:
+                infra.temple_prestige += TEMPLE_PRESTIGE_PER_TURN
+                if controller:
+                    civ_temple_counts[controller] = civ_temple_counts.get(controller, 0) + 1
+
+    for civ in world.civilizations:
+        count = civ_temple_counts.get(civ.name, 0)
+        if count > 0:
+            civ.prestige += CIV_PRESTIGE_PER_TEMPLE * count
+
+
 def destroy_temple_on_conquest(region, attacker_civ, world) -> "Event | None":
     from chronicler.models import Event
     for infra in region.infrastructure:

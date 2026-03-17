@@ -862,6 +862,43 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
             if i < len(world.belief_registry):
                 civ.civ_majority_faith = world.belief_registry[i].faith_id
 
+    # M38a: Build conversion_deltas and priest counts for tick_factions
+    conversion_deltas = None
+    region_populations = None
+    prev_priest_counts = getattr(world, '_prev_priest_counts', None)
+    curr_priest_counts = None
+    if _snap is not None:
+        # Build per-region belief distribution
+        region_col = _snap.column("region").to_pylist()
+        belief_col = _snap.column("belief").to_pylist()
+        current_beliefs = {}
+        for rid, bid in zip(region_col, belief_col):
+            if rid not in current_beliefs:
+                current_beliefs[rid] = {}
+            current_beliefs[rid][bid] = current_beliefs[rid].get(bid, 0) + 1
+
+        prev_beliefs = getattr(world, '_prev_belief_distribution', {})
+        civ_majority_faiths = {c.name: getattr(c, 'civ_majority_faith', -1) for c in world.civilizations}
+
+        from chronicler.religion import compute_conversion_deltas
+        conversion_deltas = compute_conversion_deltas(
+            current_beliefs, prev_beliefs, civ_majority_faiths, world.regions
+        )
+        region_populations = {rid: sum(dist.values()) for rid, dist in current_beliefs.items()}
+        world._prev_belief_distribution = current_beliefs
+
+        # Priest counts for EVT_PRIEST_LOSS
+        occ_col = _snap.column("occupation").to_pylist()
+        civ_col = _snap.column("civ_affinity").to_pylist()
+        curr_priest_counts = {}
+        for occ, civ_id in zip(occ_col, civ_col):
+            if occ == 4:  # priest
+                # Need to map civ_id to civ_name
+                if civ_id < len(world.civilizations):
+                    civ_name = world.civilizations[civ_id].name
+                    curr_priest_counts[civ_name] = curr_priest_counts.get(civ_name, 0) + 1
+        world._prev_priest_counts = curr_priest_counts
+
     apply_asabiya_dynamics(world)
 
     from chronicler.politics import (
@@ -958,7 +995,15 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
-    collapse_events.extend(tick_factions(world, acc=acc))
+    collapse_events.extend(tick_factions(world, acc=acc,
+                                         conversion_deltas=conversion_deltas,
+                                         region_populations=region_populations,
+                                         prev_priest_counts=prev_priest_counts,
+                                         curr_priest_counts=curr_priest_counts))
+
+    # M38a: Temple prestige tick
+    from chronicler.infrastructure import tick_temple_prestige
+    tick_temple_prestige(world)
 
     return collapse_events
 

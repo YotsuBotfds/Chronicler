@@ -330,6 +330,16 @@ def compute_conversion_signals(
                     if fallback != 0xFF:
                         target_faith_id = fallback
 
+        # M38a: temple conversion boost — faith-bound guard clause
+        from chronicler.infrastructure import TEMPLE_CONVERSION_BOOST
+        from chronicler.models import InfrastructureType
+        for infra in region.infrastructure:
+            if (infra.type == InfrastructureType.TEMPLES
+                    and infra.active
+                    and getattr(infra, 'faith_id', -1) == target_faith_id):
+                rate *= (1.0 + TEMPLE_CONVERSION_BOOST)
+                break
+
         # Write to region fields
         region.conversion_rate_signal = rate
         region.conversion_target_signal = target_faith_id

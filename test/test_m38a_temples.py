@@ -4,6 +4,7 @@ from chronicler.infrastructure import (
     BUILD_SPECS, _region_has_temple, _count_civ_temples,
     destroy_temple_on_conquest, MAX_TEMPLES_PER_REGION, MAX_TEMPLES_PER_CIV,
     TEMPLE_CONVERSION_BOOST,
+    tick_temple_prestige, TEMPLE_PRESTIGE_PER_TURN, CIV_PRESTIGE_PER_TEMPLE,
 )
 
 def test_infrastructure_type_has_temples():
@@ -47,3 +48,41 @@ def test_destroy_temple_on_conquest():
     assert event is not None
     assert event.event_type == "temple_destroyed"
     assert temple.active is False
+
+
+def test_tick_temple_prestige():
+    from unittest.mock import MagicMock
+    world = MagicMock()
+    civ = MagicMock()
+    civ.name = "Civ1"
+    civ.prestige = 10
+    temple = Infrastructure(type=IType.TEMPLES, builder_civ="Civ1", built_turn=1, faith_id=0, temple_prestige=5)
+    region = MagicMock()
+    region.controller = "Civ1"
+    region.infrastructure = [temple]
+    world.regions = [region]
+    world.civilizations = [civ]
+    tick_temple_prestige(world)
+    assert temple.temple_prestige == 6
+    assert civ.prestige == 11
+
+
+def test_tick_temple_prestige_credits_controller():
+    """After conquest, prestige goes to region controller, not builder."""
+    from unittest.mock import MagicMock
+    world = MagicMock()
+    old_civ = MagicMock()
+    old_civ.name = "OldCiv"
+    old_civ.prestige = 10
+    new_civ = MagicMock()
+    new_civ.name = "NewCiv"
+    new_civ.prestige = 5
+    temple = Infrastructure(type=IType.TEMPLES, builder_civ="OldCiv", built_turn=1, faith_id=0)
+    region = MagicMock()
+    region.controller = "NewCiv"  # conquered
+    region.infrastructure = [temple]
+    world.regions = [region]
+    world.civilizations = [old_civ, new_civ]
+    tick_temple_prestige(world)
+    assert new_civ.prestige == 6  # controller gets prestige
+    assert old_civ.prestige == 10  # builder gets nothing
