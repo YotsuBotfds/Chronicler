@@ -158,11 +158,11 @@ army_arrived = any(
     and e.occupation == 1          # soldier
     and e.target_region == region.id
     for e in world.agent_events_raw
-    if e.turn == world.turn
+    if e.turn == world.turn - 1
 )
 ```
 
-Reads from `agent_events_raw`, populated before the ecology tick runs (agent tick precedes ecology in the phase ordering).
+Reads from `agent_events_raw` using **previous turn's** events. The ecology tick is Phase 9; the agent tick runs after Phase 9 (between Phase 9 and 10). When `tick_ecology` executes, current-turn agent events haven't been generated yet. The one-turn delay is narratively correct — disease incubation follows the army's march ("fever followed in the army's wake"). Invisible at simulation scale.
 
 **Water quality delta** — computed inside `tick_ecology`, zero storage. Read `region.ecology.water` at the top of the ecology tick before any water updates. Disease trigger check uses this pre-update value. No `prev_water` field needed. Same pattern as existing soil degradation (reads forest_cover before updating it).
 
@@ -239,7 +239,7 @@ Independent checks — each event gets its own probability roll. First to succee
 | Event | Trigger Condition | Effect | Duration | Prob |
 |-------|-------------------|--------|----------|------|
 | **Locust Swarm** | terrain in {plains, desert} AND season in {Summer, Autumn} AND has Grain resource AND soil > 0.4 | All Crop-class yields (Grain, Botanicals) -> 0. Exotic unaffected. | 2-3 turns | 15% |
-| **Flood** | river_mask != 0 (M35a) AND season = Spring AND water > 0.8 | Infrastructure damage; +0.15 soil after (silt deposit) | 1-2 turns | 20% |
+| **Flood** | river_mask != 0 (M35a) AND season = Spring AND water > 0.8 | Carrying capacity reduced 15% for duration; +0.15 soil after (silt deposit) | 1-2 turns | 20% |
 | **Mine Collapse** | terrain = mountains AND has mineral resource AND reserves < 0.3 (M34) | Mineral extraction halved; mortality spike (see below) | 3-5 turns (extraction); 1 turn (mortality) | 10% |
 | **Drought Intensification** | active DROUGHT event AND season = Summer AND water < 0.25 | Carrying capacity halved in region + adjacent Desert regions | 4-8 turns | 25% |
 
@@ -268,16 +268,18 @@ Each event writes to `world.events_timeline` using the existing `Event` model wi
 
 Environmental events use `region.disaster_cooldowns` (per-region, type-keyed dict). Entry format: `{"event_type": turns_remaining}`. Each turn, the emergence phase decrements and removes expired entries. During the active window, the event's mechanical effect applies.
 
-### Forward Dependencies (Stubs)
+### Dependencies (All Landed)
 
-| Dependency | Source | Stub Until Landed |
-|------------|--------|-------------------|
-| `river_mask` | M35a | `0` (False) -- flood never fires |
-| Season enum | M34 | `"Summer"` -- only seasonal events fire |
-| Resource types (Grain, mineral) | M34 | Stubs return `False` -- locust and mine collapse never fire |
-| `reserves` field | M34 | `1.0` -- mine collapse never fires |
+All M35b dependencies are implemented and merged:
 
-Resource-dependent events stub to `False` until M34 lands. No reads against the old string-based resource system. Cleaner migration when M34 implementation arrives.
+| Dependency | Source | Status |
+|------------|--------|--------|
+| `river_mask` | M35a | Merged — use directly |
+| Season enum | M34 | Merged — use directly |
+| Resource types (Grain, mineral) | M34 | Merged — use directly |
+| `reserves` field | M34 | Merged — use directly |
+
+No stubs needed. Implementation should use M34/M35a APIs directly.
 
 ---
 
@@ -425,7 +427,7 @@ All `[CALIBRATE]` for M47:
 | `ECOLOGICAL_RECOVERY_PROBABILITY` | 0.02 | Python (emergence) | Per-eligible-turn chance of yield recovery |
 | `ECOLOGICAL_RECOVERY_FRACTION` | 0.50 | Python (emergence) | Max fraction of lost yield restored |
 
-Constants location: follow M34's pattern for where resource/ecology constants live.
+Constants location: all 21 constants defined in `tuning.py` with `KNOWN_OVERRIDES` registration, following the exact pattern from M34 (`K_DEPLETION_RATE`, etc.) and M35a (`K_RIVER_WATER_BONUS`, etc.). This enables scenario-level override via YAML. Functions in `ecology.py` and `emergence.py` read constants via `get_override(world, K_CONSTANT_NAME, default)`.
 
 ---
 
