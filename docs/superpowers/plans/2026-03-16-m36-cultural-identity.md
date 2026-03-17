@@ -215,14 +215,21 @@ After the existing `loyalty_trait()` accessor (around line 280):
     }
 ```
 
-- [ ] **Step 7: Fix all existing spawn() call sites**
+- [ ] **Step 7: Fix ALL existing spawn() call sites**
 
-All existing call sites pass 0xFF for cultural values (pre-M36 agents have no cultural values until Python initializes them). Search for `.spawn(` in:
+The signature change breaks every existing call to `spawn()`. Run `cargo check` — expect **15-20 compile errors** across these files:
 
-- `tick.rs` (demographics births, around line 243): Add `birth.cultural_values[0], birth.cultural_values[1], birth.cultural_values[2]` — this requires extending the `BirthInfo` struct (see Task 8).
-- `ffi.rs` (initial spawn, around line 380): Add `crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY` as temporaries — Python will set real values via snapshot.
+- `tick.rs` — demographics births (around line 243): Use `birth.cultural_values[0/1/2]` (wired properly in Task 7)
+- `ffi.rs` — initial spawn from Python (around line 380): Use `CULTURAL_VALUE_EMPTY` × 3 (Python sets real values later)
+- `pool.rs` tests — every `#[test]` that calls `pool.spawn(...)`: Append `0, 1, 2` or any valid distinct u8 values
+- `tick.rs` tests — any test helpers that spawn agents: Same fix
+- `satisfaction.rs` tests — if any spawn agents: Same fix
+- `behavior.rs` tests — if any spawn agents: Same fix
+- `demographics.rs` tests — if any spawn agents: Same fix
 
-For now, use CULTURAL_VALUE_EMPTY at all call sites to unblock compilation. Task 8 will wire proper values.
+**Process:** Run `cargo check`, fix every error by appending 3 u8 args (use `CULTURAL_VALUE_EMPTY` for production code, arbitrary values for tests), repeat until clean. Do NOT skip any call site.
+
+For now, use CULTURAL_VALUE_EMPTY at all non-test call sites to unblock compilation. Task 7 will wire proper birth values.
 
 - [ ] **Step 8: Run tests to verify they pass**
 
@@ -982,11 +989,13 @@ After the demographics application block (around line 266), add culture drift as
 
 Note: Culture drift runs sequentially (not parallel) because `drift_agent` mutates the pool. If performance profiling shows this is a bottleneck, it can be parallelized by collecting pending drifts into a struct (like decisions) and applying sequentially — but at 500 agents/region this is microseconds.
 
-- [ ] **Step 5: Update satisfaction call to use cultural penalty**
+- [ ] **Step 5a: Read the current satisfaction call site**
 
-In `tick.rs`, the `update_satisfaction()` function (lines 295-403) iterates per-region, per-agent and calls `crate::satisfaction::compute_satisfaction(...)`. Find this call site (grep for `compute_satisfaction(` in tick.rs).
+In `tick.rs`, grep for `compute_satisfaction(` to find the exact call site in `update_satisfaction()` (around lines 295-403). Read the full call — note every positional argument, its source expression, and order. Write down the current arg list before making any changes.
 
-Replace it with `compute_satisfaction_with_culture()`, appending two new arguments at the end — the agent's cultural values and the region's controller values:
+- [ ] **Step 5b: Replace with compute_satisfaction_with_culture()**
+
+Append two new arguments to the **end** of the existing arg list (do not reorder or modify existing args):
 
 ```rust
 let agent_values = [
@@ -995,13 +1004,13 @@ let agent_values = [
     pool.cultural_value_2[slot],
 ];
 let sat = crate::satisfaction::compute_satisfaction_with_culture(
-    // ... all existing positional args exactly as before ...,
+    // ... all existing positional args exactly as read in Step 5a ...,
     agent_values,
     regions[region_id].controller_values,
 );
 ```
 
-The existing positional args must be preserved verbatim from the current call. The two new args go at the end. Verify by reading the current `compute_satisfaction()` call and appending.
+**Tech debt note:** The wrapper approach (calling `compute_satisfaction` then subtracting the penalty) works but means two functions exist. Before M37 adds religious penalty to the same sum, refactor to fold the cultural penalty *inside* `compute_satisfaction()` as additional parameters. Do not stack wrapper functions.
 
 - [ ] **Step 6: Verify compilation and run existing tests**
 
@@ -1277,6 +1286,8 @@ Replace the existing `tick_cultural_assimilation()` in `culture.py`. Keep the ol
 
 **IMPORTANT:** Preserve the existing `ASSIMILATION_THRESHOLD = 15` constant (line 76) — it is used by the M16 timer fallback path in `--agents=off` mode. The new `ASSIMILATION_AGENT_THRESHOLD = 0.60` is a separate constant for the agent-driven path.
 
+**Performance note:** The implementation below calls `to_pylist()` on snapshot columns and iterates the full snapshot per region — O(R × N). At current scale (200 regions × 10K agents = 2M iterations) this is fine. If it becomes a bottleneck, pre-index agents by region once per turn with a `defaultdict(list)` and iterate per-region. Don't optimize now.
+
 ```python
 ASSIMILATION_AGENT_THRESHOLD = 0.60
 ASSIMILATION_GUARD_TURNS = 5
@@ -1523,6 +1534,8 @@ def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
                     rel.disposition_drift += movement_drift
 ```
 
+**Pre-check:** Verify that `_downgrade_disposition()` and `upgrade_disposition()` still exist in `culture.py` — the replacement code calls them. If they've been renamed or moved, update the references.
+
 - [ ] **Step 2: Write test for agent-driven value drift**
 
 Add to `test/test_m36_culture.py`:
@@ -1676,6 +1689,8 @@ At the end of `resolve_invest_culture()`, after the existing `target.foreign_con
 
 This transient attribute is read by `build_region_batch()` in `agent_bridge.py` (already wired in Task 8 via `getattr(r, '_culture_investment_active', False)`). It's set each turn INVEST_CULTURE fires and consumed when building the region batch. The attribute doesn't persist between turns because `build_region_batch()` defaults to False.
 
+**Execution order safety:** Phase 8 (action engine) runs `resolve_invest_culture()` which sets the flag. The Rust tick (between Phase 9-10) calls `build_region_batch()` which reads the flag. Phase 8 always runs before the Rust tick, so the flag is set before it's read. Verify this by checking the turn loop in `simulation.py`.
+
 - [ ] **Step 2: Commit**
 
 ```bash
@@ -1739,68 +1754,127 @@ class TestAssimilationTiming:
 
     @pytest.mark.slow
     def test_assimilation_timing_median(self):
-        """Median assimilation duration across seeds should be 40-80 turns."""
-        durations = []
+        """Median assimilation turn across seeds should be within 40-80 range."""
+        assimilation_turns = []
         for seed in SEEDS[:50]:
             world = _run_sim(seed, agent_mode="hybrid", turns=TURNS)
             for event in world.named_events:
                 if event.event_type == "cultural_assimilation":
-                    # Approximate: event.turn is when assimilation happened
-                    # Occupation started at most event.turn turns ago
-                    durations.append(event.turn)
-        if len(durations) >= 5:
-            median_dur = statistics.median(durations)
-            assert 20 <= median_dur <= 120, (
-                f"Median assimilation turn {median_dur} outside expected range. "
-                f"Collected {len(durations)} events."
-            )
+                    assimilation_turns.append(event.turn)
+        assert len(assimilation_turns) >= 5, (
+            f"Only {len(assimilation_turns)} assimilation events in 50 seeds — "
+            f"need ≥5 for meaningful median"
+        )
+        median_turn = statistics.median(assimilation_turns)
+        # Spec target: 40-80 turns median. Test band: ±20 (so 20-100).
+        assert 20 <= median_turn <= 100, (
+            f"Median assimilation at turn {median_turn:.0f} outside 20-100 band. "
+            f"If <20: drift rate too high. If >100: INVEST_CULTURE mandatory. "
+            f"({len(assimilation_turns)} events)"
+        )
 
 
 class TestEconomyRegression:
-    """Satisfaction penalty should not destabilize economy."""
+    """Satisfaction penalty should not destabilize economy.
+
+    Captures pre-M36 baseline (agents=off) and compares post-M36
+    (agents=hybrid) within ±10% tolerance.
+    """
 
     @pytest.mark.slow
     def test_economy_within_tolerance(self):
-        """Mean treasury and stability across seeds should remain viable."""
-        treasuries = []
-        stabilities = []
+        """Post-M36 economy should be within ±10% of baseline."""
+        baseline_treasuries = []
+        m36_treasuries = []
+        baseline_stabilities = []
+        m36_stabilities = []
+
         for seed in SEEDS[:20]:
-            world = _run_sim(seed, agent_mode="hybrid", turns=100)
-            for civ in world.civilizations:
+            # Baseline: agents=off (M16 timer path, no cultural penalty)
+            base_world = _run_sim(seed, agent_mode="off", turns=100)
+            for civ in base_world.civilizations:
                 if civ.alive:
-                    treasuries.append(civ.treasury)
-                    stabilities.append(civ.stability)
-        assert len(treasuries) > 0
-        mean_treasury = statistics.mean(treasuries)
-        mean_stability = statistics.mean(stabilities)
-        # Mean treasury should be positive (economy not collapsed)
-        assert mean_treasury > 0, f"Mean treasury {mean_treasury} <= 0"
-        # Mean stability should be above rebellion threshold
-        assert mean_stability > 20, f"Mean stability {mean_stability} <= 20"
+                    baseline_treasuries.append(civ.treasury)
+                    baseline_stabilities.append(civ.stability)
+
+            # M36: agents=hybrid (cultural penalty active)
+            m36_world = _run_sim(seed, agent_mode="hybrid", turns=100)
+            for civ in m36_world.civilizations:
+                if civ.alive:
+                    m36_treasuries.append(civ.treasury)
+                    m36_stabilities.append(civ.stability)
+
+        assert len(baseline_treasuries) > 0 and len(m36_treasuries) > 0
+
+        base_mean_t = statistics.mean(baseline_treasuries)
+        m36_mean_t = statistics.mean(m36_treasuries)
+        base_mean_s = statistics.mean(baseline_stabilities)
+        m36_mean_s = statistics.mean(m36_stabilities)
+
+        # Treasury within ±10% of baseline (or both near zero)
+        if base_mean_t > 10:
+            ratio_t = m36_mean_t / base_mean_t
+            assert 0.90 <= ratio_t <= 1.10, (
+                f"Treasury ratio {ratio_t:.2f} outside ±10% "
+                f"(baseline={base_mean_t:.0f}, m36={m36_mean_t:.0f})"
+            )
+
+        # Stability within ±10% of baseline
+        if base_mean_s > 10:
+            ratio_s = m36_mean_s / base_mean_s
+            assert 0.90 <= ratio_s <= 1.10, (
+                f"Stability ratio {ratio_s:.2f} outside ±10% "
+                f"(baseline={base_mean_s:.0f}, m36={m36_mean_s:.0f})"
+            )
 
 
 class TestInvestCultureAcceleration:
-    """INVEST_CULTURE should accelerate assimilation 30-50% vs organic."""
+    """INVEST_CULTURE should accelerate assimilation vs organic."""
 
     @pytest.mark.slow
-    def test_acceleration_measurable(self):
-        """Civs that invest in culture should assimilate regions faster.
+    def test_invest_culture_produces_faster_assimilation(self):
+        """Seeds with INVEST_CULTURE events should assimilate faster than average.
 
-        This is a directional test — we verify the mechanism works,
-        exact calibration deferred to M47 Tier 3.
+        Methodology: across 50 seeds, compare assimilation timing in civs
+        that used INVEST_CULTURE vs those that didn't. The INVEST_CULTURE
+        civs should assimilate 30-50% faster (spec target).
         """
-        # Run enough seeds to get both INVEST_CULTURE and organic assimilation events
-        invest_turns = []
-        organic_turns = []
+        invest_assimilation_turns = []
+        all_assimilation_turns = []
+
         for seed in SEEDS[:50]:
             world = _run_sim(seed, agent_mode="hybrid", turns=TURNS)
-            # Categorize assimilation events by whether INVEST_CULTURE was active
-            # This is approximate — detailed analysis in Tier 3
+
+            # Collect all assimilation events
             for event in world.named_events:
                 if event.event_type == "cultural_assimilation":
-                    organic_turns.append(event.turn)
-        # Smoke test: at least some assimilation events occurred
-        assert len(organic_turns) > 0, "No assimilation events in 50 seeds"
+                    all_assimilation_turns.append(event.turn)
+
+            # Check if any INVEST_CULTURE actions occurred
+            invest_events = [
+                e for e in world.events_timeline
+                if getattr(e, 'event_type', '') == 'invest_culture'
+            ]
+            if invest_events:
+                for event in world.named_events:
+                    if event.event_type == "cultural_assimilation":
+                        invest_assimilation_turns.append(event.turn)
+
+        assert len(all_assimilation_turns) >= 5, (
+            f"Only {len(all_assimilation_turns)} assimilation events — "
+            f"insufficient for comparison"
+        )
+
+        # Directional check: if we have invest events, they should trend faster
+        if len(invest_assimilation_turns) >= 3:
+            invest_median = statistics.median(invest_assimilation_turns)
+            all_median = statistics.median(all_assimilation_turns)
+            # Invest seeds should assimilate no later than overall average
+            # (exact 30-50% target calibrated in M47 Tier 3)
+            assert invest_median <= all_median * 1.1, (
+                f"INVEST_CULTURE median ({invest_median:.0f}) not faster than "
+                f"overall median ({all_median:.0f})"
+            )
 
 
 class TestCivCulturalProfileConsistency:
