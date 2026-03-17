@@ -183,10 +183,20 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
         if ptype not in valid_types or BUILD_SPECS[ptype].cost > civ.treasury:
             continue
         if ptype == IType.TEMPLES:
-            if _region_has_temple(target_region):
-                continue
             if _count_civ_temples(world, civ.name) >= MAX_TEMPLES_PER_CIV:
                 continue
+            existing_temple = next(
+                (i for i in target_region.infrastructure if i.type == IType.TEMPLES and i.active),
+                None,
+            )
+            if existing_temple:
+                builder_faith = getattr(civ, 'civ_majority_faith', -1)
+                if existing_temple.faith_id == builder_faith:
+                    continue  # can't build same-faith duplicate
+                # M38a: foreign temple — destroy and replace
+                evt = destroy_temple_for_replacement(target_region, world)
+                if evt:
+                    world.events_timeline.append(evt)
         selected_type = ptype
         break
     if selected_type is None:

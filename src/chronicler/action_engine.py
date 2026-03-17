@@ -474,6 +474,11 @@ def resolve_war(
                 is_militant = attacker_belief and attacker_belief.doctrines[DOCTRINE_STANCE] == 1
                 if is_militant:
                     contested.conquest_conversion_active = True
+                    # M38a: militant holy war destroys temple
+                    from chronicler.infrastructure import destroy_temple_on_conquest
+                    temple_evt = destroy_temple_on_conquest(contested, attacker, world)
+                    if temple_evt:
+                        world.events_timeline.append(temple_evt)
                 contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
         if acc is not None:
             acc.add(att_idx, attacker, "military", -10, "guard-action")
