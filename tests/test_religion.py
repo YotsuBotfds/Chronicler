@@ -269,3 +269,163 @@ class TestConquestBoostDecay:
             decay_conquest_boosts([region])
 
         assert region.conquest_conversion_boost == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Regression helpers
+# ---------------------------------------------------------------------------
+
+def _make_test_world(num_civs=2, seed=42):
+    """Create a minimal WorldState with belief_registry for regression testing."""
+    from chronicler.models import (
+        WorldState, Region, Civilization, Leader, Relationship, TechEra,
+    )
+    from chronicler.religion import generate_faiths
+
+    _value_sets = [
+        ["Honor", "Order"],
+        ["Freedom", "Cunning"],
+        ["Tradition", "Knowledge"],
+    ]
+
+    civs = []
+    regions = []
+    for i in range(num_civs):
+        name = f"Civ{i}"
+        values = _value_sets[i % len(_value_sets)]
+        region_name = f"{name}_region"
+        region = Region(
+            name=region_name,
+            terrain="plains",
+            carrying_capacity=60,
+            resources="fertile",
+            controller=name,
+        )
+        civ = Civilization(
+            name=name,
+            population=50,
+            military=30,
+            economy=40,
+            culture=30,
+            stability=50,
+            tech_era=TechEra.IRON,
+            treasury=50,
+            leader=Leader(name=f"Leader of {name}", trait="cautious", reign_start=0),
+            regions=[region_name],
+            values=values,
+            asabiya=0.5,
+        )
+        civs.append(civ)
+        regions.append(region)
+
+    rels = {}
+    for c in civs:
+        rels[c.name] = {}
+        for other in civs:
+            if c.name != other.name:
+                rels[c.name][other.name] = Relationship()
+
+    world = WorldState(
+        name="TestWorld",
+        seed=seed,
+        turn=0,
+        regions=regions,
+        civilizations=civs,
+        relationships=rels,
+    )
+
+    civ_values = [c.values for c in world.civilizations]
+    civ_names = [c.name for c in world.civilizations]
+    world.belief_registry = generate_faiths(civ_values, civ_names, seed=seed)
+
+    return world
+
+
+def _make_snapshot_lists(
+    *,
+    regions: list[int],
+    beliefs: list[int],
+    civs: list[int],
+    occs: list[int],
+) -> "pa.RecordBatch":
+    """Build a RecordBatch from parallel lists (convenience wrapper)."""
+    n = len(regions)
+    agents = [
+        {
+            "id": i,
+            "region": regions[i],
+            "civ": civs[i],
+            "occupation": occs[i],
+            "belief": beliefs[i],
+        }
+        for i in range(n)
+    ]
+    return _make_snapshot(agents)
+
+
+# ---------------------------------------------------------------------------
+# TestRegressionM37
+# ---------------------------------------------------------------------------
+
+class TestRegressionM37:
+    def test_beliefs_stable_without_priests(self):
+        """In a single-faith region with no foreign priests, beliefs never change.
+
+        Tests the stable-by-default contract: compute_conversion_signals should
+        produce rate=0.0 for every region when all priests share the majority faith.
+        """
+        world = _make_test_world(num_civs=1)
+        # 10 agents in region 0: all same faith (0), 2 are priests (occupation 4)
+        snap = _make_snapshot_lists(
+            regions=[0] * 10,
+            beliefs=[0] * 10,
+            civs=[0] * 10,
+            occs=[0, 0, 0, 0, 0, 0, 0, 0, 4, 4],
+        )
+
+        majority = compute_majority_belief(snap)
+        signals = compute_conversion_signals(
+            world.regions, majority, world.belief_registry, snap,
+        )
+
+        # No foreign priests → zero conversion rate everywhere
+        for region_idx, rate, target, conquest_active in signals:
+            assert rate == 0.0, (
+                f"Region {region_idx}: expected rate=0.0, got {rate}"
+            )
+
+    def test_conquest_boost_decay_lifecycle(self):
+        """Conquest boost decays to 0 over CONQUEST_BOOST_DURATION turns.
+
+        The decay step is 1/CONQUEST_BOOST_DURATION per call, so starting from
+        1.0 the boost reaches exactly 0.0 after CONQUEST_BOOST_DURATION calls.
+        """
+        world = _make_test_world(num_civs=1)
+        # Start at 1.0 (a full boost unit) so the full CONQUEST_BOOST_DURATION
+        # turns are exercised before reaching zero.
+        world.regions[0].conquest_conversion_boost = 1.0
+
+        for t in range(CONQUEST_BOOST_DURATION):
+            assert world.regions[0].conquest_conversion_boost > 0, (
+                f"Boost reached 0 early at turn {t} (before {CONQUEST_BOOST_DURATION})"
+            )
+            decay_conquest_boosts(world.regions)
+
+        assert world.regions[0].conquest_conversion_boost == pytest.approx(0.0, abs=1e-9)
+
+    def test_initial_spawn_beliefs_match_civ(self):
+        """World-gen belief_registry should contain exactly one faith per civ."""
+        world = _make_test_world(num_civs=3)
+
+        assert len(world.belief_registry) == 3
+        for i, belief in enumerate(world.belief_registry):
+            assert belief.faith_id == i, (
+                f"Faith {i}: expected faith_id={i}, got {belief.faith_id}"
+            )
+            assert belief.civ_origin == i, (
+                f"Faith {i}: expected civ_origin={i}, got {belief.civ_origin}"
+            )
+            assert len(belief.doctrines) == 5
+            assert all(d in (-1, 0, 1) for d in belief.doctrines), (
+                f"Faith {i} has out-of-range doctrine: {belief.doctrines}"
+            )
