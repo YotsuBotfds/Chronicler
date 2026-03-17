@@ -21,6 +21,8 @@ fn make_test_regions() -> Vec<RegionState> {
             season_id: 0,
             river_mask: 0,
             endemic_severity: 0.0,
+            culture_investment_active: false,
+            controller_values: [0xFF, 0xFF, 0xFF],
         })
         .collect()
 }
@@ -58,7 +60,7 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
     let mut pool = AgentPool::new(0);
     for r in regions {
         for _ in 0..r.carrying_capacity {
-            pool.spawn(r.region_id, r.region_id as u8, Occupation::Farmer, 0, 0.0, 0.0, 0.0);
+            pool.spawn(r.region_id, r.region_id as u8, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2);
         }
     }
     pool

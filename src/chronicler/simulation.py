@@ -822,8 +822,9 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     tick_movements(world)
 
     # M16a: Cultural effects (order matters — assimilation drain feeds asabiya)
-    apply_value_drift(world)
-    tick_cultural_assimilation(world, acc=acc)
+    _snap = getattr(world, '_agent_snapshot', None)
+    apply_value_drift(world, agent_snapshot=_snap)
+    tick_cultural_assimilation(world, acc=acc, agent_snapshot=_snap)
 
     # M16c: Cultural victory tracking (runs LAST in culture effects)
     check_cultural_victories(world)
@@ -1132,6 +1133,14 @@ def run_turn(
         # Existing agent_bridge.tick() call for non-hybrid modes
         if agent_bridge is not None:
             turn_events.extend(agent_bridge.tick(world))
+
+    # M36: Stash snapshot for Phase 10 culture functions
+    world._agent_snapshot = None
+    if agent_bridge is not None:
+        try:
+            world._agent_snapshot = agent_bridge._sim.get_snapshot()
+        except Exception:
+            pass
 
     # Phase 10: Consequences
     # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.

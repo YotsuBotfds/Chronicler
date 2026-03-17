@@ -47,6 +47,8 @@ fn main() {
         season_id: 0,
         river_mask: 0,
         endemic_severity: 0.0,
+        culture_investment_active: false,
+        controller_values: [0xFF, 0xFF, 0xFF],
     }).collect();
 
     let num_civs = (num_regions.min(8)) as usize;
@@ -84,7 +86,7 @@ fn main() {
     ];
     for r in 0..num_regions {
         for j in 0..agents_per_region {
-            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0);
+            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0, 0, 1, 2);
         }
     }
 

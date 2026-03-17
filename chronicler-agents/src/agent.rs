@@ -107,6 +107,27 @@ pub const LIFE_EVENT_WAR_SURVIVAL: u8  = 1 << 2;
 pub const LIFE_EVENT_LOYALTY_FLIP: u8  = 1 << 3;
 pub const LIFE_EVENT_OCC_SWITCH: u8    = 1 << 4;
 
+// M36: Cultural identity
+pub const IS_NAMED: u8 = 1 << 5;  // bit 5 of life_events
+
+/// Number of cultural value enum variants (Freedom=0..Cunning=5).
+pub const NUM_CULTURAL_VALUES: usize = 6;
+
+/// Sentinel for empty cultural value slot.
+pub const CULTURAL_VALUE_EMPTY: u8 = 0xFF;
+
+// --- M36 cultural drift tuning constants ---
+pub const CULTURAL_DRIFT_RATE: f32 = 0.06;
+pub const DRIFT_SLOT_WEIGHTS: [f32; 3] = [1.0 / 3.0, 2.0 / 3.0, 1.0];
+pub const CULTURAL_MISMATCH_WEIGHT: f32 = 0.05;
+pub const PENALTY_CAP: f32 = 0.40;
+pub const NAMED_CULTURE_WEIGHT: u16 = 5;
+pub const ENV_BIAS_FRACTION: f32 = 0.05;
+pub const ENV_SLOT_WEIGHTS: [f32; 3] = [1.0, 0.5, 0.25];
+pub const DISSATISFIED_DRIFT_BONUS: f32 = 0.03;
+pub const DISSATISFIED_THRESHOLD: f32 = 0.4;
+pub const INVEST_CULTURE_BONUS: f32 = 0.10;
+
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;

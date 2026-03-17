@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
+from chronicler.agent_bridge import VALUE_TO_ID
 from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
 from chronicler.utils import clamp
 
@@ -31,33 +34,77 @@ def _downgrade_disposition(current: Disposition) -> Disposition:
     return _DISPOSITION_ORDER[max(idx - 1, 0)]
 
 
-def apply_value_drift(world: WorldState) -> None:
-    """Accumulate disposition drift from shared/opposing values."""
+def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
+    """Accumulate disposition drift from shared/opposing values.
+
+    When agent_snapshot is provided (M36 bottom-up path), compute drift from
+    per-civ cultural value frequency profiles derived from agent data.
+    When None, fall back to the M16 civ-level value comparison.
+    """
     from chronicler.movements import SCHISM_DIVERGENCE_THRESHOLD
 
     civs = world.civilizations
-    for i, civ_a in enumerate(civs):
-        for civ_b in civs[i + 1:]:
-            shared = sum(1 for v in civ_a.values if v in civ_b.values)
-            opposing = sum(
-                1 for va in civ_a.values for vb in civ_b.values
-                if VALUE_OPPOSITIONS.get(va) == vb
-            )
-            net_drift = (shared * 2) - (opposing * 2)
-            if net_drift == 0:
-                continue
 
-            for a_name, b_name in [(civ_a.name, civ_b.name), (civ_b.name, civ_a.name)]:
-                rel = world.relationships.get(a_name, {}).get(b_name)
-                if rel is None:
+    if agent_snapshot is not None:
+        # --- M36 bottom-up path: derive drift from agent cultural profiles ---
+        profiles = compute_civ_cultural_profile(agent_snapshot)
+        # Build civ_id -> civ mapping using list index as civ_id
+        civ_id_map = {i: civ for i, civ in enumerate(civs)}
+        all_values = set()
+        for prof in profiles.values():
+            all_values.update(prof.keys())
+
+        for i, civ_a in enumerate(civs):
+            for j, civ_b in enumerate(civs):
+                if j <= i:
                     continue
-                rel.disposition_drift += net_drift
-                if rel.disposition_drift >= 10:
-                    rel.disposition = upgrade_disposition(rel.disposition)
-                    rel.disposition_drift = 0
-                elif rel.disposition_drift <= -10:
-                    rel.disposition = _downgrade_disposition(rel.disposition)
-                    rel.disposition_drift = 0
+                prof_a = profiles.get(i, Counter())
+                prof_b = profiles.get(j, Counter())
+                total_a = sum(prof_a.values()) or 1
+                total_b = sum(prof_b.values()) or 1
+                shared_frac = sum(
+                    min(prof_a.get(v, 0) / total_a, prof_b.get(v, 0) / total_b)
+                    for v in all_values
+                )
+                net_drift = int((shared_frac - 0.3) * 10)
+                if net_drift == 0:
+                    continue
+
+                for a_name, b_name in [(civ_a.name, civ_b.name), (civ_b.name, civ_a.name)]:
+                    rel = world.relationships.get(a_name, {}).get(b_name)
+                    if rel is None:
+                        continue
+                    rel.disposition_drift += net_drift
+                    if rel.disposition_drift >= 10:
+                        rel.disposition = upgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
+                    elif rel.disposition_drift <= -10:
+                        rel.disposition = _downgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
+    else:
+        # --- M16 civ-level fallback ---
+        for i, civ_a in enumerate(civs):
+            for civ_b in civs[i + 1:]:
+                shared = sum(1 for v in civ_a.values if v in civ_b.values)
+                opposing = sum(
+                    1 for va in civ_a.values for vb in civ_b.values
+                    if VALUE_OPPOSITIONS.get(va) == vb
+                )
+                net_drift = (shared * 2) - (opposing * 2)
+                if net_drift == 0:
+                    continue
+
+                for a_name, b_name in [(civ_a.name, civ_b.name), (civ_b.name, civ_a.name)]:
+                    rel = world.relationships.get(a_name, {}).get(b_name)
+                    if rel is None:
+                        continue
+                    rel.disposition_drift += net_drift
+                    if rel.disposition_drift >= 10:
+                        rel.disposition = upgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
+                    elif rel.disposition_drift <= -10:
+                        rel.disposition = _downgrade_disposition(rel.disposition)
+                        rel.disposition_drift = 0
 
     # Movement co-adoption effects (accumulate only — threshold applied next cycle)
     for movement in world.movements:
@@ -76,11 +123,37 @@ def apply_value_drift(world: WorldState) -> None:
 ASSIMILATION_THRESHOLD = 15
 ASSIMILATION_STABILITY_DRAIN = 3
 RECONQUEST_COOLDOWN = 10
+ASSIMILATION_AGENT_THRESHOLD = 0.60
+ASSIMILATION_GUARD_TURNS = 5
 
 
-def tick_cultural_assimilation(world: WorldState, acc=None) -> None:
-    """Tick cultural assimilation for all regions."""
-    for region in world.regions:
+def compute_civ_cultural_profile(snapshot) -> dict[int, Counter]:
+    """Aggregate per-civ cultural value frequency from agent snapshot."""
+    if snapshot is None or snapshot.num_rows == 0:
+        return {}
+    civs = snapshot.column("civ_affinity").to_pylist()
+    cv0 = snapshot.column("cultural_value_0").to_pylist()
+    cv1 = snapshot.column("cultural_value_1").to_pylist()
+    cv2 = snapshot.column("cultural_value_2").to_pylist()
+    profiles: dict[int, Counter] = {}
+    for i in range(len(civs)):
+        civ_id = civs[i]
+        if civ_id not in profiles:
+            profiles[civ_id] = Counter()
+        for val in (cv0[i], cv1[i], cv2[i]):
+            if val != 0xFF and val < 6:
+                profiles[civ_id][val] += 1
+    return profiles
+
+
+def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None) -> None:
+    """Tick cultural assimilation for all regions.
+
+    When agent_snapshot is provided (hybrid/shadow mode), use agent-driven
+    60% cultural value check.  When None (agents=off), fall back to M16
+    timer-based path.
+    """
+    for region_idx, region in enumerate(world.regions):
         if region.controller is None:
             continue
 
@@ -100,8 +173,38 @@ def tick_cultural_assimilation(world: WorldState, acc=None) -> None:
             continue
 
         region.foreign_control_turns += 1
+        assimilated = False
 
-        if region.foreign_control_turns >= ASSIMILATION_THRESHOLD:
+        if agent_snapshot is not None:
+            # --- Agent-driven path ---
+            if region.foreign_control_turns >= ASSIMILATION_GUARD_TURNS:
+                controller_civ = next(
+                    (c for c in world.civilizations if c.name == region.controller), None
+                )
+                if controller_civ and controller_civ.values:
+                    primary_value = controller_civ.values[0]
+                    target_val_id = VALUE_TO_ID.get(primary_value)
+                    if target_val_id is not None:
+                        # Count agents in this region holding the value
+                        regions_col = agent_snapshot.column("region").to_pylist()
+                        cv0 = agent_snapshot.column("cultural_value_0").to_pylist()
+                        cv1 = agent_snapshot.column("cultural_value_1").to_pylist()
+                        cv2 = agent_snapshot.column("cultural_value_2").to_pylist()
+                        total = 0
+                        holders = 0
+                        for j in range(agent_snapshot.num_rows):
+                            if regions_col[j] == region_idx:
+                                total += 1
+                                if target_val_id in (cv0[j], cv1[j], cv2[j]):
+                                    holders += 1
+                        if total > 0 and (holders / total) >= ASSIMILATION_AGENT_THRESHOLD:
+                            assimilated = True
+        else:
+            # --- M16 timer-based fallback ---
+            if region.foreign_control_turns >= ASSIMILATION_THRESHOLD:
+                assimilated = True
+
+        if assimilated:
             region.cultural_identity = region.controller
             region.foreign_control_turns = 0
             world.named_events.append(NamedEvent(
@@ -211,6 +314,9 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
     from chronicler.action_engine import _power_struggle_factor
     net_acceleration = int(net_acceleration * _power_struggle_factor(civ))
     target.foreign_control_turns += net_acceleration
+
+    # M36: Set signal flag for Rust culture_tick to boost drift toward controller values
+    target._culture_investment_active = True
 
     world.named_events.append(NamedEvent(
         name=f"Propaganda in {target.name}",

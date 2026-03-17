@@ -76,6 +76,9 @@ pub fn snapshot_schema() -> Schema {
         Field::new("boldness", DataType::Float32, false),
         Field::new("ambition", DataType::Float32, false),
         Field::new("loyalty_trait", DataType::Float32, false),
+        Field::new("cultural_value_0", DataType::UInt8, false),
+        Field::new("cultural_value_1", DataType::UInt8, false),
+        Field::new("cultural_value_2", DataType::UInt8, false),
     ])
 }
 
@@ -299,6 +302,20 @@ impl AgentSimulator {
             .column_by_name("endemic_severity")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
+        // Optional M36 columns
+        let culture_investment = rb
+            .column_by_name("culture_investment_active")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let ctrl_val_0 = rb
+            .column_by_name("controller_values_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let ctrl_val_1 = rb
+            .column_by_name("controller_values_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let ctrl_val_2 = rb
+            .column_by_name("controller_values_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -337,6 +354,12 @@ impl AgentSimulator {
                     season_id: season_id_col.map_or(0, |arr| arr.value(i)),
                     river_mask: river_mask_col.map_or(0, |arr| arr.value(i)),
                     endemic_severity: endemic_severity_col.map_or(0.0, |arr| arr.value(i)),
+                    culture_investment_active: culture_investment.map_or(false, |arr| arr.value(i)),
+                    controller_values: [
+                        ctrl_val_0.map_or(0xFF, |arr| arr.value(i)),
+                        ctrl_val_1.map_or(0xFF, |arr| arr.value(i)),
+                        ctrl_val_2.map_or(0xFF, |arr| arr.value(i)),
+                    ],
                 })
                 .collect();
 
@@ -367,23 +390,23 @@ impl AgentSimulator {
 
                 for _ in 0..n_farmer {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2]);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
                 }
                 for _ in 0..n_soldier {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2]);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
                 }
                 for _ in 0..n_merchant {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2]);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
                 }
                 for _ in 0..n_scholar {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2]);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
                 }
                 for _ in 0..n_priest {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2]);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY);
                 }
             }
 
@@ -419,6 +442,12 @@ impl AgentSimulator {
                 r.season_id = season_id_col.map_or(r.season_id, |arr| arr.value(i));
                 r.river_mask = river_mask_col.map_or(r.river_mask, |arr| arr.value(i));
                 r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
+                r.culture_investment_active = culture_investment.map_or(false, |arr| arr.value(i));
+                r.controller_values = [
+                    ctrl_val_0.map_or(0xFF, |arr| arr.value(i)),
+                    ctrl_val_1.map_or(0xFF, |arr| arr.value(i)),
+                    ctrl_val_2.map_or(0xFF, |arr| arr.value(i)),
+                ];
             }
         }
         Ok(())

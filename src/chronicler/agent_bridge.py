@@ -41,6 +41,13 @@ SUMMARY_TEMPLATES = {
 }
 
 
+# M36: Cultural value string → u8 index mapping (matches Rust enum order)
+VALUE_TO_ID = {
+    "Freedom": 0, "Order": 1, "Tradition": 2,
+    "Knowledge": 3, "Honor": 4, "Cunning": 5,
+}
+VALUE_EMPTY = 0xFF
+
 VALUE_PERSONALITY_MAP = {
     "Honor":     ( 0.15,  0.0,   0.0),
     "Freedom":   ( 0.15,  0.0,   0.0),
@@ -102,6 +109,18 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
             if r.controller == defender:
                 contested_regions_set.add(r.name)
 
+    def _controller_values(region):
+        """Denormalize controller civ's cultural values into per-region columns."""
+        if region.controller is None:
+            return [VALUE_EMPTY, VALUE_EMPTY, VALUE_EMPTY]
+        ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
+        if ctrl_civ is None:
+            return [VALUE_EMPTY, VALUE_EMPTY, VALUE_EMPTY]
+        vals = [VALUE_TO_ID.get(v, VALUE_EMPTY) for v in ctrl_civ.values[:3]]
+        while len(vals) < 3:
+            vals.append(VALUE_EMPTY)
+        return vals
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -133,7 +152,28 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         "river_mask": pa.array([r.river_mask for r in world.regions], type=pa.uint32()),
         # M35b: Endemic disease severity
         "endemic_severity": pa.array([r.endemic_severity for r in world.regions], type=pa.float32()),
+        # M36: Cultural identity signals
+        "culture_investment_active": pa.array(
+            [getattr(r, '_culture_investment_active', False) for r in world.regions],
+            type=pa.bool_(),
+        ),
+        "controller_values_0": pa.array(
+            [_controller_values(r)[0] for r in world.regions], type=pa.uint8(),
+        ),
+        "controller_values_1": pa.array(
+            [_controller_values(r)[1] for r in world.regions], type=pa.uint8(),
+        ),
+        "controller_values_2": pa.array(
+            [_controller_values(r)[2] for r in world.regions], type=pa.uint8(),
+        ),
     })
+
+    # M36: Clear transient culture investment flag after reading it.
+    # Without this, the flag persists from the turn it was set, giving
+    # perpetual drift bonus instead of single-turn.
+    for r in world.regions:
+        if hasattr(r, '_culture_investment_active'):
+            del r._culture_investment_active
 
 
 def build_signals(world: WorldState, shocks: list | None = None,
