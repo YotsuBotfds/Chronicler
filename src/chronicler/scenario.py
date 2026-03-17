@@ -395,6 +395,24 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     assign_resource_types(world.regions, seed=world.seed)
     populate_legacy_resources(world.regions)
 
+    # --- Step 9: River assignment (M35a) ---
+    if len(config.rivers) > 32:
+        raise ValueError(f"Maximum 32 rivers supported (got {len(config.rivers)})")
+    region_map = {r.name: r for r in world.regions}
+    world.rivers = []
+    for river_idx, river in enumerate(config.rivers):
+        for rname in river.path:
+            if rname not in region_map:
+                raise ValueError(f"River '{river.name}': region '{rname}' not found in scenario")
+        for i in range(len(river.path) - 1):
+            r_curr = region_map[river.path[i]]
+            r_next_name = river.path[i + 1]
+            if r_next_name not in r_curr.adjacencies:
+                raise ValueError(
+                    f"River '{river.name}': '{river.path[i]}' and '{r_next_name}' are not adjacent"
+                )
+        world.rivers.append(river)
+
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}
 

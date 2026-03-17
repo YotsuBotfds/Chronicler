@@ -5,7 +5,8 @@ from chronicler.tuning import (
     K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
     KNOWN_OVERRIDES,
 )
-from chronicler.scenario import ScenarioConfig
+from chronicler.scenario import ScenarioConfig, apply_scenario
+from chronicler.world_gen import generate_world
 
 
 class TestRiverModel:
@@ -49,3 +50,49 @@ class TestScenarioRiverConfig:
     def test_config_default_no_rivers(self):
         config = ScenarioConfig(name="No Rivers")
         assert config.rivers == []
+
+
+class TestRiverValidation:
+    def _make_world_and_config(self, rivers):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        config = ScenarioConfig(name="Test", rivers=rivers)
+        return world, config
+
+    def test_valid_river_accepted(self):
+        world, config = self._make_world_and_config([])
+        r0 = world.regions[0]
+        if r0.adjacencies:
+            adj_name = r0.adjacencies[0]
+            config.rivers = [River(name="Test River", path=[r0.name, adj_name])]
+            apply_scenario(world, config)
+            assert len(world.rivers) == 1
+            assert world.rivers[0].name == "Test River"
+
+    def test_river_with_unknown_region_raises(self):
+        world, config = self._make_world_and_config([])
+        config.rivers = [River(name="Bad River", path=["FAKE_REGION", world.regions[0].name])]
+        with pytest.raises(ValueError, match="not found"):
+            apply_scenario(world, config)
+
+    def test_too_many_rivers_raises(self):
+        world, config = self._make_world_and_config([])
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else "X"
+        config.rivers = [
+            River(name=f"River {i}", path=[r0.name, adj_name]) for i in range(33)
+        ]
+        with pytest.raises(ValueError, match="Maximum 32"):
+            apply_scenario(world, config)
+
+    def test_river_with_non_adjacent_regions_raises(self):
+        world, config = self._make_world_and_config([])
+        r0 = world.regions[0]
+        non_adj = None
+        for r in world.regions:
+            if r.name != r0.name and r.name not in r0.adjacencies:
+                non_adj = r
+                break
+        if non_adj:
+            config.rivers = [River(name="Bad River", path=[r0.name, non_adj.name])]
+            with pytest.raises(ValueError, match="not adjacent"):
+                apply_scenario(world, config)
