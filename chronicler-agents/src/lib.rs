@@ -16,6 +16,7 @@ pub mod signals;
 mod tick;
 pub mod named_characters;
 pub mod culture_tick;
+pub mod conversion_tick;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
