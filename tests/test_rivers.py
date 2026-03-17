@@ -5,6 +5,7 @@ from chronicler.tuning import (
     K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
     KNOWN_OVERRIDES,
 )
+from chronicler.scenario import ScenarioConfig
 
 
 class TestRiverModel:
@@ -34,3 +35,17 @@ class TestRiverConstants:
         assert K_RIVER_CAPACITY_MULTIPLIER in KNOWN_OVERRIDES
         assert K_DEFORESTATION_THRESHOLD in KNOWN_OVERRIDES
         assert K_DEFORESTATION_WATER_LOSS in KNOWN_OVERRIDES
+
+
+class TestScenarioRiverConfig:
+    def test_config_accepts_rivers(self):
+        config = ScenarioConfig(
+            name="River Test",
+            rivers=[{"name": "Amber River", "path": ["R1", "R2", "R3"]}],
+        )
+        assert len(config.rivers) == 1
+        assert config.rivers[0].name == "Amber River"
+
+    def test_config_default_no_rivers(self):
+        config = ScenarioConfig(name="No Rivers")
+        assert config.rivers == []

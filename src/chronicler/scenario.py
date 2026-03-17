@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from chronicler.models import (
     ActiveCondition, Civilization, ClimateConfig, Disposition, Region, Relationship,
-    TechEra, TerrainTransitionRule, WorldState,
+    River, TechEra, TerrainTransitionRule, WorldState,
 )
 from chronicler.utils import sync_civ_population
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
@@ -97,6 +97,7 @@ class ScenarioConfig(BaseModel):
     chaos_multiplier: float = Field(default=1.0, ge=0.0)
     black_swan_cooldown_turns: int = Field(default=30, ge=0)
     terrain_transition_rules: list[TerrainTransitionRule] | None = None  # None = use WorldState defaults
+    rivers: list[River] = Field(default_factory=list)
 
 
 def load_scenario(path: Path) -> ScenarioConfig:
