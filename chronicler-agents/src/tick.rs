@@ -250,7 +250,7 @@ pub fn tick_agents(
                 birth.cultural_values[0],
                 birth.cultural_values[1],
                 birth.cultural_values[2],
-                crate::agent::BELIEF_NONE,
+                birth.belief,
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             // Set all 5 skill slots to SKILL_NEWBORN
@@ -277,6 +277,22 @@ pub fn tick_agents(
         for (region_id, slots) in region_groups.iter().enumerate() {
             if !slots.is_empty() {
                 crate::culture_tick::culture_tick(
+                    pool, slots, &regions[region_id],
+                    master_seed, turn, region_id,
+                );
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Stage 7: Conversion (M37)
+    // Note: reuses stage 6's partition pattern. No agents move between stages 6-7.
+    // -----------------------------------------------------------------------
+    {
+        let region_groups = pool.partition_by_region(num_regions as u16);
+        for (region_id, slots) in region_groups.iter().enumerate() {
+            if !slots.is_empty() {
+                crate::conversion_tick::conversion_tick(
                     pool, slots, &regions[region_id],
                     master_seed, turn, region_id,
                 );
@@ -441,6 +457,7 @@ struct BirthInfo {
     parent_loyalty: f32,
     personality: [f32; 3],
     cultural_values: [u8; 3],
+    belief: u8,  // M37: inherited from parent
 }
 
 struct DemographicsPending {
@@ -514,6 +531,7 @@ fn tick_region_demographics(
                         pool.cultural_value_1[slot],
                         pool.cultural_value_2[slot],
                     ],
+                    belief: pool.beliefs[slot],  // M37: read in parallel phase
                 });
             }
         }
