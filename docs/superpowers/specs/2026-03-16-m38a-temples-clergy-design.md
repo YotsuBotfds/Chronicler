@@ -4,7 +4,7 @@
 >
 > **Depends on:** M37 (belief systems) for `civ_majority_faith`, conversion signals, belief registry. M36 (cultural identity) for penalty cap infrastructure and `is_named` bit. M35a/M35b (rivers, disease, depletion) for regional ecology context. M22 (faction succession) for faction candidate generation pattern.
 >
-> **Scope:** Temples as faith-bound infrastructure with conversion boost and prestige accumulation. Clergy as fourth political faction with event-driven influence, tithe mechanic, succession candidate, and action weight modifiers. ~33 lines Rust, ~205 lines Python, ~250 lines tests.
+> **Scope:** Temples as faith-bound infrastructure with conversion boost and prestige accumulation. Clergy as fourth political faction with event-driven influence, tithe mechanic, succession candidate, and action weight modifiers. ~33 lines Rust, ~210 lines Python, ~250 lines tests.
 
 ---
 
@@ -48,6 +48,8 @@ Clergy influence shifts via events in `tick_factions()`, matching the existing 3
 
 Tithes use `civ.trade_income` as the base until M41 adds agent wealth. `compute_tithe_base()` helper isolates the swap point.
 
+**Roadmap divergence:** The Phase 6 roadmap specifies `TITHE_RATE × sum(merchant_wealth)`. Agent wealth is M41 scope. M38a uses `civ.trade_income` as a proxy — the roadmap formula is the M41 target, not the M38a implementation.
+
 **Why not defer tithes:** A faction without an economic dimension isn't a faction — it's a buff. The three existing factions each have economic levers (war spoils, trade income, INVEST_CULTURE spending). Clergy needs one to compete.
 
 **Why not flat temple income:** Tithes mean clergy power derives from economic health — prosperous trade → fat tithes → strong clergy. This creates natural alliance-tension with merchants (both want trade to succeed, merchants resent the tax). Flat income means clergy revenue is independent of the economy. No alliance, no tension, no emergent dynamics.
@@ -58,13 +60,15 @@ Tithes use `civ.trade_income` as the base until M41 adds agent wealth. `compute_
 
 Same pattern as military/merchant/cultural. When `clergy_influence >= 0.15`, generate a priest-archetype candidate. No endorsement mechanic, no dual-threshold gating.
 
+**Roadmap divergence:** The roadmap says "Priest-favored candidates get clergy influence bonus," implying a preferential weighting system. This spec uses the simpler pattern of generating a clergy-archetype candidate in the existing faction candidate loop, consistent with how the other three factions work. The roadmap's description fits the emergent behavior (clergy influence weights the clergy candidate higher when clergy is strong) without requiring an endorsement mechanic.
+
 **Why not endorsement:** The existing three factions don't endorse each other's candidates — they compete. Endorsement requires scoring alignment between candidates and faith, coupling succession to the belief system. That coupling doesn't exist and shouldn't be introduced in M38a.
 
 **Candidate traits reflect institutional character, not theology.** High loyalty trait, Tradition as primary cultural value, Order as secondary. The connection to the actual faith system is indirect — a civ with high clergy influence probably has lots of priests spreading their faith. The succession candidate reflects the institution's political character, not its doctrines.
 
 ### Decision 6: Temple Priest Satisfaction Bonus Is Faith-Blind
 
-`has_temple: bool` on RegionState gives +0.10 to all priests in the region regardless of their faith. A minority-faith priest in a foreign temple gets the bonus.
+`has_temple: bool` on RegionState gives +0.10 to all priests in the region regardless of their faith. A minority-faith priest in a foreign temple gets the bonus. Note: the `has_temple` boolean itself is faith-gated (see Decision 7 — only set when `temple.faith_id == controller.civ_majority_faith`), but once active, the bonus applies to all priests in the region without checking individual agent beliefs.
 
 **Known simplification.** At +0.10 affecting only minority-faith priests in templed regions, the impact is negligible. If M38b needs faith-specific temple support (e.g., persecution exemption for priests of the temple's faith), a second signal (`temple_faith_id: u8` on RegionState) should be added at that milestone.
 
@@ -147,6 +151,8 @@ Temple added to `infrastructure.handle_build()` with trait-weighted priority. Cl
 
 Each existing faction loses ~2.5% base influence from renormalization. Decision 9 regression baseline catches behavioral drift from this shift.
 
+**Implementation note:** The current `normalize_influence()` hardcodes `floor = 0.10` in the function body. This should be extracted to the named constant `FACTION_FLOOR` as part of this change, before modifying the value from 0.10 to 0.08.
+
 Default influence for new civs: `{MILITARY: 0.25, MERCHANT: 0.25, CULTURAL: 0.25, CLERGY: 0.25}`. Existing civs get `CLERGY: floor (0.08)` with others renormalized.
 
 ### Event-Driven Influence Shifts
@@ -169,13 +175,15 @@ Added to `FACTION_WEIGHTS` in `factions.py`:
 
 ```python
 FactionType.CLERGY: {
-    "INVEST_CULTURE": 1.5,  # Religious propaganda
-    "BUILD": 1.4,           # Temple construction priority
-    "DIPLOMACY": 1.3,       # Religious diplomacy
-    "WAR": 0.7,             # Clergy prefers conversion over conquest
-    "TRADE": 0.8,           # Tithes benefit from trade, not the priority
+    ActionType.INVEST_CULTURE: 1.5,  # Religious propaganda
+    ActionType.BUILD: 1.4,           # Temple construction priority
+    ActionType.DIPLOMACY: 1.3,       # Religious diplomacy
+    ActionType.WAR: 0.7,             # Clergy prefers conversion over conquest
+    ActionType.TRADE: 0.8,           # Tithes benefit from trade, not the priority
 }
 ```
+
+Uses `ActionType` enum values, matching the existing `FACTION_WEIGHTS` pattern for the other three factions.
 
 **WAR 0.7 × holy war +0.15 interaction:** A clergy-dominant civ with Militant doctrine gets competing signals — institutional preference for peace (WAR × 0.7 multiplicative) and doctrinal drive for holy war (WAR + 0.15 additive from M37). These operate at different levels in `action_engine.py` (faction weight is multiplicative on base action weight, holy war bonus is additive to utility score). The tension between doctrine and institution is intentional and narratively rich: Militant clergy-dominant civs still fight holy wars, just slightly less eagerly than Militant military-dominant civs. The implementation plan should include a step verifying this computation order.
 
@@ -216,6 +224,7 @@ When `clergy_influence >= CLERGY_NOMINATION_THRESHOLD` (0.15):
   - High loyalty trait (consistent with priest occupation personality)
   - Tradition as primary cultural value
   - Order as secondary cultural value
+- Candidate type string: `"clergy"` (added to `FACTION_CANDIDATE_TYPE` dict alongside `"general"`, `"elected"`, `"heir"`)
 - Candidate enters weighted selection pool alongside military/merchant/cultural candidates
 - No faith-specific traits — candidate reflects institutional character, not theology
 
@@ -387,16 +396,15 @@ Report output: `docs/superpowers/analytics/m38a-temples-clergy-report.md`.
 | `satisfaction.rs` | Extend `dominant_faction` match for 3→occ 4. Extend `faction_influence` match for occ 4→`faction_clergy`. Temple priest bonus. | ~15 |
 | `region.rs` | Add `has_temple: bool` to RegionState | ~3 |
 | `models.py` | `FactionType.CLERGY`. `faith_id`/`temple_prestige` on Infrastructure. Default faction influence updated. | ~15 |
-| `factions.py` | Floor 0.10→0.08. `FACTION_WEIGHTS[CLERGY]`. `tick_factions()` clergy event shifts with per-civ cap. Tithe computation and gating. Clergy candidate template. | ~80 |
-| `infrastructure.py` | `TEMPLE` type. `faith_id` assignment at build. Max-per-region/civ checks. Militant conquest destruction. BUILD-replaces logic. Prestige tick. | ~60 |
+| `factions.py` | Floor 0.10→0.08 (extract `FACTION_FLOOR` constant). `FACTION_WEIGHTS[CLERGY]`. `FACTION_CANDIDATE_TYPE["clergy"]`. `tick_factions()` clergy event shifts with per-civ conversion cap. Conversion success detection from snapshot. `compute_tithe_base()` helper. Tithe computation and gating. Clergy candidate template. `GP_ROLE_TO_FACTION["prophet"]` → `CLERGY` (was `CULTURAL`). | ~90 |
+| `infrastructure.py` | `TEMPLE` type. `faith_id` assignment at build. Max-per-region/civ checks. Militant conquest destruction. BUILD-replaces logic. Prestige tick. Temple trait priority in BUILD selection. | ~60 |
 | `agent_bridge.py` | `FACTION_MAP` extended. `faction_clergy` in `build_signals()`. `has_temple` in `build_region_batch()`. | ~15 |
-| `action_engine.py` | Temple trait priority in BUILD selection. Conversion success event detection (per-civ, ≥5%). | ~20 |
-| `religion.py` | `compute_tithe_base()` helper. Temple conversion boost guard clause in `compute_conversion_signals()`. | ~15 |
+| `religion.py` | Temple conversion boost guard clause in `compute_conversion_signals()`. | ~10 |
 | `simulation.py` | Temple prestige tick in Phase 10. Clergy influence initialization. | ~10 |
 | Tests (Rust) | Tier 1: FFI round-trip, satisfaction alignment, temple priest bonus. | ~60 |
 | Tests (Python) | Tier 1: normalization, thresholds, temple lifecycle, events, tithe. Tier 2: regression harness. | ~190 |
 
-**Total:** ~33 lines Rust (production), ~215 lines Python (production), ~250 lines tests.
+**Total:** ~33 lines Rust (production), ~210 lines Python (production), ~250 lines tests.
 
 ### What Doesn't Change
 
@@ -419,6 +427,10 @@ These notes are for the implementation plan, not the spec itself:
 2. **Read existing Infrastructure model before writing temple extension.** If Infrastructure is a strict Pydantic model, adding `faith_id`/`temple_prestige` may require subclassing. The plan should verify compatibility first.
 
 3. **Verify WAR × clergy computation order** in `action_engine.py`. Faction weight (multiplicative) and holy war bonus (additive) interact — confirm Militant clergy-dominant civs still fight holy wars, just less eagerly than Militant military-dominant civs.
+
+4. **Update `GP_ROLE_TO_FACTION` mapping.** Currently `"prophet"` maps to `FactionType.CULTURAL`. With clergy as a 4th faction, prophets should map to `FactionType.CLERGY` — prophet GPs give per-turn bonus to clergy faction, not cultural.
+
+5. **Extract `FACTION_FLOOR` as named constant.** The current `normalize_influence()` hardcodes `floor = 0.10`. Extract to `FACTION_FLOOR` before changing the value to 0.08.
 
 ---
 
