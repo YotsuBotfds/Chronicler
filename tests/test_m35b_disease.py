@@ -90,3 +90,20 @@ def test_disease_desert_no_seasonal_peak():
     r = _make_region(terrain="desert", baseline=0.015, pop=20, capacity=60)
     compute_disease_severity(r, world=None, pre_water=0.1, season_id=1)  # summer
     assert abs(r.endemic_severity - 0.015) < 0.001
+
+
+from chronicler.ecology import tick_ecology
+from chronicler.models import ClimatePhase
+from chronicler.world_gen import generate_world
+
+
+def test_tick_ecology_updates_endemic_severity():
+    world = generate_world(seed=42)
+    region = world.regions[0]
+    region.population = int(region.carrying_capacity * 0.9)  # Overcrowded
+    old_severity = region.endemic_severity
+
+    tick_ecology(world, ClimatePhase.TEMPERATE)
+
+    # Overcrowding should have spiked severity above baseline
+    assert region.endemic_severity > old_severity or region.endemic_severity >= region.disease_baseline

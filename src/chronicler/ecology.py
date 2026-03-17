@@ -60,7 +60,8 @@ _FLOOR_FOREST = 0.00
 def effective_capacity(region: Region) -> int:
     soil = region.ecology.soil
     water_factor = min(1.0, region.ecology.water / 0.5)
-    return max(int(region.carrying_capacity * soil * water_factor), 1)
+    cap_mod = getattr(region, 'capacity_modifier', 1.0)
+    return max(int(region.carrying_capacity * cap_mod * soil * water_factor), 1)
 
 
 def compute_resource_yields(
@@ -466,12 +467,19 @@ def compute_disease_severity(
 
 def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> list[Event]:
     """Phase 9 ecology tick. Replaces phase_fertility."""
+    from chronicler.resources import get_season_id as _get_season_id_fn
+    current_season_id = _get_season_id_fn(world.turn)
+
     for region in world.regions:
         if region.controller is None:
             continue
         civ = next((c for c in world.civilizations if c.name == region.controller), None)
         if civ is None:
             continue
+
+        # M35b: Disease computation — before ecology updates
+        pre_water = region.ecology.water
+        compute_disease_severity(region, world, pre_water, season_id=current_season_id)
 
         _tick_soil(region, civ, climate_phase, world)
         _tick_water(region, civ, climate_phase, world)
@@ -486,6 +494,9 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
     for region in world.regions:
         if region.controller is not None:
             continue
+        # M35b: Disease for uncontrolled regions
+        pre_water = region.ecology.water
+        compute_disease_severity(region, world, pre_water, season_id=current_season_id)
         # Natural soil recovery (no civ bonuses)
         eff = effective_capacity(region)
         if region.population < eff * 0.75:
@@ -554,4 +565,9 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
 
     from chronicler.utils import sync_all_populations
     sync_all_populations(world)
+
+    # M35b: Store post-tick water for next turn's delta detection
+    for region in world.regions:
+        region.prev_turn_water = region.ecology.water
+
     return events
