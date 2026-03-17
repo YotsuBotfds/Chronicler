@@ -1,5 +1,5 @@
 import pytest
-from chronicler.models import River, WorldState
+from chronicler.models import River, WorldState, EMPTY_SLOT, ResourceType
 from chronicler.tuning import (
     K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER,
     K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
@@ -152,3 +152,105 @@ class TestRiverMaskAssignment:
         mask = region_map[shared.name].river_mask
         assert mask & 1 != 0
         assert mask & 2 != 0
+
+
+class TestRiverWorldGenBonuses:
+    def _apply_rivers(self, seed=42):
+        world = generate_world(seed=seed, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies")
+        pre_water = r0.ecology.water
+        pre_capacity = r0.carrying_capacity
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        return world, r0.name, adj_name, pre_water, pre_capacity
+
+    def test_water_baseline_increased(self):
+        world, rname, _, pre_water, _ = self._apply_rivers()
+        region_map = {r.name: r for r in world.regions}
+        assert region_map[rname].ecology.water >= pre_water
+
+    def test_carrying_capacity_multiplied(self):
+        world, rname, _, _, pre_cap = self._apply_rivers()
+        region_map = {r.name: r for r in world.regions}
+        assert region_map[rname].carrying_capacity >= int(pre_cap * 1.2)
+
+    def test_fish_assigned_to_empty_slot(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies")
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        region_map = {r.name: r for r in world.regions}
+        region = region_map[r0.name]
+        has_fish = ResourceType.FISH in region.resource_types
+        has_empty = EMPTY_SLOT in region.resource_types
+        assert has_fish or not has_empty
+
+    def test_fish_has_base_yield(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies")
+        r0.resource_types[2] = EMPTY_SLOT
+        r0.resource_base_yields[2] = 0.0
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        region_map = {r.name: r for r in world.regions}
+        region = region_map[r0.name]
+        if ResourceType.FISH in region.resource_types:
+            fish_idx = region.resource_types.index(ResourceType.FISH)
+            assert region.resource_base_yields[fish_idx] > 0.0, "Fish must have base yield set"
+
+    def test_full_slot_region_keeps_resources(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies")
+        r0.resource_types = [ResourceType.ORE, ResourceType.PRECIOUS, ResourceType.SALT]
+        original_types = list(r0.resource_types)
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        region_map = {r.name: r for r in world.regions}
+        assert region_map[r0.name].resource_types == original_types
+
+    def test_confluence_bonuses_applied_once(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        shared = None
+        for r in world.regions:
+            if len(r.adjacencies) >= 2:
+                shared = r
+                break
+        if shared is None:
+            pytest.skip("No region with 2+ adjacencies")
+        pre_water = shared.ecology.water
+        a1, a2 = shared.adjacencies[0], shared.adjacencies[1]
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[
+                River(name="River A", path=[a1, shared.name]),
+                River(name="River B", path=[a2, shared.name]),
+            ],
+        )
+        apply_scenario(world, config)
+        region_map = {r.name: r for r in world.regions}
+        water_increase = region_map[shared.name].ecology.water - pre_water
+        assert water_increase < 0.25

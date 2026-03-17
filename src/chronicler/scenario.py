@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from chronicler.models import (
     ActiveCondition, Civilization, ClimateConfig, Disposition, Region, Relationship,
     River, TechEra, TerrainTransitionRule, WorldState,
+    ResourceType, EMPTY_SLOT,
 )
 from chronicler.utils import sync_civ_population
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
@@ -262,7 +263,7 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         if reg_override.adjacencies is not None:
             world.regions[target_idx].adjacencies = reg_override.adjacencies
         if reg_override.specialized_resources is not None:
-            from chronicler.models import Resource, ResourceType, EMPTY_SLOT
+            from chronicler.models import Resource
             from chronicler.resources import populate_legacy_resources, RESOURCE_BASE
             try:
                 types = [int(r) for r in reg_override.specialized_resources]
@@ -417,6 +418,31 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         bit = 1 << river_idx
         for rname in river.path:
             region_map[rname].river_mask |= bit
+
+    # Apply river bonuses (once per region, not per river)
+    from chronicler.tuning import get_override, K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER
+    from chronicler.ecology import _clamp_ecology
+    from chronicler.resources import RESOURCE_BASE
+    import random as _rng_mod
+    water_bonus = get_override(world, K_RIVER_WATER_BONUS, 0.15)
+    cap_mult = get_override(world, K_RIVER_CAPACITY_MULTIPLIER, 1.2)
+    for region in world.regions:
+        if region.river_mask == 0:
+            continue
+        # Water baseline
+        region.ecology.water += water_bonus
+        _clamp_ecology(region)
+        # Carrying capacity
+        region.carrying_capacity = int(region.carrying_capacity * cap_mult)
+        # Fish resource (Phoebe N-2: must also set base_yield)
+        if ResourceType.FISH not in region.resource_types:
+            for slot in range(3):
+                if region.resource_types[slot] == EMPTY_SLOT:
+                    region.resource_types[slot] = ResourceType.FISH
+                    rng = _rng_mod.Random(world.seed + hash(region.name) + 0xF15F)
+                    variance = rng.uniform(-0.2, 0.2)
+                    region.resource_base_yields[slot] = RESOURCE_BASE[ResourceType.FISH] * (1.0 + variance)
+                    break
 
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}
