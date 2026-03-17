@@ -126,6 +126,7 @@ class InfrastructureType(str, Enum):
     IRRIGATION = "irrigation"
     PORTS = "ports"
     MINES = "mines"
+    TEMPLES = "temples"
 
 
 class ClimatePhase(str, Enum):
@@ -146,6 +147,8 @@ class Infrastructure(BaseModel):
     builder_civ: str
     built_turn: int
     active: bool = True
+    faith_id: int = -1
+    temple_prestige: int = 0
 
 
 class PendingBuild(BaseModel):
@@ -153,6 +156,7 @@ class PendingBuild(BaseModel):
     builder_civ: str
     started_turn: int
     turns_remaining: int
+    faith_id: int = -1
 
 
 class ClimateConfig(BaseModel):

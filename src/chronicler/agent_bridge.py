@@ -23,7 +23,7 @@ TERRAIN_MAP = {
     "river": 0,   # Maps to plains for Rust terrain modifiers
     "hills": 0,   # Maps to plains for Rust terrain modifiers
 }
-FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2}
+FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
 
 EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
                   3: "occupation_switch", 4: "loyalty_flip", 5: "birth"}
@@ -137,6 +137,24 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         else:
             initial_belief_arr.append(0xFF)
 
+    def _has_temple(region, world):
+        from chronicler.models import InfrastructureType
+        controller_name = region.controller
+        if controller_name is None:
+            return False
+        controller = next((c for c in world.civilizations if c.name == controller_name), None)
+        if controller is None:
+            return False
+        cmf = getattr(controller, 'civ_majority_faith', -1)
+        _temples_type = getattr(InfrastructureType, 'TEMPLES', None)
+        if _temples_type is None:
+            return False
+        for infra in region.infrastructure:
+            if (infra.active and infra.type == _temples_type
+                    and getattr(infra, 'faith_id', -1) == cmf and cmf >= 0):
+                return True
+        return False
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -196,6 +214,7 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
             [r.majority_belief for r in world.regions], type=pa.uint8(),
         ),
         "initial_belief": pa.array(initial_belief_arr, type=pa.uint8()),
+        "has_temple": pa.array([_has_temple(r, world) for r in world.regions], type=pa.bool_()),
     })
 
     # M36: Clear transient culture investment flag after reading it.
@@ -225,7 +244,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         war_civs.add(defender)
 
     civ_ids, stabilities, at_wars = [], [], []
-    dom_factions, fac_mil, fac_mer, fac_cul = [], [], [], []
+    dom_factions, fac_mil, fac_mer, fac_cul, fac_cle = [], [], [], [], []
 
     # Shock / demand column builders
     shock_map = {s.civ_id: s for s in (shocks or [])}
@@ -242,6 +261,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         fac_mil.append(civ.factions.influence.get(FactionType.MILITARY, 0.33))
         fac_mer.append(civ.factions.influence.get(FactionType.MERCHANT, 0.33))
         fac_cul.append(civ.factions.influence.get(FactionType.CULTURAL, 0.34))
+        fac_cle.append(civ.factions.influence.get(FactionType.CLERGY, 0.08))
 
         # Per-civ shock values (default zeros via CivShock defaults)
         s = shock_map.get(i, CivShock(i))
@@ -273,6 +293,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "faction_military": pa.array(fac_mil, type=pa.float32()),
         "faction_merchant": pa.array(fac_mer, type=pa.float32()),
         "faction_cultural": pa.array(fac_cul, type=pa.float32()),
+        "faction_clergy": pa.array(fac_cle, type=pa.float32()),
         "shock_stability": pa.array(shock_stab, type=pa.float32()),
         "shock_economy": pa.array(shock_eco, type=pa.float32()),
         "shock_military": pa.array(shock_mil, type=pa.float32()),
