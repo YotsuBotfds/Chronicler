@@ -107,3 +107,58 @@ def test_tick_ecology_updates_endemic_severity():
 
     # Overcrowding should have spiked severity above baseline
     assert region.endemic_severity > old_severity or region.endemic_severity >= region.disease_baseline
+
+
+def test_soil_pressure_streak_increments():
+    from chronicler.ecology import update_depletion_feedback
+    from chronicler.models import ResourceType
+    r = _make_region(pop=50, capacity=60)  # 50/60 = 0.83 > 0.7
+    r.resource_types = [ResourceType.GRAIN, 255, 255]
+    update_depletion_feedback(r, world=None)
+    assert r.soil_pressure_streak == 1
+
+
+def test_soil_pressure_streak_resets_below_threshold():
+    from chronicler.ecology import update_depletion_feedback
+    from chronicler.models import ResourceType
+    r = _make_region(pop=30, capacity=60)  # 30/60 = 0.5 < 0.7
+    r.resource_types = [ResourceType.GRAIN, 255, 255]
+    r.soil_pressure_streak = 15
+    update_depletion_feedback(r, world=None)
+    assert r.soil_pressure_streak == 0
+
+
+def test_soil_exhaustion_no_event_before_limit():
+    from chronicler.ecology import update_depletion_feedback
+    from chronicler.models import ResourceType
+    r = _make_region(pop=50, capacity=60)
+    r.resource_types = [ResourceType.GRAIN, 255, 255]
+    r.soil_pressure_streak = 28
+    events = update_depletion_feedback(r, world=None)
+    assert r.soil_pressure_streak == 29
+    assert not any(e.event_type == "soil_exhaustion" for e in events)
+
+
+def test_soil_degradation_doubles_after_streak():
+    world = generate_world(seed=42)
+    region = world.regions[0]
+    region.population = int(region.carrying_capacity * 0.9)
+    region.soil_pressure_streak = 31
+
+    soil_before = region.ecology.soil
+    tick_ecology(world, ClimatePhase.TEMPERATE)
+    soil_after_doubled = region.ecology.soil
+
+    world2 = generate_world(seed=42)
+    region2 = world2.regions[0]
+    region2.population = int(region2.carrying_capacity * 0.9)
+    region2.soil_pressure_streak = 0
+
+    soil_before2 = region2.ecology.soil
+    tick_ecology(world2, ClimatePhase.TEMPERATE)
+    soil_after_normal = region2.ecology.soil
+
+    normal_loss = soil_before2 - soil_after_normal
+    doubled_loss = soil_before - soil_after_doubled
+    if normal_loss > 0:
+        assert doubled_loss >= normal_loss * 1.5

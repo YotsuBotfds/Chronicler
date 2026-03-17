@@ -159,12 +159,12 @@ def _pressure_multiplier(region: Region) -> float:
     return max(0.1, 1.0 - region.population / eff)
 
 
-def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
+def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState, degradation_mult: float = 1.0) -> None:
     eff = effective_capacity(region)
 
     # Degradation: overpopulation
     if region.population > eff:
-        rate = get_override(world, K_SOIL_DEGRADATION, 0.005)
+        rate = get_override(world, K_SOIL_DEGRADATION, 0.005) * degradation_mult
         region.ecology.soil -= rate
 
     # Degradation: active mines
@@ -465,10 +465,68 @@ def compute_disease_severity(
         region.endemic_severity = baseline
 
 
+def update_depletion_feedback(region: "Region", world: "WorldState | None") -> list["Event"]:
+    """Update soil pressure and overextraction streaks. Returns events."""
+    events: list[Event] = []
+    soil_thresh = get_override(world, K_SOIL_PRESSURE_THRESHOLD, 0.7) if world else 0.7
+    soil_limit = int(get_override(world, K_SOIL_PRESSURE_STREAK_LIMIT, 30)) if world else 30
+    overext_limit = int(get_override(world, K_OVEREXTRACTION_STREAK_LIMIT, 35)) if world else 35
+    overext_penalty = get_override(world, K_OVEREXTRACTION_YIELD_PENALTY, 0.10) if world else 0.10
+    workers_per_unit = get_override(world, K_WORKERS_PER_YIELD_UNIT, 200) if world else 200
+
+    # --- Soil exhaustion (population pressure) ---
+    has_crop = any(
+        rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS)
+        for rtype in region.resource_types
+        if rtype != EMPTY_SLOT
+    )
+    if has_crop and region.carrying_capacity > 0 and region.population > soil_thresh * region.carrying_capacity:
+        region.soil_pressure_streak += 1
+        if region.soil_pressure_streak >= soil_limit:
+            events.append(Event(
+                turn=world.turn if world else 0,
+                event_type="soil_exhaustion",
+                actors=[region.controller] if region.controller else [],
+                description=f"The fields of {region.name} show signs of exhaustion from decades of intensive cultivation",
+                importance=6,
+            ))
+    else:
+        region.soil_pressure_streak = 0
+
+    # --- Overextraction (per-resource) ---
+    DEPLETABLE = frozenset({ResourceType.GRAIN, ResourceType.BOTANICALS, ResourceType.FISH,
+                            ResourceType.ORE, ResourceType.PRECIOUS})
+    for slot in range(3):
+        rtype = region.resource_types[slot]
+        if rtype == EMPTY_SLOT or rtype not in DEPLETABLE:
+            continue
+        eff_yield = region.resource_effective_yields[slot]
+        sustainable = eff_yield * workers_per_unit
+        worker_count = region.population // 5 if region.population > 0 else 0
+        if sustainable > 0 and worker_count > sustainable:
+            streak = region.overextraction_streaks.get(slot, 0) + 1
+            region.overextraction_streaks[slot] = streak
+            if streak >= overext_limit:
+                region.resource_effective_yields[slot] *= (1.0 - overext_penalty)
+                region.overextraction_streaks[slot] = 0
+                events.append(Event(
+                    turn=world.turn if world else 0,
+                    event_type="resource_depletion",
+                    actors=[region.controller] if region.controller else [],
+                    description=f"Overextraction has degraded {region.name}'s resources",
+                    importance=7,
+                ))
+        else:
+            region.overextraction_streaks[slot] = 0
+
+    return events
+
+
 def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> list[Event]:
     """Phase 9 ecology tick. Replaces phase_fertility."""
     from chronicler.resources import get_season_id as _get_season_id_fn
     current_season_id = _get_season_id_fn(world.turn)
+    m35b_events: list[Event] = []
 
     for region in world.regions:
         if region.controller is None:
@@ -481,7 +539,13 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
         pre_water = region.ecology.water
         compute_disease_severity(region, world, pre_water, season_id=current_season_id)
 
-        _tick_soil(region, civ, climate_phase, world)
+        # M35b: Depletion feedback
+        soil_limit = int(get_override(world, K_SOIL_PRESSURE_STREAK_LIMIT, 30))
+        soil_mult = 2.0 if region.soil_pressure_streak >= soil_limit else 1.0
+        depletion_events = update_depletion_feedback(region, world)
+        m35b_events.extend(depletion_events)
+
+        _tick_soil(region, civ, climate_phase, world, degradation_mult=soil_mult)
         _tick_water(region, civ, climate_phase, world)
         _tick_forest(region, civ, climate_phase, world)
         _apply_cross_effects(region)
@@ -570,4 +634,5 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
     for region in world.regions:
         region.prev_turn_water = region.ecology.water
 
+    events.extend(m35b_events)
     return events
