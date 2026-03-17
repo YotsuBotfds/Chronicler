@@ -108,7 +108,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             region.disaster_cooldowns[k] -= 1
         region.disaster_cooldowns = {k: v for k, v in region.disaster_cooldowns.items() if v > 0}
         # M35b: Reset capacity_modifier when all disaster cooldowns expire
-        if not region.disaster_cooldowns and getattr(region, 'capacity_modifier', 1.0) != 1.0:
+        if not region.disaster_cooldowns and region.capacity_modifier != 1.0:
             region.capacity_modifier = 1.0
         for k in list(region.resource_suspensions):
             region.resource_suspensions[k] -= 1

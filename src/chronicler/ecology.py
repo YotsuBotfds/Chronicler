@@ -60,7 +60,7 @@ _FLOOR_FOREST = 0.00
 def effective_capacity(region: Region) -> int:
     soil = region.ecology.soil
     water_factor = min(1.0, region.ecology.water / 0.5)
-    cap_mod = getattr(region, 'capacity_modifier', 1.0)
+    cap_mod = region.capacity_modifier
     return max(int(region.carrying_capacity * cap_mod * soil * water_factor), 1)
 
 
@@ -84,6 +84,7 @@ def compute_resource_yields(
         if rtype in region.resource_suspensions:
             continue
 
+        # M35b: reads base_yields for regression safety; switch to effective_yields at M47 calibration
         base = region.resource_base_yields[slot]
         season_mod = SEASON_MOD[rtype][season_id]
         class_idx = resource_class_index(rtype)
