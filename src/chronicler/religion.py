@@ -300,10 +300,12 @@ def compute_conversion_signals(
                 # DOCTRINE_OUTREACH (+1) → proselytizing → 2× rate
                 if target_belief.doctrines[DOCTRINE_OUTREACH] == +1:
                     doctrine_multiplier *= PROSELYTIZING_MULTIPLIER
-                # DOCTRINE_STRUCTURE (+1) → insular → ½ resistance (defender)
-                # Applies as a reduction to the conversion attempt
-                if target_belief.doctrines[DOCTRINE_STRUCTURE] == +1:
-                    doctrine_multiplier *= INSULAR_RESISTANCE
+            # Insular resistance: defender's faith (majority) resists conversion
+            majority_belief_obj = next(
+                (b for b in belief_registry if b.faith_id == majority_faith), None
+            )
+            if majority_belief_obj is not None and majority_belief_obj.doctrines[DOCTRINE_OUTREACH] == -1:
+                doctrine_multiplier *= INSULAR_RESISTANCE
 
             # Named prophet bonus
             prophet_multiplier = NAMED_PROPHET_MULTIPLIER if region_idx in prophet_regions else 1.0

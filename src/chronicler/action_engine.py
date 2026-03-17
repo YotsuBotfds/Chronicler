@@ -481,7 +481,7 @@ def resolve_war(
                 is_militant = attacker_belief and attacker_belief.doctrines[DOCTRINE_STANCE] == 1
                 if is_militant:
                     contested.conquest_conversion_active = True
-                contested.conquest_conversion_boost = CONQUEST_BOOST_RATE
+                contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
         if acc is not None:
             acc.add(att_idx, attacker, "military", -10, "guard-action")
             acc.add(def_idx, defender, "military", -20, "guard-action")
