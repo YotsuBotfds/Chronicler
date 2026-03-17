@@ -58,7 +58,7 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
     let mut pool = AgentPool::new(0);
     for r in regions {
         for _ in 0..r.carrying_capacity {
-            pool.spawn(r.region_id, r.region_id as u8, Occupation::Farmer, 0, 0.0, 0.0, 0.0);
+            pool.spawn(r.region_id, r.region_id as u8, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 1, 2);
         }
     }
     pool

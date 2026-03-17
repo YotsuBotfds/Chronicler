@@ -71,7 +71,7 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
     ];
     for r in 0..num_regions {
         for j in 0..agents_per_region {
-            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0);
+            pool.spawn(r, (r % 4) as u8, occupations[j % 5], (j % 60) as u16, 0.0, 0.0, 0.0, 0, 1, 2);
         }
     }
     (pool, regions, signals)
