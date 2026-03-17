@@ -412,6 +412,8 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                             &shock,
                             agent_values,
                             region.controller_values,
+                            pool_ref.beliefs[slot],
+                            region.majority_belief,
                         );
 
                         (slot, sat)

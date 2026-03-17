@@ -124,7 +124,7 @@ pub fn compute_satisfaction(
         .clamp(0.0, 1.0)
 }
 
-/// Wraps compute_satisfaction(), subtracting the cultural mismatch penalty (capped).
+/// Wraps compute_satisfaction(), subtracting the cultural and religious mismatch penalties (capped).
 pub fn compute_satisfaction_with_culture(
     occupation: u8,
     soil: f32,
@@ -141,6 +141,8 @@ pub fn compute_satisfaction_with_culture(
     shock: &CivShock,
     agent_values: [u8; 3],
     controller_values: [u8; 3],
+    agent_belief: u8,
+    majority_belief: u8,
 ) -> f32 {
     let base_sat = compute_satisfaction(
         occupation,
@@ -158,7 +160,16 @@ pub fn compute_satisfaction_with_culture(
         shock,
     );
     let cultural_pen = compute_cultural_penalty(agent_values, controller_values);
-    let total_non_eco_penalty = apply_penalty_cap(cultural_pen);
+    // M37: religious mismatch — binary (match or not)
+    let religious_pen = if agent_belief != majority_belief
+        && agent_belief != crate::agent::BELIEF_NONE
+        && majority_belief != crate::agent::BELIEF_NONE
+    {
+        crate::agent::RELIGIOUS_MISMATCH_WEIGHT
+    } else {
+        0.0
+    };
+    let total_non_eco_penalty = apply_penalty_cap(cultural_pen + religious_pen);
     (base_sat - total_non_eco_penalty).clamp(0.0, 1.0)
 }
 
@@ -257,8 +268,59 @@ mod m36_tests {
         let with_culture = compute_satisfaction_with_culture(
             0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, shock,
             [4, 3, 2], [4, 3, 2],
+            0xFF, 0xFF,
         );
         assert!((base - with_culture).abs() < 0.001);
+    }
+}
+
+#[cfg(test)]
+mod m37_tests {
+    use super::*;
+    use crate::signals::CivShock;
+
+    #[test]
+    fn test_religious_penalty_match_is_zero() {
+        // Same belief → no penalty vs BELIEF_NONE baseline
+        let sat_match = compute_satisfaction_with_culture(
+            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
+            &CivShock::default(),
+            [0, 1, 2], [0, 1, 2],
+            3, 3,  // belief matches majority
+        );
+        let sat_none = compute_satisfaction_with_culture(
+            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
+            &CivShock::default(),
+            [0, 1, 2], [0, 1, 2],
+            0xFF, 0xFF,  // BELIEF_NONE
+        );
+        assert!((sat_match - sat_none).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_religious_penalty_mismatch() {
+        let sat_match = compute_satisfaction_with_culture(
+            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
+            &CivShock::default(),
+            [0, 1, 2], [0, 1, 2],
+            3, 3,
+        );
+        let sat_mismatch = compute_satisfaction_with_culture(
+            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
+            &CivShock::default(),
+            [0, 1, 2], [0, 1, 2],
+            3, 5,  // different belief
+        );
+        let expected_diff = crate::agent::RELIGIOUS_MISMATCH_WEIGHT;
+        assert!((sat_match - sat_mismatch - expected_diff).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_penalty_cap_with_religion() {
+        let pen = apply_penalty_cap(0.15 + 0.10);
+        assert!((pen - 0.25).abs() < 0.001);
+        let pen_capped = apply_penalty_cap(0.15 + 0.10 + 0.20);
+        assert!((pen_capped - 0.40).abs() < 0.001);
     }
 }
 
