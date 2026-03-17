@@ -16,6 +16,12 @@ from chronicler.models import (
 from chronicler.utils import civ_index
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+FACTION_FLOOR = 0.08  # M38a: floor per faction (was 0.10 for 3 factions)
+
+# ---------------------------------------------------------------------------
 # Mapping tables
 # ---------------------------------------------------------------------------
 
@@ -52,18 +58,19 @@ FACTION_CANDIDATE_TYPE: dict[FactionType, str] = {
     FactionType.MILITARY: "general",
     FactionType.MERCHANT: "elected",
     FactionType.CULTURAL: "heir",
+    FactionType.CLERGY: "clergy",
 }
 
 GP_ROLE_TO_FACTION: dict[str, FactionType] = {
     "general": FactionType.MILITARY,
     "merchant": FactionType.MERCHANT,
-    "prophet": FactionType.CULTURAL,
+    "prophet": FactionType.CLERGY,  # M38a: was CULTURAL
 }
 
 GP_SUCCESSION_TYPE: dict[str, str] = {
     "general": "general",
     "merchant": "elected",
-    "prophet": "heir",
+    "prophet": "clergy",  # M38a: was "heir"
 }
 
 # ---------------------------------------------------------------------------
@@ -76,9 +83,9 @@ def normalize_influence(factions: FactionState) -> None:
     if total > 0:
         for ft in FactionType:
             factions.influence[ft] /= total
-    # Iteratively enforce floor of 0.10: clamp undervalued factions and
-    # redistribute the "borrowed" share from overvalued ones
-    floor = 0.10
+    # Iteratively enforce floor per faction and redistribute the "borrowed"
+    # share from overvalued ones
+    floor = FACTION_FLOOR
     for _ in range(10):
         under = [ft for ft in FactionType if factions.influence[ft] < floor]
         if not under:
@@ -159,6 +166,13 @@ FACTION_WEIGHTS: dict[FactionType, dict[ActionType, float]] = {
     FactionType.CULTURAL: {
         ActionType.INVEST_CULTURE: 1.8, ActionType.DIPLOMACY: 1.5,
         ActionType.WAR: 0.4, ActionType.EXPAND: 0.6,
+    },
+    FactionType.CLERGY: {
+        ActionType.INVEST_CULTURE: 1.5,
+        ActionType.BUILD: 1.4,
+        ActionType.DIPLOMACY: 1.3,
+        ActionType.WAR: 0.7,
+        ActionType.TRADE: 0.8,
     },
 }
 
@@ -298,7 +312,7 @@ def tick_factions(world, acc=None) -> list[Event]:
             elif gp.role == "merchant":
                 civ.factions.influence[FactionType.MERCHANT] += 0.015
             elif gp.role == "prophet":
-                civ.factions.influence[FactionType.CULTURAL] += 0.015
+                civ.factions.influence[FactionType.CLERGY] += 0.015  # M38a: was CULTURAL
             elif gp.role == "scientist":
                 if civ.active_focus and civ.active_focus in FOCUS_FACTION_MAP:
                     civ.factions.influence[FOCUS_FACTION_MAP[civ.active_focus]] += 0.01
@@ -493,7 +507,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     force_type: str | None = None
     if winner:
         candidate_type = winner.get("type", "")
-        if candidate_type in ("general", "elected", "heir"):
+        if candidate_type in ("general", "elected", "heir", "clergy"):
             force_type = candidate_type
         elif candidate_type == "military":
             force_type = "general"

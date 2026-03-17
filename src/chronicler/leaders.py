@@ -115,6 +115,7 @@ SUCCESSION_TRAIT_BIAS: dict[str, list[str]] = {
     "general": ["aggressive", "bold", "ambitious"],
     "usurper": ["ambitious", "calculating", "shrewd"],
     "elected": ["cautious", "visionary", "shrewd"],
+    "clergy": ["zealous", "visionary", "cautious"],  # M38a: clergy succession type
 }
 
 ALL_TRAITS = [

@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- Enums ---
@@ -73,6 +73,7 @@ class FactionType(str, Enum):
     MILITARY = "military"
     MERCHANT = "merchant"
     CULTURAL = "cultural"
+    CLERGY = "clergy"
 
 
 class Belief(BaseModel):
@@ -87,15 +88,22 @@ class Belief(BaseModel):
 class FactionState(BaseModel):
     influence: dict[FactionType, float] = Field(
         default_factory=lambda: {
-            FactionType.MILITARY: 0.33,
-            FactionType.MERCHANT: 0.33,
-            FactionType.CULTURAL: 0.34,
+            FactionType.MILITARY: 0.25,
+            FactionType.MERCHANT: 0.25,
+            FactionType.CULTURAL: 0.25,
+            FactionType.CLERGY: 0.25,
         }
     )
     power_struggle: bool = False
     power_struggle_turns: int = 0
     power_struggle_cooldown: int = 0  # M19b: turns until next struggle eligible
     pending_faction_shift: str | None = None  # M19b: faction to shift after normalization
+
+    @model_validator(mode="after")
+    def _ensure_clergy(self) -> "FactionState":
+        if FactionType.CLERGY not in self.influence:
+            self.influence[FactionType.CLERGY] = 0.08  # floor
+        return self
 
 
 class ActionType(str, Enum):
