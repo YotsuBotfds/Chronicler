@@ -76,7 +76,7 @@ Doctrine axes correlate with civ cultural values via weighted probability, not d
 
 **Bias table (weighted, not deterministic):**
 
-| Cultural Value | Doctrine Bias | Weight |
+| Cultural Value | Biased Pole | Weight |
 |---|---|---|
 | Honor | Militant (+1 Stance) | 0.6 |
 | Freedom | Egalitarian (+1 Structure), Proselytizing (+1 Outreach) | 0.4 each |
@@ -106,9 +106,9 @@ All inter-faith wars have a religious dimension. The question is how much. Restr
 | Non-militant attacker, different faith | 0% immediate flip, elevated priest conversion rate for 10 turns | Secular conquest with religious friction |
 | Same faith | 0% | No religious dimension |
 
-**Militant holy war:** `conquest_conversion_active = True` signal → Rust does the 30% roll. Then the 10-turn conversion boost applies to the remaining 70%.
+**Militant holy war:** `conquest_conversion_active = True` signal → Rust does the 30% roll on the first tick. Python also sets `conquest_conversion_boost = CONQUEST_BOOST_RATE` on the Region model — the 10-turn elevated conversion rate applies to the remaining 70% who weren't force-converted, driving continued conversion through the priest-driven channel.
 
-**Non-militant inter-faith conquest:** No forced flip. Python sets `conquest_conversion_boost: f32` on the Region model, decays linearly over 10 turns, added to base `conversion_rate` each turn.
+**Non-militant inter-faith conquest:** No forced flip. Python sets `conquest_conversion_boost = CONQUEST_BOOST_RATE` on the Region model (same boost, no forced flip). Decays linearly over 10 turns, added to base `conversion_rate` each turn.
 
 **WAR weight modifier (Militant-only):**
 
@@ -152,7 +152,7 @@ let total_penalty = (cultural_penalty + religious_penalty /* + M38b persecution 
 
 ### Parent Belief Inheritance
 
-Newborn agents inherit their parent's belief via `BirthInfo`. One `u8` read from `pool.beliefs[parent_idx]` during demographics birth path construction.
+Newborn agents inherit their parent's belief via `BirthInfo`. One `u8` read from `pool.beliefs[parent_idx]` during the **parallel** demographics computation phase (where parent data is read), not during the sequential apply phase. The parent slot may be dead by the time sequential apply runs if the parent dies in the same tick — the belief must be captured alongside `parent_loyalty` and `personality` in the parallel phase.
 
 **Why not region majority or civ majority:** Both erase religious minorities at the demographic level. If a conquered region is 60% faith A and 40% faith B, majority-based inheritance means every baby is faith A — within 50 turns of population replacement, faith B is extinct through a data model shortcut, not through conversion, persecution, or any narratable cause. Parent inheritance creates persistent minorities that convert only through the five event-driven triggers.
 
@@ -175,23 +175,30 @@ struct BirthInfo {
 
 ## Tick Architecture
 
-### Phase Placement: Rust Tick Stage 6
+### Phase Placement: Rust Tick Stage 7
 
-Conversion runs as Rust tick stage 6, after M36's culture drift (stage 5):
+Conversion runs as the last Rust tick stage, after M36's culture drift:
 
 ```
 Rust tick stages (internal, not Python phases):
-  0: skill → 1: satisfaction → 2: stats/decisions → 3: apply decisions → 4: demographics → 5: culture_drift (M36) → 6: conversion (M37)
+  0: skill
+  1: satisfaction
+  2: region stats (parallel)
+  3: decisions (parallel)
+  4: apply decisions (sequential)
+  5: demographics
+  6: culture_drift (M36)
+  7: conversion (M37)
 ```
 
 Culture drift and conversion are independent per-agent operations on different SoA fields (`cultural_values` vs `belief`). Sequential stages, not merged. Clear separation means M47 can reason about each system's rates independently.
 
-Note: The current codebase has stages 0-4. M36 adds stage 5 (culture_drift). M37 adds stage 6 (conversion).
+Note: The current codebase has stages 0-5. M36 adds stage 6 (culture_drift). M37 adds stage 7 (conversion).
 
 ### Data Flow
 
 ```
-Python signal computation (Phase 10, before Rust tick):
+Python signal computation (Phase 10 of turn N, consumed by Rust tick of turn N+1):
   For each region:
     1. Count priests per faith from agent snapshot
     2. Identify dominant foreign faith (most priests of non-majority faith)
@@ -208,7 +215,7 @@ Python → Rust (per-region batch, build_region_batch in agent_bridge.py):
   conquest_conversion_active: bool  (Militant holy war flag)
   majority_belief: u8              (for satisfaction, reused from distribution computation)
 
-Rust conversion tick (stage 6):
+Rust conversion tick (stage 7):
   for each region where conversion_rate > 0.0:
     for each agent in region:
       if agent.belief == conversion_target_belief: skip
@@ -223,7 +230,9 @@ Rust → Python (via existing snapshot RecordBatch):
   Python reads snapshot to compute majority_belief, civ_majority_faith for next turn
 ```
 
-**Satisfaction reads existing stage-1 output.** Conversion in stage 6 reads `agent.satisfaction` computed in stage 1. No extra signal needed. The satisfaction value reflects *last turn's* belief state (one-turn staleness), consistent with M36's cultural penalty pattern.
+**Satisfaction reads existing stage-1 output.** Conversion in stage 7 reads `agent.satisfaction` computed in stage 1. No extra signal needed. The satisfaction value reflects *last turn's* belief state (one-turn staleness), consistent with M36's cultural penalty pattern.
+
+**Satisfaction integration path:** `update_satisfaction()` in tick.rs reads `pool.beliefs[slot]` for the agent's belief and `regions[region_id].majority_belief` from RegionState, then passes both to the penalty computation. The religious penalty is added to M36's `cultural_penalty` before the `.min(PENALTY_CAP)` clamp.
 
 ### Python-Side Computation: Phase 10 (Consequences)
 
@@ -237,13 +246,15 @@ Three new computations in Phase 10, alongside M36's `compute_civ_cultural_profil
 
 One pass over the snapshot produces both majority_belief (per region) and civ_majority_faith (per civ). `compute_conversion_signals()` reads these plus doctrine table and priest counts to produce the three Rust signals.
 
+**Turn pipeline timing:** These computations run in Phase 10 of turn N. Their outputs are stored on WorldState/Region models and written into the region RecordBatch at the start of turn N+1, before that turn's Rust tick. This produces a one-turn delay consistent with M36's pattern for cultural data. The Rust tick executes between Python Phase 9 (Ecology) and Phase 10 (Consequences).
+
 ### Conquest Conversion Boost Lifecycle
 
 When a territory changes hands via WAR action (resolved in Phase 5):
 
 1. Python checks: is the attacker's `civ_majority_faith` different from the region's `majority_belief`?
-2. If different and attacker is Militant: set `conquest_conversion_active = True` on next Rust tick signal.
-3. If different and attacker is non-Militant: set `region.conquest_conversion_boost = CONQUEST_BOOST_RATE` on the Region model.
+2. If different and attacker is Militant: set `conquest_conversion_active = True` on next Rust tick signal AND set `region.conquest_conversion_boost = CONQUEST_BOOST_RATE` (boost applies to the 70% not force-converted).
+3. If different and attacker is non-Militant: set `region.conquest_conversion_boost = CONQUEST_BOOST_RATE` on the Region model (same boost, no forced flip).
 4. Each turn, `compute_conversion_signals()` adds `conquest_conversion_boost` to the region's `conversion_rate`, then decays it: `boost -= CONQUEST_BOOST_RATE / CONQUEST_BOOST_DURATION`.
 5. After `CONQUEST_BOOST_DURATION` turns, boost reaches 0.0 and stops contributing.
 
@@ -331,10 +342,21 @@ POLE_POSITIVE = 1   # Polytheism, Prosperity, Militant, Proselytizing, Egalitari
 
 Contains:
 
-- `fn conversion_tick(pool, region_state, rng)` — orchestrates stage 6
+- `fn conversion_tick(pool, region_state, rng)` — orchestrates stage 7
 - Per-agent conversion roll with satisfaction susceptibility check
 - Conquest conversion override (30% probability when `conquest_conversion_active`)
 - Region-skip optimization (when `conversion_rate == 0.0`)
+- Sets `LIFE_EVENT_CONVERSION` bit on agents who convert (enables M30 prophet promotion)
+
+### Life Events Bit: Conversion Marker
+
+Bit 6 of `life_events: u8` marks agents who have converted:
+
+```rust
+pub const LIFE_EVENT_CONVERSION: u8 = 1 << 6;  // bit 6 of life_events
+```
+
+Bits 0-4 are used by existing life events (REBELLION, MIGRATION, WAR_SURVIVAL, LOYALTY_FLIP, OCC_SWITCH). Bit 5 is `IS_NAMED` (M36). Bit 7 remains spare for M38b. Setting this bit makes converted agents eligible for prophet/priest promotion via the M30 named character system — a converted farmer who becomes a prophet is narratively rich.
 
 ### Constants
 
@@ -349,7 +371,7 @@ All `[CALIBRATE]` for M47:
 | `SUSCEPTIBILITY_THRESHOLD` | 0.4 | Rust | Satisfaction below this → elevated conversion susceptibility |
 | `SUSCEPTIBILITY_MULTIPLIER` | 2.0 | Rust | Susceptibility bonus multiplier |
 | `CONQUEST_CONVERSION_RATE` | 0.30 | Rust | Forced flip probability on Militant holy war |
-| `CONQUEST_BOOST_RATE` | 0.05 | Python | Initial conversion boost after non-militant inter-faith conquest |
+| `CONQUEST_BOOST_RATE` | 0.05 | Python | Initial conversion boost after inter-faith conquest (both Militant and non-Militant) |
 | `CONQUEST_BOOST_DURATION` | 10 | Python | Turns for conquest boost to decay to 0 |
 | `RELIGIOUS_MISMATCH_WEIGHT` | 0.10 | Rust | Satisfaction penalty for belief ≠ majority_belief |
 | `HOLY_WAR_WEIGHT_BONUS` | 0.15 | Python | WAR action weight bonus for Militant vs different faith |
@@ -379,6 +401,8 @@ All `[CALIBRATE]` for M47:
 | Dominant-faith-only: region with 2 converting faiths, only dominant faith converts | Signal computation |
 | `majority_belief` computation: known distribution → correct majority | Aggregation |
 | `civ_majority_faith` computation: known agent distribution → correct per-civ majority | Aggregation |
+| Conquest boost decay: initial == CONQUEST_BOOST_RATE, after half duration == half rate, after full duration == 0.0 | Boost lifecycle |
+| `LIFE_EVENT_CONVERSION` bit: set on converted agent, survives tick, readable in promotion system | Conversion marker lifecycle |
 
 ### Tier 2: Regression Harness (200 Seeds × 200 Turns, Must Pass Tolerances)
 
@@ -415,7 +439,7 @@ Report output: `docs/superpowers/analytics/m37-belief-systems-report.md`. M47 re
 |------|--------|-------------|
 | `pool.rs` | Add `beliefs: Vec<u8>`. Extend `spawn()` with `belief: u8` param; initialize in both free-slot reuse and grow-vec paths. | ~15 |
 | `conversion_tick.rs` | **New module.** Per-agent conversion roll, satisfaction susceptibility, conquest override, region-skip. | ~80 |
-| `tick.rs` | Add stage 6 call to `conversion_tick()`. Extend BirthInfo with `belief: u8`, copy from parent in demographics birth path. | ~15 |
+| `tick.rs` | Add stage 7 call to `conversion_tick()`. Extend BirthInfo with `belief: u8`, copy from parent in parallel demographics phase. | ~15 |
 | `satisfaction.rs` | Add religious mismatch comparison (`agent_belief != majority_belief`), add term to M36's penalty sum. | ~10 |
 | `region.rs` | Add `conversion_rate`, `conversion_target_belief`, `conquest_conversion_active`, `majority_belief` to RegionState. | ~10 |
 | `ffi.rs` | Extend region RecordBatch schema with 4 new columns. Add `beliefs` to snapshot output. Extend spawn FFI with belief param. | ~25 |
@@ -424,7 +448,7 @@ Report output: `docs/superpowers/analytics/m37-belief-systems-report.md`. M47 re
 | `simulation.py` | Faith generation at world-gen: create belief_registry, assign initial beliefs per civ. | ~60 |
 | `agent_bridge.py` | Add 4 conversion signals to `build_region_batch()`. Add belief to spawn signals. Compute `majority_belief` and `civ_majority_faith` from snapshot. | ~50 |
 | `action_engine.py` | Holy war WAR weight modifier (+0.15 Militant, +5 defender stability). Check `civ_majority_faith` on attacker and target. | ~20 |
-| `culture.py` or new `religion.py` | `compute_conversion_signals()`, `compute_majority_belief()`, `compute_civ_majority_faith()`, conquest conversion boost lifecycle. | ~80 |
+| `religion.py` | **New module.** `compute_conversion_signals()`, `compute_majority_belief()`, `compute_civ_majority_faith()`, `generate_faiths()`, conquest conversion boost lifecycle. M37 functions have no shared state with M36's culture functions; separate module provides clean namespace for M38a/M38b extension. | ~80 |
 | Tests (Rust) | Tier 1 unit tests: conversion roll, satisfaction penalty, birth inheritance, conquest override. | ~120 |
 | Tests (Python) | Tier 1 doctrine generation + Tier 2 regression harness. | ~130 |
 
@@ -436,7 +460,7 @@ Report output: `docs/superpowers/analytics/m37-belief-systems-report.md`. M47 re
 - `politics.py` — secession/federation mechanics unchanged
 - `culture.py` — M36 cultural drift unchanged (separate system)
 - Bundle format — stays at current version
-- `--agents=off` mode — religion functions detect missing snapshot and skip; no belief-related behavior in agentless mode
+- `--agents=off` mode — `compute_majority_belief()`, `compute_civ_majority_faith()`, and `compute_conversion_signals()` detect missing snapshot and return empty/zero results. The `belief_registry` is still generated at world-gen (Python-only data, no agent dependency), but conversion signals are all zero and no conversion occurs. The holy war WAR weight modifier in `action_engine.py` still functions using `civ_majority_faith` defaulted to each civ's founding `faith_id` from the registry.
 
 ---
 
