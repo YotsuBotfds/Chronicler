@@ -180,7 +180,7 @@ Rust → Python (via existing snapshot RecordBatch):
   No new output columns needed
 ```
 
-**INVEST_CULTURE signal lifetime:** Selected in Python Phase 5 (action engine), signal set in `agent_bridge.py` when building the region batch, consumed in the Rust tick which executes between Python Phase 9 and Phase 10. Same pattern as M27 `DemandSignals` — set in action resolution, consumed in Rust tick.
+**INVEST_CULTURE signal lifetime:** Selected in Python Phase 8 (action engine), signal set in `agent_bridge.py` when building the region batch, consumed in the Rust tick which executes between Python Phase 9 and Phase 10. Same pattern as M27 `DemandSignals` — set in action resolution, consumed in Rust tick.
 
 ### culture.py Replacement
 
@@ -322,7 +322,7 @@ Report output: `docs/superpowers/analytics/m36-cultural-identity-report.md`. M47
 |------|--------|-------------|
 | `pool.rs` | Add `cultural_value_0/1/2: Vec<u8>`, pack `is_named` bit 5 into `life_events`. Extend `spawn()` signature with `cultural_value_0/1/2: u8` params; initialize in both free-slot reuse and grow-vec paths. | ~40 |
 | `culture_tick.rs` | **New module.** Frequency distribution, env bias, per-agent drift, orchestration | ~180 |
-| `tick.rs` | Add stage 5 call to `culture_tick()`. Update spawn callers (demographics births) to pass cultural values from parent's civ. | ~20 |
+| `tick.rs` | Add stage 5 call to `culture_tick()`. Update spawn callers (demographics births) to pass cultural values from parent's current values (not civ defaults — drifted parents reproduce their actual culture). | ~20 |
 | `satisfaction.rs` | Inline cultural distance computation, penalty cap infrastructure, subtraction from base | ~50 |
 | `region.rs` | Add `culture_investment_active`, `controller_values` fields to `RegionState` | ~10 |
 | `ffi.rs` | Extend RecordBatch schema with cultural value columns + new region batch columns. Update spawn FFI callers to pass cultural values. | ~25 |
