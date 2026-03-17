@@ -139,6 +139,8 @@ let total_penalty = (cultural_penalty + religious_penalty /* + M38b persecution 
 
 **Why binary, not doctrine-distance:** Doctrine similarity affects *conversion resistance* (Python-side), not *satisfaction penalty* (Rust-side). An agent surrounded by a different faith feels the same mismatch whether the doctrines are similar or opposite. You either share the faith or you don't.
 
+**Implementation note: call-site refactor.** M36's `compute_satisfaction_with_culture()` currently takes cultural values and computes `cultural_pen`, passing it alone to `apply_penalty_cap(cultural_pen)`. M37 must widen the function signature to accept `agent_belief: u8` and `majority_belief: u8`, compute `religious_pen` inline, and pass `apply_penalty_cap(cultural_pen + religious_pen)`. Every call site of `compute_satisfaction_with_culture()` in `tick.rs` must be updated to pass the two new arguments. The plan should treat this as a distinct task.
+
 **Budget within M36's penalty cap (-0.40):**
 
 | Term | Max | Source |
@@ -169,7 +171,7 @@ struct BirthInfo {
 }
 ```
 
-**Initial spawn at world-gen:** No parents exist. Python passes the civ's `faith_id` via spawn signals. All initial agents share their civ's founding faith.
+**Initial spawn at world-gen:** No parents exist. All initial agents share their civ's founding faith. The initial spawn path in `ffi.rs` currently uses hardcoded `CULTURAL_VALUE_EMPTY` sentinels — there is no existing mechanism to pass per-civ data into initial spawn. M37 must add an `initial_belief` column to the region batch (consistent with M36's `controller_values_0/1/2` pattern), read by the initial spawn path in `ffi.rs` to set each agent's belief to the controlling civ's `faith_id`. The plan should treat this as a distinct task within the FFI/region batch work.
 
 ---
 

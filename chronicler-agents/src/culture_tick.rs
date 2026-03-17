@@ -28,7 +28,7 @@ const ENV_BIAS_TABLE: [[f32; 6]; 8] = [
 ];
 
 /// Run cultural drift for all agents in a region.
-/// Called as Rust tick stage 5, after demographics.
+/// Called as Rust tick stage 6, after demographics.
 pub fn culture_tick(
     pool: &mut AgentPool,
     slots: &[usize],
