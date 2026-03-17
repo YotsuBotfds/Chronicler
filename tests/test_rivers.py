@@ -1,4 +1,5 @@
 import pytest
+import pyarrow as pa
 from chronicler.models import River, WorldState, EMPTY_SLOT, ResourceType, ClimatePhase
 from chronicler.tuning import (
     K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER,
@@ -360,3 +361,32 @@ class TestDeforestationCascade:
         region_map = {r.name: r for r in world.regions}
         water_increase = region_map[shared.name].ecology.water - pre_water
         assert water_increase < 0.25
+
+
+class TestRiverBridge:
+    def test_river_mask_in_record_batch(self):
+        from chronicler.agent_bridge import build_region_batch
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj_name = r0.adjacencies[0] if r0.adjacencies else None
+        if adj_name is None:
+            pytest.skip("No adjacencies")
+        config = ScenarioConfig(
+            name="Test",
+            rivers=[River(name="Test River", path=[r0.name, adj_name])],
+        )
+        apply_scenario(world, config)
+        batch = build_region_batch(world)
+        assert "river_mask" in batch.schema.names
+        masks = batch.column("river_mask").to_pylist()
+        region_map = {r.name: i for i, r in enumerate(world.regions)}
+        assert masks[region_map[r0.name]] == 1
+        assert masks[region_map[adj_name]] == 1
+
+    def test_non_river_region_mask_zero_in_batch(self):
+        from chronicler.agent_bridge import build_region_batch
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        batch = build_region_batch(world)
+        assert "river_mask" in batch.schema.names
+        masks = batch.column("river_mask").to_pylist()
+        assert all(m == 0 for m in masks)

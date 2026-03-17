@@ -129,6 +129,8 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         "resource_reserve_2": pa.array([r.resource_reserves[2] for r in world.regions], type=pa.float32()),
         "season": pa.array([get_season_step(world.turn) for _ in world.regions], type=pa.uint8()),
         "season_id": pa.array([get_season_id(world.turn) for _ in world.regions], type=pa.uint8()),
+        # M35a: River mask
+        "river_mask": pa.array([r.river_mask for r in world.regions], type=pa.uint32()),
     })
 
 
