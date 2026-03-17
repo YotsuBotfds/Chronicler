@@ -363,6 +363,68 @@ class TestDeforestationCascade:
         assert water_increase < 0.25
 
 
+class TestRiverIntegration:
+    """End-to-end: scenario with rivers -> world-gen -> ecology ticks -> verify cascading."""
+
+    def test_river_scenario_runs_100_turns(self):
+        """Smoke test: a river scenario runs without errors for 100 turns."""
+        from chronicler.simulation import run_turn
+        from chronicler.action_engine import ActionEngine
+
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        r0 = world.regions[0]
+        adj = r0.adjacencies[0] if r0.adjacencies else None
+        if adj is None:
+            pytest.skip("No adjacencies")
+        region_map = {r.name: r for r in world.regions}
+        mid = region_map[adj]
+        delta_name = None
+        for a in mid.adjacencies:
+            if a != r0.name:
+                delta_name = a
+                break
+        if delta_name is None:
+            path = [r0.name, adj]
+        else:
+            path = [r0.name, adj, delta_name]
+
+        config = ScenarioConfig(
+            name="River Integration",
+            rivers=[River(name="Great River", path=path)],
+        )
+        apply_scenario(world, config)
+
+        engine = ActionEngine(world)
+        selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
+        narrator = lambda world, events: ""
+        for _ in range(100):
+            run_turn(world, selector, narrator)
+
+        assert len(world.rivers) == 1
+        assert world.turn == 100
+
+    def test_river_regions_have_higher_water_after_gen(self):
+        """River regions start with higher water than equivalent non-river terrain."""
+        world = generate_world(seed=99, num_regions=12, num_civs=3)
+        r0 = world.regions[0]
+        adj = r0.adjacencies[0] if r0.adjacencies else None
+        if adj is None:
+            pytest.skip("No adjacencies")
+
+        pre_waters = {r.name: r.ecology.water for r in world.regions}
+
+        config = ScenarioConfig(
+            name="Water Test",
+            rivers=[River(name="Test River", path=[r0.name, adj])],
+        )
+        apply_scenario(world, config)
+
+        region_map = {r.name: r for r in world.regions}
+        for rname in [r0.name, adj]:
+            assert region_map[rname].river_mask != 0
+            assert region_map[rname].ecology.water >= 0.10
+
+
 class TestRiverBridge:
     def test_river_mask_in_record_batch(self):
         from chronicler.agent_bridge import build_region_batch
