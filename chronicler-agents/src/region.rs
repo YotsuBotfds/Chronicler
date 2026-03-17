@@ -46,11 +46,13 @@ pub struct RegionState {
     pub conversion_target_belief: u8,      // dominant converting faith
     pub conquest_conversion_active: bool,  // Militant holy war forced flip
     pub majority_belief: u8,               // for satisfaction comparison
+    // M38a:
+    pub has_temple: bool,
 }
 
 impl RegionState {
     pub fn new(region_id: u16) -> Self {
-        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0, river_mask: 0, endemic_severity: 0.0, culture_investment_active: false, controller_values: [0xFF, 0xFF, 0xFF], conversion_rate: 0.0, conversion_target_belief: 0xFF, conquest_conversion_active: false, majority_belief: 0xFF }
+        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0, river_mask: 0, endemic_severity: 0.0, culture_investment_active: false, controller_values: [0xFF, 0xFF, 0xFF], conversion_rate: 0.0, conversion_target_belief: 0xFF, conquest_conversion_active: false, majority_belief: 0xFF, has_temple: false }
     }
 }
 

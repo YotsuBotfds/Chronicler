@@ -599,6 +599,7 @@ mod tests {
             conversion_target_belief: 0xFF,
             conquest_conversion_active: false,
             majority_belief: 0xFF,
+            has_temple: false,
         }
     }
 

@@ -331,6 +331,11 @@ impl AgentSimulator {
             .column_by_name("majority_belief")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
+        // Optional M38a columns — temples & clergy
+        let has_temple_col = rb
+            .column_by_name("has_temple")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+
         // M37: Initial belief for spawn (per-region, controller civ's faith_id)
         let initial_belief_col = rb
             .column_by_name("initial_belief")
@@ -384,6 +389,7 @@ impl AgentSimulator {
                     conversion_target_belief: conversion_target_belief_col.map_or(0xFF, |arr| arr.value(i)),
                     conquest_conversion_active: conquest_conversion_active_col.map_or(false, |arr| arr.value(i)),
                     majority_belief: majority_belief_col.map_or(0xFF, |arr| arr.value(i)),
+                    has_temple: has_temple_col.map_or(false, |c| c.value(i)),
                 })
                 .collect();
 
@@ -483,6 +489,7 @@ impl AgentSimulator {
                 r.conversion_target_belief = conversion_target_belief_col.map_or(r.conversion_target_belief, |arr| arr.value(i));
                 r.conquest_conversion_active = conquest_conversion_active_col.map_or(r.conquest_conversion_active, |arr| arr.value(i));
                 r.majority_belief = majority_belief_col.map_or(r.majority_belief, |arr| arr.value(i));
+                r.has_temple = has_temple_col.map_or(false, |arr| arr.value(i));
             }
         }
         Ok(())
