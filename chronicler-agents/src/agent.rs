@@ -128,6 +128,14 @@ pub const DISSATISFIED_DRIFT_BONUS: f32 = 0.03;
 pub const DISSATISFIED_THRESHOLD: f32 = 0.4;
 pub const INVEST_CULTURE_BONUS: f32 = 0.10;
 
+// M37: Religion constants
+pub const LIFE_EVENT_CONVERSION: u8 = 1 << 6;  // bit 6 of life_events
+pub const BELIEF_NONE: u8 = 0xFF;              // sentinel for no belief assigned
+pub const RELIGIOUS_MISMATCH_WEIGHT: f32 = 0.10;
+pub const SUSCEPTIBILITY_THRESHOLD: f32 = 0.4;  // satisfaction below this → 2× conversion
+pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
+pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability
+
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;
