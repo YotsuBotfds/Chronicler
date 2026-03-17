@@ -2,7 +2,7 @@
 
 **Status:** Spec approved, ready for implementation planning
 **Estimated effort:** 3-4 days
-**Scope:** ~40 lines Rust, ~80 lines Python, ~150 lines tests
+**Scope:** ~60-80 lines Rust, ~120-150 lines Python, ~250+ lines tests
 **Dependencies:** M33 (personality, merged), M36 (cultural values, merged), M37 (belief, feat branch)
 
 ---
@@ -36,7 +36,7 @@ New field:
 
 4 bytes/agent. At 100k agents, 400KB.
 
-**Sentinel assertion:** `PARENT_NONE = 0`. The pool's `next_id` counter must start at 1. Implementation plan must include a verification step confirming this in `pool.rs`. If `next_id` starts at 0, the first spawned agent is indistinguishable from "no parent."
+**Sentinel fix (required):** `PARENT_NONE = 0`. The pool's `next_id` counter currently starts at 0 (`pool.rs:84`), which means the first spawned agent gets id 0 — indistinguishable from "no parent." Implementation must change `next_id` initialization from 0 to 1 in `AgentPool::new()`. Existing tests that assert first-agent id == 0 (`test_spawn_into_empty_pool`, `test_ids_are_monotonic`) must be updated to expect id 1.
 
 ### BirthInfo (`tick.rs`)
 
@@ -45,14 +45,16 @@ New field:
 
 ### NamedCharacter (`named_characters.rs`)
 
-New fields:
+New field:
 - `parent_id: u32` — captured from `pool.parent_ids[slot]` at promotion time.
-- `dynasty_id: Option<u32>` — assigned by Python-side dynasty detection. `None` until membership established.
+
+No `dynasty_id` on the Rust side. Dynasty logic is entirely Python-owned (Design Decision 7), so there is no Rust-side consumer. Keeping it only in Python avoids cross-boundary state sync.
 
 ### GreatPerson (`models.py`)
 
-New field:
+New fields:
 - `parent_id: int = 0` — populated from promotions batch `parent_id` column.
+- `dynasty_id: int | None = None` — assigned by Python-side dynasty detection.
 
 No changes to: personality fields, cultural value fields, belief fields, alive/free_slots, skills, or any other existing field.
 
@@ -77,6 +79,7 @@ let civ_mean = signals.personality_mean_for_civ(civ_id);
 let personality = assign_personality(&mut personality_rng, civ_mean);
 
 // AFTER (M39 — inheritance from parent):
+// `slot` IS the parent slot in this birth-path loop
 let parent_personality = [
     pool.boldness[slot],
     pool.ambition[slot],
@@ -87,9 +90,18 @@ let personality = inherit_personality(&mut personality_rng, parent_personality);
 
 `inherit_personality` already exists in `demographics.rs` with tighter noise (`BIRTH_PERSONALITY_NOISE = 0.15` vs spawn's `SPAWN_PERSONALITY_NOISE = 0.3`). `BirthInfo.personality` still carries the pre-computed child personality. The sequential birth-application phase is unchanged.
 
+**3. Setting parent_id on the pool after spawn:**
+
+The sequential birth-application phase calls `pool.spawn()` to allocate a slot, then does post-spawn field setup (matching the existing `set_loyalty` pattern). After `spawn()` returns the new slot:
+```rust
+pool.parent_ids[new_slot] = birth_info.parent_id;
+```
+
+`spawn()` signature is unchanged. `parent_ids` is set post-spawn, same pattern as loyalty and other fields.
+
 ### World-gen spawn path
 
-No changes. Initial agents continue using `assign_personality(rng, civ_mean)` and get `parent_id = PARENT_NONE`.
+No changes. Initial agents continue using `assign_personality(rng, civ_mean)` and get `parent_id = PARENT_NONE`. The `spawn()` function initializes `parent_ids[slot] = PARENT_NONE` by default (push path) or overwrites on reuse.
 
 ### What doesn't change
 
@@ -140,33 +152,46 @@ class Dynasty:
     extinct: bool            # set when last member dies
 ```
 
+### GreatPerson lookup: `named_agents` vs `gp_by_agent_id`
+
+**Important:** The existing `named_agents` dict (`agent_bridge.py:322`) is `dict[int, str]` — it maps agent_id to character name only. It is sufficient for the dynasty detection membership check (`parent_id in named_agents`), but it cannot provide `GreatPerson` attribute access (`.alive`, `.dynasty_id`, `.civilization`).
+
+Dynasty logic requires a `GreatPerson` lookup by agent_id. M39 must add a parallel dict:
+```python
+gp_by_agent_id: dict[int, GreatPerson] = {}  # populated alongside named_agents on promotion
+```
+
+Populated in `_process_promotions()` at the same point as `named_agents[agent_id] = name`. GreatPerson records persist after death (moved to `world.retired_persons`), so the dict retains dead characters. This is the primary lookup for extinction and split checks.
+
 ### Detection — on promotion only
 
 When Python processes the promotions batch each turn:
 1. For each new promoted character, read `parent_id` from the batch.
-2. Check `parent_id in named_agents` — is parent a promoted GreatPerson?
-3. If yes, check if parent already has a `dynasty_id`:
-   - **Yes:** Child joins existing dynasty. Assign same `dynasty_id`.
-   - **No:** New dynasty founded. Founder = parent (earliest promoted ancestor). Create `Dynasty` record, assign `dynasty_id` to both parent and child.
+2. Check `parent_id in named_agents` — is parent a promoted character?
+3. If yes, look up parent via `gp_by_agent_id[parent_id]`. Check if parent already has a `dynasty_id`:
+   - **Yes:** Child joins existing dynasty. Assign same `dynasty_id` to child's GreatPerson.
+   - **No:** New dynasty founded. Founder = parent (earliest promoted ancestor). Create `Dynasty` record, assign `dynasty_id` to both parent and child GreatPerson records.
 
 Single dict lookup per promotion. O(1).
 
 ### Extinction — on death event processing
 
-Death events carry `agent_id` (confirmed: `ffi.rs:640`). On processing a death:
-1. Check if deceased is in `named_agents`, mark `GreatPerson.alive = False` (already done by `kill_great_person`).
-2. Check if deceased belongs to any dynasty's `members`.
-3. If yes: `all(not named_agents[mid].alive for mid in dynasty.members)` — if true, mark `dynasty.extinct = True`, emit extinction event.
+Death events carry `agent_id` (confirmed: `ffi.rs`, `events_to_batch`). Agent-sourced character deaths are processed by `_process_deaths()` in `agent_bridge.py` (not `kill_great_person()` from `great_persons.py`). The `_process_deaths()` function sets `gp.alive = False` directly.
 
-No pool access needed. `GreatPerson.alive` is already maintained by `great_persons.py`.
+After `_process_deaths()` sets `alive = False`, check dynasty membership:
+1. Look up deceased in `gp_by_agent_id`. If they have a `dynasty_id`, find the dynasty.
+2. Check: `all(not gp_by_agent_id[mid].alive for mid in dynasty.members)` — if true, mark `dynasty.extinct = True`, emit extinction event.
 
-Deaths are processed sequentially per turn — same-turn deaths (war, plague) resolve correctly because `kill_great_person` updates `alive` before the next death in the loop.
+No pool access needed. `GreatPerson.alive` is maintained by `_process_deaths()`.
+
+Deaths are processed sequentially per turn — same-turn deaths (war, plague) resolve correctly because `_process_deaths()` updates `alive` before processing the next death in the loop.
 
 ### Split — on promotion or civ-change
 
-When a dynasty member's `civ_affinity` differs from another member's, and `split_detected` is False:
+When any two **living** dynasty members have different `GreatPerson.civilization` values, and `split_detected` is False:
 - Emit split event, set `split_detected = True`.
-- Checked on promotion (new member might be different civ) and on civ-change events (conquest/secession).
+- **Trigger points:** (a) After `_process_promotions()` — new member might be different civ. (b) After any `set_agent_civ()` call in the tick pipeline — conquest/secession changes a member's civ.
+- Comparison uses `GreatPerson.civilization` (Python-side string), not pool `civ_affinity` (which may reference a dead/reused slot).
 - One-shot: flag prevents re-firing every turn members remain separated.
 
 ---
@@ -200,7 +225,7 @@ No new narrator prompt structure. Dynasty info is folded into the existing chara
 ### Tier 1 — Unit tests (Rust)
 
 - `pool.rs`: `parent_ids` initialized to `PARENT_NONE` on spawn, set correctly on birth.
-- `pool.rs`: Assert `next_id` starts at 1 (sentinel safety for `PARENT_NONE = 0`).
+- `pool.rs`: Assert `next_id` starts at 1 after the sentinel fix (first agent id == 1, not 0).
 - `tick.rs`: `BirthInfo.parent_id` carries parent's agent ID, not slot index.
 - `tick.rs`: **Path divergence test** — verify initial spawn agents get `parent_id = PARENT_NONE` AND use `assign_personality(civ_mean)`, while birth agents get `parent_id = mother.agent_id` AND use `inherit_personality(parent_personality)`. Single test covering the conditional dispatch fork.
 - `demographics.rs`: `inherit_personality` produces values clustered tighter around parent than `assign_personality` around civ mean (statistical: run 1000 samples, compare variance).
@@ -212,8 +237,9 @@ No new narrator prompt structure. Dynasty info is folded into the existing chara
 - `dynasties.py`: Dynasty founding on parent-child promotion pair.
 - `dynasties.py`: Child joins existing dynasty (parent already has `dynasty_id`).
 - `dynasties.py`: No dynasty when `parent_id` not in `named_agents`.
-- `dynasties.py`: Extinction when all members dead.
-- `dynasties.py`: Split detection when members span civs, one-shot flag prevents re-fire.
+- `dynasties.py`: Extinction when all members dead (via `gp_by_agent_id` alive check).
+- `dynasties.py`: Split detection when living members have different `GreatPerson.civilization`, one-shot flag prevents re-fire.
+- `agent_bridge.py`: `gp_by_agent_id` populated alongside `named_agents` on promotion, persists dead characters.
 
 ### Tier 2 — Regression (200 seeds x 200 turns)
 
