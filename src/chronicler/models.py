@@ -53,6 +53,13 @@ EMPTY_SLOT = 255
 FOOD_TYPES = frozenset({ResourceType.GRAIN, ResourceType.FISH, ResourceType.BOTANICALS, ResourceType.EXOTIC})
 MINERAL_TYPES = frozenset({ResourceType.ORE, ResourceType.PRECIOUS})
 
+# M37: Religion constants
+DOCTRINE_THEOLOGY = 0
+DOCTRINE_ETHICS = 1
+DOCTRINE_STANCE = 2
+DOCTRINE_OUTREACH = 3
+DOCTRINE_STRUCTURE = 4
+
 
 class Disposition(str, Enum):
     HOSTILE = "hostile"
@@ -66,6 +73,15 @@ class FactionType(str, Enum):
     MILITARY = "military"
     MERCHANT = "merchant"
     CULTURAL = "cultural"
+
+
+class Belief(BaseModel):
+    """A faith in the world's belief registry."""
+    faith_id: int = Field(ge=0, le=15)
+    name: str
+    civ_origin: int  # civ index that founded this faith
+    doctrines: list[int] = Field(min_length=5, max_length=5)
+    # [Theology, Ethics, Stance, Outreach, Structure], each -1/0/+1
 
 
 class FactionState(BaseModel):
@@ -188,6 +204,12 @@ class Region(BaseModel):
     resource_effective_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     capacity_modifier: float = 1.0  # Temporary capacity multiplier (flood=0.85, drought=0.5)
     prev_turn_water: float = -1.0  # Previous turn's water level for delta tracking (-1 = unset)
+    # M37: Religion
+    conquest_conversion_boost: float = 0.0      # decays over 10 turns
+    majority_belief: int = 0xFF                  # computed from snapshot in Phase 10
+    conquest_conversion_active: bool = False      # one-shot flag set by action engine
+    conversion_rate_signal: float = 0.0          # for bridge
+    conversion_target_signal: int = 0xFF         # for bridge
 
 
 class Leader(BaseModel):
@@ -250,6 +272,7 @@ class Civilization(BaseModel):
     factions: FactionState = Field(default_factory=FactionState)
     founded_turn: int = 0
     max_precap_weight: float = 0.0  # M19b: transient, tracks max weight before 2.5x cap
+    civ_majority_faith: int = 0  # M37: computed from agent snapshot each turn
 
 
 class Relationship(BaseModel):
@@ -471,6 +494,8 @@ class WorldState(BaseModel):
     agent_events_raw: list = Field(default_factory=list)  # list[AgentEventRecord]
     # M35a: Rivers
     rivers: list[River] = Field(default_factory=list)
+    # M37: Religion
+    belief_registry: list[Belief] = Field(default_factory=list)  # max 16 faiths
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
