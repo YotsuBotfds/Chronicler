@@ -1,5 +1,5 @@
 import pytest
-from chronicler.models import River, WorldState, EMPTY_SLOT, ResourceType
+from chronicler.models import River, WorldState, EMPTY_SLOT, ResourceType, ClimatePhase
 from chronicler.tuning import (
     K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER,
     K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
@@ -7,6 +7,7 @@ from chronicler.tuning import (
 )
 from chronicler.scenario import ScenarioConfig, apply_scenario
 from chronicler.world_gen import generate_world
+from chronicler.ecology import tick_ecology
 
 
 class TestRiverModel:
@@ -231,6 +232,111 @@ class TestRiverWorldGenBonuses:
         apply_scenario(world, config)
         region_map = {r.name: r for r in world.regions}
         assert region_map[r0.name].resource_types == original_types
+
+
+class TestDeforestationCascade:
+    def _make_river_world(self):
+        """Create a world with a 3-region river: headwater -> mid -> delta."""
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        for r in world.regions:
+            if len(r.adjacencies) >= 1:
+                head = r
+                break
+        mid_name = head.adjacencies[0]
+        region_map = {r.name: r for r in world.regions}
+        mid = region_map[mid_name]
+        delta = None
+        for adj_name in mid.adjacencies:
+            if adj_name != head.name:
+                delta = region_map[adj_name]
+                break
+        if delta is None:
+            pytest.skip("Cannot form 3-region river path")
+        config = ScenarioConfig(
+            name="Cascade Test",
+            rivers=[River(name="Test River", path=[head.name, mid.name, delta.name])],
+        )
+        apply_scenario(world, config)
+        for r in world.regions:
+            if r.controller is None:
+                r.controller = world.civilizations[0].name
+        return world, head.name, mid.name, delta.name
+
+    def test_cascade_triggers_on_deforestation(self):
+        world, head, mid, delta = self._make_river_world()
+        region_map = {r.name: r for r in world.regions}
+        region_map[head].ecology.forest_cover = 0.1
+        region_map[mid].ecology.water = 0.5
+        region_map[delta].ecology.water = 0.5
+        pre_mid = region_map[mid].ecology.water
+        pre_delta = region_map[delta].ecology.water
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        assert region_map[mid].ecology.water < pre_mid
+        assert region_map[delta].ecology.water < pre_delta
+
+    def test_no_cascade_when_forest_healthy(self):
+        world, head, mid, delta = self._make_river_world()
+        region_map = {r.name: r for r in world.regions}
+        region_map[head].ecology.forest_cover = 0.5
+        region_map[mid].ecology.water = 0.5
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        water_after_first = region_map[mid].ecology.water
+        region_map[mid].ecology.water = 0.5
+        region_map[head].ecology.forest_cover = 0.5
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        water_after_second = region_map[mid].ecology.water
+        assert abs(water_after_first - water_after_second) < 0.001
+
+    def test_headwater_immune(self):
+        world, head, mid, delta = self._make_river_world()
+        region_map = {r.name: r for r in world.regions}
+        region_map[mid].ecology.forest_cover = 0.1
+        region_map_copy_water = region_map[head].ecology.water
+        region_map[mid].ecology.forest_cover = 0.5
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        head_water_healthy = region_map[head].ecology.water
+        region_map[head].ecology.water = region_map_copy_water
+        region_map[mid].ecology.forest_cover = 0.1
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        head_water_deforested = region_map[head].ecology.water
+        assert abs(head_water_healthy - head_water_deforested) < 0.001
+
+    def test_water_clamp_floor(self):
+        world, head, mid, delta = self._make_river_world()
+        region_map = {r.name: r for r in world.regions}
+        region_map[head].ecology.forest_cover = 0.05
+        region_map[delta].ecology.water = 0.12
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        assert region_map[delta].ecology.water >= 0.10
+
+    def test_cascade_dedup_same_source(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=2)
+        shared = None
+        for r in world.regions:
+            if len(r.adjacencies) >= 2:
+                shared = r
+                break
+        if shared is None:
+            pytest.skip("Need region with 2+ adjacencies")
+        a1, a2 = shared.adjacencies[0], shared.adjacencies[1]
+        config = ScenarioConfig(
+            name="Dedup Test",
+            rivers=[
+                River(name="River A", path=[shared.name, a1]),
+                River(name="River B", path=[shared.name, a2]),
+            ],
+        )
+        apply_scenario(world, config)
+        for r in world.regions:
+            if r.controller is None:
+                r.controller = world.civilizations[0].name
+        region_map = {r.name: r for r in world.regions}
+        region_map[shared.name].ecology.forest_cover = 0.1
+        region_map[a1].ecology.water = 0.5
+        region_map[a2].ecology.water = 0.5
+        tick_ecology(world, ClimatePhase.TEMPERATE)
+        assert region_map[a1].ecology.water >= 0.10
+        assert region_map[a2].ecology.water >= 0.10
 
     def test_confluence_bonuses_applied_once(self):
         world = generate_world(seed=42, num_regions=8, num_civs=2)
