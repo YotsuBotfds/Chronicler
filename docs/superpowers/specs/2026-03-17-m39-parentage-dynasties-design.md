@@ -36,7 +36,7 @@ New field:
 
 4 bytes/agent. At 100k agents, 400KB.
 
-**Sentinel fix (required):** `PARENT_NONE = 0`. The pool's `next_id` counter currently starts at 0 (`pool.rs:84`), which means the first spawned agent gets id 0 — indistinguishable from "no parent." Implementation must change `next_id` initialization from 0 to 1 in `AgentPool::new()`. Existing tests that assert first-agent id == 0 (`test_spawn_into_empty_pool`, `test_ids_are_monotonic`) must be updated to expect id 1.
+**Sentinel fix (required):** `PARENT_NONE = 0`. The pool's `next_id` counter currently starts at 0 (`pool.rs:84`), which means the first spawned agent gets id 0 — indistinguishable from "no parent." Implementation must change `next_id` initialization from 0 to 1 in `AgentPool::new()`. Add `assert_eq!(pool.id(s0), 1)` to `test_spawn_into_empty_pool` to positively verify the sentinel. (`test_ids_are_monotonic` only checks relative ordering and survives without changes.)
 
 ### BirthInfo (`tick.rs`)
 
@@ -97,7 +97,7 @@ The sequential birth-application phase calls `pool.spawn()` to allocate a slot, 
 pool.parent_ids[new_slot] = birth_info.parent_id;
 ```
 
-`spawn()` signature is unchanged. `parent_ids` is set post-spawn, same pattern as loyalty and other fields.
+`spawn()` signature is unchanged. `parent_ids` is set post-spawn, same pattern as loyalty and other fields. Note: `spawn()` itself must handle `parent_ids` in both paths — `self.parent_ids.push(PARENT_NONE)` on the grow path, and `self.parent_ids[slot] = PARENT_NONE` on the reuse path. The post-spawn assignment then overwrites with the actual parent_id for births.
 
 ### World-gen spawn path
 
@@ -192,6 +192,7 @@ When any two **living** dynasty members have different `GreatPerson.civilization
 - Emit split event, set `split_detected = True`.
 - **Trigger points:** (a) After `_process_promotions()` — new member might be different civ. (b) After any `set_agent_civ()` call in the tick pipeline — conquest/secession changes a member's civ.
 - Comparison uses `GreatPerson.civilization` (Python-side string), not pool `civ_affinity` (which may reference a dead/reused slot).
+- **Conquest exiles do not trigger split.** The conquest path (`agent_bridge.py:589`) calls `set_agent_civ()` but does not update `GreatPerson.civilization` — the character retains their original civilization identity. Only secession (`agent_bridge.py:638`) updates `.civilization`. This is correct: a conquered exile still belongs to their house; secession is the meaningful split trigger.
 - One-shot: flag prevents re-firing every turn members remain separated.
 
 ---
