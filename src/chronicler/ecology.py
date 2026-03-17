@@ -383,6 +383,16 @@ def _update_ecology_counters(world: WorldState) -> None:
             region.forest_regrowth_turns = 0
 
 
+def disease_vector_label(region: "Region") -> str:
+    """Derive disease vector label for narration. Not stored — deterministic."""
+    if region.terrain == "desert":
+        return "cholera"
+    elif region.disease_baseline >= 0.02:
+        return "fever"
+    else:
+        return "plague"
+
+
 def compute_disease_severity(
     region: "Region",
     world: "WorldState | None",

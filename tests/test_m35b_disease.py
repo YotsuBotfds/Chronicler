@@ -162,3 +162,13 @@ def test_soil_degradation_doubles_after_streak():
     doubled_loss = soil_before - soil_after_doubled
     if normal_loss > 0:
         assert doubled_loss >= normal_loss * 1.5
+
+
+def test_disease_vector_label():
+    from chronicler.ecology import disease_vector_label
+    r = _make_region(terrain="desert", baseline=0.015)
+    assert disease_vector_label(r) == "cholera"
+    r2 = _make_region(terrain="coast", baseline=0.02)
+    assert disease_vector_label(r2) == "fever"
+    r3 = _make_region(terrain="plains", baseline=0.01)
+    assert disease_vector_label(r3) == "plague"
