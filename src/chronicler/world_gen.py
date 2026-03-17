@@ -240,6 +240,18 @@ def generate_world(
         if region.controller is not None:
             region.cultural_identity = region.controller
 
+    # M35b: Initialize disease baseline and effective yields
+    for region in world.regions:
+        eco = region.ecology
+        if eco.water > 0.6 and eco.soil > 0.5:
+            region.disease_baseline = 0.02  # Fever
+        elif region.terrain == "desert":
+            region.disease_baseline = 0.015  # Cholera
+        else:
+            region.disease_baseline = 0.01  # Plague
+        region.endemic_severity = region.disease_baseline
+        region.resource_effective_yields = list(region.resource_base_yields)
+
     return world
 
 

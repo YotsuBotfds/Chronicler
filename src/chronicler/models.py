@@ -180,6 +180,14 @@ class Region(BaseModel):
     resource_base_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     resource_reserves: list[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0])
     river_mask: int = 0
+    # M35b: Disease, Depletion & Environmental Events
+    disease_baseline: float = 0.01
+    endemic_severity: float = 0.01
+    soil_pressure_streak: int = 0
+    overextraction_streaks: dict[int, int] = Field(default_factory=dict)
+    resource_effective_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+    capacity_modifier: float = 1.0  # Temporary capacity multiplier (flood=0.85, drought=0.5)
+    prev_turn_water: float = -1.0  # Previous turn's water level for delta tracking (-1 = unset)
 
 
 class Leader(BaseModel):
