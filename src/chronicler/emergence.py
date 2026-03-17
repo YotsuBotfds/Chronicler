@@ -8,7 +8,7 @@ from __future__ import annotations
 import random
 
 from chronicler.models import (
-    ActiveCondition, Civilization, EMPTY_SLOT, Event, PandemicRegion, Region,
+    ActiveCondition, Civilization, ClimatePhase, EMPTY_SLOT, Event, PandemicRegion, Region,
     ResourceType, TechEra, WorldState,
 )
 from chronicler.resources import get_active_trade_routes
@@ -16,6 +16,9 @@ from chronicler.tech import _prev_era, remove_era_bonus
 from chronicler.tuning import (
     K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
+    K_LOCUST_PROBABILITY, K_FLOOD_PROBABILITY, K_COLLAPSE_PROBABILITY,
+    K_DROUGHT_INTENSIFICATION_PROBABILITY, K_COLLAPSE_MORTALITY_SPIKE,
+    K_ECOLOGICAL_RECOVERY_PROBABILITY, K_ECOLOGICAL_RECOVERY_FRACTION,
     get_override,
 )
 from chronicler.utils import clamp, STAT_FLOOR, distribute_pop_loss, drain_region_pop, sync_civ_population
@@ -672,3 +675,180 @@ def _apply_transition(region: Region, rule) -> None:
         region.carrying_capacity = max(1, region.carrying_capacity - 10)
         region.ecology.forest_cover = 0.7
         region.forest_regrowth_turns = 0
+
+
+# ---------------------------------------------------------------------------
+# M35b: Environmental Events (condition-triggered)
+# ---------------------------------------------------------------------------
+
+def _check_locust(region: Region, world: WorldState, rng) -> bool:
+    """Locust swarm: plains/desert, summer/autumn, has Grain, soil > 0.4."""
+    from chronicler.resources import get_season_id
+    season_id = get_season_id(world.turn)
+    if region.terrain not in ("plains", "desert"):
+        return False
+    if season_id not in (1, 2):  # Summer, Autumn
+        return False
+    if not any(rtype == ResourceType.GRAIN for rtype in region.resource_types if rtype != EMPTY_SLOT):
+        return False
+    if region.ecology.soil <= 0.4:
+        return False
+    prob = get_override(world, K_LOCUST_PROBABILITY, 0.15)
+    if rng.random() >= prob:
+        return False
+    duration = rng.randint(2, 3)
+    region.disaster_cooldowns["locust_swarm"] = duration
+    for slot in range(3):
+        rtype = region.resource_types[slot]
+        if rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS):
+            region.resource_suspensions[rtype] = duration
+    world.events_timeline.append(Event(
+        turn=world.turn, event_type="locust_swarm",
+        actors=[region.controller] if region.controller else [],
+        description=f"A locust swarm descends on {region.name}, devouring the crops",
+        importance=7,
+    ))
+    return True
+
+
+def _check_flood(region: Region, world: WorldState, rng) -> bool:
+    """Flood: river region, spring, water > 0.8."""
+    from chronicler.resources import get_season_id
+    season_id = get_season_id(world.turn)
+    if region.river_mask == 0:
+        return False
+    if season_id != 0:  # Spring
+        return False
+    if region.ecology.water <= 0.8:
+        return False
+    prob = get_override(world, K_FLOOD_PROBABILITY, 0.20)
+    if rng.random() >= prob:
+        return False
+    duration = rng.randint(1, 2)
+    region.disaster_cooldowns["flood"] = duration
+    region.capacity_modifier = 0.85
+    region.ecology.soil = min(1.0, region.ecology.soil + 0.15)
+    world.events_timeline.append(Event(
+        turn=world.turn, event_type="flood",
+        actors=[region.controller] if region.controller else [],
+        description=f"The river floods {region.name}, depositing rich silt but damaging infrastructure",
+        importance=6,
+    ))
+    return True
+
+
+def _check_collapse(region: Region, world: WorldState, rng) -> bool:
+    """Mine collapse: mountains, mineral resource, reserves < 0.3."""
+    if region.terrain != "mountains":
+        return False
+    has_mineral = any(
+        rtype in (ResourceType.ORE, ResourceType.PRECIOUS)
+        for rtype in region.resource_types
+        if rtype != EMPTY_SLOT
+    )
+    if not has_mineral:
+        return False
+    low_reserves = any(
+        region.resource_reserves[slot] < 0.3
+        for slot in range(3)
+        if region.resource_types[slot] in (ResourceType.ORE, ResourceType.PRECIOUS)
+    )
+    if not low_reserves:
+        return False
+    prob = get_override(world, K_COLLAPSE_PROBABILITY, 0.10)
+    if rng.random() >= prob:
+        return False
+    duration = rng.randint(3, 5)
+    region.disaster_cooldowns["mine_collapse"] = duration
+    spike = get_override(world, K_COLLAPSE_MORTALITY_SPIKE, 0.10)
+    region.endemic_severity = min(0.15, region.endemic_severity + spike)
+    for slot in range(3):
+        if region.resource_types[slot] in (ResourceType.ORE, ResourceType.PRECIOUS):
+            region.resource_suspensions[region.resource_types[slot]] = duration
+    world.events_timeline.append(Event(
+        turn=world.turn, event_type="mine_collapse",
+        actors=[region.controller] if region.controller else [],
+        description=f"A mine collapses in {region.name}, killing workers and halting extraction",
+        importance=8,
+    ))
+    return True
+
+
+def _check_drought(region: Region, world: WorldState, rng) -> bool:
+    """Drought intensification: active DROUGHT, summer, water < 0.25."""
+    from chronicler.resources import get_season_id
+    from chronicler.climate import get_climate_phase
+    season_id = get_season_id(world.turn)
+    climate_phase = get_climate_phase(world.turn, world.climate_config)
+    if climate_phase != ClimatePhase.DROUGHT:
+        return False
+    if season_id != 1:  # Summer
+        return False
+    if region.ecology.water >= 0.25:
+        return False
+    prob = get_override(world, K_DROUGHT_INTENSIFICATION_PROBABILITY, 0.25)
+    if rng.random() >= prob:
+        return False
+    duration = rng.randint(4, 8)
+    region.disaster_cooldowns["drought_intensification"] = duration
+    region.capacity_modifier = 0.5
+    for adj_name in region.adjacencies:
+        adj = next((r for r in world.regions if r.name == adj_name), None)
+        if adj and adj.terrain == "desert" and not adj.disaster_cooldowns:
+            adj.capacity_modifier = 0.5
+            adj.disaster_cooldowns["drought_intensification"] = duration
+    world.events_timeline.append(Event(
+        turn=world.turn, event_type="drought_intensification",
+        actors=[region.controller] if region.controller else [],
+        description=f"The drought intensifies around {region.name}, devastating the region",
+        importance=8,
+    ))
+    return True
+
+
+def _check_ecological_recovery(region: Region, world: WorldState, rng) -> bool:
+    """Ecological recovery: rare event restoring degraded resource yields."""
+    prob = get_override(world, K_ECOLOGICAL_RECOVERY_PROBABILITY, 0.02)
+    fraction = get_override(world, K_ECOLOGICAL_RECOVERY_FRACTION, 0.50)
+    eligible_slots = [
+        slot for slot in range(3)
+        if region.resource_types[slot] != EMPTY_SLOT
+        and region.resource_effective_yields[slot] < 0.8 * region.resource_base_yields[slot]
+    ]
+    if not eligible_slots:
+        return False
+    if rng.random() >= prob:
+        return False
+    slot = min(eligible_slots, key=lambda s: region.resource_effective_yields[s] / max(0.001, region.resource_base_yields[s]))
+    base = region.resource_base_yields[slot]
+    current = region.resource_effective_yields[slot]
+    lost = base - current
+    restore = lost * fraction
+    region.resource_effective_yields[slot] = min(base, current + restore)
+    world.events_timeline.append(Event(
+        turn=world.turn, event_type="ecological_recovery",
+        actors=[region.controller] if region.controller else [],
+        description=f"The degraded resources of {region.name} show signs of recovery",
+        importance=5,
+    ))
+    return True
+
+
+def check_environmental_events(world: WorldState, rng) -> list[Event]:
+    """Check condition-triggered environmental events for all regions.
+
+    Uses per-region disaster_cooldowns (shared with climate system).
+    M18 black swans use separate world.black_swan_cooldown.
+    """
+    initial_event_count = len(world.events_timeline)
+    for region in world.regions:
+        if region.disaster_cooldowns:
+            continue
+        fired = False
+        for event_check in [_check_locust, _check_flood, _check_collapse, _check_drought]:
+            if event_check(region, world, rng):
+                fired = True
+                break
+        if not fired:
+            _check_ecological_recovery(region, world, rng)
+    return world.events_timeline[initial_event_count:]

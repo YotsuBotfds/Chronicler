@@ -1076,6 +1076,12 @@ def run_turn(
     from chronicler.emergence import check_black_swans
     turn_events.extend(check_black_swans(world, seed=seed, acc=acc))
 
+    # M35b: Environmental events (condition-triggered, same phase)
+    from chronicler.emergence import check_environmental_events
+    import random as _random_m35b
+    env_rng = _random_m35b.Random(seed + world.turn * 1013)
+    turn_events.extend(check_environmental_events(world, env_rng))
+
     # Phase 2: Automatic Effects (NEW)
     turn_events.extend(apply_automatic_effects(world, acc=acc))
 
