@@ -10,6 +10,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-16-m37-belief-systems-design.md`
 
+### Implementation Notes (read before starting)
+
+1. **`region.conversion_signals` — use individual fields, not a tuple.** Replace the `conversion_signals: tuple` field on Region with three individual fields (`conversion_rate: float = 0.0`, `conversion_target_belief: int = 0xFF`, `conversion_signals_active: bool = False`). Update Task 11 bridge code to read them individually, and Task 12 Phase 10 to write them individually. More explicit and Pydantic-friendly.
+
+2. **`generate_faiths._generate_doctrines` — import directly.** The test pattern `generate_faiths._generate_doctrines(...)` won't work since `generate_faiths` is a function, not a class. Import `_generate_doctrines` directly: `from chronicler.religion import _generate_doctrines`. Fix both test methods in `TestDoctrineGeneration`.
+
+3. **Tier 2 test helpers are undefined.** `_make_single_civ_world` and `_make_multi_civ_world` in Task 14 need ~30-40 lines of factory code: civs, regions, relationships, belief_registry, agent bridge setup. Write these when implementing Task 14.
+
+4. **Task 15 Step 5 — use specific file paths.** Replace `git add -A` with explicit `git add` of changed files to avoid staging unrelated files.
+
+5. **spawn() cascade — expect ~15-20 compile errors.** Task 2 Step 4 adds a param to `spawn()`. Run `cargo check` and expect ~15-20 errors across pool.rs tests, tick.rs, ffi.rs, satisfaction.rs tests, culture_tick.rs tests. Fix all before proceeding.
+
 ---
 
 ## File Structure
