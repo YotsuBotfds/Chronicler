@@ -19,6 +19,9 @@ chronicler = "chronicler.main:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow-running multi-seed simulations (deselect with -m 'not slow')",
+]
 
 [build-system]
 requires = ["hatchling"]
