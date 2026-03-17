@@ -19,6 +19,7 @@ fn make_test_regions() -> Vec<RegionState> {
             resource_reserves: [1.0, 1.0, 1.0],
             season: 0,
             season_id: 0,
+            river_mask: 0,
         })
         .collect()
 }

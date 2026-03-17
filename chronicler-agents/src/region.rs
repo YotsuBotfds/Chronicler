@@ -34,11 +34,13 @@ pub struct RegionState {
     pub resource_reserves: [f32; 3],
     pub season: u8,
     pub season_id: u8,
+    // M35a: River bitmask
+    pub river_mask: u32,
 }
 
 impl RegionState {
     pub fn new(region_id: u16) -> Self {
-        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0 }
+        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0, river_mask: 0 }
     }
 }
 
@@ -52,6 +54,12 @@ mod tests {
         assert_eq!(r.adjacency_mask, 0);
         assert_eq!(r.controller_civ, 255); // uncontrolled
         assert_eq!(r.trade_route_count, 0);
+    }
+
+    #[test]
+    fn test_region_new_has_river_mask_default() {
+        let r = RegionState::new(5);
+        assert_eq!(r.river_mask, 0);
     }
 
     #[test]

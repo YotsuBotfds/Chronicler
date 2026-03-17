@@ -577,6 +577,7 @@ mod tests {
             resource_reserves: [1.0, 1.0, 1.0],
             season: 0,
             season_id: 0,
+            river_mask: 0,
         }
     }
 
