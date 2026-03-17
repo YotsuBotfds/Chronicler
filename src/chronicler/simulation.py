@@ -829,6 +829,46 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     # M16c: Cultural victory tracking (runs LAST in culture effects)
     check_cultural_victories(world)
 
+    # M37: Religion computations for next turn's Rust tick
+    _snap = getattr(world, '_agent_snapshot', None)
+    if _snap is not None and world.belief_registry:
+        from chronicler.religion import (
+            compute_majority_belief, compute_civ_majority_faith,
+            compute_conversion_signals, decay_conquest_boosts,
+        )
+        majority_beliefs = compute_majority_belief(_snap)
+        civ_faiths = compute_civ_majority_faith(_snap)
+
+        # Store majority_belief on regions
+        for rid, maj in majority_beliefs.items():
+            if rid < len(world.regions):
+                world.regions[rid].majority_belief = maj
+
+        # Store civ_majority_faith on civilizations
+        for cid, faith in civ_faiths.items():
+            if cid < len(world.civilizations):
+                world.civilizations[cid].civ_majority_faith = faith
+
+        # Build civ lookup for conversion signal computation
+        civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
+
+        # Compute conversion signals (reads conquest_conversion_active one-shot)
+        signals = compute_conversion_signals(
+            world.regions, majority_beliefs, world.belief_registry, _snap,
+            named_agents=getattr(world, '_named_agents', None),
+            civ_majority_faiths=civ_faiths,
+            civ_name_to_id=civ_name_to_id,
+        )
+        # Signals are written directly to region fields by compute_conversion_signals
+
+        # Decay conquest conversion boosts
+        decay_conquest_boosts(world.regions)
+    elif world.belief_registry:
+        # --agents=off: default civ_majority_faith to founding faith
+        for i, civ in enumerate(world.civilizations):
+            if i < len(world.belief_registry):
+                civ.civ_majority_faith = world.belief_registry[i].faith_id
+
     apply_asabiya_dynamics(world)
 
     from chronicler.politics import (
@@ -1141,6 +1181,9 @@ def run_turn(
             world._agent_snapshot = agent_bridge._sim.get_snapshot()
         except Exception:
             pass
+
+    # M37: Stash named_agents for Phase 10 religion computations
+    world._named_agents = agent_bridge.named_agents if agent_bridge else None
 
     # Phase 10: Consequences
     # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.
