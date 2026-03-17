@@ -22,6 +22,13 @@ use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// M35a: Migration attractiveness bonus for river-connected neighbors. [CALIBRATE]
+const RIVER_MIGRATION_BONUS: f32 = 0.1;
+
+// ---------------------------------------------------------------------------
 // Helpers — smoothstep, gumbel_argmax
 // ---------------------------------------------------------------------------
 
@@ -236,9 +243,16 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         for bit in 0..32u32 {
             if regions[r].adjacency_mask & (1 << bit) != 0 {
                 let adj = bit as usize;
-                if adj < n && mean_satisfaction[adj] > best_adj_mean {
-                    best_adj_mean = mean_satisfaction[adj];
-                    best_adj_id = adj as u16;
+                if adj < n {
+                    let mut adj_score = mean_satisfaction[adj];
+                    // M35a: River-connected neighbors get a bonus
+                    if regions[r].river_mask & regions[adj].river_mask != 0 {
+                        adj_score += RIVER_MIGRATION_BONUS;
+                    }
+                    if adj_score > best_adj_mean {
+                        best_adj_mean = adj_score;
+                        best_adj_id = adj as u16;
+                    }
                 }
             }
         }
@@ -1244,5 +1258,63 @@ mod tests {
             assert!((d.abs() - expected_mercenary_drift).abs() < 0.001,
                 "mercenary drift {} != expected {}", d.abs(), expected_mercenary_drift);
         }
+    }
+}
+
+#[cfg(test)]
+mod river_tests {
+    use super::*;
+    use crate::region::RegionState;
+    use crate::pool::AgentPool;
+    use crate::agent::Occupation;
+    use crate::signals::TickSignals;
+
+    #[test]
+    fn test_river_migration_bonus() {
+        let mut regions = vec![
+            RegionState::new(0),
+            RegionState::new(1),
+            RegionState::new(2),
+        ];
+        // Region 0 adjacent to 1 and 2
+        regions[0].adjacency_mask = 0b110;
+        regions[1].adjacency_mask = 0b001;
+        regions[2].adjacency_mask = 0b001;
+
+        // River: regions 0 and 1 share river 0
+        regions[0].river_mask = 1;
+        regions[1].river_mask = 1;
+        regions[2].river_mask = 0;
+
+        for r in &mut regions {
+            r.carrying_capacity = 60;
+            r.population = 30;
+            r.soil = 0.8;
+            r.water = 0.6;
+            r.forest_cover = 0.3;
+            r.controller_civ = 0;
+        }
+
+        // Make region 2 slightly more attractive than region 1
+        regions[2].water = 0.65;  // slightly better ecology
+
+        let signals = TickSignals {
+            civs: vec![],
+            contested_regions: vec![false, false, false],
+        };
+        let mut pool = AgentPool::new(100);
+        for _ in 0..10 {
+            pool.spawn(0, 0, Occupation::Farmer, 0, 0.5, 0.5, 0.5);
+        }
+        for _ in 0..10 {
+            pool.spawn(1, 0, Occupation::Farmer, 0, 0.5, 0.5, 0.5);
+        }
+        for _ in 0..10 {
+            pool.spawn(2, 0, Occupation::Farmer, 0, 0.5, 0.5, 0.5);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &signals);
+        assert_eq!(stats.best_migration_target[0], 1,
+            "River-connected region should be preferred migration target");
     }
 }
