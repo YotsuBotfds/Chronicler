@@ -146,6 +146,11 @@ class RegionEcology(BaseModel):
     forest_cover: float = Field(default=0.3, ge=0.0, le=1.0)
 
 
+class River(BaseModel):
+    name: str
+    path: list[str] = Field(min_length=2)
+
+
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
@@ -455,6 +460,8 @@ class WorldState(BaseModel):
     agent_mode: str | None = None       # None/"off", "demographics-only", "shadow", "hybrid"
     pending_shocks: list = Field(default_factory=list)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list)  # list[AgentEventRecord]
+    # M35a: Rivers
+    rivers: list[River] = Field(default_factory=list)
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
