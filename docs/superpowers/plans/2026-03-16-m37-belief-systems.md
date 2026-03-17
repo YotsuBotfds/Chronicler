@@ -1473,7 +1473,18 @@ In `simulation.py`, find the world initialization / `init_world()` or equivalent
         world.belief_registry = generate_faiths(civ_values, civ_names, seed=world.seed)
 ```
 
-- [ ] **Step 2: Add Phase 10 religion computations**
+- [ ] **Step 2: Stash named_agents on world for Phase 10 access**
+
+In `run_turn()`, after the `_agent_snapshot` stash (~line 1137-1143), add:
+
+```python
+# M37: Stash named_agents for Phase 10 religion computations
+world._named_agents = agent_bridge.named_agents if agent_bridge else None
+```
+
+This follows the same pattern as `_agent_snapshot` — `phase_consequences()` doesn't receive `agent_bridge` as a parameter, so data is stashed on `world`.
+
+- [ ] **Step 3: Add Phase 10 religion computations**
 
 In `phase_consequences()` / Phase 10 (~line 824), after cultural effects and before asabiya dynamics, add:
 
@@ -1504,9 +1515,13 @@ In `phase_consequences()` / Phase 10 (~line 824), after cultural effects and bef
 
         # Compute conversion signals for next turn's Rust tick
         # Reads conquest_conversion_active from region (one-shot, cleared after read)
+        # Note: agent_bridge is not in scope in phase_consequences().
+        # Stash named_agents on world before Phase 10 (same pattern as _agent_snapshot):
+        #   world._named_agents = agent_bridge.named_agents if agent_bridge else None
+        # Add this stash line in run_turn() alongside the _agent_snapshot stash (~line 1137).
         signals = compute_conversion_signals(
             world.regions, majority_beliefs, world.belief_registry, _snap,
-            named_agents=agent_bridge.named_agents if agent_bridge else None,
+            named_agents=getattr(world, '_named_agents', None),
             civ_majority_faiths=civ_faiths,
             civ_name_to_id=civ_name_to_id,
         )
@@ -1523,12 +1538,12 @@ In `phase_consequences()` / Phase 10 (~line 824), after cultural effects and bef
                 civ.civ_majority_faith = world.belief_registry[i].faith_id
 ```
 
-- [ ] **Step 3: Run smoke test**
+- [ ] **Step 4: Run smoke test**
 
 Run: `python -m pytest tests/ -x -q --timeout=60 -k "not slow"`
 Expected: All existing tests pass
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/chronicler/simulation.py
