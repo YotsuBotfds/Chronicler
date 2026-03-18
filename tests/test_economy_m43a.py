@@ -336,3 +336,67 @@ def test_stockpile_cap_zero_population():
     goods = {"grain": 100.0}
     apply_stockpile_cap(goods, population=0)
     assert goods["grain"] == 0.0
+
+
+# --- Task 10: Stockpile Initialization in world_gen.py ---
+
+def test_stockpile_initialization():
+    """generate_world() initializes primary food stockpile for controlled regions."""
+    from chronicler.world_gen import generate_world
+    from chronicler.economy import map_resource_to_good, INITIAL_BUFFER
+
+    world = generate_world(seed=42, num_regions=8, num_civs=4)
+    for region in world.regions:
+        if region.controller is not None and region.resource_types[0] != 255:
+            good = map_resource_to_good(region.resource_types[0])
+            expected = INITIAL_BUFFER * region.population
+            assert abs(region.stockpile.goods.get(good, 0.0) - expected) < 0.01, (
+                f"Region {region.name}: expected {good}={expected}, "
+                f"got {region.stockpile.goods}"
+            )
+
+
+# --- Task 11: Conquest Stockpile Destruction ---
+
+def test_conquest_stockpile_destruction():
+    """Conquest destroys 50% of each good in the region's stockpile."""
+    from chronicler.models import Region, RegionStockpile
+    from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
+
+    region = Region(name="Heartland", terrain="plains", carrying_capacity=50, resources="fertile")
+    region.stockpile = RegionStockpile(goods={"grain": 100.0, "timber": 40.0, "salt": 20.0})
+
+    for good in region.stockpile.goods:
+        region.stockpile.goods[good] *= CONQUEST_STOCKPILE_SURVIVAL
+
+    assert abs(region.stockpile.goods["grain"] - 50.0) < 0.01
+    assert abs(region.stockpile.goods["timber"] - 20.0) < 0.01
+    assert abs(region.stockpile.goods["salt"] - 10.0) < 0.01
+
+
+# --- Task 12: Analytics Extractors ---
+
+def test_extract_stockpiles_structure():
+    """extract_stockpiles returns per-region per-good time series."""
+    from chronicler.analytics import extract_stockpiles
+
+    bundle = {
+        "world_state": {
+            "regions": [
+                {"name": "Valley", "stockpile": {"goods": {"grain": 50.0, "salt": 10.0}}},
+                {"name": "Hills", "stockpile": {"goods": {"ore": 30.0}}},
+            ],
+        },
+        "history": [
+            {"turn": 10, "world_state": {
+                "regions": [
+                    {"name": "Valley", "stockpile": {"goods": {"grain": 45.0, "salt": 12.0}}},
+                    {"name": "Hills", "stockpile": {"goods": {"ore": 28.0}}},
+                ],
+            }},
+        ],
+    }
+    result = extract_stockpiles([bundle], checkpoints=[10])
+    assert "Valley" in result
+    assert "grain" in result["Valley"]
+    assert result["Valley"]["grain"][10] == 45.0

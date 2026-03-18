@@ -252,6 +252,13 @@ def generate_world(
         region.endemic_severity = region.disease_baseline
         region.resource_effective_yields = list(region.resource_base_yields)
 
+    # M43a: Initialize stockpile for controlled regions with valid resources
+    from chronicler.economy import map_resource_to_good, INITIAL_BUFFER
+    for region in world.regions:
+        if region.controller is not None and region.resource_types[0] != 255:
+            good = map_resource_to_good(region.resource_types[0])
+            region.stockpile.goods[good] = INITIAL_BUFFER * region.population
+
     # M37: Generate one faith per civ
     if world.civilizations:
         from chronicler.religion import generate_faiths
