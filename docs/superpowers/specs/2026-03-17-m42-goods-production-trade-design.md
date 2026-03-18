@@ -80,9 +80,9 @@ Three category-level goods, aligned with existing `FOOD_TYPES`/`is_food()` class
 | PRECIOUS | 6 | Luxury | Wealthy agents |
 | EXOTIC | 7 | Food | Population |
 
-BOTANICALS, SALT, and EXOTIC are classified as Food, matching the existing `FOOD_TYPES = frozenset({GRAIN, FISH, BOTANICALS, EXOTIC})` in `models.py` and `is_food()` in `satisfaction.rs`. Salt is food in M42; the salt-as-preservative mechanic is M43's domain. The original four-category design (with Special for salt) was dropped because it contradicted established codebase classifications.
+BOTANICALS and EXOTIC are classified as Food, matching the existing `FOOD_TYPES = frozenset({GRAIN, FISH, BOTANICALS, EXOTIC})` in `models.py` and `is_food()` in `satisfaction.rs`. SALT is also classified as Food in the M42 goods model for demand purposes — this extends beyond the existing `FOOD_TYPES`/`is_food()` definitions, which do not include SALT. The goods-level category mapping is separate from the mechanical yield-class system in `resource_class_index()` (where SALT is "Evaporite"). The original four-category design (with Special for salt) was dropped because it forced an artificial category for one resource type. Salt regions produce food-class goods that contribute to food supply and food pricing. The salt-as-preservative mechanic is M43's domain.
 
-Luxury is PRECIOUS only (high-value durable trade goods). TIMBER is the sole Raw Material. This asymmetry is correct — most ancient economies were food-dominated, with a small luxury trade in precious metals and a raw materials trade in timber/ore.
+Luxury is PRECIOUS only (high-value durable trade goods). TIMBER and ORE are Raw Material. This asymmetry is correct — most ancient economies were food-dominated, with a small luxury trade in precious metals and a raw materials trade in timber/ore.
 
 ```python
 def map_resource_to_category(resource_type: int) -> str:
