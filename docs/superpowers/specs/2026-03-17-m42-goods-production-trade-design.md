@@ -293,6 +293,8 @@ merchant_trade_income = total_arbitrage / max(merchant_count_in_region, 1)
 
 This replaces M41's static `MERCHANT_INCOME × (trade_route_count / 3.0).min(1.0)`. A merchant in a high-volume, high-margin region earns more than one in a low-volume region. Not clamped — wealth accumulation is naturally bounded by `MAX_WEALTH` in Rust.
 
+**Note:** `route_flow` was allocated using pre-trade margins (step 2e) but income uses post-trade margins. If a large flow equalizes prices, realized profit is smaller than anticipated profit. This is intentional — arbitrage eliminates itself, creating an equilibrium: trade → price convergence → margin drop → fewer merchants → less trade → prices diverge again. Do not "fix" by using pre-trade margins for income.
+
 ### Rust Wealth Accumulation Changes
 
 **Farmer income** — M41's binary dispatch replaced by market-derived modifier:
@@ -529,7 +531,7 @@ Added alongside existing `gini_coefficient` in `build_signals()`.
 | `signals.rs` | Add `priest_tithe_share` to `CivSignals` parsing |
 | `agent.rs` | Replace `FARMER_INCOME` + `MINER_INCOME` with `BASE_FARMER_INCOME`; remove `is_extractive()`, `MERCHANT_INCOME`, `MERCHANT_BASELINE` |
 | `tick.rs` | Farmer wealth: `BASE_FARMER_INCOME × modifier × yield`; Merchant wealth: `merchant_trade_income`; Priest wealth: `PRIEST_INCOME + priest_tithe_share` |
-| `satisfaction.rs` | Wire `food_sufficiency` penalty and `merchant_margin` replacement (see below) |
+| `satisfaction.rs` | Add `food_sufficiency: f32` and `merchant_margin: f32` to `SatisfactionInputs` struct; wire penalty and replacement (see below). Existing `trade_routes: u8` stays on the struct (non-economic systems may read it). |
 
 ### Satisfaction Formula Changes
 
@@ -557,7 +559,7 @@ let merchant_trade_sat = merchant_margin * MERCHANT_MARGIN_WEIGHT;  // [CALIBRAT
 
 Same weight (0.3), but driven by actual profitability instead of route existence. A merchant with three routes but no price differentials gets low satisfaction. A merchant with one route and a massive price gap gets high satisfaction.
 
-M42 also retires `trade_route_count` from M41's merchant income formula (`MERCHANT_INCOME × (trade_route_count / 3.0).min(1.0)`). Merchant income becomes arbitrage-driven via `merchant_trade_income`. The `trade_route_count` field on `RegionState` remains but is no longer read by merchant economics. M42 wires `trade_route_count` to the actual count of decomposed boundary-pair routes per region (currently hardcoded to 0 in `build_region_batch()`), so other systems that reference it get real values. This resolves the `phase-6-progress.md` note "M42 wires real per-region trade route counts."
+M42 also retires `trade_route_count` from M41's merchant income formula (`MERCHANT_INCOME × (trade_route_count / 3.0).min(1.0)`). Merchant income becomes arbitrage-driven via `merchant_trade_income`. The `trade_route_count` field on `RegionState` remains but is no longer read by merchant economics. M42 wires `trade_route_count` to the count of decomposed boundary pairs per region (currently hardcoded to 0 in `build_region_batch()`). If region A borders regions B and C (both belonging to one foreign civ), `trade_route_count` = 2 (boundary pairs, not civ-level routes). This matches the goods model's per-boundary-pair flow allocation. Resolves `phase-6-progress.md` note "M42 wires real per-region trade route counts."
 
 ### Regression Guard
 
