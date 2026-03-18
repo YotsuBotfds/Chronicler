@@ -256,41 +256,24 @@ pub fn get_social_edges(&self) -> PyResult<PyRecordBatch> {
 
 /// Replace all social edges from a Python Arrow RecordBatch.
 ///
-/// Pattern: same as set_region_state() — take PyRecordBatch, extract columns via col_* macros.
+/// Pattern: same as set_region_state() — take PyRecordBatch, extract columns by name.
 pub fn replace_social_edges(&mut self, batch: PyRecordBatch) -> PyResult<()> {
     let rb: RecordBatch = batch.into_inner();
     let n = rb.num_rows();
 
-    // Use same column extraction pattern as set_region_state
-    macro_rules! col_u32 {
-        ($idx:expr) => {
-            rb.column($idx)
-                .as_any()
-                .downcast_ref::<arrow::array::UInt32Array>()
-                .ok_or_else(|| PyValueError::new_err(concat!("col ", stringify!($idx), " not UInt32")))?
-        };
-    }
-    macro_rules! col_u8 {
-        ($idx:expr) => {
-            rb.column($idx)
-                .as_any()
-                .downcast_ref::<arrow::array::UInt8Array>()
-                .ok_or_else(|| PyValueError::new_err(concat!("col ", stringify!($idx), " not UInt8")))?
-        };
-    }
-    macro_rules! col_u16 {
-        ($idx:expr) => {
-            rb.column($idx)
-                .as_any()
-                .downcast_ref::<arrow::array::UInt16Array>()
-                .ok_or_else(|| PyValueError::new_err(concat!("col ", stringify!($idx), " not UInt16")))?
+    // Use column_by_name for robustness against column reordering
+    macro_rules! named_col {
+        ($name:expr, $ty:ty) => {
+            rb.column_by_name($name)
+                .and_then(|c| c.as_any().downcast_ref::<$ty>())
+                .ok_or_else(|| PyValueError::new_err(concat!("missing or wrong type: ", $name)))?
         };
     }
 
-    let agent_a = col_u32!(0);
-    let agent_b = col_u32!(1);
-    let rel = col_u8!(2);
-    let formed = col_u16!(3);
+    let agent_a = named_col!("agent_a", arrow::array::UInt32Array);
+    let agent_b = named_col!("agent_b", arrow::array::UInt32Array);
+    let rel = named_col!("relationship", arrow::array::UInt8Array);
+    let formed = named_col!("formed_turn", arrow::array::UInt16Array);
 
     let mut edges = Vec::with_capacity(n);
     for i in 0..n {
@@ -311,7 +294,7 @@ pub fn replace_social_edges(&mut self, batch: PyRecordBatch) -> PyResult<()> {
 }
 ```
 
-**Note:** The `col_u32!` / `col_u8!` / `col_u16!` macros may already be defined in `set_region_state`. If so, reuse them. If they're scoped to that function, either extract them to module-level or define local copies.
+**Note:** The `named_col!` macro pattern may already exist in the codebase (check `set_region_state`). If so, extract to module-level to avoid duplication.
 
 - [ ] **Step 4: Verify it compiles**
 
@@ -446,14 +429,13 @@ def replace_social_edges(self, edges: list[tuple]) -> None:
         return
     import pyarrow as pa
     if not edges:
-        # Send empty batch
-        schema = pa.schema([
-            ("agent_a", pa.uint32()),
-            ("agent_b", pa.uint32()),
-            ("relationship", pa.uint8()),
-            ("formed_turn", pa.uint16()),
-        ])
-        batch = pa.record_batch([], schema=schema)
+        # Send empty batch — must provide empty arrays, not empty list
+        batch = pa.RecordBatch.from_arrays([
+            pa.array([], type=pa.uint32()),
+            pa.array([], type=pa.uint32()),
+            pa.array([], type=pa.uint8()),
+            pa.array([], type=pa.uint16()),
+        ], names=["agent_a", "agent_b", "relationship", "formed_turn"])
     else:
         agent_a, agent_b, rel, formed = zip(*edges)
         batch = pa.record_batch([
@@ -1462,8 +1444,9 @@ git commit -m "feat(m40): add form_and_sync_relationships coordinator"
 In `src/chronicler/models.py`, after `character_relationships` (line 499), add:
 
 ```python
-    # M40: Transient dissolved edges for narration (not serialized to bundle)
-    dissolved_edges_this_turn: list[tuple] = Field(default_factory=list, exclude=True)
+    # M40: Dissolved edges per turn for narration (not serialized to bundle).
+    # Keyed by turn number. Narration looks up by moment's anchor turn.
+    dissolved_edges_by_turn: dict[int, list[tuple]] = Field(default_factory=dict, exclude=True)
 ```
 
 - [ ] **Step 2: Remove old formation calls from phase_consequences()**
@@ -1511,12 +1494,16 @@ Add:
                 if gp.active and gp.agent_id is not None:
                     active_ids.add(gp.agent_id)
 
-        # Build belief data from the agent snapshot stashed on world
+        # Build belief data from the agent snapshot via bridge
+        # Note: _agent_snapshot is NOT on world — it's on AgentBridge.
+        # AgentBridge.get_snapshot() proxies to self._sim.get_snapshot() (line 949).
         belief_by_agent = {}
         region_belief_fractions: dict[str, dict[int, float]] = {}
-        snap = getattr(world, '_agent_snapshot', None)
+        try:
+            snap = agent_bridge.get_snapshot()
+        except Exception:
+            snap = None
         if snap is not None:
-            import pyarrow as pa
             belief_col = snap.column("belief").to_pylist()
             region_col = snap.column("region").to_pylist()
             agent_id_col = snap.column("id").to_pylist()
@@ -1543,7 +1530,9 @@ Add:
         dissolved = form_and_sync_relationships(
             world, agent_bridge, active_ids, belief_by_agent, region_belief_fractions,
         )
-        world.dissolved_edges_this_turn = dissolved
+        # Store per-turn for narration lookup (not overwritten — accumulated)
+        if dissolved:
+            world.dissolved_edges_by_turn[world.turn] = dissolved
 
         # Generate rivalry events for curator (look up civ names from great persons)
         new_edges = agent_bridge.read_social_edges()
@@ -1706,20 +1695,21 @@ def test_relationship_boost_applied():
     from chronicler.curator import compute_base_scores
     from chronicler.models import Event
     events = [
-        Event(turn=1, event_type="battle", actors=["Hero", "Rival"], description="Battle", importance=5),
-        Event(turn=1, event_type="trade", actors=["Unrelated"], description="Trade", importance=5),
+        # Actors are civ names, not character names
+        Event(turn=1, event_type="battle", actors=["CivA", "CivB"], description="Battle", importance=5),
+        Event(turn=1, event_type="trade", actors=["CivC"], description="Trade", importance=5),
     ]
-    # social_edges: Hero(agent_id=100) and Rival(agent_id=200) are rivals
+    # social_edges: agent 100 (CivA) and agent 200 (CivB) are rivals
     social_edges = [(100, 200, 1, 10)]  # REL_RIVAL
-    agent_names = {100: "Hero", 200: "Rival"}
+    # Map civ names to the agent_ids in them
+    agent_civ_map = {"CivA": {100}, "CivB": {200}, "CivC": {300}}
     scores = compute_base_scores(
         events, [], "nobody", 0,
-        named_characters={"Hero", "Rival"},
         social_edges=social_edges,
-        agent_name_map=agent_names,
+        agent_civ_map=agent_civ_map,
     )
-    # Hero+Rival event: base 5 + 2.0 (character) * 1.2 (relationship)
-    # Unrelated event: base 5 only
+    # CivA+CivB event has agents 100+200 who share a rival edge → 1.2x boost
+    # CivC event has no related agents → no boost
     assert scores[0] > scores[1]
 ```
 
@@ -1742,21 +1732,23 @@ def compute_base_scores(
     seed: int,
     named_characters: set[str] | None = None,
     social_edges: list[tuple] | None = None,
-    agent_name_map: dict[int, str] | None = None,
+    agent_civ_map: dict[str, set[int]] | None = None,  # civ_name → set of agent_ids
 ) -> list[float]:
 ```
 
 After the character-reference bonus block (line ~127), add:
 
 ```python
-        # M40: Relationship boost — 1.2x if event involves related characters
-        if social_edges and agent_name_map:
-            # Build reverse map: name → agent_id
-            name_to_id = {v: k for k, v in agent_name_map.items()}
-            actor_ids = {name_to_id[a] for a in ev.actors if a in name_to_id}
-            if len(actor_ids) >= 2:
+        # M40: Relationship boost — 1.2x if event involves characters who share a relationship.
+        # Event actors are civ names (e.g., "Aram"), not character names (e.g., "Kiran").
+        # Build civ → agent_ids mapping, then check if any two agents from actor civs share an edge.
+        if social_edges and agent_civ_map:
+            actor_agent_ids: set[int] = set()
+            for actor in ev.actors:
+                actor_agent_ids.update(agent_civ_map.get(actor, set()))
+            if len(actor_agent_ids) >= 2:
                 for edge in social_edges:
-                    if edge[0] in actor_ids and edge[1] in actor_ids:
+                    if edge[0] in actor_agent_ids and edge[1] in actor_agent_ids:
                         score *= RELATIONSHIP_SCORE_BONUS
                         break  # cap at one application per event
 ```
@@ -1907,7 +1899,7 @@ Add optional parameters to `narrate_batch()` in `src/chronicler/narrative.py` (l
         # M40: Optional agent context data
         great_persons: list | None = None,
         social_edges: list[tuple] | None = None,
-        dissolved_edges: list[tuple] | None = None,
+        dissolved_edges_by_turn: dict[int, list[tuple]] | None = None,
         agent_name_map: dict[int, str] | None = None,
     ) -> list[ChronicleEntry]:
 ```
@@ -1931,10 +1923,16 @@ Inside the per-moment loop (after the `snap` lookup at line ~676, before the pro
                             "since_turn": gp.born_turn,
                         })
 
+                # Look up dissolved edges for this moment's turn range
+                moment_dissolved = []
+                if dissolved_edges_by_turn:
+                    for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
+                        moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
+
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons, {}, {},
                     social_edges=social_edges,
-                    dissolved_edges=dissolved_edges,
+                    dissolved_edges=moment_dissolved if moment_dissolved else None,
                     agent_name_map=agent_name_map,
                     hostage_data=hostage_data,
                 )
@@ -1980,13 +1978,25 @@ In `src/chronicler/main.py` at the `engine.narrate_batch()` call (line ~673):
             if gp.agent_id is not None:
                 agent_name_map[gp.agent_id] = gp.name
 
+    # Read final social edges from bridge (approximation — edges change slowly,
+    # final-turn edges are close enough for all but the most recent moments)
+    social_edges = []
+    if hasattr(args, 'agent_bridge') and args.agent_bridge is not None:
+        social_edges = args.agent_bridge.read_social_edges()
+
+    # Dissolved edges per-turn from world state
+    dissolved_by_turn = getattr(world, 'dissolved_edges_by_turn', {}) if world else {}
+
     chronicle_entries = engine.narrate_batch(
         moments, history, gap_summaries, on_progress=progress_cb,
         great_persons=all_gps if all_gps else None,
+        social_edges=social_edges if social_edges else None,
+        dissolved_edges_by_turn=dissolved_by_turn if dissolved_by_turn else None,
         agent_name_map=agent_name_map if agent_name_map else None,
-        # social_edges and dissolved_edges from world state (if available)
     )
 ```
+
+**Note:** The `world` object may not be available in `_run_narrate()` (it loads from bundle). If `dissolved_edges_by_turn` isn't serialized (it's `exclude=True`), it won't survive the bundle round-trip. In that case, dissolved edges are only available for in-process narration (not post-hoc `--narrate` mode). This is acceptable — dissolved edge context is a "nice to have" enhancement, not load-bearing. In-process narration (the common case) gets it; post-hoc narration proceeds without it.
 
 - [ ] **Step 5: Run test to verify it passes**
 
