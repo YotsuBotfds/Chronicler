@@ -155,6 +155,12 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
                 return True
         return False
 
+    # Read culture investment flags into locals, then clear (one-turn signal)
+    culture_investment_vals = [getattr(r, '_culture_investment_active', False) for r in world.regions]
+    for r in world.regions:
+        if hasattr(r, '_culture_investment_active'):
+            del r._culture_investment_active
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -187,10 +193,7 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         # M35b: Endemic disease severity
         "endemic_severity": pa.array([r.endemic_severity for r in world.regions], type=pa.float32()),
         # M36: Cultural identity signals
-        "culture_investment_active": pa.array(
-            [getattr(r, '_culture_investment_active', False) for r in world.regions],
-            type=pa.bool_(),
-        ),
+        "culture_investment_active": pa.array(culture_investment_vals, type=pa.bool_()),
         "controller_values_0": pa.array(
             [_controller_values(r)[0] for r in world.regions], type=pa.uint8(),
         ),
@@ -216,13 +219,6 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         "initial_belief": pa.array(initial_belief_arr, type=pa.uint8()),
         "has_temple": pa.array([_has_temple(r, world) for r in world.regions], type=pa.bool_()),
     })
-
-    # M36: Clear transient culture investment flag after reading it.
-    # Without this, the flag persists from the turn it was set, giving
-    # perpetual drift bonus instead of single-turn.
-    for r in world.regions:
-        if hasattr(r, '_culture_investment_active'):
-            del r._culture_investment_active
 
 
 def build_signals(world: WorldState, shocks: list | None = None,

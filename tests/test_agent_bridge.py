@@ -178,6 +178,25 @@ class TestRegionBatchResourceColumns:
         assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
 
 
+class TestTransientSignalCleanup:
+    """M36 regression: transient one-turn signals must clear after build_region_batch."""
+
+    def test_culture_investment_flag_clears_after_read(self, sample_world):
+        """M36 sticky flag regression: _culture_investment_active must not persist."""
+        # Set the flag on region 0
+        sample_world.regions[0]._culture_investment_active = True
+
+        # First batch should see True
+        batch1 = build_region_batch(sample_world)
+        vals1 = batch1.column("culture_investment_active").to_pylist()
+        assert vals1[0] is True
+
+        # Second batch (no new INVEST_CULTURE) should see False
+        batch2 = build_region_batch(sample_world)
+        vals2 = batch2.column("culture_investment_active").to_pylist()
+        assert vals2[0] is False
+
+
 class TestPythonDeterminism:
     def test_determinism_50_turns(self):
         sim_a = AgentSimulator(num_regions=3, seed=12345)
