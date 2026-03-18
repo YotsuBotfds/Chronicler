@@ -37,6 +37,34 @@ DOCTRINE_BIAS_RANDOM_CHANCE = 0.20
 # Occupation id for priests (matches OCCUPATION_NAMES in agent_bridge)
 _PRIEST_OCCUPATION = 4
 
+# M38b: Persecution
+PERSECUTION_SAT_PENALTY = 0.15       # max penalty (scaled by intensity)
+PERSECUTION_REBEL_BOOST = 0.30       # max rebel utility boost
+PERSECUTION_MIGRATE_BOOST = 0.20     # max migrate utility boost
+MASS_MIGRATION_THRESHOLD = 0.15      # ratio of persecuted agents to trigger event
+MARTYRDOM_BOOST_PER_EVENT = 0.05     # added per turn with persecution deaths
+MARTYRDOM_BOOST_CAP = 0.20           # max regional martyrdom boost
+MARTYRDOM_DECAY_TURNS = 10           # linear decay duration
+
+# M38b: Schisms
+SCHISM_MINORITY_THRESHOLD = 0.30
+SCHISM_SECESSION_MODIFIER = 10
+REFORMATION_THRESHOLD = 0.60
+MAX_FAITHS = 16
+
+SCHISM_NEUTRAL_POLE_MAP = {
+    DOCTRINE_STANCE: -1,
+    DOCTRINE_STRUCTURE: -1,
+    DOCTRINE_OUTREACH: -1,
+    DOCTRINE_ETHICS: 1,
+}
+
+# M38b: Pilgrimages
+PILGRIMAGE_DURATION_MIN = 5
+PILGRIMAGE_DURATION_MAX = 10
+PILGRIMAGE_SKILL_BOOST = 0.10
+LIFE_EVENT_PILGRIMAGE = 1 << 7  # 128
+
 # ---------------------------------------------------------------------------
 # Doctrine bias table
 # ---------------------------------------------------------------------------
@@ -156,14 +184,15 @@ def compute_majority_belief(snapshot) -> dict[int, int]:
     return result
 
 
-def compute_civ_majority_faith(snapshot) -> dict[int, int]:
+def compute_civ_majority_faith(snapshot) -> dict[int, tuple[int, float]]:
     """Compute the majority faith per civ from an agent snapshot.
 
     Args:
         snapshot: PyArrow RecordBatch with 'civ_affinity' (uint16) and 'belief' (uint8) columns.
 
     Returns:
-        dict mapping civ_id → majority_faith_id.  Ties break to the lower faith_id.
+        dict mapping civ_id → (majority_faith_id, ratio).  Ties break to the lower faith_id.
+        ratio = max_count / total_agents_in_civ (agents with valid belief).
     """
     if snapshot is None or snapshot.num_rows == 0:
         return {}
@@ -179,13 +208,16 @@ def compute_civ_majority_faith(snapshot) -> dict[int, int]:
             counts[civ_id] = Counter()
         counts[civ_id][faith_id] += 1
 
-    result: dict[int, int] = {}
+    result: dict[int, tuple[int, float]] = {}
     for civ_id, faith_counts in counts.items():
         if not faith_counts:
             continue
+        total = sum(faith_counts.values())
         max_count = max(faith_counts.values())
         winners = [fid for fid, cnt in faith_counts.items() if cnt == max_count]
-        result[civ_id] = min(winners)
+        majority_faith_id = min(winners)
+        ratio = max_count / total if total > 0 else 0.0
+        result[civ_id] = (majority_faith_id, ratio)
 
     return result
 
@@ -317,6 +349,11 @@ def compute_conversion_signals(
                 * prophet_multiplier
             )
 
+        # M38b: Martyrdom boost (adds directly to conversion rate)
+        conversion_rate = rate
+        conversion_rate += region.martyrdom_boost
+        rate = conversion_rate
+
         # Conquest boost
         boost = region.conquest_conversion_boost
         if boost > 0:
@@ -382,3 +419,470 @@ def decay_conquest_boosts(regions: list[Region]) -> None:
             region.conquest_conversion_boost = max(
                 0.0, region.conquest_conversion_boost - decay_step
             )
+
+
+# ---------------------------------------------------------------------------
+# M38b: Persecution
+# ---------------------------------------------------------------------------
+
+def compute_persecution(
+    regions: list[Region],
+    civilizations,
+    belief_registry: list[Belief],
+    snapshot,
+    turn: int,
+    persecuted_regions: set[str],
+) -> list:
+    """Detect religious persecution and fire events.
+
+    For each civilization whose majority faith is Militant (DOCTRINE_STANCE == +1),
+    inspect every region that civ controls and compute a persecution intensity based
+    on the minority ratio among agents.
+
+    Args:
+        regions:            List of Region objects (indexed by position).
+        civilizations:      List of Civilization objects.
+        belief_registry:    List of Belief objects (indexed by faith_id).
+        snapshot:           PyArrow RecordBatch with 'region' (uint16) and
+                            'belief' (uint8) columns, or None.
+        turn:               Current simulation turn number.
+        persecuted_regions: Mutable set of region names already seen; used to
+                            fire the one-shot "Persecution" event per region.
+
+    Returns:
+        List of Event objects generated this call.
+    """
+    from chronicler.models import Event
+
+    events: list = []
+
+    if snapshot is None or snapshot.num_rows == 0:
+        return events
+
+    # Build region name → index mapping
+    region_map: dict[str, int] = {r.name: i for i, r in enumerate(regions)}
+
+    # Tally per-region belief counts from snapshot
+    snap_regions = snapshot.column("region").to_pylist()
+    snap_beliefs = snapshot.column("belief").to_pylist()
+
+    region_belief_counts: dict[int, Counter] = {}
+    for region_idx, faith_id in zip(snap_regions, snap_beliefs):
+        if faith_id == 0xFF:
+            continue
+        if region_idx not in region_belief_counts:
+            region_belief_counts[region_idx] = Counter()
+        region_belief_counts[region_idx][faith_id] += 1
+
+    for civ in civilizations:
+        # Skip dead civs
+        if len(civ.regions) == 0:
+            continue
+
+        # Only Militant faiths persecute
+        majority_faith_id = getattr(civ, 'civ_majority_faith', 0xFF)
+        if majority_faith_id == 0xFF:
+            continue
+        majority_belief = next(
+            (b for b in belief_registry if b.faith_id == majority_faith_id), None
+        )
+        if majority_belief is None:
+            continue
+        if majority_belief.doctrines[DOCTRINE_STANCE] != +1:
+            continue
+
+        # Inspect each region this civ controls
+        for region_name in civ.regions:
+            region_idx = region_map.get(region_name)
+            if region_idx is None:
+                continue
+            region = regions[region_idx]
+
+            counts = region_belief_counts.get(region_idx, Counter())
+            total = sum(counts.values())
+            if total == 0:
+                continue
+
+            majority_count = counts.get(majority_faith_id, 0)
+            minority_count = total - majority_count
+            if minority_count <= 0:
+                # No minority present — clear persecution
+                region.persecution_intensity = 0.0
+                continue
+
+            minority_ratio = minority_count / total
+            intensity = 1.0 * (1.0 - minority_ratio)
+            region.persecution_intensity = intensity
+
+            # One-shot "Persecution" event per region
+            if region_name not in persecuted_regions:
+                persecuted_regions.add(region_name)
+                events.append(Event(
+                    event_type="Persecution",
+                    turn=turn,
+                    actors=[civ.name],
+                    description=(
+                        f"{civ.name} persecutes religious minorities in {region_name} "
+                        f"(intensity={intensity:.2f})"
+                    ),
+                    importance=6,
+                ))
+
+            # "Mass Migration" event when minority ratio exceeds threshold
+            if minority_ratio > MASS_MIGRATION_THRESHOLD:
+                events.append(Event(
+                    event_type="Mass Migration",
+                    turn=turn,
+                    actors=[civ.name],
+                    description=(
+                        f"Religious minorities flee {region_name} due to persecution "
+                        f"(minority_ratio={minority_ratio:.2f})"
+                    ),
+                    importance=6,
+                ))
+
+    return events
+
+
+def compute_martyrdom_boosts(
+    regions: list[Region],
+    dead_agents: "list[dict] | None",
+) -> None:
+    """Add martyrdom boost to regions where persecuted agents died this turn.
+
+    Args:
+        regions:     List of Region objects.
+        dead_agents: List of dicts with 'region_idx' (int) and 'belief' (int) keys,
+                     or None / empty list if no persecution deaths occurred.
+    """
+    if not dead_agents:
+        return
+
+    for agent in dead_agents:
+        region_idx = agent.get("region_idx")
+        if region_idx is None or region_idx >= len(regions):
+            continue
+        region = regions[region_idx]
+        region.martyrdom_boost = min(
+            MARTYRDOM_BOOST_CAP,
+            region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
+        )
+
+
+def decay_martyrdom_boosts(regions: list[Region]) -> None:
+    """Linearly decay each region's ``martyrdom_boost`` toward zero.
+
+    Each call reduces the boost by 1/MARTYRDOM_DECAY_TURNS of the cap,
+    clamped to [0, ∞).
+    """
+    decay_step = MARTYRDOM_BOOST_CAP / MARTYRDOM_DECAY_TURNS
+    for region in regions:
+        if region.martyrdom_boost > 0:
+            region.martyrdom_boost = max(
+                0.0, region.martyrdom_boost - decay_step
+            )
+
+
+# ---------------------------------------------------------------------------
+# M38b: Schisms
+# ---------------------------------------------------------------------------
+
+def determine_schism_axis(
+    region,
+    original_belief: "Belief",
+    current_turn: int = 0,
+    clergy_influence: float = 0.0,
+) -> tuple[int, int]:
+    """Determine the doctrine axis and pole direction for a schism split.
+
+    Priority-ordered trigger matching:
+      P1: persecution_intensity > 0 → DOCTRINE_STANCE
+      P2: clergy_influence > 0.40   → DOCTRINE_STRUCTURE
+      P3: (inert until M43)
+      P4: last_conquered_turn >= 0 and current_turn - last_conquered_turn < 10
+              → DOCTRINE_OUTREACH
+      P5: fallback → axis with lowest absolute value
+
+    If the chosen axis value in original_belief is 0, use SCHISM_NEUTRAL_POLE_MAP;
+    else negate the existing value.
+
+    Returns:
+        (axis, pole) where axis is a DOCTRINE_* int and pole is +1 or -1.
+    """
+    axis: int | None = None
+
+    # P1: Persecution
+    if getattr(region, 'persecution_intensity', 0.0) > 0:
+        axis = DOCTRINE_STANCE
+    # P2: Clergy dominance
+    elif clergy_influence > 0.40:
+        axis = DOCTRINE_STRUCTURE
+    # P3: (reserved for M43)
+    # P4: Recent conquest
+    elif (
+        getattr(region, 'last_conquered_turn', -1) >= 0
+        and current_turn - region.last_conquered_turn < 10
+    ):
+        axis = DOCTRINE_OUTREACH
+    else:
+        # P5: Fallback — axis with lowest absolute doctrine value
+        # Exclude DOCTRINE_THEOLOGY (index 0) from fallback candidates per design
+        candidates = [DOCTRINE_ETHICS, DOCTRINE_STANCE, DOCTRINE_OUTREACH, DOCTRINE_STRUCTURE]
+        axis = min(candidates, key=lambda a: abs(original_belief.doctrines[a]))
+
+    # Determine pole direction
+    axis_value = original_belief.doctrines[axis]
+    if axis_value == 0:
+        pole = SCHISM_NEUTRAL_POLE_MAP.get(axis, -1)
+    else:
+        pole = -axis_value  # negate existing value
+
+    return (axis, pole)
+
+
+def fire_schism(
+    region,
+    original_faith_id: int,
+    belief_registry: list["Belief"],
+    civ,
+    current_turn: int,
+) -> "Belief | None":
+    """Create a splinter faith and mark the region for schism conversion.
+
+    Copies doctrines from the original faith, then flips the schism axis
+    determined by determine_schism_axis.  The new faith is named
+    "X (Reformed)", "X (Reformed 2)", etc., to avoid collisions.
+
+    Sets region.schism_convert_from / schism_convert_to.
+
+    Returns the new Belief, or None if the registry is full or the original
+    faith is not found.
+    """
+    if len(belief_registry) >= MAX_FAITHS:
+        return None
+
+    original_belief = next(
+        (b for b in belief_registry if b.faith_id == original_faith_id), None
+    )
+    if original_belief is None:
+        return None
+
+    # Clergy influence from faction state
+    from chronicler.models import FactionType
+    clergy_influence = civ.factions.influence.get(FactionType.CLERGY, 0.0)
+
+    axis, pole = determine_schism_axis(
+        region, original_belief,
+        current_turn=current_turn,
+        clergy_influence=clergy_influence,
+    )
+
+    # Build new doctrines — copy original, flip schism axis
+    new_doctrines = list(original_belief.doctrines)
+    new_doctrines[axis] = pole
+
+    # Generate unique name
+    base_name = f"{original_belief.name} (Reformed)"
+    final_name = base_name
+    existing_names = {b.name for b in belief_registry}
+    counter = 2
+    while final_name in existing_names:
+        final_name = f"{original_belief.name} (Reformed {counter})"
+        counter += 1
+
+    # Assign the next available faith_id
+    used_ids = {b.faith_id for b in belief_registry}
+    new_faith_id = next(i for i in range(MAX_FAITHS) if i not in used_ids)
+
+    # civ_origin: detect_schisms sets civ._civ_id = civ_idx before calling fire_schism
+    civ_origin = getattr(civ, '_civ_id', 0)
+
+    from chronicler.models import Belief as _Belief
+    new_belief = _Belief(
+        faith_id=new_faith_id,
+        name=final_name,
+        civ_origin=civ_origin,
+        doctrines=new_doctrines,
+    )
+
+    belief_registry.append(new_belief)
+
+    # Mark region for schism-driven conversion
+    region.schism_convert_from = original_faith_id
+    region.schism_convert_to = new_faith_id
+
+    return new_belief
+
+
+def detect_schisms(
+    regions: list,
+    civs: list,
+    belief_registry: list["Belief"],
+    snapshot,
+    current_turn: int,
+) -> list:
+    """Detect and fire at most one schism per civilization per turn.
+
+    For each living civilization (len(civ.regions) > 0), examine its regions
+    and compute the minority faith ratio.  The region with the highest minority
+    ratio above SCHISM_MINORITY_THRESHOLD triggers a schism.
+
+    Guards:
+    - len(belief_registry) >= MAX_FAITHS → return [] immediately.
+    - snapshot is None or empty → return [].
+
+    Args:
+        regions:          List of Region objects.
+        civs:             List of Civilization objects.
+        belief_registry:  Mutable list of Belief objects (extended in-place).
+        snapshot:         PyArrow RecordBatch with 'region', 'civ_affinity',
+                          'belief' columns, or None.
+        current_turn:     Current simulation turn number.
+
+    Returns:
+        List of Event objects generated this call.
+    """
+    from chronicler.models import Event, FactionType
+
+    if len(belief_registry) >= MAX_FAITHS:
+        return []
+
+    if snapshot is None or snapshot.num_rows == 0:
+        return []
+
+    # Build region_map: name → Region object
+    region_map = {r.name: r for r in regions}
+
+    # Tally per-region belief counts from snapshot
+    snap_regions = snapshot.column("region").to_pylist()
+    snap_beliefs = snapshot.column("belief").to_pylist()
+
+    region_belief_counts: dict[int, Counter] = {}
+    for region_idx, faith_id in zip(snap_regions, snap_beliefs):
+        if faith_id == 0xFF:
+            continue
+        if region_idx not in region_belief_counts:
+            region_belief_counts[region_idx] = Counter()
+        region_belief_counts[region_idx][faith_id] += 1
+
+    # Build region index map (name → index)
+    region_idx_map: dict[str, int] = {r.name: i for i, r in enumerate(regions)}
+
+    events: list = []
+
+    for civ_idx, civ in enumerate(civs):
+        if len(civ.regions) == 0:
+            continue
+
+        majority_faith_id = getattr(civ, 'civ_majority_faith', 0xFF)
+        if majority_faith_id == 0xFF:
+            continue
+
+        # Find region with highest minority ratio above threshold
+        best_region = None
+        best_minority_ratio = SCHISM_MINORITY_THRESHOLD  # strictly greater than threshold
+        best_region_idx = -1
+
+        for region_name in civ.regions:
+            ridx = region_idx_map.get(region_name)
+            if ridx is None:
+                continue
+            counts = region_belief_counts.get(ridx, Counter())
+            total = sum(counts.values())
+            if total == 0:
+                continue
+            majority_count = counts.get(majority_faith_id, 0)
+            minority_count = total - majority_count
+            if minority_count <= 0:
+                continue
+            minority_ratio = minority_count / total
+            if minority_ratio > best_minority_ratio:
+                best_minority_ratio = minority_ratio
+                best_region = region_map.get(region_name)
+                best_region_idx = ridx
+
+        if best_region is None:
+            continue
+
+        # Guard: registry may have grown during this call
+        if len(belief_registry) >= MAX_FAITHS:
+            break
+
+        # Tag civ index for fire_schism to use as civ_origin
+        civ._civ_id = civ_idx
+
+        new_belief = fire_schism(
+            best_region, majority_faith_id, belief_registry, civ, current_turn,
+        )
+        if new_belief is None:
+            continue
+
+        events.append(Event(
+            event_type="Schism",
+            turn=current_turn,
+            actors=[civ.name],
+            description=(
+                f"A schism fractures {civ.name}: '{new_belief.name}' "
+                f"splits from the majority faith in {best_region.name} "
+                f"(minority_ratio={best_minority_ratio:.2f})"
+            ),
+            importance=7,
+        ))
+
+    return events
+
+
+def detect_reformation(
+    civs: list,
+    belief_registry: list["Belief"],
+) -> list:
+    """Fire reformation events when a civ's majority faith has shifted significantly.
+
+    Triggers when:
+    - civ.civ_majority_faith != civ.previous_majority_faith
+    - civ._majority_faith_ratio >= REFORMATION_THRESHOLD
+
+    Updates previous_majority_faith after firing the event.
+
+    Returns:
+        List of Event objects (importance=8).
+    """
+    from chronicler.models import Event
+
+    events: list = []
+
+    for civ in civs:
+        if len(civ.regions) == 0:
+            continue
+
+        current_faith = getattr(civ, 'civ_majority_faith', 0xFF)
+        previous_faith = getattr(civ, 'previous_majority_faith', current_faith)
+
+        if current_faith == previous_faith:
+            continue
+
+        ratio = getattr(civ, '_majority_faith_ratio', 0.0)
+        if ratio < REFORMATION_THRESHOLD:
+            continue
+
+        # Lookup faith name
+        new_belief = next(
+            (b for b in belief_registry if b.faith_id == current_faith), None
+        )
+        faith_name = new_belief.name if new_belief else f"Faith {current_faith}"
+
+        events.append(Event(
+            event_type="Reformation",
+            turn=getattr(civ, '_current_turn', 0),
+            actors=[civ.name],
+            description=(
+                f"{civ.name} undergoes a Reformation: '{faith_name}' "
+                f"now holds majority faith (ratio={ratio:.2f})"
+            ),
+            importance=8,
+        ))
+
+        # Advance the previous faith baseline
+        civ.previous_majority_faith = current_faith
+
+    return events

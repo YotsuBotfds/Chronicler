@@ -69,6 +69,9 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         conquest_conversion_active: false,
         majority_belief: 0xFF,
         has_temple: false,
+        persecution_intensity: 0.0,
+        schism_convert_from: 0xFF,
+        schism_convert_to: 0xFF,
     }).collect();
     let num_civs = (num_regions.min(8)) as usize;
     let signals = make_signals(num_civs, num_regions as usize);

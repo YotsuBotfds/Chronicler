@@ -823,24 +823,30 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     check_cultural_victories(world)
 
     # M37: Religion computations for next turn's Rust tick
+    _persecution_events: list[Event] = []
     _snap = getattr(world, '_agent_snapshot', None)
     if _snap is not None and world.belief_registry:
         from chronicler.religion import (
             compute_majority_belief, compute_civ_majority_faith,
             compute_conversion_signals, decay_conquest_boosts,
+            compute_persecution, compute_martyrdom_boosts,
         )
         majority_beliefs = compute_majority_belief(_snap)
-        civ_faiths = compute_civ_majority_faith(_snap)
+        civ_majority_with_ratio = compute_civ_majority_faith(_snap)
 
         # Store majority_belief on regions
         for rid, maj in majority_beliefs.items():
             if rid < len(world.regions):
                 world.regions[rid].majority_belief = maj
 
-        # Store civ_majority_faith on civilizations
-        for cid, faith in civ_faiths.items():
-            if cid < len(world.civilizations):
-                world.civilizations[cid].civ_majority_faith = faith
+        # Store civ_majority_faith and ratio on civilizations
+        for cid, civ in enumerate(world.civilizations):
+            entry = civ_majority_with_ratio.get(cid)
+            if entry is not None:
+                civ.civ_majority_faith, civ._majority_faith_ratio = entry
+
+        # Build plain faith-id dict for downstream callers
+        civ_faiths = {cid: faith_id for cid, (faith_id, _ratio) in civ_majority_with_ratio.items()}
 
         # Build civ lookup for conversion signal computation
         civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
@@ -856,6 +862,49 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
         # Decay conquest conversion boosts
         decay_conquest_boosts(world.regions)
+
+        # M38b: Persecution
+        if not hasattr(world, '_persecuted_regions'):
+            world._persecuted_regions = set()
+        _persecution_events = compute_persecution(
+            world.regions, world.civilizations, world.belief_registry,
+            _snap, world.turn, world._persecuted_regions,
+        )
+        compute_martyrdom_boosts(
+            world.regions,
+            getattr(world, '_dead_agents_this_turn', None),
+        )
+
+        # M38b: Schisms
+        from chronicler.religion import detect_schisms, detect_reformation
+        schism_events = detect_schisms(
+            world.regions, world.civilizations, world.belief_registry,
+            _snap, world.turn,
+        )
+        _persecution_events.extend(schism_events)
+        reformation_events = detect_reformation(
+            world.civilizations, world.belief_registry,
+        )
+        _persecution_events.extend(reformation_events)
+
+        # M38b: Pilgrimages
+        from chronicler.great_persons import check_pilgrimages
+        all_temples = [
+            (r.name, inf)
+            for r in world.regions
+            for inf in getattr(r, 'infrastructure', [])
+            if getattr(inf, 'faith_id', -1) >= 0
+        ]
+        all_great_persons = [
+            gp
+            for c in world.civilizations
+            for gp in getattr(c, 'great_persons', [])
+        ]
+        pilgrimage_events = check_pilgrimages(
+            all_great_persons, all_temples, _snap, world.turn,
+            world.belief_registry,
+        )
+        _persecution_events.extend(pilgrimage_events)
     elif world.belief_registry:
         # --agents=off: default civ_majority_faith to founding faith
         for i, civ in enumerate(world.civilizations):
@@ -906,6 +955,8 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
         check_federation_formation, check_federation_dissolution, update_allied_turns,
     )
     collapse_events: list[Event] = []
+    # M38b: flush buffered persecution events (computed in religion block above)
+    collapse_events.extend(_persecution_events)
     collapse_events.extend(check_capital_loss(world, acc=acc))
     collapse_events.extend(check_secession(world, acc=acc))
     update_allied_turns(world)

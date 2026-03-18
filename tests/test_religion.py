@@ -165,8 +165,13 @@ class TestCivMajorityFaith:
         ]
         snap = _make_snapshot(agents)
         result = compute_civ_majority_faith(snap)
-        assert result[0] == 0
-        assert result[1] == 2
+        # M38b: returns (faith_id, ratio) tuples
+        faith0, ratio0 = result[0]
+        faith1, ratio1 = result[1]
+        assert faith0 == 0
+        assert ratio0 == pytest.approx(0.75)  # 3 of 4 agents
+        assert faith1 == 2
+        assert ratio1 == pytest.approx(1.0)   # 1 of 1 agent
 
 
 # ---------------------------------------------------------------------------

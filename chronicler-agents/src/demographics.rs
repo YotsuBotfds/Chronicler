@@ -79,6 +79,9 @@ mod tests {
             conquest_conversion_active: false,
             majority_belief: 0xFF,
             has_temple: false,
+            persecution_intensity: 0.0,
+            schism_convert_from: 0xFF,
+            schism_convert_to: 0xFF,
         }
     }
 

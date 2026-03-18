@@ -49,6 +49,7 @@ fn test_temple_priest_bonus() {
         [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
         0xFF, 0xFF,
         true,  // has_temple
+        0.0,   // persecution_intensity
     );
     let sat_no_temple = compute_satisfaction_with_culture(
         4,     // priest
@@ -58,6 +59,7 @@ fn test_temple_priest_bonus() {
         [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
         0xFF, 0xFF,
         false, // has_temple
+        0.0,   // persecution_intensity
     );
     let diff = sat_with_temple - sat_no_temple;
     assert!(
@@ -78,6 +80,7 @@ fn test_temple_bonus_priest_only() {
         [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
         0xFF, 0xFF,
         true,  // has_temple — should be ignored for non-priests
+        0.0,   // persecution_intensity
     );
     let sat_no_temple = compute_satisfaction_with_culture(
         0,     // farmer
@@ -87,6 +90,7 @@ fn test_temple_bonus_priest_only() {
         [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
         0xFF, 0xFF,
         false, // has_temple
+        0.0,   // persecution_intensity
     );
     assert!(
         (sat_with_temple - sat_no_temple).abs() < 0.001,

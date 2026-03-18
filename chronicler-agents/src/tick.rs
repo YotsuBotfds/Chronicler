@@ -433,6 +433,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                             pool_ref.beliefs[slot],
                             region.majority_belief,
                             region.has_temple,
+                            region.persecution_intensity,
                         );
 
                         (slot, sat)
@@ -579,6 +580,9 @@ mod tests {
             conquest_conversion_active: false,
             majority_belief: 0xFF,
             has_temple: false,
+            persecution_intensity: 0.0,
+            schism_convert_from: 0xFF,
+            schism_convert_to: 0xFF,
         }
     }
 
