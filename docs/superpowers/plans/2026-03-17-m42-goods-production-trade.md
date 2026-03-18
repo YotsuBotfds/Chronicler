@@ -2009,7 +2009,18 @@ pa.field("merchant_margin", pa.float32()),
 pa.field("merchant_trade_income", pa.float32()),
 ```
 
-- [ ] **Step 3: Update `AgentBridge.tick()` to pass economy_result**
+- [ ] **Step 3: Update `trade_route_count` to use real boundary-pair counts**
+
+In `build_region_batch`, replace the hardcoded `[0 for _ in world.regions]` for `trade_route_count` (line 195 of `agent_bridge.py`):
+
+```python
+# Change from: [0 for _ in world.regions]
+# To:
+[economy_result.trade_route_counts.get(r.name, 0) if economy_result else 0
+ for r in world.regions]
+```
+
+- [ ] **Step 4: Update `AgentBridge.tick()` to pass economy_result**
 
 In `AgentBridge.tick()` (line 361), the call `self._sim.set_region_state(build_region_batch(world))` must pass the economy result. Add storage on the bridge:
 
@@ -2025,16 +2036,16 @@ def set_economy_result(self, result):
 self._sim.set_region_state(build_region_batch(world, self._economy_result))
 ```
 
-- [ ] **Step 4: Run Python test suite**
+- [ ] **Step 5: Run Python test suite**
 
 Run: `python -m pytest tests/ -v --timeout=60`
 Expected: All existing tests PASS (economy_result defaults to None, backward compatible)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/chronicler/agent_bridge.py
-git commit -m "feat(m42): wire four RegionState economy signals in agent bridge"
+git commit -m "feat(m42): wire four RegionState economy signals and trade_route_count in agent bridge"
 ```
 
 ---
@@ -2203,44 +2214,13 @@ git commit -m "feat(m42): update compute_tithe_base for agent-derived merchant w
 
 ---
 
-### Task 20: Analytics — price time series extractor
+### Task 20: Analytics — price time series extractor (DEFERRED)
 
-**Files:**
-- Modify: `src/chronicler/analytics.py`
+**Status:** Deferred. `EconomyResult` and `RegionGoods` are transient — they are not persisted in the turn snapshot or bundle. No code currently writes price data to the snapshot format that analytics extractors read from. Writing the extractor now would require inventing a persistence format.
 
-- [ ] **Step 1: Add price time series extractor**
+**Deferred to:** When the bundle format is updated to include economy data (potentially M43 or viewer work). Price data is computed and available on `EconomyResult` for debugging during development.
 
-Follow the existing pattern (e.g., `extract_stability()`):
-
-```python
-def extract_prices(bundles, checkpoints=None):
-    """Extract per-region per-category price time series.
-
-    Returns dict with per-region price data at each checkpoint turn.
-    """
-    max_turn = _min_total_turns(bundles)
-    checkpoints = _clamp_checkpoints(checkpoints, max_turn)
-
-    result = {}
-    for bundle in bundles:
-        seed = bundle.get("metadata", {}).get("seed", 0)
-        seed_data = {}
-        for cp in checkpoints:
-            snap = _snapshot_at_turn(bundle, cp)
-            if snap and "economy" in snap:
-                seed_data[cp] = snap["economy"].get("prices", {})
-        result[seed] = seed_data
-    return result
-```
-
-Note: This depends on how economy data is stored in the snapshot/bundle. The exact implementation depends on whether `EconomyResult.region_goods` prices are persisted in the turn snapshot. If not, this extractor may need to be deferred to when the bundle format includes price data. Check how existing analytics extract per-turn data.
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add src/chronicler/analytics.py
-git commit -m "feat(m42): add price time series analytics extractor"
-```
+**When implementing:** Follow the existing `extract_stability()` pattern in `analytics.py`. Add a step in the turn snapshot assembly (Phase 10) to persist `{region_name: {category: price}}` from `EconomyResult.region_goods`, then write the extractor to read it.
 
 ---
 
