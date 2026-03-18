@@ -1271,7 +1271,7 @@ def run_turn(
     # One-turn latency: agent tick ran between Phase 9 and 10.
     # Rust reads edges from the previous turn's Phase 10 output. Intentional.
     if agent_bridge is not None:
-        from chronicler.relationships import form_and_sync_relationships, REL_RIVAL
+        from chronicler.relationships import form_and_sync_relationships, compute_belief_data, REL_RIVAL
 
         # Build active agent IDs from all living named characters
         active_ids = set()
@@ -1281,38 +1281,20 @@ def run_turn(
                     active_ids.add(gp.agent_id)
 
         # Build belief data from the agent snapshot via bridge
-        belief_by_agent = {}
-        region_belief_fractions: dict[str, dict[int, float]] = {}
         try:
             snap = agent_bridge.get_snapshot()
         except Exception:
             snap = None
-        if snap is not None:
-            belief_col = snap.column("belief").to_pylist()
-            region_col = snap.column("region").to_pylist()
-            agent_id_col = snap.column("id").to_pylist()
-            for aid, bel in zip(agent_id_col, belief_col):
-                if aid in active_ids:
-                    belief_by_agent[aid] = bel
-            from collections import Counter, defaultdict
-            region_counts: dict[int, int] = Counter()
-            region_belief_counts: dict[int, Counter] = defaultdict(Counter)
-            for reg, bel in zip(region_col, belief_col):
-                region_counts[reg] += 1
-                region_belief_counts[reg][bel] += 1
-            region_map = {i: r.name for i, r in enumerate(world.regions)}
-            for reg_idx, total in region_counts.items():
-                rname = region_map.get(reg_idx, "")
-                if rname and total > 0:
-                    region_belief_fractions[rname] = {
-                        bel: cnt / total
-                        for bel, cnt in region_belief_counts[reg_idx].items()
-                    }
+        belief_by_agent, region_belief_fractions = compute_belief_data(
+            snap, active_ids, world.regions,
+        )
 
         dissolved = form_and_sync_relationships(
             world, agent_bridge, active_ids, belief_by_agent, region_belief_fractions,
         )
         if dissolved:
+            # dissolved_edges_by_turn: at most ~10 edges/turn × 500 turns = ~5000 entries.
+            # Cleaned up when world is garbage-collected (exclude=True, not serialized).
             world.dissolved_edges_by_turn[world.turn] = dissolved
 
         # Generate rivalry events for curator

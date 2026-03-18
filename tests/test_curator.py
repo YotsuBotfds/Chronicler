@@ -582,22 +582,7 @@ class TestCurate:
 
 
 # ---------------------------------------------------------------------------
-# 9. M40: Relationship boost
+# 9. M40: Relationship boost — deferred to M45
 # ---------------------------------------------------------------------------
-
-class TestRelationshipBoost:
-    def test_relationship_boost_applied(self):
-        """Events involving related characters get 1.2x boost."""
-        from chronicler.curator import compute_base_scores
-        events = [
-            Event(turn=1, event_type="battle", actors=["CivA", "CivB"], description="Battle", importance=5),
-            Event(turn=1, event_type="trade", actors=["CivC"], description="Trade", importance=5),
-        ]
-        social_edges = [(100, 200, 1, 10)]  # REL_RIVAL
-        agent_civ_map = {"CivA": {100}, "CivB": {200}, "CivC": {300}}
-        scores = compute_base_scores(
-            events, [], "nobody", 0,
-            social_edges=social_edges,
-            agent_civ_map=agent_civ_map,
-        )
-        assert scores[0] > scores[1]
+# Relationship-aware scoring (1.2x boost) requires civ-to-agent mapping
+# not yet available at curation time. See compute_base_scores docstring.

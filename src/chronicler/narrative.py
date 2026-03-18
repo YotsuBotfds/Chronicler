@@ -736,6 +736,7 @@ class NarrativeEngine:
                             "character_b": gp.name,
                             "role_a": "captor",
                             "role_b": "captive",
+                            # born_turn is the best available proxy — GreatPerson has no captured_turn field
                             "since_turn": gp.born_turn,
                         })
 
@@ -744,6 +745,10 @@ class NarrativeEngine:
                     for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
                         moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
 
+                # M40: Passing empty displacement/region data — full agent context
+                # activation (displacement fractions, region names) requires threading
+                # snapshot data through narrate_batch, deferred to a future milestone.
+                # Relationships and named character data are fully active.
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons, {}, {},
                     social_edges=social_edges,
@@ -751,15 +756,8 @@ class NarrativeEngine:
                     agent_name_map=agent_name_map,
                     hostage_data=hostage_data,
                 )
-                if agent_ctx is not None and agent_ctx.relationships:
-                    agent_context_text = "\n\nCHARACTER RELATIONSHIPS:\n"
-                    for rel in agent_ctx.relationships:
-                        if rel["type"] == "mentor":
-                            agent_context_text += f"- {rel['character_b']} (apprentice of {rel['character_a']}, since turn {rel['since_turn']})\n"
-                        elif rel["type"] == "hostage":
-                            agent_context_text += f"- {rel['character_b']} (hostage of {rel['character_a']})\n"
-                        else:
-                            agent_context_text += f"- {rel['character_a']} and {rel['character_b']} ({rel['type']}, since turn {rel['since_turn']})\n"
+                if agent_ctx is not None:
+                    agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
 
             # Era-adaptive register
             snap = _closest_snap({s.turn: s for s in history}, moment.anchor_turn)

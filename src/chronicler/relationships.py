@@ -14,6 +14,45 @@ REL_EXILE_BOND = 3
 REL_CORELIGIONIST = 4
 
 
+def compute_belief_data(
+    snap, active_ids: set[int], regions: list,
+) -> tuple[dict[int, int], dict[str, dict[int, float]]]:
+    """Extract per-agent beliefs and per-region belief fractions from agent snapshot.
+    Returns (belief_by_agent, region_belief_fractions).
+    """
+    belief_by_agent: dict[int, int] = {}
+    region_belief_fractions: dict[str, dict[int, float]] = {}
+    if snap is None:
+        return belief_by_agent, region_belief_fractions
+
+    from collections import Counter, defaultdict
+
+    belief_col = snap.column("belief").to_pylist()
+    region_col = snap.column("region").to_pylist()
+    agent_id_col = snap.column("id").to_pylist()
+
+    for aid, bel in zip(agent_id_col, belief_col):
+        if aid in active_ids:
+            belief_by_agent[aid] = bel
+
+    region_counts: dict[int, int] = Counter()
+    region_belief_counts: dict[int, Counter] = defaultdict(Counter)
+    for reg, bel in zip(region_col, belief_col):
+        region_counts[reg] += 1
+        region_belief_counts[reg][bel] += 1
+
+    region_map = {i: r.name for i, r in enumerate(regions)}
+    for reg_idx, total in region_counts.items():
+        rname = region_map.get(reg_idx, "")
+        if rname and total > 0:
+            region_belief_fractions[rname] = {
+                bel: cnt / total
+                for bel, cnt in region_belief_counts[reg_idx].items()
+            }
+
+    return belief_by_agent, region_belief_fractions
+
+
 def dissolve_edges(
     edges: list[tuple],
     active_agent_ids: set[int],

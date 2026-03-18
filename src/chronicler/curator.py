@@ -25,7 +25,6 @@ from chronicler.models import (
 # ---------------------------------------------------------------------------
 
 CLUSTER_MERGE_THRESHOLD = 5  # turns; tunable
-RELATIONSHIP_SCORE_BONUS = 1.2  # M40: multiplier for events involving related characters
 
 CAUSAL_PATTERNS: list[tuple[str, str, int, float]] = [
     # (cause_type, effect_type, max_gap, bonus)
@@ -89,11 +88,12 @@ def compute_base_scores(
     dominant_power: str,
     seed: int,
     named_characters: set[str] | None = None,
-    social_edges: list[tuple] | None = None,
-    agent_civ_map: dict[str, set[int]] | None = None,
 ) -> list[float]:
     """Score each event based on importance, named-event match, dominant
     power involvement, and rarity.
+
+    # M40: Relationship-aware scoring (1.2x boost for events involving related characters)
+    # deferred to M45 — requires civ-to-agent mapping not yet available at curation time.
 
     Returns a parallel list of float scores (one per event).
     """
@@ -127,17 +127,6 @@ def compute_base_scores(
         if named_characters:
             if any(actor in named_characters for actor in ev.actors):
                 score += 2.0
-
-        # M40: Relationship boost — 1.2x if event involves characters who share a relationship
-        if social_edges and agent_civ_map:
-            actor_agent_ids: set[int] = set()
-            for actor in ev.actors:
-                actor_agent_ids.update(agent_civ_map.get(actor, set()))
-            if len(actor_agent_ids) >= 2:
-                for edge in social_edges:
-                    if edge[0] in actor_agent_ids and edge[1] in actor_agent_ids:
-                        score *= RELATIONSHIP_SCORE_BONUS
-                        break
 
         scores.append(score)
 
