@@ -141,6 +141,9 @@ pub const PERSECUTION_SAT_WEIGHT: f32 = 0.15;
 pub const PERSECUTION_REBEL_BOOST: f32 = 0.30;
 pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.20;
 
+// M39: Parentage
+pub const PARENT_NONE: u32 = 0;                 // sentinel for no parent
+
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;

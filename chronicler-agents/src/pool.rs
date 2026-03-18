@@ -81,7 +81,7 @@ impl AgentPool {
             beliefs: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
-            next_id: 0,
+            next_id: 1,
             free_slots: Vec::new(),
         }
     }
@@ -576,6 +576,7 @@ mod tests {
         assert_eq!(pool.age(slot), 25);
         assert_eq!(pool.region(slot), 0);
         assert_eq!(pool.occupation(slot), Occupation::Farmer as u8);
+        assert_eq!(pool.id(slot), 1); // M39: first agent id must be 1, not 0 (PARENT_NONE sentinel)
     }
 
     #[test]
