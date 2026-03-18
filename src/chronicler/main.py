@@ -430,6 +430,13 @@ def execute_run(
 
         print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
 
+        # Token usage summary
+        if isinstance(_narr, AnthropicClient):
+            inp = _narr.total_input_tokens
+            out = _narr.total_output_tokens
+            print(f"API narration: {_narr.call_count} calls, "
+                  f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
+
     # M28: Close agent bridge
     if agent_bridge is not None:
         agent_bridge.close()
@@ -555,6 +562,12 @@ def execute_run(
         interestingness_score=score_run(result, interestingness_weights),
         gap_summaries=gap_summaries,
     )
+    # M44: narrator provenance metadata
+    bundle["metadata"]["narrator_mode"] = "api" if _api_mode else "local"
+    if isinstance(_narr, AnthropicClient):
+        bundle["metadata"]["api_input_tokens"] = _narr.total_input_tokens
+        bundle["metadata"]["api_output_tokens"] = _narr.total_output_tokens
+
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)
     print(f"Viewer bundle written to {bundle_path}")
@@ -727,6 +740,13 @@ def _run_narrate(args: argparse.Namespace) -> None:
         moments, history, gap_summaries, on_progress=progress_cb
     )
 
+    # M44: Token summary
+    if isinstance(narrative_client, AnthropicClient):
+        inp = narrative_client.total_input_tokens
+        out = narrative_client.total_output_tokens
+        print(f"API narration: {narrative_client.call_count} calls, "
+              f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
+
     # Write output
     output_path = args.narrate_output
     if output_path is None:
@@ -737,6 +757,12 @@ def _run_narrate(args: argparse.Namespace) -> None:
         "gap_summaries": [gs.model_dump() for gs in gap_summaries],
         "metadata": bundle.get("metadata", {}),
     }
+
+    # M44: narrator provenance
+    result["metadata"]["narrator_mode"] = getattr(args, "narrator", "local")
+    if isinstance(narrative_client, AnthropicClient):
+        result["metadata"]["api_input_tokens"] = narrative_client.total_input_tokens
+        result["metadata"]["api_output_tokens"] = narrative_client.total_output_tokens
 
     with open(output_path, "w") as f:
         _json.dump(result, f, indent=2)
