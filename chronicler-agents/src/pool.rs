@@ -47,6 +47,8 @@ pub struct AgentPool {
     pub beliefs: Vec<u8>,
     // Parentage (M39) — stable agent_id of biological parent
     pub parent_ids: Vec<u32>,
+    // Wealth (M41) — personal economic accumulation
+    pub wealth: Vec<f32>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -82,6 +84,7 @@ impl AgentPool {
             cultural_value_2: Vec::with_capacity(capacity),
             beliefs: Vec::with_capacity(capacity),
             parent_ids: Vec::with_capacity(capacity),
+            wealth: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -133,6 +136,7 @@ impl AgentPool {
             self.cultural_value_2[slot] = cultural_value_2;
             self.beliefs[slot] = belief;
             self.parent_ids[slot] = crate::agent::PARENT_NONE;
+            self.wealth[slot] = crate::agent::STARTING_WEALTH;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -161,6 +165,7 @@ impl AgentPool {
             self.cultural_value_2.push(cultural_value_2);
             self.beliefs.push(belief);
             self.parent_ids.push(crate::agent::PARENT_NONE);
+            self.wealth.push(crate::agent::STARTING_WEALTH);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -381,6 +386,7 @@ impl AgentPool {
         let mut cultural_value_2_col = UInt8Builder::with_capacity(live);
         let mut belief_col = UInt8Builder::with_capacity(live);
         let mut parent_id_col = UInt32Builder::with_capacity(live);
+        let mut wealth_col = Float32Builder::new();
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -409,6 +415,7 @@ impl AgentPool {
             cultural_value_2_col.append_value(self.cultural_value_2[slot]);
             belief_col.append_value(self.beliefs[slot]);
             parent_id_col.append_value(self.parent_ids[slot]);
+            wealth_col.append_value(self.wealth[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -433,6 +440,7 @@ impl AgentPool {
                 Arc::new(cultural_value_2_col.finish()) as _,
                 Arc::new(belief_col.finish()) as _,
                 Arc::new(parent_id_col.finish()) as _,
+                Arc::new(wealth_col.finish()) as _,
             ],
         )
     }

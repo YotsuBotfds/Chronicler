@@ -81,6 +81,7 @@ pub fn snapshot_schema() -> Schema {
         Field::new("cultural_value_2", DataType::UInt8, false),
         Field::new("belief", DataType::UInt8, false),
         Field::new("parent_id", DataType::UInt32, false),
+        Field::new("wealth", DataType::Float32, false),
     ])
 }
 
