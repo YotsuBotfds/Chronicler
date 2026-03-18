@@ -334,6 +334,8 @@ class GreatPerson(BaseModel):
     recognized_by: list[str] = Field(default_factory=list)
     source: str = "aggregate"  # "aggregate" or "agent"
     agent_id: int | None = None
+    parent_id: int = 0
+    dynasty_id: int | None = None
     # M38b: Pilgrimages
     pilgrimage_destination: str | None = None
     pilgrimage_return_turn: int | None = None
