@@ -431,3 +431,51 @@ def test_agent_context_block_no_trade_data_no_section():
     block = build_agent_context_block(ctx)
     assert "Trade-dependent" not in block
     assert "Supply crisis" not in block
+
+
+# ---------------------------------------------------------------------------
+# Task 11: End-to-end curator integration tests for supply shock events
+# ---------------------------------------------------------------------------
+
+from chronicler.curator import compute_causal_links, compute_base_scores
+
+
+def test_shock_events_flow_through_curator():
+    drought = Event(
+        turn=5, event_type="drought", actors=["Rome"],
+        description="Drought in Plains", importance=6,
+    )
+    shock = Event(
+        turn=7, event_type="supply_shock", actors=["Rome", "Aram"],
+        description="Supply shock: food in Coast", importance=7,
+        source="economy", shock_region="Coast", shock_category="food",
+    )
+    famine = Event(
+        turn=10, event_type="famine", actors=["Rome"],
+        description="Famine in Coast", importance=8,
+    )
+    events = [drought, shock, famine]
+    scores = compute_base_scores(events, [], "Rome", seed=42)
+    links = compute_causal_links(events, scores)
+    drought_to_shock = [l for l in links if l.cause_event_type == "drought" and l.effect_event_type == "supply_shock"]
+    assert len(drought_to_shock) == 1
+    shock_to_famine = [l for l in links if l.cause_event_type == "supply_shock" and l.effect_event_type == "famine"]
+    assert len(shock_to_famine) == 1
+
+
+def test_shock_to_shock_chain_linking():
+    shock_a = Event(
+        turn=5, event_type="supply_shock", actors=["Aram"],
+        description="Supply shock: food in Plains", importance=7,
+        source="economy", shock_region="Plains", shock_category="food",
+    )
+    shock_b = Event(
+        turn=7, event_type="supply_shock", actors=["Tyre", "Aram"],
+        description="Supply shock: food in Coast", importance=7,
+        source="economy", shock_region="Coast", shock_category="food",
+    )
+    events = [shock_a, shock_b]
+    scores = compute_base_scores(events, [], "Aram", seed=42)
+    links = compute_causal_links(events, scores)
+    chain = [l for l in links if l.cause_event_type == "supply_shock" and l.effect_event_type == "supply_shock"]
+    assert len(chain) == 1
