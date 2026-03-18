@@ -96,7 +96,7 @@ Formation and dissolution run in Phase 10. Agent tick runs between Phase 9 and P
 
 ### Where It Runs
 
-Phase 10, in `simulation.py` where existing `check_rivalry_formation()` / `check_mentorship_formation()` / `check_marriage_formation()` calls already live (~lines 983-994).
+Phase 10, in `simulation.py` where existing `check_rivalry_formation()` / `check_mentorship_formation()` / `check_marriage_formation()` calls already live. (Exact line references will be pinned during implementation planning, after prerequisite milestones land.)
 
 ### Coordinator Function
 
@@ -271,12 +271,13 @@ No social graph exists. `relationships` list is empty. Narration proceeds withou
 | `chronicler-agents/src/social.rs` | **New** — `SocialGraph`, `SocialEdge`, `RelationshipType` |
 | `chronicler-agents/src/lib.rs` | Add `mod social` |
 | `chronicler-agents/src/ffi.rs` | Add `replace_social_edges()`, `read_social_edges()` FFI functions |
-| `src/chronicler/models.py` | Add `origin_region: Optional[str] = None` to `GreatPerson`; remove `character_relationships` from `WorldState` |
+| `src/chronicler/models.py` | Add `origin_region: Optional[str] = None` to `GreatPerson`; add `relationships: list[dict]` to `AgentContext`; remove `character_relationships` from `WorldState` |
 | `src/chronicler/relationships.py` | Refactor formation functions to return agent_id-based edge tuples; rewrite mentorship (drop leader pattern); add exile bond + co-religionist formation; add `form_and_sync_relationships()` coordinator; add `dissolve_edges()`; remove dead-code `dissolve_dead_relationships()` |
 | `src/chronicler/agent_bridge.py` | Wire `replace_social_edges()` / `read_social_edges()` bridge methods; set `origin_region` at promotion (one-liner, data already in `self._origin_regions`) |
 | `src/chronicler/simulation.py` | Replace three individual formation calls with single `form_and_sync_relationships(world, bridge)` call |
 | `src/chronicler/narrative.py` | **Activate** `build_agent_context_for_moment()` (currently dead code); add `relationships` to `AgentContext`; merge social edges + dissolved edges + hostage state |
 | `src/chronicler/main.py` | **Activate** named character scoring — pass `named_characters` to `curate()` |
+| `src/chronicler/live.py` | Wire `named_characters` to `curate()` call (second call site, budget=1 live-mode path) |
 | `src/chronicler/curator.py` | Add `RELATIONSHIP_SCORE_BONUS = 1.2` multiplicative boost for events involving related characters (builds on now-active +2.0 character bonus) |
 
 ### Bundle Impact
