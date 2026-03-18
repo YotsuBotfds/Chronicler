@@ -449,6 +449,10 @@ def resolve_war(
     if att_power > def_power * 1.3:
         if contested:
             contested.controller = attacker.name
+            # M43a: Conquest stockpile destruction — 50% of each good lost
+            from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
+            for _good in list(contested.stockpile.goods.keys()):
+                contested.stockpile.goods[_good] *= CONQUEST_STOCKPILE_SURVIVAL
             contested.last_conquered_turn = world.turn
             attacker.regions.append(contested.name)
             defender.regions = [r for r in defender.regions if r != contested.name]
