@@ -4,11 +4,11 @@
 >
 > **Author:** Cici (Opus 4.6)
 >
-> **Reviewed by:** Tate (design decisions), pending Phoebe spec review
+> **Reviewed by:** Tate (design decisions), Phoebe (spec review — S-1 through N-1 resolved)
 >
-> **Depends on:** M34 (Resources & Seasons), M36 (Cultural Identity), M37 (Belief), M38a (Temples & Clergy), M38b (Schisms & Persecution), M39 (Family & Lineage)
+> **Depends on:** M34 (Resources & Seasons), M36 (Cultural Identity), M37 (Belief), M38a (Temples & Clergy), M38b (Schisms & Persecution), M39 (Family & Lineage), M40 (Social Networks)
 >
-> **Blocked by:** M39 (implementation in progress)
+> **Prerequisites landed:** M34, M36, M37, M38a, M38b, M39, M40 all merged
 
 ---
 
@@ -56,6 +56,8 @@ Add per-agent wealth accumulation driven by occupation and resource context, pro
 | 14 | Income dispatches on primary resource slot only | Farmer/miner income uses `resource_yields[0]` and `resource_types[0]`. Secondary/tertiary resource slots are ignored for wealth purposes. A region with GRAIN in slot 0 and ORE in slot 1 pays farmers at the organic rate. |
 | 15 | One-turn Gini lag is intentional | Python computes Gini from turn N snapshot; Rust uses it in turn N+1 satisfaction. On turn 1, Gini defaults to 0.0 (no class tension when all agents have identical starting wealth). Same one-turn latency pattern as M38b schism delay and M40 social edges. |
 | 16 | Wealth tick runs before decisions | Agents earn income from their current occupation, then may switch occupation in the decision phase. Income is based on occupation at start of tick. |
+| 17 | Merchant income uses temporary baseline, not trade_routes | `build_region_batch()` sends hardcoded zeros for `trade_route_count` (code health issue). Merchant formula becomes `MERCHANT_INCOME × MERCHANT_BASELINE` where `MERCHANT_BASELINE = 0.5` `[CALIBRATE]`. M42 replaces with real market-driven income. |
+| 18 | `conquered_this_turn` stored as dict in simulation.py | Transient per-turn dict keyed by civ index, assembled during Phase 8 action resolution, passed to `agent_bridge.build_civ_signals()`. Not stored on civ model — it's transient per-turn data, not civ state. |
 
 ---
 
@@ -104,7 +106,7 @@ All rates are `[CALIBRATE]` constants in `agent.rs`.
 | Farmer (organic) | `FARMER_INCOME × resource_yields[0]` | RegionState `resource_types[0]` not extractive (primary slot only — Decision 14) |
 | Farmer (extractive) | `MINER_INCOME × resource_yields[0]` | RegionState `resource_types[0]` is extractive (ORE or PRECIOUS) |
 | Soldier | `SOLDIER_INCOME × (1.0 + AT_WAR_BONUS × at_war) + CONQUEST_BONUS × conquered_this_turn` | `civ_at_war` flag (existing), `conquered_this_turn` per-civ signal (new) |
-| Merchant | `MERCHANT_INCOME × (trade_routes as f32 / 3.0).min(1.0)` | RegionState `trade_routes` (existing) |
+| Merchant | `MERCHANT_INCOME × MERCHANT_BASELINE` | Temporary constant (Decision 17) — `trade_routes` is hardcoded zero in region batch. M42 replaces with real market income. |
 | Scholar | `SCHOLAR_INCOME` | None |
 | Priest | `PRIEST_INCOME` | None |
 
@@ -144,7 +146,7 @@ Soldier wealth accumulation includes a one-shot `CONQUEST_BONUS` when the agent'
 ### Signal Path
 
 - Action engine resolves EXPAND/WAR actions → conquest occurs → Python sets `conquered_this_turn` per civ (in `action_engine.py`, not accumulator — this is a boolean event flag, not a stat delta)
-- Assembled into civ signals batch in `agent_bridge.py` alongside existing per-civ signals
+- Stored as a transient `dict[int, bool]` in `simulation.py` keyed by civ index (Decision 18). Assembled during Phase 8, passed to `agent_bridge.build_civ_signals()`. Not stored on the civ model.
 - Crosses FFI as a per-civ boolean in the existing `CivSignals` struct (or equivalent)
 - Rust reads during wealth accumulation step: `CONQUEST_BONUS × conquered_this_turn as i32 as f32`
 
@@ -202,8 +204,8 @@ Runs after wealth accumulation and decay, before satisfaction:
 let mut civ_agents: Vec<(u32, f32)> = Vec::new();
 // ... populate from pool ...
 
-// Sort ascending by wealth
-civ_agents.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+// Sort ascending by wealth — total_cmp gives deterministic ordering, no panic on NaN
+civ_agents.sort_by(|a, b| a.1.total_cmp(&b.1));
 
 // Assign percentiles to scratch vector
 // (count - 1).max(1) ensures: poorest = 0.0, richest = 1.0 (zero penalty)
@@ -270,7 +272,8 @@ All constants registered in `agent.rs` with `[CALIBRATE]` markers:
 | `SOLDIER_INCOME` | TBD | Equilibrium ~5-15 (low peacetime, spikes in war) |
 | `AT_WAR_BONUS` | TBD | Multiplier on soldier income during war |
 | `CONQUEST_BONUS` | TBD | One-shot wealth gain on conquest |
-| `MERCHANT_INCOME` | TBD | Equilibrium ~15-40 (trade-route-dependent) |
+| `MERCHANT_INCOME` | TBD | Equilibrium ~15-40 (with baseline, M42 replaces) |
+| `MERCHANT_BASELINE` | 0.5 | Temporary constant — fraction of max merchant rate. M42 replaces with real market income. |
 | `SCHOLAR_INCOME` | TBD | Equilibrium ~8-12 (flat, institutional) |
 | `PRIEST_INCOME` | TBD | Equilibrium ~8-12 (flat, M42 adds tithe) |
 | `CLASS_TENSION_WEIGHT` | 0.15 | Max class tension penalty for poorest agent at Gini 1.0 |
@@ -318,7 +321,6 @@ All computed from the snapshot RecordBatch in Python post-processing. Not includ
 
 - Gini coefficient available in `AgentContext` for moment narration
 - Wealth percentile available for named characters
-- Class tension events (high Gini threshold crossings) eligible for curation
 
 ### Bundle
 
@@ -366,7 +368,7 @@ No new top-level bundle fields. Gini and wealth stats included in existing analy
 | `chronicler-agents/src/satisfaction.rs` | `class_tension_pen` term in `compute_satisfaction_with_culture` |
 | `chronicler-agents/src/signals.rs` | `gini_coefficient` and `conquered_this_turn` on CivSignals |
 | `chronicler-agents/src/ffi.rs` | Expose `wealth` in Arrow snapshot, accept new signals |
-| `src/chronicler/simulation.py` | Gini computation from snapshot, signal routing |
+| `src/chronicler/simulation.py` | Gini computation from snapshot, signal routing, `conquered_this_turn` dict assembly and passthrough |
 | `src/chronicler/action_engine.py` | Set `conquered_this_turn` flag on civ when conquest occurs |
 | `src/chronicler/analytics.py` | Wealth distribution extractors |
 | `src/chronicler/narrative.py` | Gini in AgentContext |
