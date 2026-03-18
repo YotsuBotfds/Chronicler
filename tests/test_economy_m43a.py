@@ -241,3 +241,26 @@ def test_storage_decay_timber_not_salt_affected():
     apply_storage_decay(goods)
     expected = 100.0 * (1.0 - STORAGE_DECAY["timber"])
     assert abs(goods["timber"] - expected) < 0.01
+
+
+# --- Task 8: Stockpile accumulation ---
+
+from chronicler.economy import accumulate_stockpile
+
+
+def test_accumulate_stockpile_basic():
+    goods = {"grain": 10.0}
+    accumulate_stockpile(goods, production={"grain": 50.0}, exports={"grain": 20.0}, imports={"grain": 5.0})
+    assert abs(goods["grain"] - 45.0) < 0.01
+
+
+def test_accumulate_stockpile_new_good():
+    goods = {}
+    accumulate_stockpile(goods, production={}, exports={}, imports={"fish": 10.0})
+    assert abs(goods["fish"] - 10.0) < 0.01
+
+
+def test_accumulate_stockpile_export_only():
+    goods = {"grain": 5.0}
+    accumulate_stockpile(goods, production={"grain": 10.0}, exports={"grain": 15.0}, imports={})
+    assert abs(goods["grain"] - 0.0) < 0.01

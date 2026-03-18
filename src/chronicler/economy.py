@@ -158,6 +158,26 @@ def apply_storage_decay(goods: dict[str, float]) -> float:
     return total_loss
 
 
+# ---------------------------------------------------------------------------
+# M43a: Stockpile operations
+# ---------------------------------------------------------------------------
+
+def accumulate_stockpile(
+    goods: dict[str, float],
+    production: dict[str, float],
+    exports: dict[str, float],
+    imports: dict[str, float],
+) -> None:
+    """Add (production - exports + imports) to stockpile per good. Mutates in place."""
+    all_keys = set(goods.keys()) | set(production.keys()) | set(exports.keys()) | set(imports.keys())
+    for good in all_keys:
+        current = goods.get(good, 0.0)
+        produced = production.get(good, 0.0)
+        exported = exports.get(good, 0.0)
+        imported = imports.get(good, 0.0)
+        goods[good] = max(current + (produced - exported) + imported, 0.0)
+
+
 def compute_transport_cost(
     terrain_a: str,
     terrain_b: str,
