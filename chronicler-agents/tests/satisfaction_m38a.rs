@@ -1,10 +1,22 @@
 //! M38a satisfaction tests: clergy faction alignment and temple priest bonus.
 
-use chronicler_agents::satisfaction::{compute_satisfaction, compute_satisfaction_with_culture};
+use chronicler_agents::satisfaction::{compute_satisfaction, compute_satisfaction_with_culture, SatisfactionInputs};
 use chronicler_agents::signals::CivShock;
 
-fn default_shock() -> CivShock {
-    CivShock::default()
+fn m38a_base_inputs(occupation: u8) -> SatisfactionInputs {
+    SatisfactionInputs {
+        occupation,
+        soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [0xFF, 0xFF, 0xFF], controller_values: [0xFF, 0xFF, 0xFF],
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+    }
 }
 
 /// Verify that occ_matches_faction=true gives the +0.05 faction bonus for priests.
@@ -12,14 +24,14 @@ fn default_shock() -> CivShock {
 /// This tests the bonus at the compute_satisfaction level using occ_matches_faction=true.
 #[test]
 fn test_priest_clergy_faction_alignment() {
-    let shock = default_shock();
+    let shock = CivShock::default();
     let sat_aligned = compute_satisfaction(
         4,     // priest
         0.5, 0.5, 50, 0.0, 0.8,
         false, false,
         true,  // occ_matches_faction = true (clergy dominant faction matched)
         false, 0, 0.0,
-        &shock,
+        &shock, 0.0,
     );
     let sat_unaligned = compute_satisfaction(
         4,     // priest
@@ -27,7 +39,7 @@ fn test_priest_clergy_faction_alignment() {
         false, false,
         false, // occ_matches_faction = false
         false, 0, 0.0,
-        &shock,
+        &shock, 0.0,
     );
     let diff = sat_aligned - sat_unaligned;
     assert!(
@@ -40,29 +52,11 @@ fn test_priest_clergy_faction_alignment() {
 /// vs has_temple=false (all else equal).
 #[test]
 fn test_temple_priest_bonus() {
-    let shock = default_shock();
-    let sat_with_temple = compute_satisfaction_with_culture(
-        4,     // priest
-        0.5, 0.5, 50, 0.0, 0.8,
-        false, false, false, false, 0, 0.0,
-        &shock,
-        [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
-        0xFF, 0xFF,
-        true,  // has_temple
-        0.0,   // persecution_intensity
-        0.0, 0.5,
-    );
-    let sat_no_temple = compute_satisfaction_with_culture(
-        4,     // priest
-        0.5, 0.5, 50, 0.0, 0.8,
-        false, false, false, false, 0, 0.0,
-        &shock,
-        [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
-        0xFF, 0xFF,
-        false, // has_temple
-        0.0,   // persecution_intensity
-        0.0, 0.5,
-    );
+    let sat_with_temple = compute_satisfaction_with_culture(&SatisfactionInputs {
+        has_temple: true,
+        ..m38a_base_inputs(4)
+    });
+    let sat_no_temple = compute_satisfaction_with_culture(&m38a_base_inputs(4));
     let diff = sat_with_temple - sat_no_temple;
     assert!(
         (diff - 0.10).abs() < 0.001,
@@ -73,29 +67,11 @@ fn test_temple_priest_bonus() {
 /// Verify that a non-priest (farmer, occ=0) gets NO temple bonus even when has_temple=true.
 #[test]
 fn test_temple_bonus_priest_only() {
-    let shock = default_shock();
-    let sat_with_temple = compute_satisfaction_with_culture(
-        0,     // farmer
-        0.5, 0.5, 50, 0.0, 0.8,
-        false, false, false, false, 0, 0.0,
-        &shock,
-        [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
-        0xFF, 0xFF,
-        true,  // has_temple — should be ignored for non-priests
-        0.0,   // persecution_intensity
-        0.0, 0.5,
-    );
-    let sat_no_temple = compute_satisfaction_with_culture(
-        0,     // farmer
-        0.5, 0.5, 50, 0.0, 0.8,
-        false, false, false, false, 0, 0.0,
-        &shock,
-        [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF],
-        0xFF, 0xFF,
-        false, // has_temple
-        0.0,   // persecution_intensity
-        0.0, 0.5,
-    );
+    let sat_with_temple = compute_satisfaction_with_culture(&SatisfactionInputs {
+        has_temple: true,
+        ..m38a_base_inputs(0)
+    });
+    let sat_no_temple = compute_satisfaction_with_culture(&m38a_base_inputs(0));
     assert!(
         (sat_with_temple - sat_no_temple).abs() < 0.001,
         "farmer should get no temple bonus, but got diff {}",

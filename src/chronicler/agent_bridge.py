@@ -101,7 +101,7 @@ def _get_yield(region, slot: int) -> float:
     return 0.0
 
 
-def build_region_batch(world: WorldState) -> pa.RecordBatch:
+def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
     region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
@@ -192,7 +192,10 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
             type=pa.uint8(),
         ),
         "adjacency_mask": pa.array(adj_masks, type=pa.uint32()),
-        "trade_route_count": pa.array([0 for _ in world.regions], type=pa.uint8()),
+        "trade_route_count": pa.array(
+            [economy_result.trade_route_counts.get(r.name, 0) if economy_result else 0
+             for r in world.regions], type=pa.uint8(),
+        ),
         "is_contested": pa.array([r.name in contested_regions_set for r in world.regions], type=pa.bool_()),
         # M34: Resource state
         "resource_type_0": pa.array([r.resource_types[0] for r in world.regions], type=pa.uint8()),
@@ -241,13 +244,31 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
         ),
         "schism_convert_from": pa.array(schism_from_vals, type=pa.uint8()),
         "schism_convert_to": pa.array(schism_to_vals, type=pa.uint8()),
+        # M42: Goods economy signals
+        "farmer_income_modifier": pa.array(
+            [economy_result.farmer_income_modifiers.get(r.name, 1.0) if economy_result else 1.0
+             for r in world.regions], type=pa.float32(),
+        ),
+        "food_sufficiency": pa.array(
+            [economy_result.food_sufficiency.get(r.name, 1.0) if economy_result else 1.0
+             for r in world.regions], type=pa.float32(),
+        ),
+        "merchant_margin": pa.array(
+            [economy_result.merchant_margins.get(r.name, 0.0) if economy_result else 0.0
+             for r in world.regions], type=pa.float32(),
+        ),
+        "merchant_trade_income": pa.array(
+            [economy_result.merchant_trade_incomes.get(r.name, 0.0) if economy_result else 0.0
+             for r in world.regions], type=pa.float32(),
+        ),
     })
 
 
 def build_signals(world: WorldState, shocks: list | None = None,
                   demands: dict | None = None,
                   conquered: dict[int, bool] | None = None,
-                  gini_by_civ: dict[int, float] | None = None) -> pa.RecordBatch:
+                  gini_by_civ: dict[int, float] | None = None,
+                  economy_result=None) -> pa.RecordBatch:
     """Build civ-signals Arrow RecordBatch from current WorldState.
 
     Args:
@@ -274,6 +295,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
     mean_bold, mean_ambi, mean_ltrait = [], [], []
     conquered_flags = []
     gini_vals = []
+    priest_tithe_shares = []
 
     for i, civ in enumerate(world.civilizations):
         civ_ids.append(i)
@@ -309,6 +331,9 @@ def build_signals(world: WorldState, shocks: list | None = None,
         mean_ltrait.append(pm[2])
         conquered_flags.append((conquered or {}).get(i, False))
         gini_vals.append((gini_by_civ or {}).get(i, 0.0))
+        priest_tithe_shares.append(
+            (economy_result.priest_tithe_shares.get(i, 0.0) if economy_result else 0.0)
+        )
 
     return pa.record_batch({
         "civ_id": pa.array(civ_ids, type=pa.uint8()),
@@ -333,6 +358,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "mean_loyalty_trait": pa.array(mean_ltrait, type=pa.float32()),
         "conquered_this_turn": pa.array(conquered_flags, type=pa.bool_()),
         "gini_coefficient": pa.array(gini_vals, type=pa.float32()),
+        "priest_tithe_share": pa.array(priest_tithe_shares, type=pa.float32()),
     })
 
 
@@ -356,10 +382,16 @@ class AgentBridge:
         self.displacement_by_region: dict[int, float] = {}  # region_id → fraction displaced
         self._gini_by_civ: dict[int, float] = {}  # M41: per-civ Gini from last tick
         self._wealth_stats: dict[int, dict] = {}  # M41: per-civ wealth stats from last tick
+        self._economy_result = None  # M42: economy result for signal wiring
+
+    def set_economy_result(self, result):
+        """Store M42 economy result for signal wiring."""
+        self._economy_result = result
 
     def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
-        self._sim.set_region_state(build_region_batch(world))
-        signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered, gini_by_civ=self._gini_by_civ)
+        self._sim.set_region_state(build_region_batch(world, self._economy_result))
+        signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
+                                gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
 
         if self._mode == "hybrid":

@@ -1,0 +1,517 @@
+"""M42: Goods production, trade flow, and supply-demand pricing.
+
+Computes regional goods production from farmer counts × resource yields,
+routes surplus along M35 trade corridors via margin-weighted pro-rata
+allocation, derives per-region prices from supply/demand ratios, and
+produces FFI signals for Rust agent behavior.
+
+Called from simulation.py Phase 2 before existing treasury logic.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+import numpy as np
+
+# ---------------------------------------------------------------------------
+# Constants  [CALIBRATE] — all tunable, see spec for tuning targets
+# ---------------------------------------------------------------------------
+
+BASE_PRICE: float = 1.0
+PER_CAPITA_FOOD: float = 0.5
+RAW_MATERIAL_PER_SOLDIER: float = 0.3
+LUXURY_PER_WEALTHY_AGENT: float = 0.2
+LUXURY_DEMAND_THRESHOLD: float = 10.0
+CARRY_PER_MERCHANT: float = 1.0
+FARMER_INCOME_MODIFIER_FLOOR: float = 0.5
+FARMER_INCOME_MODIFIER_CAP: float = 3.0
+MERCHANT_MARGIN_NORMALIZER: float = 5.0
+TAX_RATE: float = 0.05
+
+CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
+
+_CATEGORY_MAP: dict[int, str] = {
+    0: "food",          # GRAIN
+    1: "raw_material",  # TIMBER
+    2: "food",          # BOTANICALS
+    3: "food",          # FISH
+    4: "food",          # SALT
+    5: "raw_material",  # ORE
+    6: "luxury",        # PRECIOUS
+    7: "food",          # EXOTIC
+}
+
+
+def map_resource_to_category(resource_type: int) -> str:
+    """Map M34 resource type enum value to one of three goods categories."""
+    return _CATEGORY_MAP[resource_type]
+
+
+def _empty_category_dict() -> dict[str, float]:
+    """Return zeroed dict for all three categories."""
+    return {cat: 0.0 for cat in CATEGORIES}
+
+
+@dataclass
+class RegionGoods:
+    """Transient per-region goods state for one turn. Not persisted."""
+
+    production: dict[str, float] = field(default_factory=_empty_category_dict)
+    imports: dict[str, float] = field(default_factory=_empty_category_dict)
+    exports: dict[str, float] = field(default_factory=_empty_category_dict)
+    prices: dict[str, float] = field(default_factory=_empty_category_dict)
+
+
+@dataclass
+class EconomyResult:
+    """Output of compute_economy(). Consumed by simulation.py, then dropped."""
+
+    region_goods: dict[str, RegionGoods] = field(default_factory=dict)
+    farmer_income_modifiers: dict[str, float] = field(default_factory=dict)
+    food_sufficiency: dict[str, float] = field(default_factory=dict)
+    merchant_margins: dict[str, float] = field(default_factory=dict)
+    merchant_trade_incomes: dict[str, float] = field(default_factory=dict)
+    trade_route_counts: dict[str, int] = field(default_factory=dict)
+    priest_tithe_shares: dict[int, float] = field(default_factory=dict)
+    treasury_tax: dict[int, float] = field(default_factory=dict)
+    tithe_base: dict[int, float] = field(default_factory=dict)
+
+
+def compute_production(
+    resource_type: int,
+    resource_yield: float,
+    farmer_count: int,
+) -> tuple[str, float]:
+    """Compute goods output for a region.
+
+    Returns (category, amount). Only primary resource slot (index 0) is used.
+    """
+    category = map_resource_to_category(resource_type)
+    amount = resource_yield * farmer_count
+    return category, amount
+
+
+def compute_demand(
+    population: int,
+    soldier_count: int,
+    wealthy_count: int,
+) -> dict[str, float]:
+    """Compute per-region demand for each goods category.
+
+    Args:
+        population: total agent count in region (everyone eats)
+        soldier_count: agents with occupation == Soldier
+        wealthy_count: agents with wealth > LUXURY_DEMAND_THRESHOLD
+    """
+    return {
+        "food": population * PER_CAPITA_FOOD,
+        "raw_material": soldier_count * RAW_MATERIAL_PER_SOLDIER,
+        "luxury": wealthy_count * LUXURY_PER_WEALTHY_AGENT,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Price computation
+# ---------------------------------------------------------------------------
+
+_SUPPLY_FLOOR: float = 0.1
+
+
+def compute_prices(
+    supply: dict[str, float],
+    demand: dict[str, float],
+) -> dict[str, float]:
+    """Compute price per category from supply/demand ratio.
+
+    price = BASE_PRICE × (demand / max(supply, 0.1))
+    """
+    prices: dict[str, float] = {}
+    for cat in CATEGORIES:
+        d = demand.get(cat, 0.0)
+        s = max(supply.get(cat, 0.0), _SUPPLY_FLOOR)
+        prices[cat] = BASE_PRICE * (d / s)
+    return prices
+
+
+# ---------------------------------------------------------------------------
+# Tasks 6-7: Trade route decomposition and flow allocation
+# ---------------------------------------------------------------------------
+
+def decompose_trade_routes(
+    civ_a_regions: set[str],
+    civ_b_regions: set[str],
+    region_map: dict,
+) -> list[tuple[str, str]]:
+    """Decompose a civ-level trade route into region-level boundary pairs."""
+    pairs: list[tuple[str, str]] = []
+    for region_name in civ_a_regions:
+        region = region_map[region_name]
+        for neighbor_name in region.adjacencies:
+            if neighbor_name in civ_b_regions:
+                pairs.append((region_name, neighbor_name))
+    return pairs
+
+
+def allocate_trade_flow(
+    outbound_routes: list[tuple[str, str]],
+    origin_prices: dict[str, float],
+    dest_prices: dict[str, dict[str, float]],
+    exportable_surplus: dict[str, float],
+    merchant_count: int,
+) -> dict[tuple[str, str], dict[str, float]]:
+    """Two-level log-dampened margin-weighted pro-rata allocation.
+
+    Uses pre-trade prices for margin computation.
+    Log-dampening (ln(1 + margin)) compresses extreme price ratios.
+    """
+    capacity = merchant_count * CARRY_PER_MERCHANT
+    if capacity <= 0 or not outbound_routes:
+        return {route: _empty_category_dict() for route in outbound_routes}
+
+    cat_weights: dict[str, float] = {}
+    route_margins: dict[str, dict[tuple[str, str], float]] = {
+        cat: {} for cat in CATEGORIES
+    }
+
+    for cat in CATEGORIES:
+        total_w = 0.0
+        for route in outbound_routes:
+            _, dest = route
+            d_prices = dest_prices.get(dest, {})
+            raw_margin = max(d_prices.get(cat, 0.0) - origin_prices.get(cat, 0.0), 0.0)
+            weight = math.log1p(raw_margin)
+            route_margins[cat][route] = weight
+            total_w += weight
+        cat_weights[cat] = total_w
+
+    total_weight = sum(cat_weights.values())
+    if total_weight <= 0:
+        return {route: _empty_category_dict() for route in outbound_routes}
+
+    cat_budgets: dict[str, float] = {}
+    for cat in CATEGORIES:
+        cat_budgets[cat] = (cat_weights[cat] / total_weight) * capacity
+
+    flow: dict[tuple[str, str], dict[str, float]] = {
+        route: _empty_category_dict() for route in outbound_routes
+    }
+
+    for cat in CATEGORIES:
+        budget = cat_budgets[cat]
+        surplus = exportable_surplus.get(cat, 0.0)
+        if budget <= 0 or surplus <= 0:
+            continue
+
+        cat_total_w = cat_weights[cat]
+        if cat_total_w <= 0:
+            continue
+
+        allocated = 0.0
+        for route in outbound_routes:
+            w = route_margins[cat][route]
+            if w <= 0:
+                continue
+            amount = (w / cat_total_w) * budget
+            flow[route][cat] = amount
+            allocated += amount
+
+        if allocated > surplus:
+            scale = surplus / allocated
+            for route in outbound_routes:
+                flow[route][cat] *= scale
+
+    return flow
+
+
+# ---------------------------------------------------------------------------
+# Tasks 8-9: Signal derivation
+# ---------------------------------------------------------------------------
+
+def derive_farmer_income_modifier(
+    resource_type: int,
+    post_trade_supply: dict[str, float],
+    demand: dict[str, float],
+) -> float:
+    """Derive farmer_income_modifier from post-trade price ratio."""
+    cat = map_resource_to_category(resource_type)
+    s = max(post_trade_supply.get(cat, 0.0), _SUPPLY_FLOOR)
+    d = demand.get(cat, 0.0)
+    raw = d / s
+    return max(FARMER_INCOME_MODIFIER_FLOOR, min(raw, FARMER_INCOME_MODIFIER_CAP))
+
+
+def derive_food_sufficiency(food_supply: float, food_demand: float) -> float:
+    """Derive food_sufficiency from post-trade food supply/demand ratio. Clamped [0.0, 2.0]."""
+    d = max(food_demand, _SUPPLY_FLOOR)
+    return max(0.0, min(food_supply / d, 2.0))
+
+
+def derive_merchant_margin(total_raw_margin: float, route_count: int) -> float:
+    """Derive merchant_margin. Normalized to [0.0, 1.0]."""
+    if route_count <= 0:
+        return 0.0
+    avg = total_raw_margin / route_count
+    return max(0.0, min(avg / MERCHANT_MARGIN_NORMALIZER, 1.0))
+
+
+def derive_merchant_trade_income(
+    total_arbitrage: float,
+    merchant_count: int,
+) -> float:
+    """Derive per-merchant income from total arbitrage profit."""
+    if merchant_count <= 0:
+        return 0.0
+    return total_arbitrage / merchant_count
+
+
+# ---------------------------------------------------------------------------
+# Task 10: Agent data extraction helpers
+# ---------------------------------------------------------------------------
+
+def _extract_region_agent_counts_from_arrays(
+    regions: np.ndarray,
+    occupations: np.ndarray,
+    wealth: np.ndarray,
+    region_idx: int,
+) -> dict:
+    """Extract occupation counts and wealthy agent count for a region.
+    Takes pre-extracted numpy arrays (extracted once, not per-region).
+    """
+    mask = regions == region_idx
+    occ = occupations[mask]
+    w = wealth[mask]
+    return {
+        "population": int(mask.sum()),
+        "farmer_count": int((occ == 0).sum()),
+        "soldier_count": int((occ == 1).sum()),
+        "merchant_count": int((occ == 2).sum()),
+        "scholar_count": int((occ == 3).sum()),
+        "priest_count": int((occ == 4).sum()),
+        "wealthy_count": int((w > LUXURY_DEMAND_THRESHOLD).sum()),
+    }
+
+
+def _extract_civ_merchant_wealth(
+    civ_affinity: np.ndarray,
+    occupations: np.ndarray,
+    wealth: np.ndarray,
+    civ_idx: int,
+) -> float:
+    """Sum of merchant wealth for a civ. Uses pre-extracted arrays."""
+    mask = (civ_affinity == civ_idx) & (occupations == 2)
+    return float(np.sum(wealth[mask]))
+
+
+def _extract_civ_priest_count(
+    civ_affinity: np.ndarray,
+    occupations: np.ndarray,
+    civ_idx: int,
+) -> int:
+    """Count of priests for a civ. Uses pre-extracted arrays."""
+    mask = (civ_affinity == civ_idx) & (occupations == 4)
+    return int(mask.sum())
+
+
+# ---------------------------------------------------------------------------
+# Task 10: compute_economy entry point
+# ---------------------------------------------------------------------------
+
+def compute_economy(
+    world,
+    snapshot,
+    region_map: dict,
+    agent_mode: bool,
+    active_trade_routes: list[tuple[str, str]] | None = None,
+) -> EconomyResult:
+    """Phase 2 goods sub-sequence: production -> demand -> prices -> trade -> signals.
+
+    Two-pass price model:
+    - Pre-trade prices (from production alone) drive margin computation
+    - Post-trade prices (from production + imports) produce final signals
+    """
+    if active_trade_routes is None:
+        from chronicler.resources import get_active_trade_routes
+        active_trade_routes = get_active_trade_routes(world)
+
+    result = EconomyResult()
+    regions = world.regions
+    civs = world.civilizations
+
+    # Build lookups
+    civ_lookup: dict[str, tuple[int, set[str]]] = {}
+    for civ_idx, civ in enumerate(civs):
+        if len(civ.regions) > 0:
+            civ_lookup[civ.name] = (civ_idx, set(civ.regions))
+
+    region_idx_map: dict[str, int] = {}
+    for i, region in enumerate(regions):
+        region_idx_map[region.name] = i
+
+    # Extract snapshot arrays ONCE
+    snap_regions = snapshot.column("region").to_numpy()
+    snap_occupations = snapshot.column("occupation").to_numpy()
+    snap_wealth = snapshot.column("wealth").to_numpy()
+    snap_civ_affinity = snapshot.column("civ_affinity").to_numpy()
+
+    # --- Step 2a: Production + Step 2b: Demand ---
+    region_production: dict[str, dict[str, float]] = {}
+    region_demand: dict[str, dict[str, float]] = {}
+    region_agent_data: dict[str, dict] = {}
+
+    for region in regions:
+        rname = region.name
+        ridx = region_idx_map[rname]
+        agent_data = _extract_region_agent_counts_from_arrays(
+            snap_regions, snap_occupations, snap_wealth, ridx,
+        )
+        region_agent_data[rname] = agent_data
+
+        prod = _empty_category_dict()
+        cat, amount = compute_production(
+            region.resource_types[0], region.resource_yields[0], agent_data["farmer_count"],
+        )
+        prod[cat] = amount
+        region_production[rname] = prod
+
+        demand = compute_demand(
+            agent_data["population"], agent_data["soldier_count"], agent_data["wealthy_count"],
+        )
+        region_demand[rname] = demand
+
+    # --- Step 2c: Pre-trade prices ---
+    pre_trade_prices: dict[str, dict[str, float]] = {}
+    for rname in region_production:
+        pre_trade_prices[rname] = compute_prices(region_production[rname], region_demand[rname])
+
+    # --- Step 2d: Exportable surplus ---
+    exportable_surplus: dict[str, dict[str, float]] = {}
+    for rname in region_production:
+        exportable_surplus[rname] = {
+            cat: max(region_production[rname][cat] - region_demand[rname][cat], 0.0)
+            for cat in CATEGORIES
+        }
+
+    # --- Step 2e: Trade flow ---
+    origin_routes: dict[str, list[tuple[str, str]]] = {}
+    boundary_pair_counts: dict[str, int] = {}
+
+    for civ_a_name, civ_b_name in active_trade_routes:
+        if civ_a_name not in civ_lookup or civ_b_name not in civ_lookup:
+            continue
+        _, a_regions = civ_lookup[civ_a_name]
+        _, b_regions = civ_lookup[civ_b_name]
+        # Both directions
+        for src_regions, dst_regions in [(a_regions, b_regions), (b_regions, a_regions)]:
+            pairs = decompose_trade_routes(src_regions, dst_regions, region_map)
+            for origin, dest in pairs:
+                origin_routes.setdefault(origin, []).append((origin, dest))
+                boundary_pair_counts[origin] = boundary_pair_counts.get(origin, 0) + 1
+
+    region_imports: dict[str, dict[str, float]] = {rname: _empty_category_dict() for rname in region_production}
+    region_exports: dict[str, dict[str, float]] = {rname: _empty_category_dict() for rname in region_production}
+    all_route_flows: dict[str, dict[tuple[str, str], dict[str, float]]] = {}
+
+    for origin_name, routes in origin_routes.items():
+        if origin_name not in region_production:
+            continue
+        merchant_count = region_agent_data.get(origin_name, {}).get("merchant_count", 0)
+        dest_prices: dict[str, dict[str, float]] = {}
+        for _, dest in routes:
+            if dest in pre_trade_prices:
+                dest_prices[dest] = pre_trade_prices[dest]
+
+        flow = allocate_trade_flow(
+            routes, pre_trade_prices.get(origin_name, _empty_category_dict()),
+            dest_prices, exportable_surplus.get(origin_name, _empty_category_dict()),
+            merchant_count,
+        )
+        all_route_flows[origin_name] = flow
+
+        for route, cat_flows in flow.items():
+            _, dest = route
+            for cat in CATEGORIES:
+                amount = cat_flows[cat]
+                region_exports[origin_name][cat] += amount
+                region_imports.setdefault(dest, _empty_category_dict())
+                region_imports[dest][cat] += amount
+
+    # --- Step 2g: Post-trade prices ---
+    post_trade_prices: dict[str, dict[str, float]] = {}
+    for rname in region_production:
+        post_trade_supply = {
+            cat: region_production[rname][cat] + region_imports[rname][cat]
+            for cat in CATEGORIES
+        }
+        post_trade_prices[rname] = compute_prices(post_trade_supply, region_demand[rname])
+
+    # --- Step 2h: Signal derivation ---
+    for region in regions:
+        rname = region.name
+        agent_data = region_agent_data.get(rname, {})
+        post_prices = post_trade_prices.get(rname, _empty_category_dict())
+        demand = region_demand.get(rname, _empty_category_dict())
+        post_supply = {
+            cat: region_production.get(rname, _empty_category_dict())[cat]
+                 + region_imports.get(rname, _empty_category_dict())[cat]
+            for cat in CATEGORIES
+        }
+
+        result.farmer_income_modifiers[rname] = derive_farmer_income_modifier(
+            region.resource_types[0], post_supply, demand,
+        )
+        result.food_sufficiency[rname] = derive_food_sufficiency(
+            post_supply.get("food", 0.0), demand.get("food", 0.0),
+        )
+
+        routes = origin_routes.get(rname, [])
+        total_raw_margin = 0.0
+        for route in routes:
+            _, dest = route
+            dest_post = post_trade_prices.get(dest, _empty_category_dict())
+            for cat in CATEGORIES:
+                total_raw_margin += max(dest_post[cat] - post_prices[cat], 0.0)
+        result.merchant_margins[rname] = derive_merchant_margin(total_raw_margin, len(routes))
+
+        # merchant_trade_income: route_flow x post-trade margin (intentional mismatch)
+        total_arbitrage = 0.0
+        route_flows = all_route_flows.get(rname, {})
+        for route, cat_flows in route_flows.items():
+            _, dest = route
+            dest_post = post_trade_prices.get(dest, _empty_category_dict())
+            for cat in CATEGORIES:
+                margin = max(dest_post[cat] - post_prices[cat], 0.0)
+                total_arbitrage += cat_flows[cat] * margin
+        result.merchant_trade_incomes[rname] = derive_merchant_trade_income(
+            total_arbitrage, agent_data.get("merchant_count", 0),
+        )
+
+        result.trade_route_counts[rname] = boundary_pair_counts.get(rname, 0)
+
+        rg = RegionGoods(
+            production=region_production.get(rname, _empty_category_dict()),
+            imports=region_imports.get(rname, _empty_category_dict()),
+            exports=region_exports.get(rname, _empty_category_dict()),
+            prices=dict(post_prices),
+        )
+        result.region_goods[rname] = rg
+
+    # --- M41 deferred integrations (agent mode only) ---
+    if agent_mode:
+        from chronicler.factions import TITHE_RATE
+
+        for civ_name, (civ_idx, _) in civ_lookup.items():
+            merchant_wealth = _extract_civ_merchant_wealth(
+                snap_civ_affinity, snap_occupations, snap_wealth, civ_idx,
+            )
+            priest_count = _extract_civ_priest_count(
+                snap_civ_affinity, snap_occupations, civ_idx,
+            )
+            result.treasury_tax[civ_idx] = TAX_RATE * merchant_wealth
+            result.tithe_base[civ_idx] = merchant_wealth
+            result.priest_tithe_shares[civ_idx] = (
+                TITHE_RATE * merchant_wealth / max(priest_count, 1)
+            )
+
+    return result

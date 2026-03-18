@@ -1033,11 +1033,13 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
+    _economy_result = getattr(world, '_economy_result', None)
     collapse_events.extend(tick_factions(world, acc=acc,
                                          conversion_deltas=conversion_deltas,
                                          region_populations=region_populations,
                                          prev_priest_counts=prev_priest_counts,
-                                         curr_priest_counts=curr_priest_counts))
+                                         curr_priest_counts=curr_priest_counts,
+                                         economy_result=_economy_result))
 
     # M38a: Temple prestige tick
     from chronicler.infrastructure import tick_temple_prestige
@@ -1199,8 +1201,29 @@ def run_turn(
     env_rng = _random_m35b.Random(seed + world.turn * 1013)
     turn_events.extend(check_environmental_events(world, env_rng))
 
+    # --- M42: Goods economy (Phase 2 sub-sequence) ---
+    economy_result = None
+    if agent_bridge is not None:
+        from chronicler.economy import compute_economy
+        region_map = {r.name: r for r in world.regions}
+        snapshot = agent_bridge.get_snapshot()
+        if snapshot is not None:
+            from chronicler.resources import get_active_trade_routes
+            active_routes = get_active_trade_routes(world)
+            economy_result = compute_economy(
+                world, snapshot, region_map, agent_mode=True,
+                active_trade_routes=active_routes,
+            )
+            agent_bridge.set_economy_result(economy_result)
+
     # Phase 2: Automatic Effects (NEW)
     turn_events.extend(apply_automatic_effects(world, acc=acc))
+
+    # M42: Apply treasury tax (keep category)
+    if economy_result and acc is not None:
+        for civ_idx, tax in economy_result.treasury_tax.items():
+            if civ_idx < len(world.civilizations):
+                acc.add(civ_idx, world.civilizations[civ_idx], "treasury", int(tax), "keep")
 
     # Phase 3: Production
     phase_production(world, acc=acc)
@@ -1264,6 +1287,9 @@ def run_turn(
 
     # M37: Stash named_agents for Phase 10 religion computations
     world._named_agents = agent_bridge.named_agents if agent_bridge else None
+
+    # M42: Stash economy_result for Phase 10 tick_factions
+    world._economy_result = economy_result
 
     # Phase 10: Consequences
     # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.

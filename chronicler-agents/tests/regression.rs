@@ -33,6 +33,7 @@ fn make_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 faction_clergy: 0.0,
                 gini_coefficient: 0.0,
                 conquered_this_turn: false,
+                priest_tithe_share: 0.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i % 5 == 0).collect(),
@@ -74,6 +75,10 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         persecution_intensity: 0.0,
         schism_convert_from: 0xFF,
         schism_convert_to: 0xFF,
+        farmer_income_modifier: 1.0,
+        food_sufficiency: 1.0,
+        merchant_margin: 0.0,
+        merchant_trade_income: 0.0,
     }).collect();
     let num_civs = (num_regions.min(8)) as usize;
     let signals = make_signals(num_civs, num_regions as usize);

@@ -32,6 +32,8 @@ pub struct CivSignals {
     // M41: Wealth & Class Stratification
     pub gini_coefficient: f32,
     pub conquered_this_turn: bool,
+    // M42: Priest tithe share
+    pub priest_tithe_share: f32,
 }
 
 /// Parsed signals for one tick.
@@ -106,6 +108,8 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
     let conquered_this_turn_col = batch.column_by_name("conquered_this_turn")
         .and_then(|c| c.as_any().downcast_ref::<BooleanArray>());
+    let priest_tithe_share_col = batch.column_by_name("priest_tithe_share")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
 
     let mut result = Vec::with_capacity(batch.num_rows());
     for i in 0..batch.num_rows() {
@@ -132,6 +136,7 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             mean_loyalty_trait: mean_loyalty_trait_col.map(|a| a.value(i)).unwrap_or(0.0),
             gini_coefficient: gini_coefficient_col.map(|a| a.value(i)).unwrap_or(0.0),
             conquered_this_turn: conquered_this_turn_col.map(|a| a.value(i)).unwrap_or(false),
+            priest_tithe_share: priest_tithe_share_col.map(|a| a.value(i)).unwrap_or(0.0),
         });
     }
     Ok(result)

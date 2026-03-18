@@ -360,14 +360,9 @@ pub fn wealth_tick(
 
         let income = match occ {
             0 => {
-                // Farmer — dispatch on primary resource type
-                let rtype = region.resource_types[0];
+                // Farmer — M42: market-derived modifier replaces is_extractive() dispatch
                 let yield_val = region.resource_yields[0];
-                if crate::agent::is_extractive(rtype) {
-                    crate::agent::MINER_INCOME * yield_val
-                } else {
-                    crate::agent::FARMER_INCOME * yield_val
-                }
+                crate::agent::BASE_FARMER_INCOME * region.farmer_income_modifier * yield_val
             }
             1 => {
                 // Soldier — war bonus + conquest bonus
@@ -375,16 +370,17 @@ pub fn wealth_tick(
                     + crate::agent::CONQUEST_BONUS * conquered as i32 as f32
             }
             2 => {
-                // Merchant — temporary baseline (Decision 17)
-                crate::agent::MERCHANT_INCOME * crate::agent::MERCHANT_BASELINE
+                // Merchant — M42: arbitrage-driven income from Python-side goods economy
+                region.merchant_trade_income
             }
             3 => {
                 // Scholar — flat
                 crate::agent::SCHOLAR_INCOME
             }
             _ => {
-                // Priest — flat (tithe deferred to M42)
+                // Priest — M42: base income + per-priest tithe share
                 crate::agent::PRIEST_INCOME
+                    + civ_sig.map_or(0.0, |c| c.priest_tithe_share)
             }
         };
 
@@ -509,27 +505,31 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                         ];
 
                         let sat = satisfaction::compute_satisfaction_with_culture(
-                            occ,
-                            region.soil,
-                            region.water,
-                            civ_stability,
-                            ds_ratio,
-                            pop_over_cap,
-                            civ_at_war,
-                            region_contested,
-                            occ_matches,
-                            is_displaced,
-                            region.trade_route_count,
-                            faction_influence,
-                            &shock,
-                            agent_values,
-                            region.controller_values,
-                            pool_ref.beliefs[slot],
-                            region.majority_belief,
-                            region.has_temple,
-                            region.persecution_intensity,
-                            gini,
-                            wealth_pct,
+                            &satisfaction::SatisfactionInputs {
+                                occupation: occ,
+                                soil: region.soil,
+                                water: region.water,
+                                civ_stability,
+                                demand_supply_ratio: ds_ratio,
+                                pop_over_capacity: pop_over_cap,
+                                civ_at_war,
+                                region_contested,
+                                occ_matches_faction: occ_matches,
+                                is_displaced,
+                                trade_routes: region.trade_route_count,
+                                faction_influence,
+                                shock,
+                                agent_values,
+                                controller_values: region.controller_values,
+                                agent_belief: pool_ref.beliefs[slot],
+                                majority_belief: region.majority_belief,
+                                has_temple: region.has_temple,
+                                persecution_intensity: region.persecution_intensity,
+                                gini_coefficient: gini,
+                                wealth_percentile: wealth_pct,
+                                food_sufficiency: region.food_sufficiency,
+                                merchant_margin: region.merchant_margin,
+                            },
                         );
 
                         (slot, sat)
@@ -686,6 +686,10 @@ mod tests {
             persecution_intensity: 0.0,
             schism_convert_from: 0xFF,
             schism_convert_to: 0xFF,
+            farmer_income_modifier: 1.0,
+            food_sufficiency: 1.0,
+            merchant_margin: 0.0,
+            merchant_trade_income: 0.0,
         }
     }
 
@@ -715,6 +719,7 @@ mod tests {
                     faction_clergy: 0.0,
                     gini_coefficient: 0.0,
                     conquered_this_turn: false,
+                    priest_tithe_share: 0.0,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
@@ -1000,9 +1005,9 @@ mod tests {
 #[cfg(test)]
 mod m41_tests {
     use super::*;
-    use crate::agent::{self, STARTING_WEALTH, FARMER_INCOME, MINER_INCOME,
-        SOLDIER_INCOME, AT_WAR_BONUS, CONQUEST_BONUS, MERCHANT_INCOME,
-        MERCHANT_BASELINE, WEALTH_DECAY, MAX_WEALTH};
+    use crate::agent::{self, STARTING_WEALTH, BASE_FARMER_INCOME,
+        SOLDIER_INCOME, AT_WAR_BONUS, CONQUEST_BONUS,
+        WEALTH_DECAY, MAX_WEALTH};
     use crate::region::RegionState;
     use crate::signals::{CivSignals, TickSignals};
 
@@ -1031,6 +1036,7 @@ mod m41_tests {
                 mean_loyalty_trait: 0.0,
                 gini_coefficient: gini,
                 conquered_this_turn: conquered,
+                priest_tithe_share: 0.0,
             }],
             contested_regions: vec![false],
         }
@@ -1039,17 +1045,6 @@ mod m41_tests {
     fn make_region_organic(yield_val: f32) -> RegionState {
         let mut r = RegionState::new(0);
         r.resource_types = [0, 255, 255]; // GRAIN
-        r.resource_yields = [yield_val, 0.0, 0.0];
-        r.soil = 0.5;
-        r.water = 0.5;
-        r.controller_values = [0, 1, 2];
-        r.majority_belief = 0xFF;
-        r
-    }
-
-    fn make_region_extractive(yield_val: f32) -> RegionState {
-        let mut r = RegionState::new(0);
-        r.resource_types = [5, 255, 255]; // ORE
         r.resource_yields = [yield_val, 0.0, 0.0];
         r.soil = 0.5;
         r.water = 0.5;
@@ -1072,7 +1067,8 @@ mod m41_tests {
 
         wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
 
-        let expected_income = FARMER_INCOME * 0.8;
+        // M42: farmer_income_modifier defaults to 1.0 in RegionState::new()
+        let expected_income = BASE_FARMER_INCOME * 1.0 * 0.8;
         let after_income = initial + expected_income;
         let expected = after_income * (1.0 - WEALTH_DECAY);
         assert!((pool.wealth[slot] - expected).abs() < 0.001,
@@ -1080,18 +1076,20 @@ mod m41_tests {
     }
 
     #[test]
-    fn test_farmer_extractive_uses_miner_rate() {
+    fn test_farmer_with_income_modifier() {
         let mut pool = AgentPool::new(4);
         let slot = pool.spawn(0, 0, agent::Occupation::Farmer, 20,
             0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
 
-        let regions = vec![make_region_extractive(0.8)];
+        let mut region = make_region_organic(0.8);
+        region.farmer_income_modifier = 2.5; // M42: extractive/high-value modifier
+        let regions = vec![region];
         let signals = make_test_signals(false, false, 0.0);
         let mut percentiles = vec![0.0f32; pool.capacity()];
 
         wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
 
-        let expected_income = MINER_INCOME * 0.8;
+        let expected_income = BASE_FARMER_INCOME * 2.5 * 0.8;
         let after_income = STARTING_WEALTH + expected_income;
         let expected = after_income * (1.0 - WEALTH_DECAY);
         assert!((pool.wealth[slot] - expected).abs() < 0.001);
@@ -1139,18 +1137,20 @@ mod m41_tests {
     }
 
     #[test]
-    fn test_merchant_baseline_income() {
+    fn test_merchant_trade_income() {
         let mut pool = AgentPool::new(4);
         let slot = pool.spawn(0, 0, agent::Occupation::Merchant, 20,
             0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
 
-        let regions = vec![make_region_organic(0.8)];
+        let mut region = make_region_organic(0.8);
+        region.merchant_trade_income = 0.35; // M42: from Python goods economy
+        let regions = vec![region];
         let signals = make_test_signals(false, false, 0.0);
         let mut percentiles = vec![0.0f32; pool.capacity()];
 
         wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
 
-        let expected_income = MERCHANT_INCOME * MERCHANT_BASELINE;
+        let expected_income = 0.35; // merchant_trade_income directly
         let after_income = STARTING_WEALTH + expected_income;
         let expected = after_income * (1.0 - WEALTH_DECAY);
         assert!((pool.wealth[slot] - expected).abs() < 0.001);
