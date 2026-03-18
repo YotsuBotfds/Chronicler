@@ -178,3 +178,48 @@ class TestCreateClients:
         sim_client, narrative_client = create_clients()
         assert sim_client.model == ""
         assert narrative_client.model == ""
+
+    def test_narrator_api_returns_anthropic_client(self):
+        """When narrator='api', narrative client is AnthropicClient."""
+        import unittest.mock as mock
+        mock_anthropic_module = MagicMock()
+        mock_anthropic_instance = MagicMock()
+        mock_anthropic_module.Anthropic.return_value = mock_anthropic_instance
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {
+            "anthropic": mock_anthropic_module,
+            "openai": mock_openai_module,
+        }):
+            _, narrative_client = create_clients(narrator="api")
+            assert isinstance(narrative_client, AnthropicClient)
+            assert narrative_client.model == "claude-sonnet-4-6"
+
+    def test_narrator_api_with_custom_model(self):
+        """--narrative-model flows through to AnthropicClient."""
+        import unittest.mock as mock
+        mock_anthropic_module = MagicMock()
+        mock_anthropic_instance = MagicMock()
+        mock_anthropic_module.Anthropic.return_value = mock_anthropic_instance
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {
+            "anthropic": mock_anthropic_module,
+            "openai": mock_openai_module,
+        }):
+            _, narrative_client = create_clients(
+                narrator="api", narrative_model="claude-opus-4-6"
+            )
+            assert narrative_client.model == "claude-opus-4-6"
+
+    def test_narrator_local_unchanged(self):
+        """narrator='local' produces same result as default."""
+        import unittest.mock as mock
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            sim, narr = create_clients(narrator="local")
+            assert isinstance(narr, LocalNarrativeClient)
