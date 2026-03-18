@@ -363,6 +363,20 @@ impl AgentSimulator {
             .column_by_name("schism_convert_to")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
+        // M42: Goods economy signals
+        let farmer_income_modifier_col = rb
+            .column_by_name("farmer_income_modifier")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let food_sufficiency_col = rb
+            .column_by_name("food_sufficiency")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let merchant_margin_col = rb
+            .column_by_name("merchant_margin")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let merchant_trade_income_col = rb
+            .column_by_name("merchant_trade_income")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+
         // M37: Initial belief for spawn (per-region, controller civ's faith_id)
         let initial_belief_col = rb
             .column_by_name("initial_belief")
@@ -420,6 +434,10 @@ impl AgentSimulator {
                     persecution_intensity: persecution_intensity_col.map_or(0.0, |arr| arr.value(i)),
                     schism_convert_from: schism_convert_from_col.map_or(0xFF, |arr| arr.value(i)),
                     schism_convert_to: schism_convert_to_col.map_or(0xFF, |arr| arr.value(i)),
+                    farmer_income_modifier: farmer_income_modifier_col.map_or(1.0, |arr| arr.value(i)),
+                    food_sufficiency: food_sufficiency_col.map_or(1.0, |arr| arr.value(i)),
+                    merchant_margin: merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
+                    merchant_trade_income: merchant_trade_income_col.map_or(0.0, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -523,6 +541,10 @@ impl AgentSimulator {
                 r.persecution_intensity = persecution_intensity_col.map_or(r.persecution_intensity, |arr| arr.value(i));
                 r.schism_convert_from = schism_convert_from_col.map_or(0xFF, |arr| arr.value(i));
                 r.schism_convert_to = schism_convert_to_col.map_or(0xFF, |arr| arr.value(i));
+                if let Some(arr) = farmer_income_modifier_col { r.farmer_income_modifier = arr.value(i); }
+                if let Some(arr) = food_sufficiency_col { r.food_sufficiency = arr.value(i); }
+                if let Some(arr) = merchant_margin_col { r.merchant_margin = arr.value(i); }
+                if let Some(arr) = merchant_trade_income_col { r.merchant_trade_income = arr.value(i); }
             }
         }
         Ok(())

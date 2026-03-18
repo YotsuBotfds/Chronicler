@@ -6,6 +6,8 @@ use crate::signals::CivShock;
 
 const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 const PEAK_YIELD: f32 = 1.0;
+const FOOD_SHORTAGE_WEIGHT: f32 = 0.3;   // [CALIBRATE] M42: max food penalty at zero supply
+const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
 
 /// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7
 fn is_food(rtype: u8) -> bool {
@@ -91,14 +93,15 @@ pub fn compute_satisfaction(
     region_contested: bool,
     occ_matches_faction: bool,
     is_displaced: bool,
-    trade_routes: u8,
+    _trade_routes: u8,
     faction_influence: f32,
     shock: &CivShock,
+    merchant_margin: f32,  // M42: replaces trade_routes for merchant satisfaction
 ) -> f32 {
     let base = match occupation {
         0 => 0.4 + soil * 0.3 + water * 0.2,                      // Farmer
         1 => 0.5 + faction_influence * 0.3,                        // Soldier
-        2 => 0.4 + (trade_routes as f32 / 3.0).min(1.0) * 0.3,   // Merchant
+        2 => 0.4 + merchant_margin * MERCHANT_MARGIN_WEIGHT,       // Merchant — M42: margin replaces trade_routes
         3 => 0.5 + faction_influence * 0.2,                        // Scholar
         _ => 0.6 - (1.0 - civ_stability as f32 / 100.0) * 0.2,   // Priest
     };
@@ -124,50 +127,57 @@ pub fn compute_satisfaction(
         .clamp(0.0, 1.0)
 }
 
+/// All inputs needed for the full satisfaction calculation (base + cultural/religious/class).
+pub struct SatisfactionInputs {
+    pub occupation: u8,
+    pub soil: f32,
+    pub water: f32,
+    pub civ_stability: u8,
+    pub demand_supply_ratio: f32,
+    pub pop_over_capacity: f32,
+    pub civ_at_war: bool,
+    pub region_contested: bool,
+    pub occ_matches_faction: bool,
+    pub is_displaced: bool,
+    pub trade_routes: u8,
+    pub faction_influence: f32,
+    pub shock: CivShock,
+    pub agent_values: [u8; 3],
+    pub controller_values: [u8; 3],
+    pub agent_belief: u8,
+    pub majority_belief: u8,
+    pub has_temple: bool,
+    pub persecution_intensity: f32,
+    pub gini_coefficient: f32,
+    pub wealth_percentile: f32,
+    // M42: Goods economy
+    pub food_sufficiency: f32,
+    pub merchant_margin: f32,
+}
+
 /// Wraps compute_satisfaction(), subtracting the cultural and religious mismatch penalties (capped).
-pub fn compute_satisfaction_with_culture(
-    occupation: u8,
-    soil: f32,
-    water: f32,
-    civ_stability: u8,
-    demand_supply_ratio: f32,
-    pop_over_capacity: f32,
-    civ_at_war: bool,
-    region_contested: bool,
-    occ_matches_faction: bool,
-    is_displaced: bool,
-    trade_routes: u8,
-    faction_influence: f32,
-    shock: &CivShock,
-    agent_values: [u8; 3],
-    controller_values: [u8; 3],
-    agent_belief: u8,
-    majority_belief: u8,
-    has_temple: bool,
-    persecution_intensity: f32,
-    gini_coefficient: f32,
-    wealth_percentile: f32,
-) -> f32 {
+pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     let base_sat = compute_satisfaction(
-        occupation,
-        soil,
-        water,
-        civ_stability,
-        demand_supply_ratio,
-        pop_over_capacity,
-        civ_at_war,
-        region_contested,
-        occ_matches_faction,
-        is_displaced,
-        trade_routes,
-        faction_influence,
-        shock,
+        inp.occupation,
+        inp.soil,
+        inp.water,
+        inp.civ_stability,
+        inp.demand_supply_ratio,
+        inp.pop_over_capacity,
+        inp.civ_at_war,
+        inp.region_contested,
+        inp.occ_matches_faction,
+        inp.is_displaced,
+        inp.trade_routes,
+        inp.faction_influence,
+        &inp.shock,
+        inp.merchant_margin,
     );
-    let cultural_pen = compute_cultural_penalty(agent_values, controller_values);
+    let cultural_pen = compute_cultural_penalty(inp.agent_values, inp.controller_values);
     // M37: religious mismatch — binary (match or not)
-    let religious_pen = if agent_belief != majority_belief
-        && agent_belief != crate::agent::BELIEF_NONE
-        && majority_belief != crate::agent::BELIEF_NONE
+    let religious_pen = if inp.agent_belief != inp.majority_belief
+        && inp.agent_belief != crate::agent::BELIEF_NONE
+        && inp.majority_belief != crate::agent::BELIEF_NONE
     {
         crate::agent::RELIGIOUS_MISMATCH_WEIGHT
     } else {
@@ -175,18 +185,18 @@ pub fn compute_satisfaction_with_culture(
     };
     // M38b: Persecution penalty
     let mut penalty = 0.0f32;
-    if agent_belief != majority_belief {
-        penalty += crate::agent::PERSECUTION_SAT_WEIGHT * persecution_intensity;
+    if inp.agent_belief != inp.majority_belief {
+        penalty += crate::agent::PERSECUTION_SAT_WEIGHT * inp.persecution_intensity;
     }
     // M38a: temple priest bonus — faith-blind (Decision 6)
-    let temple_bonus = if occupation == 4 && has_temple {
+    let temple_bonus = if inp.occupation == 4 && inp.has_temple {
         0.10  // TEMPLE_PRIEST_BONUS [CALIBRATE]
     } else {
         0.0
     };
     // M41: class tension penalty — poor agents in unequal civs
-    let class_tension_pen = gini_coefficient
-        * (1.0 - wealth_percentile)
+    let class_tension_pen = inp.gini_coefficient
+        * (1.0 - inp.wealth_percentile)
         * crate::agent::CLASS_TENSION_WEIGHT;
 
     // Priority clamping (Decision 3): core identity/persecution terms first,
@@ -194,7 +204,13 @@ pub fn compute_satisfaction_with_culture(
     let three_term = cultural_pen + religious_pen + penalty;
     let class_tension_clamped = class_tension_pen.min((crate::agent::PENALTY_CAP - three_term).max(0.0));
     let total_non_eco_penalty = (three_term + class_tension_clamped).min(crate::agent::PENALTY_CAP);
-    (base_sat - total_non_eco_penalty + temple_bonus).clamp(0.0, 1.0)
+    // M42: Food sufficiency penalty — material condition, outside social penalty cap
+    let food_penalty = if inp.food_sufficiency < 1.0 {
+        (1.0 - inp.food_sufficiency) * FOOD_SHORTAGE_WEIGHT
+    } else {
+        0.0
+    };
+    (base_sat - total_non_eco_penalty + temple_bonus - food_penalty).clamp(0.0, 1.0)
 }
 
 /// Target occupation ratios for a region based on terrain and ecology.
@@ -285,18 +301,22 @@ mod m36_tests {
     #[test]
     fn test_zero_penalty_neutral_satisfaction() {
         // Matching cultural values → zero penalty → satisfaction unchanged
-        let shock = &crate::signals::CivShock::default();
+        let shock = crate::signals::CivShock::default();
         let base = compute_satisfaction(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, shock,
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, &shock, 0.0,
         );
-        let with_culture = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0, shock,
-            [4, 3, 2], [4, 3, 2],
-            0xFF, 0xFF,
-            false,
-            0.0,
-            0.0, 0.5,
-        );
+        let with_culture = compute_satisfaction_with_culture(&SatisfactionInputs {
+            occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+            demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+            civ_at_war: false, region_contested: false, occ_matches_faction: false,
+            is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+            shock,
+            agent_values: [4, 3, 2], controller_values: [4, 3, 2],
+            agent_belief: 0xFF, majority_belief: 0xFF,
+            has_temple: false, persecution_intensity: 0.0,
+            gini_coefficient: 0.0, wealth_percentile: 0.5,
+            food_sufficiency: 1.0, merchant_margin: 0.0,
+        });
         assert!((base - with_culture).abs() < 0.001);
     }
 }
@@ -306,50 +326,42 @@ mod m37_tests {
     use super::*;
     use crate::signals::CivShock;
 
+    fn m37_base_inputs() -> SatisfactionInputs {
+        SatisfactionInputs {
+            occupation: 0, soil: 0.8, water: 0.6, civ_stability: 50,
+            demand_supply_ratio: 1.0, pop_over_capacity: 0.5,
+            civ_at_war: false, region_contested: false, occ_matches_faction: false,
+            is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+            shock: CivShock::default(),
+            agent_values: [0, 1, 2], controller_values: [0, 1, 2],
+            agent_belief: 0xFF, majority_belief: 0xFF,
+            has_temple: false, persecution_intensity: 0.0,
+            gini_coefficient: 0.0, wealth_percentile: 0.5,
+            food_sufficiency: 1.0, merchant_margin: 0.0,
+        }
+    }
+
     #[test]
     fn test_religious_penalty_match_is_zero() {
         // Same belief → no penalty vs BELIEF_NONE baseline
-        let sat_match = compute_satisfaction_with_culture(
-            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
-            &CivShock::default(),
-            [0, 1, 2], [0, 1, 2],
-            3, 3,  // belief matches majority
-            false,
-            0.0,
-            0.0, 0.5,
-        );
-        let sat_none = compute_satisfaction_with_culture(
-            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
-            &CivShock::default(),
-            [0, 1, 2], [0, 1, 2],
-            0xFF, 0xFF,  // BELIEF_NONE
-            false,
-            0.0,
-            0.0, 0.5,
-        );
+        let sat_match = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: 3, majority_belief: 3,
+            ..m37_base_inputs()
+        });
+        let sat_none = compute_satisfaction_with_culture(&m37_base_inputs());
         assert!((sat_match - sat_none).abs() < 0.001);
     }
 
     #[test]
     fn test_religious_penalty_mismatch() {
-        let sat_match = compute_satisfaction_with_culture(
-            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
-            &CivShock::default(),
-            [0, 1, 2], [0, 1, 2],
-            3, 3,
-            false,
-            0.0,
-            0.0, 0.5,
-        );
-        let sat_mismatch = compute_satisfaction_with_culture(
-            0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
-            &CivShock::default(),
-            [0, 1, 2], [0, 1, 2],
-            3, 5,  // different belief
-            false,
-            0.0,
-            0.0, 0.5,
-        );
+        let sat_match = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: 3, majority_belief: 3,
+            ..m37_base_inputs()
+        });
+        let sat_mismatch = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: 3, majority_belief: 5,
+            ..m37_base_inputs()
+        });
         let expected_diff = crate::agent::RELIGIOUS_MISMATCH_WEIGHT;
         assert!((sat_match - sat_mismatch - expected_diff).abs() < 0.001);
     }
@@ -414,7 +426,7 @@ mod tests {
     fn test_farmer_healthy_ecology_peacetime() {
         let sat = compute_satisfaction(
             0, 0.8, 0.7, 80, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &CivShock::default(),
+            &CivShock::default(), 0.0,
         );
         // base = 0.78, stability = 0.40, total = 1.18 → clamped to 1.0
         assert!((sat - 1.0).abs() < 0.01);
@@ -424,7 +436,7 @@ mod tests {
     fn test_farmer_bad_ecology_wartime() {
         let sat = compute_satisfaction(
             0, 0.2, 0.1, 20, -0.5, 1.3, true, true, false, true, 0, 0.0,
-            &CivShock::default(),
+            &CivShock::default(), 0.0,
         );
         // total ~= 0.04
         assert!(sat > 0.0 && sat < 0.15);
@@ -434,17 +446,18 @@ mod tests {
     fn test_soldier_with_faction_alignment() {
         let sat = compute_satisfaction(
             1, 0.5, 0.5, 60, 0.0, 0.9, false, false, true, false, 0, 0.6,
-            &CivShock::default(),
+            &CivShock::default(), 0.0,
         );
         // total = 1.03 → clamped to 1.0
         assert!((sat - 1.0).abs() < 0.01);
     }
 
     #[test]
-    fn test_merchant_with_trade_routes() {
+    fn test_merchant_with_margin() {
+        // M42: merchant satisfaction uses merchant_margin instead of trade_routes
         let sat = compute_satisfaction(
             2, 0.5, 0.5, 50, 0.3, 0.7, false, false, true, false, 2, 0.4,
-            &CivShock::default(),
+            &CivShock::default(), 1.0,  // merchant_margin=1.0 → base=0.4+0.3=0.7
         );
         assert!(sat > 0.90 && sat <= 1.0);
     }
@@ -453,7 +466,7 @@ mod tests {
     fn test_scholar_with_faction() {
         let sat = compute_satisfaction(
             3, 0.5, 0.5, 50, 0.0, 0.8, false, false, true, false, 0, 0.5,
-            &CivShock::default(),
+            &CivShock::default(), 0.0,
         );
         // base = 0.5 + 0.5*0.2 = 0.6, stability = 0.25, faction = 0.05 → 0.90
         assert!(sat > 0.85 && sat <= 1.0);
@@ -463,7 +476,7 @@ mod tests {
     fn test_priest_unstable_civ() {
         let sat = compute_satisfaction(
             4, 0.5, 0.5, 15, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &CivShock::default(),
+            &CivShock::default(), 0.0,
         );
         assert!(sat > 0.45 && sat < 0.60);
     }
@@ -472,7 +485,7 @@ mod tests {
     fn test_satisfaction_clamps_to_zero() {
         let sat = compute_satisfaction(
             0, 0.0, 0.0, 0, -1.0, 2.0, true, true, false, true, 0, 0.0,
-            &CivShock::default(),
+            &CivShock::default(), 0.0,
         );
         assert!(sat >= 0.0);
     }
@@ -552,19 +565,31 @@ mod m41_tests {
     use super::*;
     use crate::signals::CivShock;
 
+    fn m41_base_inputs() -> SatisfactionInputs {
+        SatisfactionInputs {
+            occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+            demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+            civ_at_war: false, region_contested: false, occ_matches_faction: false,
+            is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+            shock: CivShock::default(),
+            agent_values: [0, 1, 2], controller_values: [0, 1, 2],
+            agent_belief: 0xFF, majority_belief: 0xFF,
+            has_temple: false, persecution_intensity: 0.0,
+            gini_coefficient: 0.0, wealth_percentile: 0.5,
+            food_sufficiency: 1.0, merchant_margin: 0.0,
+        }
+    }
+
     #[test]
     fn test_class_tension_poor_agent_penalized() {
-        let shock = CivShock::default();
-        let sat_rich = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
-            0.6, 1.0, // gini=0.6, percentile=1.0 (richest)
-        );
-        let sat_poor = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
-            0.6, 0.0, // gini=0.6, percentile=0.0 (poorest)
-        );
+        let sat_rich = compute_satisfaction_with_culture(&SatisfactionInputs {
+            gini_coefficient: 0.6, wealth_percentile: 1.0,
+            ..m41_base_inputs()
+        });
+        let sat_poor = compute_satisfaction_with_culture(&SatisfactionInputs {
+            gini_coefficient: 0.6, wealth_percentile: 0.0,
+            ..m41_base_inputs()
+        });
         let expected_diff = 0.6 * 1.0 * crate::agent::CLASS_TENSION_WEIGHT;
         assert!((sat_rich - sat_poor - expected_diff).abs() < 0.01,
             "Rich-poor diff {}, expected {}", sat_rich - sat_poor, expected_diff);
@@ -572,43 +597,35 @@ mod m41_tests {
 
     #[test]
     fn test_class_tension_zero_gini_no_penalty() {
-        let shock = CivShock::default();
-        let sat_base = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
-            0.0, 0.0, // gini=0, poorest
-        );
-        let sat_no_wealth = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
-            0.0, 0.5, // gini=0, middle
-        );
+        let sat_base = compute_satisfaction_with_culture(&SatisfactionInputs {
+            gini_coefficient: 0.0, wealth_percentile: 0.0,
+            ..m41_base_inputs()
+        });
+        let sat_no_wealth = compute_satisfaction_with_culture(&SatisfactionInputs {
+            gini_coefficient: 0.0, wealth_percentile: 0.5,
+            ..m41_base_inputs()
+        });
         assert!((sat_base - sat_no_wealth).abs() < 0.001,
             "Zero Gini should produce no class tension penalty");
     }
 
     #[test]
     fn test_class_tension_priority_clamping() {
-        let shock = CivShock::default();
         // Max cultural mismatch (0.15) + religious mismatch (0.10) + persecution (0.15) = 0.40
-        let sat = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &shock,
-            [4, 3, 2], [0, 1, 5], // full cultural mismatch (distance 3 → 0.15)
-            3, 5,                  // religious mismatch (0.10)
-            false,
-            1.0,                   // max persecution (0.15)
-            1.0, 0.0,             // max gini, poorest → would be 0.15 class tension
-        );
-        let sat_no_class = compute_satisfaction_with_culture(
-            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
-            &shock,
-            [4, 3, 2], [0, 1, 5],
-            3, 5,
-            false,
-            1.0,
-            0.0, 0.0, // zero gini → zero class tension
-        );
+        let sat = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [4, 3, 2], controller_values: [0, 1, 5],
+            agent_belief: 3, majority_belief: 5,
+            persecution_intensity: 1.0,
+            gini_coefficient: 1.0, wealth_percentile: 0.0,
+            ..m41_base_inputs()
+        });
+        let sat_no_class = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [4, 3, 2], controller_values: [0, 1, 5],
+            agent_belief: 3, majority_belief: 5,
+            persecution_intensity: 1.0,
+            gini_coefficient: 0.0, wealth_percentile: 0.0,
+            ..m41_base_inputs()
+        });
         assert!((sat - sat_no_class).abs() < 0.001,
             "Class tension should be zero when three core terms hit cap");
     }
