@@ -1,6 +1,6 @@
 # M45: Character Arc Tracking — Design Spec
 
-> **Status:** Draft
+> **Status:** Reviewed (Phoebe 2-pass, all blocking/near-blocking resolved)
 > **Author:** Cici (Opus 4.6)
 > **Date:** 2026-03-18
 > **Prerequisites:** M39 (Family & Lineage), M40 (Social Networks), M37-M38b (Religion). M44 (API Narration) recommended but not required.
@@ -103,7 +103,7 @@ Civ-level simulation events (war, trade, rebellion) use civ names only — the c
 | **Partial** | Active character + established career (`(current_turn - gp.born_turn) >= RISING_CAREER_THRESHOLD`) → phase `"rising"` |
 | **Complete** | + `character_death` or `conquest_exile` event → type `"Rise-and-Fall"`, phase `"fallen"` |
 
-`RISING_CAREER_THRESHOLD`: initial guess 20 turns. `[CALIBRATE]` for M47. Ensures only established characters (not just-promoted) are in a "rise" phase. Note: `born_turn` is the promotion turn, not biological birth (see CLAUDE.md).
+`RISING_CAREER_THRESHOLD`: initial guess 20 turns. `[CALIBRATE]` for M47. Ensures only established characters (not just-promoted) are in a "rise" phase. Note: `born_turn` is the promotion turn, not biological birth (see CLAUDE.md). Calibration note: typical character lifespans are 20-30 turns (`_compute_lifespan` in great_persons.py), so a threshold of 20 means nearly all surviving characters match. M47 should check whether threshold should be 25-30, or whether a second partial condition is needed.
 
 #### Exile-and-Return
 
@@ -118,6 +118,8 @@ Civ-level simulation events (war, trade, rebellion) use civ names only — the c
 |-|-----------|
 | **Partial** | Dynasty exists in registry with `gp.agent_id` as founder → phase `"founding"` |
 | **Complete** | + dynasty has 2+ members (2nd generation promoted) → type `"Dynasty-Founder"` |
+
+Note: these conditions are degenerate in the current implementation. `DynastyRegistry` creates dynasties only when a 2nd-generation child is promoted (`dynasties.py:47`), so the dynasty starts with 2 members. Partial and complete always fire simultaneously — no character will have `arc_phase="founding"` without also having `arc_type="Dynasty-Founder"`. Accept as low-impact; the "founding" phase could become meaningful if dynasty creation logic changes (e.g., Phase 7 pre-founding detection).
 
 #### Tragic Hero
 
@@ -168,6 +170,8 @@ Redefined from the roadmap's "persecution → death → posthumous conversion sp
 
 `MARTYR_LIFESPAN_THRESHOLD`: initial guess 30-40 turns. `[CALIBRATE]` for M47. Same note as Tragic Hero: `born_turn` is promotion turn, measuring career length, not biological age.
 
+Note: the partial ("persecuted" phase) fires only for prophets who are also conquest-exiled — most prophets under local persecution stay in-region and never trigger the partial. The complete match is field-based and does not require the partial to have fired. Most Martyrs will go directly from `arc_phase=None` to `arc_type="Martyr"` on their death turn. The +1.5 arc involvement bonus is missed for in-progress martyrs, but the +2.5 completion bonus still fires. Accept as low-impact.
+
 ### Priority Resolution
 
 When multiple archetypes match completely, the one with the most conditions satisfied wins. Tie-break: later-occurring completion event (more recent arc is more narratively relevant).
@@ -211,7 +215,7 @@ Already-classified retired characters from prior turns are skipped — no new ev
 
 ### Performance
 
-At turn 500 with ~50K events and ~50 named characters: O(events × characters) per turn. On a 9950X this is <1ms. Not worth optimizing with a per-character event cache.
+At turn 500 with ~50K events and ~50 named characters: O(events × characters) per turn. On a 9950X this is <1ms. Not worth optimizing with a per-character event cache. If future phases push to 2000+ turns or 200+ characters, a per-character event index (populated once per turn, O(events) amortized) would bring per-character cost from O(all_events) to O(character_events). Flag for Phase 7+ if needed.
 
 ---
 
