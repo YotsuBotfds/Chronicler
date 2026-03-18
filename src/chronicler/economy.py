@@ -127,6 +127,37 @@ def apply_transit_decay(shipped: float, good: str) -> float:
     return shipped * (1.0 - rate)
 
 
+# ---------------------------------------------------------------------------
+# M43a: Perishability — storage decay with salt preservation
+# ---------------------------------------------------------------------------
+
+def apply_storage_decay(goods: dict[str, float]) -> float:
+    """Apply per-turn storage decay to stockpile goods dict. Mutates in place.
+
+    Salt preservation: proportional to salt-to-food ratio, capped at MAX_PRESERVATION.
+    Only affects food goods. Salt itself has zero decay.
+    Returns total storage loss (for conservation law verification).
+    """
+    total_food = sum(goods.get(g, 0.0) for g in FOOD_GOODS)
+    salt_amount = goods.get("salt", 0.0)
+    salt_ratio = salt_amount / max(total_food, 0.1)
+    preservation = min(salt_ratio * SALT_PRESERVATION_FACTOR, MAX_PRESERVATION)
+
+    total_loss = 0.0
+    for good in list(goods.keys()):
+        if good == "salt":
+            continue
+        rate = STORAGE_DECAY.get(good, 0.0)
+        if rate <= 0.0:
+            continue
+        if good in FOOD_GOODS:
+            rate *= (1.0 - preservation)
+        old = goods[good]
+        goods[good] *= (1.0 - rate)
+        total_loss += old - goods[good]
+    return total_loss
+
+
 def compute_transport_cost(
     terrain_a: str,
     terrain_b: str,

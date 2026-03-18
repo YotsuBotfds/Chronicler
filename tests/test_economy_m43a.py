@@ -185,3 +185,59 @@ def test_transit_decay_mineral_no_loss():
 
 def test_transit_decay_zero_shipped():
     assert apply_transit_decay(0.0, "grain") == 0.0
+
+
+# --- Task 7: Storage decay with salt preservation ---
+
+from chronicler.economy import apply_storage_decay, STORAGE_DECAY, FOOD_GOODS
+
+
+def test_storage_decay_grain_no_salt():
+    goods = {"grain": 100.0}
+    loss = apply_storage_decay(goods)
+    assert abs(goods["grain"] - 97.0) < 0.01
+    assert abs(loss - 3.0) < 0.01
+
+
+def test_storage_decay_salt_no_decay():
+    goods = {"salt": 100.0}
+    loss = apply_storage_decay(goods)
+    assert goods["salt"] == 100.0
+    assert loss == 0.0
+
+
+def test_storage_decay_ore_no_decay():
+    goods = {"ore": 100.0}
+    loss = apply_storage_decay(goods)
+    assert goods["ore"] == 100.0
+    assert loss == 0.0
+
+
+def test_storage_decay_salt_preserves_food():
+    # 20% salt ratio → hits cap (50% reduction)
+    goods = {"grain": 80.0, "salt": 20.0}
+    apply_storage_decay(goods)
+    expected = 80.0 * (1.0 - 0.03 * 0.5)
+    assert abs(goods["grain"] - expected) < 0.01
+    assert goods["salt"] == 20.0
+
+
+def test_storage_decay_partial_salt():
+    # 5% salt ratio → preservation = 0.05 * 2.5 = 0.125
+    goods = {"grain": 95.0, "salt": 5.0}
+    apply_storage_decay(goods)
+    expected = 95.0 * (1.0 - 0.03 * (1.0 - 0.125))
+    assert abs(goods["grain"] - expected) < 0.01
+
+
+def test_storage_decay_zero_food_no_division_error():
+    goods = {"salt": 10.0}
+    apply_storage_decay(goods)
+    assert goods["salt"] == 10.0
+
+
+def test_storage_decay_timber_not_salt_affected():
+    goods = {"timber": 100.0, "salt": 50.0}
+    apply_storage_decay(goods)
+    expected = 100.0 * (1.0 - STORAGE_DECAY["timber"])
+    assert abs(goods["timber"] - expected) < 0.01
