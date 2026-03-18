@@ -67,6 +67,9 @@ class AnthropicClient:
     def __init__(self, client: Any, model: str = "claude-sonnet-4-6"):
         self.model = model
         self._client = client
+        self.total_input_tokens: int = 0
+        self.total_output_tokens: int = 0
+        self.call_count: int = 0
 
     def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
         kwargs: dict[str, Any] = {
@@ -78,6 +81,9 @@ class AnthropicClient:
             kwargs["system"] = system
 
         response = self._client.messages.create(**kwargs)
+        self.total_input_tokens += response.usage.input_tokens
+        self.total_output_tokens += response.usage.output_tokens
+        self.call_count += 1
         return response.content[0].text.strip()
 
 
