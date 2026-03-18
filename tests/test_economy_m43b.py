@@ -80,3 +80,46 @@ def test_import_share_above_threshold_is_trade_dependent():
     er.trade_dependent = {"Coast": True}
     assert er.trade_dependent["Coast"] is True
     assert er.import_share["Coast"] > TRADE_DEPENDENCY_THRESHOLD
+
+
+# ---------------------------------------------------------------------------
+# Task 4: EconomyTracker
+# ---------------------------------------------------------------------------
+
+from chronicler.economy import EconomyTracker
+
+
+def test_economy_tracker_first_update_initializes():
+    tracker = EconomyTracker()
+    tracker.update_stockpile("Plains", "food", 100.0)
+    assert tracker.trailing_avg["Plains"]["food"] == 100.0
+
+
+def test_economy_tracker_ema_converges():
+    tracker = EconomyTracker()
+    for _ in range(20):
+        tracker.update_stockpile("Plains", "food", 50.0)
+    assert abs(tracker.trailing_avg["Plains"]["food"] - 50.0) < 0.01
+
+
+def test_economy_tracker_ema_responds_to_step():
+    tracker = EconomyTracker()
+    tracker.update_stockpile("Plains", "food", 100.0)
+    tracker.update_stockpile("Plains", "food", 0.0)
+    assert abs(tracker.trailing_avg["Plains"]["food"] - 67.0) < 0.1
+
+
+def test_economy_tracker_imports_ema():
+    tracker = EconomyTracker()
+    tracker.update_imports("Coast", "food", 80.0)
+    assert tracker.import_avg["Coast"]["food"] == 80.0
+    tracker.update_imports("Coast", "food", 40.0)
+    assert abs(tracker.import_avg["Coast"]["food"] - 66.8) < 0.1
+
+
+def test_economy_tracker_separate_regions():
+    tracker = EconomyTracker()
+    tracker.update_stockpile("Plains", "food", 100.0)
+    tracker.update_stockpile("Coast", "food", 50.0)
+    assert tracker.trailing_avg["Plains"]["food"] == 100.0
+    assert tracker.trailing_avg["Coast"]["food"] == 50.0

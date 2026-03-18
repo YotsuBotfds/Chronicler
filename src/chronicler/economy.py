@@ -108,6 +108,37 @@ def map_resource_to_good(resource_type: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# M43b: EconomyTracker — persistent analytics state across turns
+# ---------------------------------------------------------------------------
+
+class EconomyTracker:
+    """Persistent economy analytics state across turns. Not world state.
+
+    Tracks exponential moving averages (alpha=0.33, ~3-turn window) for:
+    - Per-region per-category stockpile levels (shock detection)
+    - Per-region per-category import levels (upstream source classification)
+    """
+
+    def __init__(self):
+        self.trailing_avg: dict[str, dict[str, float]] = {}
+        self.import_avg: dict[str, dict[str, float]] = {}
+
+    def update_stockpile(self, region_name: str, category: str, current: float):
+        key = self.trailing_avg.setdefault(region_name, {})
+        if category not in key:
+            key[category] = current
+        else:
+            key[category] = 0.67 * key[category] + 0.33 * current
+
+    def update_imports(self, region_name: str, category: str, current: float):
+        key = self.import_avg.setdefault(region_name, {})
+        if category not in key:
+            key[category] = current
+        else:
+            key[category] = 0.67 * key[category] + 0.33 * current
+
+
+# ---------------------------------------------------------------------------
 # M43a: Transport cost
 # ---------------------------------------------------------------------------
 
