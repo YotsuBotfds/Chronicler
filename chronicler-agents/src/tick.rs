@@ -45,6 +45,7 @@ pub fn tick_agents(
     signals: &TickSignals,
     master_seed: [u8; 32],
     turn: u32,
+    wealth_percentiles: &mut [f32],
 ) -> Vec<AgentEvent> {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
@@ -66,6 +67,11 @@ pub fn tick_agents(
             }
         }
     }
+
+    // -----------------------------------------------------------------------
+    // 0.5 Wealth accumulation, decay, per-civ rank (M41)
+    // -----------------------------------------------------------------------
+    wealth_tick(pool, regions, signals, wealth_percentiles);
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
@@ -322,6 +328,91 @@ pub fn tick_agents(
     }
 
     events
+}
+
+// ---------------------------------------------------------------------------
+// M41: Wealth tick — accumulation, decay, per-civ rank
+// ---------------------------------------------------------------------------
+
+/// Wealth accumulation, multiplicative decay, and per-civ percentile ranking.
+/// Must run BEFORE update_satisfaction (which consumes wealth_percentiles).
+pub fn wealth_tick(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    wealth_percentiles: &mut [f32],
+) {
+    // --- Step 1: Accumulation + Decay ---
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) { continue; }
+
+        let region_id = pool.regions[slot] as usize;
+        if region_id >= regions.len() { continue; }
+        let region = &regions[region_id];
+        let occ = pool.occupations[slot];
+        let civ = pool.civ_affinities[slot];
+
+        // Note: O(n) lookup per agent. If benchmarks show this matters, pre-build
+        // a [Option<&CivSignals>; 256] lookup array before the loop.
+        let civ_sig = signals.civs.iter().find(|c| c.civ_id == civ);
+        let at_war = civ_sig.map_or(false, |c| c.is_at_war);
+        let conquered = civ_sig.map_or(false, |c| c.conquered_this_turn);
+
+        let income = match occ {
+            0 => {
+                // Farmer — dispatch on primary resource type
+                let rtype = region.resource_types[0];
+                let yield_val = region.resource_yields[0];
+                if crate::agent::is_extractive(rtype) {
+                    crate::agent::MINER_INCOME * yield_val
+                } else {
+                    crate::agent::FARMER_INCOME * yield_val
+                }
+            }
+            1 => {
+                // Soldier — war bonus + conquest bonus
+                crate::agent::SOLDIER_INCOME * (1.0 + crate::agent::AT_WAR_BONUS * at_war as i32 as f32)
+                    + crate::agent::CONQUEST_BONUS * conquered as i32 as f32
+            }
+            2 => {
+                // Merchant — temporary baseline (Decision 17)
+                crate::agent::MERCHANT_INCOME * crate::agent::MERCHANT_BASELINE
+            }
+            3 => {
+                // Scholar — flat
+                crate::agent::SCHOLAR_INCOME
+            }
+            _ => {
+                // Priest — flat (tithe deferred to M42)
+                crate::agent::PRIEST_INCOME
+            }
+        };
+
+        pool.wealth[slot] += income;
+        // Multiplicative decay
+        pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;
+        pool.wealth[slot] = pool.wealth[slot].clamp(0.0, crate::agent::MAX_WEALTH);
+    }
+
+    // --- Step 2: Per-civ percentile ranking ---
+    // Note: HashMap allocates per tick. With <16 civs this is fast, but if
+    // benchmarks show allocation pressure, refactor to a reusable [Vec; 256].
+    let mut civ_groups: std::collections::HashMap<u8, Vec<(usize, f32)>> =
+        std::collections::HashMap::new();
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) { continue; }
+        let civ = pool.civ_affinities[slot];
+        civ_groups.entry(civ).or_default().push((slot, pool.wealth[slot]));
+    }
+
+    for (_civ, mut agents) in civ_groups {
+        // Sort ascending by wealth — total_cmp: no panic on NaN
+        agents.sort_by(|a, b| a.1.total_cmp(&b.1));
+        let denom = (agents.len() as f32 - 1.0).max(1.0);
+        for (rank, (slot, _)) in agents.iter().enumerate() {
+            wealth_percentiles[*slot] = rank as f32 / denom;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -638,7 +729,8 @@ mod tests {
         }
         let mut seed = [0u8; 32];
         seed[0] = 42;
-        let events = tick_agents(&mut pool, &regions, &signals, seed, 0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        let events = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -661,9 +753,13 @@ mod tests {
             pool_a.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool_b.spawn(1, 1, Occupation::Soldier, 0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
+        let mut pa: Vec<f32> = Vec::new();
+        let mut pb: Vec<f32> = Vec::new();
         for turn in 0..10 {
-            tick_agents(&mut pool_a, &regions, &signals, seed, turn);
-            tick_agents(&mut pool_b, &regions, &signals, seed, turn);
+            if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
+            if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
+            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
+            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
         }
         assert_eq!(pool_a.alive_count(), pool_b.alive_count());
     }
@@ -701,9 +797,13 @@ mod tests {
 
         let mut events_a_total = 0;
         let mut events_b_total = 0;
+        let mut pa: Vec<f32> = Vec::new();
+        let mut pb: Vec<f32> = Vec::new();
         for turn in 0..5 {
-            let ea = tick_agents(&mut pool_a, &regions, &signals, seed, turn);
-            let eb = tick_agents(&mut pool_b, &regions, &signals, seed, turn);
+            if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
+            if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
+            let ea = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
+            let eb = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -736,7 +836,8 @@ mod tests {
 
         let mut seed = [0u8; 32];
         seed[0] = 55;
-        let events = tick_agents(&mut pool, &regions, &signals, seed, 0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        let events = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
@@ -771,7 +872,8 @@ mod tests {
 
         let mut seed = [0u8; 32];
         seed[0] = 1;
-        tick_agents(&mut pool, &regions, &signals, seed, 0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
 
         // After one tick, soldier skill should have grown (if agent survived)
         if pool.is_alive(slot) {
@@ -794,7 +896,8 @@ mod tests {
 
         let mut seed = [0u8; 32];
         seed[0] = 3;
-        tick_agents(&mut pool, &regions, &signals, seed, 0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
 
         // After tick, satisfaction should differ from default 0.5
         // (healthy region with good soil/water should give decent satisfaction)
@@ -879,5 +982,213 @@ mod tests {
 
         let parent_agent_id = pool.id(parent_slot);
         assert_ne!(parent_agent_id, PARENT_NONE);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// M41 tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod m41_tests {
+    use super::*;
+    use crate::agent::{self, STARTING_WEALTH, FARMER_INCOME, MINER_INCOME,
+        SOLDIER_INCOME, AT_WAR_BONUS, CONQUEST_BONUS, MERCHANT_INCOME,
+        MERCHANT_BASELINE, SCHOLAR_INCOME, PRIEST_INCOME, WEALTH_DECAY, MAX_WEALTH};
+    use crate::region::RegionState;
+    use crate::signals::{CivSignals, TickSignals};
+
+    fn make_test_signals(at_war: bool, conquered: bool, gini: f32) -> TickSignals {
+        TickSignals {
+            civs: vec![CivSignals {
+                civ_id: 0,
+                stability: 50,
+                is_at_war: at_war,
+                dominant_faction: 0,
+                faction_military: 0.33,
+                faction_merchant: 0.33,
+                faction_cultural: 0.34,
+                faction_clergy: 0.0,
+                shock_stability: 0.0,
+                shock_economy: 0.0,
+                shock_military: 0.0,
+                shock_culture: 0.0,
+                demand_shift_farmer: 0.0,
+                demand_shift_soldier: 0.0,
+                demand_shift_merchant: 0.0,
+                demand_shift_scholar: 0.0,
+                demand_shift_priest: 0.0,
+                mean_boldness: 0.0,
+                mean_ambition: 0.0,
+                mean_loyalty_trait: 0.0,
+                gini_coefficient: gini,
+                conquered_this_turn: conquered,
+            }],
+            contested_regions: vec![false],
+        }
+    }
+
+    fn make_region_organic(yield_val: f32) -> RegionState {
+        let mut r = RegionState::new(0);
+        r.resource_types = [0, 255, 255]; // GRAIN
+        r.resource_yields = [yield_val, 0.0, 0.0];
+        r.soil = 0.5;
+        r.water = 0.5;
+        r.controller_values = [0, 1, 2];
+        r.majority_belief = 0xFF;
+        r
+    }
+
+    fn make_region_extractive(yield_val: f32) -> RegionState {
+        let mut r = RegionState::new(0);
+        r.resource_types = [5, 255, 255]; // ORE
+        r.resource_yields = [yield_val, 0.0, 0.0];
+        r.soil = 0.5;
+        r.water = 0.5;
+        r.controller_values = [0, 1, 2];
+        r.majority_belief = 0xFF;
+        r
+    }
+
+    #[test]
+    fn test_farmer_organic_wealth_accumulates() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, agent::Occupation::Farmer, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+        let initial = pool.wealth[slot];
+        assert!((initial - STARTING_WEALTH).abs() < 0.001);
+
+        let regions = vec![make_region_organic(0.8)];
+        let signals = make_test_signals(false, false, 0.0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+
+        let expected_income = FARMER_INCOME * 0.8;
+        let after_income = initial + expected_income;
+        let expected = after_income * (1.0 - WEALTH_DECAY);
+        assert!((pool.wealth[slot] - expected).abs() < 0.001,
+            "Got {}, expected {}", pool.wealth[slot], expected);
+    }
+
+    #[test]
+    fn test_farmer_extractive_uses_miner_rate() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, agent::Occupation::Farmer, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+
+        let regions = vec![make_region_extractive(0.8)];
+        let signals = make_test_signals(false, false, 0.0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+
+        let expected_income = MINER_INCOME * 0.8;
+        let after_income = STARTING_WEALTH + expected_income;
+        let expected = after_income * (1.0 - WEALTH_DECAY);
+        assert!((pool.wealth[slot] - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_soldier_war_bonus() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, agent::Occupation::Soldier, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+
+        let regions = vec![make_region_organic(0.8)];
+        let signals_peace = make_test_signals(false, false, 0.0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals_peace, &mut percentiles);
+        let wealth_peace = pool.wealth[slot];
+
+        pool.wealth[slot] = STARTING_WEALTH;
+        let signals_war = make_test_signals(true, false, 0.0);
+        wealth_tick(&mut pool, &regions, &signals_war, &mut percentiles);
+        let wealth_war = pool.wealth[slot];
+
+        assert!(wealth_war > wealth_peace,
+            "War income ({wealth_war}) should exceed peace income ({wealth_peace})");
+    }
+
+    #[test]
+    fn test_soldier_conquest_bonus() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, agent::Occupation::Soldier, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+
+        let regions = vec![make_region_organic(0.8)];
+        let signals = make_test_signals(true, true, 0.0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+
+        let expected_income = SOLDIER_INCOME * (1.0 + AT_WAR_BONUS) + CONQUEST_BONUS;
+        let after_income = STARTING_WEALTH + expected_income;
+        let expected = after_income * (1.0 - WEALTH_DECAY);
+        assert!((pool.wealth[slot] - expected).abs() < 0.01,
+            "Got {}, expected {}", pool.wealth[slot], expected);
+    }
+
+    #[test]
+    fn test_merchant_baseline_income() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, agent::Occupation::Merchant, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+
+        let regions = vec![make_region_organic(0.8)];
+        let signals = make_test_signals(false, false, 0.0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+
+        let expected_income = MERCHANT_INCOME * MERCHANT_BASELINE;
+        let after_income = STARTING_WEALTH + expected_income;
+        let expected = after_income * (1.0 - WEALTH_DECAY);
+        assert!((pool.wealth[slot] - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_wealth_clamped_to_max() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, agent::Occupation::Farmer, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+        pool.wealth[slot] = MAX_WEALTH + 10.0;
+
+        let regions = vec![make_region_organic(0.8)];
+        let signals = make_test_signals(false, false, 0.0);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+
+        assert!(pool.wealth[slot] <= MAX_WEALTH,
+            "Wealth {} should be clamped to {}", pool.wealth[slot], MAX_WEALTH);
+    }
+
+    #[test]
+    fn test_percentile_ranking_three_agents() {
+        let mut pool = AgentPool::new(4);
+        let s0 = pool.spawn(0, 0, agent::Occupation::Farmer, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+        let s1 = pool.spawn(0, 0, agent::Occupation::Merchant, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+        let s2 = pool.spawn(0, 0, agent::Occupation::Scholar, 20,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+
+        // Set wealth with large enough gaps that accumulation won't change ordering
+        pool.wealth[s0] = 1.0;
+        pool.wealth[s1] = 50.0;
+        pool.wealth[s2] = 99.0;
+
+        let regions = vec![make_region_organic(0.8)];
+        let signals = make_test_signals(false, false, 0.5);
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+
+        wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+
+        // After accumulation+decay, relative ordering preserved with large gaps
+        assert!((percentiles[s0] - 0.0).abs() < 0.001, "Poorest should be 0.0");
+        assert!((percentiles[s1] - 0.5).abs() < 0.001, "Middle should be 0.5");
+        assert!((percentiles[s2] - 1.0).abs() < 0.001, "Richest should be 1.0");
     }
 }

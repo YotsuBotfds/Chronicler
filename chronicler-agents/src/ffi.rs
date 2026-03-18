@@ -188,6 +188,7 @@ pub struct AgentSimulator {
     registry: crate::named_characters::NamedCharacterRegistry,
     social_graph: crate::social::SocialGraph,
     initialized: bool,
+    wealth_percentiles: Vec<f32>,
 }
 
 #[pymethods]
@@ -209,6 +210,7 @@ impl AgentSimulator {
             registry: crate::named_characters::NamedCharacterRegistry::new(),
             social_graph: crate::social::SocialGraph::new(),
             initialized: false,
+            wealth_percentiles: Vec::new(),
         }
     }
 
@@ -543,12 +545,19 @@ impl AgentSimulator {
             civs,
             contested_regions: self.contested_regions.clone(),
         };
+
+        // Resize scratch vector if pool grew
+        if self.wealth_percentiles.len() < self.pool.capacity() {
+            self.wealth_percentiles.resize(self.pool.capacity(), 0.0);
+        }
+
         let events = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
             self.master_seed,
             turn,
+            &mut self.wealth_percentiles,
         );
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;

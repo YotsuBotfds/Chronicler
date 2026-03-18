@@ -102,6 +102,7 @@ fn main() {
     }
 
     let mut seed = [0u8; 32]; seed[0] = 42;
+    let mut percentiles: Vec<f32> = Vec::new();
 
     eprintln!("Config: {} agents, {} regions, {} turns", agents, num_regions, turns);
     eprintln!("Agents/region: {}", agents_per_region);
@@ -109,8 +110,11 @@ fn main() {
 
     let total_start = Instant::now();
     for turn in 0..turns {
+        if percentiles.len() < pool.capacity() {
+            percentiles.resize(pool.capacity(), 0.0);
+        }
         let tick_start = Instant::now();
-        let events = tick_agents(&mut pool, &regions, &signals, seed, turn);
+        let events = tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles);
         let tick_elapsed = tick_start.elapsed();
 
         if turn % 100 == 0 || turn == turns - 1 {

@@ -59,6 +59,10 @@ fn setup_packed() -> (AgentPool, Vec<RegionState>, TickSignals) {
         conversion_target_belief: 0xFF,
         conquest_conversion_active: false,
         majority_belief: 0xFF,
+        has_temple: false,
+        persecution_intensity: 0.0,
+        schism_convert_from: 0xFF,
+        schism_convert_to: 0xFF,
     }).collect();
     let signals = make_signals(4, num_regions as usize);
     let mut pool = AgentPool::new(10_000);
@@ -95,6 +99,10 @@ fn setup_scattered() -> (AgentPool, Vec<RegionState>, TickSignals) {
         conversion_target_belief: 0xFF,
         conquest_conversion_active: false,
         majority_belief: 0xFF,
+        has_temple: false,
+        persecution_intensity: 0.0,
+        schism_convert_from: 0xFF,
+        schism_convert_to: 0xFF,
     }).collect();
     let signals = make_signals(4, num_regions as usize);
     // Spawn 15K agents, then kill every 3rd to leave 10K alive across 15K slots
@@ -122,13 +130,15 @@ fn bench_cache_efficiency(c: &mut Criterion) {
 
     group.bench_function("packed_10k", |b| {
         b.iter_batched(setup_packed, |(mut pool, regions, signals)| {
-            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0);
+            let mut percentiles = vec![0.0f32; pool.capacity()];
+            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0, &mut percentiles);
         }, BatchSize::SmallInput)
     });
 
     group.bench_function("scattered_10k_in_15k", |b| {
         b.iter_batched(setup_scattered, |(mut pool, regions, signals)| {
-            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0);
+            let mut percentiles = vec![0.0f32; pool.capacity()];
+            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0, &mut percentiles);
         }, BatchSize::SmallInput)
     });
 

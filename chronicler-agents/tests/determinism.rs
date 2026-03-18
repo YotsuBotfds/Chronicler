@@ -81,8 +81,12 @@ fn run_simulation(seed: [u8; 32], turns: u32) -> (usize, Vec<u16>) {
     let regions = make_test_regions();
     let signals = make_default_signals(5, 5);
     let mut pool = make_test_pool(&regions);
+    let mut percentiles: Vec<f32> = Vec::new();
     for turn in 0..turns {
-        tick_agents(&mut pool, &regions, &signals, seed, turn);
+        if percentiles.len() < pool.capacity() {
+            percentiles.resize(pool.capacity(), 0.0);
+        }
+        tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles);
     }
     let batch = pool.to_record_batch().unwrap();
     let ages_col = batch

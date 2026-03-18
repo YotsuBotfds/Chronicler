@@ -93,9 +93,13 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
 fn run_500_turns(num_agents: usize, num_regions: u16) -> f64 {
     let (mut pool, regions, signals) = setup_pool(num_agents, num_regions);
     let mut seed = [0u8; 32]; seed[0] = 42;
+    let mut percentiles: Vec<f32> = Vec::new();
     let start = Instant::now();
     for turn in 0..500 {
-        tick_agents(&mut pool, &regions, &signals, seed, turn);
+        if percentiles.len() < pool.capacity() {
+            percentiles.resize(pool.capacity(), 0.0);
+        }
+        tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles);
     }
     start.elapsed().as_secs_f64()
 }
