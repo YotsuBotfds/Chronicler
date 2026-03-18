@@ -534,3 +534,56 @@ def test_conservation_law():
         for good, amt in r.stockpile.goods.items():
             assert amt >= 0.0, f"Negative stockpile: {r.name}.{good} = {amt}"
 
+
+# --- Task 15: Backward Compatibility ---
+
+def test_food_sufficiency_backward_compat_full_path():
+    """Full compute_economy at equilibrium produces food_sufficiency ~ 1.0 (matches M42)."""
+    from unittest.mock import MagicMock
+    import numpy as np
+    import pyarrow as pa
+    from chronicler.economy import compute_economy, PER_CAPITA_FOOD
+    from chronicler.models import Region, RegionStockpile
+
+    pop = 20
+    food_demand = pop * PER_CAPITA_FOOD
+    region = Region(name="Valley", terrain="plains", carrying_capacity=50, resources="fertile",
+                    controller="Aram", resource_types=[0, 255, 255],
+                    resource_base_yields=[food_demand / pop, 0.0, 0.0],
+                    resource_effective_yields=[food_demand / pop, 0.0, 0.0])
+    region.stockpile = RegionStockpile(goods={})
+    civ = MagicMock()
+    civ.name = "Aram"
+    civ.regions = ["Valley"]
+
+    world = MagicMock()
+    world.regions = [region]
+    world.civilizations = [civ]
+    world.rivers = []
+    world.turn = 10
+
+    regions_arr = np.zeros(pop, dtype=np.int32)
+    occ_arr = np.zeros(pop, dtype=np.int32)
+    wealth_arr = np.zeros(pop, dtype=np.float32)
+    civ_arr = np.zeros(pop, dtype=np.int32)
+    snapshot = pa.RecordBatch.from_pydict({
+        "region": pa.array(regions_arr, type=pa.int32()),
+        "occupation": pa.array(occ_arr, type=pa.int32()),
+        "wealth": pa.array(wealth_arr, type=pa.float32()),
+        "civ_affinity": pa.array(civ_arr, type=pa.int32()),
+    })
+
+    result = compute_economy(world, snapshot, {"Valley": region}, agent_mode=True, active_trade_routes=[])
+    assert abs(result.food_sufficiency["Valley"] - 1.0) < 0.01, (
+        f"Expected food_sufficiency ~ 1.0, got {result.food_sufficiency['Valley']}"
+    )
+
+
+def test_transport_cost_mountain_vs_river():
+    """Mountain routes are more expensive than river routes."""
+    from chronicler.economy import compute_transport_cost
+
+    mountain = compute_transport_cost("plains", "mountains", is_river=False, is_coastal=False, is_winter=False)
+    river = compute_transport_cost("plains", "plains", is_river=True, is_coastal=False, is_winter=False)
+    assert mountain > river * 3, f"Mountain ({mountain}) should be much more than river ({river})"
+
