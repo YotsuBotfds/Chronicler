@@ -176,7 +176,7 @@ def _make_mock_region(name, adjacency):
         pass
     r = R()
     r.name = name
-    r.adjacency = adjacency
+    r.adjacencies = adjacency
     return r
 
 def test_decompose_single_boundary():
@@ -346,13 +346,13 @@ def _make_test_world():
 
     plains = MagicMock()
     plains.name = "Plains"
-    plains.adjacency = ["Hills"]
+    plains.adjacencies = ["Hills"]
     plains.resource_types = [0, 1, 3]
     plains.resource_yields = [1.5, 0.5, 0.3]
 
     hills = MagicMock()
     hills.name = "Hills"
-    hills.adjacency = ["Plains"]
+    hills.adjacencies = ["Plains"]
     hills.resource_types = [5, 1, 4]
     hills.resource_yields = [0.8, 0.6, 0.4]
 

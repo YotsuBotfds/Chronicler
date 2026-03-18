@@ -148,7 +148,7 @@ def decompose_trade_routes(
     pairs: list[tuple[str, str]] = []
     for region_name in civ_a_regions:
         region = region_map[region_name]
-        for neighbor_name in region.adjacency:
+        for neighbor_name in region.adjacencies:
             if neighbor_name in civ_b_regions:
                 pairs.append((region_name, neighbor_name))
     return pairs
