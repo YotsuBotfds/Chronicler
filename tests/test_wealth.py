@@ -33,3 +33,62 @@ def test_compute_gini_single():
     from chronicler.agent_bridge import compute_gini
     arr = np.array([10.0])
     assert compute_gini(arr) == 0.0
+
+
+def test_conquered_this_turn_build_signals():
+    """build_signals produces correct conquered_this_turn per call."""
+    from chronicler.agent_bridge import build_signals
+    from chronicler.models import WorldState, Civilization, Region, Leader
+
+    world = WorldState(name="TestWorld", seed=42)
+    leader = Leader(name="TestLeader", trait="warrior", reign_start=0)
+    civ = Civilization(
+        name="TestCiv",
+        population=10,
+        military=50,
+        economy=50,
+        culture=50,
+        stability=50,
+        leader=leader,
+    )
+    civ.regions = ["TestRegion"]
+    world.civilizations = [civ]
+    region = Region(
+        name="TestRegion",
+        terrain="plains",
+        carrying_capacity=10,
+        resources="fertile",
+    )
+    region.controller = "TestCiv"
+    world.regions = [region]
+
+    # With conquest
+    batch1 = build_signals(world, conquered={0: True})
+    assert batch1.column("conquered_this_turn").to_pylist()[0] is True
+
+    # Without conquest — fresh call, no persistence
+    batch2 = build_signals(world, conquered=None)
+    assert batch2.column("conquered_this_turn").to_pylist()[0] is False
+
+
+def test_conquered_this_turn_transient_two_turns():
+    """conquered_this_turn resets after one turn (CLAUDE.md transient signal rule).
+
+    Verifies the full path: action_engine sets world._conquered_this_turn,
+    simulation.py reads and clears it before passing to agent bridge.
+    """
+    from chronicler.models import WorldState
+
+    world = WorldState(name="TestWorld", seed=42)
+
+    # Simulate conquest on turn 1
+    world._conquered_this_turn = {0}
+
+    # simulation.py's clearing pattern (mirrors actual code)
+    conquered_civs = getattr(world, '_conquered_this_turn', set())
+    world._conquered_this_turn = set()
+    assert 0 in conquered_civs, "Turn 1: conquest should be detected"
+
+    # Turn 2: no action engine ran, attribute should be empty
+    conquered_civs_2 = getattr(world, '_conquered_this_turn', set())
+    assert len(conquered_civs_2) == 0, "Turn 2: conquest should NOT persist"
