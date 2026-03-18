@@ -25,7 +25,7 @@ Regions produce goods from their resources; merchants carry goods along trade ro
 - Merchant carry model: abstract flow along M35 trade routes, margin-weighted pro-rata allocation
 - Trade route decomposition: civ-level routes resolved to region-level boundary pairs
 - Per-region per-category price computation from supply/demand ratio
-- Three FFI signals to Rust: `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`
+- Four FFI signals to Rust: `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income`
 - M41 deferred integration: treasury tax, tithe base swap, per-resource pricing, per-priest tithe share
 - New `economy.py` module with `compute_economy()` entry point
 - Analytics: per-region per-category price time series
@@ -47,7 +47,7 @@ Regions produce goods from their resources; merchants carry goods along trade ro
 | 1 | Three category-level prices, not per-good | Perishability is what makes per-good distinction narratively meaningful, and that's M43. In M42, grain and fish are both "food that feeds people." Three categories (Food, Raw Material, Luxury) — Food aligns with existing `FOOD_TYPES`/`is_food()` plus SALT (see Categories section for details). Clean M43 upgrade path: subdivide Food category when perishability lands. |
 | 2 | Pro-rata allocation on exportable surplus | Deterministic (no new RNG stream), avoids wealth-priority runaway concentration. Emergent merchant concentration comes from occupation switching (agents *choosing* to become merchants where margins are good), not from allocation mechanics favoring incumbents. |
 | 3 | Abstract merchant carry (no physical relocation) | Merchants generate export flow while staying in their region. Physical movement would couple goods flow with agent migration — crossing the Python/Rust boundary. Goods economy is Python-side. |
-| 4 | Three behavioral FFI signals, not raw prices | Rust shouldn't know about the goods model. It receives behavioral modifiers it can apply directly: `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`. Python does economic reasoning, Rust receives behavioral inputs. |
+| 4 | Four behavioral FFI signals, not raw prices | Rust shouldn't know about the goods model. It receives behavioral modifiers it can apply directly: `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income`. Python does economic reasoning, Rust receives behavioral inputs. `merchant_margin` is satisfaction (how good does it *feel*), `merchant_trade_income` is wealth accumulation (how much gold per turn) — these need separate signals because satisfaction is bounded [0,1] but income must reflect actual goods flow volume. |
 | 5 | No stockpile in M42 | Production consumed or exported each turn. Unconsumed, unexported production vanishes. Keeps model stateless turn-to-turn. Buffers matter when there are shocks to absorb — M43's domain. |
 | 6 | Module named `economy.py`, not `goods.py` | The four M41 deferred integrations are economic plumbing, not goods-specific. `economy.py` gives a coherent home for all M42 scope. |
 | 7 | Demand and prices computed Python-side | Same boundary as Gini: Python reads snapshot, computes signals, sends to Rust. Per-region per-category demand/price computation is regional economic state, not per-agent behavior. |
@@ -80,7 +80,7 @@ Three category-level goods, aligned with existing `FOOD_TYPES`/`is_food()` class
 | PRECIOUS | 6 | Luxury | Wealthy agents |
 | EXOTIC | 7 | Food | Population |
 
-BOTANICALS and EXOTIC are classified as Food, matching the existing `FOOD_TYPES = frozenset({GRAIN, FISH, BOTANICALS, EXOTIC})` in `models.py` and `is_food()` in `satisfaction.rs`. SALT is also classified as Food in the M42 goods model for demand purposes — this extends beyond the existing `FOOD_TYPES`/`is_food()` definitions, which do not include SALT. The goods-level category mapping is separate from the mechanical yield-class system in `resource_class_index()` (where SALT is "Evaporite"). The original four-category design (with Special for salt) was dropped because it forced an artificial category for one resource type. Salt regions produce food-class goods that contribute to food supply and food pricing. The salt-as-preservative mechanic is M43's domain.
+BOTANICALS and EXOTIC are classified as Food, matching the existing `FOOD_TYPES = frozenset({GRAIN, FISH, BOTANICALS, EXOTIC})` in `models.py` and `is_food()` in `satisfaction.rs`. SALT is also classified as Food in the M42 goods model for demand purposes — this extends beyond the existing `FOOD_TYPES`/`is_food()` definitions, which do not include SALT. The goods-level category mapping is separate from the mechanical yield-class system in `resource_class_index()` (where SALT is "Evaporite"). The original four-category design (with Special for salt) was dropped because it forced an artificial category for one resource type. Salt regions produce food-class goods that contribute to food supply and food pricing. The salt-as-preservative mechanic is M43's domain. **`FOOD_TYPES` in `models.py` and `is_food()` in `satisfaction.rs` are NOT modified** — they serve mechanical yield dispatch and resource satisfaction, which is a different system. The goods-level `map_resource_to_category()` in `economy.py` is the sole authority for goods categorization.
 
 Luxury is PRECIOUS only (high-value durable trade goods). TIMBER and ORE are Raw Material. This asymmetry is correct — most ancient economies were food-dominated, with a small luxury trade in precious metals and a raw materials trade in timber/ore.
 
@@ -123,15 +123,33 @@ Per-region per-category:
 
 All demand computed Python-side from the previous turn's snapshot (same one-turn lag pattern as Gini).
 
-### Price Formula
+### Price Formula (Two-Pass)
+
+Trade flow requires price differentials to compute margins, but final prices depend on imports from trade flow. This circular dependency is resolved with a two-pass approach:
+
+**Pass 1 — Pre-trade prices** (from production alone, before trade flow):
 
 ```python
-supply = production + imports
+pre_trade_supply = production
 demand = <category-specific formula>
-price = BASE_PRICE × (demand / max(supply, 0.1))
+pre_trade_price = BASE_PRICE × (demand / max(pre_trade_supply, 0.1))
 ```
 
+Pre-trade prices drive margin computation in the trade flow step (step 2d). They represent the price a region would have if isolated — no imports.
+
+**Pass 2 — Post-trade prices** (after imports are computed):
+
+```python
+post_trade_supply = production + imports
+demand = <category-specific formula>  # unchanged
+post_trade_price = BASE_PRICE × (demand / max(post_trade_supply, 0.1))
+```
+
+Post-trade prices are the final prices used for FFI signals (`farmer_income_modifier`, `food_sufficiency`) and analytics extraction. They reflect the actual supply situation after trade has occurred.
+
 Supply and demand are separate sides of the ratio — local consumption is not subtracted from supply (that would double-count demand). Consumption is a drawdown that happens after prices are set, affecting next turn's available supply through reduced production surplus.
+
+**Raw prices are unbounded.** With supply near zero and high demand, `BASE_PRICE × (demand / 0.1)` can produce extreme values. This is intentional — the FFI signals derived from prices are all clamped (`farmer_income_modifier` to `[FLOOR, CAP]`, `food_sufficiency` to `[0.0, 2.0]`, `merchant_margin` to `[0.0, 1.0]`). Extreme prices in the allocation step are dampened by log-margin weighting (see Trade Flow section). Analytics price time series will show raw prices for diagnostic visibility.
 
 No stockpile: production is consumed or exported each turn. Nothing carries over turn-to-turn. M43 adds stockpile buffering.
 
@@ -181,23 +199,28 @@ exportable_surplus[category] = max(production[category] - demand[category], 0)
 
 When exportable surplus spans multiple categories, allocation proceeds in two levels (Decision 13):
 
-**Level 1 — Cross-category:** Allocate total merchant capacity to categories proportional to total available margin across all routes for that category:
+Allocation uses **pre-trade prices** for margin computation (the price each region would have without trade). This is the first pass of the two-pass price model.
+
+**Margin weighting uses log-dampening** to prevent extreme price ratios from funneling all capacity to one route. Raw margin drives income and satisfaction; `ln(1 + margin)` drives allocation weight. This preserves ordering (highest margin gets most capacity) but compresses extreme ratios — a 100:1 raw margin ratio becomes ~3:1 in allocation weight. Merchants still prefer the best route, but they don't *all* go there.
+
+**Level 1 — Cross-category:** Allocate total merchant capacity to categories proportional to total available log-dampened margin across all routes for that category:
 
 ```python
 for category in categories:
-    total_margin[category] = sum(
-        max(dest_price[category] - origin_price[category], 0)
+    total_weight[category] = sum(
+        log(1 + max(dest_pre_trade_price[category] - origin_pre_trade_price[category], 0))
         for route in outbound_routes
     )
-category_budget[category] = (total_margin[category] / sum(total_margin.values())) × export_capacity
+category_budget[category] = (total_weight[category] / sum(total_weight.values())) × export_capacity
 ```
 
-**Level 2 — Per-route within category:** Allocate each category's merchant budget across routes by per-route margin:
+**Level 2 — Per-route within category:** Allocate each category's merchant budget across routes by per-route log-dampened margin:
 
 ```python
 for route in outbound_routes:
-    margin = max(dest_price[category] - origin_price[category], 0)
-    route_flow[category][route] = (margin / total_margin[category]) × category_budget[category]
+    raw_margin = max(dest_pre_trade_price[category] - origin_pre_trade_price[category], 0)
+    weight = log(1 + raw_margin)
+    route_flow[category][route] = (weight / total_weight[category]) × category_budget[category]
 ```
 
 **Bounded by surplus:** Actual exports capped at exportable surplus:
@@ -224,29 +247,31 @@ Bottleneck is merchant count in origin region, not route capacity. Trade disrupt
 
 ### New RegionState Fields (Python → Rust)
 
-Three floats per region, computed in Phase 2 step 2g:
+Four floats per region, computed in Phase 2 step 2g:
 
 | Signal | Type | Formula | Range | Purpose |
 |---|---|---|---|---|
-| `farmer_income_modifier` | `f32` | `clamp(demand / max(supply, 0.1), FLOOR, CAP)` for the category matching the region's primary resource | `[FLOOR, CAP]` `[CALIBRATE: 0.5, 3.0]` | Multiplies M41 base farmer income rate. Absorbs `is_extractive()` dispatch (Decision 9). |
-| `food_sufficiency` | `f32` | `min(food_supply / max(food_demand, 0.1), 2.0)` | `[0.0, 2.0]` | Below 1.0 penalizes all-agent satisfaction. Outside the 0.40 non-ecological penalty cap — material condition, not social (Decision 10). Independent from Phase 9 famine. |
+| `farmer_income_modifier` | `f32` | `clamp(demand / max(post_trade_supply, 0.1), FLOOR, CAP)` for the category matching the region's primary resource | `[FLOOR, CAP]` `[CALIBRATE: 0.5, 3.0]` | Multiplies M41 base farmer income rate. Absorbs `is_extractive()` dispatch (Decision 9). |
+| `food_sufficiency` | `f32` | `min(food_post_trade_supply / max(food_demand, 0.1), 2.0)` | `[0.0, 2.0]` | Below 1.0 penalizes all-agent satisfaction. Outside the 0.40 non-ecological penalty cap — material condition, not social (Decision 10). Independent from Phase 9 famine. |
 | `merchant_margin` | `f32` | `clamp(total_margin / max(route_count, 1) / MERCHANT_MARGIN_NORMALIZER, 0.0, 1.0)` | `[0.0, 1.0]` | Replaces `(trade_route_count / 3.0).min(1.0) * 0.3` in merchant satisfaction (Decision 16). |
+| `merchant_trade_income` | `f32` | `total_arbitrage_profit / max(merchant_count, 1)` | `[0.0, ∞)` | Per-merchant income from arbitrage. Replaces static `MERCHANT_INCOME × (trade_route_count / 3.0).min(1.0)` in Rust wealth tick. |
 
-**`farmer_income_modifier` detail:** The modifier is the price ratio for the region's production category. `BASE_PRICE` cancels out:
+**`farmer_income_modifier` detail:** Uses **post-trade supply** (production + imports). A region that imports its own production category gets a diluted modifier — farmers earn less because imported goods increase supply and lower prices. This is economically coherent (price competition from trade). `BASE_PRICE` cancels out:
 
 ```python
 category = map_resource_to_category(resource_types[0])
-raw_modifier = demand[category] / max(supply[category], 0.1)
+post_trade_supply = production[category] + imports[category]
+raw_modifier = demand[category] / max(post_trade_supply, 0.1)
 farmer_income_modifier = clamp(raw_modifier, FARMER_INCOME_MODIFIER_FLOOR, FARMER_INCOME_MODIFIER_CAP)
 ```
 
 Floor prevents zero-incentive dead regions. Cap prevents extreme scarcity from creating absurd income spikes.
 
-**`merchant_margin` detail:** Average total cross-category margin per route, normalized to 0.0–1.0:
+**`merchant_margin` detail:** Average total cross-category raw margin per route (using **post-trade prices**), normalized to 0.0–1.0:
 
 ```python
 total_margin = sum(
-    max(dest_price[cat] - origin_price[cat], 0)
+    max(dest_post_trade_price[cat] - origin_post_trade_price[cat], 0)
     for route in outbound_routes
     for cat in categories
 )
@@ -255,23 +280,44 @@ merchant_margin = clamp(total_margin / max(len(outbound_routes), 1) / MERCHANT_M
 
 `MERCHANT_MARGIN_NORMALIZER` `[CALIBRATE]` scales raw margins to bounded satisfaction input.
 
-### Rust Wealth Accumulation Change
+**`merchant_trade_income` detail:** Per-merchant share of total arbitrage profit from the region's outbound trade flows:
 
-M41's farmer income formula changes from:
+```python
+total_arbitrage = sum(
+    route_flow[cat][route] × max(dest_post_trade_price[cat] - origin_post_trade_price[cat], 0)
+    for route in outbound_routes
+    for cat in categories
+)
+merchant_trade_income = total_arbitrage / max(merchant_count_in_region, 1)
+```
+
+This replaces M41's static `MERCHANT_INCOME × (trade_route_count / 3.0).min(1.0)`. A merchant in a high-volume, high-margin region earns more than one in a low-volume region. Not clamped — wealth accumulation is naturally bounded by `MAX_WEALTH` in Rust.
+
+### Rust Wealth Accumulation Changes
+
+**Farmer income** — M41's binary dispatch replaced by market-derived modifier:
 
 ```rust
 // M41 (before M42):
 if is_extractive(resource_type) { MINER_INCOME × yield } else { FARMER_INCOME × yield }
-```
 
-To:
-
-```rust
 // M42:
 BASE_FARMER_INCOME × farmer_income_modifier × yield
 ```
 
 Single base rate × market-derived modifier. The `is_extractive()` function and separate `FARMER_INCOME`/`MINER_INCOME` constants are removed. The modifier encodes market conditions — extractive resources in deficit regions naturally produce higher modifiers than organic resources in surplus regions.
+
+**Merchant income** — static rate replaced by arbitrage-driven income:
+
+```rust
+// M41 (before M42):
+MERCHANT_INCOME × (trade_route_count as f32 / 3.0).min(1.0)
+
+// M42:
+merchant_trade_income  // per-merchant share of arbitrage profit, computed Python-side
+```
+
+`MERCHANT_INCOME` and `MERCHANT_BASELINE` constants are removed. Merchant wealth accumulation is now purely driven by the `merchant_trade_income` signal from Python. A merchant with no routes or no price differentials earns zero. The `trade_route_count` field on `RegionState` remains for other systems but is no longer read by the merchant income path.
 
 ### New CivSignals Field (Python → Rust)
 
@@ -363,20 +409,24 @@ All goods computation runs as a sub-sequence within Phase 2, **before** existing
 Phase 2 (Economy):
   2a. Production — farmer_count × resource_yield → output per category per region
   2b. Demand — category-specific formulas (pop, soldiers, wealthy agents)
-  2c. Exportable surplus — max(production - demand, 0) per region per category
-  2d. Trade flow — two-level margin-weighted pro-rata:
+  2c. Pre-trade prices — supply = production only → pre_trade_price per category per region
+  2d. Exportable surplus — max(production - demand, 0) per region per category
+  2e. Trade flow — two-level log-dampened margin-weighted pro-rata (using pre-trade prices):
         Level 1: allocate merchant capacity across categories by total margin share
         Level 2: allocate each category's budget across routes by per-route margin
         Exports bounded by exportable surplus
-  2e. Imports — sum inbound flows per region per category
-  2f. Prices — supply (production + imports) vs demand → price per category per region
-  2g. Signals — farmer_income_modifier (clamped), food_sufficiency, merchant_margin
+  2f. Imports — sum inbound flows per region per category
+  2g. Post-trade prices — supply = production + imports → post_trade_price per category per region
+  2h. Signals — farmer_income_modifier, food_sufficiency, merchant_margin, merchant_trade_income
+        (all derived from post-trade prices and trade flow data)
         + priest_tithe_share on CivSignals
         + treasury_tax and tithe_base (agent mode only)
   --- existing Phase 2: trade income (agents=off path), tribute, treasury ---
 ```
 
-Ordering rationale: production and consumption before you know what's tradeable. Trade flow before price update because imports change supply. Prices before FFI signals. All before existing Phase 2 treasury logic because the treasury tax wiring (M41 deferred) means treasury computation references agent-derived merchant wealth.
+Two-pass price resolution: pre-trade prices (step 2c, from production alone) drive margin computation for trade flow allocation. Post-trade prices (step 2g, from production + imports) are the final values for FFI signals and analytics. This eliminates the circular dependency between trade flow and prices.
+
+Ordering rationale: production and demand before you can compute pre-trade prices. Pre-trade prices before trade flow (margins). Trade flow before post-trade prices (imports change supply). Post-trade prices before FFI signals. All before existing Phase 2 treasury logic because the treasury tax wiring (M41 deferred) means treasury computation references agent-derived merchant wealth.
 
 ### Entry Point
 
@@ -404,19 +454,19 @@ class RegionGoods:
 
 @dataclass
 class EconomyResult:
-    region_goods: dict[str, RegionGoods]       # region_name → transient goods state
-    prices: dict[str, dict[str, float]]        # region_name → category → price (for analytics)
-    farmer_income_modifiers: dict[str, float]   # region_name → modifier
-    food_sufficiency: dict[str, float]          # region_name → sufficiency
-    merchant_margins: dict[str, float]          # region_name → margin
-    priest_tithe_shares: dict[int, float]       # civ_idx → share
-    treasury_tax: dict[int, float]              # civ_idx → tax (agent mode only)
-    tithe_base: dict[int, float]                # civ_idx → tithe base (agent mode only)
+    region_goods: dict[str, RegionGoods]           # region_name → transient goods state
+    farmer_income_modifiers: dict[str, float]       # region_name → modifier
+    food_sufficiency: dict[str, float]              # region_name → sufficiency
+    merchant_margins: dict[str, float]              # region_name → margin
+    merchant_trade_incomes: dict[str, float]         # region_name → per-merchant income
+    priest_tithe_shares: dict[int, float]           # civ_idx → share
+    treasury_tax: dict[int, float]                  # civ_idx → tax (agent mode only)
+    tithe_base: dict[int, float]                    # civ_idx → tithe base (agent mode only)
 ```
 
 **`RegionGoods` is transient** — not persisted on `Region` or `WorldState`. It exists for the duration of Phase 2 processing and signal assembly. `simulation.py` extracts what it needs (signals for bridge, prices for analytics) and lets it drop. When M43 adds stockpiles, persistent economic state gets added to regions then.
 
-Prices are included in `EconomyResult` for analytics extraction in Phase 10 (price time series are a core diagnostic for tuning).
+Prices for analytics extraction live in `RegionGoods.prices` — no separate top-level prices field needed. Analytics extractors iterate `region_goods` to build price time series.
 
 ---
 
@@ -459,6 +509,7 @@ No new RNG sources in M42. All allocation is deterministic (pro-rata). `GOODS_AL
 | `farmer_income_modifier` | `f32` | Python → Rust |
 | `food_sufficiency` | `f32` | Python → Rust |
 | `merchant_margin` | `f32` | Python → Rust |
+| `merchant_trade_income` | `f32` | Python → Rust |
 
 Added as Arrow columns in `build_region_batch()`. Not transient — overwritten each turn.
 
@@ -474,10 +525,10 @@ Added alongside existing `gini_coefficient` in `build_signals()`.
 
 | File | Change |
 |---|---|
-| `region.rs` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin` to `RegionState` |
+| `region.rs` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income` to `RegionState` |
 | `signals.rs` | Add `priest_tithe_share` to `CivSignals` parsing |
-| `agent.rs` | Replace `FARMER_INCOME` + `MINER_INCOME` with `BASE_FARMER_INCOME`; remove `is_extractive()` |
-| `tick.rs` | Farmer wealth: `BASE_FARMER_INCOME × farmer_income_modifier × yield`; Priest wealth: `PRIEST_INCOME + priest_tithe_share` |
+| `agent.rs` | Replace `FARMER_INCOME` + `MINER_INCOME` with `BASE_FARMER_INCOME`; remove `is_extractive()`, `MERCHANT_INCOME`, `MERCHANT_BASELINE` |
+| `tick.rs` | Farmer wealth: `BASE_FARMER_INCOME × modifier × yield`; Merchant wealth: `merchant_trade_income`; Priest wealth: `PRIEST_INCOME + priest_tithe_share` |
 | `satisfaction.rs` | Wire `food_sufficiency` penalty and `merchant_margin` replacement (see below) |
 
 ### Satisfaction Formula Changes
@@ -506,7 +557,7 @@ let merchant_trade_sat = merchant_margin * MERCHANT_MARGIN_WEIGHT;  // [CALIBRAT
 
 Same weight (0.3), but driven by actual profitability instead of route existence. A merchant with three routes but no price differentials gets low satisfaction. A merchant with one route and a massive price gap gets high satisfaction.
 
-M42 also retires `trade_route_count` from M41's merchant income formula (`MERCHANT_INCOME × (trade_routes / 3.0).min(1.0)`). Merchant income becomes arbitrage-driven via the carry model — wealth accumulation is `margin × goods_flow`, not a static rate. The `trade_route_count` field on `RegionState` remains (other systems may reference it) but merchant economics no longer depends on it.
+M42 also retires `trade_route_count` from M41's merchant income formula (`MERCHANT_INCOME × (trade_route_count / 3.0).min(1.0)`). Merchant income becomes arbitrage-driven via `merchant_trade_income`. The `trade_route_count` field on `RegionState` remains but is no longer read by merchant economics. M42 wires `trade_route_count` to the actual count of decomposed boundary-pair routes per region (currently hardcoded to 0 in `build_region_batch()`), so other systems that reference it get real values. This resolves the `phase-6-progress.md` note "M42 wires real per-region trade route counts."
 
 ### Regression Guard
 
@@ -523,7 +574,7 @@ Adding `priest_tithe_share` to `CivSignals` must not break `conquered_this_turn`
 - Per-civ aggregate trade volume (total exports across regions)
 - Price spread: max(price) - min(price) across regions for each category (trade efficiency diagnostic)
 
-All computed from `EconomyResult.prices` during Phase 10 analytics extraction.
+All computed from `EconomyResult.region_goods` (prices and flows per region) during Phase 10 analytics extraction.
 
 ### Narration Context
 
@@ -548,7 +599,7 @@ No new top-level bundle fields. Price and trade data included in existing analyt
 - Pro-rata allocation: margin-weighted split sums to total capacity
 - Two-level allocation: cross-category then per-route, bounded by exportable surplus
 - No flow on negative-margin routes
-- Signal clamping: `farmer_income_modifier` within `[FLOOR, CAP]`, `food_sufficiency` within `[0.0, 2.0]`, `merchant_margin` within `[0.0, 1.0]`
+- Signal clamping: `farmer_income_modifier` within `[FLOOR, CAP]`, `food_sufficiency` within `[0.0, 2.0]`, `merchant_margin` within `[0.0, 1.0]`, `merchant_trade_income` ≥ 0.0
 - No NaN, no infinity in any computed value
 - Treasury tax and tithe base: correct values in agent mode, unchanged in `--agents=off`
 
@@ -556,10 +607,12 @@ No new top-level bundle fields. Price and trade data included in existing analyt
 
 ```
 for each category:
+    local_consumption = min(production, demand)
+    unconsumed_waste = max(production - demand, 0) - exports_delivered
     sum(production) == sum(local_consumption) + sum(exports_delivered) + sum(unconsumed_waste)
 ```
 
-Where unconsumed waste = surplus that couldn't be exported (no merchants, no routes, no margin). Total goods in system = total produced. No goods from nothing, no silent loss.
+`local_consumption` is not stored explicitly — it's `min(production, demand)`, the lesser of what's produced and what's needed. `unconsumed_waste` is exportable surplus that couldn't be exported (no merchants, no routes, no margin). Total goods in system = total produced. No goods from nothing, no silent loss.
 
 ### Integration Tests
 
@@ -589,7 +642,7 @@ Where unconsumed waste = surplus that couldn't be exported (no merchants, no rou
 |---|---|
 | `src/chronicler/economy.py` | **New file.** `compute_economy()`, `RegionGoods`, `EconomyResult`, all production/demand/price/flow/signal computation, M41 deferred integrations |
 | `src/chronicler/simulation.py` | Phase 2: call `compute_economy()`, apply results, pass signals to bridge |
-| `src/chronicler/agent_bridge.py` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin` to `build_region_batch()`; add `priest_tithe_share` to `build_signals()` |
+| `src/chronicler/agent_bridge.py` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income` to `build_region_batch()`; add `priest_tithe_share` to `build_signals()` |
 | `src/chronicler/factions.py` | Update `compute_tithe_base()` to accept snapshot and use agent-derived merchant wealth in agent mode |
 | `src/chronicler/analytics.py` | Price time series extractors, trade volume diagnostics |
 | `chronicler-agents/src/region.rs` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin` to `RegionState` |
