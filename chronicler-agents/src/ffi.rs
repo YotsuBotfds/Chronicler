@@ -133,6 +133,15 @@ pub fn promotions_schema() -> Schema {
     ])
 }
 
+pub fn social_edges_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("agent_a", DataType::UInt32, false),
+        Field::new("agent_b", DataType::UInt32, false),
+        Field::new("relationship", DataType::UInt8, false),
+        Field::new("formed_turn", DataType::UInt16, false),
+    ])
+}
+
 /// Schema for `set_region_state()` input.
 #[allow(dead_code)]
 pub fn region_state_schema() -> Schema {
@@ -176,6 +185,7 @@ pub struct AgentSimulator {
     num_regions: usize,
     turn: u32,
     registry: crate::named_characters::NamedCharacterRegistry,
+    social_graph: crate::social::SocialGraph,
     initialized: bool,
 }
 
@@ -196,6 +206,7 @@ impl AgentSimulator {
             num_regions,
             turn: 0,
             registry: crate::named_characters::NamedCharacterRegistry::new(),
+            social_graph: crate::social::SocialGraph::new(),
             initialized: false,
         }
     }
@@ -650,6 +661,70 @@ impl AgentSimulator {
             }
         }
         Err(PyValueError::new_err(format!("agent_id {} not found or dead", agent_id)))
+    }
+
+    /// Return current social graph edges as an Arrow RecordBatch.
+    pub fn get_social_edges(&self) -> PyResult<PyRecordBatch> {
+        let n = self.social_graph.edge_count();
+        let mut agent_a_col = UInt32Builder::with_capacity(n);
+        let mut agent_b_col = UInt32Builder::with_capacity(n);
+        let mut rel_col = UInt8Builder::with_capacity(n);
+        let mut formed_col = UInt16Builder::with_capacity(n);
+
+        for edge in &self.social_graph.edges {
+            agent_a_col.append_value(edge.agent_a);
+            agent_b_col.append_value(edge.agent_b);
+            rel_col.append_value(edge.relationship as u8);
+            formed_col.append_value(edge.formed_turn);
+        }
+
+        let batch = RecordBatch::try_new(
+            Arc::new(social_edges_schema()),
+            vec![
+                Arc::new(agent_a_col.finish()) as _,
+                Arc::new(agent_b_col.finish()) as _,
+                Arc::new(rel_col.finish()) as _,
+                Arc::new(formed_col.finish()) as _,
+            ],
+        )
+        .map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
+
+    /// Replace the social graph with edges from an Arrow RecordBatch.
+    pub fn replace_social_edges(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        let n = rb.num_rows();
+
+        macro_rules! named_col {
+            ($name:expr, $ty:ty) => {
+                rb.column_by_name($name)
+                    .and_then(|c| c.as_any().downcast_ref::<$ty>())
+                    .ok_or_else(|| PyValueError::new_err(concat!("missing or wrong type: ", $name)))?
+            };
+        }
+
+        let agent_a = named_col!("agent_a", arrow::array::UInt32Array);
+        let agent_b = named_col!("agent_b", arrow::array::UInt32Array);
+        let rel = named_col!("relationship", arrow::array::UInt8Array);
+        let formed = named_col!("formed_turn", arrow::array::UInt16Array);
+
+        let mut edges = Vec::with_capacity(n);
+        for i in 0..n {
+            let rtype = crate::social::RelationshipType::from_u8(rel.value(i))
+                .ok_or_else(|| PyValueError::new_err(
+                    format!("invalid relationship type: {}", rel.value(i))
+                ))?;
+            edges.push(crate::social::SocialEdge {
+                agent_a: agent_a.value(i),
+                agent_b: agent_b.value(i),
+                relationship: rtype,
+                formed_turn: formed.value(i),
+            });
+        }
+
+        self.social_graph.replace(edges);
+        Ok(())
     }
 }
 
