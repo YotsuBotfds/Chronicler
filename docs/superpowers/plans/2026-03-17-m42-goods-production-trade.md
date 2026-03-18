@@ -215,6 +215,7 @@ class EconomyResult:
     food_sufficiency: dict[str, float] = field(default_factory=dict)
     merchant_margins: dict[str, float] = field(default_factory=dict)
     merchant_trade_incomes: dict[str, float] = field(default_factory=dict)
+    trade_route_counts: dict[str, int] = field(default_factory=dict)
     priest_tithe_shares: dict[int, float] = field(default_factory=dict)
     treasury_tax: dict[int, float] = field(default_factory=dict)
     tithe_base: dict[int, float] = field(default_factory=dict)
@@ -1215,17 +1216,16 @@ This is the largest single function. It orchestrates steps 2a-2h:
 import numpy as np
 
 
-def _extract_region_agent_counts(
-    snapshot, region_idx: int,
+def _extract_region_agent_counts_from_arrays(
+    regions: np.ndarray,
+    occupations: np.ndarray,
+    wealth: np.ndarray,
+    region_idx: int,
 ) -> dict:
-    """Extract occupation counts and wealthy agent count for a region from snapshot.
+    """Extract occupation counts and wealthy agent count for a region.
 
-    Snapshot is a PyArrow RecordBatch — use .to_numpy() for numpy operations.
+    Takes pre-extracted numpy arrays (extracted once, not per-region).
     """
-    regions = snapshot.column("region").to_numpy()
-    occupations = snapshot.column("occupation").to_numpy()
-    wealth = snapshot.column("wealth").to_numpy()
-
     mask = regions == region_idx
     occ = occupations[mask]
     w = wealth[mask]
@@ -1242,24 +1242,22 @@ def _extract_region_agent_counts(
 
 
 def _extract_civ_merchant_wealth(
-    snapshot, civ_idx: int,
+    civ_affinity: np.ndarray,
+    occupations: np.ndarray,
+    wealth: np.ndarray,
+    civ_idx: int,
 ) -> float:
-    """Sum of merchant wealth for a civ from snapshot."""
-    civ_affinity = snapshot.column("civ_affinity").to_numpy()
-    occupations = snapshot.column("occupation").to_numpy()
-    wealth = snapshot.column("wealth").to_numpy()
-
+    """Sum of merchant wealth for a civ. Uses pre-extracted arrays."""
     mask = (civ_affinity == civ_idx) & (occupations == 2)
     return float(np.sum(wealth[mask]))
 
 
 def _extract_civ_priest_count(
-    snapshot, civ_idx: int,
+    civ_affinity: np.ndarray,
+    occupations: np.ndarray,
+    civ_idx: int,
 ) -> int:
-    """Count of priests for a civ from snapshot."""
-    civ_affinity = snapshot.column("civ_affinity").to_numpy()
-    occupations = snapshot.column("occupation").to_numpy()
-
+    """Count of priests for a civ. Uses pre-extracted arrays."""
     mask = (civ_affinity == civ_idx) & (occupations == 4)
     return int(mask.sum())
 
@@ -1306,6 +1304,12 @@ def compute_economy(
     for i, region in enumerate(regions):
         region_idx_map[region.name] = i
 
+    # Extract snapshot arrays ONCE (not per-region — P-5 performance fix)
+    snap_regions = snapshot.column("region").to_numpy()
+    snap_occupations = snapshot.column("occupation").to_numpy()
+    snap_wealth = snapshot.column("wealth").to_numpy()
+    snap_civ_affinity = snapshot.column("civ_affinity").to_numpy()
+
     # --- Step 2a: Production per region ---
     region_production: dict[str, dict[str, float]] = {}
     region_demand: dict[str, dict[str, float]] = {}
@@ -1314,7 +1318,9 @@ def compute_economy(
     for region in regions:
         rname = region.name
         ridx = region_idx_map[rname]
-        agent_data = _extract_region_agent_counts(snapshot, ridx, 0)
+        agent_data = _extract_region_agent_counts_from_arrays(
+            snap_regions, snap_occupations, snap_wealth, ridx,
+        )
         region_agent_data[rname] = agent_data
 
         # Production
@@ -1482,13 +1488,20 @@ def compute_economy(
         )
         result.region_goods[rname] = rg
 
+        # Trade route count (boundary pairs) for wiring to RegionState
+        result.trade_route_counts[rname] = boundary_pair_counts.get(rname, 0)
+
     # --- M41 deferred integrations (agent mode only) ---
     if agent_mode:
         from chronicler.factions import TITHE_RATE
 
         for civ_name, (civ_idx, _) in civ_lookup.items():
-            merchant_wealth = _extract_civ_merchant_wealth(snapshot, civ_idx)
-            priest_count = _extract_civ_priest_count(snapshot, civ_idx)
+            merchant_wealth = _extract_civ_merchant_wealth(
+                snap_civ_affinity, snap_occupations, snap_wealth, civ_idx,
+            )
+            priest_count = _extract_civ_priest_count(
+                snap_civ_affinity, snap_occupations, civ_idx,
+            )
 
             # Treasury tax
             result.treasury_tax[civ_idx] = TAX_RATE * merchant_wealth
@@ -1775,19 +1788,20 @@ Change to subtract food_penalty **outside** the social penalty cap:
 
 The merchant base satisfaction is in `compute_satisfaction` (line 101), the lower-level function called by `compute_satisfaction_with_culture`. The `SatisfactionInputs` struct is used by `compute_satisfaction_with_culture` which wraps `compute_satisfaction`.
 
-Two approaches — pick the simpler one: override the merchant base inside `compute_satisfaction_with_culture` rather than changing `compute_satisfaction`'s signature. After calling `compute_satisfaction(...)` to get `base_sat`, apply the merchant margin override:
+**IMPORTANT:** `compute_satisfaction()` (line 83) is NOT just the occupation base — it includes stability bonus, demand-supply ratio, overcrowding penalty, war penalty, and shock penalty (lines 106-121). Only the merchant trade term (line 101) should change, not the whole function output.
+
+Modify `compute_satisfaction()` itself to accept `merchant_margin: f32` as a new parameter. Replace only the trade term at line 101:
 
 ```rust
-// After base_sat = compute_satisfaction(...) at ~line 154:
-let base_sat = if inp.occupation == 2 {
-    // M42: replace trade_route_count proxy with merchant_margin
-    0.4 + inp.merchant_margin * MERCHANT_MARGIN_WEIGHT
-} else {
-    compute_satisfaction(inp.occupation, inp.trade_routes, ...)
-};
+// In compute_satisfaction() signature, add: merchant_margin: f32
+
+// Line 101 changes from:
+2 => 0.4 + (trade_routes as f32 / 3.0).min(1.0) * 0.3,
+// To:
+2 => 0.4 + merchant_margin * MERCHANT_MARGIN_WEIGHT,
 ```
 
-This avoids changing the `compute_satisfaction` function signature and only affects the `compute_satisfaction_with_culture` path (which is the only path used in the agent tick).
+All other terms (ecology, war, overcrowding, shock) remain untouched. Update the call in `compute_satisfaction_with_culture` (~line 154) to pass `inp.merchant_margin`.
 
 Add constant:
 
@@ -2030,17 +2044,25 @@ git commit -m "feat(m42): wire four RegionState economy signals in agent bridge"
 **Files:**
 - Modify: `src/chronicler/agent_bridge.py`
 
-- [ ] **Step 1: Add `priest_tithe_share` column to `build_signals`**
+**IMPORTANT:** `build_signals` is a **module-level function** (like `build_region_batch`), NOT a method on `AgentBridge`. Its signature is `def build_signals(world, shocks=None, demands=None, conquered=None, gini_by_civ=None)`. It has no `self`.
 
-In `build_signals()`, add new column:
+- [ ] **Step 1: Add `economy_result` parameter to `build_signals`**
+
+Change the function signature:
+
+```python
+def build_signals(world, shocks=None, demands=None, conquered=None, gini_by_civ=None, economy_result=None):
+```
+
+Add new column inside the function:
 
 ```python
 # M42: Priest tithe share
 priest_tithe_shares = []
 for civ_idx in range(len(world.civilizations)):
-    if self._economy_result:
+    if economy_result is not None:
         priest_tithe_shares.append(
-            self._economy_result.priest_tithe_shares.get(civ_idx, 0.0)
+            economy_result.priest_tithe_shares.get(civ_idx, 0.0)
         )
     else:
         priest_tithe_shares.append(0.0)
@@ -2051,6 +2073,8 @@ Add to schema:
 ```python
 pa.field("priest_tithe_share", pa.float32()),
 ```
+
+Update the call in `AgentBridge.tick()` to pass `self._economy_result` to `build_signals`.
 
 - [ ] **Step 2: Verify `conquered_this_turn` still clears correctly**
 
@@ -2106,7 +2130,13 @@ In `run_turn()`, after region_map is built but before `apply_automatic_effects` 
                         civ.treasury += int(tax)
 ```
 
-Check how `agent_bridge`, `region_map`, and `acc` are available in `run_turn` and thread them correctly. The bridge is typically a local variable created earlier in the function. The snapshot method may be `agent_bridge._sim.get_snapshot()` — check the actual API.
+**Notes on variable availability in `run_turn`:**
+- `agent_bridge` is a local variable created earlier in the function
+- `region_map` does NOT exist in `run_turn` — build it locally: `region_map = {r.name: r for r in world.regions}`
+- `acc` (StatAccumulator) is a local variable in `run_turn`
+- The snapshot method may be `agent_bridge._sim.get_snapshot()` — check the actual API
+
+**Threading to `tick_factions` (P-7):** `tick_factions` is called from `phase_consequences()` (Phase 10), not directly from `run_turn`. The call chain is: `run_turn()` → `phase_consequences()` → `tick_factions()`. To thread `economy_result`, either: (a) pass it through both function signatures, or (b) store it on the bridge (already done above) and read it in `tick_factions` via the bridge. Option (b) is simpler — `tick_factions` can access `world._agent_bridge._economy_result` if the bridge is stored on world, or accept a parameter.
 
 - [ ] **Step 2: Run simulation smoke test**
 
