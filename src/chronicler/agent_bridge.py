@@ -482,6 +482,9 @@ class AgentBridge:
                 agent_id=agent_id,
                 parent_id=parent_id,
             )
+            # M40: Set origin_region from promotions batch
+            if origin_region < len(world.regions):
+                gp.origin_region = world.regions[origin_region].name
             civ.great_persons.append(gp)
             created.append(gp)
             self.named_agents[agent_id] = name
