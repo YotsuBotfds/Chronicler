@@ -123,3 +123,148 @@ def test_economy_tracker_separate_regions():
     tracker.update_stockpile("Coast", "food", 50.0)
     assert tracker.trailing_avg["Plains"]["food"] == 100.0
     assert tracker.trailing_avg["Coast"]["food"] == 50.0
+
+
+# ---------------------------------------------------------------------------
+# Task 5: detect_supply_shocks() and classify_upstream_source()
+# ---------------------------------------------------------------------------
+
+from chronicler.economy import (
+    detect_supply_shocks, classify_upstream_source,
+    SHOCK_DELTA_THRESHOLD, SHOCK_SEVERITY_FLOOR,
+)
+from chronicler.models import Region, Civilization, WorldState, Leader
+
+
+def _make_region(name, controller=None, terrain="plains"):
+    return Region(
+        name=name, terrain=terrain, carrying_capacity=50,
+        resources="fertile", controller=controller,
+        adjacencies=[],
+    )
+
+
+def _make_civ(name, regions):
+    return Civilization(
+        name=name,
+        population=50, military=30, economy=40, culture=30, stability=50,
+        leader=Leader(name=f"Leader of {name}", trait="cautious", reign_start=0),
+        regions=regions,
+    )
+
+
+def test_detect_shock_fires_on_delta_and_below_floor():
+    region = _make_region("Plains", controller="Rome")
+    region.stockpile.goods = {"grain": 50.0}
+    tracker = EconomyTracker()
+    tracker.trailing_avg = {"Plains": {"food": 100.0}}
+    tracker.import_avg = {"Plains": {"food": 0.0}}
+    rome = _make_civ("Rome", ["Plains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[region], civilizations=[rome])
+    region_map = {"Plains": region}
+    er = EconomyResult()
+    er.food_sufficiency = {"Plains": 0.5}
+    er.imports_by_region = {"Plains": {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}}
+    er.inbound_sources = {}
+    er.stockpile_levels = {"Plains": {"food": 50.0}}
+    shocks = detect_supply_shocks(world, {"Plains": region.stockpile}, tracker, er, region_map)
+    assert len(shocks) == 1
+    assert shocks[0].event_type == "supply_shock"
+    assert shocks[0].actors[0] == "Rome"
+    assert shocks[0].shock_region == "Plains"
+    assert shocks[0].shock_category == "food"
+    assert shocks[0].importance >= 5
+
+
+def test_detect_shock_does_not_fire_above_floor():
+    region = _make_region("Plains", controller="Rome")
+    region.stockpile.goods = {"grain": 50.0}
+    tracker = EconomyTracker()
+    tracker.trailing_avg = {"Plains": {"food": 100.0}}
+    rome = _make_civ("Rome", ["Plains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[region], civilizations=[rome])
+    region_map = {"Plains": region}
+    er = EconomyResult()
+    er.food_sufficiency = {"Plains": 1.2}
+    er.imports_by_region = {"Plains": {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}}
+    er.inbound_sources = {}
+    er.stockpile_levels = {"Plains": {"food": 50.0}}
+    shocks = detect_supply_shocks(world, {"Plains": region.stockpile}, tracker, er, region_map)
+    assert len(shocks) == 0
+
+
+def test_detect_shock_no_delta_no_fire():
+    region = _make_region("Plains", controller="Rome")
+    region.stockpile.goods = {"grain": 20.0}
+    tracker = EconomyTracker()
+    tracker.trailing_avg = {"Plains": {"food": 22.0}}
+    rome = _make_civ("Rome", ["Plains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[region], civilizations=[rome])
+    region_map = {"Plains": region}
+    er = EconomyResult()
+    er.food_sufficiency = {"Plains": 0.4}
+    er.imports_by_region = {"Plains": {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}}
+    er.inbound_sources = {}
+    er.stockpile_levels = {"Plains": {"food": 20.0}}
+    shocks = detect_supply_shocks(world, {"Plains": region.stockpile}, tracker, er, region_map)
+    assert len(shocks) == 0
+
+
+def test_detect_shock_non_food_uses_delta_severity():
+    region = _make_region("Mountains", controller="Rome")
+    region.stockpile.goods = {"ore": 10.0}
+    tracker = EconomyTracker()
+    tracker.trailing_avg = {"Mountains": {"raw_material": 100.0}}
+    rome = _make_civ("Rome", ["Mountains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[region], civilizations=[rome])
+    region_map = {"Mountains": region}
+    er = EconomyResult()
+    er.food_sufficiency = {"Mountains": 1.0}
+    er.imports_by_region = {"Mountains": {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}}
+    er.inbound_sources = {}
+    er.stockpile_levels = {"Mountains": {"raw_material": 10.0}}
+    shocks = detect_supply_shocks(world, {"Mountains": region.stockpile}, tracker, er, region_map)
+    assert len(shocks) == 1
+    assert shocks[0].shock_category == "raw_material"
+
+
+def test_detect_shock_importance_scales_with_severity():
+    region = _make_region("Plains", controller="Rome")
+    region.stockpile.goods = {"grain": 10.0}
+    tracker = EconomyTracker()
+    tracker.trailing_avg = {"Plains": {"food": 100.0}}
+    rome = _make_civ("Rome", ["Plains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[region], civilizations=[rome])
+    region_map = {"Plains": region}
+    er = EconomyResult()
+    er.food_sufficiency = {"Plains": 0.0}
+    er.imports_by_region = {"Plains": {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}}
+    er.inbound_sources = {}
+    er.stockpile_levels = {"Plains": {"food": 10.0}}
+    shocks = detect_supply_shocks(world, {"Plains": region.stockpile}, tracker, er, region_map)
+    assert len(shocks) == 1
+    assert shocks[0].importance == 9
+
+
+def test_shock_actors_affected_first_upstream_second():
+    coast = _make_region("Coast", controller="Tyre")
+    coast.stockpile.goods = {"fish": 20.0}
+    plains = _make_region("Plains", controller="Aram")
+    tracker = EconomyTracker()
+    tracker.trailing_avg = {"Coast": {"food": 100.0}, "Plains": {"food": 10.0}}
+    tracker.import_avg = {"Coast": {"food": 80.0}}
+    tyre = _make_civ("Tyre", ["Coast"])
+    aram = _make_civ("Aram", ["Plains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[coast, plains], civilizations=[tyre, aram])
+    region_map = {"Coast": coast, "Plains": plains}
+    er = EconomyResult()
+    er.food_sufficiency = {"Coast": 0.3}
+    er.imports_by_region = {"Coast": {"food": 5.0, "raw_material": 0.0, "luxury": 0.0}}
+    er.inbound_sources = {"Coast": ["Plains"]}
+    er.stockpile_levels = {"Coast": {"food": 20.0}, "Plains": {"food": 10.0}}
+    shocks = detect_supply_shocks(world, {"Coast": coast.stockpile}, tracker, er, region_map)
+    assert len(shocks) >= 1
+    coast_shock = next(s for s in shocks if s.shock_region == "Coast")
+    assert coast_shock.actors[0] == "Tyre"
+    assert len(coast_shock.actors) >= 2
+    assert coast_shock.actors[1] == "Aram"

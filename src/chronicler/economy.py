@@ -138,6 +138,99 @@ class EconomyTracker:
             key[category] = 0.67 * key[category] + 0.33 * current
 
 
+# M43b constants
+SHOCK_DELTA_THRESHOLD = 0.30  # [CALIBRATE] 30% drop triggers detection
+SHOCK_SEVERITY_FLOOR = 0.8   # [CALIBRATE] food_sufficiency below this = crisis
+
+
+def classify_upstream_source(
+    world,
+    economy_tracker: EconomyTracker,
+    economy_result: "EconomyResult",
+    region_name: str,
+    category: str,
+    region_map: dict,
+) -> str | None:
+    """Find upstream civ if shock is import-driven.
+
+    Returns the controller of the first inbound source region when imports
+    have dropped by SHOCK_DELTA_THRESHOLD or more relative to the EMA.
+    Source stockpile state is checked only to prefer regions that have also
+    experienced a stockpile decline; any inbound source qualifies as fallback.
+    """
+    current_imports = economy_result.imports_by_region.get(region_name, {}).get(category, 0.0)
+    avg_imports = economy_tracker.import_avg.get(region_name, {}).get(category, current_imports)
+
+    if avg_imports <= 0 or current_imports / avg_imports > (1.0 - SHOCK_DELTA_THRESHOLD):
+        return None
+
+    # Prefer a source whose own stockpile also dropped (supply disruption signal)
+    for source_name in economy_result.inbound_sources.get(region_name, []):
+        source_stockpile = economy_result.stockpile_levels.get(source_name, {}).get(category, 0.0)
+        source_avg = economy_tracker.trailing_avg.get(source_name, {}).get(category, source_stockpile)
+        if source_avg > 0 and source_stockpile / source_avg < (1.0 - SHOCK_DELTA_THRESHOLD):
+            source_region = region_map.get(source_name)
+            if source_region and source_region.controller:
+                return source_region.controller
+
+    # Fallback: imports dropped — attribute to any known inbound source
+    for source_name in economy_result.inbound_sources.get(region_name, []):
+        source_region = region_map.get(source_name)
+        if source_region and source_region.controller:
+            return source_region.controller
+
+    return None
+
+
+def detect_supply_shocks(
+    world,
+    stockpiles: dict,
+    economy_tracker: EconomyTracker,
+    economy_result: "EconomyResult",
+    region_map: dict,
+) -> list:
+    """Detect supply shocks: delta trigger + absolute severity gate."""
+    from chronicler.models import Event
+
+    shocks = []
+    for name, sp in stockpiles.items():
+        region = region_map.get(name)
+        if region is None or region.controller is None:
+            continue
+        owner_civ_name = region.controller
+        for cat, goods in CATEGORY_GOODS.items():
+            current = sum(sp.goods.get(g, 0.0) for g in goods)
+            avg = economy_tracker.trailing_avg.get(name, {}).get(cat, current)
+            if avg <= 0 or current / avg >= (1.0 - SHOCK_DELTA_THRESHOLD):
+                continue
+            if cat == "food":
+                food_suff = economy_result.food_sufficiency.get(name, 1.0)
+                if food_suff >= SHOCK_SEVERITY_FLOOR:
+                    continue
+                severity = 1.0 - (food_suff / SHOCK_SEVERITY_FLOOR)
+            else:
+                severity = min(1.0 - (current / max(avg, 0.1)), 1.0)
+
+            upstream = classify_upstream_source(
+                world, economy_tracker, economy_result, name, cat, region_map,
+            )
+            actors = [owner_civ_name]
+            if upstream:
+                actors.append(upstream)
+            shocks.append(Event(
+                turn=world.turn,
+                event_type="supply_shock",
+                actors=actors,
+                description=f"Supply shock: {cat} in {name}",
+                consequences=[],
+                importance=5 + int(severity * 4),
+                source="economy",
+                shock_region=name,
+                shock_category=cat,
+            ))
+    return shocks
+
+
 # ---------------------------------------------------------------------------
 # M43a: Transport cost
 # ---------------------------------------------------------------------------
