@@ -107,9 +107,9 @@ Written in both paths:
 ### `execute_run()` with `--narrator api`
 
 1. `NarrativeEngine(sim_client=local_client, narrative_client=anthropic_client)` — API client lives on the engine.
-2. Simulation loop: per-turn narrator callback is `lambda w, e: ""` (noop). No per-turn prose, no API calls during simulation.
+2. Simulation loop: per-turn narrator callback is `lambda w, e: ""` (noop). No per-turn prose, no API calls during simulation. **Reflections are also skipped** — `generate_reflection()` receives `_DummyClient()` instead of the API client. With `reflection_interval=10` and 500 turns, reflections would otherwise produce ~200 API calls during the loop (50 rounds x N civs). Reflections are low-value compared to curated narration; dummy text is acceptable.
 3. **After simulation loop, before `agent_bridge.close()`:** curator selects moments from accumulated history/events, then `engine.narrate_batch()` narrates curated moments via `AnthropicClient`.
-4. **Curated entries replace the per-turn list.** The simulation loop builds `chronicle_entries` with `narrative=""` (from the noop lambda). The curated `narrate_batch()` output replaces this list before `assemble_bundle()` is called — the empty per-turn entries have no value. `gap_summaries` from `curate()` are threaded into `assemble_bundle()` (which already accepts `gap_summaries: list[GapSummary] | None`).
+4. **Curated entries replace the per-turn list.** The simulation loop builds `chronicle_entries` with `narrative=""` (from the noop lambda). The curated `narrate_batch()` output replaces this list before `assemble_bundle()` is called — the empty per-turn entries have no value. `gap_summaries` from `curate()` are threaded into `assemble_bundle()` (which already accepts `gap_summaries: list[GapSummary] | None` but `execute_run()` currently doesn't pass it — M44 adds `gap_summaries=gap_summaries` to the API path's `assemble_bundle()` call).
 5. Positioning before bridge close preserves the option to thread agent context (social edges, agent name map, gini) into narration in a future milestone. For M44, agent context matches `_run_narrate()` level (limited — pre-existing gap, not M44 scope).
 6. Token summary printed after narration completes.
 
@@ -174,6 +174,9 @@ Per the roadmap:
 - Character continuity (named characters referenced correctly)
 - Era-appropriate voice
 - Emotional resonance
+- Factual accuracy (events, stats, outcomes match simulation data)
+- Material detail (goods, trade, geography woven into prose)
+- Religious depth (faiths, schisms, pilgrimages reflected accurately)
 
 ### Output
 
@@ -209,6 +212,8 @@ Handled by existing `narrate_batch()` per-moment exception handling:
 | Transient API error | Per-moment fallback, batch continues |
 
 No new error handling needed — `narrate_batch()` already wraps each `complete()` call in try/except with mechanical fallback.
+
+**Silent failure caveat:** The existing `except Exception` handler in `narrate_batch()` (line 845 of `narrative.py`) silently swallows all errors. With local inference, transient failures are rare. With API narration, a systematic error (invalid key, expired key) means every moment fails silently — the operator gets all-mechanical output with no warning. M44 should add a `logger.warning` on the first failure in the except block so the operator sees what's happening. Not a new exception path — just visibility into the existing one.
 
 ---
 
@@ -291,6 +296,8 @@ The 200-seed regression scenario is a user error — regression tests simulation
 | 8 | ERA_REGISTER experiment is pre-M44 | Prompt design decision should be data-driven before implementation, not discovered after. Four conditions (Claude/local x full/light) give a complete decision matrix. |
 | 9 | Quality comparison uses `_run_narrate()` for both | Same pipeline, same prompts, isolated model variable. `execute_run()` comparison is confounded (different prompt paths). |
 | 10 | `--narrator api` + `--live` is validation error | API latency incompatible with WebSocket real-time feed. |
-| 11 | Curated entries replace per-turn empty entries | In API mode, the noop lambda produces `narrative=""` per turn. Curated `narrate_batch()` output replaces this list before `assemble_bundle()`. Empty entries have no value. (Phoebe B-1) |
-| 12 | Validation above `_run_narrate()` early return | The `--narrate` path early-returns before the general validation block. API checks must precede it to avoid stack traces instead of clean messages. (Phoebe NB-1) |
-| 13 | `--narrator api` + `--batch --parallel` is validation error | Parallel workers can't share `AnthropicClient` or token tracking. Per-worker token counts lost on process exit. (Phoebe NB-2) |
+| 11 | Curated entries replace per-turn empty entries | In API mode, the noop lambda produces `narrative=""` per turn. Curated `narrate_batch()` output replaces this list before `assemble_bundle()`. Empty entries have no value. |
+| 12 | Validation above `_run_narrate()` early return | The `--narrate` path early-returns before the general validation block. API checks must precede it to avoid stack traces instead of clean messages. |
+| 13 | `--narrator api` + `--batch --parallel` is validation error | Parallel workers can't share `AnthropicClient` or token tracking. Per-worker token counts lost on process exit. |
+| 14 | Skip reflections in API mode | `generate_reflection()` uses `_narr` directly, not the engine's narrator callback. With `reflection_interval=10`, that's ~200 unaccounted API calls. Reflections are low-value compared to curated moments; use `_DummyClient()` for reflections in API mode. |
+| 15 | Add `logger.warning` on first narration failure | Existing `except Exception` in `narrate_batch()` is silent. Systematic API errors (invalid key) produce all-mechanical output with no warning. First-failure warning gives operator visibility. |
