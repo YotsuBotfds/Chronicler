@@ -167,40 +167,46 @@ def test_mentorship_skips_aggregate(make_world):
     assert len(formed) == 0
 
 
-# --- Marriage Alliance ---
+# --- Task 9: Marriage Alliance (edge tuples) ---
 
-def test_marriage_alliance_requires_allied(make_world):
+def test_marriage_forms_between_allied_agent_chars(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     rel12 = world.relationships[civ1.name][civ2.name]
     rel12.disposition = Disposition.ALLIED
     rel12.allied_turns = 15
-    rel21 = world.relationships[civ2.name][civ1.name]
-    rel21.disposition = Disposition.ALLIED
-    rel21.allied_turns = 15
     civ1.great_persons = [
-        GreatPerson(name="GP1", role="merchant", trait="shrewd", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="GP1", role="merchant", trait="shrewd",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
     ]
     civ2.great_persons = [
-        GreatPerson(name="GP2", role="general", trait="bold", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="GP2", role="general", trait="bold",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
-    formed = check_marriage_formation(world)
-    assert isinstance(formed, list)
+    formed = check_marriage_formation(world, [])
+    for edge in formed:
+        assert edge[2] == REL_MARRIAGE
 
 
-def test_marriage_not_formed_when_neutral(make_world):
+def test_marriage_skips_aggregate(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
-    # Disposition is NEUTRAL by default
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
+    rel12 = world.relationships[civ1.name][civ2.name]
+    rel12.disposition = Disposition.ALLIED
+    rel12.allied_turns = 15
     civ1.great_persons = [
-        GreatPerson(name="GP1", role="merchant", trait="shrewd", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="GP1", role="merchant", trait="shrewd",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="aggregate", agent_id=None)
     ]
     civ2.great_persons = [
-        GreatPerson(name="GP2", role="general", trait="bold", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="GP2", role="general", trait="bold",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
-    formed = check_marriage_formation(world)
+    formed = check_marriage_formation(world, [])
     assert len(formed) == 0
 
 

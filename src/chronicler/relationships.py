@@ -131,47 +131,51 @@ def check_mentorship_formation(world: WorldState, existing_edges: list[tuple]) -
 
 # --- Marriage Alliance ---
 
-def check_marriage_formation(world: WorldState) -> list[dict]:
-    """Form marriage alliances between great persons of long-allied civs."""
+def check_marriage_formation(world: WorldState, existing_edges: list[tuple]) -> list[tuple]:
+    """Form marriage alliances between agent-source great persons of long-allied civs.
+    agent_a < agent_b by convention. RNG seed uses civ-name pair for determinism stability.
+    """
     from chronicler.models import Disposition
-    new_marriages = []
-    married_persons = (
-        {r["person_a"] for r in world.character_relationships if r["type"] == "marriage"}
-        | {r["person_b"] for r in world.character_relationships if r["type"] == "marriage"}
-    )
-    checked_pairs = {(r["civ_a"], r["civ_b"]) for r in world.character_relationships if r["type"] == "marriage"}
+    new_edges = []
+    married_agents = set()
+    for e in existing_edges:
+        if e[2] == REL_MARRIAGE:
+            married_agents.add(e[0])
+            married_agents.add(e[1])
+
+    checked_pairs = set()
     for i, civ1 in enumerate(world.civilizations):
         for civ2 in world.civilizations[i + 1:]:
             pair = (civ1.name, civ2.name)
             if pair in checked_pairs or (civ2.name, civ1.name) in checked_pairs:
                 continue
+            checked_pairs.add(pair)
             rel12 = world.relationships.get(civ1.name, {}).get(civ2.name)
             if not rel12 or rel12.disposition != Disposition.ALLIED or rel12.allied_turns < 10:
                 continue
             gp1_candidates = [
                 gp for gp in civ1.great_persons
-                if gp.active and gp.name not in married_persons and gp.role not in ("exile", "hostage")
+                if gp.active and gp.agent_id is not None
+                and gp.agent_id not in married_agents
+                and gp.role not in ("exile", "hostage")
             ]
             gp2_candidates = [
                 gp for gp in civ2.great_persons
-                if gp.active and gp.name not in married_persons and gp.role not in ("exile", "hostage")
+                if gp.active and gp.agent_id is not None
+                and gp.agent_id not in married_agents
+                and gp.role not in ("exile", "hostage")
             ]
             if not gp1_candidates or not gp2_candidates:
                 continue
             rng = random.Random(world.seed + world.turn + hash(pair))
             if rng.random() < 0.30:
                 gp1, gp2 = gp1_candidates[0], gp2_candidates[0]
-                rel = {
-                    "type": "marriage",
-                    "person_a": gp1.name,
-                    "person_b": gp2.name,
-                    "civ_a": civ1.name,
-                    "civ_b": civ2.name,
-                    "formed_turn": world.turn,
-                }
-                world.character_relationships.append(rel)
-                new_marriages.append(rel)
-    return new_marriages
+                a, b = min(gp1.agent_id, gp2.agent_id), max(gp1.agent_id, gp2.agent_id)
+                edge = (a, b, REL_MARRIAGE, world.turn)
+                new_edges.append(edge)
+                married_agents.add(a)
+                married_agents.add(b)
+    return new_edges
 
 
 # --- Hostage Exchanges ---
