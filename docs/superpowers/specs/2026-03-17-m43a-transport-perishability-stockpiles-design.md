@@ -53,7 +53,7 @@ Make geography matter for trade. Transport costs create economic zones where coa
 | 5 | Salt doesn't decay (mineral) | Salt is `DECAY_RATE = 0.0`. Depletes only through population consumption via normal food demand. Accumulates as strategic reserve. |
 | 6 | Single-pass Phase 2, no within-turn price convergence | Transport cost filtering removes routes → prices shift → could reopen routes. This feedback plays out over turns via one-turn lag, not within Phase 2. Geographic price gradients emerge over 3-5 turns. |
 | 7 | M43a contains no fixed shock attenuation constant | Attenuation behavior is emergent from stockpile depth and production buffers. M43b validates the emergent rate targets ~50%. No 0.5 multiplier in any formula. |
-| 8 | Conquest stockpile destruction in `_resolve_war()` | 50% of stockpile lost when region changes hands during action resolution in `_resolve_war()` (`action_engine.py`). Applied at point of conquest, before Phase 10 snapshot. |
+| 8 | Conquest stockpile destruction in `_resolve_war_action()` | 50% of stockpile lost when region changes hands during action resolution in `_resolve_war_action()` (`action_engine.py`). Applied at point of conquest, before Phase 10 snapshot. |
 | 9 | `food_sufficiency` from pre-consumption stockpile | Ordering: stockpile += supply → compute `food_sufficiency` from pre-consumption stockpile → demand drawdown → storage decay → cap. Pre-consumption is backwards-compatible with M42 at equilibrium after initialization buffer is consumed (turns 3+): `food_available = production + imports` = M42's `food_supply`, producing `food_sufficiency = 1.0`. Turn 1-2 `food_sufficiency` will be higher than M42 due to initial buffer (Decision 11) — this is a feature, not a regression. Post-consumption would produce 0.0 at equilibrium — a satisfaction crash. |
 | 10 | Stockpile capacity cap proportional to population | `PER_GOOD_CAP_FACTOR * population` per good per region. Unbounded accumulation pins `food_sufficiency` at ceiling and produces meaningless outlier values. Cap proportional to population — larger regions store more, per-capita storage bounded. |
 | 11 | Stockpile initialization with subsistence buffer | `stockpile[primary_food] = INITIAL_BUFFER * population`. Avoids 5-turn starvation transient that's purely an artifact of M43a landing, not an emergent outcome. Target: ~2 turns consumption at equilibrium demand. |
@@ -231,7 +231,7 @@ Where:
 - `exported[good]` = per-good decomposition of category-level exports. A grain region's "food" exports are grain.
 - `imported[good]` = per-good decomposition of category-level imports via source region production mix. Imports from a grain region are grain; imports from a fish region are fish.
 
-Single-resource-slot production (M42 Decision 14 / M41 Decision 14) means each region produces one good, simplifying the per-good decomposition: all of a region's production and exports in a given category map to one good key.
+Single-resource-slot production (M41 Decision 14) means each region produces one good, simplifying the per-good decomposition: all of a region's production and exports in a given category map to one good key.
 
 ### Consumption
 
@@ -270,7 +270,7 @@ region.stockpile.goods[primary_good] = INITIAL_BUFFER * population
 
 ### Conquest Destruction
 
-In `_resolve_war()` when a region changes hands:
+In `_resolve_war_action()` when a region changes hands:
 
 ```python
 for good in region.stockpile.goods:
@@ -480,7 +480,7 @@ Where `transit_loss = sum(shipped) - sum(delivered)` across all routes. `consump
 | `src/chronicler/models.py` | Add `RegionStockpile` model, nest on `Region` as `stockpile: RegionStockpile` |
 | `src/chronicler/economy.py` | `map_resource_to_good()`, transport cost computation, perishability attrition, stockpile accumulation/decay/cap, salt preservation, `TRANSIT_DECAY` and `STORAGE_DECAY` tables, consumption clamping, modified `compute_economy()` entry point, updated `food_sufficiency` source |
 | `src/chronicler/simulation.py` | Stockpile initialization in world setup, pass stockpile to `compute_economy()` |
-| `src/chronicler/action_engine.py` | Conquest stockpile destruction in `_resolve_war()` |
+| `src/chronicler/action_engine.py` | Conquest stockpile destruction in `_resolve_war_action()` |
 | `src/chronicler/analytics.py` | Stockpile level time series extractors, transport cost diagnostics |
 
 **No Rust changes.** No new FFI signals, no modified signal types/ranges, no `satisfaction.rs`, `region.rs`, `agent.rs`, `tick.rs`, or `signals.rs` changes. M43a is entirely Python-side.
