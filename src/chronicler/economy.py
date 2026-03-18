@@ -32,6 +32,45 @@ TAX_RATE: float = 0.05
 
 CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
 
+# ---------------------------------------------------------------------------
+# M43a Constants  [CALIBRATE]
+# ---------------------------------------------------------------------------
+
+FOOD_GOODS: frozenset[str] = frozenset({"grain", "fish", "botanicals", "exotic", "salt"})
+ALL_GOODS: frozenset[str] = frozenset({
+    "grain", "timber", "botanicals", "fish", "salt", "ore", "precious", "exotic",
+})
+
+TERRAIN_COST: dict[str, float] = {
+    "plains": 1.0,
+    "forest": 1.3,
+    "desert": 1.5,
+    "mountains": 2.0,
+    "tundra": 1.8,
+    "coast": 0.6,
+}
+TRANSPORT_COST_BASE: float = 0.10
+RIVER_DISCOUNT: float = 0.5
+COASTAL_DISCOUNT: float = 0.6
+INFRASTRUCTURE_DISCOUNT: float = 1.0  # placeholder — no roads yet
+WINTER_MODIFIER: float = 1.5
+
+TRANSIT_DECAY: dict[str, float] = {
+    "grain": 0.05, "fish": 0.08, "botanicals": 0.04, "exotic": 0.06,
+    "salt": 0.0, "timber": 0.01, "ore": 0.0, "precious": 0.0,
+}
+STORAGE_DECAY: dict[str, float] = {
+    "grain": 0.03, "fish": 0.06, "botanicals": 0.02, "exotic": 0.04,
+    "salt": 0.0, "timber": 0.005, "ore": 0.0, "precious": 0.0,
+}
+
+SALT_PRESERVATION_FACTOR: float = 2.5
+MAX_PRESERVATION: float = 0.5
+
+PER_GOOD_CAP_FACTOR: float = 5.0 * PER_CAPITA_FOOD
+INITIAL_BUFFER: float = 2.0 * PER_CAPITA_FOOD
+CONQUEST_STOCKPILE_SURVIVAL: float = 0.5
+
 _CATEGORY_MAP: dict[int, str] = {
     0: "food",          # GRAIN
     1: "raw_material",  # TIMBER
