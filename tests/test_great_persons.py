@@ -42,7 +42,6 @@ def test_worldstate_great_person_fields(make_world):
     """New M17 WorldState fields have correct defaults."""
     world = make_world(num_civs=2)
     assert world.retired_persons == []
-    assert world.character_relationships == []
     assert world.great_person_cooldowns == {}
 
 

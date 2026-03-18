@@ -5,7 +5,6 @@ from chronicler.action_engine import WarResult
 from chronicler.models import Disposition, GreatPerson
 from chronicler.relationships import (
     check_rivalry_formation,
-    dissolve_dead_relationships,
     check_mentorship_formation,
     check_marriage_formation,
     check_exile_bond_formation,

@@ -74,19 +74,6 @@ def check_rivalry_formation(world: WorldState, existing_edges: list[tuple]) -> l
     return new_edges
 
 
-def dissolve_dead_relationships(world: WorldState, dead_names: set) -> list[dict]:
-    """Remove all relationships involving any of the dead persons."""
-    dissolved = []
-    remaining = []
-    for rel in world.character_relationships:
-        if rel["person_a"] in dead_names or rel["person_b"] in dead_names:
-            dissolved.append(rel)
-        else:
-            remaining.append(rel)
-    world.character_relationships = remaining
-    return dissolved
-
-
 # --- Mentorship ---
 
 def check_mentorship_formation(world: WorldState, existing_edges: list[tuple]) -> list[tuple]:
