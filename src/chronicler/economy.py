@@ -253,6 +253,7 @@ def allocate_trade_flow(
     dest_prices: dict[str, dict[str, float]],
     exportable_surplus: dict[str, float],
     merchant_count: int,
+    transport_costs: dict[tuple[str, str], float] | None = None,
 ) -> dict[tuple[str, str], dict[str, float]]:
     """Two-level log-dampened margin-weighted pro-rata allocation.
 
@@ -273,7 +274,9 @@ def allocate_trade_flow(
         for route in outbound_routes:
             _, dest = route
             d_prices = dest_prices.get(dest, {})
-            raw_margin = max(d_prices.get(cat, 0.0) - origin_prices.get(cat, 0.0), 0.0)
+            price_gap = d_prices.get(cat, 0.0) - origin_prices.get(cat, 0.0)
+            t_cost = transport_costs.get(route, 0.0) if transport_costs else 0.0
+            raw_margin = max(price_gap - t_cost, 0.0)
             weight = math.log1p(raw_margin)
             route_margins[cat][route] = weight
             total_w += weight
