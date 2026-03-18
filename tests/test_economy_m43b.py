@@ -251,7 +251,7 @@ def test_shock_actors_affected_first_upstream_second():
     coast.stockpile.goods = {"fish": 20.0}
     plains = _make_region("Plains", controller="Aram")
     tracker = EconomyTracker()
-    tracker.trailing_avg = {"Coast": {"food": 100.0}, "Plains": {"food": 10.0}}
+    tracker.trailing_avg = {"Coast": {"food": 100.0}, "Plains": {"food": 100.0}}
     tracker.import_avg = {"Coast": {"food": 80.0}}
     tyre = _make_civ("Tyre", ["Coast"])
     aram = _make_civ("Aram", ["Plains"])

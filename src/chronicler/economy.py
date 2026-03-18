@@ -173,13 +173,7 @@ def classify_upstream_source(
             if source_region and source_region.controller:
                 return source_region.controller
 
-    # Fallback: imports dropped — attribute to any known inbound source
-    for source_name in economy_result.inbound_sources.get(region_name, []):
-        source_region = region_map.get(source_name)
-        if source_region and source_region.controller:
-            return source_region.controller
-
-    return None
+    return None  # imports dropped but no upstream stockpile crash — likely embargo
 
 
 def detect_supply_shocks(
