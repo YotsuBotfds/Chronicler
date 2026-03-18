@@ -184,6 +184,37 @@ def extract_resources(
     }
 
 
+def extract_stockpiles(
+    bundles: list[dict],
+    checkpoints: list[int] | None = None,
+) -> dict:
+    """Per-region per-good stockpile levels at checkpoints.
+
+    Returns: {region_name: {good_name: {turn: level}}}
+    """
+    if not bundles:
+        return {}
+    bundle = bundles[0]
+    if checkpoints is None:
+        checkpoints = [50, 100, 200, 300, 400, 500]
+
+    result: dict[str, dict[str, dict[int, float]]] = {}
+    for turn in checkpoints:
+        snapshot = _snapshot_at_turn(bundle, turn)
+        if snapshot is None:
+            continue
+        for region_data in snapshot.get("world_state", {}).get("regions", []):
+            rname = region_data.get("name", "")
+            stockpile = region_data.get("stockpile", {}).get("goods", {})
+            if rname not in result:
+                result[rname] = {}
+            for good, amount in stockpile.items():
+                if good not in result[rname]:
+                    result[rname][good] = {}
+                result[rname][good][turn] = amount
+    return result
+
+
 def extract_politics(bundles: list[dict]) -> dict:
     """Firing rates for political events and elimination turn distribution."""
     political_event_types = [
