@@ -234,7 +234,8 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
 
 
 def build_signals(world: WorldState, shocks: list | None = None,
-                  demands: dict | None = None) -> pa.RecordBatch:
+                  demands: dict | None = None,
+                  conquered: dict[int, bool] | None = None) -> pa.RecordBatch:
     """Build civ-signals Arrow RecordBatch from current WorldState.
 
     Args:
@@ -259,6 +260,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
     shock_stab, shock_eco, shock_mil, shock_cul = [], [], [], []
     ds_farmer, ds_soldier, ds_merchant, ds_scholar, ds_priest = [], [], [], [], []
     mean_bold, mean_ambi, mean_ltrait = [], [], []
+    conquered_flags = []
 
     for i, civ in enumerate(world.civilizations):
         civ_ids.append(i)
@@ -292,6 +294,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         mean_bold.append(pm[0])
         mean_ambi.append(pm[1])
         mean_ltrait.append(pm[2])
+        conquered_flags.append((conquered or {}).get(i, False))
 
     return pa.record_batch({
         "civ_id": pa.array(civ_ids, type=pa.uint8()),
@@ -314,6 +317,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "mean_boldness": pa.array(mean_bold, type=pa.float32()),
         "mean_ambition": pa.array(mean_ambi, type=pa.float32()),
         "mean_loyalty_trait": pa.array(mean_ltrait, type=pa.float32()),
+        "conquered_this_turn": pa.array(conquered_flags, type=pa.bool_()),
     })
 
 
@@ -336,9 +340,9 @@ class AgentBridge:
         self._departure_turns: dict[int, int] = {}  # agent_id → turn they left origin_region
         self.displacement_by_region: dict[int, float] = {}  # region_id → fraction displaced
 
-    def tick(self, world: WorldState, shocks=None, demands=None) -> list:
+    def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
         self._sim.set_region_state(build_region_batch(world))
-        signals = build_signals(world, shocks=shocks, demands=demands)
+        signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered)
         agent_events = self._sim.tick(world.turn, signals)
 
         if self._mode == "hybrid":

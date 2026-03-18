@@ -1211,6 +1211,10 @@ def run_turn(
     # Phase 5: Action (selection + resolution)
     turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
 
+    conquered_civs = getattr(world, '_conquered_this_turn', set())
+    world._conquered_this_turn = set()  # clear BEFORE passing to bridge (transient signal rule)
+    conquered_dict = {i: True for i in conquered_civs}
+
     # Phase 6: Cultural Milestones
     turn_events.extend(phase_cultural_milestones(world, acc=acc))
 
@@ -1243,12 +1247,12 @@ def run_turn(
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
         # Run agent tick with shock and demand data
-        turn_events.extend(agent_bridge.tick(world, shocks=shocks, demands=demand_shifts))
+        turn_events.extend(agent_bridge.tick(world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict))
     else:
         acc.apply(world)
         # Existing agent_bridge.tick() call for non-hybrid modes
         if agent_bridge is not None:
-            turn_events.extend(agent_bridge.tick(world))
+            turn_events.extend(agent_bridge.tick(world, conquered=conquered_dict))
 
     # M36: Stash snapshot for Phase 10 culture functions
     world._agent_snapshot = None
