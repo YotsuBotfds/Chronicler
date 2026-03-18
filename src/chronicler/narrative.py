@@ -150,9 +150,10 @@ def build_agent_context_for_moment(
     gini_by_civ: dict[int, float] | None = None,   # M41: per-civ Gini coefficients
     economy_result=None,  # M43b
 ) -> AgentContext | None:
-    """Build AgentContext if the moment has agent-source events."""
+    """Build AgentContext if the moment has agent-source or economy events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
-    if not agent_events:
+    economy_events = [e for e in moment.events if e.source == "economy"]
+    if not agent_events and not (economy_result is not None and economy_events):
         return None
 
     # Named characters active in this moment
@@ -694,6 +695,8 @@ class NarrativeEngine:
         agent_name_map: dict[int, str] | None = None,
         # M41: per-civ Gini coefficients for wealth inequality narration
         gini_by_civ: dict[int, float] | None = None,
+        # M43b: Economy result for trade dependency and shock narration
+        economy_result=None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments sequentially with full context.
 
@@ -799,6 +802,7 @@ class NarrativeEngine:
                     agent_name_map=agent_name_map,
                     hostage_data=hostage_data,
                     gini_by_civ=gini_by_civ,
+                    economy_result=economy_result,
                 )
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)

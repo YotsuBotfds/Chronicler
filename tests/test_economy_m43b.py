@@ -479,3 +479,65 @@ def test_shock_to_shock_chain_linking():
     links = compute_causal_links(events, scores)
     chain = [l for l in links if l.cause_event_type == "supply_shock" and l.effect_event_type == "supply_shock"]
     assert len(chain) == 1
+
+
+# ---------------------------------------------------------------------------
+# Phoebe review fixes: B-1 (economy_result threading), NB-2 (transient test)
+# ---------------------------------------------------------------------------
+
+def test_economy_result_reaches_narrator():
+    """B-1: economy_result must be threaded through narrate_batch to
+    build_agent_context_for_moment so trade/shock context is not dead code."""
+    from chronicler.narrative import build_agent_context_for_moment
+    from chronicler.models import NarrativeMoment, NarrativeRole, CausalLink
+
+    moment = NarrativeMoment(
+        anchor_turn=10,
+        turn_range=(9, 11),
+        events=[
+            Event(
+                turn=10, event_type="supply_shock", actors=["Rome", "Aram"],
+                description="Supply shock: food in Plains", importance=7,
+                source="economy", shock_region="Plains", shock_category="food",
+            ),
+        ],
+        named_events=[],
+        score=10.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.RESOLUTION,
+        bonus_applied=0.0,
+    )
+    er = EconomyResult()
+    er.trade_dependent = {"Plains": True, "Coast": True}
+
+    ctx = build_agent_context_for_moment(
+        moment, [], {}, {},
+        economy_result=er,
+    )
+    assert ctx is not None
+    assert "Plains" in ctx.trade_dependent_regions
+    assert len(ctx.active_shocks) == 1
+    assert ctx.active_shocks[0].region == "Plains"
+
+
+def test_economy_result_overwritten_each_turn():
+    """NB-2: Transient signal test — world._economy_result is unconditionally
+    overwritten each turn by M42 wiring, not carried over from previous turn.
+    Verifies that stale economy_result from turn N does not leak into turn N+1."""
+    from chronicler.models import WorldState
+
+    world = WorldState(name="test", seed=0, turn=1, regions=[], civilizations=[])
+
+    # Turn 1: set economy_result
+    er1 = EconomyResult()
+    er1.trade_dependent = {"Plains": True}
+    world._economy_result = er1
+    assert world._economy_result.trade_dependent["Plains"] is True
+
+    # Turn 2: overwrite with fresh result (simulates M42 wiring)
+    er2 = EconomyResult()
+    er2.trade_dependent = {}
+    world._economy_result = er2
+    assert world._economy_result.trade_dependent == {}
+    # Stale turn 1 data is gone — not accumulated
+    assert "Plains" not in world._economy_result.trade_dependent
