@@ -142,6 +142,41 @@ class EconomyTracker:
 SHOCK_DELTA_THRESHOLD = 0.30  # [CALIBRATE] 30% drop triggers detection
 SHOCK_SEVERITY_FLOOR = 0.8   # [CALIBRATE] food_sufficiency below this = crisis
 
+# M43b: Raider constants
+RAIDER_THRESHOLD = 200.0  # [CALIBRATE] set after M43a 200-seed data
+RAIDER_WAR_WEIGHT = 0.15  # [CALIBRATE] base additive WAR bonus at 1x overshoot
+RAIDER_CAP = 2.0          # max overshoot multiplier (bonus caps at 0.30)
+
+
+def _get_adjacent_enemy_regions(civ, world) -> list:
+    """Find regions adjacent to civ's territory controlled by hostile/suspicious civs."""
+    from chronicler.models import Disposition
+
+    enemy_civs = set()
+    if civ.name in world.relationships:
+        for other_name, rel in world.relationships[civ.name].items():
+            if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                enemy_civs.add(other_name)
+    if not enemy_civs:
+        return []
+
+    region_map = {r.name: r for r in world.regions}
+    own_regions = set(civ.regions)
+    adjacent_enemy = []
+    seen = set()
+    for rname in own_regions:
+        region = region_map.get(rname)
+        if region is None:
+            continue
+        for adj_name in region.adjacencies:
+            if adj_name in seen:
+                continue
+            adj_region = region_map.get(adj_name)
+            if adj_region and adj_region.controller in enemy_civs:
+                adjacent_enemy.append(adj_region)
+                seen.add(adj_name)
+    return adjacent_enemy
+
 
 def classify_upstream_source(
     world,

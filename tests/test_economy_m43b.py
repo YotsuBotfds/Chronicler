@@ -268,3 +268,82 @@ def test_shock_actors_affected_first_upstream_second():
     assert coast_shock.actors[0] == "Tyre"
     assert len(coast_shock.actors) >= 2
     assert coast_shock.actors[1] == "Aram"
+
+
+# ---------------------------------------------------------------------------
+# Task 6: _get_adjacent_enemy_regions() and raider constants
+# ---------------------------------------------------------------------------
+
+from chronicler.economy import (
+    _get_adjacent_enemy_regions, RAIDER_WAR_WEIGHT, RAIDER_CAP,
+    RAIDER_THRESHOLD, FOOD_GOODS,
+)
+from chronicler.models import Disposition, Relationship
+
+
+def _make_world_with_enemy_stockpile():
+    """Two civs: Rome (Plains) hostile to Persia (Mountains with big stockpile)."""
+    plains = _make_region("Plains", controller="Rome")
+    plains.adjacencies = ["Mountains"]
+    mountains = _make_region("Mountains", controller="Persia", terrain="mountain")
+    mountains.adjacencies = ["Plains"]
+    mountains.stockpile.goods = {"grain": 500.0}
+    rome = _make_civ("Rome", ["Plains"])
+    persia = _make_civ("Persia", ["Mountains"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[plains, mountains], civilizations=[rome, persia])
+    world.relationships = {
+        "Rome": {"Persia": Relationship(disposition=Disposition.HOSTILE)},
+        "Persia": {"Rome": Relationship(disposition=Disposition.HOSTILE)},
+    }
+    return world, rome, persia
+
+
+def test_adjacent_enemy_regions_finds_hostile():
+    world, rome, _ = _make_world_with_enemy_stockpile()
+    enemies = _get_adjacent_enemy_regions(rome, world)
+    assert len(enemies) == 1
+    assert enemies[0].name == "Mountains"
+
+
+def test_adjacent_enemy_regions_empty_for_friendly():
+    world, rome, _ = _make_world_with_enemy_stockpile()
+    world.relationships["Rome"]["Persia"] = Relationship(disposition=Disposition.FRIENDLY)
+    enemies = _get_adjacent_enemy_regions(rome, world)
+    assert len(enemies) == 0
+
+
+def test_raider_modifier_zero_below_threshold():
+    max_food = 1.0
+    bonus = 0.0
+    if max_food > RAIDER_THRESHOLD:
+        bonus = RAIDER_WAR_WEIGHT * min(max_food / RAIDER_THRESHOLD - 1.0, RAIDER_CAP)
+    assert bonus == 0.0
+
+
+def test_raider_modifier_scales_above_threshold():
+    max_food = RAIDER_THRESHOLD * 3
+    bonus = RAIDER_WAR_WEIGHT * min(max_food / RAIDER_THRESHOLD - 1.0, RAIDER_CAP)
+    assert bonus == RAIDER_WAR_WEIGHT * RAIDER_CAP
+
+
+def test_raider_modifier_uses_max_not_sum():
+    plains = _make_region("Plains", controller="Rome")
+    plains.adjacencies = ["A", "B"]
+    a = _make_region("A", controller="Persia")
+    a.adjacencies = ["Plains"]
+    a.stockpile.goods = {"grain": 10.0}
+    b = _make_region("B", controller="Persia")
+    b.adjacencies = ["Plains"]
+    b.stockpile.goods = {"grain": 200.0}
+    rome = _make_civ("Rome", ["Plains"])
+    persia = _make_civ("Persia", ["A", "B"])
+    world = WorldState(name="test", seed=0, turn=10, regions=[plains, a, b], civilizations=[rome, persia])
+    world.relationships = {
+        "Rome": {"Persia": Relationship(disposition=Disposition.HOSTILE)},
+    }
+    enemies = _get_adjacent_enemy_regions(rome, world)
+    max_food = max(
+        sum(r.stockpile.goods.get(g, 0.0) for g in FOOD_GOODS)
+        for r in enemies
+    )
+    assert max_food == 200.0
