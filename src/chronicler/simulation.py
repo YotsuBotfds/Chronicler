@@ -874,6 +874,18 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
             world.regions,
             getattr(world, '_dead_agents_this_turn', None),
         )
+
+        # M38b: Schisms
+        from chronicler.religion import detect_schisms, detect_reformation
+        schism_events = detect_schisms(
+            world.regions, world.civilizations, world.belief_registry,
+            _snap, world.turn,
+        )
+        _persecution_events.extend(schism_events)
+        reformation_events = detect_reformation(
+            world.civilizations, world.belief_registry,
+        )
+        _persecution_events.extend(reformation_events)
     elif world.belief_registry:
         # --agents=off: default civ_majority_faith to founding faith
         for i, civ in enumerate(world.civilizations):
