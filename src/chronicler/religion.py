@@ -46,6 +46,19 @@ MARTYRDOM_BOOST_PER_EVENT = 0.05     # added per turn with persecution deaths
 MARTYRDOM_BOOST_CAP = 0.20           # max regional martyrdom boost
 MARTYRDOM_DECAY_TURNS = 10           # linear decay duration
 
+# M38b: Schisms
+SCHISM_MINORITY_THRESHOLD = 0.30
+SCHISM_SECESSION_MODIFIER = 10
+REFORMATION_THRESHOLD = 0.60
+MAX_FAITHS = 16
+
+SCHISM_NEUTRAL_POLE_MAP = {
+    DOCTRINE_STANCE: -1,
+    DOCTRINE_STRUCTURE: -1,
+    DOCTRINE_OUTREACH: -1,
+    DOCTRINE_ETHICS: 1,
+}
+
 # ---------------------------------------------------------------------------
 # Doctrine bias table
 # ---------------------------------------------------------------------------
