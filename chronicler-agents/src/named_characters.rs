@@ -27,6 +27,7 @@ pub struct NamedCharacter {
     pub born_turn: u16,
     pub promotion_turn: u16,
     pub promotion_trigger: u8, // 0=skill, 1=rebellion, 2=displacement, 3=migration, 4=versatility
+    pub parent_id: u32,
     pub history: Vec<(u16, u8, u16)>, // (turn, event_type, region)
 }
 
@@ -149,6 +150,7 @@ impl NamedCharacterRegistry {
         born_turn: u16,
         promotion_turn: u16,
         promotion_trigger: u8,
+        parent_id: u32,
     ) {
         self.characters.push(NamedCharacter {
             agent_id,
@@ -158,6 +160,7 @@ impl NamedCharacterRegistry {
             born_turn,
             promotion_turn,
             promotion_trigger,
+            parent_id,
             history: Vec::new(),
         });
     }
@@ -217,14 +220,14 @@ mod tests {
         let mut registry = NamedCharacterRegistry::new();
         // Fill per-civ cap for civ 0
         for i in 0..10 {
-            registry.register(i, CharacterRole::General, 0, 0, 0, 100, 0);
+            registry.register(i, CharacterRole::General, 0, 0, 0, 100, 0, 0);
         }
         assert!(!registry.can_promote(0)); // civ 0 full
         assert!(registry.can_promote(1));  // civ 1 still has room
 
         // Fill global cap
         for i in 10..50 {
-            registry.register(i, CharacterRole::Merchant, (i % 5) as u8 + 1, 0, 0, 100, 0);
+            registry.register(i, CharacterRole::Merchant, (i % 5) as u8 + 1, 0, 0, 100, 0, 0);
         }
         assert!(!registry.can_promote(1)); // global cap hit
     }
@@ -246,8 +249,19 @@ mod tests {
         pool.set_civ_affinity(slot, 3);
         assert_eq!(pool.civ_affinity(slot), 3);
         let mut registry = NamedCharacterRegistry::new();
-        registry.register(pool.id(slot), CharacterRole::General, 0, 0, 0, 100, 0);
+        registry.register(pool.id(slot), CharacterRole::General, 0, 0, 0, 100, 0, 0);
         registry.set_character_civ(pool.id(slot), 3);
         assert_eq!(registry.characters[0].civ_id, 3);
+    }
+
+    #[test]
+    fn test_named_character_parent_id() {
+        let mut registry = NamedCharacterRegistry::new();
+        registry.register(42, CharacterRole::General, 0, 0, 0, 100, 0, 7);
+        assert_eq!(registry.characters[0].parent_id, 7);
+
+        // PARENT_NONE case
+        registry.register(43, CharacterRole::Merchant, 1, 1, 0, 110, 0, crate::agent::PARENT_NONE);
+        assert_eq!(registry.characters[1].parent_id, crate::agent::PARENT_NONE);
     }
 }

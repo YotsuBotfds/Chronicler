@@ -612,6 +612,7 @@ impl AgentSimulator {
                 born,
                 self.turn as u16,
                 trigger,
+                0,  // M39 temp: replaced with pool.parent_ids[slot] in Task 5
             );
         }
 
