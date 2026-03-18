@@ -592,7 +592,7 @@ def compute_economy(
 
         prod = _empty_category_dict()
         cat, amount = compute_production(
-            region.resource_types[0], region.resource_yields[0], agent_data["farmer_count"],
+            region.resource_types[0], region.resource_effective_yields[0], agent_data["farmer_count"],
         )
         prod[cat] = amount
         result.conservation["production"] += amount

@@ -416,7 +416,7 @@ def test_compute_economy_stockpile_integration():
     r1.name = "Valley"
     r1.terrain = "plains"
     r1.resource_types = [0, 255, 255]
-    r1.resource_yields = [1.0, 0.0, 0.0]
+    r1.resource_effective_yields = [1.0, 0.0, 0.0]
     r1.adjacencies = ["Hills"]
     r1.population = 10
     r1.stockpile = RegionStockpile(goods={"grain": 20.0})
@@ -425,7 +425,7 @@ def test_compute_economy_stockpile_integration():
     r2.name = "Hills"
     r2.terrain = "mountains"
     r2.resource_types = [5, 255, 255]
-    r2.resource_yields = [0.5, 0.0, 0.0]
+    r2.resource_effective_yields = [0.5, 0.0, 0.0]
     r2.adjacencies = ["Valley"]
     r2.population = 5
     r2.stockpile = RegionStockpile(goods={"ore": 5.0})
@@ -463,3 +463,74 @@ def test_compute_economy_stockpile_integration():
     assert result.food_sufficiency["Valley"] > 0.0
     # Conservation tracking should have production > 0
     assert result.conservation["production"] > 0.0
+
+
+# --- Task 14: Conservation Law ---
+
+def test_conservation_law():
+    """Global balance: old_stockpile + production = new_stockpile + consumption + transit_loss + storage_loss + cap_overflow."""
+    from unittest.mock import MagicMock
+    import numpy as np
+    import pyarrow as pa
+    from chronicler.economy import compute_economy, ALL_GOODS
+    from chronicler.models import Region, RegionStockpile
+
+    r1 = Region(name="Breadbasket", terrain="plains", carrying_capacity=50, resources="fertile",
+                controller="Alpha", resource_types=[0, 255, 255],
+                resource_base_yields=[2.0, 0.0, 0.0],
+                resource_effective_yields=[2.0, 0.0, 0.0])
+    r1.stockpile = RegionStockpile(goods={"grain": 50.0})
+    r1.adjacencies = ["Port"]
+
+    r2 = Region(name="Port", terrain="coast", carrying_capacity=30, resources="maritime",
+                controller="Beta", resource_types=[3, 255, 255],
+                resource_base_yields=[1.0, 0.0, 0.0],
+                resource_effective_yields=[1.0, 0.0, 0.0])
+    r2.stockpile = RegionStockpile(goods={"fish": 20.0})
+    r2.adjacencies = ["Breadbasket"]
+
+    civ_a = MagicMock()
+    civ_a.name = "Alpha"
+    civ_a.regions = ["Breadbasket"]
+    civ_b = MagicMock()
+    civ_b.name = "Beta"
+    civ_b.regions = ["Port"]
+    world = MagicMock()
+    world.regions = [r1, r2]
+    world.civilizations = [civ_a, civ_b]
+    world.rivers = []
+    world.turn = 10
+
+    old_total = sum(amt for r in [r1, r2] for amt in r.stockpile.goods.values())
+
+    n = 35
+    regions_arr = np.array([0]*25 + [1]*10, dtype=np.int32)
+    occ_arr = np.array([0]*20 + [2]*5 + [0]*10, dtype=np.int32)
+    wealth_arr = np.zeros(n, dtype=np.float32)
+    civ_arr = np.array([0]*25 + [1]*10, dtype=np.int32)
+    snapshot = pa.RecordBatch.from_pydict({
+        "region": pa.array(regions_arr, type=pa.int32()),
+        "occupation": pa.array(occ_arr, type=pa.int32()),
+        "wealth": pa.array(wealth_arr, type=pa.float32()),
+        "civ_affinity": pa.array(civ_arr, type=pa.int32()),
+    })
+    region_map = {"Breadbasket": r1, "Port": r2}
+
+    result = compute_economy(
+        world, snapshot, region_map, agent_mode=True,
+        active_trade_routes=[("Alpha", "Beta")],
+    )
+
+    new_total = sum(amt for r in [r1, r2] for amt in r.stockpile.goods.values())
+
+    c = result.conservation
+    inputs = old_total + c["production"]
+    outputs = new_total + c["consumption"] + c["transit_loss"] + c["storage_loss"] + c["cap_overflow"]
+    assert abs(inputs - outputs) < 0.01, (
+        f"Conservation violated: inputs={inputs:.2f}, outputs={outputs:.2f}, "
+        f"diff={abs(inputs - outputs):.4f}, conservation={c}"
+    )
+    for r in [r1, r2]:
+        for good, amt in r.stockpile.goods.items():
+            assert amt >= 0.0, f"Negative stockpile: {r.name}.{good} = {amt}"
+

@@ -349,7 +349,7 @@ def _make_test_world():
     plains.name = "Plains"
     plains.adjacencies = ["Hills"]
     plains.resource_types = [0, 1, 3]
-    plains.resource_yields = [1.5, 0.5, 0.3]
+    plains.resource_effective_yields = [1.5, 0.5, 0.3]
     plains.terrain = "plains"
     plains.population = 70
     plains.stockpile = RegionStockpile(goods={"grain": 10.0})
@@ -358,7 +358,7 @@ def _make_test_world():
     hills.name = "Hills"
     hills.adjacencies = ["Plains"]
     hills.resource_types = [5, 1, 4]
-    hills.resource_yields = [0.8, 0.6, 0.4]
+    hills.resource_effective_yields = [0.8, 0.6, 0.4]
     hills.terrain = "mountains"
     hills.population = 65
     hills.stockpile = RegionStockpile(goods={"ore": 5.0})
