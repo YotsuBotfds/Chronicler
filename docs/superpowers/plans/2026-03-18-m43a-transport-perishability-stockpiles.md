@@ -1282,6 +1282,8 @@ After building `origin_routes` (~line 410), before the flow allocation loop (~li
 
 Then pass `transport_costs=route_transport_costs` to `allocate_trade_flow()` call (~line 425).
 
+**3c-bis.** The existing allocation loop (~line 416-438) calls `allocate_trade_flow()` per origin and immediately aggregates results into `region_imports`. M43a needs the per-route flow data for per-good decomposition. Save each origin's allocation result into `all_route_flows` — this variable already exists in the current M42 code at line 414 but may need to be preserved past the aggregation loop. Verify `all_route_flows[origin_name] = flow` is set in the loop (~line 430). If so, no change needed — the variable is already populated. If the M42 code discards it, retain it by ensuring the assignment happens before the aggregation.
+
 **3d.** After the imports aggregation loop (~line 438), add per-good decomposition with transit decay:
 
 ```python
@@ -1359,9 +1361,8 @@ Then pass `transport_costs=route_transport_costs` to `allocate_trade_flow()` cal
         # Step 2j: Storage decay with salt preservation
         apply_storage_decay(region.stockpile.goods)
 
-        # Step 2k: Cap stockpile
-        agent_data = region_agent_data.get(rname, {})
-        apply_stockpile_cap(region.stockpile.goods, agent_data.get("population", 0))
+        # Step 2k: Cap stockpile (use region.population — physical storage capacity, not agent count)
+        apply_stockpile_cap(region.stockpile.goods, region.population)
 ```
 
 **3f.** In the signal derivation loop (~line 464), remove the old `food_sufficiency` computation (it's now done in the stockpile sub-sequence above). Comment out or delete:
@@ -1372,6 +1373,8 @@ Then pass `transport_costs=route_transport_costs` to `allocate_trade_flow()` cal
         #     post_supply.get("food", 0.0), demand.get("food", 0.0),
         # )
 ```
+
+Note: Delete only the call site, NOT the `derive_food_sufficiency()` function definition. The function is still used by M42 tests and may be needed in `--agents=off` mode.
 
 - [ ] **Step 4: Run M42 regression tests**
 
@@ -1405,13 +1408,22 @@ In `src/chronicler/economy.py`, add to `EconomyResult` after `tithe_base`:
 ```python
     # M43a: Conservation law tracking (for testing)
     conservation: dict[str, float] = field(default_factory=lambda: {
-        "transit_loss": 0.0, "consumption": 0.0, "storage_loss": 0.0, "cap_overflow": 0.0,
+        "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
+        "storage_loss": 0.0, "cap_overflow": 0.0,
     })
 ```
 
 - [ ] **Step 2: Accumulate conservation terms in compute_economy()**
 
-In the stockpile sub-sequence (Task 13 step 3e), update the calls to track losses:
+In the stockpile sub-sequence (Task 13 step 3e), update the calls to track losses and production:
+
+After the production computation in step 2a (~line 375), track total production:
+
+```python
+        result.conservation["production"] += amount  # amount from compute_production()
+```
+
+In the stockpile sub-sequence:
 
 ```python
         # Step 2i: Demand drawdown from stockpile (clamped)
@@ -1422,9 +1434,8 @@ In the stockpile sub-sequence (Task 13 step 3e), update the calls to track losse
         storage_loss = apply_storage_decay(region.stockpile.goods)
         result.conservation["storage_loss"] += storage_loss
 
-        # Step 2k: Cap stockpile
-        agent_data = region_agent_data.get(rname, {})
-        cap_overflow = apply_stockpile_cap(region.stockpile.goods, agent_data.get("population", 0))
+        # Step 2k: Cap stockpile (use region.population — physical storage capacity)
+        cap_overflow = apply_stockpile_cap(region.stockpile.goods, region.population)
         result.conservation["cap_overflow"] += cap_overflow
 ```
 
@@ -1498,12 +1509,10 @@ def test_conservation_law():
         amt for r in [r1, r2] for amt in r.stockpile.goods.values()
     )
 
-    # Compute total production (grain from 20 farmers × 2.0 yield + fish from 10 farmers × 1.0 yield)
-    total_production = 20 * 2.0 + 10 * 1.0  # 50 grain + 10 fish = 60
-
     # Conservation law: old + production = new + consumption + transit_loss + storage_loss + cap_overflow
+    # Production is tracked by compute_economy() — no hard-coded values
     c = result.conservation
-    inputs = old_total + total_production
+    inputs = old_total + c["production"]
     outputs = new_total + c["consumption"] + c["transit_loss"] + c["storage_loss"] + c["cap_overflow"]
     assert abs(inputs - outputs) < 0.01, (
         f"Conservation violated: inputs={inputs:.2f}, outputs={outputs:.2f}, "

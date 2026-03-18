@@ -137,7 +137,7 @@ def compute_transport_cost(
 
 ### Route Type Detection
 
-- **River route:** Both `region_a.name` and `region_b.name` appear in the same `River.path` list (M35a `world.rivers`). Implementation note: pre-build a `set[frozenset[str, str]]` of river-connected pairs at the top of `compute_economy()` to avoid O(routes × rivers) scanning per route.
+- **River route:** `region_a.name` and `region_b.name` are adjacent in the same `River.path` list (M35a `world.rivers`). Adjacent means consecutive entries in the ordered path — regions on the same river but separated by intermediate stops are not river-connected for transport cost purposes. Implementation note: pre-build a `set[frozenset[str, str]]` of river-connected pairs at the top of `compute_economy()` to avoid O(routes × rivers) scanning per route.
 - **Coastal route:** Both regions have `terrain == "coast"`. Port-to-port between adjacent coastal regions.
 - **Infrastructure (roads):** Not currently modeled. `INFRASTRUCTURE_DISCOUNT = 1.0` (no effect). Placeholder for future mechanic. Transport cost formula includes the term so it's ready to wire when roads land.
 - **`min(river, coastal)`:** A route takes the better of river or coastal discount. In practice a route is one or the other, but the min handles edge cases without branching.
