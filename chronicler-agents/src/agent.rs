@@ -144,6 +144,27 @@ pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.20;
 // M39: Parentage
 pub const PARENT_NONE: u32 = 0;                 // sentinel for no parent
 
+// M41: Wealth & Class Stratification
+pub const STARTING_WEALTH: f32 = 0.5;       // [CALIBRATE] initial wealth for all agents
+pub const MAX_WEALTH: f32 = 100.0;          // [CALIBRATE] wealth ceiling
+pub const WEALTH_DECAY: f32 = 0.02;         // [CALIBRATE] multiplicative decay per tick
+pub const FARMER_INCOME: f32 = 0.30;        // [CALIBRATE] equilibrium ~15 at full yield
+pub const MINER_INCOME: f32 = 0.80;         // [CALIBRATE] equilibrium ~40, yield-dependent
+pub const SOLDIER_INCOME: f32 = 0.15;       // [CALIBRATE] low peacetime base
+pub const AT_WAR_BONUS: f32 = 1.0;          // [CALIBRATE] doubles soldier income at war
+pub const CONQUEST_BONUS: f32 = 3.0;        // [CALIBRATE] one-shot wealth spike on conquest
+pub const MERCHANT_INCOME: f32 = 0.50;      // [CALIBRATE] with baseline → equilibrium ~12.5
+pub const MERCHANT_BASELINE: f32 = 0.5;     // [CALIBRATE] temporary; M42 replaces with market income
+pub const SCHOLAR_INCOME: f32 = 0.20;       // [CALIBRATE] equilibrium ~10
+pub const PRIEST_INCOME: f32 = 0.20;        // [CALIBRATE] equilibrium ~10; M42 adds tithe
+pub const CLASS_TENSION_WEIGHT: f32 = 0.15; // [CALIBRATE] max penalty for poorest at Gini=1.0
+
+/// ORE=5, PRECIOUS=6 are extractive; all others are organic.
+#[inline]
+pub fn is_extractive(resource_type: u8) -> bool {
+    resource_type == 5 || resource_type == 6
+}
+
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;
@@ -176,6 +197,39 @@ mod tests {
 
         // Hysteresis positive
         assert!(MIGRATE_HYSTERESIS > 0.0);
+    }
+
+    #[test]
+    fn test_is_extractive_ore() {
+        assert!(is_extractive(5)); // ORE
+    }
+
+    #[test]
+    fn test_is_extractive_precious() {
+        assert!(is_extractive(6)); // PRECIOUS
+    }
+
+    #[test]
+    fn test_is_extractive_organic() {
+        assert!(!is_extractive(0)); // GRAIN
+        assert!(!is_extractive(1)); // TIMBER
+        assert!(!is_extractive(2)); // BOTANICALS
+        assert!(!is_extractive(3)); // FISH
+        assert!(!is_extractive(4)); // SALT
+        assert!(!is_extractive(7)); // EXOTIC
+    }
+
+    #[test]
+    fn test_wealth_equilibrium_farmer() {
+        // At yield=1.0: equilibrium = FARMER_INCOME / WEALTH_DECAY
+        let eq = FARMER_INCOME / WEALTH_DECAY;
+        assert!(eq > 5.0 && eq < 50.0, "Farmer equilibrium {eq} out of range");
+    }
+
+    #[test]
+    fn test_wealth_equilibrium_miner() {
+        let eq = MINER_INCOME / WEALTH_DECAY;
+        assert!(eq > FARMER_INCOME / WEALTH_DECAY, "Miner should earn more than farmer");
     }
 
     #[test]
