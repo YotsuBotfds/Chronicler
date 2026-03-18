@@ -92,6 +92,9 @@ def compute_base_scores(
     """Score each event based on importance, named-event match, dominant
     power involvement, and rarity.
 
+    # M40: Relationship-aware scoring (1.2x boost for events involving related characters)
+    # deferred to M45 — requires civ-to-agent mapping not yet available at curation time.
+
     Returns a parallel list of float scores (one per event).
     """
     # Pre-compute type counts for rarity

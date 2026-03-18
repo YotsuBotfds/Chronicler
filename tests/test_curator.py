@@ -579,3 +579,10 @@ class TestCurate:
         moments, gaps = curate([], [], history, budget=5, seed=0)
         assert moments == []
         assert gaps == []
+
+
+# ---------------------------------------------------------------------------
+# 9. M40: Relationship boost — deferred to M45
+# ---------------------------------------------------------------------------
+# Relationship-aware scoring (1.2x boost) requires civ-to-agent mapping
+# not yet available at curation time. See compute_base_scores docstring.

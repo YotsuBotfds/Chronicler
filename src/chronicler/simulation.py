@@ -1031,19 +1031,6 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     # M17b: Exile restoration checks
     collapse_events.extend(check_exile_restoration(world))
 
-    # M17c: Character relationship formation
-    from chronicler.relationships import check_rivalry_formation, check_mentorship_formation, check_marriage_formation
-    new_rivalries = check_rivalry_formation(world)
-    for rivalry in new_rivalries:
-        collapse_events.append(Event(
-            turn=world.turn, event_type="rivalry_formed",
-            actors=[rivalry.get("civ_a", ""), rivalry.get("civ_b", "")],
-            description=f"A rivalry forms between great persons of opposing civilizations.",
-            importance=5,
-        ))
-    check_mentorship_formation(world)
-    check_marriage_formation(world)
-
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
     collapse_events.extend(tick_factions(world, acc=acc,
@@ -1279,6 +1266,59 @@ def run_turn(
     # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
     phase10_acc = acc if world.agent_mode == "hybrid" else None
     turn_events.extend(phase_consequences(world, acc=phase10_acc))
+
+    # M40: Unified relationship formation and dissolution
+    # One-turn latency: agent tick ran between Phase 9 and 10.
+    # Rust reads edges from the previous turn's Phase 10 output. Intentional.
+    if agent_bridge is not None:
+        from chronicler.relationships import form_and_sync_relationships, compute_belief_data, REL_RIVAL
+
+        # Build active agent IDs from all living named characters
+        active_ids = set()
+        for civ in world.civilizations:
+            for gp in civ.great_persons:
+                if gp.active and gp.agent_id is not None:
+                    active_ids.add(gp.agent_id)
+
+        # Build belief data from the agent snapshot via bridge
+        try:
+            snap = agent_bridge.get_snapshot()
+        except Exception:
+            snap = None
+        belief_by_agent, region_belief_fractions = compute_belief_data(
+            snap, active_ids, world.regions,
+        )
+
+        dissolved = form_and_sync_relationships(
+            world, agent_bridge, active_ids, belief_by_agent, region_belief_fractions,
+        )
+        if dissolved:
+            # dissolved_edges_by_turn: at most ~10 edges/turn × 500 turns = ~5000 entries.
+            # Cleaned up when world is garbage-collected (exclude=True, not serialized).
+            world.dissolved_edges_by_turn[world.turn] = dissolved
+
+        # Generate rivalry events for curator
+        new_edges = agent_bridge.read_social_edges()
+        gp_by_id = {}
+        for civ in world.civilizations:
+            for gp in civ.great_persons:
+                if gp.agent_id is not None:
+                    gp_by_id[gp.agent_id] = gp
+        for edge in new_edges:
+            if edge[2] == REL_RIVAL and edge[3] == world.turn:
+                gp_a = gp_by_id.get(edge[0])
+                gp_b = gp_by_id.get(edge[1])
+                actors = []
+                if gp_a:
+                    actors.append(gp_a.civilization)
+                if gp_b:
+                    actors.append(gp_b.civilization)
+                turn_events.append(Event(
+                    turn=world.turn, event_type="rivalry_formed",
+                    actors=actors,
+                    description="A rivalry forms between great persons of opposing civilizations.",
+                    importance=5,
+                ))
 
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression

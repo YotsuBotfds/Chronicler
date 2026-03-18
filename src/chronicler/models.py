@@ -341,6 +341,8 @@ class GreatPerson(BaseModel):
     pilgrimage_return_turn: int | None = None
     arc_type: str | None = None
     pilgrimage_skill_bonus: float = 0.0
+    # M40: Social Networks
+    origin_region: str | None = None
 
 
 class Event(BaseModel):
@@ -496,7 +498,8 @@ class WorldState(BaseModel):
     climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
     fog_of_war: bool = False
     retired_persons: list[GreatPerson] = Field(default_factory=list)
-    character_relationships: list[dict] = Field(default_factory=list)
+    # M40: Dissolved edges per turn for narration (not serialized to bundle)
+    dissolved_edges_by_turn: dict[int, list[tuple]] = Field(default_factory=dict, exclude=True)
     great_person_cooldowns: dict[str, dict[str, int]] = Field(default_factory=dict)
     # M18: Emergence and Chaos
     stress_index: int = 0  # Global stress aggregate (max across civs)
@@ -661,6 +664,8 @@ class AgentContext(BaseModel):
     named_characters: list[dict] = Field(default_factory=list)
     population_mood: str = "content"  # "desperate" > "restless" > "content"
     displacement_fraction: float = 0.0
+    # M40: Social Networks — merged view of social edges + hostage state
+    relationships: list[dict] = Field(default_factory=list)
 
 
 class NarrationContext(BaseModel):

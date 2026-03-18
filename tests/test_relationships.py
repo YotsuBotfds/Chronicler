@@ -5,12 +5,20 @@ from chronicler.action_engine import WarResult
 from chronicler.models import Disposition, GreatPerson
 from chronicler.relationships import (
     check_rivalry_formation,
-    dissolve_dead_relationships,
     check_mentorship_formation,
     check_marriage_formation,
+    check_exile_bond_formation,
+    check_coreligionist_formation,
+    form_and_sync_relationships,
     capture_hostage,
     tick_hostages,
     release_hostage,
+    dissolve_edges,
+    REL_MENTOR,
+    REL_RIVAL,
+    REL_MARRIAGE,
+    REL_EXILE_BOND,
+    REL_CORELIGIONIST,
 )
 
 
@@ -34,172 +42,173 @@ def test_war_result_defender_wins():
     assert result.contested_region == "Iron Peaks"
 
 
-# --- Task 15: Rivalries ---
+# --- Task 7: Rivalries (edge tuples) ---
 
-def test_rivalry_forms_between_generals_at_war(make_world):
+def test_rivalry_forms_between_agents_at_war(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     civ1.great_persons = [
-        GreatPerson(
-            name="Gen1", role="general", trait="bold",
-            civilization=civ1.name, origin_civilization=civ1.name, born_turn=0,
-        )
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
     ]
     civ2.great_persons = [
-        GreatPerson(
-            name="Gen2", role="general", trait="aggressive",
-            civilization=civ2.name, origin_civilization=civ2.name, born_turn=0,
-        )
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
     world.active_wars = [(civ1.name, civ2.name)]
-    formed = check_rivalry_formation(world)
+    formed = check_rivalry_formation(world, [])
     assert len(formed) == 1
-    assert formed[0]["type"] == "rivalry"
+    agent_a, agent_b, rel_type, formed_turn = formed[0]
+    assert rel_type == REL_RIVAL
+    assert min(agent_a, agent_b) == 100
+    assert max(agent_a, agent_b) == 200
 
 
-def test_rivalry_not_formed_different_roles(make_world):
+def test_rivalry_skips_aggregate_source(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     civ1.great_persons = [
-        GreatPerson(name="Gen1", role="general", trait="bold", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="aggregate", agent_id=None)
     ]
     civ2.great_persons = [
-        GreatPerson(name="Mer2", role="merchant", trait="shrewd", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
     world.active_wars = [(civ1.name, civ2.name)]
-    formed = check_rivalry_formation(world)
+    formed = check_rivalry_formation(world, [])
     assert len(formed) == 0
 
 
-def test_rivalry_not_duplicated(make_world):
+def test_rivalry_not_duplicated_edge(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     civ1.great_persons = [
-        GreatPerson(name="Gen1", role="general", trait="bold", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
     ]
     civ2.great_persons = [
-        GreatPerson(name="Gen2", role="general", trait="aggressive", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
     world.active_wars = [(civ1.name, civ2.name)]
-    # Pre-populate existing rivalry
-    world.character_relationships = [
-        {"type": "rivalry", "person_a": "Gen1", "person_b": "Gen2", "civ_a": civ1.name, "civ_b": civ2.name, "formed_turn": 0}
-    ]
-    formed = check_rivalry_formation(world)
+    existing_edges = [(100, 200, REL_RIVAL, 0)]
+    formed = check_rivalry_formation(world, existing_edges)
     assert len(formed) == 0
 
 
-def test_rivalry_dissolved_on_death(make_world):
-    world = make_world(num_civs=2, seed=42)
-    world.character_relationships = [
-        {"type": "rivalry", "person_a": "Gen1", "person_b": "Gen2", "civ_a": "Civ1", "civ_b": "Civ2", "formed_turn": 0},
-    ]
-    dissolved = dissolve_dead_relationships(world, dead_names={"Gen1"})
-    assert len(world.character_relationships) == 0
-    assert len(dissolved) == 1
+# --- Task 8: Mentorships (edge tuples) ---
 
-
-def test_dissolve_keeps_unrelated_relationships(make_world):
-    world = make_world(num_civs=2, seed=42)
-    world.character_relationships = [
-        {"type": "rivalry", "person_a": "Gen1", "person_b": "Gen2", "civ_a": "Civ1", "civ_b": "Civ2", "formed_turn": 0},
-        {"type": "mentorship", "person_a": "Mentor", "person_b": "Student", "civ_a": "Civ1", "civ_b": "Civ1", "formed_turn": 0},
-    ]
-    dissolved = dissolve_dead_relationships(world, dead_names={"Gen1"})
-    assert len(world.character_relationships) == 1
-    assert world.character_relationships[0]["type"] == "mentorship"
-
-
-# --- Task 16: Mentorships ---
-
-def test_mentorship_forms_with_compatible_traits(make_world):
+def test_mentorship_forms_same_occupation_skill_gap(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = "conqueror"
     civ.great_persons = [
-        GreatPerson(
-            name="OldGeneral", role="general", trait="bold",
-            civilization=civ.name, origin_civilization=civ.name, born_turn=0,
-        )
+        GreatPerson(name="OldGen", role="general", trait="bold",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="Civ0_region"),
+        GreatPerson(name="YoungGen", role="general", trait="cautious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=50, source="agent", agent_id=200, region="Civ0_region"),
     ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 1
-    assert formed[0]["type"] == "mentorship"
+    agent_a, agent_b, rel_type, _ = formed[0]
+    assert rel_type == REL_MENTOR
+    assert agent_a == 100  # mentor (senior)
+    assert agent_b == 200  # apprentice
 
 
-def test_mentorship_not_formed_incompatible_trait(make_world):
+def test_mentorship_requires_same_region(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = "diplomat"
     civ.great_persons = [
-        GreatPerson(name="OldGeneral", role="general", trait="bold", civilization=civ.name, origin_civilization=civ.name, born_turn=0)
+        GreatPerson(name="A", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=0, source="agent",
+                    agent_id=100, region="Region1"),
+        GreatPerson(name="B", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=50, source="agent",
+                    agent_id=200, region="Region2"),
     ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 0
 
 
-def test_mentorship_not_formed_no_secondary_trait(make_world):
+def test_mentorship_requires_same_role(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = None
     civ.great_persons = [
-        GreatPerson(name="OldGeneral", role="general", trait="bold", civilization=civ.name, origin_civilization=civ.name, born_turn=0)
+        GreatPerson(name="A", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=0, source="agent",
+                    agent_id=100, region="R1"),
+        GreatPerson(name="B", role="merchant", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=50, source="agent",
+                    agent_id=200, region="R1"),
     ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 0
 
 
-def test_mentorship_not_duplicated(make_world):
+def test_mentorship_skips_aggregate(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = "conqueror"
     civ.great_persons = [
-        GreatPerson(name="OldGeneral", role="general", trait="bold", civilization=civ.name, origin_civilization=civ.name, born_turn=0)
+        GreatPerson(name="A", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=0, source="aggregate",
+                    agent_id=None, region="R1"),
+        GreatPerson(name="B", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=50, source="agent",
+                    agent_id=200, region="R1"),
     ]
-    world.character_relationships = [
-        {"type": "mentorship", "person_a": "OldGeneral", "person_b": civ.leader.name, "civ_a": civ.name, "civ_b": civ.name, "formed_turn": 0}
-    ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 0
 
 
-# --- Marriage Alliance ---
+# --- Task 9: Marriage Alliance (edge tuples) ---
 
-def test_marriage_alliance_requires_allied(make_world):
+def test_marriage_forms_between_allied_agent_chars(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     rel12 = world.relationships[civ1.name][civ2.name]
     rel12.disposition = Disposition.ALLIED
     rel12.allied_turns = 15
-    rel21 = world.relationships[civ2.name][civ1.name]
-    rel21.disposition = Disposition.ALLIED
-    rel21.allied_turns = 15
     civ1.great_persons = [
-        GreatPerson(name="GP1", role="merchant", trait="shrewd", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="GP1", role="merchant", trait="shrewd",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
     ]
     civ2.great_persons = [
-        GreatPerson(name="GP2", role="general", trait="bold", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="GP2", role="general", trait="bold",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
-    formed = check_marriage_formation(world)
-    assert isinstance(formed, list)
+    formed = check_marriage_formation(world, [])
+    for edge in formed:
+        assert edge[2] == REL_MARRIAGE
 
 
-def test_marriage_not_formed_when_neutral(make_world):
+def test_marriage_skips_aggregate(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
-    # Disposition is NEUTRAL by default
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
+    rel12 = world.relationships[civ1.name][civ2.name]
+    rel12.disposition = Disposition.ALLIED
+    rel12.allied_turns = 15
     civ1.great_persons = [
-        GreatPerson(name="GP1", role="merchant", trait="shrewd", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="GP1", role="merchant", trait="shrewd",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="aggregate", agent_id=None)
     ]
     civ2.great_persons = [
-        GreatPerson(name="GP2", role="general", trait="bold", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="GP2", role="general", trait="bold",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
-    formed = check_marriage_formation(world)
+    formed = check_marriage_formation(world, [])
     assert len(formed) == 0
 
 
@@ -312,14 +321,243 @@ def test_release_hostage_moves_to_origin(make_world):
     assert hostage.civilization == origin.name
 
 
-# --- Task 18: Integration test ---
+# --- M40: Social Networks ---
 
-def test_m17c_integration_relationships_across_turns(make_world):
-    from chronicler.simulation import run_turn
-    from chronicler.models import ActionType
-    world = make_world(num_civs=3, seed=42)
-    for turn in range(10):
-        world.turn = turn
-        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP, narrator=lambda w, e: "", seed=world.seed)
-    for rel in world.character_relationships:
-        assert rel["type"] in ("rivalry", "mentorship", "marriage")
+# --- Task 6: dissolve_edges ---
+
+def test_dissolve_edges_death_removes_edge():
+    edges = [(100, 200, REL_RIVAL, 50)]
+    active_agent_ids = {200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 0
+    assert len(dissolved) == 1
+
+
+def test_dissolve_edges_both_alive_survives():
+    edges = [(100, 200, REL_RIVAL, 50)]
+    active_agent_ids = {100, 200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 1
+    assert len(dissolved) == 0
+
+
+def test_dissolve_edges_coreligionist_belief_divergence():
+    edges = [(100, 200, REL_CORELIGIONIST, 50)]
+    active_agent_ids = {100, 200}
+    belief_by_agent = {100: 1, 200: 2}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids, belief_by_agent=belief_by_agent)
+    assert len(surviving) == 0
+    assert len(dissolved) == 1
+
+
+def test_dissolve_edges_coreligionist_same_belief_survives():
+    edges = [(100, 200, REL_CORELIGIONIST, 50)]
+    active_agent_ids = {100, 200}
+    belief_by_agent = {100: 1, 200: 1}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids, belief_by_agent=belief_by_agent)
+    assert len(surviving) == 1
+    assert len(dissolved) == 0
+
+
+def test_dissolve_edges_exile_bond_only_death():
+    edges = [(100, 200, REL_EXILE_BOND, 50)]
+    active_agent_ids = {100, 200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 1
+
+
+def test_dissolve_edges_marriage_survives_war():
+    edges = [(100, 200, REL_MARRIAGE, 50)]
+    active_agent_ids = {100, 200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 1
+
+
+def test_great_person_origin_region_defaults_none():
+    gp = GreatPerson(
+        name="Test", role="general", trait="bold",
+        civilization="Civ1", origin_civilization="Civ1", born_turn=0,
+    )
+    assert gp.origin_region is None
+
+
+# --- Task 10: Exile Bond Formation ---
+
+def test_exile_bond_forms_shared_origin_colocated(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="Exile1", role="general", trait="bold",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100,
+                    origin_region="Homeland", region="Refuge"),
+        GreatPerson(name="Exile2", role="merchant", trait="shrewd",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200,
+                    origin_region="Homeland", region="Refuge"),
+    ]
+    formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 1
+    assert formed[0][2] == REL_EXILE_BOND
+
+
+def test_exile_bond_skips_none_origin(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="general", trait="bold",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100,
+                    origin_region=None, region="Refuge"),
+        GreatPerson(name="B", role="merchant", trait="shrewd",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200,
+                    origin_region="Homeland", region="Refuge"),
+    ]
+    formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 0
+
+
+def test_exile_bond_requires_same_region(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
+    civ1.great_persons = [
+        GreatPerson(name="A", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100,
+                    origin_region="Homeland", region="Refuge1"),
+    ]
+    civ2.great_persons = [
+        GreatPerson(name="B", role="merchant", trait="shrewd",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=10, source="agent", agent_id=200,
+                    origin_region="Homeland", region="Refuge2"),
+    ]
+    formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 0
+
+
+# --- Task 11: Co-religionist Formation ---
+
+def test_coreligionist_forms_shared_minority_faith(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="prophet", trait="wise",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="R1"),
+        GreatPerson(name="B", role="prophet", trait="pious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200, region="R1"),
+    ]
+    belief_by_agent = {100: 5, 200: 5}
+    region_belief_fractions = {"R1": {5: 0.20, 1: 0.80}}
+    formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
+    assert len(formed) == 1
+    assert formed[0][2] == REL_CORELIGIONIST
+
+
+def test_coreligionist_not_formed_majority_faith(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="prophet", trait="wise",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="R1"),
+        GreatPerson(name="B", role="prophet", trait="pious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200, region="R1"),
+    ]
+    belief_by_agent = {100: 5, 200: 5}
+    region_belief_fractions = {"R1": {5: 0.50}}
+    formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
+    assert len(formed) == 0
+
+
+def test_coreligionist_requires_colocation(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="prophet", trait="wise",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="R1"),
+        GreatPerson(name="B", role="prophet", trait="pious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200, region="R2"),
+    ]
+    belief_by_agent = {100: 5, 200: 5}
+    region_belief_fractions = {"R1": {5: 0.10}, "R2": {5: 0.10}}
+    formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
+    assert len(formed) == 0
+
+
+# --- Task 12: Coordinator form_and_sync_relationships ---
+
+def test_coordinator_dissolves_dead_agent_edges():
+    from chronicler.models import WorldState
+
+    class MockBridge:
+        def __init__(self, initial_edges):
+            self._edges = initial_edges
+            self.replaced = None
+        def read_social_edges(self):
+            return list(self._edges)
+        def replace_social_edges(self, edges):
+            self.replaced = edges
+
+    initial = [(100, 200, REL_RIVAL, 10)]
+    bridge = MockBridge(initial)
+    world = WorldState(name="TestWorld", seed=42, turn=50, regions=[], civilizations=[], relationships={})
+    active_ids = {200}
+    dissolved = form_and_sync_relationships(world, bridge, active_ids, {}, {})
+    assert len(dissolved) == 1
+    assert bridge.replaced is not None
+    assert len(bridge.replaced) == 0
+
+
+def test_coordinator_forms_new_edges_and_writes_back(make_world):
+    class MockBridge:
+        def __init__(self):
+            self._edges = []
+            self.replaced = None
+        def read_social_edges(self):
+            return list(self._edges)
+        def replace_social_edges(self, edges):
+            self.replaced = edges
+
+    bridge = MockBridge()
+    world = make_world(num_civs=2, seed=42)
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
+    civ1.great_persons = [
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
+    ]
+    civ2.great_persons = [
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
+    ]
+    world.active_wars = [(civ1.name, civ2.name)]
+    dissolved = form_and_sync_relationships(world, bridge, {100, 200}, {}, {})
+    assert len(dissolved) == 0
+    assert bridge.replaced is not None
+    assert len(bridge.replaced) >= 1
+    assert any(e[2] == REL_RIVAL for e in bridge.replaced)
+
+
+# --- Task 17: agents=off empty relationships ---
+
+def test_agents_off_produces_empty_relationships():
+    """In --agents=off mode, no social graph exists, relationships are empty."""
+    from chronicler.models import WorldState
+
+    class NullBridge:
+        def read_social_edges(self):
+            return []
+        def replace_social_edges(self, edges):
+            pass
+
+    world = WorldState(name="TestWorld", seed=42, turn=50, regions=[], civilizations=[], relationships={})
+    dissolved = form_and_sync_relationships(world, NullBridge(), set(), {}, {})
+    assert len(dissolved) == 0

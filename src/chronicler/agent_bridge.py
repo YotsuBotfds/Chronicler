@@ -482,6 +482,9 @@ class AgentBridge:
                 agent_id=agent_id,
                 parent_id=parent_id,
             )
+            # M40: Set origin_region from promotions batch
+            if origin_region < len(world.regions):
+                gp.origin_region = world.regions[origin_region].name
             civ.great_persons.append(gp)
             created.append(gp)
             self.named_agents[agent_id] = name
@@ -948,3 +951,37 @@ class AgentBridge:
 
     def get_snapshot(self): return self._sim.get_snapshot()
     def get_aggregates(self): return self._sim.get_aggregates()
+
+    def read_social_edges(self) -> list[tuple]:
+        """Read current social edges from Rust as a list of (agent_a, agent_b, relationship, formed_turn) tuples."""
+        if self._sim is None:
+            return []
+        batch = self._sim.get_social_edges()
+        if batch is None or batch.num_rows == 0:
+            return []
+        agent_a = batch.column("agent_a").to_pylist()
+        agent_b = batch.column("agent_b").to_pylist()
+        rel = batch.column("relationship").to_pylist()
+        formed = batch.column("formed_turn").to_pylist()
+        return list(zip(agent_a, agent_b, rel, formed))
+
+    def replace_social_edges(self, edges: list[tuple]) -> None:
+        """Replace all social edges in Rust. Each edge is (agent_a, agent_b, relationship, formed_turn)."""
+        if self._sim is None:
+            return
+        if not edges:
+            batch = pa.RecordBatch.from_arrays([
+                pa.array([], type=pa.uint32()),
+                pa.array([], type=pa.uint32()),
+                pa.array([], type=pa.uint8()),
+                pa.array([], type=pa.uint16()),
+            ], names=["agent_a", "agent_b", "relationship", "formed_turn"])
+        else:
+            agent_a, agent_b, rel, formed = zip(*edges)
+            batch = pa.record_batch([
+                pa.array(agent_a, type=pa.uint32()),
+                pa.array(agent_b, type=pa.uint32()),
+                pa.array(rel, type=pa.uint8()),
+                pa.array(formed, type=pa.uint16()),
+            ], names=["agent_a", "agent_b", "relationship", "formed_turn"])
+        self._sim.replace_social_edges(batch)

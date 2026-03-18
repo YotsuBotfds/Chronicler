@@ -287,7 +287,18 @@ class LiveServer:
                         seed = self._init_data.get("metadata", {}).get("seed", 0)
 
                         range_events = [e for e in all_events if start_turn <= e.turn <= end_turn]
-                        moments, _ = curate(range_events, all_named, all_history, budget=1, seed=seed)
+
+                        # M40: Collect named character names
+                        named_chars = set()
+                        for civ_data in self._init_data.get("world_state", {}).get("civilizations", []):
+                            for gp in civ_data.get("great_persons", []):
+                                if gp.get("active") and gp.get("agent_id") is not None:
+                                    named_chars.add(gp.get("name", ""))
+
+                        moments, _ = curate(
+                            range_events, all_named, all_history, budget=1, seed=seed,
+                            named_characters=named_chars if named_chars else None,
+                        )
                         if moments:
                             _, narrative_client = create_clients()
                             engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)

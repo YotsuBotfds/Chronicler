@@ -652,6 +652,13 @@ def _run_narrate(args: argparse.Namespace) -> None:
         narrative_model=getattr(args, "narrative_model", None),
     )
 
+    # M40: Collect named character names for curator scoring
+    named_chars = set()
+    for civ_data in bundle.get("world_state", {}).get("civilizations", []):
+        for gp in civ_data.get("great_persons", []):
+            if gp.get("active") and gp.get("agent_id") is not None:
+                named_chars.add(gp.get("name", ""))
+
     # Curate moments
     moments, gap_summaries = curate(
         events=events,
@@ -659,6 +666,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         history=history,
         budget=budget,
         seed=seed,
+        named_characters=named_chars if named_chars else None,
     )
 
     print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
