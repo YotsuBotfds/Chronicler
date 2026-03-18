@@ -54,7 +54,7 @@ Make geography matter for trade. Transport costs create economic zones where coa
 | 6 | Single-pass Phase 2, no within-turn price convergence | Transport cost filtering removes routes → prices shift → could reopen routes. This feedback plays out over turns via one-turn lag, not within Phase 2. Geographic price gradients emerge over 3-5 turns. |
 | 7 | M43a contains no fixed shock attenuation constant | Attenuation behavior is emergent from stockpile depth and production buffers. M43b validates the emergent rate targets ~50%. No 0.5 multiplier in any formula. |
 | 8 | Conquest stockpile destruction in `_resolve_war()` | 50% of stockpile lost when region changes hands during action resolution in `_resolve_war()` (`action_engine.py`). Applied at point of conquest, before Phase 10 snapshot. |
-| 9 | `food_sufficiency` from pre-consumption stockpile | Ordering: stockpile += supply → compute `food_sufficiency` from pre-consumption stockpile → demand drawdown → storage decay → cap. Pre-consumption is backwards-compatible with M42: at equilibrium (production = demand, no buffer), `food_available = production + imports` = M42's `food_supply`, producing `food_sufficiency = 1.0`. Post-consumption would produce 0.0 at equilibrium — a satisfaction crash. |
+| 9 | `food_sufficiency` from pre-consumption stockpile | Ordering: stockpile += supply → compute `food_sufficiency` from pre-consumption stockpile → demand drawdown → storage decay → cap. Pre-consumption is backwards-compatible with M42 at equilibrium after initialization buffer is consumed (turns 3+): `food_available = production + imports` = M42's `food_supply`, producing `food_sufficiency = 1.0`. Turn 1-2 `food_sufficiency` will be higher than M42 due to initial buffer (Decision 11) — this is a feature, not a regression. Post-consumption would produce 0.0 at equilibrium — a satisfaction crash. |
 | 10 | Stockpile capacity cap proportional to population | `PER_GOOD_CAP_FACTOR * population` per good per region. Unbounded accumulation pins `food_sufficiency` at ceiling and produces meaningless outlier values. Cap proportional to population — larger regions store more, per-capita storage bounded. |
 | 11 | Stockpile initialization with subsistence buffer | `stockpile[primary_food] = INITIAL_BUFFER * population`. Avoids 5-turn starvation transient that's purely an artifact of M43a landing, not an emergent outcome. Target: ~2 turns consumption at equilibrium demand. |
 
@@ -65,12 +65,17 @@ Make geography matter for trade. Transport costs create economic zones where coa
 ### New Pydantic Model
 
 ```python
+# Per-good key set used across stockpile, perishability, and consumption
+FOOD_GOODS = frozenset({"grain", "fish", "botanicals", "exotic", "salt"})
+ALL_GOODS = frozenset({"grain", "timber", "botanicals", "fish", "salt", "ore", "precious", "exotic"})
+
 class RegionStockpile(BaseModel):
     goods: dict[str, float] = Field(default_factory=dict)
-    # Per-good keys: "grain", "timber", "botanicals", "fish", "salt",
-    #                "ore", "precious", "exotic"
+    # Per-good keys: members of ALL_GOODS
     # Values: accumulated units, capped per PER_GOOD_CAP_FACTOR * population
 ```
+
+`FOOD_GOODS` includes salt — salt is Food (M42 Decision 1). Salt is consumed through the demand drawdown loop like any other food good: population eats salt proportional to its share of the food stockpile. This is the mechanism for salt depletion referenced in Decision 5. The salt preservation code explicitly excludes salt from `total_food` via `if g != "salt"` because salt doesn't preserve itself — that's a special case in the preservation formula, not a membership question.
 
 ### Nested on Region
 
@@ -156,8 +161,15 @@ Transport cost is per-route, not per-category. The same cost applies to food, ra
 After category-level allocation determines how much flows on each route, category-level flows are decomposed to per-good using the source region's production mix, then perishability reduces delivered volume:
 
 ```python
-delivered[good] = shipped[good] * (1.0 - TRANSIT_DECAY[good])
+# Per-route, per-good: compute decay before summing into destination stockpile
+for route in inbound_routes:
+    source_good = map_resource_to_good(source_region.resource_types[0])
+    delivered = shipped_on_route * (1.0 - TRANSIT_DECAY[source_good])
+    # Sum delivered into destination's per-good import total
+    imports[source_good] += delivered
 ```
+
+Transit decay is computed per-route-per-good before aggregating imports into the destination stockpile. Since each source region produces one good (single-resource-slot production, M41 Decision 14), each route delivers one good type, and the per-route and per-good approaches are equivalent. The ordering matters: decay first, then aggregate — not aggregate then decay — because different inbound routes may deliver different goods at different decay rates.
 
 All M42 routes are adjacent boundary pairs (hop distance = 1 per M42 Decision 15). No `hop_distance` variable. If a future milestone adds caravan routes spanning multiple hops, the formula extends to `(1.0 - TRANSIT_DECAY[good]) ** hops`.
 
@@ -188,7 +200,7 @@ Salt preservation:
 
 ### Decay Rate Tables
 
-| Good | Transit Decay (per hop) | Storage Decay (per turn) | Effective Shelf Life |
+| Good | Transit Decay (per hop) | Storage Decay (per turn) | 1/e Decay Time |
 |---|---|---|---|
 | Grain | 0.05 (5%) | 0.03 | ~30 turns without salt |
 | Fish | 0.08 (8%) | 0.06 | ~15 turns |
@@ -306,7 +318,7 @@ food_stockpile = sum(stockpile.goods.get(g, 0.0) for g in FOOD_GOODS)
 food_sufficiency = min(food_stockpile / max(food_demand, 0.1), 2.0)
 ```
 
-Backwards-compatible: at equilibrium (production = demand, no prior buffer), `food_stockpile = production + 0 (no prior buffer) + imports`, matching M42's `food_supply = production + imports`. Produces `food_sufficiency = 1.0`.
+Backwards-compatible at equilibrium after initialization buffer is consumed (turns 3+): `food_stockpile = production + 0 (depleted buffer) + imports`, matching M42's `food_supply = production + imports`. Produces `food_sufficiency = 1.0`. Turn 1-2 `food_sufficiency` will be higher than M42 due to initial buffer (Decision 11) — this is a feature, not a regression.
 
 Stockpile buffer effect: a region with 3 turns of grain reserves has `food_stockpile = 3 × demand`, producing `food_sufficiency = min(3.0, 2.0) = 2.0` even if this turn's production drops to zero. This is exactly what buffers should do — smoothing single-turn production shocks.
 
@@ -356,7 +368,7 @@ All new constants in `economy.py` with `[CALIBRATE]` markers:
 
 ### Storage Decay (Per Turn)
 
-| Constant | Initial Value | Effective Shelf Life |
+| Constant | Initial Value | 1/e Decay Time |
 |---|---|---|
 | `STORAGE_DECAY["grain"]` | 0.03 | ~30 turns without salt |
 | `STORAGE_DECAY["fish"]` | 0.06 | ~15 turns |
@@ -378,8 +390,8 @@ All new constants in `economy.py` with `[CALIBRATE]` markers:
 
 | Constant | Initial Value | Tuning Target |
 |---|---|---|
-| `PER_GOOD_CAP_FACTOR` | TBD | Cap binds only for sustained surplus, not at equilibrium |
-| `INITIAL_BUFFER` | TBD | ~2 turns consumption at equilibrium demand |
+| `PER_GOOD_CAP_FACTOR` | `5.0 * PER_CAPITA_FOOD` | ~5 turns of per-capita consumption before cap binds. Derived from M42's `PER_CAPITA_FOOD`. |
+| `INITIAL_BUFFER` | `2.0 * PER_CAPITA_FOOD` | ~2 turns of per-capita consumption at equilibrium. Derived from M42's `PER_CAPITA_FOOD`. |
 | `CONQUEST_STOCKPILE_SURVIVAL` | 0.5 | 50% lost on conquest |
 
 ### RNG Stream Offsets
@@ -437,7 +449,7 @@ sum(old_stockpile) + sum(production) =
     sum(new_stockpile) + sum(consumption) + sum(transit_loss) + sum(storage_loss) + sum(cap_overflow)
 ```
 
-Where `transit_loss = sum(shipped) - sum(delivered)` across all routes. This accounts for every unit of goods. Nothing from nothing, nothing silently vanishes. Updates M42's conservation test to include stockpile persistence, transit decay, and storage decay terms.
+Where `transit_loss = sum(shipped) - sum(delivered)` across all routes. `consumption` includes salt consumed through the demand drawdown loop (salt is in `FOOD_GOODS` and depletes proportionally). This accounts for every unit of goods. Nothing from nothing, nothing silently vanishes. Updates M42's conservation test to include stockpile persistence, transit decay, and storage decay terms.
 
 ### Integration Tests
 
