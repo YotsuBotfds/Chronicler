@@ -62,6 +62,7 @@ def classify_arc(
     gp: GreatPerson,
     events: list[Event],
     dynasty_registry: DynastyRegistry | None,
+    current_turn: int,
 ) -> tuple[str | None, str | None]:
     """Classify a character's arc from their event history.
 
@@ -70,7 +71,9 @@ def classify_arc(
     Args:
         gp: The character to classify.
         events: Full events_timeline (filtered internally by gp.name in e.actors).
-        dynasty_registry: For Dynasty Founder detection.
+        dynasty_registry: For Dynasty Founder detection. Sourced from
+            AgentBridge.dynasty_registry; None in --agents=off mode.
+        current_turn: Current simulation turn (for career-length calculations).
 
     Returns:
         (arc_phase, arc_type) — either or both may be None.
@@ -97,8 +100,10 @@ Civ-level simulation events (war, trade, rebellion) use civ names only — the c
 
 | | Condition |
 |-|-----------|
-| **Partial** | Promoted + active + prestige-related events → phase `"rising"` |
+| **Partial** | Active character + established career (`(current_turn - gp.born_turn) >= RISING_CAREER_THRESHOLD`) → phase `"rising"` |
 | **Complete** | + `character_death` or `conquest_exile` event → type `"Rise-and-Fall"`, phase `"fallen"` |
+
+`RISING_CAREER_THRESHOLD`: initial guess 20 turns. `[CALIBRATE]` for M47. Ensures only established characters (not just-promoted) are in a "rise" phase. Note: `born_turn` is the promotion turn, not biological birth (see CLAUDE.md).
 
 #### Exile-and-Return
 
@@ -121,9 +126,9 @@ Civ-level simulation events (war, trade, rebellion) use civ names only — the c
 | **Partial** | `gp.trait == "bold"` and `gp.active` → phase `"embattled"` |
 | **Complete** | `gp.trait == "bold"` + `gp.fate == "dead"` + `(gp.death_turn - gp.born_turn) < TRAGIC_HERO_LIFESPAN_THRESHOLD` → type `"Tragic-Hero"` |
 
-Uses only GreatPerson fields — no event filtering. A bold character who burned bright and died fast is tragic regardless of cause. The narrator has deeds and event context for framing.
+Uses only GreatPerson fields — no event filtering. A bold character who burned bright and died fast is tragic regardless of cause. The narrator has deeds and event context for framing. Diverges from roadmap definition ("bold + rebellion + same-region death") — Decision 9 explains: no rebellion character-attribution exists. Roadmap should be updated when M45 lands.
 
-`TRAGIC_HERO_LIFESPAN_THRESHOLD`: initial guess 30-40 turns. `[CALIBRATE]` for M47.
+`TRAGIC_HERO_LIFESPAN_THRESHOLD`: initial guess 30-40 turns. `[CALIBRATE]` for M47. Note: `born_turn` is the promotion turn (set to `world.turn` in `_process_promotions`), not biological birth. So `death_turn - born_turn` measures career length as a named character — a better signal for "burned bright and died fast" than biological age.
 
 #### Wanderer
 
@@ -145,8 +150,10 @@ Uses the field check as primary signal. Character-level events (`secession_defec
 
 | | Condition |
 |-|-----------|
-| **Partial** | Pilgrimage fields set (`gp.pilgrimage_destination is not None`) → phase `"converting"` |
-| **Complete** | Pilgrimage return (pilgrimage fields cleared + return event) → type `"Prophet"` |
+| **Partial** | Currently mid-pilgrimage (`gp.pilgrimage_return_turn is not None`) → phase `"converting"` |
+| **Complete** | `pilgrimage_return` event exists in character's event history → type `"Prophet"` |
+
+Note on timing: `check_pilgrimages()` clears pilgrimage fields (`pilgrimage_destination`, `pilgrimage_return_turn` → `None`) and emits the `pilgrimage_return` event within `phase_consequences()`, which runs BEFORE the classifier. So on the return turn: partial doesn't match (fields cleared), but complete matches (event emitted). On mid-pilgrimage turns: partial matches (fields still set), complete doesn't match yet. This is correct behavior.
 
 Replaces the M38b explicit `gp.arc_type = "Prophet"` set. Classifier is the single authority.
 
@@ -154,8 +161,12 @@ Replaces the M38b explicit `gp.arc_type = "Prophet"` set. Classifier is the sing
 
 | | Condition |
 |-|-----------|
-| **Partial** | Persecution-related events involving character's faith → phase `"persecuted"` |
-| **Complete** | + `character_death` event → type `"Martyr"` |
+| **Partial** | `gp.role == "prophet"` + displaced from origin (`conquest_exile` event with character name) → phase `"persecuted"` |
+| **Complete** | `gp.role == "prophet"` + `gp.fate == "dead"` + `(gp.death_turn - gp.born_turn) < MARTYR_LIFESPAN_THRESHOLD` → type `"Martyr"` |
+
+Redefined from the roadmap's "persecution → death → posthumous conversion spike." Persecution events (`religion.py`) use `actors=[civ.name]` — no character names in actors, so the `gp.name in e.actors` filter can never match them (Decision 11). The field-based definition captures the narrative archetype: a prophet who died before establishing influence. Distinguished from Tragic Hero by role (`"prophet"` vs `"bold"` trait) — different narrative meaning (faith dimension vs personality dimension).
+
+`MARTYR_LIFESPAN_THRESHOLD`: initial guess 30-40 turns. `[CALIBRATE]` for M47. Same note as Tragic Hero: `born_turn` is promotion turn, measuring career length, not biological age.
 
 ### Priority Resolution
 
@@ -163,16 +174,22 @@ When multiple archetypes match completely, the one with the most conditions sati
 
 When multiple archetypes match partially but none completely, the partial with the most conditions satisfied sets `arc_phase`.
 
-### Call Site (Phase 10, simulation.py)
+### Call Site (run_turn() in simulation.py)
+
+**Placement:** AFTER `world.events_timeline.extend(turn_events)` — the classifier needs current-turn events (especially `character_death`, `conquest_exile`) to be on the timeline. This places the classifier after all Phase 10 processing and event collection, before the turn-end snapshot.
+
+**Dynasty registry source:** `bridge.dynasty_registry if bridge else None`. The `bridge` parameter (`AgentBridge | None`) is already available in `run_turn()`. In `--agents=off` mode, `bridge` is `None` and Dynasty Founder detection is skipped.
 
 ```python
-# After consequences, before snapshot
+# After events_timeline.extend(turn_events), before snapshot
+dynasty_reg = bridge.dynasty_registry if bridge else None
+
 # Active characters across all civs
 for civ in world.civilizations:
     for gp in civ.great_persons:
         prev_type = gp.arc_type
         gp.arc_phase, new_type = classify_arc(
-            gp, world.events_timeline, dynasty_registry
+            gp, world.events_timeline, dynasty_reg, world.turn
         )
         if new_type is not None and new_type != prev_type:
             gp.arc_type = new_type
@@ -183,7 +200,7 @@ for gp in world.retired_persons:
     if gp.death_turn == world.turn:
         prev_type = gp.arc_type
         gp.arc_phase, new_type = classify_arc(
-            gp, world.events_timeline, dynasty_registry
+            gp, world.events_timeline, dynasty_reg, world.turn
         )
         if new_type is not None and new_type != prev_type:
             gp.arc_type = new_type
@@ -223,11 +240,14 @@ for civ in world.civilizations:
     for gp in civ.great_persons:
         if gp.active and gp.agent_id is not None:
             gp_by_name[gp.name] = gp
-# Include recently dead for arc completion scoring
+# Include all retired characters (death and natural retirement) for arc scoring.
+# Arc completion bonus is self-limiting via arc_type_turn check.
 for gp in world.retired_persons:
     if gp.death_turn is not None:
         gp_by_name[gp.name] = gp
 ```
+
+Note: `gp_by_name` is keyed by character name. Name collisions are theoretically possible (different civs, overlapping name pools) but unlikely. If a collision occurs, the later entry overwrites. Low risk — same theoretical issue exists in the `named_characters` set in `_run_narrate()`.
 
 ### Scoring Logic in compute_base_scores()
 
@@ -389,6 +409,10 @@ Fixes the long-standing gap where `gp.deeds` was defined but never populated. Th
 
 9 mutation points. All have known character references — no invented attribution.
 
+**Line numbers are valid at time of writing (2026-03-18).** If M44 lands first, line numbers will shift — use function names for lookup at implementation time.
+
+**`--agents=off` asymmetry:** In aggregate mode, only 3 of 9 mutation points are active: `kill_great_person()`, `_retire_person()`, and `check_pilgrimages()` (if religion active). The 6 `agent_bridge.py` points require the agent bridge, which is `None` in `--agents=off`. Aggregate-mode characters get sparser deeds. No risk to bit-identical output — deeds are narration context, not simulation state.
+
 ### Cap
 
 `deeds` list capped at 10 entries. When appending past 10, drop the oldest (`gp.deeds = gp.deeds[-10:]`). The narrator reads `gp.deeds[-3:]` for recent history. The cap prevents unbounded growth while keeping enough history for the classifier and narrator context.
@@ -473,7 +497,9 @@ M44 (API Narration) adds `AnthropicClient` as a `narrative_client` option and wi
 
 | Constant | Initial | Check |
 |----------|---------|-------|
-| `TRAGIC_HERO_LIFESPAN_THRESHOLD` | 30-40 turns | Bold characters who survive 100+ turns shouldn't classify |
+| `TRAGIC_HERO_LIFESPAN_THRESHOLD` | 30-40 turns | Bold characters who survive 100+ turns shouldn't classify. Measures career length (promotion to death), not biological age. |
+| `MARTYR_LIFESPAN_THRESHOLD` | 30-40 turns | Prophet characters who survive 100+ turns shouldn't classify as martyrs. Same note as Tragic Hero. |
+| `RISING_CAREER_THRESHOLD` | 20 turns | Only established characters (not just-promoted) should be in "rising" phase. |
 | Arc involvement bonus | +1.5 | Character-arc moments in top 50% of curated events |
 | Arc completion bonus | +2.5 | Arc-completing moments consistently selected |
 | Archetype distribution | — | At least 4 archetype types appear per 500-turn run |
@@ -492,11 +518,14 @@ M44 (API Narration) adds `AnthropicClient` as a `narrative_client` option and wi
 | 6 | Stateless re-derivation (no ArcRegistry) | Pure function of character history. No drift, no state corruption. <1ms per turn. |
 | 7 | `arc_type_turn` for +2.5 scoring | Avoids duplicating pattern logic in curator. Turn-level granularity sufficient. |
 | 8 | Classifier is single authority for `arc_type` | Removes M38b explicit Prophet set. One writer, no conflicts. |
-| 9 | Tragic Hero is lifespan-based | No rebellion character-attribution exists. Bold + dead + short life uses only GP fields. `[CALIBRATE]` threshold. |
+| 9 | Tragic Hero is lifespan-based | No rebellion character-attribution exists. Bold + dead + short career uses only GP fields. `[CALIBRATE]` threshold. Diverges from roadmap — update roadmap when M45 lands. |
 | 10 | Defector uses field check + character events | `civilization != origin_civilization` as primary signal. `secession_defection`/`conquest_exile` confirm mechanism. |
 | 11 | Classifier operates on character-specific events only | Civ-level events don't include character names in actors. All 8 archetypes defined with character-level data. |
 | 12 | Deeds populated at 9 verified mutation points | No invented attribution (rebellion/conquest dropped). Relationship deeds deferred. |
 | 13 | Dead characters included in moment context | Relaxed active filter for characters in moment event actors. Death moment gets accumulated arc_summary. |
+| 14 | Martyr uses field-based detection | Persecution events use `actors=[civ.name]` — no character names. Redefined as prophet role + short career. Same lifespan approach as Tragic Hero, different narrative dimension. |
+| 15 | Classifier call site after `events_timeline.extend()` | Current-turn events (death, exile) must be on timeline for classifier to match them. |
+| 16 | Dynasty registry from AgentBridge | `bridge.dynasty_registry if bridge else None`. Dynasty Founder skipped in `--agents=off`. |
 
 ---
 
