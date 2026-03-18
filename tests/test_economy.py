@@ -1,6 +1,7 @@
 """Unit tests for M42 goods production & trade economy module."""
 
 import math
+from unittest.mock import MagicMock
 
 from chronicler.economy import (
     map_resource_to_category,
@@ -11,6 +12,7 @@ from chronicler.economy import (
     compute_production,
     compute_demand,
     compute_prices,
+    compute_economy,
     BASE_PRICE,
     decompose_trade_routes,
     allocate_trade_flow,
@@ -330,3 +332,141 @@ def test_merchant_trade_income_basic():
 def test_merchant_trade_income_zero_merchants():
     inc = derive_merchant_trade_income(total_arbitrage=10.0, merchant_count=0)
     assert inc == 0.0
+
+
+# --- Task 10: compute_economy entry point ---
+
+def _make_test_world():
+    """Two-region, two-civ world.
+    Plains (civ 0): GRAIN, 50 farmers, 10 soldiers, 5 merchants, pop=70
+    Hills (civ 1): ORE, 20 farmers, 30 soldiers, 10 merchants, pop=65
+    """
+    world = MagicMock()
+    world.turn = 10
+
+    plains = MagicMock()
+    plains.name = "Plains"
+    plains.adjacency = ["Hills"]
+    plains.resource_types = [0, 1, 3]
+    plains.resource_yields = [1.5, 0.5, 0.3]
+
+    hills = MagicMock()
+    hills.name = "Hills"
+    hills.adjacency = ["Plains"]
+    hills.resource_types = [5, 1, 4]
+    hills.resource_yields = [0.8, 0.6, 0.4]
+
+    civ0 = MagicMock()
+    civ0.regions = ["Plains"]
+    civ0.name = "Agraria"
+
+    civ1 = MagicMock()
+    civ1.regions = ["Hills"]
+    civ1.name = "Ironhold"
+
+    world.civilizations = [civ0, civ1]
+    world.regions = [plains, hills]
+
+    region_map = {"Plains": plains, "Hills": hills}
+    return world, region_map
+
+
+def _make_test_snapshot():
+    """Mock snapshot with numpy arrays behind .column().to_numpy()."""
+    import numpy as np
+
+    snapshot = MagicMock()
+    n = 135
+    regions = np.zeros(n, dtype=np.uint16)
+    regions[70:] = 1
+
+    occupations = np.zeros(n, dtype=np.uint8)
+    occupations[50:60] = 1   # Plains soldiers
+    occupations[60:65] = 2   # Plains merchants
+    occupations[65:68] = 3   # Plains scholars
+    occupations[68:70] = 4   # Plains priests
+    occupations[90:120] = 1  # Hills soldiers
+    occupations[120:130] = 2 # Hills merchants
+    occupations[130:133] = 3 # Hills scholars
+    occupations[133:135] = 4 # Hills priests
+
+    civ_affinity = np.zeros(n, dtype=np.uint16)
+    civ_affinity[70:] = 1
+
+    wealth = np.full(n, 5.0, dtype=np.float32)
+    wealth[60:65] = 15.0   # Plains merchants wealthy
+    wealth[120:130] = 20.0 # Hills merchants wealthy
+
+    def _make_col(arr):
+        col = MagicMock()
+        col.to_numpy.return_value = arr
+        return col
+
+    snapshot.column.side_effect = lambda name: _make_col({
+        "region": regions,
+        "occupation": occupations,
+        "civ_affinity": civ_affinity,
+        "wealth": wealth,
+    }[name])
+
+    return snapshot
+
+
+def test_compute_economy_produces_result():
+    """compute_economy returns EconomyResult with all fields populated."""
+    world, region_map = _make_test_world()
+    snapshot = _make_test_snapshot()
+    result = compute_economy(world, snapshot, region_map, agent_mode=True,
+                             active_trade_routes=[("Agraria", "Ironhold")])
+
+    assert "Plains" in result.region_goods
+    assert "Hills" in result.region_goods
+
+    # Plains produces food (GRAIN), Hills produces raw_material (ORE)
+    assert result.region_goods["Plains"].production["food"] > 0
+    assert result.region_goods["Hills"].production["raw_material"] > 0
+
+    for region in ["Plains", "Hills"]:
+        mod = result.farmer_income_modifiers[region]
+        assert FARMER_INCOME_MODIFIER_FLOOR <= mod <= FARMER_INCOME_MODIFIER_CAP
+        suf = result.food_sufficiency[region]
+        assert 0.0 <= suf <= 2.0
+        mm = result.merchant_margins[region]
+        assert 0.0 <= mm <= 1.0
+        mti = result.merchant_trade_incomes[region]
+        assert mti >= 0.0
+
+    assert 0 in result.treasury_tax
+    assert 1 in result.treasury_tax
+    assert 0 in result.priest_tithe_shares
+    assert 1 in result.priest_tithe_shares
+
+
+def test_compute_economy_agents_off():
+    """In agents=off mode, treasury_tax and tithe_base are empty, but signals populated."""
+    world, region_map = _make_test_world()
+    snapshot = _make_test_snapshot()
+    result = compute_economy(world, snapshot, region_map, agent_mode=False,
+                             active_trade_routes=[])
+
+    assert result.treasury_tax == {}
+    assert result.tithe_base == {}
+    assert result.priest_tithe_shares == {}
+    # Signals should still be populated
+    assert "Plains" in result.farmer_income_modifiers
+    assert "Hills" in result.food_sufficiency
+
+
+def test_conservation_exports_equal_imports():
+    """Total exports == total imports per category (conservation law)."""
+    world, region_map = _make_test_world()
+    snapshot = _make_test_snapshot()
+    result = compute_economy(world, snapshot, region_map, agent_mode=True,
+                             active_trade_routes=[("Agraria", "Ironhold")])
+
+    for cat in CATEGORIES:
+        total_exports = sum(rg.exports[cat] for rg in result.region_goods.values())
+        total_imports = sum(rg.imports[cat] for rg in result.region_goods.values())
+        assert abs(total_exports - total_imports) < 1e-9, (
+            f"Conservation violated for {cat}: exports={total_exports} != imports={total_imports}"
+        )
