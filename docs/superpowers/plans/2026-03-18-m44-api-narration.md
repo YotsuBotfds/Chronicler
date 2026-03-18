@@ -460,9 +460,23 @@ After the simulation loop ends and **before** `agent_bridge.close()` (before lin
 
 Note: `gap_summaries` is created here and used below in `assemble_bundle()`.
 
-- [ ] **Step 5: Replace chronicle_entries and thread gap_summaries in bundle assembly**
+- [ ] **Step 5: Thread gap_summaries to compile_chronicle and assemble_bundle**
 
-In API mode, `chronicle_entries` is already replaced by the post-loop block above. But `gap_summaries` needs to flow to `assemble_bundle()`. Modify the `assemble_bundle()` call (line 541-549):
+In API mode, `chronicle_entries` is already replaced by the post-loop block above. `gap_summaries` needs to flow to both output paths.
+
+First, update `compile_chronicle()` (line 437-442). It already accepts `gap_summaries` (chronicle.py:16) and uses them to insert one-liner summaries between curated entries. Without this, the .md output jumps between curated moments with no indication of what happened in between:
+
+```python
+    output_text = compile_chronicle(
+        world_name=world.name,
+        entries=chronicle_entries,
+        era_reflections=era_reflections,
+        epilogue=epilogue,
+        gap_summaries=gap_summaries,
+    )
+```
+
+Then update `assemble_bundle()` (line 541-549):
 
 ```python
     bundle = assemble_bundle(
@@ -477,7 +491,7 @@ In API mode, `chronicle_entries` is already replaced by the post-loop block abov
     )
 ```
 
-`gap_summaries` was initialized to `None` in Step 2 and overwritten by the curated narration block in API mode. The `assemble_bundle()` function already handles `None` (`gap_summaries or []`).
+`gap_summaries` was initialized to `None` in Step 2 and overwritten by the curated narration block in API mode. Both `compile_chronicle()` and `assemble_bundle()` already handle `None` gracefully.
 
 - [ ] **Step 6: Run existing tests to verify no regression**
 
@@ -631,20 +645,28 @@ import logging
 logger = logging.getLogger(__name__)
 ```
 
+In `narrate_batch()`, add a local variable before the `for idx, moment` loop (around line 713):
+
+```python
+        _first_failure = True
+```
+
 Modify the except block (line 845-850):
 
 ```python
             except Exception as exc:
-                # Log first failure for visibility (API errors are otherwise silent)
-                if not hasattr(self, '_narration_failure_logged'):
+                # Log first failure per narrate_batch call for visibility
+                if _first_failure:
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
-                    self._narration_failure_logged = True
+                    _first_failure = False
                 # Mechanical fallback: join event descriptions
                 descriptions = [
                     e.description for e in moment.events if e.description
                 ]
                 narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
 ```
+
+Using a local variable instead of a `self` attribute ensures the warning fires once per `narrate_batch()` call — in sequential batch mode, each seed gets its own warning if narration fails.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -761,11 +783,82 @@ class TestApiNarrationIntegration:
 Run: `pytest tests/test_main.py::TestApiNarrationIntegration -v`
 Expected: PASS (if all prior tasks are implemented). If it fails, debug — this is the integration verification.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Write _run_narrate integration test**
+
+```python
+# In tests/test_main.py, add to TestApiNarrationIntegration:
+
+    def test_run_narrate_api_mode_writes_metadata(self):
+        """_run_narrate with --narrator api writes narrator_mode and token fields."""
+        import tempfile
+        import json
+        from pathlib import Path
+        from unittest.mock import MagicMock, patch
+        from chronicler.main import _run_narrate
+        from chronicler.llm import AnthropicClient
+
+        # Create a minimal simulate-only bundle to narrate
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = MagicMock(
+            content=[MagicMock(text="The chronicles speak of great change...")],
+            usage=MagicMock(input_tokens=300, output_tokens=150),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # First, generate a simulate-only bundle
+            from chronicler.main import execute_run
+            sim_args = argparse.Namespace(
+                seed=42, turns=20, civs=3, regions=6,
+                output=str(Path(tmp_dir) / "chronicle.md"),
+                state=str(Path(tmp_dir) / "state.json"),
+                resume=None, reflection_interval=10,
+                llm_actions=False, scenario=None,
+                simulate_only=True, agents="off", tuning=None,
+                aggression_bias=None, tech_diffusion_rate=None,
+                resource_abundance=None, trade_friction=None,
+                severity_multiplier=None, cultural_drift_speed=None,
+                religion_intensity=None, secession_likelihood=None,
+                budget=50, narrator="local",
+            )
+            execute_run(sim_args)
+
+            bundle_path = Path(tmp_dir) / "chronicle_bundle.json"
+            assert bundle_path.exists()
+
+            # Now re-narrate with --narrator api
+            narrate_args = argparse.Namespace(
+                narrate=bundle_path,
+                narrator="api",
+                local_url="http://localhost:1234/v1",
+                sim_model=None,
+                narrative_model=None,
+                budget=10,
+                narrate_output=Path(tmp_dir) / "narrated.json",
+            )
+
+            # Patch create_clients to return our mocked API client
+            api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+            with patch("chronicler.main.create_clients",
+                       return_value=(MagicMock(model="test"), api_client)):
+                _run_narrate(narrate_args)
+
+            # Check output metadata
+            output = json.loads((Path(tmp_dir) / "narrated.json").read_text())
+            assert output["metadata"]["narrator_mode"] == "api"
+            assert output["metadata"]["api_input_tokens"] > 0
+            assert output["metadata"]["api_output_tokens"] > 0
+```
+
+- [ ] **Step 4: Run both integration tests**
+
+Run: `pytest tests/test_main.py::TestApiNarrationIntegration -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add tests/test_main.py
-git commit -m "test(m44): integration test for API narration mode in execute_run"
+git commit -m "test(m44): integration tests for execute_run and _run_narrate API mode"
 ```
 
 ---
