@@ -249,18 +249,18 @@ from chronicler.great_persons import _append_deed
 
 Note: find the variable name for the conquered region at the call site — it may be `region.name` or similar. Use whatever variable holds the region being conquered.
 
-**Exile return** — in `_detect_character_events()`, after line 669 (the exile_return Event creation), add:
+**Exile return** — in `_detect_character_events()`, after the `exile_return` Event constructor closing paren (after line ~674), add:
 
 ```python
-                    _append_deed(gp_obj, f"Returned to {target_name} after {turns_away} turns")
+                    _append_deed(self.gp_by_agent_id[e.agent_id], f"Returned to {target_name} after {turns_away} turns")
 ```
 
-Note: `gp_obj` is the GreatPerson object — verify the variable name at the call site. It may be accessed via `self.gp_by_agent_id[e.agent_id]`.
+Note: the variable `gp_obj` doesn't exist in this function. Use `self.gp_by_agent_id[e.agent_id]` to access the GreatPerson object. The deed goes AFTER the Event() constructor's closing `)`, not inside it.
 
-**Notable migration** — in `_detect_character_events()`, after line 681 (the notable_migration Event creation), add:
+**Notable migration** — in `_detect_character_events()`, after the `notable_migration` Event constructor closing paren (after line ~684), add:
 
 ```python
-            _append_deed(gp_obj, f"Migrated from {source_name} to {target_name}")
+            _append_deed(self.gp_by_agent_id[e.agent_id], f"Migrated from {source_name} to {target_name}")
 ```
 
 **Secession defection** — in `apply_secession_transitions()`, after line 762 (`new_civ.great_persons.append(gp)`):
@@ -463,12 +463,15 @@ def _check_dynasty_founder(
     if dynasty_registry is None or gp.agent_id is None or gp.dynasty_id is None:
         return
 
-    # _find() raises ValueError if not found — guard with try/except
-    try:
-        dynasty = dynasty_registry._find(gp.dynasty_id)
-    except ValueError:
-        return
-    if dynasty.founder_id != gp.agent_id:
+    # Use get_dynasty_for() public API (returns None if not found).
+    # Requires gp_by_agent_id map — passed via closure or added to signature.
+    # Alternatively, iterate registry.dynasties to find by dynasty_id:
+    dynasty = None
+    for d in dynasty_registry.dynasties:
+        if d.dynasty_id == gp.dynasty_id:
+            dynasty = d
+            break
+    if dynasty is None or dynasty.founder_id != gp.agent_id:
         return
 
     if len(dynasty.members) >= 2:
@@ -745,8 +748,8 @@ def test_classify_priority():
     ]
     phase, arc_type = classify_arc(gp, events, None, current_turn=120)
     # Both Tragic Hero and Martyr match with 2 conditions.
-    # Martyr wins tie-break (later in check order).
-    assert arc_type in ("Tragic-Hero", "Martyr")
+    # Martyr wins tie-break (later in check order per spec).
+    assert arc_type == "Martyr"
 
 
 def test_classify_dead_character():
@@ -1073,6 +1076,56 @@ Add the import at top if needed:
 from chronicler.models import GreatPerson
 ```
 
+- [ ] **Step 6b: Build and pass `gp_by_name` in `execute_run()` API path (main.py:429-447)**
+
+The `execute_run()` path has a live `world` object. After the existing `named_chars` construction (line 434-438), add:
+
+```python
+        # M45: Build gp_by_name for arc scoring
+        gp_by_name = {}
+        for civ in world.civilizations:
+            for gp in civ.great_persons:
+                if gp.active and gp.agent_id is not None:
+                    gp_by_name[gp.name] = gp
+        for gp in world.retired_persons:
+            if gp.death_turn is not None:
+                gp_by_name[gp.name] = gp
+```
+
+Then modify the `curate()` call (line 440) to pass it:
+
+```python
+        moments, gap_summaries = curate(
+            events=world.events_timeline,
+            named_events=world.named_events,
+            history=history,
+            budget=getattr(args, "budget", 50),
+            seed=seed,
+            named_characters=named_chars if named_chars else None,
+            gp_by_name=gp_by_name if gp_by_name else None,
+        )
+```
+
+Also pass `gp_by_name` to `engine.narrate_batch()` (line 453):
+
+```python
+        chronicle_entries = engine.narrate_batch(
+            moments, history, gap_summaries, on_progress=progress_cb,
+            gp_by_name=gp_by_name if gp_by_name else None,
+        )
+```
+
+And build `all_great_persons` (active + retired) for the narrate_batch `great_persons` parameter:
+
+```python
+        all_great_persons = []
+        for civ in world.civilizations:
+            all_great_persons.extend(civ.great_persons)
+        all_great_persons.extend(world.retired_persons)
+```
+
+Pass `all_great_persons` to `narrate_batch()` as the `great_persons` parameter.
+
 - [ ] **Step 7: Run curator scoring tests**
 
 Run: `pytest tests/test_arcs.py -k curator -v`
@@ -1318,7 +1371,7 @@ In `narrate_batch()`, after the main LLM call that produces `prose` (around line
 ```python
                 # M45: Arc summary follow-up (API mode only)
                 if (agent_ctx is not None
-                        and hasattr(self._client, 'is_api') and self._client.is_api
+                        and self._is_api_client()
                         and gp_by_name):
                     known_names = {c["name"] for c in agent_ctx.named_characters}
                     for ev in moment.events:
@@ -1337,7 +1390,7 @@ In `narrate_batch()`, after the main LLM call that produces `prose` (around line
                                 "Respond as:\n"
                                 + "\n".join(f"{n}: [sentence]" for n in matched)
                             )
-                            summary_response = self._client.generate(summary_prompt)
+                            summary_response = self.narrative_client.generate(summary_prompt)
                             for name in matched:
                                 prefix = f"{name}: "
                                 for line in summary_response.split("\n"):
@@ -1354,10 +1407,21 @@ In `narrate_batch()`, after the main LLM call that produces `prose` (around line
                             )
 ```
 
-**API mode gate:** The `is_api` attribute is a placeholder. At implementation time:
-- **If M44 has landed:** Check how the API client is identified (class name, attribute, method). Adapt the gate to match the actual interface. The goal is: summaries run with `AnthropicClient`, not with `LocalClient`.
-- **If M44 has NOT landed:** Use `hasattr(self._client, 'is_api')` which will be `False` for `LocalClient`, effectively disabling summaries. When M44 lands later, add `is_api = True` to `AnthropicClient` or adapt the gate.
-- **Do not ship a dead code path without a clear activation mechanism.** If neither approach works, add a `--arc-summaries` CLI flag as a manual gate.
+**API mode gate:** Add a helper method on `NarrativeEngine`:
+
+```python
+def _is_api_client(self) -> bool:
+    """Check if narrative_client supports API-quality arc summaries."""
+    # Import here to avoid circular dependency if AnthropicClient
+    # is not available (M44 not landed)
+    try:
+        from chronicler.narrative import AnthropicClient
+        return isinstance(self.narrative_client, AnthropicClient)
+    except ImportError:
+        return False
+```
+
+This uses `isinstance()` on `self.narrative_client` (the correct attribute name, narrative.py:646). If M44 hasn't landed yet and `AnthropicClient` doesn't exist, returns `False` — summaries disabled. When M44 lands, the check activates automatically.
 
 The `gp_by_name` dict needs to be passed into `narrate_batch()` as a parameter. Add it to the `narrate_batch` method signature and pass it from the callers.
 
@@ -1400,7 +1464,21 @@ Add to `tests/test_arcs.py`:
 
 ```python
 from chronicler.narrative import build_agent_context_for_moment
-from chronicler.curator import NarrativeMoment
+from chronicler.models import NarrativeMoment, NarrativeRole, CausalLink
+
+
+def _make_moment(turn, events):
+    """Helper to build a valid NarrativeMoment for testing."""
+    return NarrativeMoment(
+        anchor_turn=turn,
+        turn_range=(turn, turn),
+        events=events,
+        named_events=[],
+        score=5.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
 
 
 def test_dead_character_in_moment_context():
@@ -1410,11 +1488,7 @@ def test_dead_character_in_moment_context():
         arc_type="Rise-and-Fall", arc_phase="fallen",
         arc_summary="Led the northern campaign.",
     )
-    moment = NarrativeMoment(
-        events=[_make_event(140, "character_death", ["Kiran", "Aram"])],
-        anchor_turn=140,
-        role="CLIMAX",
-    )
+    moment = _make_moment(140, [_make_event(140, "character_death", ["Kiran", "Aram"])])
     ctx = build_agent_context_for_moment(
         moment, [gp], {}, {},
     )
