@@ -29,6 +29,9 @@ pub struct CivSignals {
     pub mean_boldness: f32,
     pub mean_ambition: f32,
     pub mean_loyalty_trait: f32,
+    // M41: Wealth & Class Stratification
+    pub gini_coefficient: f32,
+    pub conquered_this_turn: bool,
 }
 
 /// Parsed signals for one tick.
@@ -99,6 +102,10 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
     let mean_loyalty_trait_col = batch.column_by_name("mean_loyalty_trait")
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let gini_coefficient_col = batch.column_by_name("gini_coefficient")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let conquered_this_turn_col = batch.column_by_name("conquered_this_turn")
+        .and_then(|c| c.as_any().downcast_ref::<BooleanArray>());
 
     let mut result = Vec::with_capacity(batch.num_rows());
     for i in 0..batch.num_rows() {
@@ -123,6 +130,8 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             mean_boldness: mean_boldness_col.map(|a| a.value(i)).unwrap_or(0.0),
             mean_ambition: mean_ambition_col.map(|a| a.value(i)).unwrap_or(0.0),
             mean_loyalty_trait: mean_loyalty_trait_col.map(|a| a.value(i)).unwrap_or(0.0),
+            gini_coefficient: gini_coefficient_col.map(|a| a.value(i)).unwrap_or(0.0),
+            conquered_this_turn: conquered_this_turn_col.map(|a| a.value(i)).unwrap_or(false),
         });
     }
     Ok(result)
@@ -337,6 +346,33 @@ mod tests {
         assert!((demand[2] - 0.0).abs() < 0.01);
         assert!((demand[3] - 0.0).abs() < 0.01);
         assert!((demand[4] - 0.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_m41_signals() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+            ("gini_coefficient", Arc::new(Float32Array::from(vec![0.45f32])) as _),
+            ("conquered_this_turn", Arc::new(BooleanArray::from(vec![true])) as _),
+        ]).unwrap();
+        let civs = parse_civ_signals(&batch).unwrap();
+        assert_eq!(civs.len(), 1);
+        assert!((civs[0].gini_coefficient - 0.45).abs() < 0.001);
+        assert!(civs[0].conquered_this_turn);
+    }
+
+    #[test]
+    fn test_m41_signals_default_when_absent() {
+        let batch = make_civ_batch(); // existing helper — no M41 columns
+        let civs = parse_civ_signals(&batch).unwrap();
+        assert_eq!(civs[0].gini_coefficient, 0.0);
+        assert!(!civs[0].conquered_this_turn);
     }
 
     #[test]

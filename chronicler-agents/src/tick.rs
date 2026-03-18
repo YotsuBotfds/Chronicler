@@ -618,6 +618,8 @@ mod tests {
                     mean_ambition: 0.0,
                     mean_loyalty_trait: 0.0,
                     faction_clergy: 0.0,
+                    gini_coefficient: 0.0,
+                    conquered_this_turn: false,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],

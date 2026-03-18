@@ -59,6 +59,8 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 mean_ambition: 0.0,
                 mean_loyalty_trait: 0.0,
                 faction_clergy: 0.0,
+                gini_coefficient: 0.0,
+                conquered_this_turn: false,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i == 1 || i == 3).collect(),
