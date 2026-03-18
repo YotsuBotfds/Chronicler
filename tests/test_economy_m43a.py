@@ -400,3 +400,66 @@ def test_extract_stockpiles_structure():
     assert "Valley" in result
     assert "grain" in result["Valley"]
     assert result["Valley"]["grain"][10] == 45.0
+
+
+# --- Task 13: compute_economy() stockpile integration ---
+
+def test_compute_economy_stockpile_integration():
+    """compute_economy() accumulates stockpile and derives food_sufficiency from it."""
+    from unittest.mock import MagicMock
+    import numpy as np
+    import pyarrow as pa
+    from chronicler.economy import compute_economy, PER_CAPITA_FOOD
+    from chronicler.models import RegionStockpile
+
+    r1 = MagicMock()
+    r1.name = "Valley"
+    r1.terrain = "plains"
+    r1.resource_types = [0, 255, 255]
+    r1.resource_yields = [1.0, 0.0, 0.0]
+    r1.adjacencies = ["Hills"]
+    r1.population = 10
+    r1.stockpile = RegionStockpile(goods={"grain": 20.0})
+
+    r2 = MagicMock()
+    r2.name = "Hills"
+    r2.terrain = "mountains"
+    r2.resource_types = [5, 255, 255]
+    r2.resource_yields = [0.5, 0.0, 0.0]
+    r2.adjacencies = ["Valley"]
+    r2.population = 5
+    r2.stockpile = RegionStockpile(goods={"ore": 5.0})
+
+    civ = MagicMock()
+    civ.name = "Aram"
+    civ.regions = ["Valley", "Hills"]
+
+    world = MagicMock()
+    world.regions = [r1, r2]
+    world.civilizations = [civ]
+    world.rivers = []
+    world.turn = 10
+
+    n_agents = 15
+    regions_arr = np.array([0]*10 + [1]*5, dtype=np.int32)
+    occupations_arr = np.array([0]*10 + [1]*5, dtype=np.int32)
+    wealth_arr = np.zeros(n_agents, dtype=np.float32)
+    civ_arr = np.zeros(n_agents, dtype=np.int32)
+
+    snapshot = pa.RecordBatch.from_pydict({
+        "region": pa.array(regions_arr, type=pa.int32()),
+        "occupation": pa.array(occupations_arr, type=pa.int32()),
+        "wealth": pa.array(wealth_arr, type=pa.float32()),
+        "civ_affinity": pa.array(civ_arr, type=pa.int32()),
+    })
+
+    region_map = {"Valley": r1, "Hills": r2}
+    result = compute_economy(world, snapshot, region_map, agent_mode=True, active_trade_routes=[])
+
+    # Valley should have grain in stockpile (20 initial + 10 farmers × 1.0 yield production - consumption)
+    assert r1.stockpile.goods.get("grain", 0.0) > 0.0
+    # food_sufficiency should be derived from stockpile
+    assert "Valley" in result.food_sufficiency
+    assert result.food_sufficiency["Valley"] > 0.0
+    # Conservation tracking should have production > 0
+    assert result.conservation["production"] > 0.0

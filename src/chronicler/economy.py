@@ -286,6 +286,11 @@ class EconomyResult:
     priest_tithe_shares: dict[int, float] = field(default_factory=dict)
     treasury_tax: dict[int, float] = field(default_factory=dict)
     tithe_base: dict[int, float] = field(default_factory=dict)
+    # M43a: Conservation law tracking
+    conservation: dict[str, float] = field(default_factory=lambda: {
+        "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
+        "storage_loss": 0.0, "cap_overflow": 0.0,
+    })
 
 
 def compute_production(
@@ -561,6 +566,11 @@ def compute_economy(
     for i, region in enumerate(regions):
         region_idx_map[region.name] = i
 
+    # M43a: Build river route set for transport cost lookups
+    river_pairs = build_river_route_set(world.rivers) if hasattr(world, 'rivers') and world.rivers else set()
+    from chronicler.resources import get_season_id
+    is_winter = get_season_id(world.turn) == 3
+
     # Extract snapshot arrays ONCE
     snap_regions = snapshot.column("region").to_numpy()
     snap_occupations = snapshot.column("occupation").to_numpy()
@@ -585,6 +595,7 @@ def compute_economy(
             region.resource_types[0], region.resource_yields[0], agent_data["farmer_count"],
         )
         prod[cat] = amount
+        result.conservation["production"] += amount
         region_production[rname] = prod
 
         demand = compute_demand(
@@ -621,6 +632,24 @@ def compute_economy(
                 origin_routes.setdefault(origin, []).append((origin, dest))
                 boundary_pair_counts[origin] = boundary_pair_counts.get(origin, 0) + 1
 
+    # M43a: Compute transport costs per route
+    route_transport_costs: dict[tuple[str, str], float] = {}
+    for origin_name, routes in origin_routes.items():
+        origin_region = region_map.get(origin_name)
+        if origin_region is None:
+            continue
+        for route in routes:
+            _, dest_name = route
+            dest_region = region_map.get(dest_name)
+            if dest_region is None:
+                continue
+            is_river = frozenset({origin_name, dest_name}) in river_pairs
+            is_coastal = origin_region.terrain == "coast" and dest_region.terrain == "coast"
+            route_transport_costs[route] = compute_transport_cost(
+                origin_region.terrain, dest_region.terrain,
+                is_river=is_river, is_coastal=is_coastal, is_winter=is_winter,
+            )
+
     region_imports: dict[str, dict[str, float]] = {rname: _empty_category_dict() for rname in region_production}
     region_exports: dict[str, dict[str, float]] = {rname: _empty_category_dict() for rname in region_production}
     all_route_flows: dict[str, dict[tuple[str, str], dict[str, float]]] = {}
@@ -638,6 +667,7 @@ def compute_economy(
             routes, pre_trade_prices.get(origin_name, _empty_category_dict()),
             dest_prices, exportable_surplus.get(origin_name, _empty_category_dict()),
             merchant_count,
+            transport_costs=route_transport_costs,
         )
         all_route_flows[origin_name] = flow
 
@@ -649,6 +679,46 @@ def compute_economy(
                 region_imports.setdefault(dest, _empty_category_dict())
                 region_imports[dest][cat] += amount
 
+    # M43a: Decompose category-level flows to per-good with transit decay
+    region_per_good_imports: dict[str, dict[str, float]] = {rname: {} for rname in region_production}
+    region_per_good_exports: dict[str, dict[str, float]] = {}
+    region_per_good_production: dict[str, dict[str, float]] = {}
+
+    for region in regions:
+        rname = region.name
+        # Per-good production
+        if region.resource_types[0] != 255:
+            good = map_resource_to_good(region.resource_types[0])
+            cat = map_resource_to_category(region.resource_types[0])
+            region_per_good_production[rname] = {good: region_production.get(rname, _empty_category_dict()).get(cat, 0.0)}
+        else:
+            region_per_good_production[rname] = {}
+
+        # Per-good exports
+        if region.resource_types[0] != 255:
+            good = map_resource_to_good(region.resource_types[0])
+            cat = map_resource_to_category(region.resource_types[0])
+            region_per_good_exports[rname] = {good: region_exports.get(rname, _empty_category_dict()).get(cat, 0.0)}
+        else:
+            region_per_good_exports[rname] = {}
+
+    # Per-good imports with transit decay (per-route, per-good, decay before aggregate)
+    for origin_name, route_flows_for_origin in all_route_flows.items():
+        origin_region = region_map.get(origin_name)
+        if origin_region is None or origin_region.resource_types[0] == 255:
+            continue
+        source_good = map_resource_to_good(origin_region.resource_types[0])
+        source_cat = map_resource_to_category(origin_region.resource_types[0])
+        for route, cat_flows in route_flows_for_origin.items():
+            _, dest_name = route
+            shipped = cat_flows.get(source_cat, 0.0)
+            if shipped <= 0.0:
+                continue
+            delivered = apply_transit_decay(shipped, source_good)
+            result.conservation["transit_loss"] += shipped - delivered
+            dest_imports = region_per_good_imports.setdefault(dest_name, {})
+            dest_imports[source_good] = dest_imports.get(source_good, 0.0) + delivered
+
     # --- Step 2g: Post-trade prices ---
     post_trade_prices: dict[str, dict[str, float]] = {}
     for rname in region_production:
@@ -658,7 +728,38 @@ def compute_economy(
         }
         post_trade_prices[rname] = compute_prices(post_trade_supply, region_demand[rname])
 
-    # --- Step 2h: Signal derivation ---
+    # --- M43a: Steps 2g-2l — Stockpile sub-sequence ---
+    for region in regions:
+        rname = region.name
+        demand = region_demand.get(rname, _empty_category_dict())
+
+        # Step 2g: Stockpile accumulation
+        accumulate_stockpile(
+            region.stockpile.goods,
+            production=region_per_good_production.get(rname, {}),
+            exports=region_per_good_exports.get(rname, {}),
+            imports=region_per_good_imports.get(rname, {}),
+        )
+
+        # Step 2h: food_sufficiency from pre-consumption stockpile
+        food_demand = demand.get("food", 0.0)
+        result.food_sufficiency[rname] = derive_food_sufficiency_from_stockpile(
+            region.stockpile.goods, food_demand,
+        )
+
+        # Step 2i: Demand drawdown from stockpile (clamped)
+        consumed = consume_from_stockpile(region.stockpile.goods, food_demand)
+        result.conservation["consumption"] += consumed
+
+        # Step 2j: Storage decay with salt preservation
+        storage_loss = apply_storage_decay(region.stockpile.goods)
+        result.conservation["storage_loss"] += storage_loss
+
+        # Step 2k: Cap stockpile (use region.population — physical storage capacity)
+        cap_overflow = apply_stockpile_cap(region.stockpile.goods, region.population)
+        result.conservation["cap_overflow"] += cap_overflow
+
+    # --- Signal derivation ---
     for region in regions:
         rname = region.name
         agent_data = region_agent_data.get(rname, {})
@@ -672,9 +773,6 @@ def compute_economy(
 
         result.farmer_income_modifiers[rname] = derive_farmer_income_modifier(
             region.resource_types[0], post_supply, demand,
-        )
-        result.food_sufficiency[rname] = derive_food_sufficiency(
-            post_supply.get("food", 0.0), demand.get("food", 0.0),
         )
 
         routes = origin_routes.get(rname, [])
