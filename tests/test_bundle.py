@@ -469,4 +469,5 @@ class TestBundleSize:
         execute_run(args)
         bundle_path = tmp_path / "chronicle_bundle.json"
         size_mb = bundle_path.stat().st_size / (1024 * 1024)
-        assert size_mb < 25, f"Bundle is {size_mb:.2f}MB, expected < 25MB"
+        # M41 added wealth column (~8MB for 500 turns). Bundle optimization deferred.
+        assert size_mb < 35, f"Bundle is {size_mb:.2f}MB, expected < 35MB"
