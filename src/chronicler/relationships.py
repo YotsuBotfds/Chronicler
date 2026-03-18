@@ -264,6 +264,34 @@ def check_coreligionist_formation(
     return new_edges
 
 
+# --- Coordinator ---
+
+def form_and_sync_relationships(
+    world: WorldState,
+    bridge,
+    active_agent_ids: set[int],
+    belief_by_agent: dict[int, int],
+    region_belief_fractions: dict[str, dict[int, float]],
+) -> list[tuple]:
+    """Phase 10 relationship pass: dissolve stale edges, form new ones, batch-replace to Rust.
+    Returns dissolved edges (for narration pipeline -- transient, not written to Rust).
+    """
+    current_edges = bridge.read_social_edges()
+    surviving, dissolved_this_turn = dissolve_edges(
+        current_edges, active_agent_ids, belief_by_agent=belief_by_agent,
+    )
+    new_rivals = check_rivalry_formation(world, surviving)
+    new_mentors = check_mentorship_formation(world, surviving)
+    new_marriages = check_marriage_formation(world, surviving)
+    new_exile_bonds = check_exile_bond_formation(world, surviving)
+    new_coreligionists = check_coreligionist_formation(
+        world, surviving, belief_by_agent, region_belief_fractions,
+    )
+    all_edges = surviving + new_rivals + new_mentors + new_marriages + new_exile_bonds + new_coreligionists
+    bridge.replace_social_edges(all_edges)
+    return dissolved_this_turn
+
+
 # --- Hostage Exchanges ---
 
 def capture_hostage(

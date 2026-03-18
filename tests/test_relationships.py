@@ -10,6 +10,7 @@ from chronicler.relationships import (
     check_marriage_formation,
     check_exile_bond_formation,
     check_coreligionist_formation,
+    form_and_sync_relationships,
     capture_hostage,
     tick_hostages,
     release_hostage,
@@ -489,3 +490,58 @@ def test_coreligionist_requires_colocation(make_world):
     region_belief_fractions = {"R1": {5: 0.10}, "R2": {5: 0.10}}
     formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
     assert len(formed) == 0
+
+
+# --- Task 12: Coordinator form_and_sync_relationships ---
+
+def test_coordinator_dissolves_dead_agent_edges():
+    from chronicler.models import WorldState
+
+    class MockBridge:
+        def __init__(self, initial_edges):
+            self._edges = initial_edges
+            self.replaced = None
+        def read_social_edges(self):
+            return list(self._edges)
+        def replace_social_edges(self, edges):
+            self.replaced = edges
+
+    initial = [(100, 200, REL_RIVAL, 10)]
+    bridge = MockBridge(initial)
+    world = WorldState(name="TestWorld", seed=42, turn=50, regions=[], civilizations=[], relationships={})
+    active_ids = {200}
+    dissolved = form_and_sync_relationships(world, bridge, active_ids, {}, {})
+    assert len(dissolved) == 1
+    assert bridge.replaced is not None
+    assert len(bridge.replaced) == 0
+
+
+def test_coordinator_forms_new_edges_and_writes_back(make_world):
+    class MockBridge:
+        def __init__(self):
+            self._edges = []
+            self.replaced = None
+        def read_social_edges(self):
+            return list(self._edges)
+        def replace_social_edges(self, edges):
+            self.replaced = edges
+
+    bridge = MockBridge()
+    world = make_world(num_civs=2, seed=42)
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
+    civ1.great_persons = [
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
+    ]
+    civ2.great_persons = [
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
+    ]
+    world.active_wars = [(civ1.name, civ2.name)]
+    dissolved = form_and_sync_relationships(world, bridge, {100, 200}, {}, {})
+    assert len(dissolved) == 0
+    assert bridge.replaced is not None
+    assert len(bridge.replaced) >= 1
+    assert any(e[2] == REL_RIVAL for e in bridge.replaced)
