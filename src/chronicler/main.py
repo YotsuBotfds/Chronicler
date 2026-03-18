@@ -17,7 +17,7 @@ from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
 from chronicler.models import ChronicleEntry, NarrativeRole
 from chronicler.interestingness import find_boring_civs
-from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
+from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, AnthropicClient, create_clients
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
@@ -89,6 +89,7 @@ def execute_run(
     # Fallback clients
     _sim = sim_client or _DummyClient()
     _narr = narrative_client or _DummyClient()
+    _api_mode = isinstance(_narr, AnthropicClient)
 
     # Extract run parameters from args
     seed = args.seed
@@ -121,7 +122,7 @@ def execute_run(
 
     # In simulate-only mode, replace narrator with a no-op
     _simulate_only = getattr(args, "simulate_only", False)
-    if _simulate_only:
+    if _simulate_only or _api_mode:
         _noop_narrator = lambda world, events: ""
     else:
         _noop_narrator = None
@@ -184,6 +185,7 @@ def execute_run(
     # Run simulation
     chronicle_entries: list[ChronicleEntry] = []
     era_reflections: dict[int, str] = {}
+    gap_summaries = None  # Set by curated narration in API mode
     history: list[TurnSnapshot] = []
 
     remaining = num_turns - start_turn
@@ -362,7 +364,7 @@ def execute_run(
             stream.save(output_dir / f"memories_{safe_name}.json")
 
         # Generate era reflections at intervals
-        if should_reflect(world.turn, interval=reflection_interval):
+        if not _api_mode and should_reflect(world.turn, interval=reflection_interval):
             era_start = world.turn - reflection_interval + 1
             era_end = world.turn
             reflection_texts: list[str] = []
@@ -398,6 +400,43 @@ def execute_run(
         if world.turn % 10 == 0:
             print(f"  Turn {world.turn}/{num_turns} complete")
 
+    # M44: Post-loop curated narration for API mode
+    if _api_mode:
+        from chronicler.curator import curate
+
+        # Collect named character names for curator scoring
+        named_chars = set()
+        for gp_list in (getattr(civ, "great_persons", []) for civ in world.civilizations):
+            for gp in gp_list:
+                if gp.active and gp.agent_id is not None:
+                    named_chars.add(gp.name)
+
+        moments, gap_summaries = curate(
+            events=world.events_timeline,
+            named_events=world.named_events,
+            history=history,
+            budget=getattr(args, "budget", 50),
+            seed=seed,
+            named_characters=named_chars if named_chars else None,
+        )
+
+        def progress_cb(completed: int, total: int, eta: float | None) -> None:
+            eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
+            print(f"  Narrating {completed}/{total}{eta_str}")
+
+        chronicle_entries = engine.narrate_batch(
+            moments, history, gap_summaries, on_progress=progress_cb,
+        )
+
+        print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
+
+        # Token usage summary
+        if isinstance(_narr, AnthropicClient):
+            inp = _narr.total_input_tokens
+            out = _narr.total_output_tokens
+            print(f"API narration: {_narr.call_count} calls, "
+                  f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
+
     # M28: Close agent bridge
     if agent_bridge is not None:
         agent_bridge.close()
@@ -413,6 +452,7 @@ def execute_run(
         entries=chronicle_entries,
         era_reflections=era_reflections,
         epilogue=epilogue,
+        gap_summaries=gap_summaries,
     )
 
     # Prepend provenance header if provided
@@ -520,7 +560,14 @@ def execute_run(
         sim_model=sim_model_name,
         narrative_model=narr_model_name,
         interestingness_score=score_run(result, interestingness_weights),
+        gap_summaries=gap_summaries,
     )
+    # M44: narrator provenance metadata
+    bundle["metadata"]["narrator_mode"] = "api" if _api_mode else "local"
+    if isinstance(_narr, AnthropicClient):
+        bundle["metadata"]["api_input_tokens"] = _narr.total_input_tokens
+        bundle["metadata"]["api_output_tokens"] = _narr.total_output_tokens
+
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)
     print(f"Viewer bundle written to {bundle_path}")
@@ -628,6 +675,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Number of moments to narrate")
     parser.add_argument("--narrate-output", type=Path, default=None,
                         help="Output path for narrated bundle")
+    parser.add_argument("--narrator", type=str, default="local",
+                        choices=["local", "api"],
+                        help="Narrator backend: local (LM Studio) or api (Claude API)")
     return parser
 
 
@@ -646,7 +696,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         bundle = _json.load(f)
 
     # Deserialize events, named_events, history
-    events = [Event.model_validate(e) for e in bundle.get("events", [])]
+    events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]
     named_events = [NamedEvent.model_validate(ne) for ne in bundle.get("named_events", [])]
     history = [TurnSnapshot.model_validate(snap) for snap in bundle.get("history", [])]
     seed = bundle.get("metadata", {}).get("seed", 42)
@@ -657,6 +707,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         local_url=args.local_url,
         sim_model=getattr(args, "sim_model", None),
         narrative_model=getattr(args, "narrative_model", None),
+        narrator=getattr(args, "narrator", "local"),
     )
 
     # M40: Collect named character names for curator scoring
@@ -689,6 +740,13 @@ def _run_narrate(args: argparse.Namespace) -> None:
         moments, history, gap_summaries, on_progress=progress_cb
     )
 
+    # M44: Token summary
+    if isinstance(narrative_client, AnthropicClient):
+        inp = narrative_client.total_input_tokens
+        out = narrative_client.total_output_tokens
+        print(f"API narration: {narrative_client.call_count} calls, "
+              f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
+
     # Write output
     output_path = args.narrate_output
     if output_path is None:
@@ -699,6 +757,12 @@ def _run_narrate(args: argparse.Namespace) -> None:
         "gap_summaries": [gs.model_dump() for gs in gap_summaries],
         "metadata": bundle.get("metadata", {}),
     }
+
+    # M44: narrator provenance
+    result["metadata"]["narrator_mode"] = getattr(args, "narrator", "local")
+    if isinstance(narrative_client, AnthropicClient):
+        result["metadata"]["api_input_tokens"] = narrative_client.total_input_tokens
+        result["metadata"]["api_output_tokens"] = narrative_client.total_output_tokens
 
     with open(output_path, "w") as f:
         _json.dump(result, f, indent=2)
@@ -752,6 +816,29 @@ def main() -> None:
         args.seed = start
         args.batch = end - start + 1
 
+    # --- M44: --narrator api validation ---
+    if getattr(args, "narrator", "local") == "api":
+        if getattr(args, "simulate_only", False):
+            print("Error: --narrator api and --simulate-only are contradictory", file=sys.stderr)
+            sys.exit(1)
+        if args.live:
+            print("Error: --narrator api is incompatible with --live (API latency)", file=sys.stderr)
+            sys.exit(1)
+        if args.parallel is not None and args.batch:
+            print("Error: --narrator api is incompatible with --batch --parallel", file=sys.stderr)
+            sys.exit(1)
+        try:
+            import anthropic  # noqa: F401
+        except ImportError:
+            print("Error: --narrator api requires the anthropic package. "
+                  "Install with: pip install chronicler[api]", file=sys.stderr)
+            sys.exit(1)
+        import os
+        if "ANTHROPIC_API_KEY" not in os.environ:
+            print("Error: --narrator api requires ANTHROPIC_API_KEY environment variable",
+                  file=sys.stderr)
+            sys.exit(1)
+
     # Skip LLM client and scenario resolution for live mode — run_live
     # handles both after receiving params from the client's start command.
     # Also skip for --analyze, which only reads already-written bundles.
@@ -769,6 +856,7 @@ def main() -> None:
                 local_url=args.local_url,
                 sim_model=args.sim_model,
                 narrative_model=args.narrative_model,
+                narrator=args.narrator,
             )
 
         # Resolve scenario

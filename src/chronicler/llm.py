@@ -67,6 +67,9 @@ class AnthropicClient:
     def __init__(self, client: Any, model: str = "claude-sonnet-4-6"):
         self.model = model
         self._client = client
+        self.total_input_tokens: int = 0
+        self.total_output_tokens: int = 0
+        self.call_count: int = 0
 
     def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
         kwargs: dict[str, Any] = {
@@ -78,6 +81,9 @@ class AnthropicClient:
             kwargs["system"] = system
 
         response = self._client.messages.create(**kwargs)
+        self.total_input_tokens += response.usage.input_tokens
+        self.total_output_tokens += response.usage.output_tokens
+        self.call_count += 1
         return response.content[0].text.strip()
 
 
@@ -85,25 +91,30 @@ def create_clients(
     local_url: str = DEFAULT_LOCAL_URL,
     sim_model: str | None = None,
     narrative_model: str | None = None,
+    narrator: str = "local",
 ) -> tuple[LLMClient, LLMClient]:
-    """Create simulation and narrative clients. Defaults to local-only mode.
+    """Create simulation and narrative clients.
 
-    Both clients route to LM Studio. sim_client uses low temperature (0.3)
-    for deterministic action selection; narrative_client uses high temperature
-    (0.8) and higher max_tokens for creative prose.
-
-    If sim_model or narrative_model is None, LM Studio will use whatever
-    model is currently loaded (pass model="" for this behavior).
+    sim_client always routes to local LM Studio (free, high volume).
+    narrative_client routes to local or Anthropic API based on narrator mode.
     """
     sim_client: LLMClient = LocalClient(
         base_url=local_url,
         model=sim_model or "",
         temperature=0.3,
     )
-    narrative_client: LLMClient = LocalNarrativeClient(
-        base_url=local_url,
-        model=narrative_model or "",
-        temperature=0.8,
-    )
+
+    if narrator == "api":
+        import anthropic
+        narrative_client: LLMClient = AnthropicClient(
+            client=anthropic.Anthropic(),
+            model=narrative_model or "claude-sonnet-4-6",
+        )
+    else:
+        narrative_client = LocalNarrativeClient(
+            base_url=local_url,
+            model=narrative_model or "",
+            temperature=0.8,
+        )
 
     return sim_client, narrative_client

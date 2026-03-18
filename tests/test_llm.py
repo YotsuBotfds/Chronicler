@@ -98,13 +98,55 @@ class TestAnthropicClient:
     def test_complete_calls_anthropic_api(self):
         mock_sdk = MagicMock()
         mock_sdk.messages.create.return_value = MagicMock(
-            content=[MagicMock(text="The empire rose from the ashes...")]
+            content=[MagicMock(text="The empire rose from the ashes...")],
+            usage=MagicMock(input_tokens=0, output_tokens=0),
         )
         client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
 
         result = client.complete("Write a chronicle entry", max_tokens=500)
         assert "empire" in result
         mock_sdk.messages.create.assert_called_once()
+
+    def test_token_tracking_accumulators(self):
+        """AnthropicClient tracks input/output tokens and call count."""
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = MagicMock(
+            content=[MagicMock(text="The empire rose...")],
+            usage=MagicMock(input_tokens=150, output_tokens=80),
+        )
+        client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+
+        assert client.total_input_tokens == 0
+        assert client.total_output_tokens == 0
+        assert client.call_count == 0
+
+        client.complete("Write a chronicle entry", max_tokens=500)
+
+        assert client.total_input_tokens == 150
+        assert client.total_output_tokens == 80
+        assert client.call_count == 1
+
+    def test_token_tracking_accumulates_across_calls(self):
+        """Token counts accumulate across multiple API calls."""
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            MagicMock(
+                content=[MagicMock(text="First entry...")],
+                usage=MagicMock(input_tokens=100, output_tokens=50),
+            ),
+            MagicMock(
+                content=[MagicMock(text="Second entry...")],
+                usage=MagicMock(input_tokens=200, output_tokens=100),
+            ),
+        ]
+        client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+
+        client.complete("First")
+        client.complete("Second")
+
+        assert client.total_input_tokens == 300
+        assert client.total_output_tokens == 150
+        assert client.call_count == 2
 
 
 class TestCreateClients:
@@ -137,3 +179,48 @@ class TestCreateClients:
         sim_client, narrative_client = create_clients()
         assert sim_client.model == ""
         assert narrative_client.model == ""
+
+    def test_narrator_api_returns_anthropic_client(self):
+        """When narrator='api', narrative client is AnthropicClient."""
+        import unittest.mock as mock
+        mock_anthropic_module = MagicMock()
+        mock_anthropic_instance = MagicMock()
+        mock_anthropic_module.Anthropic.return_value = mock_anthropic_instance
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {
+            "anthropic": mock_anthropic_module,
+            "openai": mock_openai_module,
+        }):
+            _, narrative_client = create_clients(narrator="api")
+            assert isinstance(narrative_client, AnthropicClient)
+            assert narrative_client.model == "claude-sonnet-4-6"
+
+    def test_narrator_api_with_custom_model(self):
+        """--narrative-model flows through to AnthropicClient."""
+        import unittest.mock as mock
+        mock_anthropic_module = MagicMock()
+        mock_anthropic_instance = MagicMock()
+        mock_anthropic_module.Anthropic.return_value = mock_anthropic_instance
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {
+            "anthropic": mock_anthropic_module,
+            "openai": mock_openai_module,
+        }):
+            _, narrative_client = create_clients(
+                narrator="api", narrative_model="claude-opus-4-6"
+            )
+            assert narrative_client.model == "claude-opus-4-6"
+
+    def test_narrator_local_unchanged(self):
+        """narrator='local' produces same result as default."""
+        import unittest.mock as mock
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            sim, narr = create_clients(narrator="local")
+            assert isinstance(narr, LocalNarrativeClient)
