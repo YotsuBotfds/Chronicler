@@ -145,6 +145,8 @@ pub fn compute_satisfaction_with_culture(
     majority_belief: u8,
     has_temple: bool,
     persecution_intensity: f32,
+    gini_coefficient: f32,
+    wealth_percentile: f32,
 ) -> f32 {
     let base_sat = compute_satisfaction(
         occupation,
@@ -182,7 +184,16 @@ pub fn compute_satisfaction_with_culture(
     } else {
         0.0
     };
-    let total_non_eco_penalty = apply_penalty_cap(cultural_pen + religious_pen + penalty);
+    // M41: class tension penalty — poor agents in unequal civs
+    let class_tension_pen = gini_coefficient
+        * (1.0 - wealth_percentile)
+        * crate::agent::CLASS_TENSION_WEIGHT;
+
+    // Priority clamping (Decision 3): core identity/persecution terms first,
+    // class tension takes whatever budget remains under the 0.40 cap.
+    let three_term = cultural_pen + religious_pen + penalty;
+    let class_tension_clamped = class_tension_pen.min((crate::agent::PENALTY_CAP - three_term).max(0.0));
+    let total_non_eco_penalty = (three_term + class_tension_clamped).min(crate::agent::PENALTY_CAP);
     (base_sat - total_non_eco_penalty + temple_bonus).clamp(0.0, 1.0)
 }
 
@@ -284,6 +295,7 @@ mod m36_tests {
             0xFF, 0xFF,
             false,
             0.0,
+            0.0, 0.5,
         );
         assert!((base - with_culture).abs() < 0.001);
     }
@@ -304,6 +316,7 @@ mod m37_tests {
             3, 3,  // belief matches majority
             false,
             0.0,
+            0.0, 0.5,
         );
         let sat_none = compute_satisfaction_with_culture(
             0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
@@ -312,6 +325,7 @@ mod m37_tests {
             0xFF, 0xFF,  // BELIEF_NONE
             false,
             0.0,
+            0.0, 0.5,
         );
         assert!((sat_match - sat_none).abs() < 0.001);
     }
@@ -325,6 +339,7 @@ mod m37_tests {
             3, 3,
             false,
             0.0,
+            0.0, 0.5,
         );
         let sat_mismatch = compute_satisfaction_with_culture(
             0, 0.8, 0.6, 50, 1.0, 0.5, false, false, false, false, 0, 0.0,
@@ -333,6 +348,7 @@ mod m37_tests {
             3, 5,  // different belief
             false,
             0.0,
+            0.0, 0.5,
         );
         let expected_diff = crate::agent::RELIGIOUS_MISMATCH_WEIGHT;
         assert!((sat_match - sat_mismatch - expected_diff).abs() < 0.001);
@@ -528,5 +544,72 @@ mod tests {
         for i in 0..5 {
             assert!((base[i] - same[i]).abs() < 0.001);
         }
+    }
+}
+
+#[cfg(test)]
+mod m41_tests {
+    use super::*;
+    use crate::signals::CivShock;
+
+    #[test]
+    fn test_class_tension_poor_agent_penalized() {
+        let shock = CivShock::default();
+        let sat_rich = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
+            0.6, 1.0, // gini=0.6, percentile=1.0 (richest)
+        );
+        let sat_poor = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
+            0.6, 0.0, // gini=0.6, percentile=0.0 (poorest)
+        );
+        let expected_diff = 0.6 * 1.0 * crate::agent::CLASS_TENSION_WEIGHT;
+        assert!((sat_rich - sat_poor - expected_diff).abs() < 0.01,
+            "Rich-poor diff {}, expected {}", sat_rich - sat_poor, expected_diff);
+    }
+
+    #[test]
+    fn test_class_tension_zero_gini_no_penalty() {
+        let shock = CivShock::default();
+        let sat_base = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
+            0.0, 0.0, // gini=0, poorest
+        );
+        let sat_no_wealth = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &shock, [0, 1, 2], [0, 1, 2], 0xFF, 0xFF, false, 0.0,
+            0.0, 0.5, // gini=0, middle
+        );
+        assert!((sat_base - sat_no_wealth).abs() < 0.001,
+            "Zero Gini should produce no class tension penalty");
+    }
+
+    #[test]
+    fn test_class_tension_priority_clamping() {
+        let shock = CivShock::default();
+        // Max cultural mismatch (0.15) + religious mismatch (0.10) + persecution (0.15) = 0.40
+        let sat = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &shock,
+            [4, 3, 2], [0, 1, 5], // full cultural mismatch (distance 3 → 0.15)
+            3, 5,                  // religious mismatch (0.10)
+            false,
+            1.0,                   // max persecution (0.15)
+            1.0, 0.0,             // max gini, poorest → would be 0.15 class tension
+        );
+        let sat_no_class = compute_satisfaction_with_culture(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &shock,
+            [4, 3, 2], [0, 1, 5],
+            3, 5,
+            false,
+            1.0,
+            0.0, 0.0, // zero gini → zero class tension
+        );
+        assert!((sat - sat_no_class).abs() < 0.001,
+            "Class tension should be zero when three core terms hit cap");
     }
 }

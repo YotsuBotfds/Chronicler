@@ -76,7 +76,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
-    update_satisfaction(pool, regions, signals);
+    update_satisfaction(pool, regions, signals, wealth_percentiles);
 
     // -----------------------------------------------------------------------
     // 2. Pre-compute region stats for decisions
@@ -419,7 +419,7 @@ pub fn wealth_tick(
 // Satisfaction update
 // ---------------------------------------------------------------------------
 
-fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals) {
+fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals, wealth_percentiles: &[f32]) {
     // Pre-compute region stats for demand/supply ratio
     let stats = compute_region_stats(pool, regions, signals);
 
@@ -499,6 +499,8 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                         };
 
                         let shock = signals.shock_for_civ(pool_ref.civ_affinity(slot));
+                        let gini = civ_sig.map_or(0.0, |c| c.gini_coefficient);
+                        let wealth_pct = wealth_percentiles[slot];
 
                         let agent_values = [
                             pool_ref.cultural_value_0[slot],
@@ -526,6 +528,8 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                             region.majority_belief,
                             region.has_temple,
                             region.persecution_intensity,
+                            gini,
+                            wealth_pct,
                         );
 
                         (slot, sat)
@@ -946,8 +950,12 @@ mod tests {
             }
         }
 
-        update_satisfaction(&mut pool_a, &regions, &signals);
-        update_satisfaction(&mut pool_b, &regions, &signals);
+        let cap_a = pool_a.capacity();
+        let cap_b = pool_b.capacity();
+        let wealth_pcts_a = vec![0.5f32; cap_a];
+        let wealth_pcts_b = vec![0.5f32; cap_b];
+        update_satisfaction(&mut pool_a, &regions, &signals, &wealth_pcts_a);
+        update_satisfaction(&mut pool_b, &regions, &signals, &wealth_pcts_b);
 
         // Verify computation actually happened (not still at default 0.5)
         let any_changed = (0..pool_a.capacity())
