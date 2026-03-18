@@ -78,6 +78,15 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                 history_parts.append(f"  {h['event']} in {h['region']} (turn {h['turn']})")
             if history_parts:
                 lines.append(";".join(history_parts))
+            if char.get("dynasty"):
+                dynasty_line = f"  House of {char['dynasty']}"
+                if char.get("dynasty_living", 0) == 1:
+                    dynasty_line += " (last of their line)"
+                elif char.get("dynasty_split"):
+                    dynasty_line += " (dynasty divided)"
+                else:
+                    dynasty_line += f" ({char['dynasty_living']}/{char['dynasty_total']} living)"
+                lines.append(dynasty_line)
         lines.append("")
 
     lines.append("Guidelines:")
@@ -103,6 +112,8 @@ def build_agent_context_for_moment(
     great_persons: list,
     displacement_by_region: dict[int, float],
     region_names: dict[int, str],
+    dynasty_registry=None,       # M39: optional DynastyRegistry
+    gp_by_agent_id: dict | None = None,  # M39: agent_id → GreatPerson
 ) -> AgentContext | None:
     """Build AgentContext if the moment has agent-source events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
@@ -126,6 +137,17 @@ def build_agent_context_for_moment(
                 for d in gp.deeds[-3:]
             ],
         }
+        # M39: dynasty context
+        if dynasty_registry is not None and gp_by_agent_id is not None and gp.agent_id:
+            dynasty = dynasty_registry.get_dynasty_for(gp.agent_id, gp_by_agent_id)
+            if dynasty is not None:
+                living_count = sum(1 for m in dynasty.members if gp_by_agent_id[m].alive)
+                char["dynasty"] = dynasty.founder_name
+                char["dynasty_living"] = living_count
+                char["dynasty_total"] = len(dynasty.members)
+                if dynasty.split_detected:
+                    char["dynasty_split"] = True
+
         chars.append(char)
 
     mood = compute_population_mood(agent_events)
