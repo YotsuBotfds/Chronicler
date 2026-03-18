@@ -666,6 +666,8 @@ class AgentContext(BaseModel):
     displacement_fraction: float = 0.0
     # M40: Social Networks — merged view of social edges + hostage state
     relationships: list[dict] = Field(default_factory=list)
+    # M41: wealth inequality for narrator
+    gini_coefficient: float = 0.0
 
 
 class NarrationContext(BaseModel):

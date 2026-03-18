@@ -132,6 +132,8 @@ def build_agent_context_for_moment(
     dissolved_edges: list[tuple] | None = None,    # M40
     agent_name_map: dict[int, str] | None = None,  # M40
     hostage_data: list[dict] | None = None,        # M40
+    civ_idx: int | None = None,                    # M41: which civ to pull gini for
+    gini_by_civ: dict[int, float] | None = None,   # M41: per-civ Gini coefficients
 ) -> AgentContext | None:
     """Build AgentContext if the moment has agent-source events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
@@ -202,11 +204,15 @@ def build_agent_context_for_moment(
         if h.get("name") in char_names:
             relationships.append(h)
 
+    # M41: Gini coefficient for wealth inequality context
+    gini = (gini_by_civ or {}).get(civ_idx, 0.0) if civ_idx is not None else 0.0
+
     return AgentContext(
         named_characters=chars[:10],  # cap for token budget
         population_mood=mood,
         displacement_fraction=avg_disp,
         relationships=relationships,
+        gini_coefficient=gini,
     )
 
 
@@ -651,6 +657,8 @@ class NarrativeEngine:
         social_edges: list[tuple] | None = None,
         dissolved_edges_by_turn: dict[int, list[tuple]] | None = None,
         agent_name_map: dict[int, str] | None = None,
+        # M41: per-civ Gini coefficients for wealth inequality narration
+        gini_by_civ: dict[int, float] | None = None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments sequentially with full context.
 
@@ -755,6 +763,7 @@ class NarrativeEngine:
                     dissolved_edges=moment_dissolved if moment_dissolved else None,
                     agent_name_map=agent_name_map,
                     hostage_data=hostage_data,
+                    gini_by_civ=gini_by_civ,
                 )
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
