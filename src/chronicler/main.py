@@ -696,7 +696,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         bundle = _json.load(f)
 
     # Deserialize events, named_events, history
-    events = [Event.model_validate(e) for e in bundle.get("events", [])]
+    events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]
     named_events = [NamedEvent.model_validate(ne) for ne in bundle.get("named_events", [])]
     history = [TurnSnapshot.model_validate(snap) for snap in bundle.get("history", [])]
     seed = bundle.get("metadata", {}).get("seed", 42)

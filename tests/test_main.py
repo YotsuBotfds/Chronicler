@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG, _build_parser
+from chronicler.llm import AnthropicClient
 from chronicler.types import RunResult
 from chronicler.memory import MemoryStream
 
@@ -584,3 +585,123 @@ class TestNarratorValidation:
                                 "--batch", "10", "--parallel"]):
             with pytest.raises(SystemExit):
                 main()
+
+
+class TestApiNarrationIntegration:
+    """Integration tests for M44 API narration flow."""
+
+    def _make_args(self, tmp_dir):
+        """Build minimal args namespace for a short API-mode run."""
+        return argparse.Namespace(
+            seed=42,
+            turns=20,
+            civs=3,
+            regions=6,
+            output=str(Path(tmp_dir) / "chronicle.md"),
+            state=str(Path(tmp_dir) / "state.json"),
+            resume=None,
+            reflection_interval=10,
+            llm_actions=False,
+            scenario=None,
+            simulate_only=False,
+            agents="off",
+            budget=50,
+            narrator="api",
+            pause_every=None,
+        )
+
+    def test_api_mode_produces_curated_entries_with_metadata(self, tmp_path):
+        """execute_run with API narrator: curated narration, no reflections, metadata written."""
+        import json
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = MagicMock(
+            content=[MagicMock(text="The great empire rose from humble beginnings...")],
+            usage=MagicMock(input_tokens=500, output_tokens=200),
+        )
+        api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+
+        args = self._make_args(str(tmp_path))
+        result = execute_run(
+            args,
+            sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
+            narrative_client=api_client,
+        )
+
+        # Bundle was written
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        assert bundle_path.exists()
+
+        bundle = json.loads(bundle_path.read_text())
+
+        # Metadata has narrator_mode and token counts
+        meta = bundle["metadata"]
+        assert meta["narrator_mode"] == "api"
+        assert "api_input_tokens" in meta
+        assert "api_output_tokens" in meta
+        assert meta["api_input_tokens"] > 0
+
+        # Era reflections should be empty (gated off in API mode)
+        assert bundle.get("era_reflections", {}) == {} or all(
+            v == "" for v in bundle.get("era_reflections", {}).values()
+        )
+
+        # API client was called for curated moments, not per-turn (20 turns)
+        call_count = mock_sdk.messages.create.call_count
+        assert call_count < 20, (
+            f"Expected curated narration (< 20 calls), got {call_count} "
+            "(suggests per-turn narration was not skipped)"
+        )
+
+        # Gap summaries should be present in bundle
+        assert "gap_summaries" in bundle
+
+    def test_run_narrate_api_mode_writes_metadata(self, tmp_path):
+        """_run_narrate with --narrator api writes narrator_mode and token fields."""
+        import json
+        from chronicler.main import _run_narrate
+
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = MagicMock(
+            content=[MagicMock(text="The chronicles speak of great change...")],
+            usage=MagicMock(input_tokens=300, output_tokens=150),
+        )
+
+        # First, generate a simulate-only bundle
+        sim_args = argparse.Namespace(
+            seed=42, turns=20, civs=3, regions=6,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None,
+            simulate_only=True, agents="off",
+            budget=50, narrator="local",
+            pause_every=None,
+        )
+        execute_run(sim_args)
+
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        assert bundle_path.exists()
+
+        # Now re-narrate with --narrator api
+        narrate_output = tmp_path / "narrated.json"
+        narrate_args = argparse.Namespace(
+            narrate=bundle_path,
+            narrator="api",
+            local_url="http://localhost:1234/v1",
+            sim_model=None,
+            narrative_model=None,
+            budget=10,
+            narrate_output=narrate_output,
+        )
+
+        # Patch create_clients to return our mocked API client
+        api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+        with patch("chronicler.main.create_clients",
+                   return_value=(MagicMock(model="test"), api_client)):
+            _run_narrate(narrate_args)
+
+        # Check output metadata
+        output = json.loads(narrate_output.read_text())
+        assert output["metadata"]["narrator_mode"] == "api"
+        assert output["metadata"]["api_input_tokens"] > 0
+        assert output["metadata"]["api_output_tokens"] > 0
