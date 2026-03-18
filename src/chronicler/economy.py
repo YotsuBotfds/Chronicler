@@ -99,6 +99,49 @@ def map_resource_to_good(resource_type: int) -> str:
     return _GOOD_MAP[resource_type]
 
 
+# ---------------------------------------------------------------------------
+# M43a: Transport cost
+# ---------------------------------------------------------------------------
+
+def build_river_route_set(rivers: list) -> set[frozenset]:
+    """Pre-build set of river-connected region pairs for O(1) lookup.
+
+    Each River.path is an ordered list of region names along the river.
+    Adjacent pairs in the path are river-connected.
+    """
+    pairs: set[frozenset] = set()
+    for river in rivers:
+        path = river.path
+        for i in range(len(path) - 1):
+            pairs.add(frozenset({path[i], path[i + 1]}))
+    return pairs
+
+
+def compute_transport_cost(
+    terrain_a: str,
+    terrain_b: str,
+    *,
+    is_river: bool,
+    is_coastal: bool,
+    is_winter: bool,
+) -> float:
+    """Per-route transport cost. Subtracted from raw margin for effective margin.
+
+    Args:
+        terrain_a: Terrain type of origin region.
+        terrain_b: Terrain type of destination region.
+        is_river: Both regions on same river path.
+        is_coastal: Both regions are coast terrain.
+        is_winter: Current season is winter.
+    """
+    terrain_factor = max(TERRAIN_COST.get(terrain_a, 1.0), TERRAIN_COST.get(terrain_b, 1.0))
+    river = RIVER_DISCOUNT if is_river else 1.0
+    coastal = COASTAL_DISCOUNT if is_coastal else 1.0
+    seasonal = WINTER_MODIFIER if is_winter else 1.0
+    infra = INFRASTRUCTURE_DISCOUNT
+    return TRANSPORT_COST_BASE * terrain_factor * infra * min(river, coastal) * seasonal
+
+
 def _empty_category_dict() -> dict[str, float]:
     """Return zeroed dict for all three categories."""
     return {cat: 0.0 for cat in CATEGORIES}
