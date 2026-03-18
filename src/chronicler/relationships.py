@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+from collections import defaultdict
 
 from chronicler.models import GreatPerson, WorldState
 
@@ -175,6 +176,45 @@ def check_marriage_formation(world: WorldState, existing_edges: list[tuple]) -> 
                 new_edges.append(edge)
                 married_agents.add(a)
                 married_agents.add(b)
+    return new_edges
+
+
+# --- Exile Bond ---
+
+def check_exile_bond_formation(world: WorldState, existing_edges: list[tuple]) -> list[tuple]:
+    """Form exile bonds between agent-source named characters who share origin_region
+    and are co-located in a region that is NOT their origin.
+    agent_a < agent_b by convention (symmetric).
+    """
+    new_edges = []
+    existing_pairs = {(e[0], e[1]) for e in existing_edges if e[2] == REL_EXILE_BOND}
+
+    displaced = []
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            if not gp.active or gp.agent_id is None:
+                continue
+            if gp.origin_region is None or gp.region is None:
+                continue
+            if gp.region == gp.origin_region:
+                continue
+            displaced.append(gp)
+
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for gp in displaced:
+        groups[(gp.origin_region, gp.region)].append(gp)
+
+    for key, members in groups.items():
+        if len(members) < 2:
+            continue
+        for i, gp1 in enumerate(members):
+            for gp2 in members[i + 1:]:
+                a, b = min(gp1.agent_id, gp2.agent_id), max(gp1.agent_id, gp2.agent_id)
+                if (a, b) in existing_pairs:
+                    continue
+                edge = (a, b, REL_EXILE_BOND, world.turn)
+                new_edges.append(edge)
+                existing_pairs.add((a, b))
     return new_edges
 
 

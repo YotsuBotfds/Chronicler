@@ -8,6 +8,7 @@ from chronicler.relationships import (
     dissolve_dead_relationships,
     check_mentorship_formation,
     check_marriage_formation,
+    check_exile_bond_formation,
     capture_hostage,
     tick_hostages,
     release_hostage,
@@ -379,3 +380,57 @@ def test_great_person_origin_region_defaults_none():
     assert gp.origin_region is None
 
 
+# --- Task 10: Exile Bond Formation ---
+
+def test_exile_bond_forms_shared_origin_colocated(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="Exile1", role="general", trait="bold",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100,
+                    origin_region="Homeland", region="Refuge"),
+        GreatPerson(name="Exile2", role="merchant", trait="shrewd",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200,
+                    origin_region="Homeland", region="Refuge"),
+    ]
+    formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 1
+    assert formed[0][2] == REL_EXILE_BOND
+
+
+def test_exile_bond_skips_none_origin(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="general", trait="bold",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100,
+                    origin_region=None, region="Refuge"),
+        GreatPerson(name="B", role="merchant", trait="shrewd",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200,
+                    origin_region="Homeland", region="Refuge"),
+    ]
+    formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 0
+
+
+def test_exile_bond_requires_same_region(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
+    civ1.great_persons = [
+        GreatPerson(name="A", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100,
+                    origin_region="Homeland", region="Refuge1"),
+    ]
+    civ2.great_persons = [
+        GreatPerson(name="B", role="merchant", trait="shrewd",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=10, source="agent", agent_id=200,
+                    origin_region="Homeland", region="Refuge2"),
+    ]
+    formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 0
