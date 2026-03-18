@@ -36,7 +36,7 @@ New field:
 
 4 bytes/agent. At 100k agents, 400KB.
 
-**Sentinel fix (required):** `PARENT_NONE = 0`. The pool's `next_id` counter currently starts at 0 (`pool.rs:84`), which means the first spawned agent gets id 0 — indistinguishable from "no parent." Implementation must change `next_id` initialization from 0 to 1 in `AgentPool::new()`. Add `assert_eq!(pool.id(s0), 1)` to `test_spawn_into_empty_pool` to positively verify the sentinel. (`test_ids_are_monotonic` only checks relative ordering and survives without changes.)
+**Sentinel fix (required):** `PARENT_NONE = 0`. The pool's `next_id` counter currently starts at 0 (`pool.rs:84`), which means the first spawned agent gets id 0 — indistinguishable from "no parent." Implementation must change `next_id` initialization from 0 to 1 in `AgentPool::new()`. Add `assert_eq!(pool.id(s0), 1)` to `test_spawn_into_empty_pool` to positively verify the sentinel. (`test_ids_are_monotonic` only checks relative ordering and survives without changes.) **Ripple-effect audit:** Implementation plan must grep all test files (Rust and Python) for `agent_id.*=.*0` or hardcoded id `0` patterns and verify none depend on 0 being a valid agent id.
 
 ### BirthInfo (`tick.rs`)
 
@@ -139,6 +139,8 @@ No changes. Dynasty events are emitted through the Python-side `events.py` pipel
 
 ### DynastyRegistry (`dynasties.py`, new file, ~60-80 lines)
 
+**Ownership:** `DynastyRegistry` is an attribute on `AgentBridge`, same as `named_agents` and `gp_by_agent_id`. It is agent-pipeline internal state, not part of `WorldState`.
+
 ```python
 @dataclass
 class Dynasty:
@@ -178,21 +180,21 @@ Single dict lookup per promotion. O(1).
 
 Death events carry `agent_id` (confirmed: `ffi.rs`, `events_to_batch`). Agent-sourced character deaths are processed by `_process_deaths()` in `agent_bridge.py` (not `kill_great_person()` from `great_persons.py`). The `_process_deaths()` function sets `gp.alive = False` directly.
 
-After `_process_deaths()` sets `alive = False`, check dynasty membership:
-1. Look up deceased in `gp_by_agent_id`. If they have a `dynasty_id`, find the dynasty.
-2. Check: `all(not gp_by_agent_id[mid].alive for mid in dynasty.members)` — if true, mark `dynasty.extinct = True`, emit extinction event.
+Extinction check runs **post-loop** — after all deaths in the turn are processed by `_process_deaths()`, sweep all non-extinct dynasties once:
+1. For each dynasty where `not dynasty.extinct`, check: `all(not gp_by_agent_id[mid].alive for mid in dynasty.members)`
+2. If true → mark `dynasty.extinct = True`, emit extinction event.
+
+Post-loop is simpler than per-death (one sweep vs. checking membership on every death). Same-turn multi-death is handled correctly because all `alive` flags are already set before the sweep runs.
 
 No pool access needed. `GreatPerson.alive` is maintained by `_process_deaths()`.
-
-Deaths are processed sequentially per turn — same-turn deaths (war, plague) resolve correctly because `_process_deaths()` updates `alive` before processing the next death in the loop.
 
 ### Split — on promotion or civ-change
 
 When any two **living** dynasty members have different `GreatPerson.civilization` values, and `split_detected` is False:
 - Emit split event, set `split_detected = True`.
-- **Trigger points:** (a) After `_process_promotions()` — new member might be different civ. (b) After any `set_agent_civ()` call in the tick pipeline — conquest/secession changes a member's civ.
+- **Trigger points:** (a) After `_process_promotions()` — new member might be different civ. (b) After `apply_secession_transitions()` — the only codepath that updates `GreatPerson.civilization`. Other `set_agent_civ()` callers (conquest, loyalty cascades) only change Rust-side `civ_affinity`, not the Python-side `.civilization` field.
 - Comparison uses `GreatPerson.civilization` (Python-side string), not pool `civ_affinity` (which may reference a dead/reused slot).
-- **Conquest exiles do not trigger split.** The conquest path (`agent_bridge.py:589`) calls `set_agent_civ()` but does not update `GreatPerson.civilization` — the character retains their original civilization identity. Only secession (`agent_bridge.py:638`) updates `.civilization`. This is correct: a conquered exile still belongs to their house; secession is the meaningful split trigger.
+- **Conquest + later promotion CAN trigger split via trigger (a).** A conquered dynasty member retains `.civilization = "OldCiv"`. If their child is later promoted in the conquering civ with `.civilization = "ConquerorCiv"`, the promotion-time split check fires correctly — the dynasty genuinely is divided. The conquest event itself does not trigger a split check (only secession does via trigger b), but the promotion of a descendant in the new civ detects the split naturally.
 - One-shot: flag prevents re-firing every turn members remain separated.
 
 ---
@@ -267,3 +269,4 @@ No new narrator prompt structure. Dynasty info is folded into the existing chara
 - **Mechanical dynasty effects:** Loyalty bonuses between dynasty members, promotion advantages, diplomacy modifiers. `dynasty_id` on named characters is the hook.
 - **Dynasty rivalry:** Two dynasties in the same civ competing for influence. Requires faction integration.
 - **Dynasty-aware succession:** Leaders from dynasties get succession bonuses. Requires `leaders.py` integration.
+- **Bundle serialization:** Dynasty metadata (founder, members, split/extinct status) is not included in the save bundle for M39. `GreatPerson.dynasty_id` is serialized with the existing GreatPerson records. Full dynasty registry serialization deferred to a future milestone.
