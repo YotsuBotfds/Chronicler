@@ -230,7 +230,24 @@ In `named_characters.rs` tests, every `register()` call needs a trailing `0` (PA
 
 In `ffi.rs`, the `get_promotions()` `register()` call (line 607-615) — update in Task 5.
 
-**NOTE:** After this step, `cargo test` will not compile because `ffi.rs` calls `register()` with the old 7-arg signature. Temporarily add `, 0` to the `self.registry.register(...)` call at ffi.rs line 607-615 to keep things compiling, or defer `cargo test` to after Task 5 completes the proper fix.
+**NOTE:** After this step, `ffi.rs` calls `register()` with the old 7-arg signature. Add a temporary `, 0` to the `self.registry.register(...)` call at ffi.rs line 607-615 now to keep the build compiling. Task 5 will replace this with the proper `self.pool.parent_ids[slot]` read.
+
+- [ ] **Step 3b: Temp-fix `ffi.rs` register() call**
+
+In `ffi.rs` line 607-615, add `, 0` as the last argument to `self.registry.register(...)`:
+
+```rust
+            self.registry.register(
+                agent_id,
+                role,
+                self.pool.civ_affinity(slot),
+                self.pool.civ_affinity(slot),
+                born,
+                self.turn as u16,
+                trigger,
+                0,  // M39 temp: replaced with pool.parent_ids[slot] in Task 5
+            );
+```
 
 - [ ] **Step 4: Add test for parent_id on NamedCharacter**
 
@@ -598,7 +615,7 @@ class TestDynastyExtinction:
         # Kill both
         parent.alive = False
         child.alive = False
-        events = registry.check_extinctions(gp_map)
+        events = registry.check_extinctions(gp_map, turn=100)
         assert len(events) == 1
         assert events[0].event_type == "dynasty_extinct"
         assert registry.dynasties[0].extinct
@@ -611,7 +628,7 @@ class TestDynastyExtinction:
         gp_map = {10: parent, 20: child}
         registry.check_promotion(child, named_agents, gp_map)
         parent.alive = False  # only parent dead
-        events = registry.check_extinctions(gp_map)
+        events = registry.check_extinctions(gp_map, turn=100)
         assert len(events) == 0
         assert not registry.dynasties[0].extinct
 
@@ -624,7 +641,7 @@ class TestDynastySplit:
         named_agents = {10: "Kiran"}
         gp_map = {10: parent, 20: child}
         registry.check_promotion(child, named_agents, gp_map)
-        events = registry.check_splits(gp_map)
+        events = registry.check_splits(gp_map, turn=100)
         assert len(events) == 1
         assert events[0].event_type == "dynasty_split"
         assert events[0].importance == 5
@@ -638,7 +655,7 @@ class TestDynastySplit:
         gp_map = {10: parent, 20: child}
         registry.check_promotion(child, named_agents, gp_map)
         registry.check_splits(gp_map)  # first fire
-        events = registry.check_splits(gp_map)  # second call
+        events = registry.check_splits(gp_map, turn=100)  # second call
         assert len(events) == 0  # one-shot: no re-fire
 
     def test_no_split_when_same_civ(self):
@@ -648,7 +665,7 @@ class TestDynastySplit:
         named_agents = {10: "Kiran"}
         gp_map = {10: parent, 20: child}
         registry.check_promotion(child, named_agents, gp_map)
-        events = registry.check_splits(gp_map)
+        events = registry.check_splits(gp_map, turn=100)
         assert len(events) == 0
 ```
 
@@ -740,7 +757,7 @@ class DynastyRegistry:
             ))
         return events
 
-    def check_extinctions(self, gp_map: dict[int, GreatPerson]) -> list[Event]:
+    def check_extinctions(self, gp_map: dict[int, GreatPerson], turn: int) -> list[Event]:
         """Post-death sweep: check if any dynasty has all members dead."""
         events: list[Event] = []
         for dynasty in self.dynasties:
@@ -749,7 +766,7 @@ class DynastyRegistry:
             if all(not gp_map[mid].alive for mid in dynasty.members):
                 dynasty.extinct = True
                 events.append(Event(
-                    turn=0,  # caller should set to current turn
+                    turn=turn,
                     event_type="dynasty_extinct",
                     actors=[dynasty.founder_name],
                     description=f"The House of {dynasty.founder_name} has ended — no heir remains",
@@ -758,7 +775,7 @@ class DynastyRegistry:
                 ))
         return events
 
-    def check_splits(self, gp_map: dict[int, GreatPerson]) -> list[Event]:
+    def check_splits(self, gp_map: dict[int, GreatPerson], turn: int) -> list[Event]:
         """Check if living dynasty members span different civilizations."""
         events: list[Event] = []
         for dynasty in self.dynasties:
@@ -773,7 +790,7 @@ class DynastyRegistry:
                 dynasty.split_detected = True
                 civs_str = " and ".join(sorted(living_civs))
                 events.append(Event(
-                    turn=0,  # caller should set to current turn
+                    turn=turn,
                     event_type="dynasty_split",
                     actors=[dynasty.founder_name],
                     description=(
@@ -892,9 +909,9 @@ After the death processing loop in `_process_deaths` (after line 520, before `re
 
 ```python
         # M39: post-loop extinction check
-        extinction_events = self.dynasty_registry.check_extinctions(self.gp_by_agent_id)
-        for ee in extinction_events:
-            ee.turn = world.turn
+        extinction_events = self.dynasty_registry.check_extinctions(
+            self.gp_by_agent_id, world.turn,
+        )
         death_events.extend(extinction_events)
 ```
 
@@ -913,9 +930,9 @@ Change to:
             # M39: drain dynasty events and check splits
             dynasty_events = self._pending_dynasty_events
             self._pending_dynasty_events = []
-            split_events = self.dynasty_registry.check_splits(self.gp_by_agent_id)
-            for se in split_events:
-                se.turn = world.turn
+            split_events = self.dynasty_registry.check_splits(
+                self.gp_by_agent_id, world.turn,
+            )
             dynasty_events.extend(split_events)
 
             return summaries + char_events + death_events + dynasty_events
@@ -1023,6 +1040,8 @@ python -m pytest tests/ -v
 git add src/chronicler/narrative.py src/chronicler/simulation.py
 git commit -m "feat(m39): add dynasty context to narrative prompt"
 ```
+
+**Note:** Bundle serialization changes are deferred to M46. `GreatPerson.dynasty_id` is serialized automatically with the existing GreatPerson bundle path. Full dynasty registry serialization (founder, members, split/extinct) is not included in M39.
 
 ---
 
