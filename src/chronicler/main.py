@@ -17,7 +17,7 @@ from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
 from chronicler.models import ChronicleEntry, NarrativeRole
 from chronicler.interestingness import find_boring_civs
-from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
+from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, AnthropicClient, create_clients
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
@@ -89,6 +89,7 @@ def execute_run(
     # Fallback clients
     _sim = sim_client or _DummyClient()
     _narr = narrative_client or _DummyClient()
+    _api_mode = isinstance(_narr, AnthropicClient)
 
     # Extract run parameters from args
     seed = args.seed
@@ -121,7 +122,7 @@ def execute_run(
 
     # In simulate-only mode, replace narrator with a no-op
     _simulate_only = getattr(args, "simulate_only", False)
-    if _simulate_only:
+    if _simulate_only or _api_mode:
         _noop_narrator = lambda world, events: ""
     else:
         _noop_narrator = None
@@ -184,6 +185,7 @@ def execute_run(
     # Run simulation
     chronicle_entries: list[ChronicleEntry] = []
     era_reflections: dict[int, str] = {}
+    gap_summaries = None  # Set by curated narration in API mode
     history: list[TurnSnapshot] = []
 
     remaining = num_turns - start_turn
@@ -362,7 +364,7 @@ def execute_run(
             stream.save(output_dir / f"memories_{safe_name}.json")
 
         # Generate era reflections at intervals
-        if should_reflect(world.turn, interval=reflection_interval):
+        if not _api_mode and should_reflect(world.turn, interval=reflection_interval):
             era_start = world.turn - reflection_interval + 1
             era_end = world.turn
             reflection_texts: list[str] = []
@@ -398,6 +400,36 @@ def execute_run(
         if world.turn % 10 == 0:
             print(f"  Turn {world.turn}/{num_turns} complete")
 
+    # M44: Post-loop curated narration for API mode
+    if _api_mode:
+        from chronicler.curator import curate
+
+        # Collect named character names for curator scoring
+        named_chars = set()
+        for gp_list in (getattr(civ, "great_persons", []) for civ in world.civilizations):
+            for gp in gp_list:
+                if gp.active and gp.agent_id is not None:
+                    named_chars.add(gp.name)
+
+        moments, gap_summaries = curate(
+            events=world.events_timeline,
+            named_events=world.named_events,
+            history=history,
+            budget=getattr(args, "budget", 50),
+            seed=seed,
+            named_characters=named_chars if named_chars else None,
+        )
+
+        def progress_cb(completed: int, total: int, eta: float | None) -> None:
+            eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
+            print(f"  Narrating {completed}/{total}{eta_str}")
+
+        chronicle_entries = engine.narrate_batch(
+            moments, history, gap_summaries, on_progress=progress_cb,
+        )
+
+        print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
+
     # M28: Close agent bridge
     if agent_bridge is not None:
         agent_bridge.close()
@@ -413,6 +445,7 @@ def execute_run(
         entries=chronicle_entries,
         era_reflections=era_reflections,
         epilogue=epilogue,
+        gap_summaries=gap_summaries,
     )
 
     # Prepend provenance header if provided
@@ -520,6 +553,7 @@ def execute_run(
         sim_model=sim_model_name,
         narrative_model=narr_model_name,
         interestingness_score=score_run(result, interestingness_weights),
+        gap_summaries=gap_summaries,
     )
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)
