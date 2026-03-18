@@ -347,3 +347,40 @@ def test_raider_modifier_uses_max_not_sum():
         for r in enemies
     )
     assert max_food == 200.0
+
+
+# ---------------------------------------------------------------------------
+# Task 7: Raider modifier wired into ActionEngine.compute_weights()
+# ---------------------------------------------------------------------------
+
+from chronicler.models import ActionType, Leader
+
+
+def test_raider_modifier_in_compute_weights():
+    from chronicler.action_engine import ActionEngine
+
+    world, rome, persia = _make_world_with_enemy_stockpile()
+    mountains = next(r for r in world.regions if r.name == "Mountains")
+    mountains.stockpile.goods = {"grain": RAIDER_THRESHOLD * 2}
+    world.action_history = {}
+    er = EconomyResult()
+    world._economy_result = er
+    rome.leader = Leader(name="Caesar", trait="balanced", reign_start=0)
+    rome.treasury = 100
+    rome.military = 50
+    rome.economy = 50
+    rome.culture = 50
+    rome.stability = 50
+    rome.population = 100
+    rome.tech_era = "bronze"
+
+    engine = ActionEngine(world)
+    weights_with = engine.compute_weights(rome)
+    war_weight_with = weights_with.get(ActionType.WAR, 0)
+
+    world._economy_result = None
+    engine2 = ActionEngine(world)
+    weights_without = engine2.compute_weights(rome)
+    war_weight_without = weights_without.get(ActionType.WAR, 0)
+
+    assert war_weight_with > war_weight_without
