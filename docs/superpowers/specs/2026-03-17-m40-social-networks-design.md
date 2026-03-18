@@ -133,20 +133,22 @@ The three existing formation functions in `relationships.py` are refactored:
 - **Dedup mechanism changes:** Check against the `surviving` edge list (agent_id pairs) instead of `world.character_relationships` (name pairs).
 - **Mentorship scope changes:** Restricted to agent-source named characters only (see Goal). The leader-based mentorship pattern is dropped.
 
-Detection logic (who qualifies for each relationship) is preserved for rivalry and marriage. Mentorship detection changes to: two agent-source named characters, same occupation, skill gap (higher-skill agent is mentor), same region for 10+ turns.
+Detection logic (who qualifies for each relationship) is preserved for rivalry and marriage. Mentorship detection changes to: two agent-source named characters, same occupation, skill gap (higher-skill agent is mentor), co-located on the current turn.
 
 | Type | Conditions |
 |------|-----------|
 | Rivalry | Same role, opposing sides in war (unchanged) |
-| Mentorship | Two agent-source named characters, same occupation, skill gap, co-located 10+ turns (replaces leader-based pattern) |
+| Mentorship | Two agent-source named characters, same occupation, skill gap, both in same region on current turn (replaces leader-based pattern) |
 | Marriage | Great persons from allied civs, disposition ALLIED, 10+ turns (unchanged, but restricted to agent-source characters) |
+
+**Mentorship co-location note:** The roadmap suggested "same region, 10+ turns" but no field tracks pairwise co-location duration. Current-turn co-location is sufficient — there is no mechanism to track how long two specific characters have shared a region, and adding one is disproportionate to the narrative value. The mentor/apprentice bond forms when two characters with the right conditions are in the same place; persistence is handled by the graph (bonds don't dissolve on separation, only on death).
 
 ### New Formation Rules
 
 | Type | Conditions | Dedup |
 |------|-----------|-------|
 | Exile Bond | 2+ named characters share `origin_region`, both currently in the **same** region that is **not** their `origin_region` | One bond per pair per origin |
-| Co-religionist | 2+ named characters share belief in a region where that belief is <30% of population (from agent snapshot) | One bond per pair per shared faith |
+| Co-religionist | 2+ named characters share belief, both in the **same** region, and that belief is <30% of population in that region (from agent snapshot) | One bond per pair per shared faith |
 
 ### `origin_region` on GreatPerson
 
@@ -240,6 +242,8 @@ relationships: list[dict] = Field(default_factory=list)
 
 No social graph exists. `relationships` list is empty. Narration proceeds without relationship context. No special handling needed — formation logic never runs, Rust graph stays empty.
 
+**Deliberate regression:** In `--agents=off` mode, the legacy name-based relationship system (rivalry, mentorship, marriage via `character_relationships`) currently runs on aggregate-source great persons. M40's agent-source restriction means `--agents=off` loses all relationship formation. This is acceptable: `--agents=off` is a regression-test mode, not a production configuration. The legacy system was a Phase 3 approximation that M40's agent-backed graph supersedes.
+
 ---
 
 ## Section 5: Migration Path & File Changes
@@ -287,8 +291,19 @@ No social graph exists. `relationships` list is empty. Narration proceeds withou
 ### Design Notes
 
 - **Marriage survives war.** Marriage does not dissolve when the two civs go to war. Historically accurate and narratively rich ("married across enemy lines"). Only death dissolves marriage.
+- **Exile bond persistence.** Exile bonds never dissolve except on death. The shared displacement experience is a permanent narrative identity — even if one exile returns home, the bond endures. "They never forgot their exile years together." Dissolving on return would lose the relationship at the moment it becomes most narratively interesting.
 - **Exile bond guards:** Formation skips characters with `origin_region is None` (pre-M40 characters) or `region is None` (no current location).
 - **Aggregate-source characters excluded.** Characters with `source="aggregate"` or `agent_id=None` do not participate in the social graph. Formation logic guards on `agent_id is not None`.
+
+### Implementation Notes (for plan writing)
+
+These items do not affect the design but need attention during implementation planning:
+
+- **Rivalry iteration source:** Current `check_rivalry_formation()` iterates `civ.great_persons`. Verify that agent-mode great persons populate `civ.great_persons` (they do — `_process_promotions()` appends to it). No change needed, but confirm during plan writing.
+- **Marriage RNG seeding:** Current marriage uses `random.Random(world.seed + world.turn + hash(pair))` with civ-name pairs. After migration to agent_id-based edges, keep the RNG seed civ-pair-based (not agent_id-based) to preserve determinism characteristics across runs.
+- **Dissolved edge threading:** `form_and_sync_relationships()` returns `dissolved_this_turn`. The caller in Phase 10 must store this on `WorldState` (or pass it through to the narration pipeline) so `build_agent_context_for_moment()` can access it later. A transient field on `WorldState` (not serialized to bundle) is the simplest approach.
+- **`build_agent_context_for_moment()` caller:** The function exists but is never called. The implementation plan must identify the exact call site within `NarrativeEngine` where it should be wired — likely in the moment narration path that builds `NarrationContext`.
+- **Curator relationship boost data access:** `compute_base_scores()` needs the current edge list to detect relationship-involved events. Pass edges as a parameter alongside `named_characters`, or make them accessible via the same data structure.
 
 ### Test Coverage
 
