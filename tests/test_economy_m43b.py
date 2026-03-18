@@ -396,3 +396,38 @@ def test_causal_patterns_include_supply_shock():
     assert len(shock_patterns) == 7
     self_link = [p for p in shock_patterns if p[0] == "supply_shock" and p[1] == "supply_shock"]
     assert len(self_link) == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 9: Narration context wiring
+# ---------------------------------------------------------------------------
+
+from chronicler.narrative import build_agent_context_block
+from chronicler.models import AgentContext, ShockContext
+
+
+def test_agent_context_block_renders_trade_dependency():
+    ctx = AgentContext(
+        trade_dependent_regions=["Coast", "Port"],
+    )
+    block = build_agent_context_block(ctx)
+    assert "Trade-dependent regions: Coast, Port" in block
+
+
+def test_agent_context_block_renders_shocks():
+    ctx = AgentContext(
+        active_shocks=[
+            ShockContext(region="Plains", category="food", severity=0.7, upstream_source="Aram"),
+        ],
+    )
+    block = build_agent_context_block(ctx)
+    assert "Supply crisis in Plains" in block
+    assert "food" in block
+    assert "Aram" in block
+
+
+def test_agent_context_block_no_trade_data_no_section():
+    ctx = AgentContext()
+    block = build_agent_context_block(ctx)
+    assert "Trade-dependent" not in block
+    assert "Supply crisis" not in block
