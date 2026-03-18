@@ -326,6 +326,11 @@ def compute_conversion_signals(
                 * prophet_multiplier
             )
 
+        # M38b: Martyrdom boost (adds directly to conversion rate)
+        conversion_rate = rate
+        conversion_rate += region.martyrdom_boost
+        rate = conversion_rate
+
         # Conquest boost
         boost = region.conquest_conversion_boost
         if boost > 0:
@@ -390,4 +395,166 @@ def decay_conquest_boosts(regions: list[Region]) -> None:
         if region.conquest_conversion_boost > 0:
             region.conquest_conversion_boost = max(
                 0.0, region.conquest_conversion_boost - decay_step
+            )
+
+
+# ---------------------------------------------------------------------------
+# M38b: Persecution
+# ---------------------------------------------------------------------------
+
+def compute_persecution(
+    regions: list[Region],
+    civilizations,
+    belief_registry: list[Belief],
+    snapshot,
+    turn: int,
+    persecuted_regions: set[str],
+) -> list:
+    """Detect religious persecution and fire events.
+
+    For each civilization whose majority faith is Militant (DOCTRINE_STANCE == +1),
+    inspect every region that civ controls and compute a persecution intensity based
+    on the minority ratio among agents.
+
+    Args:
+        regions:            List of Region objects (indexed by position).
+        civilizations:      List of Civilization objects.
+        belief_registry:    List of Belief objects (indexed by faith_id).
+        snapshot:           PyArrow RecordBatch with 'region' (uint16) and
+                            'belief' (uint8) columns, or None.
+        turn:               Current simulation turn number.
+        persecuted_regions: Mutable set of region names already seen; used to
+                            fire the one-shot "Persecution" event per region.
+
+    Returns:
+        List of Event objects generated this call.
+    """
+    from chronicler.models import Event
+
+    events: list = []
+
+    if snapshot is None or snapshot.num_rows == 0:
+        return events
+
+    # Build region name → index mapping
+    region_map: dict[str, int] = {r.name: i for i, r in enumerate(regions)}
+
+    # Tally per-region belief counts from snapshot
+    snap_regions = snapshot.column("region").to_pylist()
+    snap_beliefs = snapshot.column("belief").to_pylist()
+
+    region_belief_counts: dict[int, Counter] = {}
+    for region_idx, faith_id in zip(snap_regions, snap_beliefs):
+        if faith_id == 0xFF:
+            continue
+        if region_idx not in region_belief_counts:
+            region_belief_counts[region_idx] = Counter()
+        region_belief_counts[region_idx][faith_id] += 1
+
+    for civ in civilizations:
+        # Skip dead civs
+        if len(civ.regions) == 0:
+            continue
+
+        # Only Militant faiths persecute
+        majority_faith_id = getattr(civ, 'civ_majority_faith', 0xFF)
+        if majority_faith_id == 0xFF:
+            continue
+        majority_belief = next(
+            (b for b in belief_registry if b.faith_id == majority_faith_id), None
+        )
+        if majority_belief is None:
+            continue
+        if majority_belief.doctrines[DOCTRINE_STANCE] != +1:
+            continue
+
+        # Inspect each region this civ controls
+        for region_name in civ.regions:
+            region_idx = region_map.get(region_name)
+            if region_idx is None:
+                continue
+            region = regions[region_idx]
+
+            counts = region_belief_counts.get(region_idx, Counter())
+            total = sum(counts.values())
+            if total == 0:
+                continue
+
+            majority_count = counts.get(majority_faith_id, 0)
+            minority_count = total - majority_count
+            if minority_count <= 0:
+                # No minority present — clear persecution
+                region.persecution_intensity = 0.0
+                continue
+
+            minority_ratio = minority_count / total
+            intensity = 1.0 * (1.0 - minority_ratio)
+            region.persecution_intensity = intensity
+
+            # One-shot "Persecution" event per region
+            if region_name not in persecuted_regions:
+                persecuted_regions.add(region_name)
+                events.append(Event(
+                    event_type="Persecution",
+                    turn=turn,
+                    actors=[civ.name],
+                    description=(
+                        f"{civ.name} persecutes religious minorities in {region_name} "
+                        f"(intensity={intensity:.2f})"
+                    ),
+                    importance=6,
+                ))
+
+            # "Mass Migration" event when minority ratio exceeds threshold
+            if minority_ratio > MASS_MIGRATION_THRESHOLD:
+                events.append(Event(
+                    event_type="Mass Migration",
+                    turn=turn,
+                    actors=[civ.name],
+                    description=(
+                        f"Religious minorities flee {region_name} due to persecution "
+                        f"(minority_ratio={minority_ratio:.2f})"
+                    ),
+                    importance=6,
+                ))
+
+    return events
+
+
+def compute_martyrdom_boosts(
+    regions: list[Region],
+    dead_agents: "list[dict] | None",
+) -> None:
+    """Add martyrdom boost to regions where persecuted agents died this turn.
+
+    Args:
+        regions:     List of Region objects.
+        dead_agents: List of dicts with 'region_idx' (int) and 'belief' (int) keys,
+                     or None / empty list if no persecution deaths occurred.
+    """
+    if not dead_agents:
+        return
+
+    for agent in dead_agents:
+        region_idx = agent.get("region_idx")
+        if region_idx is None or region_idx >= len(regions):
+            continue
+        region = regions[region_idx]
+        region.martyrdom_boost = min(
+            MARTYRDOM_BOOST_CAP,
+            region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
+        )
+
+
+def decay_martyrdom_boosts(regions: list[Region]) -> None:
+    """Linearly decay each region's ``martyrdom_boost`` toward zero.
+
+    Each call reduces the boost by 1/MARTYRDOM_DECAY_TURNS of the cap,
+    clamped to [0, ∞).
+    """
+    decay_step = MARTYRDOM_BOOST_CAP / MARTYRDOM_DECAY_TURNS
+    for region in regions:
+        if region.martyrdom_boost > 0:
+            region.martyrdom_boost = max(
+                0.0, region.martyrdom_boost - decay_step
             )

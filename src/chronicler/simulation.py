@@ -823,11 +823,13 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     check_cultural_victories(world)
 
     # M37: Religion computations for next turn's Rust tick
+    _persecution_events: list[Event] = []
     _snap = getattr(world, '_agent_snapshot', None)
     if _snap is not None and world.belief_registry:
         from chronicler.religion import (
             compute_majority_belief, compute_civ_majority_faith,
             compute_conversion_signals, decay_conquest_boosts,
+            compute_persecution, compute_martyrdom_boosts,
         )
         majority_beliefs = compute_majority_belief(_snap)
         civ_faiths = compute_civ_majority_faith(_snap)
@@ -856,6 +858,18 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
 
         # Decay conquest conversion boosts
         decay_conquest_boosts(world.regions)
+
+        # M38b: Persecution
+        if not hasattr(world, '_persecuted_regions'):
+            world._persecuted_regions = set()
+        _persecution_events = compute_persecution(
+            world.regions, world.civilizations, world.belief_registry,
+            _snap, world.turn, world._persecuted_regions,
+        )
+        compute_martyrdom_boosts(
+            world.regions,
+            getattr(world, '_dead_agents_this_turn', None),
+        )
     elif world.belief_registry:
         # --agents=off: default civ_majority_faith to founding faith
         for i, civ in enumerate(world.civilizations):
@@ -906,6 +920,8 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
         check_federation_formation, check_federation_dissolution, update_allied_turns,
     )
     collapse_events: list[Event] = []
+    # M38b: flush buffered persecution events (computed in religion block above)
+    collapse_events.extend(_persecution_events)
     collapse_events.extend(check_capital_loss(world, acc=acc))
     collapse_events.extend(check_secession(world, acc=acc))
     update_allied_turns(world)
