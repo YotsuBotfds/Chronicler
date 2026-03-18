@@ -437,9 +437,9 @@ if ctx.trade_dependent_regions:
 if ctx.active_shocks:
     for shock in ctx.active_shocks:
         lines.append(
-            f"Supply crisis in {shock['region']}: {shock['category']} "
-            f"(severity {shock['severity']:.1f}, "
-            f"source: {shock.get('upstream_source', 'local')})"
+            f"Supply crisis in {shock.region}: {shock.category} "
+            f"(severity {shock.severity:.1f}, "
+            f"source: {shock.upstream_source or 'local'})"
         )
 ```
 
