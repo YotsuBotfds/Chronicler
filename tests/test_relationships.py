@@ -312,6 +312,16 @@ def test_release_hostage_moves_to_origin(make_world):
     assert hostage.civilization == origin.name
 
 
+# --- M40: Social Networks ---
+
+def test_great_person_origin_region_defaults_none():
+    gp = GreatPerson(
+        name="Test", role="general", trait="bold",
+        civilization="Civ1", origin_civilization="Civ1", born_turn=0,
+    )
+    assert gp.origin_region is None
+
+
 # --- Task 18: Integration test ---
 
 def test_m17c_integration_relationships_across_turns(make_world):

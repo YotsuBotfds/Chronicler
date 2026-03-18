@@ -341,6 +341,8 @@ class GreatPerson(BaseModel):
     pilgrimage_return_turn: int | None = None
     arc_type: str | None = None
     pilgrimage_skill_bonus: float = 0.0
+    # M40: Social Networks
+    origin_region: str | None = None
 
 
 class Event(BaseModel):
@@ -661,6 +663,8 @@ class AgentContext(BaseModel):
     named_characters: list[dict] = Field(default_factory=list)
     population_mood: str = "content"  # "desperate" > "restless" > "content"
     displacement_fraction: float = 0.0
+    # M40: Social Networks — merged view of social edges + hostage state
+    relationships: list[dict] = Field(default_factory=list)
 
 
 class NarrationContext(BaseModel):
