@@ -200,6 +200,67 @@ class TestTransientSignalCleanup:
         assert vals2[0] is False
 
 
+class TestDynastyIntegration:
+    """M39: Verify dynasty system is wired into AgentBridge."""
+
+    def test_gp_by_agent_id_empty_at_init(self, sample_world):
+        """gp_by_agent_id dict starts empty before any promotions."""
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        assert bridge.gp_by_agent_id == {}
+        assert bridge.named_agents == {}
+
+    def test_gp_by_agent_id_mirrors_named_agents_unit(self):
+        """Every named_agents entry must have a corresponding gp_by_agent_id entry.
+
+        Uses direct dict manipulation to verify the structural invariant
+        without requiring a full hybrid-mode run (which needs arro3).
+        """
+        from chronicler.models import GreatPerson
+        from chronicler.dynasties import DynastyRegistry
+
+        registry = DynastyRegistry()
+        named_agents: dict[int, str] = {}
+        gp_by_agent_id: dict[int, GreatPerson] = {}
+
+        # Simulate two promotions: parent then child
+        parent = GreatPerson(
+            name="Kiran", role="general", trait="bold",
+            civilization="Ashara", origin_civilization="Ashara",
+            born_turn=5, source="agent", agent_id=100, parent_id=0,
+        )
+        named_agents[100] = "Kiran"
+        gp_by_agent_id[100] = parent
+        registry.check_promotion(parent, named_agents, gp_by_agent_id)
+
+        child = GreatPerson(
+            name="Tala", role="merchant", trait="shrewd",
+            civilization="Ashara", origin_civilization="Ashara",
+            born_turn=15, source="agent", agent_id=200, parent_id=100,
+        )
+        named_agents[200] = "Tala"
+        gp_by_agent_id[200] = child
+        events = registry.check_promotion(child, named_agents, gp_by_agent_id)
+
+        # Structural invariant: keys match
+        assert set(gp_by_agent_id.keys()) == set(named_agents.keys())
+        # Every value is a GreatPerson with correct agent_id
+        for agent_id, gp in gp_by_agent_id.items():
+            assert isinstance(gp, GreatPerson)
+            assert gp.agent_id == agent_id
+            assert gp.source == "agent"
+        # Dynasty was detected
+        assert len(events) == 1
+        assert events[0].event_type == "dynasty_founded"
+        assert child.dynasty_id == parent.dynasty_id
+
+    def test_dynasty_registry_exists_on_bridge(self, sample_world):
+        """DynastyRegistry is initialized on AgentBridge."""
+        from chronicler.dynasties import DynastyRegistry
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        assert isinstance(bridge.dynasty_registry, DynastyRegistry)
+        assert bridge.dynasty_registry.dynasties == []
+
+
 class TestPythonDeterminism:
     def test_determinism_50_turns(self):
         sim_a = AgentSimulator(num_regions=3, seed=12345)
