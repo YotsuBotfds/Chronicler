@@ -1,5 +1,6 @@
 """M43b: Supply shock detection, trade dependency & raider incentive tests."""
 
+from chronicler.economy import EconomyResult, CATEGORY_GOODS, TRADE_DEPENDENCY_THRESHOLD
 from chronicler.models import Event, AgentContext, CivThematicContext, ShockContext
 
 
@@ -43,3 +44,39 @@ def test_civ_thematic_context_trade_dependency_default_none():
         dominant_terrain="plains", tech_era="bronze",
     )
     assert ctx.trade_dependency_summary is None
+
+
+# ---------------------------------------------------------------------------
+# Task 2: EconomyResult M43b fields and CATEGORY_GOODS
+# ---------------------------------------------------------------------------
+
+def test_economy_result_m43b_fields_default():
+    er = EconomyResult()
+    assert er.imports_by_region == {}
+    assert er.inbound_sources == {}
+    assert er.stockpile_levels == {}
+    assert er.import_share == {}
+    assert er.trade_dependent == {}
+
+
+def test_category_goods_food_contains_salt():
+    assert "salt" in CATEGORY_GOODS["food"]
+
+
+def test_category_goods_three_categories():
+    assert set(CATEGORY_GOODS.keys()) == {"food", "raw_material", "luxury"}
+
+
+def test_category_goods_all_8_goods_covered():
+    all_goods = set()
+    for goods in CATEGORY_GOODS.values():
+        all_goods |= goods
+    assert len(all_goods) == 8
+
+
+def test_import_share_above_threshold_is_trade_dependent():
+    er = EconomyResult()
+    er.import_share = {"Coast": 0.8}
+    er.trade_dependent = {"Coast": True}
+    assert er.trade_dependent["Coast"] is True
+    assert er.import_share["Coast"] > TRADE_DEPENDENCY_THRESHOLD

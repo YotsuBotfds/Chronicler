@@ -67,6 +67,14 @@ STORAGE_DECAY: dict[str, float] = {
 SALT_PRESERVATION_FACTOR: float = 2.5
 MAX_PRESERVATION: float = 0.5
 
+CATEGORY_GOODS: dict[str, frozenset[str]] = {
+    "food": frozenset({"grain", "fish", "botanicals", "exotic", "salt"}),
+    "raw_material": frozenset({"timber", "ore"}),
+    "luxury": frozenset({"precious"}),
+}
+
+TRADE_DEPENDENCY_THRESHOLD: float = 0.6  # [CALIBRATE] >60% food import share
+
 PER_GOOD_CAP_FACTOR: float = 5.0 * PER_CAPITA_FOOD
 INITIAL_BUFFER: float = 2.0 * PER_CAPITA_FOOD
 CONQUEST_STOCKPILE_SURVIVAL: float = 0.5
@@ -291,6 +299,12 @@ class EconomyResult:
         "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
         "storage_loss": 0.0, "cap_overflow": 0.0,
     })
+    # M43b: Supply shock detection and trade dependency
+    imports_by_region: dict[str, dict[str, float]] = field(default_factory=dict)
+    inbound_sources: dict[str, list[str]] = field(default_factory=dict)
+    stockpile_levels: dict[str, dict[str, float]] = field(default_factory=dict)
+    import_share: dict[str, float] = field(default_factory=dict)
+    trade_dependent: dict[str, bool] = field(default_factory=dict)
 
 
 def compute_production(
@@ -457,12 +471,6 @@ def derive_farmer_income_modifier(
     d = demand.get(cat, 0.0)
     raw = d / s
     return max(FARMER_INCOME_MODIFIER_FLOOR, min(raw, FARMER_INCOME_MODIFIER_CAP))
-
-
-def derive_food_sufficiency(food_supply: float, food_demand: float) -> float:
-    """Derive food_sufficiency from post-trade food supply/demand ratio. Clamped [0.0, 2.0]."""
-    d = max(food_demand, _SUPPLY_FLOOR)
-    return max(0.0, min(food_supply / d, 2.0))
 
 
 def derive_merchant_margin(total_raw_margin: float, route_count: int) -> float:
