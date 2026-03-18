@@ -8,7 +8,7 @@ import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.leaders import _pick_name, ALL_TRAITS
-from chronicler.models import AgentEventRecord, CivShock, Event
+from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
 
@@ -328,6 +328,10 @@ class AgentBridge:
         if mode == "shadow" and shadow_output is not None:
             self._shadow_logger = ShadowLogger(shadow_output)
         self.named_agents: dict[int, str] = {}  # agent_id → character name
+        self.gp_by_agent_id: dict[int, GreatPerson] = {}  # M39: agent_id → GreatPerson
+        from chronicler.dynasties import DynastyRegistry
+        self.dynasty_registry = DynastyRegistry()
+        self._pending_dynasty_events: list = []
         self._origin_regions: dict[int, int] = {}  # agent_id → origin_region (for exile_return)
         self._departure_turns: dict[int, int] = {}  # agent_id → turn they left origin_region
         self.displacement_by_region: dict[int, float] = {}  # region_id → fraction displaced
@@ -369,7 +373,15 @@ class AgentBridge:
             self._event_window.append(raw_events)
             summaries = self._aggregate_events(world, self.named_agents)  # step 4
 
-            return summaries + char_events + death_events
+            # M39: drain dynasty events and check splits
+            dynasty_events = self._pending_dynasty_events
+            self._pending_dynasty_events = []
+            split_events = self.dynasty_registry.check_splits(
+                self.gp_by_agent_id, world.turn,
+            )
+            dynasty_events.extend(split_events)
+
+            return summaries + char_events + death_events + dynasty_events
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
             if self._shadow_logger:
@@ -418,6 +430,7 @@ class AgentBridge:
         created = []
         for i in range(batch.num_rows):
             agent_id = batch.column("agent_id")[i].as_py()
+            parent_id = batch.column("parent_id")[i].as_py()
             role_id = batch.column("role")[i].as_py()
             trigger = batch.column("trigger")[i].as_py()
             origin_region = batch.column("origin_region")[i].as_py()
@@ -467,10 +480,18 @@ class AgentBridge:
                 born_turn=world.turn,
                 source="agent",
                 agent_id=agent_id,
+                parent_id=parent_id,
             )
             civ.great_persons.append(gp)
             created.append(gp)
             self.named_agents[agent_id] = name
+            self.gp_by_agent_id[agent_id] = gp
+            dynasty_events = self.dynasty_registry.check_promotion(
+                gp, self.named_agents, self.gp_by_agent_id,
+            )
+            for de in dynasty_events:
+                de.turn = world.turn
+                self._pending_dynasty_events.append(de)
             self._origin_regions[agent_id] = origin_region
 
         return created
@@ -518,6 +539,12 @@ class AgentBridge:
                         ))
                         found = True
                         break
+
+        # M39: post-loop extinction check
+        extinction_events = self.dynasty_registry.check_extinctions(
+            self.gp_by_agent_id, world.turn,
+        )
+        death_events.extend(extinction_events)
 
         return death_events
 
@@ -907,6 +934,10 @@ class AgentBridge:
         self._event_window.clear()
         self._demand_manager.reset()
         self.named_agents.clear()
+        self.gp_by_agent_id.clear()
+        from chronicler.dynasties import DynastyRegistry
+        self.dynasty_registry = DynastyRegistry()
+        self._pending_dynasty_events.clear()
         self._origin_regions.clear()
         self._departure_turns.clear()
         self.displacement_by_region.clear()
