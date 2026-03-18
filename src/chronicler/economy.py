@@ -88,6 +88,17 @@ def map_resource_to_category(resource_type: int) -> str:
     return _CATEGORY_MAP[resource_type]
 
 
+_GOOD_MAP: dict[int, str] = {
+    0: "grain", 1: "timber", 2: "botanicals", 3: "fish",
+    4: "salt", 5: "ore", 6: "precious", 7: "exotic",
+}
+
+
+def map_resource_to_good(resource_type: int) -> str:
+    """Map M34 resource type enum value to per-good stockpile key."""
+    return _GOOD_MAP[resource_type]
+
+
 def _empty_category_dict() -> dict[str, float]:
     """Return zeroed dict for all three categories."""
     return {cat: 0.0 for cat in CATEGORIES}
