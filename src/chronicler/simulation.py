@@ -886,6 +886,25 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
             world.civilizations, world.belief_registry,
         )
         _persecution_events.extend(reformation_events)
+
+        # M38b: Pilgrimages
+        from chronicler.great_persons import check_pilgrimages
+        all_temples = [
+            (r.name, inf)
+            for r in world.regions
+            for inf in getattr(r, 'infrastructure', [])
+            if getattr(inf, 'faith_id', -1) >= 0
+        ]
+        all_great_persons = [
+            gp
+            for c in world.civilizations
+            for gp in getattr(c, 'great_persons', [])
+        ]
+        pilgrimage_events = check_pilgrimages(
+            all_great_persons, all_temples, _snap, world.turn,
+            world.belief_registry,
+        )
+        _persecution_events.extend(pilgrimage_events)
     elif world.belief_registry:
         # --agents=off: default civ_majority_faith to founding faith
         for i, civ in enumerate(world.civilizations):

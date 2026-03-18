@@ -5,6 +5,12 @@ import random
 from typing import TYPE_CHECKING
 
 from chronicler.leaders import _pick_name, ALL_TRAITS
+from chronicler.religion import (
+    PILGRIMAGE_DURATION_MIN,
+    PILGRIMAGE_DURATION_MAX,
+    PILGRIMAGE_SKILL_BOOST,
+    _PRIEST_OCCUPATION,
+)
 
 if TYPE_CHECKING:
     from chronicler.models import Civilization, GreatPerson, WorldState
@@ -271,3 +277,165 @@ def kill_great_person(
             importance=6,
         ))
     return gp
+
+
+# ---------------------------------------------------------------------------
+# M38b: Pilgrimage subsystem
+# ---------------------------------------------------------------------------
+
+def check_pilgrimages(
+    great_persons: list,
+    temples: list,
+    snapshot,
+    current_turn: int,
+    belief_registry: list,
+) -> list:
+    """Check for pilgrimage departures and returns.
+
+    temples: list of (region_name, Infrastructure) tuples
+    Returns a list of Event objects.
+    """
+    from chronicler.models import Event
+
+    events: list[Event] = []
+
+    # Build O(1) lookup: agent_id → row index in snapshot
+    agent_idx_map: dict[int, int] = {}
+    if snapshot is not None and snapshot.num_rows > 0:
+        ids = snapshot.column("id").to_pylist()
+        agent_idx_map = {aid: i for i, aid in enumerate(ids)}
+
+    # Pre-extract snapshot columns for fast row lookup
+    _snap_occupation: list | None = None
+    _snap_loyalty_trait: list | None = None
+    _snap_loyalty: list | None = None
+    _snap_belief: list | None = None
+    if snapshot is not None and snapshot.num_rows > 0:
+        _snap_occupation = snapshot.column("occupation").to_pylist()
+        _snap_loyalty_trait = snapshot.column("loyalty_trait").to_pylist()
+        _snap_loyalty = snapshot.column("loyalty").to_pylist()
+        try:
+            _snap_belief = snapshot.column("belief").to_pylist()
+        except (KeyError, Exception):
+            _snap_belief = None
+
+    def _agent_belief(gp) -> int | None:
+        """Return agent's belief id, or None if unavailable."""
+        if _snap_belief is None or gp.agent_id is None:
+            return None
+        idx = agent_idx_map.get(gp.agent_id)
+        if idx is None:
+            return None
+        return _snap_belief[idx]
+
+    def _agent_occupation(gp) -> int | None:
+        """Return agent's occupation id, or None if unavailable."""
+        if _snap_occupation is None or gp.agent_id is None:
+            return None
+        idx = agent_idx_map.get(gp.agent_id)
+        if idx is None:
+            return None
+        return _snap_occupation[idx]
+
+    def _agent_loyalty(gp) -> float:
+        """Return agent's loyalty_trait, or 0.0 if unavailable."""
+        if _snap_loyalty_trait is None or gp.agent_id is None:
+            return 0.0
+        idx = agent_idx_map.get(gp.agent_id)
+        if idx is None:
+            return 0.0
+        return _snap_loyalty_trait[idx]
+
+    def _agent_dynamic_loyalty(gp) -> float:
+        """Return agent's dynamic loyalty, or 0.0 if unavailable."""
+        if _snap_loyalty is None or gp.agent_id is None:
+            return 0.0
+        idx = agent_idx_map.get(gp.agent_id)
+        if idx is None:
+            return 0.0
+        return _snap_loyalty[idx]
+
+    # --- Phase 1: Process returns ---
+    for gp in great_persons:
+        if gp.pilgrimage_return_turn is None:
+            continue
+        if current_turn >= gp.pilgrimage_return_turn:
+            destination = gp.pilgrimage_destination or "unknown"
+            gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
+            gp.arc_type = "Prophet"
+            gp.pilgrimage_destination = None
+            gp.pilgrimage_return_turn = None
+            events.append(Event(
+                turn=current_turn,
+                event_type="pilgrimage_return",
+                actors=[gp.name, gp.civilization],
+                description=(
+                    f"{gp.name} of {gp.civilization} returns from pilgrimage to "
+                    f"{destination}, transformed into a Prophet."
+                ),
+                importance=5,
+            ))
+
+    # --- Phase 2: Process departures ---
+    faiths_departed: set[int] = set()
+
+    for gp in great_persons:
+        # Skip already on pilgrimage
+        if gp.pilgrimage_return_turn is not None:
+            continue
+        # Skip already a Prophet
+        if gp.arc_type == "Prophet":
+            continue
+
+        # Get belief from snapshot
+        belief = _agent_belief(gp)
+        if belief is None or belief == 0xFF:
+            continue
+
+        # One departure per faith per turn
+        if belief in faiths_departed:
+            continue
+
+        # Check occupation == priest OR loyalty_trait > 0.5
+        occupation = _agent_occupation(gp)
+        loyalty_trait = _agent_loyalty(gp)
+        if occupation != _PRIEST_OCCUPATION and loyalty_trait <= 0.5:
+            continue
+
+        # Check dynamic loyalty > 0.5
+        dynamic_loyalty = _agent_dynamic_loyalty(gp)
+        if dynamic_loyalty <= 0.5:
+            continue
+
+        # Find highest-prestige temple matching faith
+        matching_temples = [
+            (rn, t) for rn, t in temples
+            if getattr(t, 'faith_id', -1) == belief
+        ]
+        if not matching_temples:
+            continue
+
+        best_region, best_temple = max(
+            matching_temples, key=lambda x: x[1].temple_prestige
+        )
+
+        # Send GP on pilgrimage
+        gp.pilgrimage_destination = best_region
+        gp.pilgrimage_return_turn = (
+            current_turn
+            + random.randint(PILGRIMAGE_DURATION_MIN, PILGRIMAGE_DURATION_MAX)
+        )
+        faiths_departed.add(belief)
+
+        events.append(Event(
+            turn=current_turn,
+            event_type="pilgrimage_departure",
+            actors=[gp.name, gp.civilization],
+            description=(
+                f"{gp.name} of {gp.civilization} departs on pilgrimage to "
+                f"{best_region}."
+            ),
+            importance=4,
+        ))
+
+    return events
