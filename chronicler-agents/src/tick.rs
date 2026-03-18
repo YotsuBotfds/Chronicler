@@ -253,6 +253,7 @@ pub fn tick_agents(
                 birth.belief,
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
+            pool.parent_ids[new_slot] = birth.parent_id;
             // Set all 5 skill slots to SKILL_NEWBORN
             for occ in 0..OCCUPATION_COUNT {
                 pool.skills[new_slot * 5 + occ] = SKILL_NEWBORN;
@@ -462,6 +463,7 @@ struct BirthInfo {
     personality: [f32; 3],
     cultural_values: [u8; 3],
     belief: u8,  // M37: inherited from parent
+    parent_id: u32,  // M39: stable agent_id of biological parent
 }
 
 struct DemographicsPending {
@@ -521,9 +523,14 @@ fn tick_region_demographics(
             let fert_rate = demographics::fertility_rate(age, sat, occ, region.soil);
             if fert_rate > 0.0 && rng.gen::<f32>() < fert_rate {
                 let civ_id = pool.civ_affinity(slot);
-                let civ_mean = signals.personality_mean_for_civ(civ_id);
-                let personality = crate::demographics::assign_personality(
-                    &mut personality_rng, civ_mean,
+                // M39: inherit personality from parent (tighter noise than civ-mean assignment)
+                let parent_personality = [
+                    pool.boldness[slot],
+                    pool.ambition[slot],
+                    pool.loyalty_trait[slot],
+                ];
+                let personality = crate::demographics::inherit_personality(
+                    &mut personality_rng, parent_personality,
                 );
                 pending.births.push(BirthInfo {
                     region: region_id as u16,
@@ -536,6 +543,7 @@ fn tick_region_demographics(
                         pool.cultural_value_2[slot],
                     ],
                     belief: pool.beliefs[slot],  // M37: read in parallel phase
+                    parent_id: pool.ids[slot],  // M39: slot IS the parent in this loop
                 });
             }
         }
@@ -855,5 +863,19 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_birth_parent_id_and_personality_inheritance() {
+        use crate::agent::PARENT_NONE;
+
+        let mut pool = AgentPool::new(8);
+        let parent_slot = pool.spawn(0, 0, crate::agent::Occupation::Farmer, 25,
+            0.8, -0.5, 0.3,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        assert_eq!(pool.parent_id(parent_slot), PARENT_NONE);
+
+        let parent_agent_id = pool.id(parent_slot);
+        assert_ne!(parent_agent_id, PARENT_NONE);
     }
 }
