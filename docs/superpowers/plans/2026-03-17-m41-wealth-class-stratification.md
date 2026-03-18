@@ -268,6 +268,8 @@ Every file that constructs `CivSignals` via struct literal must add the two new 
 - `chronicler-agents/benches/cache_bench.rs:11` — benchmark signals
 - `chronicler-agents/examples/flamegraph_run.rs:65` — example signals
 
+**Pre-existing fix:** The bench/test files (`tick_bench.rs`, `cache_bench.rs`, `regression.rs`) are also missing `faction_clergy: 0.0` from M38a. Add it at the same time alongside the M41 fields to avoid confusing compilation errors. (`flamegraph_run.rs` already has it.)
+
 - [ ] **Step 6: Run tests**
 
 Run: `cargo test -p chronicler-agents -- signals::tests`
@@ -536,6 +538,8 @@ pub fn wealth_tick(
         let occ = pool.occupations[slot];
         let civ = pool.civ_affinities[slot];
 
+        // Note: O(n) lookup per agent. If benchmarks show this matters, pre-build
+        // a [Option<&CivSignals>; 256] lookup array before the loop.
         let civ_sig = signals.civs.iter().find(|c| c.civ_id == civ);
         let at_war = civ_sig.map_or(false, |c| c.is_at_war);
         let conquered = civ_sig.map_or(false, |c| c.conquered_this_turn);
@@ -577,7 +581,9 @@ pub fn wealth_tick(
     }
 
     // --- Step 2: Per-civ percentile ranking ---
-    // Collect (slot, wealth, civ) for alive agents, group by civ
+    // Collect (slot, wealth, civ) for alive agents, group by civ.
+    // Note: HashMap allocates per tick. With <16 civs this is fast, but if
+    // benchmarks show allocation pressure, refactor to a reusable [Vec; 256].
     let mut civ_groups: std::collections::HashMap<u8, Vec<(usize, f32)>> =
         std::collections::HashMap::new();
     for slot in 0..pool.capacity() {
@@ -644,17 +650,25 @@ After the skill growth loop (line 68), before the satisfaction update (line 73),
     wealth_tick(pool, regions, signals, wealth_percentiles);
 ```
 
-Update all callers of `tick_agents` (in `ffi.rs`) to pass `&mut self.wealth_percentiles`.
+Update ALL callers of `tick_agents` — each needs a scratch buffer (`vec![0.0f32; pool.capacity()]`) and `&mut percentiles` passed as the new parameter:
 
-- [ ] **Step 5: Run tests**
+- `chronicler-agents/src/ffi.rs` — `AgentSimulator::tick()` (pass `&mut self.wealth_percentiles`)
+- `chronicler-agents/benches/tick_bench.rs` — benchmark entry point
+- `chronicler-agents/benches/cache_bench.rs` — benchmark entry point
+- `chronicler-agents/tests/regression.rs` — integration test
+- `chronicler-agents/examples/flamegraph_run.rs` — example runner
+
+This is the same file list as Task 3 Step 5 (CivSignals updates).
+
+- [ ] **Step 6: Run tests**
 
 Run: `cargo test -p chronicler-agents -- m41_tests`
 Expected: all 7 tests PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add chronicler-agents/src/tick.rs
+git add chronicler-agents/src/tick.rs chronicler-agents/src/ffi.rs chronicler-agents/benches/tick_bench.rs chronicler-agents/benches/cache_bench.rs chronicler-agents/tests/regression.rs chronicler-agents/examples/flamegraph_run.rs
 git commit -m "M41: implement wealth_tick — accumulation, decay, per-civ rank"
 ```
 
@@ -868,13 +882,11 @@ git commit -m "M41: class tension penalty with priority clamping in satisfaction
 - Modify: `src/chronicler/simulation.py:1211-1251` (clear transient, pass to bridge)
 - Modify: `src/chronicler/agent_bridge.py:236-317` (read from world, add to signals batch)
 
-**Approach:** Use a transient attribute `world._conquered_this_turn: set[int]` populated inside `resolve_war` and `_resolve_expand` (both conquest paths per spec), read and cleared in `simulation.py` before the agent tick. This avoids changing return types and handles both EXPAND and WAR conquest paths (spec Decision 18).
+**Approach:** Use a transient attribute `world._conquered_this_turn: set[int]` populated inside `resolve_war` only (WAR path), read and cleared in `simulation.py` before the agent tick. EXPAND claims unclaimed territory (settlement, no defender, no plunder) and does NOT set the conquest flag — `CONQUEST_BONUS` is narratively a looting spike from defeating an enemy, not planting a flag on empty land.
 
-- [ ] **Step 1: Track conquests in action_engine — both WAR and EXPAND paths**
+- [ ] **Step 1: Track conquests in action_engine — WAR path only**
 
-In `action_engine.py`, at both conquest points, set a transient attribute on world:
-
-At the WAR resolution (line 451, after `contested.controller = attacker.name`):
+In `action_engine.py`, at the WAR resolution (line 451, after `contested.controller = attacker.name`):
 
 ```python
             if not hasattr(world, '_conquered_this_turn'):
@@ -882,13 +894,7 @@ At the WAR resolution (line 451, after `contested.controller = attacker.name`):
             world._conquered_this_turn.add(world.civilizations.index(attacker))
 ```
 
-At the EXPAND resolution (line 116, after `target.controller = civ.name`):
-
-```python
-            if not hasattr(world, '_conquered_this_turn'):
-                world._conquered_this_turn = set()
-            world._conquered_this_turn.add(world.civilizations.index(civ))
-```
+**Note:** EXPAND (line 116) is intentionally excluded — settlement of unclaimed land is not conquest.
 
 - [ ] **Step 2: Read and clear conquest set in simulation.py**
 
@@ -1161,7 +1167,7 @@ git commit -m "M41: add transient signal tests for conquered_this_turn (unit + i
 
 ---
 
-## Chunk 4: Analytics, Narration & Final Integration (Tasks 9–11)
+## Chunk 4: Analytics, Narration & Final Verification (Tasks 9–11)
 
 ### Task 9: Analytics — Live Wealth Stats
 
@@ -1183,8 +1189,8 @@ In the hybrid `tick()` method, alongside the Gini computation (added in Task 7),
 
 ```python
             # M41: wealth analytics (computed alongside Gini)
+            # numpy already imported at module level (Task 7)
             if "wealth" in snap.schema.names:
-                import numpy as np
                 wealth_col = snap.column("wealth").to_numpy()
                 civ_col = snap.column("civ_affinity").to_numpy()
                 occ_col = snap.column("occupation").to_numpy()
@@ -1257,33 +1263,9 @@ git commit -m "M41: add gini_coefficient to AgentContext for narration"
 
 ---
 
-### Task 11: Integration Tests & Regression
+### Task 11: Final Verification
 
-**Files:**
-- Test: `tests/test_wealth.py`
-
-- [ ] **Step 1: Write agents-off invariant test**
-
-```python
-def test_agents_off_invariant():
-    """--agents=off output must be identical with and without wealth system."""
-    # Run simulation with agents=off for 50 turns
-    # Verify treasury, economy, stability unchanged
-    # (wealth system is agent-only, no civ-level effects)
-    pass  # Implementation depends on existing test harness
-```
-
-- [ ] **Step 2: Write distribution shape test**
-
-```python
-def test_wealth_distribution_not_degenerate():
-    """After 100+ turns, wealth distribution should have variance."""
-    # Run simulation with agents=hybrid for 100 turns
-    # Read wealth snapshot, verify std > 0
-    pass  # Implementation depends on existing test harness
-```
-
-- [ ] **Step 3: Run full test suite**
+- [ ] **Step 1: Run full test suite**
 
 Run: `python -m pytest tests/ -x -q --timeout=120`
 Expected: all tests PASS
@@ -1291,18 +1273,7 @@ Expected: all tests PASS
 Run: `cargo test -p chronicler-agents`
 Expected: all Rust tests PASS
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add tests/test_wealth.py
-git commit -m "M41: add integration tests for wealth system"
-```
-
----
-
-### Task 12: Final Verification
-
-- [ ] **Step 1: Run 200-seed Tier 2 regression**
+- [ ] **Step 2: Run 200-seed Tier 2 regression**
 
 ```bash
 python scripts/p4_validate.py --seeds 200 --turns 300 --agents hybrid
@@ -1310,7 +1281,7 @@ python scripts/p4_validate.py --seeds 200 --turns 300 --agents hybrid
 
 Compare before/after: satisfaction distribution, loyalty, rebellion rate, Gini spread.
 
-- [ ] **Step 2: Verify --agents=off bit-identical**
+- [ ] **Step 3: Verify --agents=off bit-identical**
 
 ```bash
 python -m chronicler --seed 42 --turns 100 --agents=off > before.json
@@ -1321,7 +1292,7 @@ diff before.json after.json
 
 Expected: identical output
 
-- [ ] **Step 3: Final commit with integration test results**
+- [ ] **Step 4: Final commit with integration test results**
 
 ```bash
 git add tests/test_wealth.py

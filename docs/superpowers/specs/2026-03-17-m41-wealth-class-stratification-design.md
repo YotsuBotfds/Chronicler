@@ -145,7 +145,7 @@ Soldier wealth accumulation includes a one-shot `CONQUEST_BONUS` when the agent'
 
 ### Signal Path
 
-- Action engine resolves EXPAND/WAR actions → conquest occurs → Python sets `conquered_this_turn` per civ (in `action_engine.py`, not accumulator — this is a boolean event flag, not a stat delta)
+- Action engine resolves WAR actions → attacker wins → Python sets `conquered_this_turn` per civ (in `action_engine.py`, not accumulator — this is a boolean event flag, not a stat delta). EXPAND (claiming unclaimed territory) does NOT set this flag — settlement is not conquest; `CONQUEST_BONUS` is a looting spike from defeating a defender.
 - Stored as a transient `dict[int, bool]` in `simulation.py` keyed by civ index (Decision 18). Assembled during Phase 8, passed to `agent_bridge.build_civ_signals()`. Not stored on the civ model.
 - Crosses FFI as a per-civ boolean in the existing `CivSignals` struct (or equivalent)
 - Rust reads during wealth accumulation step: `CONQUEST_BONUS × conquered_this_turn as i32 as f32`
