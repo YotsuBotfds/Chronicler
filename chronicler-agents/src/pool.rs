@@ -380,6 +380,7 @@ impl AgentPool {
         let mut cultural_value_1_col = UInt8Builder::with_capacity(live);
         let mut cultural_value_2_col = UInt8Builder::with_capacity(live);
         let mut belief_col = UInt8Builder::with_capacity(live);
+        let mut parent_id_col = UInt32Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -407,6 +408,7 @@ impl AgentPool {
             cultural_value_1_col.append_value(self.cultural_value_1[slot]);
             cultural_value_2_col.append_value(self.cultural_value_2[slot]);
             belief_col.append_value(self.beliefs[slot]);
+            parent_id_col.append_value(self.parent_ids[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -430,6 +432,7 @@ impl AgentPool {
                 Arc::new(cultural_value_1_col.finish()) as _,
                 Arc::new(cultural_value_2_col.finish()) as _,
                 Arc::new(belief_col.finish()) as _,
+                Arc::new(parent_id_col.finish()) as _,
             ],
         )
     }

@@ -80,6 +80,7 @@ pub fn snapshot_schema() -> Schema {
         Field::new("cultural_value_1", DataType::UInt8, false),
         Field::new("cultural_value_2", DataType::UInt8, false),
         Field::new("belief", DataType::UInt8, false),
+        Field::new("parent_id", DataType::UInt32, false),
     ])
 }
 
@@ -128,6 +129,7 @@ pub fn promotions_schema() -> Schema {
         Field::new("ambition", DataType::Float32, false),
         Field::new("loyalty_trait", DataType::Float32, false),
         Field::new("personality_label", DataType::Utf8, true),
+        Field::new("parent_id", DataType::UInt32, false),
     ])
 }
 
@@ -575,6 +577,7 @@ impl AgentSimulator {
         let mut ambition_col = arrow::array::Float32Builder::with_capacity(n);
         let mut loyalty_trait_col = arrow::array::Float32Builder::with_capacity(n);
         let mut label_col = StringBuilder::with_capacity(n, n * 16);
+        let mut parent_id_col = UInt32Builder::with_capacity(n);
 
         for &(slot, role, trigger) in &candidates {
             let agent_id = self.pool.id(slot);
@@ -598,6 +601,7 @@ impl AgentSimulator {
                 Some(label) => label_col.append_value(label),
                 None => label_col.append_null(),
             }
+            parent_id_col.append_value(self.pool.parent_ids[slot]);
 
             // Register in the Rust-side registry.
             // origin_civ_id = current civ at promotion time (best available;
@@ -612,7 +616,7 @@ impl AgentSimulator {
                 born,
                 self.turn as u16,
                 trigger,
-                0,  // M39 temp: replaced with pool.parent_ids[slot] in Task 5
+                self.pool.parent_ids[slot],
             );
         }
 
@@ -630,6 +634,7 @@ impl AgentSimulator {
                 Arc::new(ambition_col.finish()) as _,
                 Arc::new(loyalty_trait_col.finish()) as _,
                 Arc::new(label_col.finish()) as _,
+                Arc::new(parent_id_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;
