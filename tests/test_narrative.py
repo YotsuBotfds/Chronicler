@@ -223,6 +223,46 @@ class TestNarrativeStyle:
         assert "archaic chronicler" in call_args
 
 
+import logging
+
+
+def test_narrate_batch_warns_on_first_failure(caplog):
+    """narrate_batch logs a warning on the first LLM failure."""
+    from unittest.mock import MagicMock
+    from chronicler.narrative import NarrativeEngine
+    from chronicler.models import NarrativeMoment, NarrativeRole, Event, TurnSnapshot
+
+    mock_client = MagicMock()
+    mock_client.complete.side_effect = Exception("API error")
+    mock_client.model = "test"
+
+    engine = NarrativeEngine(
+        sim_client=MagicMock(model="test"),
+        narrative_client=mock_client,
+    )
+
+    moment = NarrativeMoment(
+        events=[Event(
+            event_type="war", description="A war happened",
+            actors=["Civ1"], importance=7, turn=10, source="simulation",
+        )],
+        named_events=[],
+        turn_range=(10, 10),
+        anchor_turn=10,
+        score=7.0,
+        narrative_role=NarrativeRole.CLIMAX,
+        causal_links=[],
+        bonus_applied=0.0,
+    )
+    history = [TurnSnapshot(turn=10, civ_stats={}, region_control={}, relationships={})]
+
+    with caplog.at_level(logging.WARNING):
+        entries = engine.narrate_batch([moment], history, [])
+
+    assert len(entries) == 1
+    assert "API error" in caplog.text or "narration failed" in caplog.text.lower()
+
+
 def test_agent_context_includes_relationships():
     from chronicler.narrative import build_agent_context_for_moment
     from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole

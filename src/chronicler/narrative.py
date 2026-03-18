@@ -10,8 +10,11 @@ perception of deep cultural coherence with minimal mechanical overhead.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Callable, Sequence
+
+logger = logging.getLogger(__name__)
 
 from chronicler.llm import LLMClient
 from chronicler.models import (
@@ -709,6 +712,7 @@ class NarrativeEngine:
         total = len(moments)
         previous_prose: str | None = None
         start_time: float | None = None
+        _first_failure = True
 
         for idx, moment in enumerate(moments):
             # Build before/after summaries
@@ -842,7 +846,11 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 narrative = self.narrative_client.complete(
                     prompt, max_tokens=1000, system=system
                 )
-            except Exception:
+            except Exception as exc:
+                # Log first failure per narrate_batch call for visibility
+                if _first_failure:
+                    logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
+                    _first_failure = False
                 # Mechanical fallback: join event descriptions
                 descriptions = [
                     e.description for e in moment.events if e.description
