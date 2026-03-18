@@ -43,10 +43,13 @@ def dissolve_edges(
 
 # --- Rivalry ---
 
-def check_rivalry_formation(world: WorldState) -> list[dict]:
-    """Form rivalries between same-role great persons on opposing sides of active wars."""
-    new_rivalries = []
-    existing_pairs = {(r["person_a"], r["person_b"]) for r in world.character_relationships if r["type"] == "rivalry"}
+def check_rivalry_formation(world: WorldState, existing_edges: list[tuple]) -> list[tuple]:
+    """Form rivalries between same-role agent-source great persons on opposing war sides.
+    Returns list of (agent_a, agent_b, REL_RIVAL, formed_turn) tuples.
+    agent_a < agent_b by convention (symmetric).
+    """
+    new_edges = []
+    existing_pairs = {(e[0], e[1]) for e in existing_edges if e[2] == REL_RIVAL}
     for war_pair in world.active_wars:
         civ1_name, civ2_name = war_pair
         civ1 = next((c for c in world.civilizations if c.name == civ1_name), None)
@@ -54,28 +57,20 @@ def check_rivalry_formation(world: WorldState) -> list[dict]:
         if not civ1 or not civ2:
             continue
         for gp1 in civ1.great_persons:
-            if not gp1.active or gp1.role in ("exile", "hostage"):
+            if not gp1.active or gp1.agent_id is None or gp1.role in ("exile", "hostage"):
                 continue
             for gp2 in civ2.great_persons:
-                if not gp2.active or gp2.role in ("exile", "hostage"):
+                if not gp2.active or gp2.agent_id is None or gp2.role in ("exile", "hostage"):
                     continue
                 if gp1.role != gp2.role:
                     continue
-                pair = (gp1.name, gp2.name)
-                pair_rev = (gp2.name, gp1.name)
-                if pair in existing_pairs or pair_rev in existing_pairs:
+                a, b = min(gp1.agent_id, gp2.agent_id), max(gp1.agent_id, gp2.agent_id)
+                if (a, b) in existing_pairs:
                     continue
-                rel = {
-                    "type": "rivalry",
-                    "person_a": gp1.name,
-                    "person_b": gp2.name,
-                    "civ_a": civ1.name,
-                    "civ_b": civ2.name,
-                    "formed_turn": world.turn,
-                }
-                world.character_relationships.append(rel)
-                new_rivalries.append(rel)
-    return new_rivalries
+                edge = (a, b, REL_RIVAL, world.turn)
+                new_edges.append(edge)
+                existing_pairs.add((a, b))
+    return new_edges
 
 
 def dissolve_dead_relationships(world: WorldState, dead_names: set) -> list[dict]:

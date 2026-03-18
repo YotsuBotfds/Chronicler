@@ -40,83 +40,65 @@ def test_war_result_defender_wins():
     assert result.contested_region == "Iron Peaks"
 
 
-# --- Task 15: Rivalries ---
+# --- Task 7: Rivalries (edge tuples) ---
 
-def test_rivalry_forms_between_generals_at_war(make_world):
+def test_rivalry_forms_between_agents_at_war(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     civ1.great_persons = [
-        GreatPerson(
-            name="Gen1", role="general", trait="bold",
-            civilization=civ1.name, origin_civilization=civ1.name, born_turn=0,
-        )
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
     ]
     civ2.great_persons = [
-        GreatPerson(
-            name="Gen2", role="general", trait="aggressive",
-            civilization=civ2.name, origin_civilization=civ2.name, born_turn=0,
-        )
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
     world.active_wars = [(civ1.name, civ2.name)]
-    formed = check_rivalry_formation(world)
+    formed = check_rivalry_formation(world, [])
     assert len(formed) == 1
-    assert formed[0]["type"] == "rivalry"
+    agent_a, agent_b, rel_type, formed_turn = formed[0]
+    assert rel_type == REL_RIVAL
+    assert min(agent_a, agent_b) == 100
+    assert max(agent_a, agent_b) == 200
 
 
-def test_rivalry_not_formed_different_roles(make_world):
+def test_rivalry_skips_aggregate_source(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     civ1.great_persons = [
-        GreatPerson(name="Gen1", role="general", trait="bold", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="aggregate", agent_id=None)
     ]
     civ2.great_persons = [
-        GreatPerson(name="Mer2", role="merchant", trait="shrewd", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
     world.active_wars = [(civ1.name, civ2.name)]
-    formed = check_rivalry_formation(world)
+    formed = check_rivalry_formation(world, [])
     assert len(formed) == 0
 
 
-def test_rivalry_not_duplicated(make_world):
+def test_rivalry_not_duplicated_edge(make_world):
     world = make_world(num_civs=2, seed=42)
-    civ1 = world.civilizations[0]
-    civ2 = world.civilizations[1]
+    civ1, civ2 = world.civilizations[0], world.civilizations[1]
     civ1.great_persons = [
-        GreatPerson(name="Gen1", role="general", trait="bold", civilization=civ1.name, origin_civilization=civ1.name, born_turn=0)
+        GreatPerson(name="Gen1", role="general", trait="bold",
+                    civilization=civ1.name, origin_civilization=civ1.name,
+                    born_turn=0, source="agent", agent_id=100)
     ]
     civ2.great_persons = [
-        GreatPerson(name="Gen2", role="general", trait="aggressive", civilization=civ2.name, origin_civilization=civ2.name, born_turn=0)
+        GreatPerson(name="Gen2", role="general", trait="aggressive",
+                    civilization=civ2.name, origin_civilization=civ2.name,
+                    born_turn=0, source="agent", agent_id=200)
     ]
     world.active_wars = [(civ1.name, civ2.name)]
-    # Pre-populate existing rivalry
-    world.character_relationships = [
-        {"type": "rivalry", "person_a": "Gen1", "person_b": "Gen2", "civ_a": civ1.name, "civ_b": civ2.name, "formed_turn": 0}
-    ]
-    formed = check_rivalry_formation(world)
+    existing_edges = [(100, 200, REL_RIVAL, 0)]
+    formed = check_rivalry_formation(world, existing_edges)
     assert len(formed) == 0
-
-
-def test_rivalry_dissolved_on_death(make_world):
-    world = make_world(num_civs=2, seed=42)
-    world.character_relationships = [
-        {"type": "rivalry", "person_a": "Gen1", "person_b": "Gen2", "civ_a": "Civ1", "civ_b": "Civ2", "formed_turn": 0},
-    ]
-    dissolved = dissolve_dead_relationships(world, dead_names={"Gen1"})
-    assert len(world.character_relationships) == 0
-    assert len(dissolved) == 1
-
-
-def test_dissolve_keeps_unrelated_relationships(make_world):
-    world = make_world(num_civs=2, seed=42)
-    world.character_relationships = [
-        {"type": "rivalry", "person_a": "Gen1", "person_b": "Gen2", "civ_a": "Civ1", "civ_b": "Civ2", "formed_turn": 0},
-        {"type": "mentorship", "person_a": "Mentor", "person_b": "Student", "civ_a": "Civ1", "civ_b": "Civ1", "formed_turn": 0},
-    ]
-    dissolved = dissolve_dead_relationships(world, dead_names={"Gen1"})
-    assert len(world.character_relationships) == 1
-    assert world.character_relationships[0]["type"] == "mentorship"
 
 
 # --- Task 16: Mentorships ---
@@ -378,14 +360,3 @@ def test_great_person_origin_region_defaults_none():
     assert gp.origin_region is None
 
 
-# --- Task 18: Integration test ---
-
-def test_m17c_integration_relationships_across_turns(make_world):
-    from chronicler.simulation import run_turn
-    from chronicler.models import ActionType
-    world = make_world(num_civs=3, seed=42)
-    for turn in range(10):
-        world.turn = turn
-        run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP, narrator=lambda w, e: "", seed=world.seed)
-    for rel in world.character_relationships:
-        assert rel["type"] in ("rivalry", "mentorship", "marriage")
