@@ -229,7 +229,8 @@ let class_tension_pen = gini_coefficient
 // class tension takes whatever budget remains (Decision 3).
 let three_term = cultural_pen + religious_pen + persecution_pen;
 let class_tension_clamped = class_tension_pen.min((PENALTY_CAP - three_term).max(0.0));
-let total_non_eco_penalty = three_term + class_tension_clamped;
+// Safety cap: total never exceeds PENALTY_CAP even if core terms are retuned.
+let total_non_eco_penalty = (three_term + class_tension_clamped).min(PENALTY_CAP);
 ```
 
 - `gini_coefficient`: per-civ signal from Python (0.0 = perfect equality, 1.0 = one agent owns everything)
@@ -360,7 +361,7 @@ No new top-level bundle fields. Gini and wealth stats included in existing analy
 | File | Changes |
 |---|---|
 | `chronicler-agents/src/pool.rs` | Add `wealth: Vec<f32>` SoA field |
-| `chronicler-agents/src/agent.rs` | Wealth constants, `EXTRACTIVE_TYPES` |
+| `chronicler-agents/src/agent.rs` | Wealth constants, `is_extractive()` helper |
 | `chronicler-agents/src/tick.rs` | Wealth accumulation, decay, rank computation phases |
 | `chronicler-agents/src/satisfaction.rs` | `class_tension_pen` term in `compute_satisfaction_with_culture` |
 | `chronicler-agents/src/signals.rs` | `gini_coefficient` and `conquered_this_turn` on CivSignals |
