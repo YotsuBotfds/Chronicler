@@ -14,7 +14,13 @@ Named characters form peer-to-peer social relationships — mentor/apprentice, r
 
 This milestone **unifies** the existing `character_relationships` system (rivalry, mentorship, marriage in `relationships.py`) with two new relationship types (exile bond, co-religionist) into a single Rust-resident store. The current Python-only `character_relationships` list on `WorldState` is removed.
 
+This milestone also **activates two dormant pipelines** that the social graph depends on:
+- `build_agent_context_for_moment()` in `narrative.py` exists but is never called — `NarrationContext.agent_context` is always `None`. M40 wires this pipeline so relationship data (and all agent context) reaches the narrator.
+- `curate()` accepts `named_characters` but `main.py` never passes it — the +2.0 character bonus is inert. M40 activates this parameter so the relationship boost has a functioning foundation.
+
 **Hostages are excluded.** The hostage system (`capture_hostage()`, `release_hostage()`, hostage timers) stays in its current Python-only form. Hostages are an asymmetric diplomatic mechanic with civ-level effects and lifecycle timers — structurally different from peer-to-peer social bonds. Narration merges both sources into a single relationship view (see Section 4).
+
+**Social graph is agent-source only.** Only agent-source named characters (those with a valid `agent_id`) participate in the social graph. Aggregate-source great persons (`source="aggregate"`, `agent_id=None`) and civ leaders (no `agent_id`) are excluded. This means mentorship changes from "great person + leader" to "two agent-source named characters with same occupation and skill gap." The leader-based mentorship pattern is dropped — it was a Phase 3 approximation that doesn't fit an agent-backed graph.
 
 ---
 
@@ -122,13 +128,18 @@ def form_and_sync_relationships(world, bridge):
 
 ### Migration of Existing Types
 
-The three existing formation functions in `relationships.py` keep their detection logic unchanged. Only the write target changes — instead of appending to `world.character_relationships`, they return `SocialEdge`-compatible tuples. Dedup checks against the `surviving` edge list passed in.
+The three existing formation functions in `relationships.py` are refactored:
+- **Write target changes:** Return `SocialEdge`-compatible tuples (with `agent_id` pairs) instead of appending name-based dicts to `world.character_relationships`.
+- **Dedup mechanism changes:** Check against the `surviving` edge list (agent_id pairs) instead of `world.character_relationships` (name pairs).
+- **Mentorship scope changes:** Restricted to agent-source named characters only (see Goal). The leader-based mentorship pattern is dropped.
 
-| Type | Conditions (existing, unchanged) |
-|------|----------------------------------|
-| Rivalry | Same role, opposing sides in war |
-| Mentorship | Great person + leader with compatible secondary trait |
-| Marriage | Great persons from allied civs (disposition ALLIED, 10+ turns) |
+Detection logic (who qualifies for each relationship) is preserved for rivalry and marriage. Mentorship detection changes to: two agent-source named characters, same occupation, skill gap (higher-skill agent is mentor), same region for 10+ turns.
+
+| Type | Conditions |
+|------|-----------|
+| Rivalry | Same role, opposing sides in war (unchanged) |
+| Mentorship | Two agent-source named characters, same occupation, skill gap, co-located 10+ turns (replaces leader-based pattern) |
+| Marriage | Great persons from allied civs, disposition ALLIED, 10+ turns (unchanged, but restricted to agent-source characters) |
 
 ### New Formation Rules
 
@@ -137,22 +148,26 @@ The three existing formation functions in `relationships.py` keep their detectio
 | Exile Bond | 2+ named characters share `origin_region`, both currently in the **same** region that is **not** their `origin_region` | One bond per pair per origin |
 | Co-religionist | 2+ named characters share belief in a region where that belief is <30% of population (from agent snapshot) | One bond per pair per shared faith |
 
-### `origin_region` Prerequisite
+### `origin_region` on GreatPerson
 
-Neither `GreatPerson` (Python) nor `NamedCharacter` (Rust) currently has `origin_region`. M40 adds:
+`origin_region` is already available in the promotions pipeline — `promotions_schema` includes it and `_process_promotions()` reads it into `self._origin_regions`. M40 adds the field to `GreatPerson`:
 
 ```python
 # models.py — GreatPerson
 origin_region: Optional[str] = None
 ```
 
-Populated at promotion time from the agent's region in the snapshot (same `agent_id` lookup pattern as existing fields). `None` for pre-M40 great persons — formation logic guards with `if gp.origin_region is None: skip`. No false matches from shared default values.
+Populated at promotion time: `self._origin_regions[agent_id]` gives the integer region index, convert to name via `world.regions[idx].name`. One-liner in `_process_promotions()`. `None` for pre-M40 great persons — formation logic guards with `if gp.origin_region is None: skip`.
+
+### Co-religionist Belief Lookup
+
+Co-religionist formation needs per-region belief distributions to check the <30% minority threshold. This requires a single O(n_agents) scan over the snapshot's `belief` and `region` columns per turn — done once, cached for all co-religionist checks. Trivial at 10K agents.
 
 ---
 
 ## Section 3: Dissolution Logic
 
-Single function `dissolve_edges()` runs at the start of the Phase 10 relationship pass (before formation). Returns both surviving and dissolved edge lists.
+New function `dissolve_edges()` runs at the start of the Phase 10 relationship pass (before formation). Returns both surviving and dissolved edge lists. Note: the existing `dissolve_dead_relationships()` in `relationships.py` is dead code (never called from `simulation.py`). M40 wires dissolution for the first time via the coordinator — this is new wiring, not a migration.
 
 ### Dissolution Table
 
@@ -176,11 +191,21 @@ Single function `dissolve_edges()` runs at the start of the Phase 10 relationshi
 
 ### Problem
 
-Relationship data currently does not reach the narrator. `character_relationships` is stored on `WorldState` but never serialized into `NarrationContext`. Additionally, death dissolves edges before narration reads them — so when the narrator builds context for "Kiran fell in battle," the mentor-apprentice edge to Vesh is already gone.
+Two dormant pipelines block relationship data from reaching the narrator:
+
+1. **`build_agent_context_for_moment()` is dead code.** The function exists in `narrative.py:101` but is never called. `NarrationContext.agent_context` is always `None`. M40 must activate this pipeline — not just add a `relationships` field to it.
+
+2. **Named character scoring is disabled.** `curate()` accepts `named_characters` as a parameter (`curator.py:510`) but `main.py` never passes it. The +2.0 character bonus is inert. The 1.2× relationship boost builds on this foundation — it must be active first.
+
+Additionally, death dissolves edges before narration reads them — so when the narrator builds context for "Kiran fell in battle," the mentor-apprentice edge to Vesh is already gone.
 
 ### Solution
 
-`build_agent_context_for_moment()` in `narrative.py` merges three sources into a single `relationships` list on `AgentContext`:
+**Activate the agent context pipeline:** Wire `build_agent_context_for_moment()` into the narration flow so `NarrationContext.agent_context` is populated. This activates all agent-level context for narration, not just relationships.
+
+**Activate named character scoring:** Pass `named_characters` from the bridge's `named_agents` dict to `curate()` in `main.py`. This turns on the existing +2.0 character bonus and provides the foundation for the relationship boost.
+
+**Merge relationship sources:** `build_agent_context_for_moment()` merges three sources into a single `relationships` list on `AgentContext`:
 
 1. **Social edges from Rust** (current surviving edges)
 2. **Dissolved edges from this turn** (transient Python-side data from `dissolve_edges()`)
@@ -223,17 +248,21 @@ No social graph exists. `relationships` list is empty. Narration proceeds withou
 
 1. **Add Rust infrastructure:** New `social.rs` module with `SocialGraph`, `SocialEdge`, `RelationshipType`. Wire into `AgentSimulator`. Add `replace_social_edges()` and `read_social_edges()` FFI functions in `ffi.rs`.
 
-2. **Add `origin_region: Optional[str] = None` to `GreatPerson`:** Populated at promotion time from the agent's region in the snapshot.
+2. **Add `origin_region: Optional[str] = None` to `GreatPerson`:** One-liner in `_process_promotions()` — `origin_region` is already in the promotions batch via `self._origin_regions`. Convert index to name via `world.regions[idx].name`.
 
-3. **Migrate formation functions in `relationships.py`:** `check_rivalry_formation()`, `check_mentorship_formation()`, `check_marriage_formation()` return edge tuples instead of appending to `world.character_relationships`. Add `check_exile_bond_formation()` and `check_coreligionist_formation()`.
+3. **Migrate formation functions in `relationships.py`:** Refactor `check_rivalry_formation()`, `check_mentorship_formation()`, `check_marriage_formation()` to return `SocialEdge`-compatible tuples with `agent_id` pairs. Change dedup from name-pair matching to agent_id-pair matching. Rewrite mentorship to use agent-source named character pairs (drop leader-based pattern). Add `check_exile_bond_formation()` and `check_coreligionist_formation()`.
 
-4. **New coordinator:** `form_and_sync_relationships()` in `relationships.py` — reads edges from Rust, runs dissolution (returning surviving + dissolved), runs all five formation checks, batch-replaces to Rust. Returns dissolved edges for narration.
+4. **New coordinator and dissolution:** `form_and_sync_relationships()` in `relationships.py` — reads edges from Rust, runs dissolution (returning surviving + dissolved), runs all five formation checks, batch-replaces to Rust. New `dissolve_edges()` function (first-time wiring, not migration from the dead-code `dissolve_dead_relationships()`). Returns dissolved edges for narration.
 
 5. **Wire into Phase 10:** Replace the three individual formation calls in `simulation.py` with a single `form_and_sync_relationships(world, bridge)` call.
 
-6. **Wire narration:** Update `build_agent_context_for_moment()` to read social edges + dissolved edges + hostage state into `AgentContext.relationships`.
+6. **Activate agent context pipeline:** Wire `build_agent_context_for_moment()` into the narration flow so `NarrationContext.agent_context` is populated. This is currently dead code — M40 activates it.
 
-7. **Remove `character_relationships`:** Delete the field from `WorldState` once all consumers read from the Rust store. `dissolve_dead_relationships()` becomes `dissolve_edges()` in the new coordinator.
+7. **Activate named character scoring:** Pass `named_characters` to `curate()` in `main.py`. Currently the parameter is accepted but never provided — M40 wires it.
+
+8. **Wire narration relationships:** Update `build_agent_context_for_moment()` to read social edges + dissolved edges + hostage state into `AgentContext.relationships`.
+
+9. **Remove `character_relationships`:** Delete the field from `WorldState`. Remove dead-code `dissolve_dead_relationships()`. No other readers exist beyond `relationships.py` and `simulation.py`.
 
 ### File Changes
 
@@ -243,21 +272,32 @@ No social graph exists. `relationships` list is empty. Narration proceeds withou
 | `chronicler-agents/src/lib.rs` | Add `mod social` |
 | `chronicler-agents/src/ffi.rs` | Add `replace_social_edges()`, `read_social_edges()` FFI functions |
 | `src/chronicler/models.py` | Add `origin_region: Optional[str] = None` to `GreatPerson`; remove `character_relationships` from `WorldState` |
-| `src/chronicler/relationships.py` | Migrate formation functions to return edge tuples; add exile bond + co-religionist formation; add `form_and_sync_relationships()` coordinator; add `dissolve_edges()` |
-| `src/chronicler/agent_bridge.py` | Wire `replace_social_edges()` / `read_social_edges()` bridge methods; set `origin_region` at promotion time |
+| `src/chronicler/relationships.py` | Refactor formation functions to return agent_id-based edge tuples; rewrite mentorship (drop leader pattern); add exile bond + co-religionist formation; add `form_and_sync_relationships()` coordinator; add `dissolve_edges()`; remove dead-code `dissolve_dead_relationships()` |
+| `src/chronicler/agent_bridge.py` | Wire `replace_social_edges()` / `read_social_edges()` bridge methods; set `origin_region` at promotion (one-liner, data already in `self._origin_regions`) |
 | `src/chronicler/simulation.py` | Replace three individual formation calls with single `form_and_sync_relationships(world, bridge)` call |
-| `src/chronicler/narrative.py` | Read social edges + dissolved edges + hostage state into `AgentContext.relationships` |
-| `src/chronicler/curator.py` | Add `RELATIONSHIP_SCORE_BONUS = 1.2` multiplicative boost for events involving related characters |
+| `src/chronicler/narrative.py` | **Activate** `build_agent_context_for_moment()` (currently dead code); add `relationships` to `AgentContext`; merge social edges + dissolved edges + hostage state |
+| `src/chronicler/main.py` | **Activate** named character scoring — pass `named_characters` to `curate()` |
+| `src/chronicler/curator.py` | Add `RELATIONSHIP_SCORE_BONUS = 1.2` multiplicative boost for events involving related characters (builds on now-active +2.0 character bonus) |
 
 ### Bundle Impact
 
 `character_relationships` is not currently serialized to the bundle. The social graph is reconstructable from turn history. **No bundle format change.**
 
+### Design Notes
+
+- **Marriage survives war.** Marriage does not dissolve when the two civs go to war. Historically accurate and narratively rich ("married across enemy lines"). Only death dissolves marriage.
+- **Exile bond guards:** Formation skips characters with `origin_region is None` (pre-M40 characters) or `region is None` (no current location).
+- **Aggregate-source characters excluded.** Characters with `source="aggregate"` or `agent_id=None` do not participate in the social graph. Formation logic guards on `agent_id is not None`.
+
 ### Test Coverage
 
 - Formation conditions (all five types, including co-location requirement for exile bonds)
+- Formation guards (agent_id=None excluded, origin_region=None excluded, region=None excluded)
 - Dissolution (all triggers: death, conversion, schism-splits-co-religionist)
+- Marriage persistence through war (does NOT dissolve on alliance breakdown)
 - Edge dedup (no duplicate edges from repeated formation checks)
 - Narration context merging (social edges + dissolved edges + hostage state)
+- Agent context pipeline activation (NarrationContext.agent_context is populated)
+- Named character scoring activation (named_characters passed to curate())
 - `--agents=off` produces empty relationships
 - Curator relationship boost scoring (capped at 1.2× per event)
