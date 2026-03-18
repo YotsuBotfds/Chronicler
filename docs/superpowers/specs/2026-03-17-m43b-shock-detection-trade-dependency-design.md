@@ -101,17 +101,17 @@ CATEGORY_GOODS = {
 
 Consistent with M42's three categories and M43a's `FOOD_GOODS` / `ALL_GOODS`.
 
-### ShockContext (TypedDict for narration)
+### ShockContext (narration model)
 
 ```python
-class ShockContext(TypedDict):
+class ShockContext(BaseModel):
     region: str
     category: str
     severity: float
-    upstream_source: str | None
+    upstream_source: str | None = None
 ```
 
-Used in `AgentContext.active_shocks` instead of untyped `dict`. Self-documenting, matches the typed pattern of other `AgentContext` fields.
+Used in `AgentContext.active_shocks`. BaseModel for consistency with other models nested in `AgentContext` and `NarrationContext`.
 
 ### Model Extensions
 
@@ -137,29 +137,29 @@ class CivThematicContext(BaseModel):
 
 ### Trade Dependency on EconomyResult
 
-Per-region fields on `EconomyResult`:
+Per-region fields on `EconomyResult`, computed inside `compute_economy()` where `food_demand` is a local variable:
 
 ```python
 import_share: dict[str, float]       # region_name → food_imports / max(food_demand, 0.1)
 trade_dependent: dict[str, bool]     # region_name → import_share > TRADE_DEPENDENCY_THRESHOLD
 ```
 
-Computed in `compute_economy()` after trade flow resolution (steps 2d-2e in M43a's Phase 2 sub-sequence). Accessed as `economy_result.import_share[region_name]` and `economy_result.trade_dependent[region_name]`.
+`import_share` is computed inside `compute_economy()` after trade flow resolution (steps 2d-2e), where `food_demand` is locally available. The result is placed directly on `EconomyResult`. This avoids exposing `food_demand` as a separate field — the consumer only needs the ratio.
 
-### Assumed EconomyResult Fields
+### EconomyResult Fields Added by M43b
 
-M43b depends on the following fields existing on `EconomyResult` (defined by M42/M43a). Listed here so the implementation plan can verify against the landed M42 spec:
+M43b adds six new fields to `EconomyResult`. Three of these (`imports_by_region`, `inbound_sources`, `stockpile_levels`) require modifications to `compute_economy()` to retain data that is currently computed but discarded.
 
-| Field | Type | Source | Used By |
+| Field | Type | How Added | Used By |
 |---|---|---|---|
-| `food_sufficiency` | `dict[str, float]` | M43a step 2h — per-region, from pre-consumption stockpile | `detect_supply_shocks()` severity gate |
-| `imports_by_region` | `dict[str, dict[str, float]]` | M42 trade flow — `region_name → {category → import_total}` | `classify_upstream_source()` import drop check |
-| `inbound_sources` | `dict[str, list[str]]` | M42 trade flow — `dest_region → [source_region_names]` | `classify_upstream_source()` partner lookup |
-| `stockpile_levels` | `dict[str, dict[str, float]]` | M43a step 2g — `region_name → {category → stockpile_total}` | `classify_upstream_source()` partner stockpile check |
-| `import_share` | `dict[str, float]` | M43b — computed in `compute_economy()` | Trade dependency classification, narration |
-| `trade_dependent` | `dict[str, bool]` | M43b — computed in `compute_economy()` | Raider modifier gating, narration, curator |
+| `food_sufficiency` | `dict[str, float]` | Already computed in M43a step 2h. M43b promotes it to an `EconomyResult` field (currently a local variable). | `detect_supply_shocks()` severity gate |
+| `imports_by_region` | `dict[str, dict[str, float]]` | `region_name → {category → import_total}`. M42's trade flow loop computes per-region imports into `RegionGoods.imports[category]` (transient). M43b captures these into `EconomyResult` before `RegionGoods` is discarded. | `classify_upstream_source()` import drop check |
+| `inbound_sources` | `dict[str, list[str]]` | `dest_region → [source_region_names]`. **New tracking.** M42's trade flow loop computes allocations per route but discards source-destination pairings. M43b modifies the trade flow loop to record which source regions supplied each destination. ~5 lines of bookkeeping in the allocation loop. | `classify_upstream_source()` partner lookup |
+| `stockpile_levels` | `dict[str, dict[str, float]]` | `region_name → {category → stockpile_total}`. Reads from `Region.stockpile.goods` (persistent world state) after M43a step 2g. Category totals aggregated via `CATEGORY_GOODS`. | `classify_upstream_source()` partner stockpile check |
+| `import_share` | `dict[str, float]` | Computed inside `compute_economy()` where `food_demand` is available. | Trade dependency classification, narration |
+| `trade_dependent` | `dict[str, bool]` | Derived from `import_share` vs threshold. | Raider modifier, narration, curator |
 
-If M42's `EconomyResult` uses a different structure (e.g., per-region sub-objects instead of top-level dicts), the access patterns in M43b code must be adapted. The semantic requirements (what data is needed) are stable; the access pattern follows whatever M42 defines.
+**Key new work:** `inbound_sources` requires modifying `compute_economy()`'s trade flow allocation loop to accumulate `{dest_region: [source_regions]}` as routes are processed. Currently the loop computes flow volumes per route but doesn't retain the source-destination mapping. The modification is small (~5 lines: initialize dict before loop, append source name when flow > 0) but must be scoped as M43b work, not assumed from M42/M43a.
 
 ---
 
@@ -207,11 +207,27 @@ def detect_supply_shocks(
                     consequences=[],
                     importance=5 + int(severity * 4),  # 5-9 range
                     source="economy",
+                    shock_region=name,
+                    shock_category=cat,
                 ))
     return shocks
 ```
 
 `food_sufficiency` sourced from `EconomyResult` (computed in M43a step 2h). Passed explicitly via `economy_result` parameter — no magic attribute lookup.
+
+### Shock Event Metadata
+
+Two optional fields added to `Event` (models.py) for structured shock data:
+
+```python
+class Event(BaseModel):
+    # ... existing fields ...
+    # M43b: Structured shock metadata (None for non-shock events)
+    shock_region: str | None = None
+    shock_category: str | None = None
+```
+
+Set only on `supply_shock` events. Consumed by `build_agent_context_for_moment()` when populating `ShockContext`. Avoids fragile string parsing of `ev.description`. Follows the pattern of optional milestone-specific fields on shared models (e.g., `GreatPerson.origin_region` from M40).
 
 ### classify_upstream_source()
 
@@ -364,7 +380,7 @@ Actor ordering: affected civ first (`actors[0]`), upstream source second. The cu
 
 ### AgentContext Population
 
-In `build_agent_context()` (narrative.py), after existing field population:
+In `build_agent_context_for_moment()` (narrative.py). This function currently does not receive `economy_result` — M43b adds it as an optional parameter (`economy_result: EconomyResult | None = None`) and threads it from the narration pipeline caller.
 
 ```python
 # M43b: Trade dependency and shock context
@@ -375,11 +391,11 @@ if economy_result is not None:
         rname for rname, dep in economy_result.trade_dependent.items()
         if dep and region_map[rname].controller in moment_civs
     ]
-    # Active shocks within the moment's turn range
+    # Active shocks from structured event metadata (not string parsing)
     ctx.active_shocks = [
         ShockContext(
-            region=ev.description.split(" in ")[-1],  # parsed from event
-            category=...,  # from event metadata
+            region=ev.shock_region,
+            category=ev.shock_category,
             severity=(ev.importance - 5) / 4.0,
             upstream_source=ev.actors[1] if len(ev.actors) > 1 else None,
         )
@@ -390,9 +406,11 @@ if economy_result is not None:
 
 Only includes regions relevant to the moment's actors. Token-efficient — no global dump.
 
+**Shock event structured metadata:** Rather than parsing region/category from `ev.description` (fragile string splitting), shock events store structured metadata. See "Shock Event Metadata" section below.
+
 ### CivThematicContext Population
 
-In `build_civ_thematic_context()`:
+`CivThematicContext` is currently constructed but has no standalone builder function. M43b adds the trade dependency summary inline where `CivThematicContext` is populated in the narration pipeline:
 
 ```python
 # M43b: Trade dependency summary
@@ -528,12 +546,12 @@ No new RNG sources in M43b. All detection and classification is deterministic.
 
 | File | Changes |
 |---|---|
-| `src/chronicler/economy.py` | `EconomyTracker` class, `detect_supply_shocks()`, `classify_upstream_source()`, `_get_adjacent_enemy_regions()`, `CATEGORY_GOODS`, shock detection constants, `RAIDER_*` constants, `import_share`/`trade_dependent` fields on `EconomyResult` |
+| `src/chronicler/economy.py` | `EconomyTracker` class, `detect_supply_shocks()`, `classify_upstream_source()`, `_get_adjacent_enemy_regions()`, `CATEGORY_GOODS`, shock detection constants, `RAIDER_*` constants. Modify `compute_economy()`: add `inbound_sources` tracking (~5 lines in trade flow loop), compute `import_share`/`trade_dependent`, promote `food_sufficiency` and `stockpile_levels` to `EconomyResult` fields, capture `imports_by_region` from transient `RegionGoods`. |
 | `src/chronicler/action_engine.py` | Raider WAR modifier block in `compute_weights()` after holy war bonus (~15 lines) |
 | `src/chronicler/simulation.py` | `EconomyTracker` instantiation in run setup, wire `economy_tracker.update()` + `detect_supply_shocks()` into Phase 2 after M43a stockpile ops, store `world._economy_result` |
 | `src/chronicler/curator.py` | 7 new `CAUSAL_PATTERNS` entries |
-| `src/chronicler/models.py` | `ShockContext` TypedDict, `trade_dependent_regions: list[str]` and `active_shocks: list[ShockContext]` on `AgentContext`, `trade_dependency_summary: str | None` on `CivThematicContext` |
-| `src/chronicler/narrative.py` | `build_agent_context()` populates trade/shock fields, `build_agent_context_block()` serializes them, `build_civ_thematic_context()` adds dependency summary |
+| `src/chronicler/models.py` | `ShockContext` BaseModel, `shock_region`/`shock_category` optional fields on `Event`, `trade_dependent_regions: list[str]` and `active_shocks: list[ShockContext]` on `AgentContext`, `trade_dependency_summary: str | None` on `CivThematicContext` |
+| `src/chronicler/narrative.py` | `build_agent_context_for_moment()` gains `economy_result` parameter, populates trade/shock fields. `build_agent_context_block()` serializes them. `CivThematicContext` population gains dependency summary (inline where context is built). |
 
 **No Rust changes.** No new FFI signals, no `satisfaction.rs`, `region.rs`, `agent.rs`, `tick.rs`, or `signals.rs` changes. M43b is entirely Python-side.
 
