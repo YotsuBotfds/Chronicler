@@ -41,6 +41,14 @@ CAUSAL_PATTERNS: list[tuple[str, str, int, float]] = [
     ("tech_advancement", "war", 10, 2.0),
     ("cultural_renaissance", "movement", 10, 2.0),
     ("discovery", "war", 15, 2.0),
+    # M43b: Supply shock causal patterns
+    ("drought", "supply_shock", 5, 3.0),
+    ("war", "supply_shock", 3, 2.0),
+    ("embargo", "supply_shock", 3, 3.0),
+    ("supply_shock", "famine", 5, 3.0),
+    ("supply_shock", "rebellion", 10, 2.0),
+    ("supply_shock", "migration", 10, 2.0),
+    ("supply_shock", "supply_shock", 3, 2.5),
 ]
 
 # Stat fields used in gap summaries

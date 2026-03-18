@@ -8,7 +8,7 @@
 >
 > **Depends on:** M43a (Transport, Perishability & Stockpiles), M42 (Goods Production & Trade)
 >
-> **Blocked by:** M43a (spec complete, awaiting implementation)
+> **Blocked by:** None (M43a merged)
 
 ---
 
@@ -152,7 +152,7 @@ M43b adds six new fields to `EconomyResult`. Three of these (`imports_by_region`
 
 | Field | Type | How Added | Used By |
 |---|---|---|---|
-| `food_sufficiency` | `dict[str, float]` | Already computed in M43a step 2h. M43b promotes it to an `EconomyResult` field (currently a local variable). | `detect_supply_shocks()` severity gate |
+| `food_sufficiency` | `dict[str, float]` | Already on `EconomyResult` from M43a (step 2h). No promotion needed — field exists. | `detect_supply_shocks()` severity gate |
 | `imports_by_region` | `dict[str, dict[str, float]]` | `region_name → {category → import_total}`. M42's trade flow loop computes per-region imports into `RegionGoods.imports[category]` (transient). M43b captures these into `EconomyResult` before `RegionGoods` is discarded. | `classify_upstream_source()` import drop check |
 | `inbound_sources` | `dict[str, list[str]]` | `dest_region → [source_region_names]`. **New tracking.** M42's trade flow loop computes allocations per route but discards source-destination pairings. M43b modifies the trade flow loop to record which source regions supplied each destination. ~5 lines of bookkeeping in the allocation loop. | `classify_upstream_source()` partner lookup |
 | `stockpile_levels` | `dict[str, dict[str, float]]` | `region_name → {category → stockpile_total}`. Reads from `Region.stockpile.goods` (persistent world state) after M43a step 2g. Category totals aggregated via `CATEGORY_GOODS`. | `classify_upstream_source()` partner stockpile check |
@@ -410,7 +410,9 @@ Only includes regions relevant to the moment's actors. Token-efficient — no gl
 
 ### CivThematicContext Population
 
-`CivThematicContext` is currently constructed but has no standalone builder function. M43b adds the trade dependency summary inline where `CivThematicContext` is populated in the narration pipeline:
+**Deferred:** `CivThematicContext` is defined in `models.py` but never constructed anywhere in the current codebase. The `NarrationContext.civ_context` field exists as dead infrastructure. The `trade_dependency_summary` field is added to the model (ready for future use), but the population code below cannot be wired until `CivThematicContext` construction is implemented in a future milestone. The field defaults to `None`.
+
+When `CivThematicContext` construction is wired, add this population logic inline:
 
 ```python
 # M43b: Trade dependency summary

@@ -28,6 +28,7 @@ from chronicler.models import (
     NarrativeMoment,
     NarrativeRole,
     NamedEvent,
+    ShockContext,
     TurnSnapshot,
     WorldState,
 )
@@ -101,6 +102,19 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                 lines.append(f"- {rel['character_a']} and {rel['character_b']} ({rel['type']}, since turn {rel['since_turn']})")
         lines.append("")
 
+    # M43b: Trade dependency and supply shock context
+    if ctx.trade_dependent_regions:
+        lines.append(f"Trade-dependent regions: {', '.join(ctx.trade_dependent_regions)}")
+    if ctx.active_shocks:
+        for shock in ctx.active_shocks:
+            lines.append(
+                f"Supply crisis in {shock.region}: {shock.category} "
+                f"(severity {shock.severity:.1f}, "
+                f"source: {shock.upstream_source or 'local'})"
+            )
+    if ctx.trade_dependent_regions or ctx.active_shocks:
+        lines.append("")
+
     lines.append("Guidelines:")
     lines.append("- Refer to named characters BY NAME — do not anonymize or rename them")
     lines.append("- Use their recent history for callbacks")
@@ -134,10 +148,12 @@ def build_agent_context_for_moment(
     hostage_data: list[dict] | None = None,        # M40
     civ_idx: int | None = None,                    # M41: which civ to pull gini for
     gini_by_civ: dict[int, float] | None = None,   # M41: per-civ Gini coefficients
+    economy_result=None,  # M43b
 ) -> AgentContext | None:
-    """Build AgentContext if the moment has agent-source events."""
+    """Build AgentContext if the moment has agent-source or economy events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
-    if not agent_events:
+    economy_events = [e for e in moment.events if e.source == "economy"]
+    if not agent_events and not (economy_result is not None and economy_events):
         return None
 
     # Named characters active in this moment
@@ -207,13 +223,33 @@ def build_agent_context_for_moment(
     # M41: Gini coefficient for wealth inequality context
     gini = (gini_by_civ or {}).get(civ_idx, 0.0) if civ_idx is not None else 0.0
 
-    return AgentContext(
+    ctx = AgentContext(
         named_characters=chars[:10],  # cap for token budget
         population_mood=mood,
         displacement_fraction=avg_disp,
         relationships=relationships,
         gini_coefficient=gini,
     )
+
+    # M43b: Populate trade dependency and shock context
+    if economy_result is not None:
+        moment_civs = {ev.actors[0] for ev in moment.events if ev.actors}
+        trade_dep = getattr(economy_result, 'trade_dependent', {})
+        ctx.trade_dependent_regions = [
+            rname for rname, dep in trade_dep.items()
+            if dep
+        ]
+        ctx.active_shocks = [
+            ShockContext(
+                region=ev.shock_region,
+                category=ev.shock_category,
+                severity=(ev.importance - 5) / 4.0,
+                upstream_source=ev.actors[1] if len(ev.actors) > 1 else None,
+            )
+            for ev in moment.events
+            if ev.event_type == "supply_shock" and ev.shock_region is not None
+        ]
+    return ctx
 
 
 def build_before_summary(
@@ -659,6 +695,8 @@ class NarrativeEngine:
         agent_name_map: dict[int, str] | None = None,
         # M41: per-civ Gini coefficients for wealth inequality narration
         gini_by_civ: dict[int, float] | None = None,
+        # M43b: Economy result for trade dependency and shock narration
+        economy_result=None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments sequentially with full context.
 
@@ -764,6 +802,7 @@ class NarrativeEngine:
                     agent_name_map=agent_name_map,
                     hostage_data=hostage_data,
                     gini_by_civ=gini_by_civ,
+                    economy_result=economy_result,
                 )
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)

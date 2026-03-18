@@ -1,19 +1,19 @@
 """Ten-phase simulation engine for the civilization chronicle.
 
 Turn phases:
-1. Environment — natural events (drought, plague, earthquake)
-2. Automatic Effects — military maintenance, trade income (NEW)
-3. Production — income, population growth
-4. Technology — tech advancement checks
-5. Action — each civ takes one action from constrained menu
-6. Cultural Milestones — check cultural threshold for named works
-7. Random Events — 0-1 external events from cascading probability table
-8. Leader Dynamics — trait evolution for all living leaders
-9. Ecology — soil/water/forest tick, famine checks (M23)
-10. Consequences — resolve cascading effects, tick condition durations
+1. Environment — climate, conditions, terrain transitions
+2. Economy — trade routes, goods production, income, tribute, treasury
+3. Politics — governing costs, vassal checks, congress, secession
+4. Military — maintenance, war costs, mercenaries
+5. Diplomacy — disposition drift, federation checks, peace
+6. Culture — prestige, value drift, assimilation, movements
+7. Tech — advancement rolls, focus selection, focus effects
+8. Action selection + resolution (action engine)
+9. Ecology — soil/water/forest tick, terrain transitions, famine checks
+--- Agent tick (between Phase 9 and 10) ---
+10. Consequences — emergence, factions, succession, named events, snapshot
 
-The engine is deterministic given a seed, except for Phase 5 (action
-selection) and narration which accept callbacks.
+The engine is deterministic given a seed. LLM narrates, never decides.
 """
 from __future__ import annotations
 
@@ -1175,6 +1175,7 @@ def run_turn(
     narrator: Narrator,
     seed: int = 0,
     agent_bridge: object | None = None,
+    economy_tracker: object | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     from chronicler.accumulator import StatAccumulator
@@ -1215,6 +1216,23 @@ def run_turn(
                 active_trade_routes=active_routes,
             )
             agent_bridge.set_economy_result(economy_result)
+
+            # M43b: Update tracker EMAs and detect supply shocks
+            if economy_tracker is not None:
+                from chronicler.economy import detect_supply_shocks, CATEGORY_GOODS
+                for region in world.regions:
+                    rname = region.name
+                    for cat, goods in CATEGORY_GOODS.items():
+                        stock_total = sum(region.stockpile.goods.get(g, 0.0) for g in goods)
+                        economy_tracker.update_stockpile(rname, cat, stock_total)
+                        imports_total = economy_result.imports_by_region.get(rname, {}).get(cat, 0.0)
+                        economy_tracker.update_imports(rname, cat, imports_total)
+
+                stockpiles = {r.name: r.stockpile for r in world.regions}
+                shock_events = detect_supply_shocks(
+                    world, stockpiles, economy_tracker, economy_result, region_map,
+                )
+                turn_events.extend(shock_events)
 
     # Phase 2: Automatic Effects (NEW)
     turn_events.extend(apply_automatic_effects(world, acc=acc))

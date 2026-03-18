@@ -67,6 +67,14 @@ STORAGE_DECAY: dict[str, float] = {
 SALT_PRESERVATION_FACTOR: float = 2.5
 MAX_PRESERVATION: float = 0.5
 
+CATEGORY_GOODS: dict[str, frozenset[str]] = {
+    "food": frozenset({"grain", "fish", "botanicals", "exotic", "salt"}),
+    "raw_material": frozenset({"timber", "ore"}),
+    "luxury": frozenset({"precious"}),
+}
+
+TRADE_DEPENDENCY_THRESHOLD: float = 0.6  # [CALIBRATE] >60% food import share
+
 PER_GOOD_CAP_FACTOR: float = 5.0 * PER_CAPITA_FOOD
 INITIAL_BUFFER: float = 2.0 * PER_CAPITA_FOOD
 CONQUEST_STOCKPILE_SURVIVAL: float = 0.5
@@ -97,6 +105,159 @@ _GOOD_MAP: dict[int, str] = {
 def map_resource_to_good(resource_type: int) -> str:
     """Map M34 resource type enum value to per-good stockpile key."""
     return _GOOD_MAP[resource_type]
+
+
+# ---------------------------------------------------------------------------
+# M43b: EconomyTracker — persistent analytics state across turns
+# ---------------------------------------------------------------------------
+
+class EconomyTracker:
+    """Persistent economy analytics state across turns. Not world state.
+
+    Tracks exponential moving averages (alpha=0.33, ~3-turn window) for:
+    - Per-region per-category stockpile levels (shock detection)
+    - Per-region per-category import levels (upstream source classification)
+    """
+
+    def __init__(self):
+        self.trailing_avg: dict[str, dict[str, float]] = {}
+        self.import_avg: dict[str, dict[str, float]] = {}
+
+    def update_stockpile(self, region_name: str, category: str, current: float):
+        key = self.trailing_avg.setdefault(region_name, {})
+        if category not in key:
+            key[category] = current
+        else:
+            key[category] = 0.67 * key[category] + 0.33 * current
+
+    def update_imports(self, region_name: str, category: str, current: float):
+        key = self.import_avg.setdefault(region_name, {})
+        if category not in key:
+            key[category] = current
+        else:
+            key[category] = 0.67 * key[category] + 0.33 * current
+
+
+# M43b constants
+SHOCK_DELTA_THRESHOLD = 0.30  # [CALIBRATE] 30% drop triggers detection
+SHOCK_SEVERITY_FLOOR = 0.8   # [CALIBRATE] food_sufficiency below this = crisis
+
+# M43b: Raider constants
+RAIDER_THRESHOLD = 200.0  # [CALIBRATE] set after M43a 200-seed data
+RAIDER_WAR_WEIGHT = 0.15  # [CALIBRATE] base additive WAR bonus at 1x overshoot
+RAIDER_CAP = 2.0          # max overshoot multiplier (bonus caps at 0.30)
+
+
+def _get_adjacent_enemy_regions(civ, world) -> list:
+    """Find regions adjacent to civ's territory controlled by hostile/suspicious civs."""
+    from chronicler.models import Disposition
+
+    enemy_civs = set()
+    if civ.name in world.relationships:
+        for other_name, rel in world.relationships[civ.name].items():
+            if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                enemy_civs.add(other_name)
+    if not enemy_civs:
+        return []
+
+    region_map = {r.name: r for r in world.regions}
+    own_regions = set(civ.regions)
+    adjacent_enemy = []
+    seen = set()
+    for rname in own_regions:
+        region = region_map.get(rname)
+        if region is None:
+            continue
+        for adj_name in region.adjacencies:
+            if adj_name in seen:
+                continue
+            adj_region = region_map.get(adj_name)
+            if adj_region and adj_region.controller in enemy_civs:
+                adjacent_enemy.append(adj_region)
+                seen.add(adj_name)
+    return adjacent_enemy
+
+
+def classify_upstream_source(
+    world,
+    economy_tracker: EconomyTracker,
+    economy_result: "EconomyResult",
+    region_name: str,
+    category: str,
+    region_map: dict,
+) -> str | None:
+    """Find upstream civ if shock is import-driven.
+
+    Returns the controller of the first inbound source region when imports
+    have dropped by SHOCK_DELTA_THRESHOLD or more relative to the EMA.
+    Source stockpile state is checked only to prefer regions that have also
+    experienced a stockpile decline; any inbound source qualifies as fallback.
+    """
+    current_imports = economy_result.imports_by_region.get(region_name, {}).get(category, 0.0)
+    avg_imports = economy_tracker.import_avg.get(region_name, {}).get(category, current_imports)
+
+    if avg_imports <= 0 or current_imports / avg_imports > (1.0 - SHOCK_DELTA_THRESHOLD):
+        return None
+
+    # Prefer a source whose own stockpile also dropped (supply disruption signal)
+    for source_name in economy_result.inbound_sources.get(region_name, []):
+        source_stockpile = economy_result.stockpile_levels.get(source_name, {}).get(category, 0.0)
+        source_avg = economy_tracker.trailing_avg.get(source_name, {}).get(category, source_stockpile)
+        if source_avg > 0 and source_stockpile / source_avg < (1.0 - SHOCK_DELTA_THRESHOLD):
+            source_region = region_map.get(source_name)
+            if source_region and source_region.controller:
+                return source_region.controller
+
+    return None  # imports dropped but no upstream stockpile crash — likely embargo
+
+
+def detect_supply_shocks(
+    world,
+    stockpiles: dict,
+    economy_tracker: EconomyTracker,
+    economy_result: "EconomyResult",
+    region_map: dict,
+) -> list:
+    """Detect supply shocks: delta trigger + absolute severity gate."""
+    from chronicler.models import Event
+
+    shocks = []
+    for name, sp in stockpiles.items():
+        region = region_map.get(name)
+        if region is None or region.controller is None:
+            continue
+        owner_civ_name = region.controller
+        for cat, goods in CATEGORY_GOODS.items():
+            current = sum(sp.goods.get(g, 0.0) for g in goods)
+            avg = economy_tracker.trailing_avg.get(name, {}).get(cat, current)
+            if avg <= 0 or current / avg >= (1.0 - SHOCK_DELTA_THRESHOLD):
+                continue
+            if cat == "food":
+                food_suff = economy_result.food_sufficiency.get(name, 1.0)
+                if food_suff >= SHOCK_SEVERITY_FLOOR:
+                    continue
+                severity = 1.0 - (food_suff / SHOCK_SEVERITY_FLOOR)
+            else:
+                severity = min(1.0 - (current / max(avg, 0.1)), 1.0)
+
+            upstream = classify_upstream_source(
+                world, economy_tracker, economy_result, name, cat, region_map,
+            )
+            actors = [owner_civ_name]
+            if upstream:
+                actors.append(upstream)
+            shocks.append(Event(
+                turn=world.turn,
+                event_type="supply_shock",
+                actors=actors,
+                description=f"Supply shock: {cat} in {name}",
+                consequences=[],
+                importance=5 + int(severity * 4),
+                source="economy",
+                shock_region=name,
+                shock_category=cat,
+            ))
+    return shocks
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +452,12 @@ class EconomyResult:
         "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
         "storage_loss": 0.0, "cap_overflow": 0.0,
     })
+    # M43b: Supply shock detection and trade dependency
+    imports_by_region: dict[str, dict[str, float]] = field(default_factory=dict)
+    inbound_sources: dict[str, list[str]] = field(default_factory=dict)
+    stockpile_levels: dict[str, dict[str, float]] = field(default_factory=dict)
+    import_share: dict[str, float] = field(default_factory=dict)
+    trade_dependent: dict[str, bool] = field(default_factory=dict)
 
 
 def compute_production(
@@ -457,12 +624,6 @@ def derive_farmer_income_modifier(
     d = demand.get(cat, 0.0)
     raw = d / s
     return max(FARMER_INCOME_MODIFIER_FLOOR, min(raw, FARMER_INCOME_MODIFIER_CAP))
-
-
-def derive_food_sufficiency(food_supply: float, food_demand: float) -> float:
-    """Derive food_sufficiency from post-trade food supply/demand ratio. Clamped [0.0, 2.0]."""
-    d = max(food_demand, _SUPPLY_FLOOR)
-    return max(0.0, min(food_supply / d, 2.0))
 
 
 def derive_merchant_margin(total_raw_margin: float, route_count: int) -> float:
@@ -678,6 +839,10 @@ def compute_economy(
                 region_exports[origin_name][cat] += amount
                 region_imports.setdefault(dest, _empty_category_dict())
                 region_imports[dest][cat] += amount
+                if amount > 0:
+                    result.inbound_sources.setdefault(dest, [])
+                    if origin_name not in result.inbound_sources[dest]:
+                        result.inbound_sources[dest].append(origin_name)
 
     # M43a: Decompose category-level flows to per-good with transit decay
     # Pre-seed with empty dicts for all known regions; import targets may include
@@ -764,6 +929,23 @@ def compute_economy(
         # Step 2k: Cap stockpile (use region.population — physical storage capacity)
         cap_overflow = apply_stockpile_cap(region.stockpile.goods, region.population)
         result.conservation["cap_overflow"] += cap_overflow
+
+    # --- M43b: Capture imports_by_region, stockpile_levels, trade dependency ---
+    for region in regions:
+        rname = region.name
+        result.imports_by_region[rname] = dict(region_imports.get(rname, _empty_category_dict()))
+        cat_stockpile = _empty_category_dict()
+        for good, amount in region.stockpile.goods.items():
+            for cat, goods_set in CATEGORY_GOODS.items():
+                if good in goods_set:
+                    cat_stockpile[cat] += amount
+                    break
+        result.stockpile_levels[rname] = cat_stockpile
+        food_demand = region_demand.get(rname, _empty_category_dict()).get("food", 0.0)
+        food_imports = region_imports.get(rname, _empty_category_dict()).get("food", 0.0)
+        share = food_imports / max(food_demand, 0.1)
+        result.import_share[rname] = share
+        result.trade_dependent[rname] = share > TRADE_DEPENDENCY_THRESHOLD
 
     # --- Signal derivation ---
     for region in regions:

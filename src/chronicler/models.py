@@ -352,6 +352,14 @@ class GreatPerson(BaseModel):
     origin_region: str | None = None
 
 
+class ShockContext(BaseModel):
+    """M43b: Structured shock data for narration context."""
+    region: str
+    category: str
+    severity: float
+    upstream_source: str | None = None
+
+
 class Event(BaseModel):
     turn: int
     event_type: str
@@ -360,6 +368,9 @@ class Event(BaseModel):
     consequences: list[str] = Field(default_factory=list)
     importance: int = Field(default=5, ge=1, le=10)
     source: str = "aggregate"  # "aggregate" or "agent"
+    # M43b: Structured shock metadata (None for non-shock events)
+    shock_region: str | None = None
+    shock_category: str | None = None
 
 
 class NamedEvent(BaseModel):
@@ -652,6 +663,8 @@ class CivThematicContext(BaseModel):
     tech_era: str
     active_tech_focus: str | None = None
     active_named_events: list[str] = Field(default_factory=list)
+    # M43b: Trade vulnerability summary
+    trade_dependency_summary: str | None = None
 
 
 class NarrativeMoment(BaseModel):
@@ -675,6 +688,9 @@ class AgentContext(BaseModel):
     relationships: list[dict] = Field(default_factory=list)
     # M41: wealth inequality for narrator
     gini_coefficient: float = 0.0
+    # M43b: Trade & supply context
+    trade_dependent_regions: list[str] = Field(default_factory=list)
+    active_shocks: list[ShockContext] = Field(default_factory=list)
 
 
 class NarrationContext(BaseModel):

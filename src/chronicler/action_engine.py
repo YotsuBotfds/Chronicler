@@ -776,6 +776,25 @@ class ActionEngine:
                                 weights[ActionType.WAR] += HOLY_WAR_WEIGHT_BONUS
                                 break
 
+        # M43b: Raider incentive — wealthy adjacent enemy stockpiles attract WAR
+        if hasattr(self.world, '_economy_result') and self.world._economy_result is not None:
+            from chronicler.economy import (
+                _get_adjacent_enemy_regions, RAIDER_THRESHOLD,
+                RAIDER_WAR_WEIGHT, RAIDER_CAP, FOOD_GOODS,
+            )
+            adjacent_enemy_regions = _get_adjacent_enemy_regions(civ, self.world)
+            if adjacent_enemy_regions:
+                max_adjacent_food = max(
+                    sum(r.stockpile.goods.get(g, 0.0) for g in FOOD_GOODS)
+                    for r in adjacent_enemy_regions
+                )
+                if max_adjacent_food > RAIDER_THRESHOLD:
+                    raider_bonus = RAIDER_WAR_WEIGHT * min(
+                        max_adjacent_food / RAIDER_THRESHOLD - 1.0,
+                        RAIDER_CAP,
+                    )
+                    weights[ActionType.WAR] += raider_bonus
+
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3
         if len(history) >= streak_limit:
