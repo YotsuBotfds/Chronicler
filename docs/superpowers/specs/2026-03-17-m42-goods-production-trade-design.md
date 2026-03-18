@@ -645,8 +645,8 @@ for each category:
 | `src/chronicler/agent_bridge.py` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income` to `build_region_batch()`; add `priest_tithe_share` to `build_signals()` |
 | `src/chronicler/factions.py` | Update `compute_tithe_base()` to accept snapshot and use agent-derived merchant wealth in agent mode |
 | `src/chronicler/analytics.py` | Price time series extractors, trade volume diagnostics |
-| `chronicler-agents/src/region.rs` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin` to `RegionState` |
+| `chronicler-agents/src/region.rs` | Add `farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income` to `RegionState` |
 | `chronicler-agents/src/signals.rs` | Add `priest_tithe_share` to `CivSignals` |
-| `chronicler-agents/src/agent.rs` | Replace `FARMER_INCOME` + `MINER_INCOME` with `BASE_FARMER_INCOME`; remove `is_extractive()` |
-| `chronicler-agents/src/tick.rs` | Farmer income: `BASE_FARMER_INCOME × modifier × yield`; Priest income: `base + tithe_share` |
+| `chronicler-agents/src/agent.rs` | Replace `FARMER_INCOME` + `MINER_INCOME` with `BASE_FARMER_INCOME`; remove `is_extractive()`, `MERCHANT_INCOME`, `MERCHANT_BASELINE` |
+| `chronicler-agents/src/tick.rs` | Farmer income: `BASE_FARMER_INCOME × modifier × yield`; Merchant income: `merchant_trade_income`; Priest income: `base + tithe_share` |
 | `chronicler-agents/src/satisfaction.rs` | Add `food_sufficiency` penalty outside 0.40 cap; replace `trade_route_count` term with `merchant_margin * MERCHANT_MARGIN_WEIGHT` in merchant satisfaction |
