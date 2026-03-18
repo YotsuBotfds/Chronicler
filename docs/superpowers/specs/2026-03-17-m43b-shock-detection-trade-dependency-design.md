@@ -137,14 +137,29 @@ class CivThematicContext(BaseModel):
 
 ### Trade Dependency on EconomyResult
 
-Per-region fields added to `EconomyResult` (or its per-region sub-object):
+Per-region fields on `EconomyResult`:
 
 ```python
-import_share: float       # food_imports / max(food_demand, 0.1)
-trade_dependent: bool     # import_share > TRADE_DEPENDENCY_THRESHOLD
+import_share: dict[str, float]       # region_name → food_imports / max(food_demand, 0.1)
+trade_dependent: dict[str, bool]     # region_name → import_share > TRADE_DEPENDENCY_THRESHOLD
 ```
 
-Computed in `compute_economy()` after trade flow resolution (steps 2d-2e in M43a's Phase 2 sub-sequence).
+Computed in `compute_economy()` after trade flow resolution (steps 2d-2e in M43a's Phase 2 sub-sequence). Accessed as `economy_result.import_share[region_name]` and `economy_result.trade_dependent[region_name]`.
+
+### Assumed EconomyResult Fields
+
+M43b depends on the following fields existing on `EconomyResult` (defined by M42/M43a). Listed here so the implementation plan can verify against the landed M42 spec:
+
+| Field | Type | Source | Used By |
+|---|---|---|---|
+| `food_sufficiency` | `dict[str, float]` | M43a step 2h — per-region, from pre-consumption stockpile | `detect_supply_shocks()` severity gate |
+| `imports_by_region` | `dict[str, dict[str, float]]` | M42 trade flow — `region_name → {category → import_total}` | `classify_upstream_source()` import drop check |
+| `inbound_sources` | `dict[str, list[str]]` | M42 trade flow — `dest_region → [source_region_names]` | `classify_upstream_source()` partner lookup |
+| `stockpile_levels` | `dict[str, dict[str, float]]` | M43a step 2g — `region_name → {category → stockpile_total}` | `classify_upstream_source()` partner stockpile check |
+| `import_share` | `dict[str, float]` | M43b — computed in `compute_economy()` | Trade dependency classification, narration |
+| `trade_dependent` | `dict[str, bool]` | M43b — computed in `compute_economy()` | Raider modifier gating, narration, curator |
+
+If M42's `EconomyResult` uses a different structure (e.g., per-region sub-objects instead of top-level dicts), the access patterns in M43b code must be adapted. The semantic requirements (what data is needed) are stable; the access pattern follows whatever M42 defines.
 
 ---
 
@@ -165,7 +180,7 @@ def detect_supply_shocks(
     shocks = []
     for name, sp in stockpiles.items():
         region = region_map[name]
-        owner_civ = get_civ(world, region.controlling_civ)
+        owner_civ = get_civ(world, region.controller)
         for cat, goods in CATEGORY_GOODS.items():
             current = sum(sp.goods.get(g, 0.0) for g in goods)
             avg = economy_tracker.trailing_avg.get(name, {}).get(cat, current)
@@ -182,7 +197,7 @@ def detect_supply_shocks(
                     severity = min(1.0 - (current / max(avg, 0.1)), 1.0)
 
                 upstream = classify_upstream_source(
-                    world, economy_tracker, economy_result, name, cat,
+                    world, economy_tracker, economy_result, name, cat, region_map,
                 )
                 shocks.append(Event(
                     turn=world.turn,
@@ -209,12 +224,15 @@ def classify_upstream_source(
     economy_result: EconomyResult,
     region_name: str,
     category: str,
+    region_map: dict[str, Region],
 ) -> str | None:
     """Find upstream civ if shock is import-driven.
 
     Compares current import level against import EMA. If imports dropped
-    significantly and a trade partner's stockpile also dropped, returns
-    the source civ name. Returns None if shock is local (drought, conquest).
+    significantly, identifies the trade partner whose stockpile also dropped
+    (confirming upstream disruption vs embargo). Returns source civ name,
+    or None if shock is local (drought, conquest, or embargo without
+    upstream production loss).
     """
     current_imports = economy_result.imports_by_region[region_name].get(category, 0.0)
     avg_imports = economy_tracker.import_avg.get(region_name, {}).get(category, current_imports)
@@ -222,14 +240,15 @@ def classify_upstream_source(
     if avg_imports <= 0 or current_imports / avg_imports > (1.0 - SHOCK_DELTA_THRESHOLD):
         return None  # imports didn't drop significantly — local cause
 
-    # Find the trade partner whose exports to this region dropped most
-    # Read from EconomyResult trade flow data
-    for source_name, flows in economy_result.trade_flows.items():
-        if region_name in flows.destinations:
-            source_region = region_map[source_name]
-            return source_region.controlling_civ
+    # Find the trade partner whose stockpile also dropped (upstream disruption)
+    for source_name in economy_result.inbound_sources.get(region_name, []):
+        source_stockpile = economy_result.stockpile_levels.get(source_name, {}).get(category, 0.0)
+        source_avg = economy_tracker.trailing_avg.get(source_name, {}).get(category, source_stockpile)
+        if source_avg > 0 and source_stockpile / source_avg < (1.0 - SHOCK_DELTA_THRESHOLD):
+            # Upstream source also experienced a stockpile drop — cascade confirmed
+            return region_map[source_name].controller
 
-    return None
+    return None  # imports dropped but no upstream stockpile crash — likely embargo
 ```
 
 Uses the import EMA on `EconomyTracker` to detect import-driven shocks without storing exact previous-turn data. Same α=0.33 pattern as stockpile tracking.
@@ -271,7 +290,7 @@ def _get_adjacent_enemy_regions(
 
     Composes:
     - civ.regions (list[str]) for owned region names
-    - region.adjacent (adjacency list) for neighbors
+    - region.adjacencies (adjacency list) for neighbors
     - world.relationships for disposition filtering
     """
     enemy_civs = set()
@@ -289,9 +308,9 @@ def _get_adjacent_enemy_regions(
         region = region_map.get(rname)
         if region is None:
             continue
-        for adj_name in region.adjacent:
+        for adj_name in region.adjacencies:
             adj_region = region_map.get(adj_name)
-            if adj_region and adj_region.controlling_civ in enemy_civs:
+            if adj_region and adj_region.controller in enemy_civs:
                 adjacent_enemy.append(adj_region)
 
     return adjacent_enemy
@@ -354,7 +373,7 @@ if economy_result is not None:
     moment_civs = {ev.actors[0] for ev in moment.events if ev.actors}
     ctx.trade_dependent_regions = [
         rname for rname, dep in economy_result.trade_dependent.items()
-        if dep and region_map[rname].controlling_civ in moment_civs
+        if dep and region_map[rname].controller in moment_civs
     ]
     # Active shocks within the moment's turn range
     ctx.active_shocks = [
@@ -378,7 +397,7 @@ In `build_civ_thematic_context()`:
 ```python
 # M43b: Trade dependency summary
 if economy_result is not None:
-    civ_regions = [r for r in world.regions if r.controlling_civ == civ.name]
+    civ_regions = [r for r in world.regions if r.controller == civ.name]
     dep_count = sum(
         1 for r in civ_regions
         if economy_result.trade_dependent.get(r.name, False)
@@ -492,7 +511,7 @@ No new RNG sources in M43b. All detection and classification is deterministic.
 - **Trade dependency classification:** Create a region importing >60% food. Verify `trade_dependent = True`. Cut imports (embargo). Verify `food_sufficiency` drops.
 - **Raider modifier:** Set up a civ adjacent to a hostile civ with large food stockpile. Verify WAR weight increases above baseline. Verify WAR weight at baseline when stockpile is below threshold.
 - **Narration context:** Verify `AgentContext.trade_dependent_regions` populated for trade-dependent regions. Verify `active_shocks` populated when shock events exist in moment.
-- **`--agents=off` invariance:** Shock detection and trade dependency classification work in aggregate mode. Raider modifier skipped (no `_economy_result`).
+- **`--agents=off` compatibility:** Shock detection and trade dependency classification work in all modes (computed in Phase 2, which runs regardless of agent mode). Raider modifier also fires in aggregate mode — `_economy_result` is set in Phase 2 for all modes. This is correct: the raider modifier affects civ-level action weights, not agent-level behavior. The action engine runs in both aggregate and agent modes.
 
 ### 200-Seed Regression (M43b-Specific)
 
@@ -509,15 +528,15 @@ No new RNG sources in M43b. All detection and classification is deterministic.
 
 | File | Changes |
 |---|---|
-| `src/chronicler/economy.py` | `EconomyTracker` class, `detect_supply_shocks()`, `classify_upstream_source()`, `_get_adjacent_enemy_regions()`, `CATEGORY_GOODS`, `ShockContext` TypedDict, shock detection constants, `RAIDER_*` constants, `import_share`/`trade_dependent` fields on `EconomyResult` |
+| `src/chronicler/economy.py` | `EconomyTracker` class, `detect_supply_shocks()`, `classify_upstream_source()`, `_get_adjacent_enemy_regions()`, `CATEGORY_GOODS`, shock detection constants, `RAIDER_*` constants, `import_share`/`trade_dependent` fields on `EconomyResult` |
 | `src/chronicler/action_engine.py` | Raider WAR modifier block in `compute_weights()` after holy war bonus (~15 lines) |
 | `src/chronicler/simulation.py` | `EconomyTracker` instantiation in run setup, wire `economy_tracker.update()` + `detect_supply_shocks()` into Phase 2 after M43a stockpile ops, store `world._economy_result` |
 | `src/chronicler/curator.py` | 7 new `CAUSAL_PATTERNS` entries |
-| `src/chronicler/models.py` | `trade_dependent_regions: list[str]` and `active_shocks: list[ShockContext]` on `AgentContext`, `trade_dependency_summary: str | None` on `CivThematicContext` |
+| `src/chronicler/models.py` | `ShockContext` TypedDict, `trade_dependent_regions: list[str]` and `active_shocks: list[ShockContext]` on `AgentContext`, `trade_dependency_summary: str | None` on `CivThematicContext` |
 | `src/chronicler/narrative.py` | `build_agent_context()` populates trade/shock fields, `build_agent_context_block()` serializes them, `build_civ_thematic_context()` adds dependency summary |
 
 **No Rust changes.** No new FFI signals, no `satisfaction.rs`, `region.rs`, `agent.rs`, `tick.rs`, or `signals.rs` changes. M43b is entirely Python-side.
 
 ### New utility note
 
-`_get_adjacent_enemy_regions()` is a new ~20-line utility function. It composes `civ.regions`, `region.adjacent`, and `world.relationships` disposition filtering. It does NOT reuse `_resolve_war()` internals (which are tightly coupled to contested region selection and fog of war). The adjacency walk + disposition filter is straightforward enough to write fresh.
+`_get_adjacent_enemy_regions()` is a new ~20-line utility function. It composes `civ.regions`, `region.adjacencies`, and `world.relationships` disposition filtering. It does NOT reuse `_resolve_war()` internals (which are tightly coupled to contested region selection and fog of war). The adjacency walk + disposition filter is straightforward enough to write fresh.
