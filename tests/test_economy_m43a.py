@@ -166,3 +166,22 @@ def test_effective_margin_filters_expensive_routes():
     )
     assert flow[("A", "B")]["food"] == 0.0
     assert flow[("A", "C")]["food"] > 0.0
+
+
+# --- Task 6: Transit decay ---
+
+from chronicler.economy import apply_transit_decay
+
+
+def test_transit_decay_grain():
+    delivered = apply_transit_decay(100.0, "grain")
+    assert delivered == 100.0 * (1.0 - TRANSIT_DECAY["grain"])
+
+
+def test_transit_decay_mineral_no_loss():
+    assert apply_transit_decay(100.0, "ore") == 100.0
+    assert apply_transit_decay(100.0, "precious") == 100.0
+
+
+def test_transit_decay_zero_shipped():
+    assert apply_transit_decay(0.0, "grain") == 0.0

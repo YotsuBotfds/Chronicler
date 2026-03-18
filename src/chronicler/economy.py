@@ -117,6 +117,16 @@ def build_river_route_set(rivers: list) -> set[frozenset]:
     return pairs
 
 
+# ---------------------------------------------------------------------------
+# M43a: Perishability — transit decay
+# ---------------------------------------------------------------------------
+
+def apply_transit_decay(shipped: float, good: str) -> float:
+    """Apply per-good transit decay to shipped volume. Returns delivered amount."""
+    rate = TRANSIT_DECAY.get(good, 0.0)
+    return shipped * (1.0 - rate)
+
+
 def compute_transport_cost(
     terrain_a: str,
     terrain_b: str,
