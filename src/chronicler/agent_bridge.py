@@ -355,6 +355,7 @@ class AgentBridge:
         self._departure_turns: dict[int, int] = {}  # agent_id → turn they left origin_region
         self.displacement_by_region: dict[int, float] = {}  # region_id → fraction displaced
         self._gini_by_civ: dict[int, float] = {}  # M41: per-civ Gini from last tick
+        self._wealth_stats: dict[int, dict] = {}  # M41: per-civ wealth stats from last tick
 
     def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
         self._sim.set_region_state(build_region_batch(world))
@@ -391,6 +392,26 @@ class AgentBridge:
                         civ_wealth = wealth_col[mask]
                         new_gini[int(civ_id)] = compute_gini(civ_wealth)
                     self._gini_by_civ = new_gini
+                    occ_col = snap.column("occupation").to_numpy()
+                    occ_names = ["farmer", "soldier", "merchant", "scholar", "priest"]
+                    stats: dict[int, dict] = {}
+                    for civ_id in np.unique(civ_col):
+                        mask = civ_col == civ_id
+                        civ_wealth = wealth_col[mask]
+                        civ_occ = occ_col[mask]
+                        wealth_by_occ = {}
+                        for occ_idx, name in enumerate(occ_names):
+                            occ_mask = civ_occ == occ_idx
+                            if occ_mask.any():
+                                wealth_by_occ[name] = float(np.mean(civ_wealth[occ_mask]))
+                        stats[int(civ_id)] = {
+                            "gini": self._gini_by_civ.get(int(civ_id), 0.0),
+                            "mean": float(np.mean(civ_wealth)),
+                            "median": float(np.median(civ_wealth)),
+                            "std": float(np.std(civ_wealth)),
+                            "by_occupation": wealth_by_occ,
+                        }
+                    self._wealth_stats = stats
             except Exception:
                 self.displacement_by_region = {}
 
