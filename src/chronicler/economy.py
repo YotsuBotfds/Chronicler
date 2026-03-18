@@ -686,6 +686,10 @@ def compute_economy(
                 region_exports[origin_name][cat] += amount
                 region_imports.setdefault(dest, _empty_category_dict())
                 region_imports[dest][cat] += amount
+                if amount > 0:
+                    result.inbound_sources.setdefault(dest, [])
+                    if origin_name not in result.inbound_sources[dest]:
+                        result.inbound_sources[dest].append(origin_name)
 
     # M43a: Decompose category-level flows to per-good with transit decay
     # Pre-seed with empty dicts for all known regions; import targets may include
@@ -772,6 +776,23 @@ def compute_economy(
         # Step 2k: Cap stockpile (use region.population — physical storage capacity)
         cap_overflow = apply_stockpile_cap(region.stockpile.goods, region.population)
         result.conservation["cap_overflow"] += cap_overflow
+
+    # --- M43b: Capture imports_by_region, stockpile_levels, trade dependency ---
+    for region in regions:
+        rname = region.name
+        result.imports_by_region[rname] = dict(region_imports.get(rname, _empty_category_dict()))
+        cat_stockpile = _empty_category_dict()
+        for good, amount in region.stockpile.goods.items():
+            for cat, goods_set in CATEGORY_GOODS.items():
+                if good in goods_set:
+                    cat_stockpile[cat] += amount
+                    break
+        result.stockpile_levels[rname] = cat_stockpile
+        food_demand = region_demand.get(rname, _empty_category_dict()).get("food", 0.0)
+        food_imports = region_imports.get(rname, _empty_category_dict()).get("food", 0.0)
+        share = food_imports / max(food_demand, 0.1)
+        result.import_share[rname] = share
+        result.trade_dependent[rname] = share > TRADE_DEPENDENCY_THRESHOLD
 
     # --- Signal derivation ---
     for region in regions:
