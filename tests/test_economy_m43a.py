@@ -223,10 +223,13 @@ def test_storage_decay_salt_preserves_food():
 
 
 def test_storage_decay_partial_salt():
-    # 5% salt ratio → preservation = 0.05 * 2.5 = 0.125
+    # salt-to-food ratio = 5/95 ≈ 0.0526 (salt excluded from denominator per spec)
+    # preservation = 0.0526 * 2.5 ≈ 0.1316
     goods = {"grain": 95.0, "salt": 5.0}
     apply_storage_decay(goods)
-    expected = 95.0 * (1.0 - 0.03 * (1.0 - 0.125))
+    salt_ratio = 5.0 / 95.0
+    preservation = min(salt_ratio * 2.5, 0.5)
+    expected = 95.0 * (1.0 - 0.03 * (1.0 - preservation))
     assert abs(goods["grain"] - expected) < 0.01
 
 

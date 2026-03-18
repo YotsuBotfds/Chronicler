@@ -138,7 +138,7 @@ def apply_storage_decay(goods: dict[str, float]) -> float:
     Only affects food goods. Salt itself has zero decay.
     Returns total storage loss (for conservation law verification).
     """
-    total_food = sum(goods.get(g, 0.0) for g in FOOD_GOODS)
+    total_food = sum(goods.get(g, 0.0) for g in FOOD_GOODS if g != "salt")
     salt_amount = goods.get("salt", 0.0)
     salt_ratio = salt_amount / max(total_food, 0.1)
     preservation = min(salt_ratio * SALT_PRESERVATION_FACTOR, MAX_PRESERVATION)
@@ -719,7 +719,7 @@ def compute_economy(
             dest_imports = region_per_good_imports.setdefault(dest_name, {})
             dest_imports[source_good] = dest_imports.get(source_good, 0.0) + delivered
 
-    # --- Step 2g: Post-trade prices ---
+    # --- Step 2f: Post-trade prices ---
     post_trade_prices: dict[str, dict[str, float]] = {}
     for rname in region_production:
         post_trade_supply = {
