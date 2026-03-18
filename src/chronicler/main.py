@@ -628,6 +628,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Number of moments to narrate")
     parser.add_argument("--narrate-output", type=Path, default=None,
                         help="Output path for narrated bundle")
+    parser.add_argument("--narrator", type=str, default="local",
+                        choices=["local", "api"],
+                        help="Narrator backend: local (LM Studio) or api (Claude API)")
     return parser
 
 
@@ -657,6 +660,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         local_url=args.local_url,
         sim_model=getattr(args, "sim_model", None),
         narrative_model=getattr(args, "narrative_model", None),
+        narrator=getattr(args, "narrator", "local"),
     )
 
     # M40: Collect named character names for curator scoring
@@ -752,6 +756,29 @@ def main() -> None:
         args.seed = start
         args.batch = end - start + 1
 
+    # --- M44: --narrator api validation ---
+    if getattr(args, "narrator", "local") == "api":
+        if getattr(args, "simulate_only", False):
+            print("Error: --narrator api and --simulate-only are contradictory", file=sys.stderr)
+            sys.exit(1)
+        if args.live:
+            print("Error: --narrator api is incompatible with --live (API latency)", file=sys.stderr)
+            sys.exit(1)
+        if args.parallel is not None and args.batch:
+            print("Error: --narrator api is incompatible with --batch --parallel", file=sys.stderr)
+            sys.exit(1)
+        try:
+            import anthropic  # noqa: F401
+        except ImportError:
+            print("Error: --narrator api requires the anthropic package. "
+                  "Install with: pip install chronicler[api]", file=sys.stderr)
+            sys.exit(1)
+        import os
+        if "ANTHROPIC_API_KEY" not in os.environ:
+            print("Error: --narrator api requires ANTHROPIC_API_KEY environment variable",
+                  file=sys.stderr)
+            sys.exit(1)
+
     # Skip LLM client and scenario resolution for live mode — run_live
     # handles both after receiving params from the client's start command.
     # Also skip for --analyze, which only reads already-written bundles.
@@ -769,6 +796,7 @@ def main() -> None:
                 local_url=args.local_url,
                 sim_model=args.sim_model,
                 narrative_model=args.narrative_model,
+                narrator=args.narrator,
             )
 
         # Resolve scenario

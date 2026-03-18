@@ -3,7 +3,7 @@ import argparse
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG
+from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG, _build_parser
 from chronicler.types import RunResult
 from chronicler.memory import MemoryStream
 
@@ -543,3 +543,44 @@ class TestAgentsWiring:
         assert result.total_turns == 3
         assert world.agent_mode == "shadow"
         mock_bridge.close.assert_called_once()
+
+
+class TestNarratorArgument:
+    def test_narrator_default_is_local(self):
+        parser = _build_parser()
+        args = parser.parse_args([])
+        assert args.narrator == "local"
+
+    def test_narrator_api(self):
+        parser = _build_parser()
+        args = parser.parse_args(["--narrator", "api"])
+        assert args.narrator == "api"
+
+    def test_narrator_invalid_choice(self):
+        parser = _build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--narrator", "invalid"])
+
+
+class TestNarratorValidation:
+    def test_narrator_api_with_simulate_only_exits(self):
+        """--narrator api + --simulate-only is contradictory."""
+        from chronicler.main import main
+        with patch("sys.argv", ["chronicler", "--narrator", "api", "--simulate-only"]):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_narrator_api_with_live_exits(self):
+        """--narrator api + --live is incompatible."""
+        from chronicler.main import main
+        with patch("sys.argv", ["chronicler", "--narrator", "api", "--live"]):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_narrator_api_with_batch_parallel_exits(self):
+        """--narrator api + --batch --parallel is incompatible."""
+        from chronicler.main import main
+        with patch("sys.argv", ["chronicler", "--narrator", "api",
+                                "--batch", "10", "--parallel"]):
+            with pytest.raises(SystemExit):
+                main()
