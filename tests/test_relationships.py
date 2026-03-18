@@ -9,6 +9,7 @@ from chronicler.relationships import (
     check_mentorship_formation,
     check_marriage_formation,
     check_exile_bond_formation,
+    check_coreligionist_formation,
     capture_hostage,
     tick_hostages,
     release_hostage,
@@ -433,4 +434,58 @@ def test_exile_bond_requires_same_region(make_world):
                     origin_region="Homeland", region="Refuge2"),
     ]
     formed = check_exile_bond_formation(world, [])
+    assert len(formed) == 0
+
+
+# --- Task 11: Co-religionist Formation ---
+
+def test_coreligionist_forms_shared_minority_faith(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="prophet", trait="wise",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="R1"),
+        GreatPerson(name="B", role="prophet", trait="pious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200, region="R1"),
+    ]
+    belief_by_agent = {100: 5, 200: 5}
+    region_belief_fractions = {"R1": {5: 0.20, 1: 0.80}}
+    formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
+    assert len(formed) == 1
+    assert formed[0][2] == REL_CORELIGIONIST
+
+
+def test_coreligionist_not_formed_majority_faith(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="prophet", trait="wise",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="R1"),
+        GreatPerson(name="B", role="prophet", trait="pious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200, region="R1"),
+    ]
+    belief_by_agent = {100: 5, 200: 5}
+    region_belief_fractions = {"R1": {5: 0.50}}
+    formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
+    assert len(formed) == 0
+
+
+def test_coreligionist_requires_colocation(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    civ.great_persons = [
+        GreatPerson(name="A", role="prophet", trait="wise",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="R1"),
+        GreatPerson(name="B", role="prophet", trait="pious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=10, source="agent", agent_id=200, region="R2"),
+    ]
+    belief_by_agent = {100: 5, 200: 5}
+    region_belief_fractions = {"R1": {5: 0.10}, "R2": {5: 0.10}}
+    formed = check_coreligionist_formation(world, [], belief_by_agent, region_belief_fractions)
     assert len(formed) == 0

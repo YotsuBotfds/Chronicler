@@ -218,6 +218,52 @@ def check_exile_bond_formation(world: WorldState, existing_edges: list[tuple]) -
     return new_edges
 
 
+# --- Co-religionist ---
+
+CORELIGIONIST_MINORITY_THRESHOLD = 0.30
+
+
+def check_coreligionist_formation(
+    world: WorldState,
+    existing_edges: list[tuple],
+    belief_by_agent: dict[int, int],
+    region_belief_fractions: dict[str, dict[int, float]],
+) -> list[tuple]:
+    """Form co-religionist bonds between agent-source named characters sharing
+    a minority belief (<30%) in the same region.
+    agent_a < agent_b by convention (symmetric).
+    """
+    new_edges = []
+    existing_pairs = {(e[0], e[1]) for e in existing_edges if e[2] == REL_CORELIGIONIST}
+
+    by_region_belief: dict[tuple[str, int], list] = defaultdict(list)
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            if not gp.active or gp.agent_id is None or gp.region is None:
+                continue
+            belief = belief_by_agent.get(gp.agent_id)
+            if belief is None:
+                continue
+            by_region_belief[(gp.region, belief)].append(gp)
+
+    for (region, belief), members in by_region_belief.items():
+        if len(members) < 2:
+            continue
+        fractions = region_belief_fractions.get(region, {})
+        fraction = fractions.get(belief, 0.0)
+        if fraction >= CORELIGIONIST_MINORITY_THRESHOLD:
+            continue
+        for i, gp1 in enumerate(members):
+            for gp2 in members[i + 1:]:
+                a, b = min(gp1.agent_id, gp2.agent_id), max(gp1.agent_id, gp2.agent_id)
+                if (a, b) in existing_pairs:
+                    continue
+                edge = (a, b, REL_CORELIGIONIST, world.turn)
+                new_edges.append(edge)
+                existing_pairs.add((a, b))
+    return new_edges
+
+
 # --- Hostage Exchanges ---
 
 def capture_hostage(
