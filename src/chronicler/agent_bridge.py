@@ -4,6 +4,7 @@ import logging
 from collections import Counter, deque
 from pathlib import Path
 from typing import TYPE_CHECKING
+import numpy as np
 import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
@@ -62,6 +63,16 @@ DOMAIN_PERSONALITY_MAP = {
     "trade":    ( 0.0,   0.10,  0.0),
     "merchant": ( 0.0,   0.10,  0.0),
 }
+
+
+def compute_gini(wealth_array: np.ndarray) -> float:
+    """Gini coefficient from a 1D array of non-negative values."""
+    sorted_w = np.sort(wealth_array)
+    n = len(sorted_w)
+    if n == 0 or sorted_w.sum() == 0:
+        return 0.0
+    index = np.arange(1, n + 1)
+    return float((2.0 * (index * sorted_w).sum() / (n * sorted_w.sum())) - (n + 1) / n)
 
 
 def civ_personality_mean(
@@ -235,7 +246,8 @@ def build_region_batch(world: WorldState) -> pa.RecordBatch:
 
 def build_signals(world: WorldState, shocks: list | None = None,
                   demands: dict | None = None,
-                  conquered: dict[int, bool] | None = None) -> pa.RecordBatch:
+                  conquered: dict[int, bool] | None = None,
+                  gini_by_civ: dict[int, float] | None = None) -> pa.RecordBatch:
     """Build civ-signals Arrow RecordBatch from current WorldState.
 
     Args:
@@ -261,6 +273,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
     ds_farmer, ds_soldier, ds_merchant, ds_scholar, ds_priest = [], [], [], [], []
     mean_bold, mean_ambi, mean_ltrait = [], [], []
     conquered_flags = []
+    gini_vals = []
 
     for i, civ in enumerate(world.civilizations):
         civ_ids.append(i)
@@ -295,6 +308,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         mean_ambi.append(pm[1])
         mean_ltrait.append(pm[2])
         conquered_flags.append((conquered or {}).get(i, False))
+        gini_vals.append((gini_by_civ or {}).get(i, 0.0))
 
     return pa.record_batch({
         "civ_id": pa.array(civ_ids, type=pa.uint8()),
@@ -318,6 +332,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "mean_ambition": pa.array(mean_ambi, type=pa.float32()),
         "mean_loyalty_trait": pa.array(mean_ltrait, type=pa.float32()),
         "conquered_this_turn": pa.array(conquered_flags, type=pa.bool_()),
+        "gini_coefficient": pa.array(gini_vals, type=pa.float32()),
     })
 
 
@@ -339,10 +354,11 @@ class AgentBridge:
         self._origin_regions: dict[int, int] = {}  # agent_id → origin_region (for exile_return)
         self._departure_turns: dict[int, int] = {}  # agent_id → turn they left origin_region
         self.displacement_by_region: dict[int, float] = {}  # region_id → fraction displaced
+        self._gini_by_civ: dict[int, float] = {}  # M41: per-civ Gini from last tick
 
     def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
         self._sim.set_region_state(build_region_batch(world))
-        signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered)
+        signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered, gini_by_civ=self._gini_by_civ)
         agent_events = self._sim.tick(world.turn, signals)
 
         if self._mode == "hybrid":
@@ -365,6 +381,16 @@ class AgentBridge:
                     r: region_displaced[r] / total if total > 0 else 0.0
                     for r, total in region_totals.items()
                 }
+                # M41: compute per-civ Gini from wealth snapshot (hybrid mode only)
+                if "wealth" in snap.schema.names:
+                    wealth_col = snap.column("wealth").to_numpy()
+                    civ_col = snap.column("civ_affinity").to_numpy()
+                    new_gini: dict[int, float] = {}
+                    for civ_id in np.unique(civ_col):
+                        mask = civ_col == civ_id
+                        civ_wealth = wealth_col[mask]
+                        new_gini[int(civ_id)] = compute_gini(civ_wealth)
+                    self._gini_by_civ = new_gini
             except Exception:
                 self.displacement_by_region = {}
 
