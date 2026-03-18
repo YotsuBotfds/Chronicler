@@ -117,7 +117,7 @@ def compute_transport_cost(
     )  # worst terrain on route determines cost
     river = RIVER_DISCOUNT if is_river_route(region_a, region_b, world) else 1.0
     coastal = COASTAL_DISCOUNT if is_coastal_route(region_a, region_b) else 1.0
-    seasonal = WINTER_MODIFIER if world.season == "winter" else 1.0
+    seasonal = WINTER_MODIFIER if get_season_id(world.turn) == 3 else 1.0  # 3 = Winter
     infra = INFRASTRUCTURE_DISCOUNT  # placeholder 1.0 — no roads yet
     return base * terrain_factor * infra * min(river, coastal) * seasonal
 ```
@@ -126,15 +126,16 @@ def compute_transport_cost(
 
 | Terrain | Factor | Notes |
 |---|---|---|
-| Plains | 1.0 | Reference terrain |
-| Forest | 1.3 | Moderate impediment |
-| Desert | 1.5 | Harsh crossing |
-| Mountain | 2.0 | Most expensive land route |
-| Coast | 0.6 | Port routes cheapest |
+| `"plains"` | 1.0 | Reference terrain |
+| `"forest"` | 1.3 | Moderate impediment |
+| `"desert"` | 1.5 | Harsh crossing |
+| `"mountains"` | 2.0 | Most expensive land route |
+| `"tundra"` | 1.8 | Frozen ground, harsh conditions |
+| `"coast"` | 0.6 | Port routes cheapest |
 
 ### Route Type Detection
 
-- **River route:** Both `region_a.name` and `region_b.name` appear in the same `River.regions` list (M35a `world.rivers`).
+- **River route:** Both `region_a.name` and `region_b.name` appear in the same `River.path` list (M35a `world.rivers`).
 - **Coastal route:** Both regions have `terrain == "coast"`. Port-to-port between adjacent coastal regions.
 - **Infrastructure (roads):** Not currently modeled. `INFRASTRUCTURE_DISCOUNT = 1.0` (no effect). Placeholder for future mechanic. Transport cost formula includes the term so it's ready to wire when roads land.
 - **`min(river, coastal)`:** A route takes the better of river or coastal discount. In practice a route is one or the other, but the min handles edge cases without branching.
@@ -346,7 +347,8 @@ All new constants in `economy.py` with `[CALIBRATE]` markers:
 | `TERRAIN_COST["plains"]` | 1.0 | Reference terrain |
 | `TERRAIN_COST["forest"]` | 1.3 | Moderate impediment |
 | `TERRAIN_COST["desert"]` | 1.5 | Harsh crossing |
-| `TERRAIN_COST["mountain"]` | 2.0 | Most expensive land route |
+| `TERRAIN_COST["mountains"]` | 2.0 | Most expensive land route |
+| `TERRAIN_COST["tundra"]` | 1.8 | Frozen ground, harsh conditions |
 | `TERRAIN_COST["coast"]` | 0.6 | Port routes cheapest |
 | `RIVER_DISCOUNT` | 0.5 | River routes half cost |
 | `COASTAL_DISCOUNT` | 0.6 | Port-to-port cheap |
