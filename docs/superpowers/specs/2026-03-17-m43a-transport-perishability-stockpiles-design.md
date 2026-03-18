@@ -54,7 +54,7 @@ Make geography matter for trade. Transport costs create economic zones where coa
 | 6 | Single-pass Phase 2, no within-turn price convergence | Transport cost filtering removes routes → prices shift → could reopen routes. This feedback plays out over turns via one-turn lag, not within Phase 2. Geographic price gradients emerge over 3-5 turns. |
 | 7 | M43a contains no fixed shock attenuation constant | Attenuation behavior is emergent from stockpile depth and production buffers. M43b validates the emergent rate targets ~50%. No 0.5 multiplier in any formula. |
 | 8 | Conquest stockpile destruction in `_resolve_war_action()` | 50% of stockpile lost when region changes hands during action resolution in `_resolve_war_action()` (`action_engine.py`). Applied at point of conquest, before Phase 10 snapshot. |
-| 9 | `food_sufficiency` from pre-consumption stockpile | Ordering: stockpile += supply → compute `food_sufficiency` from pre-consumption stockpile → demand drawdown → storage decay → cap. Pre-consumption is backwards-compatible with M42 at equilibrium after initialization buffer is consumed (turns 3+): `food_available = production + imports` = M42's `food_supply`, producing `food_sufficiency = 1.0`. Turn 1-2 `food_sufficiency` will be higher than M42 due to initial buffer (Decision 11) — this is a feature, not a regression. Post-consumption would produce 0.0 at equilibrium — a satisfaction crash. |
+| 9 | `food_sufficiency` from pre-consumption stockpile | Ordering: stockpile += supply → compute `food_sufficiency` from pre-consumption stockpile → demand drawdown → storage decay → cap. The backwards-compatibility claim is about the **signal value** (capped at 2.0): at equilibrium, signal = 1.0 matching M42. Surplus regions accumulate stockpile beyond single-turn supply, but `min(..., 2.0)` makes this invisible to Rust. Turn 1-2 signal higher than M42 due to initial buffer (Decision 11) — a feature, not a regression. Post-consumption would produce 0.0 at equilibrium — a satisfaction crash. |
 | 10 | Stockpile capacity cap proportional to population | `PER_GOOD_CAP_FACTOR * population` per good per region. Unbounded accumulation pins `food_sufficiency` at ceiling and produces meaningless outlier values. Cap proportional to population — larger regions store more, per-capita storage bounded. |
 | 11 | Stockpile initialization with subsistence buffer | `stockpile[primary_food] = INITIAL_BUFFER * population`. Avoids 5-turn starvation transient that's purely an artifact of M43a landing, not an emergent outcome. Target: ~2 turns consumption at equilibrium demand. |
 
@@ -98,6 +98,8 @@ def map_resource_to_good(resource_type: int) -> str:
     return mapping[resource_type]
 ```
 
+**255 sentinel invariant:** `Region.resource_types` defaults to `[255, 255, 255]`. The 255 sentinel means "no resource assigned." By the time `compute_economy()` runs, all production-eligible regions (those with farmers) have valid resource types (0-7) assigned in `world_gen.py`. Regions with `resource_types[0] = 255` have zero farmers and zero production, so `map_resource_to_good()` is never called for them. M42's `map_resource_to_category()` has the same invariant. No runtime guard needed — this is enforced by world generation.
+
 M42's `map_resource_to_category()` still used for pricing/allocation. `map_resource_to_good()` used for stockpile operations. The bridge: when category-level trade delivers food to a region, the per-good composition is determined by the source region's `resource_types[0]` via `map_resource_to_good()`.
 
 ---
@@ -135,7 +137,7 @@ def compute_transport_cost(
 
 ### Route Type Detection
 
-- **River route:** Both `region_a.name` and `region_b.name` appear in the same `River.path` list (M35a `world.rivers`).
+- **River route:** Both `region_a.name` and `region_b.name` appear in the same `River.path` list (M35a `world.rivers`). Implementation note: pre-build a `set[frozenset[str, str]]` of river-connected pairs at the top of `compute_economy()` to avoid O(routes × rivers) scanning per route.
 - **Coastal route:** Both regions have `terrain == "coast"`. Port-to-port between adjacent coastal regions.
 - **Infrastructure (roads):** Not currently modeled. `INFRASTRUCTURE_DISCOUNT = 1.0` (no effect). Placeholder for future mechanic. Transport cost formula includes the term so it's ready to wire when roads land.
 - **`min(river, coastal)`:** A route takes the better of river or coastal discount. In practice a route is one or the other, but the min handles edge cases without branching.
@@ -247,6 +249,8 @@ for good in FOOD_GOODS:
 
 Demand distribution across food goods: proportional to stockpile composition. If a region's food stockpile is 60% grain and 40% fish, consumption draws 60% from grain and 40% from fish.
 
+**Salt consumption simplification:** Salt is consumed proportionally like any other food good. In salt-producing regions where salt may be a large fraction of the food stockpile, this means population "consumes" salt at a higher absolute rate. This is accepted as a simplification — salt producers export most of their salt via trade, keeping local ratios low. If 200-seed data shows chronic salt depletion in producing regions, the fix is a `SALT_CONSUMPTION_SHARE_CAP` (e.g., 0.10) so at most 10% of food demand draws from salt regardless of stockpile composition. Don't add this preemptively.
+
 Unmet demand has no separate tracking. The gap between `food_sufficiency` and 1.0 (computed pre-consumption in step 2h) already signals the deficit to Rust satisfaction.
 
 ### Capacity Cap
@@ -319,7 +323,9 @@ food_stockpile = sum(stockpile.goods.get(g, 0.0) for g in FOOD_GOODS)
 food_sufficiency = min(food_stockpile / max(food_demand, 0.1), 2.0)
 ```
 
-Backwards-compatible at equilibrium after initialization buffer is consumed (turns 3+): `food_stockpile = production + 0 (depleted buffer) + imports`, matching M42's `food_supply = production + imports`. Produces `food_sufficiency = 1.0`. Turn 1-2 `food_sufficiency` will be higher than M42 due to initial buffer (Decision 11) — this is a feature, not a regression.
+**Backwards-compatibility of the signal value:** At equilibrium (production ≈ demand, no prior surplus), `food_stockpile ≈ production + imports`, matching M42's `food_supply`. Signal value: `min(1.0, 2.0) = 1.0`, identical to M42. Turn 1-2 signal will be higher than M42 due to initial buffer (Decision 11) — this is a feature, not a regression.
+
+Surplus regions (production > demand) accumulate stockpile beyond single-turn supply. The raw `food_stockpile` value diverges from M42's `food_supply`, but the `min(..., 2.0)` cap makes this invisible to Rust — the signal value is capped at 2.0 in both M42 and M43a. The backwards-compatibility claim is about the signal value delivered to Rust, not the raw stockpile level.
 
 Stockpile buffer effect: a region with 3 turns of grain reserves has `food_stockpile = 3 × demand`, producing `food_sufficiency = min(3.0, 2.0) = 2.0` even if this turn's production drops to zero. This is exactly what buffers should do — smoothing single-turn production shocks.
 
@@ -479,7 +485,8 @@ Where `transit_loss = sum(shipped) - sum(delivered)` across all routes. `consump
 |---|---|
 | `src/chronicler/models.py` | Add `RegionStockpile` model, nest on `Region` as `stockpile: RegionStockpile` |
 | `src/chronicler/economy.py` | `map_resource_to_good()`, transport cost computation, perishability attrition, stockpile accumulation/decay/cap, salt preservation, `TRANSIT_DECAY` and `STORAGE_DECAY` tables, consumption clamping, modified `compute_economy()` entry point, updated `food_sufficiency` source |
-| `src/chronicler/simulation.py` | Stockpile initialization in world setup, pass stockpile to `compute_economy()` |
+| `src/chronicler/world_gen.py` | Stockpile initialization in `generate_world()` (parallels `RegionEcology` init pattern) |
+| `src/chronicler/simulation.py` | Pass stockpile to `compute_economy()` |
 | `src/chronicler/action_engine.py` | Conquest stockpile destruction in `_resolve_war_action()` |
 | `src/chronicler/analytics.py` | Stockpile level time series extractors, transport cost diagnostics |
 
