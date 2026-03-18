@@ -273,7 +273,7 @@ cd chronicler-agents && cargo test
 - [ ] **Step 6: Commit**
 
 ```bash
-git add chronicler-agents/src/named_characters.rs
+git add chronicler-agents/src/named_characters.rs chronicler-agents/src/ffi.rs
 git commit -m "feat(m39): add parent_id to NamedCharacter and register()"
 ```
 
@@ -654,7 +654,7 @@ class TestDynastySplit:
         named_agents = {10: "Kiran"}
         gp_map = {10: parent, 20: child}
         registry.check_promotion(child, named_agents, gp_map)
-        registry.check_splits(gp_map)  # first fire
+        registry.check_splits(gp_map, turn=99)  # first fire
         events = registry.check_splits(gp_map, turn=100)  # second call
         assert len(events) == 0  # one-shot: no re-fire
 
