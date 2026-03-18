@@ -178,6 +178,61 @@ def accumulate_stockpile(
         goods[good] = max(current + (produced - exported) + imported, 0.0)
 
 
+def derive_food_sufficiency_from_stockpile(
+    goods: dict[str, float],
+    food_demand: float,
+) -> float:
+    """Derive food_sufficiency from pre-consumption stockpile. Clamped [0.0, 2.0].
+
+    Computed BEFORE demand drawdown (Decision 9). Sum all food goods including salt.
+    """
+    total_food = sum(goods.get(g, 0.0) for g in FOOD_GOODS)
+    d = max(food_demand, _SUPPLY_FLOOR)
+    return max(0.0, min(total_food / d, 2.0))
+
+
+def consume_from_stockpile(
+    goods: dict[str, float],
+    food_demand: float,
+) -> float:
+    """Draw food demand from stockpile proportional to composition. Mutates in place.
+
+    Clamped: consumption per good can't exceed available stockpile.
+    Returns total consumed (for conservation law verification).
+    """
+    total_food = sum(goods.get(g, 0.0) for g in FOOD_GOODS)
+    if total_food <= 0.0 or food_demand <= 0.0:
+        return 0.0
+    total_consumed = 0.0
+    for good in FOOD_GOODS:
+        amount = goods.get(good, 0.0)
+        if amount <= 0.0:
+            continue
+        share = amount / total_food
+        demand_for_good = food_demand * share
+        consumed = min(demand_for_good, amount)
+        goods[good] = amount - consumed
+        total_consumed += consumed
+    return total_consumed
+
+
+def apply_stockpile_cap(
+    goods: dict[str, float],
+    population: int,
+) -> float:
+    """Cap each good at PER_GOOD_CAP_FACTOR * population. Mutates in place.
+
+    Returns total overflow (for conservation law verification).
+    """
+    cap = PER_GOOD_CAP_FACTOR * population
+    total_overflow = 0.0
+    for good in list(goods.keys()):
+        if goods[good] > cap:
+            total_overflow += goods[good] - cap
+            goods[good] = cap
+    return total_overflow
+
+
 def compute_transport_cost(
     terrain_a: str,
     terrain_b: str,

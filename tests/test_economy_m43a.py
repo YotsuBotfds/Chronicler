@@ -264,3 +264,75 @@ def test_accumulate_stockpile_export_only():
     goods = {"grain": 5.0}
     accumulate_stockpile(goods, production={"grain": 10.0}, exports={"grain": 15.0}, imports={})
     assert abs(goods["grain"] - 0.0) < 0.01
+
+
+# --- Task 9: food_sufficiency from stockpile + consumption + cap ---
+
+from chronicler.economy import (
+    derive_food_sufficiency_from_stockpile,
+    consume_from_stockpile,
+    apply_stockpile_cap,
+    PER_GOOD_CAP_FACTOR,
+)
+
+
+def test_food_sufficiency_from_stockpile_equilibrium():
+    goods = {"grain": 50.0}
+    result = derive_food_sufficiency_from_stockpile(goods, 50.0)
+    assert abs(result - 1.0) < 0.01
+
+
+def test_food_sufficiency_from_stockpile_surplus():
+    goods = {"grain": 200.0}
+    result = derive_food_sufficiency_from_stockpile(goods, 50.0)
+    assert result == 2.0
+
+
+def test_food_sufficiency_from_stockpile_deficit():
+    goods = {"grain": 25.0}
+    result = derive_food_sufficiency_from_stockpile(goods, 50.0)
+    assert abs(result - 0.5) < 0.01
+
+
+def test_food_sufficiency_empty_stockpile():
+    goods = {}
+    result = derive_food_sufficiency_from_stockpile(goods, 50.0)
+    assert result == 0.0
+
+
+def test_food_sufficiency_includes_salt():
+    goods = {"salt": 50.0}
+    result = derive_food_sufficiency_from_stockpile(goods, 50.0)
+    assert abs(result - 1.0) < 0.01
+
+
+def test_consume_from_stockpile_proportional():
+    goods = {"grain": 60.0, "fish": 40.0}
+    consume_from_stockpile(goods, food_demand=50.0)
+    assert abs(goods["grain"] - 30.0) < 0.01
+    assert abs(goods["fish"] - 20.0) < 0.01
+
+
+def test_consume_from_stockpile_clamped():
+    goods = {"grain": 10.0}
+    consume_from_stockpile(goods, food_demand=50.0)
+    assert goods["grain"] == 0.0
+
+
+def test_consume_from_stockpile_empty():
+    goods = {}
+    consume_from_stockpile(goods, food_demand=50.0)
+
+
+def test_stockpile_cap():
+    goods = {"grain": 1000.0, "timber": 5.0}
+    apply_stockpile_cap(goods, population=10)
+    expected_cap = PER_GOOD_CAP_FACTOR * 10
+    assert goods["grain"] == expected_cap
+    assert goods["timber"] == 5.0
+
+
+def test_stockpile_cap_zero_population():
+    goods = {"grain": 100.0}
+    apply_stockpile_cap(goods, population=0)
+    assert goods["grain"] == 0.0
