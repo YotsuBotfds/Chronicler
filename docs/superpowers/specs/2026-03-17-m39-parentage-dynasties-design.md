@@ -121,7 +121,7 @@ Follows existing pattern — every pool field is already exposed as an Arrow col
 ### Promotions RecordBatch (`ffi.rs`, `promotions_schema`)
 
 New column:
-- `Field::new("parent_id", DataType::UInt32, false)` — read from `pool.parent_ids[slot]` in the `get_promotions()` loop.
+- `Field::new("parent_id", DataType::UInt32, false)` — read from `NamedCharacter.parent_id` in the `get_promotions()` loop (which iterates `self.registry.characters`, not pool slots directly). The value originates from `pool.parent_ids[slot]` at `register()` time.
 
 Python receives `parent_id` on the promotions batch, stores it on the `GreatPerson` record.
 
@@ -229,7 +229,7 @@ No new narrator prompt structure. Dynasty info is folded into the existing chara
 
 - `pool.rs`: `parent_ids` initialized to `PARENT_NONE` on spawn, set correctly on birth.
 - `pool.rs`: Assert `next_id` starts at 1 after the sentinel fix (first agent id == 1, not 0).
-- `tick.rs`: `BirthInfo.parent_id` carries parent's agent ID, not slot index.
+- `tick.rs`: `BirthInfo.parent_id` carries parent's agent ID, not slot index. **Implementation note:** This also covers the same-turn parent death + child birth scenario — deaths are processed before births in the sequential phase (tick.rs:220-227 then 240-269), so the child's slot may be the parent's recycled slot. Safe because `parent_id` is the stable agent ID captured during the parallel phase, not the slot index.
 - `tick.rs`: **Path divergence test** — verify initial spawn agents get `parent_id = PARENT_NONE` AND use `assign_personality(civ_mean)`, while birth agents get `parent_id = mother.agent_id` AND use `inherit_personality(parent_personality)`. Single test covering the conditional dispatch fork.
 - `demographics.rs`: `inherit_personality` produces values clustered tighter around parent than `assign_personality` around civ mean (statistical: run 1000 samples, compare variance).
 - `named_characters.rs`: `parent_id` populated on `register()`, `NamedCharacter` carries correct parent ID.
