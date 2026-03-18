@@ -59,6 +59,12 @@ SCHISM_NEUTRAL_POLE_MAP = {
     DOCTRINE_ETHICS: 1,
 }
 
+# M38b: Pilgrimages
+PILGRIMAGE_DURATION_MIN = 5
+PILGRIMAGE_DURATION_MAX = 10
+PILGRIMAGE_SKILL_BOOST = 0.10
+LIFE_EVENT_PILGRIMAGE = 1 << 7  # 128
+
 # ---------------------------------------------------------------------------
 # Doctrine bias table
 # ---------------------------------------------------------------------------

@@ -449,6 +449,7 @@ def resolve_war(
     if att_power > def_power * 1.3:
         if contested:
             contested.controller = attacker.name
+            contested.last_conquered_turn = world.turn
             attacker.regions.append(contested.name)
             defender.regions = [r for r in defender.regions if r != contested.name]
             # Scorched earth check
