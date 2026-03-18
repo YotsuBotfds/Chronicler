@@ -17,6 +17,7 @@ mod tick;
 pub mod named_characters;
 pub mod culture_tick;
 pub mod conversion_tick;
+pub mod social;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
@@ -31,6 +32,8 @@ pub use region::RegionState;
 pub use tick::{tick_agents, AgentEvent};
 #[doc(hidden)]
 pub use named_characters::{CharacterRole, NamedCharacterRegistry};
+#[doc(hidden)]
+pub use social::{RelationshipType, SocialEdge, SocialGraph};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
