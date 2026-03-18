@@ -134,7 +134,7 @@ git commit -m "feat(m43b): add ShockContext model, Event shock metadata, AgentCo
 ### Task 2: Add EconomyResult fields and inbound_sources tracking
 
 **Files:**
-- Modify: `src/chronicler/economy.py:276-293` (EconomyResult class), `src/chronicler/economy.py:674-680` (trade flow loop)
+- Modify: `src/chronicler/economy.py:276-293` (EconomyResult class), `src/chronicler/economy.py:668-680` (trade flow loop)
 - Test: `tests/test_economy_m43b.py`
 
 - [ ] **Step 1: Write tests for new EconomyResult fields**
@@ -214,7 +214,7 @@ git commit -m "feat(m43b): add EconomyResult fields and CATEGORY_GOODS constant"
 ### Task 3: Wire inbound_sources, imports_by_region, stockpile_levels, import_share, trade_dependent into compute_economy()
 
 **Files:**
-- Modify: `src/chronicler/economy.py:674-680` (trade flow accumulation loop), `src/chronicler/economy.py:737-767` (stockpile sub-sequence), `src/chronicler/economy.py:808-814` (signal derivation)
+- Modify: `src/chronicler/economy.py:668-680` (trade flow accumulation loop), `src/chronicler/economy.py:737-767` (stockpile sub-sequence), `src/chronicler/economy.py:808-814` (signal derivation)
 - Test: `tests/test_economy_m43b.py`
 
 - [ ] **Step 1: Write tests for inbound_sources and trade dependency**
@@ -269,7 +269,7 @@ In `src/chronicler/economy.py`, in the trade flow accumulation loop (around line
                         result.inbound_sources[dest].append(origin_name)
 ```
 
-This goes right after the existing `region_exports`/`region_imports` accumulation loop (lines 674-680). Can be merged into the same loop body for efficiency.
+This goes right after the existing `region_exports`/`region_imports` accumulation loop (lines 668-680). Can be merged into the same loop body for efficiency.
 
 - [ ] **Step 4: Wire imports_by_region, stockpile_levels, import_share, trade_dependent**
 
@@ -735,7 +735,7 @@ git commit -m "feat(m43b): implement detect_supply_shocks() and classify_upstrea
 ### Task 6: Implement raider WAR modifier in compute_weights()
 
 **Files:**
-- Modify: `src/chronicler/action_engine.py:773` (after holy war modifier)
+- Modify: `src/chronicler/action_engine.py:777` (after holy war modifier, before streak-breaker and 2.5x cap)
 - Modify: `src/chronicler/economy.py` (add `_get_adjacent_enemy_regions()`, raider constants)
 - Test: `tests/test_economy_m43b.py`
 
@@ -902,7 +902,7 @@ Add to `tests/test_economy_m43b.py`:
 ```python
 def test_raider_modifier_in_compute_weights():
     """Integration: raider bonus added to WAR weight when adjacent enemy has large stockpile."""
-    from chronicler.action_engine import ActionSelector
+    from chronicler.action_engine import ActionEngine
     from chronicler.economy import RAIDER_THRESHOLD, RAIDER_WAR_WEIGHT
 
     world, rome, persia = _make_world_with_enemy_stockpile()
@@ -927,14 +927,14 @@ def test_raider_modifier_in_compute_weights():
     rome.military = 50
     rome.economy = 50
 
-    selector = ActionSelector(world)
-    weights_with = selector.compute_weights(rome)
+    engine = ActionEngine(world)
+    weights_with = engine.compute_weights(rome)
     war_weight_with = weights_with.get(ActionType.WAR, 0)
 
     # Remove economy_result — raider block should be skipped
     world._economy_result = None
-    selector2 = ActionSelector(world)
-    weights_without = selector2.compute_weights(rome)
+    engine2 = ActionEngine(world)
+    weights_without = engine2.compute_weights(rome)
     war_weight_without = weights_without.get(ActionType.WAR, 0)
 
     assert war_weight_with > war_weight_without
@@ -947,7 +947,7 @@ Expected: FAIL — raider block not in compute_weights yet
 
 - [ ] **Step 3: Add raider modifier block to compute_weights()**
 
-In `src/chronicler/action_engine.py`, after the holy war modifier block (after line 773, the `break` at the end of the holy war section), add:
+In `src/chronicler/action_engine.py`, after the holy war modifier block (after line 777, the `break` at the end of the holy war section, before the streak-breaker at line 779 and before the 2.5x cap at line 789). Must be inserted before the cap so the raider bonus is subject to the cross-cutting 2.5x weight cap rule. Add:
 
 ```python
         # M43b: Raider incentive — wealthy adjacent enemy stockpiles attract WAR
@@ -1200,9 +1200,8 @@ Then in the Phase 2 economy block (after line 1217, `agent_bridge.set_economy_re
             world, stockpiles, economy_tracker, economy_result, region_map,
         )
         turn_events.extend(shock_events)
-
-        # M43b: Store economy_result for Phase 8 raider modifier
-        world._economy_result = economy_result
+        # Note: world._economy_result is already set at simulation.py:1292
+        # by the existing M42 wiring. No duplicate assignment needed here.
 ```
 
 - [ ] **Step 3: Run full test suite**
