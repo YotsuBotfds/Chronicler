@@ -165,14 +165,15 @@ def compute_majority_belief(snapshot) -> dict[int, int]:
     return result
 
 
-def compute_civ_majority_faith(snapshot) -> dict[int, int]:
+def compute_civ_majority_faith(snapshot) -> dict[int, tuple[int, float]]:
     """Compute the majority faith per civ from an agent snapshot.
 
     Args:
         snapshot: PyArrow RecordBatch with 'civ_affinity' (uint16) and 'belief' (uint8) columns.
 
     Returns:
-        dict mapping civ_id → majority_faith_id.  Ties break to the lower faith_id.
+        dict mapping civ_id → (majority_faith_id, ratio).  Ties break to the lower faith_id.
+        ratio = max_count / total_agents_in_civ (agents with valid belief).
     """
     if snapshot is None or snapshot.num_rows == 0:
         return {}
@@ -188,13 +189,16 @@ def compute_civ_majority_faith(snapshot) -> dict[int, int]:
             counts[civ_id] = Counter()
         counts[civ_id][faith_id] += 1
 
-    result: dict[int, int] = {}
+    result: dict[int, tuple[int, float]] = {}
     for civ_id, faith_counts in counts.items():
         if not faith_counts:
             continue
+        total = sum(faith_counts.values())
         max_count = max(faith_counts.values())
         winners = [fid for fid, cnt in faith_counts.items() if cnt == max_count]
-        result[civ_id] = min(winners)
+        majority_faith_id = min(winners)
+        ratio = max_count / total if total > 0 else 0.0
+        result[civ_id] = (majority_faith_id, ratio)
 
     return result
 

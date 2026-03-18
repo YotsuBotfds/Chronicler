@@ -258,6 +258,9 @@ def generate_world(
         civ_values = [c.values for c in world.civilizations]
         civ_names = [c.name for c in world.civilizations]
         world.belief_registry = generate_faiths(civ_values, civ_names, seed=world.seed)
+        # M38b: Seed previous_majority_faith from founding faith
+        for civ in world.civilizations:
+            civ.previous_majority_faith = civ.civ_majority_faith
 
     return world
 

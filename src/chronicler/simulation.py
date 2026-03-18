@@ -832,17 +832,21 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
             compute_persecution, compute_martyrdom_boosts,
         )
         majority_beliefs = compute_majority_belief(_snap)
-        civ_faiths = compute_civ_majority_faith(_snap)
+        civ_majority_with_ratio = compute_civ_majority_faith(_snap)
 
         # Store majority_belief on regions
         for rid, maj in majority_beliefs.items():
             if rid < len(world.regions):
                 world.regions[rid].majority_belief = maj
 
-        # Store civ_majority_faith on civilizations
-        for cid, faith in civ_faiths.items():
-            if cid < len(world.civilizations):
-                world.civilizations[cid].civ_majority_faith = faith
+        # Store civ_majority_faith and ratio on civilizations
+        for cid, civ in enumerate(world.civilizations):
+            entry = civ_majority_with_ratio.get(cid)
+            if entry is not None:
+                civ.civ_majority_faith, civ._majority_faith_ratio = entry
+
+        # Build plain faith-id dict for downstream callers
+        civ_faiths = {cid: faith_id for cid, (faith_id, _ratio) in civ_majority_with_ratio.items()}
 
         # Build civ lookup for conversion signal computation
         civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
