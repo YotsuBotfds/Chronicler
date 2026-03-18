@@ -174,6 +174,12 @@ class RegionEcology(BaseModel):
     forest_cover: float = Field(default=0.3, ge=0.0, le=1.0)
 
 
+class RegionStockpile(BaseModel):
+    """Persistent per-region per-good stockpile. Keys are good names (grain, timber, etc.)."""
+
+    goods: dict[str, float] = Field(default_factory=dict)
+
+
 class River(BaseModel):
     name: str
     path: list[str] = Field(min_length=2)
@@ -193,6 +199,7 @@ class Region(BaseModel):
     adjacencies: list[str] = Field(default_factory=list)
     specialized_resources: list[Resource] = Field(default_factory=list)
     ecology: RegionEcology = Field(default_factory=RegionEcology)
+    stockpile: RegionStockpile = Field(default_factory=RegionStockpile)
     low_forest_turns: int = 0
     forest_regrowth_turns: int = 0
     infrastructure: list[Infrastructure] = Field(default_factory=list)
