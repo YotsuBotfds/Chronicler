@@ -11,6 +11,12 @@ from chronicler.relationships import (
     capture_hostage,
     tick_hostages,
     release_hostage,
+    dissolve_edges,
+    REL_MENTOR,
+    REL_RIVAL,
+    REL_MARRIAGE,
+    REL_EXILE_BOND,
+    REL_CORELIGIONIST,
 )
 
 
@@ -313,6 +319,56 @@ def test_release_hostage_moves_to_origin(make_world):
 
 
 # --- M40: Social Networks ---
+
+# --- Task 6: dissolve_edges ---
+
+def test_dissolve_edges_death_removes_edge():
+    edges = [(100, 200, REL_RIVAL, 50)]
+    active_agent_ids = {200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 0
+    assert len(dissolved) == 1
+
+
+def test_dissolve_edges_both_alive_survives():
+    edges = [(100, 200, REL_RIVAL, 50)]
+    active_agent_ids = {100, 200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 1
+    assert len(dissolved) == 0
+
+
+def test_dissolve_edges_coreligionist_belief_divergence():
+    edges = [(100, 200, REL_CORELIGIONIST, 50)]
+    active_agent_ids = {100, 200}
+    belief_by_agent = {100: 1, 200: 2}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids, belief_by_agent=belief_by_agent)
+    assert len(surviving) == 0
+    assert len(dissolved) == 1
+
+
+def test_dissolve_edges_coreligionist_same_belief_survives():
+    edges = [(100, 200, REL_CORELIGIONIST, 50)]
+    active_agent_ids = {100, 200}
+    belief_by_agent = {100: 1, 200: 1}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids, belief_by_agent=belief_by_agent)
+    assert len(surviving) == 1
+    assert len(dissolved) == 0
+
+
+def test_dissolve_edges_exile_bond_only_death():
+    edges = [(100, 200, REL_EXILE_BOND, 50)]
+    active_agent_ids = {100, 200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 1
+
+
+def test_dissolve_edges_marriage_survives_war():
+    edges = [(100, 200, REL_MARRIAGE, 50)]
+    active_agent_ids = {100, 200}
+    surviving, dissolved = dissolve_edges(edges, active_agent_ids)
+    assert len(surviving) == 1
+
 
 def test_great_person_origin_region_defaults_none():
     gp = GreatPerson(

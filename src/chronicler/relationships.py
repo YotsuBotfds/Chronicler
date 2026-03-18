@@ -5,6 +5,41 @@ import random
 
 from chronicler.models import GreatPerson, WorldState
 
+# M40: Relationship type constants (match Rust RelationshipType repr(u8))
+REL_MENTOR = 0
+REL_RIVAL = 1
+REL_MARRIAGE = 2
+REL_EXILE_BOND = 3
+REL_CORELIGIONIST = 4
+
+
+def dissolve_edges(
+    edges: list[tuple],
+    active_agent_ids: set[int],
+    belief_by_agent: dict[int, int] | None = None,
+) -> tuple[list[tuple], list[tuple]]:
+    """Dissolve stale edges. Returns (surviving, dissolved).
+
+    Dissolution rules:
+    - All types: dissolve if either party not in active_agent_ids (death)
+    - CoReligionist: also dissolve if beliefs now differ
+    """
+    surviving = []
+    dissolved = []
+    for edge in edges:
+        agent_a, agent_b, rel_type, formed_turn = edge
+        if agent_a not in active_agent_ids or agent_b not in active_agent_ids:
+            dissolved.append(edge)
+            continue
+        if rel_type == REL_CORELIGIONIST and belief_by_agent is not None:
+            belief_a = belief_by_agent.get(agent_a)
+            belief_b = belief_by_agent.get(agent_b)
+            if belief_a is not None and belief_b is not None and belief_a != belief_b:
+                dissolved.append(edge)
+                continue
+        surviving.append(edge)
+    return surviving, dissolved
+
 
 # --- Rivalry ---
 
