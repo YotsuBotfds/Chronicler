@@ -130,6 +130,16 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
                 prob += 0.05
                 break
 
+        # M38b: Religious faith mismatch raises secession probability
+        from chronicler.religion import SCHISM_SECESSION_MODIFIER
+        region_map = {r.name: r for r in world.regions}
+        civ_faith = getattr(civ, "civ_majority_faith", 0xFF)
+        for region_name in civ.regions:
+            region_obj = region_map.get(region_name)
+            if region_obj is not None and region_obj.majority_belief != civ_faith:
+                prob += SCHISM_SECESSION_MODIFIER / 100
+                break  # one modifier per civ per turn
+
         rng = random.Random(world.seed + world.turn + hash(civ.name))
         if rng.random() >= prob:
             continue
