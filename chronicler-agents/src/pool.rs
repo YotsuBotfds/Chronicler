@@ -45,6 +45,8 @@ pub struct AgentPool {
     pub cultural_value_2: Vec<u8>,   // Tertiary (base drift rate)
     // Belief (M37)—indexes into Python-side belief_registry
     pub beliefs: Vec<u8>,
+    // Parentage (M39) — stable agent_id of biological parent
+    pub parent_ids: Vec<u32>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -79,6 +81,7 @@ impl AgentPool {
             cultural_value_1: Vec::with_capacity(capacity),
             cultural_value_2: Vec::with_capacity(capacity),
             beliefs: Vec::with_capacity(capacity),
+            parent_ids: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -129,6 +132,7 @@ impl AgentPool {
             self.cultural_value_1[slot] = cultural_value_1;
             self.cultural_value_2[slot] = cultural_value_2;
             self.beliefs[slot] = belief;
+            self.parent_ids[slot] = crate::agent::PARENT_NONE;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -156,6 +160,7 @@ impl AgentPool {
             self.cultural_value_1.push(cultural_value_1);
             self.cultural_value_2.push(cultural_value_2);
             self.beliefs.push(belief);
+            self.parent_ids.push(crate::agent::PARENT_NONE);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -311,6 +316,10 @@ impl AgentPool {
     #[inline]
     pub fn is_named(&self, slot: usize) -> bool {
         self.life_events[slot] & crate::agent::IS_NAMED != 0
+    }
+    #[inline]
+    pub fn parent_id(&self, slot: usize) -> u32 {
+        self.parent_ids[slot]
     }
 
     // --- Skill (M26) ---
@@ -1082,5 +1091,18 @@ mod tests {
         let slot2 = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 7);
         assert_eq!(slot, slot2);
         assert_eq!(pool.beliefs[slot2], 7);
+    }
+
+    #[test]
+    fn test_parent_id_defaults_to_none() {
+        let mut pool = AgentPool::new(4);
+        let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        assert_eq!(pool.parent_id(s0), crate::agent::PARENT_NONE);
+
+        // Kill and reuse slot — parent_id should reset to PARENT_NONE
+        pool.kill(s0);
+        let s1 = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        assert_eq!(s1, s0); // reused slot
+        assert_eq!(pool.parent_id(s1), crate::agent::PARENT_NONE);
     }
 }
