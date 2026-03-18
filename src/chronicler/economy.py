@@ -680,6 +680,8 @@ def compute_economy(
                 region_imports[dest][cat] += amount
 
     # M43a: Decompose category-level flows to per-good with transit decay
+    # Pre-seed with empty dicts for all known regions; import targets may include
+    # regions outside region_production (handled by setdefault in the loop below).
     region_per_good_imports: dict[str, dict[str, float]] = {rname: {} for rname in region_production}
     region_per_good_exports: dict[str, dict[str, float]] = {}
     region_per_good_production: dict[str, dict[str, float]] = {}
@@ -702,7 +704,11 @@ def compute_economy(
         else:
             region_per_good_exports[rname] = {}
 
-    # Per-good imports with transit decay (per-route, per-good, decay before aggregate)
+    # Per-good imports with transit decay (per-route, per-good, decay before aggregate).
+    # NOTE: Only decomposes flows matching the origin's primary resource category.
+    # Non-primary-category flows (if any) are silently dropped. Correct today due to
+    # single-resource-slot constraint (M41 Decision 14). A future multi-slot milestone
+    # would need to decompose across all production categories to maintain conservation.
     for origin_name, route_flows_for_origin in all_route_flows.items():
         origin_region = region_map.get(origin_name)
         if origin_region is None or origin_region.resource_types[0] == 255:
