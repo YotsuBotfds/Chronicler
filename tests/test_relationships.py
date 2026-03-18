@@ -101,56 +101,69 @@ def test_rivalry_not_duplicated_edge(make_world):
     assert len(formed) == 0
 
 
-# --- Task 16: Mentorships ---
+# --- Task 8: Mentorships (edge tuples) ---
 
-def test_mentorship_forms_with_compatible_traits(make_world):
+def test_mentorship_forms_same_occupation_skill_gap(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = "conqueror"
     civ.great_persons = [
-        GreatPerson(
-            name="OldGeneral", role="general", trait="bold",
-            civilization=civ.name, origin_civilization=civ.name, born_turn=0,
-        )
+        GreatPerson(name="OldGen", role="general", trait="bold",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=0, source="agent", agent_id=100, region="Civ0_region"),
+        GreatPerson(name="YoungGen", role="general", trait="cautious",
+                    civilization=civ.name, origin_civilization=civ.name,
+                    born_turn=50, source="agent", agent_id=200, region="Civ0_region"),
     ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 1
-    assert formed[0]["type"] == "mentorship"
+    agent_a, agent_b, rel_type, _ = formed[0]
+    assert rel_type == REL_MENTOR
+    assert agent_a == 100  # mentor (senior)
+    assert agent_b == 200  # apprentice
 
 
-def test_mentorship_not_formed_incompatible_trait(make_world):
+def test_mentorship_requires_same_region(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = "diplomat"
     civ.great_persons = [
-        GreatPerson(name="OldGeneral", role="general", trait="bold", civilization=civ.name, origin_civilization=civ.name, born_turn=0)
+        GreatPerson(name="A", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=0, source="agent",
+                    agent_id=100, region="Region1"),
+        GreatPerson(name="B", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=50, source="agent",
+                    agent_id=200, region="Region2"),
     ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 0
 
 
-def test_mentorship_not_formed_no_secondary_trait(make_world):
+def test_mentorship_requires_same_role(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = None
     civ.great_persons = [
-        GreatPerson(name="OldGeneral", role="general", trait="bold", civilization=civ.name, origin_civilization=civ.name, born_turn=0)
+        GreatPerson(name="A", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=0, source="agent",
+                    agent_id=100, region="R1"),
+        GreatPerson(name="B", role="merchant", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=50, source="agent",
+                    agent_id=200, region="R1"),
     ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 0
 
 
-def test_mentorship_not_duplicated(make_world):
+def test_mentorship_skips_aggregate(make_world):
     world = make_world(num_civs=1, seed=42)
     civ = world.civilizations[0]
-    civ.leader.secondary_trait = "conqueror"
     civ.great_persons = [
-        GreatPerson(name="OldGeneral", role="general", trait="bold", civilization=civ.name, origin_civilization=civ.name, born_turn=0)
+        GreatPerson(name="A", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=0, source="aggregate",
+                    agent_id=None, region="R1"),
+        GreatPerson(name="B", role="general", trait="bold", civilization=civ.name,
+                    origin_civilization=civ.name, born_turn=50, source="agent",
+                    agent_id=200, region="R1"),
     ]
-    world.character_relationships = [
-        {"type": "mentorship", "person_a": "OldGeneral", "person_b": civ.leader.name, "civ_a": civ.name, "civ_b": civ.name, "formed_turn": 0}
-    ]
-    formed = check_mentorship_formation(world)
+    formed = check_mentorship_formation(world, [])
     assert len(formed) == 0
 
 

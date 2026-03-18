@@ -88,38 +88,45 @@ def dissolve_dead_relationships(world: WorldState, dead_names: set) -> list[dict
 
 # --- Mentorship ---
 
-MENTORSHIP_COMPATIBLE: dict[str, set] = {
-    "general": {"conqueror", "warlike"},
-    "scientist": {"builder", "merchant"},
-}
+def check_mentorship_formation(world: WorldState, existing_edges: list[tuple]) -> list[tuple]:
+    """Form mentorships between agent-source named characters with same role, co-located.
+    Mentor = agent_a (senior by born_turn), apprentice = agent_b.
+    born_turn is used as seniority proxy for skill gap.
+    """
+    new_edges = []
+    mentored = set()
+    for e in existing_edges:
+        if e[2] == REL_MENTOR:
+            mentored.add(e[0])
+            mentored.add(e[1])
 
-
-def check_mentorship_formation(world: WorldState) -> list[dict]:
-    """Form mentorships between a great person and a leader with compatible secondary trait."""
-    new_mentorships = []
-    existing_mentored = {r["person_b"] for r in world.character_relationships if r["type"] == "mentorship"}
+    candidates = []
     for civ in world.civilizations:
-        if not civ.leader or not civ.leader.secondary_trait:
-            continue
-        if civ.leader.name in existing_mentored:
-            continue
         for gp in civ.great_persons:
-            if not gp.active or gp.role in ("exile", "hostage"):
+            if not gp.active or gp.agent_id is None or gp.role in ("exile", "hostage"):
                 continue
-            compatible = MENTORSHIP_COMPATIBLE.get(gp.role, set())
-            if civ.leader.secondary_trait in compatible:
-                rel = {
-                    "type": "mentorship",
-                    "person_a": gp.name,
-                    "person_b": civ.leader.name,
-                    "civ_a": civ.name,
-                    "civ_b": civ.name,
-                    "formed_turn": world.turn,
-                }
-                world.character_relationships.append(rel)
-                new_mentorships.append(rel)
-                break
-    return new_mentorships
+            if gp.agent_id in mentored:
+                continue
+            candidates.append(gp)
+
+    candidates.sort(key=lambda gp: gp.born_turn)
+    paired = set()
+    for i, senior in enumerate(candidates):
+        if senior.agent_id in paired:
+            continue
+        for junior in candidates[i + 1:]:
+            if junior.agent_id in paired:
+                continue
+            if senior.role != junior.role:
+                continue
+            if senior.region != junior.region or senior.region is None:
+                continue
+            edge = (senior.agent_id, junior.agent_id, REL_MENTOR, world.turn)
+            new_edges.append(edge)
+            paired.add(senior.agent_id)
+            paired.add(junior.agent_id)
+            break
+    return new_edges
 
 
 # --- Marriage Alliance ---
