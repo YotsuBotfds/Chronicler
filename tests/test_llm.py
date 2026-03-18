@@ -98,7 +98,8 @@ class TestAnthropicClient:
     def test_complete_calls_anthropic_api(self):
         mock_sdk = MagicMock()
         mock_sdk.messages.create.return_value = MagicMock(
-            content=[MagicMock(text="The empire rose from the ashes...")]
+            content=[MagicMock(text="The empire rose from the ashes...")],
+            usage=MagicMock(input_tokens=0, output_tokens=0),
         )
         client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
 
