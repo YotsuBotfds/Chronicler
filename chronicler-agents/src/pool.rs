@@ -386,7 +386,7 @@ impl AgentPool {
         let mut cultural_value_2_col = UInt8Builder::with_capacity(live);
         let mut belief_col = UInt8Builder::with_capacity(live);
         let mut parent_id_col = UInt32Builder::with_capacity(live);
-        let mut wealth_col = Float32Builder::new();
+        let mut wealth_col = Float32Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {

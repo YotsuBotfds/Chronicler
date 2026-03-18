@@ -1002,7 +1002,7 @@ mod m41_tests {
     use super::*;
     use crate::agent::{self, STARTING_WEALTH, FARMER_INCOME, MINER_INCOME,
         SOLDIER_INCOME, AT_WAR_BONUS, CONQUEST_BONUS, MERCHANT_INCOME,
-        MERCHANT_BASELINE, SCHOLAR_INCOME, PRIEST_INCOME, WEALTH_DECAY, MAX_WEALTH};
+        MERCHANT_BASELINE, WEALTH_DECAY, MAX_WEALTH};
     use crate::region::RegionState;
     use crate::signals::{CivSignals, TickSignals};
 
