@@ -31,12 +31,13 @@ The two-client architecture is already clean: `sim_client` stays local (free, hi
 
 ### Validation Block (in `main()`, before any dispatch)
 
-All validation runs before the simulation loop or `_run_narrate()` dispatch:
+All validation runs before any dispatch — critically, **above the `_run_narrate()` early return** in `main()`. The `--narrate` path currently early-returns before the general validation block, so these checks must precede it:
 
 1. **`--narrator api` + `--simulate-only`** — contradictory, argument error, exit.
 2. **`--narrator api` + `--live`** — API latency incompatible with WebSocket live mode, argument error, exit.
 3. **`--narrator api` + `import anthropic` fails** — error: `"--narrator api requires the anthropic package. Install with: pip install chronicler[api]"`, exit.
 4. **`--narrator api` + `ANTHROPIC_API_KEY` not in `os.environ`** — error: `"--narrator api requires ANTHROPIC_API_KEY environment variable"`, exit.
+5. **`--narrator api` + `--batch --parallel`** — parallel workers can't share API clients or token tracking, argument error, exit.
 
 ### `--narrative-model` Interaction
 
@@ -108,8 +109,9 @@ Written in both paths:
 1. `NarrativeEngine(sim_client=local_client, narrative_client=anthropic_client)` — API client lives on the engine.
 2. Simulation loop: per-turn narrator callback is `lambda w, e: ""` (noop). No per-turn prose, no API calls during simulation.
 3. **After simulation loop, before `agent_bridge.close()`:** curator selects moments from accumulated history/events, then `engine.narrate_batch()` narrates curated moments via `AnthropicClient`.
-4. Positioning before bridge close preserves the option to thread agent context (social edges, agent name map, gini) into narration in a future milestone. For M44, agent context matches `_run_narrate()` level (limited — pre-existing gap, not M44 scope).
-5. Chronicle entries come from curated narration. Token summary printed after narration completes.
+4. **Curated entries replace the per-turn list.** The simulation loop builds `chronicle_entries` with `narrative=""` (from the noop lambda). The curated `narrate_batch()` output replaces this list before `assemble_bundle()` is called — the empty per-turn entries have no value. `gap_summaries` from `curate()` are threaded into `assemble_bundle()` (which already accepts `gap_summaries: list[GapSummary] | None`).
+5. Positioning before bridge close preserves the option to thread agent context (social edges, agent name map, gini) into narration in a future milestone. For M44, agent context matches `_run_narrate()` level (limited — pre-existing gap, not M44 scope).
+6. Token summary printed after narration completes.
 
 ### `execute_run()` with `--narrator local` (default)
 
@@ -121,7 +123,7 @@ Unchanged flow — loads bundle, curates, narrates. Uses `AnthropicClient` inste
 
 ### `--narrator api` + `--batch`
 
-Each seed in the batch runs the API-mode `execute_run()` path. Token tracking accumulates across seeds on the shared `AnthropicClient` instance. Summary printed at end of batch.
+Each seed in the batch runs the API-mode `execute_run()` path. In **sequential batch** mode, the shared `AnthropicClient` instance accumulates tokens across seeds; summary printed at end of batch. In **parallel batch** mode (`--parallel`), `multiprocessing.Pool` workers don't share client objects — each worker would need its own `AnthropicClient`, and per-worker token counts are lost when the process exits. `--narrator api` + `--batch --parallel` should be a validation error (parallel batch is for simulation throughput; API narration adds latency that defeats the purpose).
 
 ---
 
@@ -235,6 +237,10 @@ No new error handling needed — `narrate_batch()` already wraps each `complete(
 
 Entirely Python-side. No FFI, no agent pool, no satisfaction formula changes.
 
+### No 200-Seed Simulation Regression
+
+M44 does not change simulation mechanics. The `--agents=off` bit-identical guarantee is unaffected. Simulation output is unchanged regardless of narrator mode. The 20-seed quality comparison is the appropriate validation for this milestone.
+
 ---
 
 ## 9. Testing Strategy
@@ -244,7 +250,7 @@ Entirely Python-side. No FFI, no agent pool, no satisfaction formula changes.
 - `AnthropicClient` token accumulation (mock API response with usage fields).
 - `create_clients(narrator="api")` returns `AnthropicClient` as narrative client.
 - `create_clients(narrator="local")` returns `LocalNarrativeClient` (unchanged behavior).
-- Validation error cases: `--narrator api` + `--simulate-only`, `--narrator api` + `--live`.
+- Validation error cases: `--narrator api` + `--simulate-only`, `--narrator api` + `--live`, `--narrator api` + `--batch --parallel`.
 
 ### Integration Tests
 
@@ -285,3 +291,6 @@ The 200-seed regression scenario is a user error — regression tests simulation
 | 8 | ERA_REGISTER experiment is pre-M44 | Prompt design decision should be data-driven before implementation, not discovered after. Four conditions (Claude/local x full/light) give a complete decision matrix. |
 | 9 | Quality comparison uses `_run_narrate()` for both | Same pipeline, same prompts, isolated model variable. `execute_run()` comparison is confounded (different prompt paths). |
 | 10 | `--narrator api` + `--live` is validation error | API latency incompatible with WebSocket real-time feed. |
+| 11 | Curated entries replace per-turn empty entries | In API mode, the noop lambda produces `narrative=""` per turn. Curated `narrate_batch()` output replaces this list before `assemble_bundle()`. Empty entries have no value. (Phoebe B-1) |
+| 12 | Validation above `_run_narrate()` early return | The `--narrate` path early-returns before the general validation block. API checks must precede it to avoid stack traces instead of clean messages. (Phoebe NB-1) |
+| 13 | `--narrator api` + `--batch --parallel` is validation error | Parallel workers can't share `AnthropicClient` or token tracking. Per-worker token counts lost on process exit. (Phoebe NB-2) |
