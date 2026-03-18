@@ -45,7 +45,9 @@ All fields have `None` defaults. Existing Pydantic serialization carries them in
 
 ### M38b Migration
 
-`check_pilgrimages()` (great_persons.py:368) currently sets `gp.arc_type = "Prophet"` explicitly on pilgrimage return. M45 removes this — the classifier becomes the single authority for `arc_type`. Prophet detection is included in the classifier's pattern matching. The M38b check `if gp.arc_type == "Prophet"` (great_persons.py:387) that prevents repeat pilgrimages changes to check the classifier-set value, which produces the same result.
+`check_pilgrimages()` (great_persons.py:368) currently sets `gp.arc_type = "Prophet"` explicitly on pilgrimage return. M45 makes the classifier the authority for `arc_type`, but the M38b departure guard (`if gp.arc_type == "Prophet"` at great_persons.py:387) prevents re-departure on the return turn. Since `check_pilgrimages()` runs inside `phase_consequences()` BEFORE the classifier, removing the explicit set would leave a one-turn gap where the guard sees `arc_type=None` and allows immediate re-departure.
+
+**Fix:** Keep a provisional `gp.arc_type = "Prophet"` set in the return path of `check_pilgrimages()`. The classifier confirms it on the same turn — idempotent, no conflict. The classifier is still the long-term authority; the provisional set is a guard-compatibility shim that prevents the one-turn gap.
 
 ---
 
@@ -121,6 +123,8 @@ Civ-level simulation events (war, trade, rebellion) use civ names only — the c
 
 Note: these conditions are degenerate in the current implementation. `DynastyRegistry` creates dynasties only when a 2nd-generation child is promoted (`dynasties.py:47`), so the dynasty starts with 2 members. Partial and complete always fire simultaneously — no character will have `arc_phase="founding"` without also having `arc_type="Dynasty-Founder"`. Accept as low-impact; the "founding" phase could become meaningful if dynasty creation logic changes (e.g., Phase 7 pre-founding detection).
 
+Implementation: use `gp.dynasty_id` → lookup dynasty → check `dynasty.founder_id == gp.agent_id` (O(1)). Do not iterate all dynasties.
+
 #### Tragic Hero
 
 | | Condition |
@@ -137,7 +141,9 @@ Uses only GreatPerson fields — no event filtering. A bold character who burned
 | | Condition |
 |-|-----------|
 | **Partial** | 2 `notable_migration` events → phase `"wandering"` |
-| **Complete** | 3+ `notable_migration` events + `gp.region != gp.origin_region` → type `"Wanderer"` |
+| **Complete** | 3+ `notable_migration` events → type `"Wanderer"` |
+
+The 3+ migration threshold already implies displacement — no additional region check needed. (`gp.region` is almost always `None`; it's only set at hostage release, not at promotion or migration.)
 
 #### Defector
 
@@ -236,8 +242,9 @@ def curate(
 
 Backward compatible — `None` default, existing callers unaffected.
 
-**`gp_by_name` construction** at `curate()` entry, from the same iteration that builds `named_characters` in `_run_narrate()`:
+**`gp_by_name` construction** at the caller, not inside `curate()`. Two code paths need different construction:
 
+**`execute_run()` path** (has live `world` object):
 ```python
 gp_by_name = {}
 for civ in world.civilizations:
@@ -250,6 +257,24 @@ for gp in world.retired_persons:
     if gp.death_turn is not None:
         gp_by_name[gp.name] = gp
 ```
+
+**`_run_narrate()` path** (deserializes from bundle, no live `world`):
+```python
+gp_by_name = {}
+for civ_data in bundle.get("world_state", {}).get("civilizations", []):
+    for gp_data in civ_data.get("great_persons", []):
+        if gp_data.get("active") and gp_data.get("agent_id") is not None:
+            gp = GreatPerson(**gp_data)  # or use existing deserialization
+            gp_by_name[gp.name] = gp
+for gp_data in bundle.get("world_state", {}).get("retired_persons", []):
+    if gp_data.get("death_turn") is not None:
+        gp = GreatPerson(**gp_data)
+        gp_by_name[gp.name] = gp
+```
+
+Both pass `gp_by_name` to `curate()` as a parameter.
+
+Note: the `gp.agent_id is not None` filter means `--agents=off` characters (which have `source="aggregate"` and `agent_id=None`) are excluded from `gp_by_name`. Aggregate-mode characters never get arc curator bonuses. Intentional — aggregate characters don't have the lifecycle events needed for meaningful arc classification.
 
 Note: `gp_by_name` is keyed by character name. Name collisions are theoretically possible (different civs, overlapping name pools) but unlikely. If a collision occurs, the later entry overwrites. Low risk — same theoretical issue exists in the `named_characters` set in `_run_narrate()`.
 
@@ -356,6 +381,8 @@ for gp in great_persons:
         continue  # Skip dead characters not in this moment
     # ... build character dict (existing logic)
 ```
+
+The `great_persons` parameter passed to `build_agent_context_for_moment()` must include retired/dead characters — not just active ones from `civ.great_persons`. The caller (`narrate_batch()`) must build the list from both `civ.great_persons` and `world.retired_persons` (or the equivalent deserialized bundle data in `_run_narrate()`).
 
 This ensures:
 - The death moment gets the character's accumulated `arc_summary` in its prompt (issue: dead characters were previously excluded).
@@ -530,6 +557,9 @@ M44 (API Narration) adds `AnthropicClient` as a `narrative_client` option and wi
 | 14 | Martyr uses field-based detection | Persecution events use `actors=[civ.name]` — no character names. Redefined as prophet role + short career. Same lifespan approach as Tragic Hero, different narrative dimension. |
 | 15 | Classifier call site after `events_timeline.extend()` | Current-turn events (death, exile) must be on timeline for classifier to match them. |
 | 16 | Dynasty registry from AgentBridge | `bridge.dynasty_registry if bridge else None`. Dynasty Founder skipped in `--agents=off`. |
+| 17 | Wanderer drops `gp.region` check | `gp.region` is almost always `None` (only set at hostage release). 3+ migrations already implies displacement. |
+| 18 | Prophet provisional set kept in `check_pilgrimages()` | Departure guard needs `arc_type == "Prophet"` before classifier runs. Provisional set prevents one-turn re-departure gap. Classifier confirms idempotently. |
+| 19 | `gp_by_name` built at caller, not in `curate()` | `_run_narrate()` deserializes from bundle (no live `world`). `execute_run()` has live `world`. Each builds `gp_by_name` from its own data source. |
 
 ---
 
