@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-18 (M43a session)
+> **Last updated:** 2026-03-18 (M43b implementation session)
 
 ---
 
@@ -81,18 +81,32 @@
 - **Key design decisions:** M43 split into M43a (infrastructure) / M43b (behavior) for calibration isolation. Emergent shock propagation via price/stockpile dynamics (no explicit shock state machine — M43b). Category-level pricing unchanged from M42; per-good tracking only for stockpile/decay.
 - **Phoebe review passed.** I-1 (per-good decomposition single-slot assumption documented), I-2 (conquest integration gap noted), I-3 (import initialization clarified).
 
+### M43b: Supply Shock Detection, Trade Dependency & Raider Incentive — merged (`f25d68c`)
+
+- 14 commits on `feat/m43b-shock-detection` branch. 36 M43b tests, 252 total relevant tests passing.
+- **Spec:** `docs/superpowers/specs/2026-03-17-m43b-shock-detection-trade-dependency-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-18-m43b-shock-detection-trade-dependency.md`
+- `EconomyTracker` class with dual EMA (α=0.33) for stockpile and import levels. Instantiated in `main.py`, persists across turns, passed to `run_turn()`.
+- `detect_supply_shocks()`: delta trigger (30% drop from trailing avg) + absolute severity gate (`food_sufficiency < 0.8` for food). Non-food uses delta-only severity.
+- `classify_upstream_source()`: checks import EMA drop + upstream partner stockpile drop. Returns None for local shocks or embargoes (no fallback attribution).
+- 6 new `EconomyResult` fields: `imports_by_region`, `inbound_sources`, `stockpile_levels`, `import_share`, `trade_dependent`, plus `CATEGORY_GOODS` constant.
+- `inbound_sources` tracking merged into existing trade flow accumulation loop (~5 lines).
+- Trade dependency: `import_share = food_imports / max(food_demand, 0.1)`, threshold 0.6.
+- Raider WAR modifier: scaled additive (`RAIDER_WAR_WEIGHT * min(overshoot, RAIDER_CAP)`), placed after holy war bonus, before streak-breaker and 2.5x cap. Stacks with holy war intentionally (Decision 8).
+- 7 new `CAUSAL_PATTERNS` entries including `supply_shock → supply_shock` self-link for cascade chains.
+- Narration: `economy_result` threaded through `narrate_batch` → `build_agent_context_for_moment()`. Early return relaxed to allow economy-source events. `build_agent_context_block()` renders trade dependency and shock context.
+- `ShockContext` BaseModel, `shock_region`/`shock_category` optional fields on `Event` (structured metadata, no string parsing).
+- `CivThematicContext.trade_dependency_summary` field added but population deferred — `CivThematicContext` is never constructed in current codebase (dead infrastructure).
+- 2-turn transient signal test for `world._economy_result` (NB-2 from Phoebe review).
+- **Phoebe implementation review:** B-1 (economy_result threading), NB-1 (CivThematicContext deferral documented), NB-2 (transient test added). All resolved in `2b22be3`.
+- **No Rust changes.** Entirely Python-side.
+- **Calibration constants:** `SHOCK_DELTA_THRESHOLD=0.30`, `SHOCK_SEVERITY_FLOOR=0.8`, `TRADE_DEPENDENCY_THRESHOLD=0.6`, `RAIDER_THRESHOLD=200.0` [CALIBRATE], `RAIDER_WAR_WEIGHT=0.15`, `RAIDER_CAP=2.0`. All `[CALIBRATE]` for M47.
+
 ---
 
-## Ready for Spec
+## Ready for Implementation
 
-### M43b: Supply Shock Detection, Trade Dependency & Raider Incentive
-
-- Split from M43 during M43a brainstorm (calibration isolation).
-- Builds on M43a's stockpile infrastructure.
-- Scope: `ShockEvent` detection for curator (narration-only, no mechanical state), trade dependency classification (>60% food import), raider WAR utility modifier from stockpile levels.
-- Emergent shock propagation via price/stockpile dynamics (no explicit attenuation constant). M43b validates ~50% attenuation target.
-- Raider mechanic touches action engine weight system (combined cap 2.5×) — needs focused integration testing.
-- ~4 calibration constants: `SHOCK_THRESHOLD`, `TRADE_DEPENDENCY_THRESHOLD`, `RAIDER_STOCKPILE_THRESHOLD`, `RAIDER_UTILITY_MODIFIER`.
+*(No milestones currently in implementation queue. Next: M44 or M45.)*
 
 ---
 
@@ -112,3 +126,8 @@
 - **M43a: Conquest stockpile destruction wiring untested by M43a tests.** Formula is tested; integration point covered by existing war/action tests (which now operate on stockpile-bearing regions).
 - **M43a: `--agents=off` stockpile accumulation test not written.** Phoebe recommended. Low priority.
 - **Phase 7 draft roadmap:** `docs/superpowers/roadmaps/chronicler-phase7-draft.md` — provisional, subject to revision as Phase 6 milestones land.
+- **M43b: `CivThematicContext` population deferred.** Field `trade_dependency_summary` exists but is never set — `CivThematicContext` is dead infrastructure (defined but never constructed). Wire when `NarrationContext.civ_context` construction is implemented.
+- **M43b: `trade_dependent_regions` not scoped to moment civs.** Phoebe O-1. The spec says filter by controller, but `build_agent_context_for_moment` lacks world access. Currently includes all trade-dependent regions. Low impact — narration context is already scoped to agent events.
+- **M43b: `_get_adjacent_enemy_regions()` rebuilds region_map per call.** Phoebe O-2. Fine at current civ counts (~10). If civ count grows, cache `region_map` on `ActionEngine`.
+- **M42+M43a+M43b 200-seed regression pending.** Three milestones unvalidated. Top structural risk. Calibration values needed before regression is meaningful.
+- **Fullscale Phoebe review (2026-03-18):** CLAUDE.md line counts + file table updated, simulation.py docstring aligned, dead `derive_food_sufficiency()` removed, Phase 7 viewer scope estimate corrected.
