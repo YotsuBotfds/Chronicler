@@ -89,12 +89,26 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                 lines.append(dynasty_line)
         lines.append("")
 
+    # M40: Render relationship context
+    if ctx.relationships:
+        lines.append("Character relationships:")
+        for rel in ctx.relationships:
+            if rel["type"] == "mentor":
+                lines.append(f"- {rel['character_b']} (apprentice of {rel['character_a']}, since turn {rel['since_turn']})")
+            elif rel["type"] == "hostage":
+                lines.append(f"- {rel['character_b']} (hostage of {rel['character_a']})")
+            else:
+                lines.append(f"- {rel['character_a']} and {rel['character_b']} ({rel['type']}, since turn {rel['since_turn']})")
+        lines.append("")
+
     lines.append("Guidelines:")
     lines.append("- Refer to named characters BY NAME — do not anonymize or rename them")
     lines.append("- Use their recent history for callbacks")
     lines.append("- Use population mood to set atmospheric tone")
     if ctx.displacement_fraction > 0.10:
         lines.append("- Weave refugee/exile themes into the narrative")
+    if ctx.relationships:
+        lines.append("- Weave character relationships into the narrative — mentorships, rivalries, alliances")
 
     lines.append("")
     lines.append(
@@ -114,6 +128,10 @@ def build_agent_context_for_moment(
     region_names: dict[int, str],
     dynasty_registry=None,       # M39: optional DynastyRegistry
     gp_by_agent_id: dict | None = None,  # M39: agent_id → GreatPerson
+    social_edges: list[tuple] | None = None,      # M40
+    dissolved_edges: list[tuple] | None = None,    # M40
+    agent_name_map: dict[int, str] | None = None,  # M40
+    hostage_data: list[dict] | None = None,        # M40
 ) -> AgentContext | None:
     """Build AgentContext if the moment has agent-source events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
@@ -156,10 +174,39 @@ def build_agent_context_for_moment(
     disp_values = list(displacement_by_region.values())
     avg_disp = sum(disp_values) / len(disp_values) if disp_values else 0.0
 
+    # M40: Merge relationship sources into AgentContext.relationships
+    relationships: list[dict] = []
+    rel_type_names = {0: "mentor", 1: "rival", 2: "marriage", 3: "exile_bond", 4: "co_religionist"}
+    name_map = agent_name_map or {}
+
+    all_edges = list(social_edges or []) + list(dissolved_edges or [])
+    char_names = {c["name"] for c in chars}
+    for edge in all_edges:
+        agent_a, agent_b, rel_type, formed_turn = edge
+        name_a = name_map.get(agent_a, "")
+        name_b = name_map.get(agent_b, "")
+        if name_a not in char_names and name_b not in char_names:
+            continue
+        rel = {
+            "type": rel_type_names.get(rel_type, "unknown"),
+            "character_a": name_a,
+            "character_b": name_b,
+            "role_a": "mentor" if rel_type == 0 else None,
+            "role_b": "apprentice" if rel_type == 0 else None,
+            "since_turn": formed_turn,
+        }
+        relationships.append(rel)
+
+    # Add hostage relationships
+    for h in (hostage_data or []):
+        if h.get("name") in char_names:
+            relationships.append(h)
+
     return AgentContext(
         named_characters=chars[:10],  # cap for token budget
         population_mood=mood,
         displacement_fraction=avg_disp,
+        relationships=relationships,
     )
 
 
@@ -599,6 +646,11 @@ class NarrativeEngine:
         history: Sequence[TurnSnapshot],
         gap_summaries: list[GapSummary],
         on_progress: Callable[[int, int, float | None], None] | None = None,
+        # M40: Optional agent context data
+        great_persons: list | None = None,
+        social_edges: list[tuple] | None = None,
+        dissolved_edges_by_turn: dict[int, list[tuple]] | None = None,
+        agent_name_map: dict[int, str] | None = None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments sequentially with full context.
 
@@ -672,6 +724,43 @@ class NarrativeEngine:
                 excerpt = previous_prose[-200:]
                 continuity_text = f"\n\nPREVIOUS ENTRY (for style continuity):\n...{excerpt}"
 
+            # M40: Build agent context with relationships
+            agent_context_text = ""
+            if great_persons is not None:
+                hostage_data = []
+                for gp in great_persons:
+                    if gp.is_hostage and gp.captured_by:
+                        hostage_data.append({
+                            "type": "hostage",
+                            "character_a": gp.captured_by,
+                            "character_b": gp.name,
+                            "role_a": "captor",
+                            "role_b": "captive",
+                            "since_turn": gp.born_turn,
+                        })
+
+                moment_dissolved: list[tuple] = []
+                if dissolved_edges_by_turn:
+                    for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
+                        moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
+
+                agent_ctx = build_agent_context_for_moment(
+                    moment, great_persons, {}, {},
+                    social_edges=social_edges,
+                    dissolved_edges=moment_dissolved if moment_dissolved else None,
+                    agent_name_map=agent_name_map,
+                    hostage_data=hostage_data,
+                )
+                if agent_ctx is not None and agent_ctx.relationships:
+                    agent_context_text = "\n\nCHARACTER RELATIONSHIPS:\n"
+                    for rel in agent_ctx.relationships:
+                        if rel["type"] == "mentor":
+                            agent_context_text += f"- {rel['character_b']} (apprentice of {rel['character_a']}, since turn {rel['since_turn']})\n"
+                        elif rel["type"] == "hostage":
+                            agent_context_text += f"- {rel['character_b']} (hostage of {rel['character_a']})\n"
+                        else:
+                            agent_context_text += f"- {rel['character_a']} and {rel['character_b']} ({rel['type']}, since turn {rel['since_turn']})\n"
+
             # Era-adaptive register
             snap = _closest_snap({s.turn: s for s in history}, moment.anchor_turn)
             dominant_era = get_dominant_era(moment, snap) if snap else "tribal"
@@ -697,7 +786,7 @@ class NarrativeEngine:
 
 TURNS {moment.turn_range[0]}-{moment.turn_range[1]}:
 
-EVENTS:{event_text}{named_text}{causal_text}{context_text}{continuity_text}{style_text}
+EVENTS:{event_text}{named_text}{causal_text}{context_text}{agent_context_text}{continuity_text}{style_text}
 
 Write 3-5 paragraphs of chronicle prose for this moment.
 Respond only with the chronicle prose. No preamble, no markdown formatting."""

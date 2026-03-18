@@ -221,3 +221,39 @@ class TestNarrativeStyle:
         # Iron-era civs get the archaic chronicler voice
         assert "You chronicle the world of" in call_args
         assert "archaic chronicler" in call_args
+
+
+def test_agent_context_includes_relationships():
+    from chronicler.narrative import build_agent_context_for_moment
+    from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole
+
+    moment = NarrativeMoment(
+        anchor_turn=100,
+        turn_range=(95, 105),
+        events=[Event(turn=100, event_type="rebellion", actors=["Civ1"],
+                      description="Rebellion", importance=7, source="agent")],
+        named_events=[],
+        score=10.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+
+    gp1 = GreatPerson(name="Mentor", role="general", trait="bold",
+                      civilization="Civ1", origin_civilization="Civ1",
+                      born_turn=0, source="agent", agent_id=100)
+    gp2 = GreatPerson(name="Apprentice", role="general", trait="cautious",
+                      civilization="Civ1", origin_civilization="Civ1",
+                      born_turn=50, source="agent", agent_id=200)
+
+    social_edges = [(100, 200, 0, 50)]  # REL_MENTOR
+    agent_name_map = {100: "Mentor", 200: "Apprentice"}
+
+    ctx = build_agent_context_for_moment(
+        moment, [gp1, gp2], {}, {},
+        social_edges=social_edges,
+        agent_name_map=agent_name_map,
+    )
+    assert ctx is not None
+    assert len(ctx.relationships) >= 1
+    assert ctx.relationships[0]["type"] == "mentor"
