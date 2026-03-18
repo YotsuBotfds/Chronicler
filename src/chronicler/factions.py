@@ -13,7 +13,6 @@ from chronicler.models import (
     Leader,
     WorldState,
 )
-from chronicler.utils import civ_index
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -254,18 +253,22 @@ def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
 # Per-turn faction tick (phase 10 — consequences)
 # ---------------------------------------------------------------------------
 
-def compute_tithe_base(civ, snapshot=None):
-    """M38a: trade_income proxy. M41 swaps to sum(merchant_wealth)."""
+def compute_tithe_base(civ, snapshot=None, economy_result=None, civ_idx=None):
+    """M42: agent-derived merchant wealth in agent mode, trade_income fallback."""
+    if economy_result is not None and civ_idx is not None:
+        if civ_idx in economy_result.tithe_base:
+            return economy_result.tithe_base[civ_idx]
     return getattr(civ, 'trade_income', 0) or getattr(civ, 'last_income', 0)
 
 
 def tick_factions(world, acc=None, conversion_deltas=None, region_populations=None,
-                  prev_priest_counts=None, curr_priest_counts=None) -> list[Event]:
+                  prev_priest_counts=None, curr_priest_counts=None,
+                  economy_result=None) -> list[Event]:
     """Main per-turn faction tick. Runs in phase 10 (consequences)."""
     events: list[Event] = []
     current_turn = world.turn
 
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
             continue
 
@@ -368,7 +371,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
 
         # 4d. M38a: tithe collection
         if civ.factions.influence.get(FactionType.CLERGY, 0) >= TITHE_THRESHOLD:
-            tithe = TITHE_RATE * compute_tithe_base(civ)
+            tithe = TITHE_RATE * compute_tithe_base(civ, economy_result=economy_result, civ_idx=civ_idx)
             civ.treasury += int(tithe)
 
         # 5. Normalize influence
@@ -409,7 +412,6 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
             from chronicler.emergence import get_severity_multiplier
             drain = int(3 * get_severity_multiplier(civ))
             if acc is not None:
-                civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "stability", -drain, "signal")
             else:
                 civ.stability -= drain
