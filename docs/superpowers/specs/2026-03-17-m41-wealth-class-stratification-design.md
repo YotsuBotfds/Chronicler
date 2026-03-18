@@ -42,7 +42,7 @@ Add per-agent wealth accumulation driven by occupation and resource context, pro
 |---|----------|-----------|
 | 1 | M41 scoped to wealth + class stratification; market dynamics in M42 | Wealth accumulation needs stable base rates before market pricing modulates them. Designing both simultaneously creates tuning conflicts. |
 | 2 | 0.40 non-ecological satisfaction cap unchanged; class tension is 4th term | Existing terms (cultural 0.15, religious 0.10, persecution 0.15) rarely saturate the budget — typical combined penalty is 0.15-0.28. Class tension takes remaining headroom naturally. |
-| 3 | Flat clamp on penalty sum, no proportional scaling | Class tension is lowest priority — when cap binds, it's eaten first. Flat clamp is sufficient; proportional scaling adds complexity without narrative benefit. |
+| 3 | Priority clamping: three core terms first, class tension takes remainder | Cultural + religious + persecution computed first; class tension clamped to `(PENALTY_CAP - three_term_sum).max(0.0)`. When cap binds, class tension is eaten first — core identity/persecution penalties are never reduced by wealth effects. No proportional scaling. |
 | 4 | Per-agent class tension, not uniform per-civ | The thesis of Phase 6 is agents as individuals. A uniform penalty makes per-agent wealth pointless for satisfaction. Poor agents feel inequality; rich agents don't. |
 | 5 | Gini computed Python-side, penalty computed Rust-side | Python reads wealth from snapshot, computes Gini (numpy sort, trivial). Sends per-civ `gini_coefficient` signal. Rust computes per-agent penalty from pool wealth data — avoids round-tripping percentile weights across FFI. |
 | 6 | Binary resource dispatch: organic vs extractive (two rates) | `FARMER_INCOME` for organic (crops, timber), `MINER_INCOME` for extractive (ore, precious). No per-resource-type rates — that's M42 granularity. Boom-bust emerges from yield depletion curve × higher miner rate. |
@@ -51,8 +51,11 @@ Add per-agent wealth accumulation driven by occupation and resource context, pro
 | 9 | Satisfaction penalty only, no rebellion utility boost | Low satisfaction → loyalty erosion → rebellion via existing M32-M38 calibrated mechanics. Direct utility boost in `behavior.rs` short-circuits the layered architecture. Follow-up if indirect path proves insufficient. |
 | 10 | No treasury integration in M41 | Treasury stays "keep" category. Wiring tax on merchant wealth makes treasury partially agent-derived, breaking `--agents=off` invariant for no narrative payoff without the M42 market system to give it meaning. |
 | 11 | Priest tithe deferred to M42 | Per-priest tithe share requires a distribution model that doesn't exist yet. `compute_tithe_base` placeholder stays on `trade_income`. |
-| 12 | Linear rank-to-penalty mapping | `f(percentile) = 1.0 - percentile`. Simplest to implement, easiest to tune. Gini already captures distributional shape. Nonlinear mapping adds a second interacting curve to calibrate — unnecessary for M41. |
+| 12 | Linear rank-to-weight mapping | `f(percentile) = 1.0 - percentile`. Simplest to implement, easiest to tune. Gini already captures distributional shape. Nonlinear mapping adds a second interacting curve to calibrate — unnecessary for M41. |
 | 13 | Conquest bonus is part of wealth accumulation, not a separate phase | Applied during the accumulation step alongside occupation income. Not a separate mini-phase in the tick. |
+| 14 | Income dispatches on primary resource slot only | Farmer/miner income uses `resource_yields[0]` and `resource_types[0]`. Secondary/tertiary resource slots are ignored for wealth purposes. A region with GRAIN in slot 0 and ORE in slot 1 pays farmers at the organic rate. |
+| 15 | One-turn Gini lag is intentional | Python computes Gini from turn N snapshot; Rust uses it in turn N+1 satisfaction. On turn 1, Gini defaults to 0.0 (no class tension when all agents have identical starting wealth). Same one-turn latency pattern as M38b schism delay and M40 social edges. |
+| 16 | Wealth tick runs before decisions | Agents earn income from their current occupation, then may switch occupation in the decision phase. Income is based on occupation at start of tick. |
 
 ---
 
@@ -77,7 +80,7 @@ pub wealth: Vec<f32>,
 pub wealth_percentiles: Vec<f32>,
 ```
 
-Indexed by pool slot. Populated during per-civ rank computation, consumed by satisfaction. Allocated once, reused across ticks.
+Indexed by pool slot. Sized to `pool.capacity()` (includes dead slots). Only slots processed in the per-civ rank pass have valid values — dead slots contain undefined data. Allocated once, reused across ticks. Populated during per-civ rank computation, consumed by satisfaction in the same tick.
 
 ---
 
@@ -98,8 +101,8 @@ All rates are `[CALIBRATE]` constants in `agent.rs`.
 
 | Occupation | Formula | Inputs |
 |---|---|---|
-| Farmer (organic) | `FARMER_INCOME × primary_resource_yield` | RegionState `resource_yields[0]`, `resource_types[0]` not in `EXTRACTIVE_TYPES` |
-| Farmer (extractive) | `MINER_INCOME × primary_resource_yield` | RegionState `resource_yields[0]`, `resource_types[0]` in `EXTRACTIVE_TYPES` |
+| Farmer (organic) | `FARMER_INCOME × resource_yields[0]` | RegionState `resource_types[0]` not extractive (primary slot only — Decision 14) |
+| Farmer (extractive) | `MINER_INCOME × resource_yields[0]` | RegionState `resource_types[0]` is extractive (ORE or PRECIOUS) |
 | Soldier | `SOLDIER_INCOME × (1.0 + AT_WAR_BONUS × at_war) + CONQUEST_BONUS × conquered_this_turn` | `civ_at_war` flag (existing), `conquered_this_turn` per-civ signal (new) |
 | Merchant | `MERCHANT_INCOME × (trade_routes as f32 / 3.0).min(1.0)` | RegionState `trade_routes` (existing) |
 | Scholar | `SCHOLAR_INCOME` | None |
@@ -110,11 +113,7 @@ All rates are `[CALIBRATE]` constants in `agent.rs`.
 Binary check — two categories:
 
 ```rust
-const EXTRACTIVE_TYPES: [u8; 2] = [
-    5,  // ORE
-    6,  // PRECIOUS
-];
-
+/// ORE=5, PRECIOUS=6 are extractive; all others are organic.
 fn is_extractive(resource_type: u8) -> bool {
     resource_type == 5 || resource_type == 6
 }
@@ -144,7 +143,8 @@ Soldier wealth accumulation includes a one-shot `CONQUEST_BONUS` when the agent'
 
 ### Signal Path
 
-- Action engine resolves EXPAND/WAR actions → conquest occurs → Python sets `conquered_this_turn` per civ
+- Action engine resolves EXPAND/WAR actions → conquest occurs → Python sets `conquered_this_turn` per civ (in `action_engine.py`, not accumulator — this is a boolean event flag, not a stat delta)
+- Assembled into civ signals batch in `agent_bridge.py` alongside existing per-civ signals
 - Crosses FFI as a per-civ boolean in the existing `CivSignals` struct (or equivalent)
 - Rust reads during wealth accumulation step: `CONQUEST_BONUS × conquered_this_turn as i32 as f32`
 
@@ -181,6 +181,14 @@ def compute_gini(wealth_array: np.ndarray) -> float:
 
 Gini is sent as a new field on the per-civ signals struct — not a shock signal (it's not a transient event, it's a persistent metric). It persists until updated next turn.
 
+### Timing
+
+One-turn lag (Decision 15): Python computes Gini from turn N snapshot; Rust uses it in turn N+1 satisfaction. On turn 1, Gini defaults to 0.0 (no class tension when all agents have identical starting wealth). Same pattern as M38b schism delay and M40 social edge latency.
+
+### Civ Affinity Grouping
+
+Snapshot column `civ_affinity` is `UInt16` (pool stores `u8`, cast to `u16` in `ffi.rs`). Python groups by this column when computing per-civ Gini. The resulting Gini values are indexed by civ index (`u8`) when sent back as signals. Implementation must handle the `u16 → u8` cast at the grouping boundary.
+
 ---
 
 ## Class Tension Penalty
@@ -198,9 +206,11 @@ let mut civ_agents: Vec<(u32, f32)> = Vec::new();
 civ_agents.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
 // Assign percentiles to scratch vector
-let count = civ_agents.len() as f32;
+// (count - 1).max(1) ensures: poorest = 0.0, richest = 1.0 (zero penalty)
+// Single-agent civ: 0/1 = 0.0, but Gini is also 0.0, so penalty is zero.
+let denom = (civ_agents.len() as f32 - 1.0).max(1.0);
 for (rank, (slot, _wealth)) in civ_agents.iter().enumerate() {
-    wealth_percentiles[*slot as usize] = rank as f32 / count;
+    wealth_percentiles[*slot as usize] = rank as f32 / denom;
 }
 ```
 
@@ -215,16 +225,18 @@ let class_tension_pen = gini_coefficient
     * (1.0 - wealth_percentiles[slot])
     * CLASS_TENSION_WEIGHT;  // [CALIBRATE: 0.15]
 
-let total_non_eco_penalty = apply_penalty_cap(
-    cultural_pen + religious_pen + persecution_pen + class_tension_pen
-);
+// Priority clamping: core identity/persecution penalties first,
+// class tension takes whatever budget remains (Decision 3).
+let three_term = cultural_pen + religious_pen + persecution_pen;
+let class_tension_clamped = class_tension_pen.min((PENALTY_CAP - three_term).max(0.0));
+let total_non_eco_penalty = three_term + class_tension_clamped;
 ```
 
 - `gini_coefficient`: per-civ signal from Python (0.0 = perfect equality, 1.0 = one agent owns everything)
 - `wealth_percentiles[slot]`: agent's position in civ wealth distribution (0.0 = poorest, 1.0 = richest)
 - Linear mapping: poorest agent at Gini 0.6 → `0.6 × 1.0 × 0.15 = 0.09` penalty
 - Richest agent at any Gini → `gini × 0.0 × 0.15 = 0.00` penalty
-- Falls under the existing 0.40 cap — lowest priority term (eaten first when cap binds)
+- Priority ordering: when cap binds, class tension is reduced first — cultural, religious, and persecution penalties are never diminished by wealth effects
 
 ### Penalty Budget Analysis
 
@@ -292,12 +304,14 @@ No new RNG sources in M41. Wealth accumulation is deterministic (income formula 
 
 ## Analytics & Narration
 
-### Analytics Extractors
+### Analytics Extractors (Python-side, in `analytics.py`)
 
 - Per-civ Gini coefficient time series
 - Per-civ mean/median/std wealth
 - Per-civ wealth by occupation breakdown (farmer, soldier, merchant, scholar, priest)
 - Per-civ wealth histogram (bucket distribution)
+
+All computed from the snapshot RecordBatch in Python post-processing. Not included in `get_aggregates()` — wealth is agent-only data, not a civ-level aggregate.
 
 ### Narration Context
 
@@ -352,7 +366,7 @@ No new top-level bundle fields. Gini and wealth stats included in existing analy
 | `chronicler-agents/src/signals.rs` | `gini_coefficient` and `conquered_this_turn` on CivSignals |
 | `chronicler-agents/src/ffi.rs` | Expose `wealth` in Arrow snapshot, accept new signals |
 | `src/chronicler/simulation.py` | Gini computation from snapshot, signal routing |
-| `src/chronicler/accumulator.py` | `conquered_this_turn` signal construction |
+| `src/chronicler/action_engine.py` | Set `conquered_this_turn` flag on civ when conquest occurs |
 | `src/chronicler/analytics.py` | Wealth distribution extractors |
 | `src/chronicler/narrative.py` | Gini in AgentContext |
 | `src/chronicler/agent_bridge.py` | Pass Gini and conquest signals to Rust |
