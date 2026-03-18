@@ -168,6 +168,12 @@ def execute_run(
         from chronicler.agent_bridge import AgentBridge
         agent_bridge = AgentBridge(world, mode=agent_mode)
 
+    # M43b: Economy tracker (persists across turns for EMA-based shock detection)
+    economy_tracker = None
+    if agent_bridge is not None:
+        from chronicler.economy import EconomyTracker
+        economy_tracker = EconomyTracker()
+
     # Initialize memory streams if not provided
     if memories is None:
         memories = {
@@ -222,6 +228,7 @@ def execute_run(
             narrator=_noop_narrator or engine.narrator,
             seed=seed + turn_num,
             agent_bridge=agent_bridge,
+            economy_tracker=economy_tracker,
         )
 
         # Capture per-turn snapshot for viewer bundle
