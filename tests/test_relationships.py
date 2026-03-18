@@ -544,3 +544,20 @@ def test_coordinator_forms_new_edges_and_writes_back(make_world):
     assert bridge.replaced is not None
     assert len(bridge.replaced) >= 1
     assert any(e[2] == REL_RIVAL for e in bridge.replaced)
+
+
+# --- Task 17: agents=off empty relationships ---
+
+def test_agents_off_produces_empty_relationships():
+    """In --agents=off mode, no social graph exists, relationships are empty."""
+    from chronicler.models import WorldState
+
+    class NullBridge:
+        def read_social_edges(self):
+            return []
+        def replace_social_edges(self, edges):
+            pass
+
+    world = WorldState(name="TestWorld", seed=42, turn=50, regions=[], civilizations=[], relationships={})
+    dissolved = form_and_sync_relationships(world, NullBridge(), set(), {}, {})
+    assert len(dissolved) == 0
