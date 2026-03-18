@@ -384,3 +384,15 @@ def test_raider_modifier_in_compute_weights():
     war_weight_without = weights_without.get(ActionType.WAR, 0)
 
     assert war_weight_with > war_weight_without
+
+
+# ---------------------------------------------------------------------------
+# Task 8: CAUSAL_PATTERNS supply_shock entries
+# ---------------------------------------------------------------------------
+
+def test_causal_patterns_include_supply_shock():
+    from chronicler.curator import CAUSAL_PATTERNS
+    shock_patterns = [p for p in CAUSAL_PATTERNS if "supply_shock" in (p[0], p[1])]
+    assert len(shock_patterns) == 7
+    self_link = [p for p in shock_patterns if p[0] == "supply_shock" and p[1] == "supply_shock"]
+    assert len(self_link) == 1
