@@ -72,11 +72,22 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
     if ctx.named_characters:
         lines.append("Named characters present:")
         for char in ctx.named_characters:
-            origin = (f", originally {char['origin_civ']}"
-                      if char.get("origin_civ") != char.get("civ") else "")
+            origin = (f", originally {char.get('origin_civ')}"
+                      if char.get("origin_civ") != char.get("civ") and char.get("origin_civ") else "")
+            trait_str = f" [{char['trait']}]" if char.get("trait") else ""
             lines.append(
-                f"- {char['role']} {char['name']} ({char['civ']}{origin}) [{char['status']}]:"
+                f"- {char['role']} {char['name']}{trait_str} ({char['civ']}{origin}) [{char['status']}]:"
             )
+            # M45: Arc context
+            arc_type = char.get("arc_type")
+            arc_phase = char.get("arc_phase")
+            if arc_type or arc_phase:
+                arc_str = arc_type or ""
+                if arc_phase:
+                    arc_str = f"{arc_str} ({arc_phase})" if arc_str else arc_phase
+                lines.append(f"  Arc: {arc_str}")
+            if char.get("arc_summary"):
+                lines.append(f"  Summary: {char['arc_summary']}")
             history_parts = []
             for h in char.get("recent_history", []):
                 history_parts.append(f"  {h['event']} in {h['region']} (turn {h['turn']})")
@@ -160,9 +171,12 @@ def build_agent_context_for_moment(
         return None
 
     # Named characters active in this moment
+    moment_actors = {actor for ev in moment.events for actor in ev.actors}
     chars = []
     for gp in great_persons:
-        if not gp.active or gp.source != "agent":
+        if gp.source != "agent":
+            continue
+        if not gp.active and gp.name not in moment_actors:
             continue
         char = {
             "name": gp.name,
@@ -186,6 +200,16 @@ def build_agent_context_for_moment(
                 char["dynasty_total"] = len(dynasty.members)
                 if dynasty.split_detected:
                     char["dynasty_split"] = True
+
+        # M45: Arc context
+        if gp.arc_type:
+            char["arc_type"] = gp.arc_type
+        if gp.arc_phase:
+            char["arc_phase"] = gp.arc_phase
+        if gp.arc_summary:
+            char["arc_summary"] = gp.arc_summary
+        if gp.trait:
+            char["trait"] = gp.trait
 
         chars.append(char)
 
