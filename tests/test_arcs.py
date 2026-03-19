@@ -21,6 +21,7 @@ def _make_event(turn, event_type, actors, **kwargs) -> Event:
         actors=actors,
         description=kwargs.get("description", ""),
         importance=kwargs.get("importance", 5),
+        source=kwargs.get("source", "aggregate"),
     )
 
 
@@ -401,3 +402,40 @@ def test_arc_summary_first():
     assert gp.arc_summary is None
     _update_arc_summary(gp, "First deed")
     assert "First deed" in gp.arc_summary
+
+
+# --- Dead character context test ---
+
+from chronicler.narrative import build_agent_context_for_moment
+from chronicler.models import NarrativeMoment, NarrativeRole
+
+
+def _make_moment(turn, events):
+    """Helper to build a valid NarrativeMoment for testing."""
+    return NarrativeMoment(
+        anchor_turn=turn,
+        turn_range=(turn, turn),
+        events=events,
+        named_events=[],
+        score=5.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+
+
+def test_dead_character_in_moment_context():
+    """Dead character whose name is in moment event actors appears in context."""
+    gp = _make_gp(
+        active=False, alive=False, fate="dead", death_turn=140,
+        arc_type="Rise-and-Fall", arc_phase="fallen",
+        arc_summary="Led the northern campaign.",
+    )
+    ev = _make_event(140, "character_death", ["Kiran", "Aram"], source="agent")
+    moment = _make_moment(140, [ev])
+    ctx = build_agent_context_for_moment(
+        moment, [gp], {}, {},
+    )
+    assert ctx is not None
+    names = [c["name"] for c in ctx.named_characters]
+    assert "Kiran" in names

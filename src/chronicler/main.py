@@ -435,8 +435,12 @@ def execute_run(
             eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
             print(f"  Narrating {completed}/{total}{eta_str}")
 
+        # M45: Include retired persons for dead character arc context
+        all_great_persons = list(gp_by_name.values()) if gp_by_name else None
+
         chronicle_entries = engine.narrate_batch(
             moments, history, gap_summaries, on_progress=progress_cb,
+            great_persons=all_great_persons,
             gp_by_name=gp_by_name if gp_by_name else None,
         )
 
@@ -760,8 +764,12 @@ def _run_narrate(args: argparse.Namespace) -> None:
         eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
         print(f"  Narrating {completed}/{total}{eta_str}")
 
+    # M45: Include retired persons for dead character arc context
+    all_great_persons = list(gp_by_name.values()) if gp_by_name else None
+
     chronicle_entries = engine.narrate_batch(
         moments, history, gap_summaries, on_progress=progress_cb,
+        great_persons=all_great_persons,
         gp_by_name=gp_by_name if gp_by_name else None,
     )
 
