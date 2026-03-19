@@ -437,6 +437,7 @@ def execute_run(
 
         chronicle_entries = engine.narrate_batch(
             moments, history, gap_summaries, on_progress=progress_cb,
+            gp_by_name=gp_by_name if gp_by_name else None,
         )
 
         print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
@@ -760,7 +761,8 @@ def _run_narrate(args: argparse.Namespace) -> None:
         print(f"  Narrating {completed}/{total}{eta_str}")
 
     chronicle_entries = engine.narrate_batch(
-        moments, history, gap_summaries, on_progress=progress_cb
+        moments, history, gap_summaries, on_progress=progress_cb,
+        gp_by_name=gp_by_name if gp_by_name else None,
     )
 
     # M44: Token summary

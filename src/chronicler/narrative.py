@@ -40,6 +40,20 @@ from chronicler.models import (
 _SUMMARY_STATS = ("population", "military", "economy", "culture", "stability")
 _STAT_THRESHOLD = 10
 
+_MAX_ARC_SUMMARY_SENTENCES = 3
+
+
+def _update_arc_summary(gp, new_sentence: str) -> None:
+    """Append a sentence to gp.arc_summary, keeping max 3 sentences."""
+    if gp.arc_summary:
+        sentences = [s.strip() for s in gp.arc_summary.split(".") if s.strip()]
+    else:
+        sentences = []
+    sentences.append(new_sentence.rstrip("."))
+    if len(sentences) > _MAX_ARC_SUMMARY_SENTENCES:
+        sentences = sentences[-_MAX_ARC_SUMMARY_SENTENCES:]
+    gp.arc_summary = ". ".join(sentences) + "."
+
 
 # ---------------------------------------------------------------------------
 # M30: Agent context for narrator prompt
@@ -671,6 +685,14 @@ class NarrativeEngine:
         self.event_flavor = event_flavor
         self.narrative_style = narrative_style
 
+    def _is_api_client(self) -> bool:
+        """Check if narrative_client supports API-quality arc summaries."""
+        try:
+            from chronicler.narrative import AnthropicClient
+            return isinstance(self.narrative_client, AnthropicClient)
+        except (ImportError, AttributeError):
+            return False
+
     def select_action(self, civ: Civilization, world: WorldState) -> ActionType:
         """Ask the LLM to choose an action for a civilization.
 
@@ -724,6 +746,8 @@ class NarrativeEngine:
         gini_by_civ: dict[int, float] | None = None,
         # M43b: Economy result for trade dependency and shock narration
         economy_result=None,
+        # M45: Arc summary follow-up (API mode only)
+        gp_by_name: dict | None = None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments sequentially with full context.
 
@@ -800,6 +824,7 @@ class NarrativeEngine:
 
             # M40: Build agent context with relationships
             agent_context_text = ""
+            agent_ctx = None
             if great_persons is not None:
                 hostage_data = []
                 for gp in great_persons:
@@ -882,6 +907,42 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
 
             previous_prose = narrative
+
+            # M45: Arc summary follow-up (API mode only)
+            if (agent_ctx is not None
+                    and self._is_api_client()
+                    and gp_by_name):
+                known_names = {c["name"] for c in agent_ctx.named_characters}
+                for ev in moment.events:
+                    for actor in ev.actors:
+                        if actor in gp_by_name:
+                            known_names.add(actor)
+                matched = [n for n in known_names if n in narrative]
+                if matched:
+                    try:
+                        summary_prompt = (
+                            "Based on the following passage, write exactly one sentence "
+                            "summarizing each named character's role. "
+                            "Only reference events described in the passage.\n\n"
+                            f"Characters: {', '.join(matched)}\n"
+                            f"Passage: {narrative}\n\n"
+                            "Respond as:\n"
+                            + "\n".join(f"{n}: [sentence]" for n in matched)
+                        )
+                        summary_response = self.narrative_client.generate(summary_prompt)
+                        for name in matched:
+                            prefix = f"{name}: "
+                            for line in summary_response.split("\n"):
+                                if line.startswith(prefix):
+                                    sentence = line[len(prefix):].strip()
+                                    if sentence and name in gp_by_name:
+                                        _update_arc_summary(gp_by_name[name], sentence)
+                                    break
+                    except Exception:
+                        logger.warning(
+                            "Arc summary follow-up failed for moment %d, skipping",
+                            moment.anchor_turn,
+                        )
 
             # Build ChronicleEntry
             entry = ChronicleEntry(

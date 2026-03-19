@@ -380,3 +380,24 @@ def test_arc_context_omitted_when_none():
     text = build_agent_context_block(ctx)
     assert "Arc:" not in text
     assert "Summary:" not in text
+
+
+# --- Arc summary tests ---
+
+from chronicler.narrative import _update_arc_summary
+
+
+def test_arc_summary_truncation():
+    """4th sentence drops the oldest."""
+    gp = _make_gp(arc_summary="Sentence one. Sentence two. Sentence three.")
+    _update_arc_summary(gp, "Sentence four")
+    assert "Sentence one" not in gp.arc_summary
+    assert "Sentence four" in gp.arc_summary
+
+
+def test_arc_summary_first():
+    """First summary on empty arc_summary."""
+    gp = _make_gp()
+    assert gp.arc_summary is None
+    _update_arc_summary(gp, "First deed")
+    assert "First deed" in gp.arc_summary
