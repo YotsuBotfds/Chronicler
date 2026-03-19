@@ -378,7 +378,7 @@ def check_pilgrimages(
         if current_turn >= gp.pilgrimage_return_turn:
             destination = gp.pilgrimage_destination or "unknown"
             gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
-            gp.arc_type = "Prophet"
+            gp.arc_type = "Prophet"  # Guard-compat shim: classifier confirms idempotently (M45 Decision 18)
             _append_deed(gp, "Returned from pilgrimage as Prophet")
             gp.pilgrimage_destination = None
             gp.pilgrimage_return_turn = None
