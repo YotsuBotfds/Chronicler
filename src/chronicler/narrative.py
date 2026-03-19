@@ -688,7 +688,7 @@ class NarrativeEngine:
     def _is_api_client(self) -> bool:
         """Check if narrative_client supports API-quality arc summaries."""
         try:
-            from chronicler.narrative import AnthropicClient
+            from chronicler.llm import AnthropicClient
             return isinstance(self.narrative_client, AnthropicClient)
         except (ImportError, AttributeError):
             return False

@@ -50,6 +50,8 @@ def classify_arc(
     matches: list[tuple[str | None, str | None, int]] = []
 
     # --- Check each archetype ---
+    # Order matters for tie-breaking: later entries win when condition counts are equal.
+    # Most general (Rise-and-Fall) first, most specific (Martyr) last.
     _check_rise_and_fall(gp, char_events, current_turn, matches)
     _check_exile_and_return(gp, char_events, matches)
     _check_dynasty_founder(gp, dynasty_registry, matches)
