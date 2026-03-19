@@ -246,3 +246,137 @@ def test_events_filtered_by_character_name():
     # Only Rise-and-Fall partial (career >= 20, active)
     assert phase == "rising"
     assert arc_type is None
+
+
+# --- Curator scoring tests ---
+
+from chronicler.curator import compute_base_scores
+
+
+def test_curator_arc_phase_bonus():
+    """arc_phase set -> +1.5 on character events."""
+    gp = _make_gp(arc_phase="rising", trait="cautious")
+    ev = _make_event(150, "conquest", ["Kiran", "Aram"])
+    gp_by_name = {"Kiran": gp}
+    named_chars = {"Kiran"}
+
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        named_characters=named_chars,
+        gp_by_name=gp_by_name,
+    )
+    # Base importance (5) + named char (+2.0) + arc involvement (+1.5) = at least 3.5 above base
+    base_scores = compute_base_scores([ev], [], "Aram", seed=0)
+    assert scores[0] >= base_scores[0] + 3.5
+
+
+def test_curator_arc_completion_bonus():
+    """Event on arc_type_turn -> +2.5."""
+    gp = _make_gp(arc_type="Rise-and-Fall", arc_type_turn=150, arc_phase="fallen", trait="cautious")
+    ev = _make_event(150, "character_death", ["Kiran", "Aram"])
+    gp_by_name = {"Kiran": gp}
+    named_chars = {"Kiran"}
+
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        named_characters=named_chars,
+        gp_by_name=gp_by_name,
+    )
+    # +2.0 (named) + 1.5 (arc involvement) + 2.5 (completion) = 6.0 above base
+    base_scores = compute_base_scores([ev], [], "Aram", seed=0)
+    assert scores[0] >= base_scores[0] + 6.0
+
+
+def test_curator_no_arc_no_bonus():
+    """Character with no arc -> only +2.0 named bonus."""
+    gp = _make_gp(trait="cautious")  # no arc_phase or arc_type
+    ev = _make_event(150, "conquest", ["Kiran", "Aram"])
+    gp_by_name = {"Kiran": gp}
+    named_chars = {"Kiran"}
+
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        named_characters=named_chars,
+        gp_by_name=gp_by_name,
+    )
+    base_scores = compute_base_scores([ev], [], "Aram", seed=0)
+    assert scores[0] == pytest.approx(base_scores[0] + 2.0)
+
+
+def test_curator_gp_by_name_none():
+    """gp_by_name=None -> no arc bonuses, no crash."""
+    ev = _make_event(150, "conquest", ["Kiran", "Aram"])
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        gp_by_name=None,
+    )
+    assert len(scores) == 1
+
+
+# --- Narration context tests ---
+
+from chronicler.narrative import build_agent_context_block
+from chronicler.models import AgentContext
+
+
+def test_arc_context_in_prompt():
+    """arc_type and arc_phase appear in narrator prompt."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+            "arc_type": "Rise-and-Fall",
+            "arc_phase": "rising",
+            "trait": "bold",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "Rise-and-Fall" in text
+    assert "rising" in text
+
+
+def test_trait_rendered():
+    """Character trait appears in prompt block."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+            "trait": "bold",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "bold" in text
+
+
+def test_arc_summary_in_prompt():
+    """arc_summary appears in prompt when set."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+            "arc_summary": "Led the northern campaign. Rose to command.",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "Led the northern campaign" in text
+
+
+def test_arc_context_omitted_when_none():
+    """No Arc: line when both arc_type and arc_phase are absent."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "Arc:" not in text
+    assert "Summary:" not in text
