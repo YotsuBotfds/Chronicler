@@ -298,6 +298,9 @@ def build_signals(world: WorldState, shocks: list | None = None,
     gini_vals = []
     priest_tithe_shares = []
 
+    from chronicler.tuning import get_multiplier, K_CULTURAL_DRIFT_SPEED, K_RELIGION_INTENSITY
+    n_civs = len(world.civilizations)
+
     for i, civ in enumerate(world.civilizations):
         civ_ids.append(i)
         stabilities.append(min(civ.stability, 100))
@@ -360,6 +363,12 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "conquered_this_turn": pa.array(conquered_flags, type=pa.bool_()),
         "gini_coefficient": pa.array(gini_vals, type=pa.float32()),
         "priest_tithe_share": pa.array(priest_tithe_shares, type=pa.float32()),
+        "cultural_drift_multiplier": pa.array(
+            [get_multiplier(world, K_CULTURAL_DRIFT_SPEED)] * n_civs, type=pa.float32(),
+        ),
+        "religion_intensity_multiplier": pa.array(
+            [get_multiplier(world, K_RELIGION_INTENSITY)] * n_civs, type=pa.float32(),
+        ),
     })
 
 
@@ -1001,7 +1010,11 @@ class AgentBridge:
         # Civ stats from aggregates
         civ_ids = aggs.column("civ_id").to_pylist()
         for row_idx, civ_id in enumerate(civ_ids):
+            if civ_id >= len(world.civilizations):
+                continue
             civ = world.civilizations[civ_id]
+            if len(civ.regions) == 0:
+                continue  # Skip dead civs whose agents haven't loyalty-flipped
             # Sum population across regions owned by this civ (regions is list[str])
             civ.population = sum(
                 world.regions[region_name_to_idx[rname]].population

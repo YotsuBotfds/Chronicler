@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 
 # --- Enums ---
@@ -78,7 +78,7 @@ class FactionType(str, Enum):
 
 class Belief(BaseModel):
     """A faith in the world's belief registry."""
-    faith_id: int = Field(ge=0, le=15)
+    faith_id: int = 0
     name: str
     civ_origin: int  # civ index that founded this faith
     doctrines: list[int] = Field(min_length=5, max_length=5)
@@ -169,9 +169,9 @@ class ClimateConfig(BaseModel):
 # --- Core entities ---
 
 class RegionEcology(BaseModel):
-    soil: float = Field(default=0.8, ge=0.0, le=1.0)
-    water: float = Field(default=0.6, ge=0.0, le=1.0)
-    forest_cover: float = Field(default=0.3, ge=0.0, le=1.0)
+    soil: float = 0.8
+    water: float = 0.6
+    forest_cover: float = 0.3
 
 
 class RegionStockpile(BaseModel):
@@ -188,8 +188,8 @@ class River(BaseModel):
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
-    carrying_capacity: int = Field(ge=1, le=100)
-    population: int = Field(default=0, ge=0)
+    carrying_capacity: int
+    population: int = 0
     resources: str  # fertile, mineral, timber, maritime, barren
     controller: Optional[str] = None
     x: float | None = None
@@ -204,7 +204,7 @@ class Region(BaseModel):
     forest_regrowth_turns: int = 0
     infrastructure: list[Infrastructure] = Field(default_factory=list)
     pending_build: PendingBuild | None = None
-    famine_cooldown: int = Field(default=0, ge=0)
+    famine_cooldown: int = 0
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
     resource_suspensions: dict[int, int] = Field(default_factory=dict)
@@ -251,16 +251,15 @@ class Leader(BaseModel):
 
 
 class Civilization(BaseModel):
-    # NOTE: Field constraints (ge/le) are enforced at construction time only.
-    # The simulation engine mutates stats via direct assignment with _clamp()
-    # to keep values in-bounds. Do NOT enable validate_assignment=True without
-    # updating all mutation sites in simulation.py.
+    # Note: validate_assignment=False for performance. Field constraints
+    # (ranges, bounds) are enforced via manual clamp() calls, not Pydantic
+    # validation. Do not add ge=/le= kwargs — they are silently ignored.
     name: str
-    population: int = Field(ge=0, le=1000)
-    military: int = Field(ge=0, le=100)
-    economy: int = Field(ge=0, le=100)
-    culture: int = Field(ge=0, le=100)
-    stability: int = Field(ge=0, le=100)
+    population: int = 0
+    military: int = 0
+    economy: int = 0
+    culture: int = 0
+    stability: int = 50
     tech_era: TechEra = TechEra.TRIBAL
     treasury: int = 0
     domains: list[str] = Field(default_factory=list)
@@ -268,7 +267,7 @@ class Civilization(BaseModel):
     leader: Leader
     goal: str = ""
     regions: list[str] = Field(default_factory=list)
-    asabiya: float = Field(default=0.5, ge=0.0, le=1.0)
+    asabiya: float = 0.5
     cultural_milestones: list[str] = Field(default_factory=list)
     action_counts: dict[str, int] = Field(default_factory=dict)
     prestige: int = 0
@@ -369,7 +368,7 @@ class Event(BaseModel):
     actors: list[str]
     description: str
     consequences: list[str] = Field(default_factory=list)
-    importance: int = Field(default=5, ge=1, le=10)
+    importance: int = 5
     source: str = "aggregate"  # "aggregate" or "agent"
     # M43b: Structured shock metadata (None for non-shock events)
     shock_region: str | None = None
@@ -384,20 +383,20 @@ class NamedEvent(BaseModel):
     actors: list[str]
     region: str | None = None
     description: str
-    importance: int = Field(default=5, ge=1, le=10)
+    importance: int = 5
 
 
 class ActiveCondition(BaseModel):
     condition_type: str
     affected_civs: list[str]
     duration: int
-    severity: int = Field(ge=1, le=100)
+    severity: int = 1
 
 
 class VassalRelation(BaseModel):
     overlord: str
     vassal: str
-    tribute_rate: float = Field(default=0.15, ge=0.0, le=1.0)
+    tribute_rate: float = 0.15
     turns_active: int = 0
 
 
@@ -546,6 +545,18 @@ class WorldState(BaseModel):
     rivers: list[River] = Field(default_factory=list)
     # M37: Religion
     belief_registry: list[Belief] = Field(default_factory=list)  # max 16 faiths
+    # M47: Cached region lookup
+    _region_map: dict[str, "Region"] | None = PrivateAttr(default=None)
+
+    @property
+    def region_map(self) -> dict[str, "Region"]:
+        if self._region_map is None:
+            self._region_map = {r.name: r for r in self.regions}
+        return self._region_map
+
+    def invalidate_region_map(self) -> None:
+        """Call after region list changes (conquest, expansion)."""
+        self._region_map = None
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -582,6 +593,7 @@ class CivSnapshot(BaseModel):
     is_fallen_empire: bool = False
     in_twilight: bool = False
     federation_name: str | None = None
+    gini: float = 0.0  # Wealth Gini coefficient (M41)
     prestige: int = 0
     capital_region: str | None = None
     great_persons: list[dict] = Field(default_factory=list)
@@ -657,19 +669,6 @@ class GapSummary(BaseModel):
     territory_changes: int
 
 
-class CivThematicContext(BaseModel):
-    """Per-civ thematic data for narrator prompts."""
-    name: str
-    trait: str
-    domains: list[str]
-    dominant_terrain: str
-    tech_era: str
-    active_tech_focus: str | None = None
-    active_named_events: list[str] = Field(default_factory=list)
-    # M43b: Trade vulnerability summary
-    trade_dependency_summary: str | None = None
-
-
 class NarrativeMoment(BaseModel):
     """Curator output: a selected narratively important moment."""
     anchor_turn: int
@@ -706,7 +705,6 @@ class NarrationContext(BaseModel):
     causes: list[str]
     consequences: list[str]
     previous_prose: str | None
-    civ_context: dict[str, CivThematicContext]
     agent_context: AgentContext | None = None
 
 

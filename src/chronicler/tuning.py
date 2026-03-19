@@ -91,6 +91,17 @@ K_REGRESSION_CAPITAL_COLLAPSE = "regression.capital_collapse_probability"
 K_REGRESSION_TWILIGHT = "regression.entered_twilight_probability"
 K_REGRESSION_BLACK_SWAN = "regression.black_swan_stressed_probability"
 
+# --- Global simulation multipliers (Tier 1 CLI knobs) ---
+# Each defaults to 1.0 (no change). Values > 1.0 amplify, < 1.0 dampen.
+K_AGGRESSION_BIAS = "multiplier.aggression_bias"
+K_TECH_DIFFUSION_RATE = "multiplier.tech_diffusion_rate"
+K_RESOURCE_ABUNDANCE = "multiplier.resource_abundance"
+K_TRADE_FRICTION = "multiplier.trade_friction"
+K_SEVERITY_MULTIPLIER = "multiplier.severity"
+K_CULTURAL_DRIFT_SPEED = "multiplier.cultural_drift_speed"
+K_RELIGION_INTENSITY = "multiplier.religion_intensity"
+K_SECESSION_LIKELIHOOD = "multiplier.secession_likelihood"
+
 # Complete set of known override keys
 KNOWN_OVERRIDES: set[str] = {
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
@@ -120,6 +131,10 @@ KNOWN_OVERRIDES: set[str] = {
     K_LOCUST_PROBABILITY, K_FLOOD_PROBABILITY, K_COLLAPSE_PROBABILITY,
     K_DROUGHT_INTENSIFICATION_PROBABILITY, K_COLLAPSE_MORTALITY_SPIKE,
     K_ECOLOGICAL_RECOVERY_PROBABILITY, K_ECOLOGICAL_RECOVERY_FRACTION,
+    # Global simulation multipliers
+    K_AGGRESSION_BIAS, K_TECH_DIFFUSION_RATE, K_RESOURCE_ABUNDANCE,
+    K_TRADE_FRICTION, K_SEVERITY_MULTIPLIER, K_CULTURAL_DRIFT_SPEED,
+    K_RELIGION_INTENSITY, K_SECESSION_LIKELIHOOD,
 }
 
 
@@ -154,9 +169,62 @@ def load_tuning(path: Path) -> dict[str, float]:
     if unknown:
         for key in sorted(unknown):
             warnings.warn(f"Unknown tuning key: {key}")
+    for key, value in flat.items():
+        if key.startswith("multiplier.") and value <= 0:
+            raise ValueError(
+                f"Multiplier '{key}' must be > 0, got {value}"
+            )
     return flat
 
 
 def get_override(world: "WorldState", key: str, default: float) -> float:
     """Read a tunable constant with override fallback."""
     return world.tuning_overrides.get(key, default)
+
+
+def get_multiplier(world: "WorldState", key: str) -> float:
+    """Read a global simulation multiplier (defaults to 1.0)."""
+    return world.tuning_overrides.get(key, 1.0)
+
+
+# --- Presets: compound parameter bundles ---
+PRESETS: dict[str, dict[str, float]] = {
+    "pangaea": {
+        K_TRADE_FRICTION: 0.5,
+        K_AGGRESSION_BIAS: 1.3,
+    },
+    "archipelago": {
+        K_TRADE_FRICTION: 1.8,
+        K_TECH_DIFFUSION_RATE: 0.6,
+    },
+    "golden-age": {
+        K_RESOURCE_ABUNDANCE: 2.0,
+        K_AGGRESSION_BIAS: 0.5,
+        K_TECH_DIFFUSION_RATE: 2.0,
+        K_SEVERITY_MULTIPLIER: 0.6,
+    },
+    "dark-age": {
+        K_SEVERITY_MULTIPLIER: 1.8,
+        K_SECESSION_LIKELIHOOD: 1.8,
+        K_RESOURCE_ABUNDANCE: 0.7,
+    },
+    "ice-age": {
+        K_SEVERITY_MULTIPLIER: 1.5,
+        K_RESOURCE_ABUNDANCE: 0.6,
+    },
+    "silk-road": {
+        K_TRADE_FRICTION: 0.4,
+        K_CULTURAL_DRIFT_SPEED: 2.0,
+        K_TECH_DIFFUSION_RATE: 1.5,
+    },
+}
+
+
+def apply_preset(overrides: dict[str, float], preset_name: str) -> None:
+    """Merge preset values into overrides dict (preset values don't override explicit values)."""
+    preset = PRESETS.get(preset_name)
+    if preset is None:
+        raise ValueError(f"Unknown preset: {preset_name}. Available: {', '.join(sorted(PRESETS))}")
+    for key, value in preset.items():
+        if key not in overrides:
+            overrides[key] = value

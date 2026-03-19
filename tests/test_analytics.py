@@ -344,3 +344,63 @@ class TestDeltaReport:
         current = {"stability": {"zero_rate_by_turn": {"100": 0.49}}}
         text = format_delta_report(baseline, current, threshold=0.05)
         assert "omitted" in text.lower()
+
+
+# --- M47b Extractor Tests ---
+
+def test_extract_schism_count_basic():
+    from chronicler.analytics import extract_schism_count
+    bundles = [{"events_timeline": [{"event_type": "Schism"}, {"event_type": "war"}]}]
+    result = extract_schism_count(bundles)
+    assert result["schism_count"]["median"] == 1.0
+    assert result["firing_rate"] == 1.0
+
+
+def test_extract_schism_count_no_schisms():
+    from chronicler.analytics import extract_schism_count
+    bundles = [{"events_timeline": [{"event_type": "war"}]}]
+    result = extract_schism_count(bundles)
+    assert result["schism_count"]["median"] == 0
+    assert result["firing_rate"] == 0.0
+
+
+def test_extract_arc_distribution_counts_types():
+    from chronicler.analytics import extract_arc_distribution
+    bundles = [{"world_state": {"civilizations": [
+        {"great_persons": [{"arc_type": "Rise-and-Fall"}, {"arc_type": "Exile-and-Return"}]}
+    ]}}]
+    result = extract_arc_distribution(bundles)
+    assert result["distinct_count"] == 2
+    assert result["total"] == 2
+
+
+def test_extract_dynasty_count_basic():
+    from chronicler.analytics import extract_dynasty_count
+    bundles = [{"world_state": {"civilizations": [
+        {"great_persons": [{"dynasty_id": 1}, {"dynasty_id": 2}, {"dynasty_id": 1}]}
+    ]}}]
+    result = extract_dynasty_count(bundles)
+    assert result["dynasty_count"]["median"] == 2.0
+
+
+def test_extract_stockpile_levels_basic():
+    from chronicler.analytics import extract_stockpile_levels
+    bundles = [{"world_state": {"regions": [
+        {"stockpile": {"goods": {"grain": 10.0, "ore": 5.0}}},
+        {"stockpile": {"goods": {"grain": 3.0}}},
+    ]}}]
+    result = extract_stockpile_levels(bundles)
+    assert result["stockpile_total"]["max"] == 15.0
+
+
+def test_extract_conversion_rates_basic():
+    from chronicler.analytics import extract_conversion_rates
+    bundles = [{"events_timeline": [
+        {"event_type": "Persecution"},
+        {"event_type": "Persecution"},
+        {"event_type": "Schism"},
+    ]}]
+    result = extract_conversion_rates(bundles)
+    assert result["Persecution"]["median"] == 2.0
+    assert result["Schism"]["median"] == 1.0
+    assert result["Reformation"]["median"] == 0

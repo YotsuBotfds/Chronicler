@@ -6,6 +6,7 @@ import random
 from chronicler.models import Civilization, Event, GreatPerson, Leader, NamedEvent, WorldState
 from chronicler.models import Disposition
 from chronicler.utils import civ_index
+from chronicler.emergence import get_severity_multiplier
 
 
 # Disposition ordering used for host-selection in exile logic.
@@ -249,11 +250,12 @@ def apply_exile_pretender_drain(world: WorldState, acc=None) -> None:
                 (c for c in world.civilizations if c.name == gp.origin_civilization), None
             )
             if origin and origin.regions:
+                mult = get_severity_multiplier(origin, world)
                 if acc is not None:
                     origin_idx = civ_index(world, origin.name)
-                    acc.add(origin_idx, origin, "stability", -2, "signal")
+                    acc.add(origin_idx, origin, "stability", -int(2 * mult), "signal")
                 else:
-                    origin.stability = max(origin.stability - 2, 0)
+                    origin.stability = max(origin.stability - int(2 * mult), 0)
             if acc is not None:
                 civ_idx = civ_index(world, civ.name)
                 acc.add(civ_idx, civ, "culture", 3, "guard-shock")

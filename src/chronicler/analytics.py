@@ -1529,3 +1529,121 @@ def format_delta_report(
 
     lines.append(f"{omitted} metrics omitted (< {threshold:.0%} change)")
     return "\n".join(lines)
+
+
+# --- M47b Extractors ---
+
+def extract_gini_trajectory(bundles: list[dict], checkpoints: list[int] | None = None) -> dict:
+    """Gini coefficient per civ at checkpoints."""
+    max_turn = _min_total_turns(bundles) - 1
+    cps = _clamp_checkpoints(checkpoints, max_turn)
+    result = {}
+    for turn in cps:
+        values = []
+        for b in bundles:
+            snap = _snapshot_at_turn(b, turn)
+            if snap:
+                for name, cs in snap["civ_stats"].items():
+                    if len(cs.get("regions", [])) > 0:
+                        values.append(cs.get("gini", 0.0))
+        result[str(turn)] = _compute_percentiles(values) if values else {}
+    return {"gini_by_turn": result}
+
+
+def extract_schism_count(bundles: list[dict]) -> dict:
+    """Count of schism events per run."""
+    counts = []
+    for b in bundles:
+        n = sum(1 for e in b.get("events_timeline", []) if e.get("event_type") == "Schism")
+        counts.append(n)
+    return {
+        "schism_count": _compute_percentiles(counts),
+        "firing_rate": sum(1 for c in counts if c > 0) / max(len(counts), 1),
+    }
+
+
+def extract_dynasty_count(bundles: list[dict]) -> dict:
+    """Count of unique dynasties per run."""
+    counts = []
+    for b in bundles:
+        dynasty_ids = set()
+        for civ_data in b.get("world_state", {}).get("civilizations", []):
+            for gp in civ_data.get("great_persons", []):
+                did = gp.get("dynasty_id")
+                if did and did != 0:
+                    dynasty_ids.add(did)
+        counts.append(len(dynasty_ids))
+    return {
+        "dynasty_count": _compute_percentiles(counts),
+        "firing_rate": sum(1 for c in counts if c > 0) / max(len(counts), 1),
+    }
+
+
+def extract_arc_distribution(bundles: list[dict]) -> dict:
+    """Arc type distribution across all great persons."""
+    type_counts: dict[str, int] = {}
+    total = 0
+    for b in bundles:
+        for civ_data in b.get("world_state", {}).get("civilizations", []):
+            for gp in civ_data.get("great_persons", []):
+                at = gp.get("arc_type")
+                if at:
+                    type_counts[at] = type_counts.get(at, 0) + 1
+                    total += 1
+    return {"arc_types": type_counts, "total": total, "distinct_count": len(type_counts)}
+
+
+def extract_food_sufficiency(bundles: list[dict], checkpoints: list[int] | None = None) -> dict:
+    """Food sufficiency distribution at checkpoints. Reads economy_result from bundle metadata."""
+    # EconomyResult is transient and not bundled into turn snapshots yet.
+    # For now, read the final world_state stockpile levels as a proxy.
+    counts = []
+    for b in bundles:
+        regions = b.get("world_state", {}).get("regions", [])
+        total_food = 0.0
+        for r in regions:
+            stockpile = r.get("stockpile", {}).get("goods", {})
+            for good, amount in stockpile.items():
+                if good in ("grain", "fish", "salt"):
+                    total_food += amount
+        counts.append(total_food)
+    return {"final_food_stock": _compute_percentiles(counts) if counts else {}}
+
+
+def extract_trade_volume(bundles: list[dict]) -> dict:
+    """Trade volume proxy from stockpile import/export data."""
+    # Full per-turn trade volume requires EconomyResult persistence.
+    # Use stockpile levels as a proxy for trade activity.
+    return {"note": "Requires EconomyResult bundling (deferred to M62 viewer)"}
+
+
+def extract_stockpile_levels(bundles: list[dict]) -> dict:
+    """Stockpile levels at final turn per region."""
+    all_totals = []
+    for b in bundles:
+        regions = b.get("world_state", {}).get("regions", [])
+        for r in regions:
+            stockpile = r.get("stockpile", {}).get("goods", {})
+            total = sum(stockpile.values())
+            all_totals.append(total)
+    return {"stockpile_total": _compute_percentiles(all_totals) if all_totals else {}}
+
+
+def extract_conversion_rates(bundles: list[dict]) -> dict:
+    """Religious conversion event counts."""
+    types = ("Persecution", "Schism", "Reformation")
+    counts_by_type: dict[str, list[int]] = {t: [] for t in types}
+    for b in bundles:
+        per_run: dict[str, int] = {t: 0 for t in types}
+        for e in b.get("events_timeline", []):
+            et = e.get("event_type")
+            if et in per_run:
+                per_run[et] += 1
+        for t in types:
+            counts_by_type[t].append(per_run[t])
+    return {t: _compute_percentiles(v) for t, v in counts_by_type.items()}
+
+
+def extract_trade_flow_by_distance(bundles: list[dict]) -> dict:
+    """Trade flow by distance — requires per-route data in bundle (deferred)."""
+    return {"note": "Requires per-route EconomyResult bundling (deferred to M62 viewer)"}

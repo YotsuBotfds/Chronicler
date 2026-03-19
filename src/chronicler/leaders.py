@@ -8,6 +8,7 @@ from chronicler.models import (
     ActiveCondition, Civilization, Event, Leader, NamedEvent, TechEra, WorldState,
 )
 from chronicler.utils import civ_index, clamp, STAT_FLOOR
+from chronicler.emergence import get_severity_multiplier
 
 
 _DOMAIN_TO_ARCHETYPE: dict[str, str] = {
@@ -216,20 +217,22 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
     from chronicler.succession import inherit_grudges
     inherit_grudges(old_leader, new_leader)
     if stype == "general":
+        mult = get_severity_multiplier(civ, world)
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "stability", -10, "guard-shock")
+            acc.add(civ_idx, civ, "stability", -int(10 * mult), "guard-shock")
             acc.add(civ_idx, civ, "military", 10, "guard-shock")
         else:
-            civ.stability = clamp(civ.stability - 10, STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
             civ.military = clamp(civ.military + 10, STAT_FLOOR["military"], 100)
     elif stype == "usurper":
+        mult = get_severity_multiplier(civ, world)
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "stability", -30, "guard-shock")
+            acc.add(civ_idx, civ, "stability", -int(30 * mult), "guard-shock")
             acc.add(civ_idx, civ, "asabiya", 0.1, "keep")
         else:
-            civ.stability = clamp(civ.stability - 30, STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - int(30 * mult), STAT_FLOOR["stability"], 100)
             civ.asabiya = min(civ.asabiya + 0.1, 1.0)
         world.named_events.append(NamedEvent(
             name=f"The {civ.name} Coup", event_type="coup", turn=world.turn,

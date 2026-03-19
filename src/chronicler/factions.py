@@ -410,7 +410,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
         elif civ.factions.power_struggle:
             civ.factions.power_struggle_turns += 1
             from chronicler.emergence import get_severity_multiplier
-            drain = int(3 * get_severity_multiplier(civ))
+            drain = int(3 * get_severity_multiplier(civ, world))
             if acc is not None:
                 acc.add(civ_idx, civ, "stability", -drain, "signal")
             else:

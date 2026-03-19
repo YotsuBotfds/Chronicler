@@ -16,6 +16,7 @@ from chronicler.models import (
 from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
+from chronicler.emergence import get_severity_multiplier
 
 
 class WarResult(NamedTuple):
@@ -325,11 +326,12 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
                 ))
             else:
                 embargo_damage = 5
+            mult = get_severity_multiplier(target, world)
             if acc is not None:
                 target_idx = civ_index(world, target.name)
-                acc.add(target_idx, target, "stability", -embargo_damage, "signal")
+                acc.add(target_idx, target, "stability", -int(embargo_damage * mult), "signal")
             else:
-                target.stability = clamp(target.stability - embargo_damage, STAT_FLOOR["stability"], 100)
+                target.stability = clamp(target.stability - int(embargo_damage * mult), STAT_FLOOR["stability"], 100)
         return Event(
             turn=world.turn, event_type="embargo", actors=[civ.name, target_name],
             description=f"{civ.name} imposed a trade embargo on {target_name}.",
@@ -488,24 +490,26 @@ def resolve_war(
                     if temple_evt:
                         world.events_timeline.append(temple_evt)
                 contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
+        mult = get_severity_multiplier(defender, world)
         if acc is not None:
             acc.add(att_idx, attacker, "military", -10, "guard-action")
             acc.add(def_idx, defender, "military", -20, "guard-action")
-            acc.add(def_idx, defender, "stability", -10, "signal")
+            acc.add(def_idx, defender, "stability", -int(10 * mult), "signal")
         else:
             attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
             defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
-            defender.stability = clamp(defender.stability - 10, STAT_FLOOR["stability"], 100)
+            defender.stability = clamp(defender.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
         return WarResult("attacker_wins", contested.name if contested else None)
     elif def_power > att_power * 1.3:
+        mult = get_severity_multiplier(attacker, world)
         if acc is not None:
             acc.add(att_idx, attacker, "military", -20, "guard-action")
             acc.add(def_idx, defender, "military", -10, "guard-action")
-            acc.add(att_idx, attacker, "stability", -10, "signal")
+            acc.add(att_idx, attacker, "stability", -int(10 * mult), "signal")
         else:
             attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
             defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
-            attacker.stability = clamp(attacker.stability - 10, STAT_FLOOR["stability"], 100)
+            attacker.stability = clamp(attacker.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
         return WarResult("defender_wins", contested.name if contested else None)
     else:
         if acc is not None:
@@ -794,6 +798,10 @@ class ActionEngine:
                         RAIDER_CAP,
                     )
                     weights[ActionType.WAR] += raider_bonus
+
+        # M47: Aggression bias multiplier
+        from chronicler.tuning import get_multiplier, K_AGGRESSION_BIAS
+        weights[ActionType.WAR] *= get_multiplier(self.world, K_AGGRESSION_BIAS)
 
         history = self.world.action_history.get(civ.name, [])
         streak_limit = 5 if civ.leader.trait == "stubborn" else 3

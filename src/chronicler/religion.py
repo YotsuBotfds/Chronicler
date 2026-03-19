@@ -342,11 +342,13 @@ def compute_conversion_signals(
             # Named prophet bonus
             prophet_multiplier = NAMED_PROPHET_MULTIPLIER if region_idx in prophet_regions else 1.0
 
+            from chronicler.tuning import get_multiplier, K_RELIGION_INTENSITY
             rate = (
                 BASE_CONVERSION_RATE
                 * priest_ratio
                 * doctrine_multiplier
                 * prophet_multiplier
+                * get_multiplier(world, K_RELIGION_INTENSITY)
             )
 
         # M38b: Martyrdom boost (adds directly to conversion rate)
@@ -432,6 +434,7 @@ def compute_persecution(
     snapshot,
     turn: int,
     persecuted_regions: set[str],
+    world=None,
 ) -> list:
     """Detect religious persecution and fire events.
 
@@ -511,7 +514,8 @@ def compute_persecution(
                 continue
 
             minority_ratio = minority_count / total
-            intensity = 1.0 * (1.0 - minority_ratio)
+            from chronicler.tuning import get_multiplier as _gm, K_RELIGION_INTENSITY as _KRI
+            intensity = 1.0 * (1.0 - minority_ratio) * (_gm(world, _KRI) if world else 1.0)
             region.persecution_intensity = intensity
 
             # One-shot "Persecution" event per region
@@ -720,6 +724,7 @@ def detect_schisms(
     belief_registry: list["Belief"],
     snapshot,
     current_turn: int,
+    world=None,
 ) -> list:
     """Detect and fire at most one schism per civilization per turn.
 
@@ -780,7 +785,12 @@ def detect_schisms(
 
         # Find region with highest minority ratio above threshold
         best_region = None
-        best_minority_ratio = SCHISM_MINORITY_THRESHOLD  # strictly greater than threshold
+        from chronicler.tuning import get_multiplier, K_RELIGION_INTENSITY
+        effective_threshold = max(
+            SCHISM_MINORITY_THRESHOLD / (get_multiplier(world, K_RELIGION_INTENSITY) if world else 1.0),
+            0.10,
+        )
+        best_minority_ratio = effective_threshold  # strictly greater than threshold
         best_region_idx = -1
 
         for region_name in civ.regions:

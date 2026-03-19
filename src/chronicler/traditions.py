@@ -24,10 +24,14 @@ def update_event_counts(world: WorldState) -> None:
 
     # Prune old war wins (only keep last 20 turns — matches _WAR_WIN_WINDOW in great_persons.py)
     for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue
         civ.war_win_turns = [t for t in civ.war_win_turns if t >= world.turn - 20]
 
     # Track high economy turns
     for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue
         if civ.economy >= 80:
             civ.event_counts["high_economy_turns"] = civ.event_counts.get("high_economy_turns", 0) + 1
         else:
@@ -86,6 +90,8 @@ def check_tradition_acquisition(world: WorldState) -> list[tuple[str, str]]:
     """
     granted: list[tuple[str, str]] = []
     for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue
         if len(civ.traditions) >= MAX_TRADITIONS:
             continue
         for tradition, trigger in TRADITION_DIRECT_TRIGGERS.items():

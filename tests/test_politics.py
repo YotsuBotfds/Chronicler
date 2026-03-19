@@ -932,3 +932,23 @@ def test_all_scenarios_run_with_m14():
             engine = ActionEngine(world)
             selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
             run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
+
+
+# --- M47 Tier A: Civ-removal fix ---
+
+def test_twilight_absorption_keeps_dead_civ_in_list():
+    """After twilight absorption, dead civ remains in world.civilizations with 0 regions."""
+    from chronicler.politics import check_twilight_absorption
+
+    world = generate_world(seed=42, num_civs=3, num_regions=6)
+    # Force one civ into twilight state: decline_turns >= 40, 1 region, adjacent absorber
+    target = world.civilizations[2]
+    target.decline_turns = 50
+    # Keep only 1 region
+    target.regions = target.regions[:1]
+
+    initial_count = len(world.civilizations)
+    check_twilight_absorption(world)
+
+    # Civ must still be in the list regardless of whether absorption happened
+    assert len(world.civilizations) == initial_count

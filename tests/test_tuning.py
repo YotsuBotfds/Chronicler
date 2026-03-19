@@ -82,3 +82,61 @@ def test_m35b_emergence_constants_registered():
     assert "emergence.collapse_mortality_spike" in KNOWN_OVERRIDES
     assert "emergence.ecological_recovery_probability" in KNOWN_OVERRIDES
     assert "emergence.ecological_recovery_fraction" in KNOWN_OVERRIDES
+
+
+# --- M47: Multiplier validation ---
+
+def test_load_tuning_rejects_zero_multiplier(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text("multiplier:\n  severity: 0.0\n")
+    with pytest.raises(ValueError, match="must be > 0"):
+        load_tuning(p)
+
+
+def test_load_tuning_rejects_negative_multiplier(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text("multiplier:\n  aggression_bias: -1.0\n")
+    with pytest.raises(ValueError, match="must be > 0"):
+        load_tuning(p)
+
+
+def test_load_tuning_accepts_positive_multiplier(tmp_path):
+    p = tmp_path / "ok.yaml"
+    p.write_text("multiplier:\n  severity: 1.5\n")
+    result = load_tuning(p)
+    assert result["multiplier.severity"] == 1.5
+
+
+# --- M47: Consumer wiring ---
+
+def test_severity_composition_cap():
+    """Severity multiplier composed with tuning override capped at 2.0."""
+    from chronicler.emergence import get_severity_multiplier
+    from unittest.mock import MagicMock
+    civ = MagicMock()
+    civ.civ_stress = 20  # base = 1.0 + (20/20)*0.5 = 1.5
+    world = MagicMock()
+    world.tuning_overrides = {"multiplier.severity": 1.8}  # composed = 1.5 * 1.8 = 2.7 → cap 2.0
+    assert get_severity_multiplier(civ, world) == 2.0
+
+
+def test_severity_no_world_returns_base():
+    """Without world param, returns uncapped base severity."""
+    from chronicler.emergence import get_severity_multiplier
+    from unittest.mock import MagicMock
+    civ = MagicMock()
+    civ.civ_stress = 20
+    assert get_severity_multiplier(civ) == pytest.approx(1.5)
+
+
+def test_trade_friction_scales_transport_cost():
+    """friction_multiplier parameter scales compute_transport_cost output."""
+    from chronicler.economy import compute_transport_cost
+    cost_default = compute_transport_cost(
+        "plains", "plains", is_river=False, is_coastal=False, is_winter=False,
+    )
+    cost_high = compute_transport_cost(
+        "plains", "plains", is_river=False, is_coastal=False, is_winter=False,
+        friction_multiplier=2.0,
+    )
+    assert cost_high == pytest.approx(cost_default * 2.0)

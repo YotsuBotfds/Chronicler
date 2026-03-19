@@ -283,9 +283,13 @@ pub fn tick_agents(
         let region_groups = pool.partition_by_region(num_regions as u16);
         for (region_id, slots) in region_groups.iter().enumerate() {
             if !slots.is_empty() {
+                let drift_mult = signals.civs.iter()
+                    .find(|c| c.civ_id == regions[region_id].controller_civ)
+                    .map(|c| c.cultural_drift_multiplier)
+                    .unwrap_or(1.0);
                 crate::culture_tick::culture_tick(
                     pool, slots, &regions[region_id],
-                    master_seed, turn, region_id,
+                    master_seed, turn, region_id, drift_mult,
                 );
             }
         }
@@ -299,9 +303,13 @@ pub fn tick_agents(
         let region_groups = pool.partition_by_region(num_regions as u16);
         for (region_id, slots) in region_groups.iter().enumerate() {
             if !slots.is_empty() {
+                let religion_mult = signals.civs.iter()
+                    .find(|c| c.civ_id == regions[region_id].controller_civ)
+                    .map(|c| c.religion_intensity_multiplier)
+                    .unwrap_or(1.0);
                 crate::conversion_tick::conversion_tick(
                     pool, slots, &regions[region_id],
-                    master_seed, turn, region_id,
+                    master_seed, turn, region_id, religion_mult,
                 );
             }
         }
@@ -720,6 +728,8 @@ mod tests {
                     gini_coefficient: 0.0,
                     conquered_this_turn: false,
                     priest_tithe_share: 0.0,
+                    cultural_drift_multiplier: 1.0,
+                    religion_intensity_multiplier: 1.0,
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
@@ -1037,6 +1047,8 @@ mod m41_tests {
                 gini_coefficient: gini,
                 conquered_this_turn: conquered,
                 priest_tithe_share: 0.0,
+                cultural_drift_multiplier: 1.0,
+                religion_intensity_multiplier: 1.0,
             }],
             contested_regions: vec![false],
         }

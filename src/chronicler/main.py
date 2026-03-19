@@ -304,8 +304,9 @@ def execute_run(
                     action_counts=dict(civ.action_counts),
                     max_precap_weight=civ.max_precap_weight,
                     last_action=(world.action_history.get(civ.name, [])[-1] if world.action_history.get(civ.name) else None),
+                    gini=getattr(agent_bridge, '_gini_by_civ', {}).get(civ_idx, 0.0) if agent_bridge else 0.0,
                 )
-                for civ in world.civilizations
+                for civ_idx, civ in enumerate(world.civilizations)
             },
             ecology={r.name: r.ecology.model_dump() for r in world.regions},
             region_control={

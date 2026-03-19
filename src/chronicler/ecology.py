@@ -115,7 +115,9 @@ def compute_resource_yields(
                 continue
             reserve_ramp = min(1.0, reserves / 0.25)
 
-        yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp
+        from chronicler.tuning import get_multiplier, K_RESOURCE_ABUNDANCE
+        abundance = get_multiplier(world, K_RESOURCE_ABUNDANCE) if world else 1.0
+        yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
 
     return yields
 
@@ -280,7 +282,7 @@ def _check_famine_yield(
             continue
 
         # --- Famine effects ---
-        mult = get_severity_multiplier(civ)
+        mult = get_severity_multiplier(civ, world)
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "population", -int(5 * mult), "guard")
@@ -302,11 +304,12 @@ def _check_famine_yield(
                 if neighbor:
                     add_region_pop(adj, 5)
                     sync_civ_population(neighbor, world)
+                    neighbor_mult = get_severity_multiplier(neighbor, world)
                     if acc is not None:
                         neighbor_idx = civ_index(world, neighbor.name)
-                        acc.add(neighbor_idx, neighbor, "stability", -5, "signal")
+                        acc.add(neighbor_idx, neighbor, "stability", -int(5 * neighbor_mult), "signal")
                     else:
-                        neighbor.stability = clamp(neighbor.stability - 5, STAT_FLOOR["stability"], 100)
+                        neighbor.stability = clamp(neighbor.stability - int(5 * neighbor_mult), STAT_FLOOR["stability"], 100)
 
         events.append(Event(
             turn=world.turn, event_type="famine", actors=[civ.name],

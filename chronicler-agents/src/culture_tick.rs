@@ -36,6 +36,7 @@ pub fn culture_tick(
     master_seed: [u8; 32],
     turn: u32,
     region_id: usize,
+    drift_multiplier: f32,
 ) {
     if slots.is_empty() { return; }
 
@@ -61,7 +62,8 @@ pub fn culture_tick(
 
     for &slot in slots {
         if !pool.alive[slot] { continue; }
-        drift_agent(slot, pool, &dist, agent::CULTURAL_DRIFT_RATE, &mut rng);
+        let effective_rate = agent::CULTURAL_DRIFT_RATE * drift_multiplier;
+        drift_agent(slot, pool, &dist, effective_rate, &mut rng);
     }
 }
 

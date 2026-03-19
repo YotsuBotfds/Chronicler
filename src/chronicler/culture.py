@@ -7,6 +7,7 @@ from collections import Counter
 from chronicler.agent_bridge import VALUE_TO_ID
 from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
 from chronicler.utils import civ_index, clamp
+from chronicler.emergence import get_severity_multiplier
 
 VALUE_OPPOSITIONS: dict[str, str] = {
     "Freedom": "Order",
@@ -66,7 +67,8 @@ def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
                     min(prof_a.get(v, 0) / total_a, prof_b.get(v, 0) / total_b)
                     for v in all_values
                 )
-                net_drift = int((shared_frac - 0.3) * 10)
+                from chronicler.tuning import get_multiplier, K_CULTURAL_DRIFT_SPEED
+                net_drift = int((shared_frac - 0.3) * 10 * get_multiplier(world, K_CULTURAL_DRIFT_SPEED))
                 if net_drift == 0:
                     continue
 
@@ -221,12 +223,13 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                 (c for c in world.civilizations if c.name == region.controller), None
             )
             if controller:
+                mult = get_severity_multiplier(controller, world)
                 if acc is not None:
                     ctrl_idx = civ_index(world, controller.name)
-                    acc.add(ctrl_idx, controller, "stability", -ASSIMILATION_STABILITY_DRAIN, "signal")
+                    acc.add(ctrl_idx, controller, "stability", -int(ASSIMILATION_STABILITY_DRAIN * mult), "signal")
                 else:
                     controller.stability = clamp(
-                        controller.stability - ASSIMILATION_STABILITY_DRAIN, 0, 100
+                        controller.stability - int(ASSIMILATION_STABILITY_DRAIN * mult), 0, 100
                     )
 
 
@@ -338,6 +341,8 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
 def check_cultural_victories(world: WorldState) -> None:
     """Check for cultural hegemony and universal enlightenment."""
     for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue
         others_combined = sum(c.culture for c in world.civilizations if c != civ)
         if civ.culture > others_combined:
             if not any(
@@ -374,6 +379,8 @@ def check_cultural_victories(world: WorldState) -> None:
 def tick_prestige(world: WorldState, acc=None) -> None:
     """Decay prestige and award trade income bonus."""
     for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "prestige", -1, "keep")

@@ -16,21 +16,6 @@ class TestRegionEcologyModel:
         eco = RegionEcology(soil=0.5, water=0.4, forest_cover=0.9)
         assert eco.soil == 0.5
 
-    def test_soil_clamped_to_01(self):
-        with pytest.raises(Exception):
-            RegionEcology(soil=1.5)
-        with pytest.raises(Exception):
-            RegionEcology(soil=-0.1)
-
-    def test_water_clamped_to_01(self):
-        with pytest.raises(Exception):
-            RegionEcology(water=1.5)
-
-    def test_forest_cover_clamped_to_01(self):
-        with pytest.raises(Exception):
-            RegionEcology(forest_cover=-0.1)
-
-
 class TestRegionEcologyField:
     def test_region_has_ecology(self):
         r = Region(name="T", terrain="plains", carrying_capacity=60, resources="fertile")

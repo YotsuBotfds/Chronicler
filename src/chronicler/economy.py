@@ -401,6 +401,7 @@ def compute_transport_cost(
     is_river: bool,
     is_coastal: bool,
     is_winter: bool,
+    friction_multiplier: float = 1.0,
 ) -> float:
     """Per-route transport cost. Subtracted from raw margin for effective margin.
 
@@ -410,13 +411,14 @@ def compute_transport_cost(
         is_river: Both regions on same river path.
         is_coastal: Both regions are coast terrain.
         is_winter: Current season is winter.
+        friction_multiplier: M47 K_TRADE_FRICTION scaling (default 1.0).
     """
     terrain_factor = max(TERRAIN_COST.get(terrain_a, 1.0), TERRAIN_COST.get(terrain_b, 1.0))
     river = RIVER_DISCOUNT if is_river else 1.0
     coastal = COASTAL_DISCOUNT if is_coastal else 1.0
     seasonal = WINTER_MODIFIER if is_winter else 1.0
     infra = INFRASTRUCTURE_DISCOUNT
-    return TRANSPORT_COST_BASE * terrain_factor * infra * min(river, coastal) * seasonal
+    return TRANSPORT_COST_BASE * terrain_factor * infra * min(river, coastal) * seasonal * friction_multiplier
 
 
 def _empty_category_dict() -> dict[str, float]:
@@ -764,12 +766,12 @@ def compute_economy(
         )
         region_demand[rname] = demand
 
-    # --- Step 2c: Pre-trade prices ---
+    # --- Step 2c: Pre-trade prices (initial from local production only) ---
     pre_trade_prices: dict[str, dict[str, float]] = {}
     for rname in region_production:
         pre_trade_prices[rname] = compute_prices(region_production[rname], region_demand[rname])
 
-    # --- Step 2d: Exportable surplus ---
+    # --- Step 2d: Exportable surplus (constant across tatonnement passes) ---
     exportable_surplus: dict[str, dict[str, float]] = {}
     for rname in region_production:
         exportable_surplus[rname] = {
@@ -806,39 +808,89 @@ def compute_economy(
                 continue
             is_river = frozenset({origin_name, dest_name}) in river_pairs
             is_coastal = origin_region.terrain == "coast" and dest_region.terrain == "coast"
+            from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             route_transport_costs[route] = compute_transport_cost(
                 origin_region.terrain, dest_region.terrain,
                 is_river=is_river, is_coastal=is_coastal, is_winter=is_winter,
+                friction_multiplier=get_multiplier(world, K_TRADE_FRICTION),
             )
+
+    # --- M47: Tatonnement price iteration ---
+    TATONNEMENT_MAX_PASSES = 3
+    TATONNEMENT_DAMPING = 0.2
+    TATONNEMENT_CONVERGENCE = 0.01
+    TATONNEMENT_PRICE_CLAMP = (0.5, 2.0)
 
     region_imports: dict[str, dict[str, float]] = {rname: _empty_category_dict() for rname in region_production}
     region_exports: dict[str, dict[str, float]] = {rname: _empty_category_dict() for rname in region_production}
     all_route_flows: dict[str, dict[tuple[str, str], dict[str, float]]] = {}
 
-    for origin_name, routes in origin_routes.items():
-        if origin_name not in region_production:
-            continue
-        merchant_count = region_agent_data.get(origin_name, {}).get("merchant_count", 0)
-        dest_prices: dict[str, dict[str, float]] = {}
-        for _, dest in routes:
-            if dest in pre_trade_prices:
-                dest_prices[dest] = pre_trade_prices[dest]
+    for _pass in range(TATONNEMENT_MAX_PASSES):
+        prev_prices = {rn: dict(p) for rn, p in pre_trade_prices.items()}
 
-        flow = allocate_trade_flow(
-            routes, pre_trade_prices.get(origin_name, _empty_category_dict()),
-            dest_prices, exportable_surplus.get(origin_name, _empty_category_dict()),
-            merchant_count,
-            transport_costs=route_transport_costs,
-        )
-        all_route_flows[origin_name] = flow
+        # Re-zero accumulators
+        region_imports = {rname: _empty_category_dict() for rname in region_production}
+        region_exports = {rname: _empty_category_dict() for rname in region_production}
+        all_route_flows = {}
 
+        # Trade allocation with current prices
+        for origin_name, routes in origin_routes.items():
+            if origin_name not in region_production:
+                continue
+            merchant_count = region_agent_data.get(origin_name, {}).get("merchant_count", 0)
+            dest_prices: dict[str, dict[str, float]] = {}
+            for _, dest in routes:
+                if dest in pre_trade_prices:
+                    dest_prices[dest] = pre_trade_prices[dest]
+
+            flow = allocate_trade_flow(
+                routes, pre_trade_prices.get(origin_name, _empty_category_dict()),
+                dest_prices, exportable_surplus.get(origin_name, _empty_category_dict()),
+                merchant_count,
+                transport_costs=route_transport_costs,
+            )
+            all_route_flows[origin_name] = flow
+
+            for route, cat_flows in flow.items():
+                _, dest = route
+                for cat in CATEGORIES:
+                    amount = cat_flows[cat]
+                    region_exports[origin_name][cat] += amount
+                    region_imports.setdefault(dest, _empty_category_dict())
+                    region_imports[dest][cat] += amount
+
+        # Recompute prices from production + imports with damping
+        for rname in region_production:
+            supply = {
+                cat: region_production[rname][cat] + region_imports.get(rname, _empty_category_dict())[cat]
+                for cat in CATEGORIES
+            }
+            new_prices = compute_prices(supply, region_demand[rname])
+            for cat in CATEGORIES:
+                old_p = prev_prices.get(rname, {}).get(cat, 1.0)
+                if old_p < 0.001:
+                    pre_trade_prices[rname][cat] = new_prices[cat]
+                    continue
+                ratio = new_prices[cat] / old_p
+                clamped = max(TATONNEMENT_PRICE_CLAMP[0], min(ratio, TATONNEMENT_PRICE_CLAMP[1]))
+                pre_trade_prices[rname][cat] = old_p * (1.0 + TATONNEMENT_DAMPING * (clamped - 1.0))
+
+        # Convergence check
+        max_delta = 0.0
+        for rname in region_production:
+            for cat in CATEGORIES:
+                delta = abs(pre_trade_prices[rname].get(cat, 0) - prev_prices.get(rname, {}).get(cat, 0))
+                if delta > max_delta:
+                    max_delta = delta
+        if max_delta < TATONNEMENT_CONVERGENCE:
+            break
+
+    # Track inbound sources after final pass
+    for origin_name, flow in all_route_flows.items():
         for route, cat_flows in flow.items():
             _, dest = route
             for cat in CATEGORIES:
                 amount = cat_flows[cat]
-                region_exports[origin_name][cat] += amount
-                region_imports.setdefault(dest, _empty_category_dict())
-                region_imports[dest][cat] += amount
                 if amount > 0:
                     result.inbound_sources.setdefault(dest, [])
                     if origin_name not in result.inbound_sources[dest]:

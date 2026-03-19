@@ -22,7 +22,6 @@ from chronicler.models import (
     AgentContext,
     CausalLink,
     ChronicleEntry,
-    CivThematicContext,
     Civilization,
     Disposition,
     Event,

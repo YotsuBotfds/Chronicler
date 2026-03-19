@@ -27,6 +27,7 @@ pub fn conversion_tick(
     master_seed: [u8; 32],
     turn: u32,
     region_id: usize,
+    religion_multiplier: f32,
 ) {
     // Early exit: no conversion pressure at all.
     if region.conversion_rate <= 0.0 && !region.conquest_conversion_active {
@@ -62,13 +63,13 @@ pub fn conversion_tick(
 
         // Determine conversion probability.
         let prob = if region.conquest_conversion_active {
-            agent::CONQUEST_CONVERSION_RATE
+            (agent::CONQUEST_CONVERSION_RATE * religion_multiplier).min(1.0)
         } else {
-            let base = region.conversion_rate;
+            let base = region.conversion_rate * religion_multiplier;
             if pool.satisfactions[slot] < agent::SUSCEPTIBILITY_THRESHOLD {
                 (base * agent::SUSCEPTIBILITY_MULTIPLIER).min(1.0)
             } else {
-                base
+                base.min(1.0)
             }
         };
 
@@ -123,7 +124,7 @@ mod tests {
         let slots = vec![s0, s1];
 
         let region = make_region(0.0, 3, false);
-        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0);
+        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0, 1.0);
 
         assert_eq!(pool.beliefs[s0], 1, "belief should be unchanged");
         assert_eq!(pool.beliefs[s1], 2, "belief should be unchanged");
@@ -144,7 +145,7 @@ mod tests {
         }
 
         let region = make_region(1.0, target_belief, false);
-        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0);
+        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0, 1.0);
 
         for &slot in &slots {
             assert_eq!(
@@ -170,7 +171,7 @@ mod tests {
         let slots = vec![already, other];
 
         let region = make_region(1.0, target, false);
-        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0);
+        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0, 1.0);
 
         // `already` must remain unchanged (life_event bit must stay clear).
         assert_eq!(pool.life_events[already] & agent::LIFE_EVENT_CONVERSION, 0,
@@ -193,7 +194,7 @@ mod tests {
         }
 
         let region = make_region(0.0, target, true); // conquest, base rate irrelevant
-        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0);
+        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0, 1.0);
 
         let converted = slots.iter().filter(|&&s| pool.beliefs[s] == target).count();
         let rate = converted as f32 / n as f32;
@@ -220,7 +221,7 @@ mod tests {
             slots_high.push(spawn_agent(&mut pool_high, 1, 0.8)); // above threshold
         }
         let region = make_region(base_rate, target, false);
-        conversion_tick(&mut pool_high, &slots_high, &region, SEED, 1, 0);
+        conversion_tick(&mut pool_high, &slots_high, &region, SEED, 1, 0, 1.0);
         let converted_high = slots_high.iter().filter(|&&s| pool_high.beliefs[s] == target).count();
 
         // Low-satisfaction cohort.
@@ -229,7 +230,7 @@ mod tests {
         for _ in 0..n {
             slots_low.push(spawn_agent(&mut pool_low, 1, 0.1)); // below threshold
         }
-        conversion_tick(&mut pool_low, &slots_low, &region, SEED, 1, 0);
+        conversion_tick(&mut pool_low, &slots_low, &region, SEED, 1, 0, 1.0);
         let converted_low = slots_low.iter().filter(|&&s| pool_low.beliefs[s] == target).count();
 
         // Low-sat should convert at approximately 2× the high-sat rate.
@@ -253,7 +254,7 @@ mod tests {
             .collect();
 
         let region = make_region(1.0, target, false);
-        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0);
+        conversion_tick(&mut pool, &slots, &region, SEED, 1, 0, 1.0);
 
         for &slot in &slots {
             assert_ne!(

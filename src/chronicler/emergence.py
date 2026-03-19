@@ -84,9 +84,13 @@ def compute_all_stress(world: WorldState) -> None:
         world.stress_index = 0
 
 
-def get_severity_multiplier(civ: Civilization) -> float:
-    """Return cascade severity multiplier based on civ stress. Range: 1.0-1.5."""
-    return 1.0 + (civ.civ_stress / 20) * 0.5
+def get_severity_multiplier(civ: Civilization, world: "WorldState | None" = None) -> float:
+    """Return cascade severity multiplier. Composed with tuning multiplier, capped at 2.0."""
+    base = 1.0 + (civ.civ_stress / 20) * 0.5
+    if world is not None:
+        from chronicler.tuning import get_multiplier, K_SEVERITY_MULTIPLIER
+        return min(base * get_multiplier(world, K_SEVERITY_MULTIPLIER), 2.0)
+    return base
 
 
 # ---------------------------------------------------------------------------
@@ -392,14 +396,15 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
             affected_civs.add(region.controller)
             civ = next((c for c in world.civilizations if c.name == region.controller), None)
             if civ:
+                mult = get_severity_multiplier(civ, world)
                 if acc is not None:
                     civ_idx = civ_index(world, civ.name)
                     acc.add(civ_idx, civ, "population", -20, "guard")
-                    acc.add(civ_idx, civ, "stability", -15, "signal")
+                    acc.add(civ_idx, civ, "stability", -int(15 * mult), "signal")
                 else:
                     drain_region_pop(region, 20)
                     sync_civ_population(civ, world)
-                    civ.stability = clamp(civ.stability - 15, STAT_FLOOR.get("stability", 0), 100)
+                    civ.stability = clamp(civ.stability - int(15 * mult), STAT_FLOOR.get("stability", 0), 100)
 
     world.climate_config.phase_offset += 1
 

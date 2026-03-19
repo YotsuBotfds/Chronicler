@@ -34,6 +34,9 @@ pub struct CivSignals {
     pub conquered_this_turn: bool,
     // M42: Priest tithe share
     pub priest_tithe_share: f32,
+    // M47: Tuning multipliers
+    pub cultural_drift_multiplier: f32,
+    pub religion_intensity_multiplier: f32,
 }
 
 /// Parsed signals for one tick.
@@ -110,6 +113,10 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         .and_then(|c| c.as_any().downcast_ref::<BooleanArray>());
     let priest_tithe_share_col = batch.column_by_name("priest_tithe_share")
         .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let cultural_drift_multiplier_col = batch.column_by_name("cultural_drift_multiplier")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
+    let religion_intensity_multiplier_col = batch.column_by_name("religion_intensity_multiplier")
+        .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
 
     let mut result = Vec::with_capacity(batch.num_rows());
     for i in 0..batch.num_rows() {
@@ -137,6 +144,8 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             gini_coefficient: gini_coefficient_col.map(|a| a.value(i)).unwrap_or(0.0),
             conquered_this_turn: conquered_this_turn_col.map(|a| a.value(i)).unwrap_or(false),
             priest_tithe_share: priest_tithe_share_col.map(|a| a.value(i)).unwrap_or(0.0),
+            cultural_drift_multiplier: cultural_drift_multiplier_col.map(|a| a.value(i)).unwrap_or(1.0),
+            religion_intensity_multiplier: religion_intensity_multiplier_col.map(|a| a.value(i)).unwrap_or(1.0),
         });
     }
     Ok(result)

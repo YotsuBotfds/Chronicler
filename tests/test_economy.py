@@ -18,7 +18,6 @@ from chronicler.economy import (
     decompose_trade_routes,
     allocate_trade_flow,
     derive_farmer_income_modifier,
-    derive_food_sufficiency,
     derive_merchant_margin,
     derive_merchant_trade_income,
     FARMER_INCOME_MODIFIER_FLOOR,
@@ -305,18 +304,6 @@ def test_farmer_income_modifier_cap():
     )
     assert mod == FARMER_INCOME_MODIFIER_CAP
 
-def test_food_sufficiency_adequate():
-    suf = derive_food_sufficiency(food_supply=50.0, food_demand=50.0)
-    assert suf == 1.0
-
-def test_food_sufficiency_shortage():
-    suf = derive_food_sufficiency(food_supply=25.0, food_demand=50.0)
-    assert suf == 0.5
-
-def test_food_sufficiency_capped():
-    suf = derive_food_sufficiency(food_supply=500.0, food_demand=50.0)
-    assert suf == 2.0
-
 def test_merchant_margin_no_routes():
     m = derive_merchant_margin(total_raw_margin=10.0, route_count=0)
     assert m == 0.0
@@ -344,6 +331,7 @@ def _make_test_world():
     """
     world = MagicMock()
     world.turn = 10
+    world.tuning_overrides = {}
 
     plains = MagicMock()
     plains.name = "Plains"

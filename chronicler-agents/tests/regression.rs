@@ -34,6 +34,8 @@ fn make_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 gini_coefficient: 0.0,
                 conquered_this_turn: false,
                 priest_tithe_share: 0.0,
+                cultural_drift_multiplier: 1.0,
+                religion_intensity_multiplier: 1.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i % 5 == 0).collect(),

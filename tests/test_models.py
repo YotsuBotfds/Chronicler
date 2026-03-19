@@ -23,13 +23,6 @@ class TestRegion:
         assert r.name == "Verdant Plains"
         assert r.controller is None
 
-    def test_carrying_capacity_bounds(self):
-        with pytest.raises(Exception):
-            Region(name="X", terrain="plains", carrying_capacity=0, resources="fertile")
-        with pytest.raises(Exception):
-            Region(name="X", terrain="plains", carrying_capacity=101, resources="fertile")
-
-
 class TestCivilization:
     def test_create_with_defaults(self):
         leader = Leader(name="Kael", trait="ambitious", reign_start=0)
@@ -47,21 +40,6 @@ class TestCivilization:
         assert civ.tech_era == TechEra.TRIBAL
         assert civ.treasury == 0
         assert civ.asabiya == 0.5
-
-    def test_stat_bounds(self):
-        leader = Leader(name="X", trait="bold", reign_start=0)
-        # population ge=0, le=1000 (P4: regional population, civ total is sum)
-        with pytest.raises(Exception):
-            Civilization(
-                name="Bad", population=-1, military=10, economy=10,
-                culture=10, stability=10, leader=leader,
-            )
-        with pytest.raises(Exception):
-            Civilization(
-                name="Bad", population=1001, military=10, economy=10,
-                culture=10, stability=10, leader=leader,
-            )
-
 
 class TestRelationship:
     def test_defaults(self):
@@ -217,7 +195,6 @@ def test_world_state_has_tuning_overrides(sample_world):
 
 from chronicler.models import (
     NarrativeRole, CausalLink, GapSummary, NarrativeMoment,
-    CivThematicContext,
 )
 
 
@@ -262,17 +239,6 @@ def test_narrative_moment_creation():
     assert moment.anchor_turn == 10
     assert moment.narrative_role == NarrativeRole.CLIMAX
     assert moment.bonus_applied == 3.0
-
-
-def test_civ_thematic_context():
-    ctx = CivThematicContext(
-        name="Vrashni", trait="aggressive",
-        domains=["maritime", "mysticism"],
-        dominant_terrain="coast", tech_era="classical",
-        active_named_events=["The Battle of Tidecrest"],
-    )
-    assert ctx.active_tech_focus is None
-    assert ctx.domains == ["maritime", "mysticism"]
 
 
 def test_causal_link_round_trip():

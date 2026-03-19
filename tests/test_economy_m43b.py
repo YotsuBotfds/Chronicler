@@ -1,7 +1,7 @@
 """M43b: Supply shock detection, trade dependency & raider incentive tests."""
 
 from chronicler.economy import EconomyResult, CATEGORY_GOODS, TRADE_DEPENDENCY_THRESHOLD
-from chronicler.models import Event, AgentContext, CivThematicContext, ShockContext
+from chronicler.models import Event, AgentContext, ShockContext
 
 
 def test_event_shock_metadata_defaults_none():
@@ -36,14 +36,6 @@ def test_agent_context_trade_fields_default_empty():
     ctx = AgentContext()
     assert ctx.trade_dependent_regions == []
     assert ctx.active_shocks == []
-
-
-def test_civ_thematic_context_trade_dependency_default_none():
-    ctx = CivThematicContext(
-        name="Rome", trait="expansionist", domains=["plains"],
-        dominant_terrain="plains", tech_era="bronze",
-    )
-    assert ctx.trade_dependency_summary is None
 
 
 # ---------------------------------------------------------------------------

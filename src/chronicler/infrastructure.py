@@ -252,6 +252,8 @@ def tick_temple_prestige(world):
                     civ_temple_counts[controller] = civ_temple_counts.get(controller, 0) + 1
 
     for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue
         count = civ_temple_counts.get(civ.name, 0)
         if count > 0:
             civ.prestige += CIV_PRESTIGE_PER_TEMPLE * count
