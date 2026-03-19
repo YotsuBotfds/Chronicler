@@ -64,7 +64,7 @@ def write_bundle(bundle: dict[str, Any], path: Path,
     sidecar file ``agent_events.arrow`` is written next to the JSON bundle.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(bundle, indent=2))
+    path.write_text(json.dumps(bundle, indent=2, ensure_ascii=False), encoding="utf-8")
 
     if world is not None:
         write_agent_events_arrow(world, path.parent)

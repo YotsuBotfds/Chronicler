@@ -557,6 +557,11 @@ class TestNarratorArgument:
         args = parser.parse_args(["--narrator", "api"])
         assert args.narrator == "api"
 
+    def test_narrator_gemini(self):
+        parser = _build_parser()
+        args = parser.parse_args(["--narrator", "gemini"])
+        assert args.narrator == "gemini"
+
     def test_narrator_invalid_choice(self):
         parser = _build_parser()
         with pytest.raises(SystemExit):
@@ -582,6 +587,28 @@ class TestNarratorValidation:
         """--narrator api + --batch --parallel is incompatible."""
         from chronicler.main import main
         with patch("sys.argv", ["chronicler", "--narrator", "api",
+                                "--batch", "10", "--parallel"]):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_narrator_gemini_with_simulate_only_exits(self):
+        """--narrator gemini + --simulate-only is contradictory."""
+        from chronicler.main import main
+        with patch("sys.argv", ["chronicler", "--narrator", "gemini", "--simulate-only"]):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_narrator_gemini_with_live_exits(self):
+        """--narrator gemini + --live is incompatible."""
+        from chronicler.main import main
+        with patch("sys.argv", ["chronicler", "--narrator", "gemini", "--live"]):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_narrator_gemini_with_batch_parallel_exits(self):
+        """--narrator gemini + --batch --parallel is incompatible."""
+        from chronicler.main import main
+        with patch("sys.argv", ["chronicler", "--narrator", "gemini",
                                 "--batch", "10", "--parallel"]):
             with pytest.raises(SystemExit):
                 main()

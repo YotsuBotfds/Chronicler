@@ -231,7 +231,7 @@ def build_clusters(
     current_cluster: list[int] = [0]
 
     for idx in range(1, len(events)):
-        if events[idx].turn - events[current_cluster[-1]].turn <= CLUSTER_MERGE_THRESHOLD:
+        if events[idx].turn - events[current_cluster[0]].turn <= CLUSTER_MERGE_THRESHOLD:
             current_cluster.append(idx)
         else:
             clusters.append(current_cluster)

@@ -686,12 +686,12 @@ class NarrativeEngine:
         self.narrative_style = narrative_style
 
     def _is_api_client(self) -> bool:
-        """Check if narrative_client supports API-quality arc summaries."""
-        try:
-            from chronicler.llm import AnthropicClient
-            return isinstance(self.narrative_client, AnthropicClient)
-        except (ImportError, AttributeError):
-            return False
+        """Check if narrative_client is an API backend (not local)."""
+        return hasattr(self.narrative_client, "total_input_tokens")
+
+    def _supports_batch(self) -> bool:
+        """Check if narrative_client supports batch_complete()."""
+        return hasattr(self.narrative_client, "batch_complete")
 
     def select_action(self, civ: Civilization, world: WorldState) -> ActionType:
         """Ask the LLM to choose an action for a civilization.
@@ -749,34 +749,60 @@ class NarrativeEngine:
         # M45: Arc summary follow-up (API mode only)
         gp_by_name: dict | None = None,
     ) -> list[ChronicleEntry]:
-        """Narrate all selected moments sequentially with full context.
+        """Narrate all selected moments.
 
-        Sequential (LM Studio saturates GPU with one request).
+        Uses Anthropic Batch API when available (50% cheaper, parallel).
+        Falls back to sequential for local/Gemini clients.
         Per-moment fallback on LLM failure (mechanical summary, batch continues).
         Progress: on_progress(completed, total, eta_seconds).
-        ETA from second call onward (first is warmup). Default: 30 tok/s.
         """
-        entries: list[ChronicleEntry] = []
+        # Build prompts and context for all moments up front
+        prepared = self._prepare_narration_prompts(
+            moments, history, great_persons, social_edges,
+            dissolved_edges_by_turn, agent_name_map, gini_by_civ,
+            economy_result,
+        )
+
+        # Batch API path — Anthropic only
+        if self._supports_batch():
+            return self._narrate_batch_api(
+                moments, prepared, on_progress,
+            )
+
+        # Sequential path — local / Gemini / fallback
+        return self._narrate_sequential(
+            moments, prepared, on_progress, gp_by_name,
+        )
+
+    def _prepare_narration_prompts(
+        self,
+        moments: list[NarrativeMoment],
+        history: Sequence[TurnSnapshot],
+        great_persons: list | None = None,
+        social_edges: list[tuple] | None = None,
+        dissolved_edges_by_turn: dict[int, list[tuple]] | None = None,
+        agent_name_map: dict[int, str] | None = None,
+        gini_by_civ: dict[int, float] | None = None,
+        economy_result=None,
+    ) -> list[dict]:
+        """Build prompt/system pairs for each moment. Returns list of dicts
+        with keys: prompt, system, agent_ctx."""
+        snap_map = {s.turn: s for s in history}
         total = len(moments)
-        previous_prose: str | None = None
-        start_time: float | None = None
-        _first_failure = True
+        result = []
 
         for idx, moment in enumerate(moments):
-            # Build before/after summaries
             prev_moment = moments[idx - 1] if idx > 0 else None
             next_moment = moments[idx + 1] if idx < total - 1 else None
 
             before_summary = build_before_summary(history, moment, prev_moment)
             after_summary = build_after_summary(history, moment, next_moment)
 
-            # Role instruction
             role_instruction = ROLE_INSTRUCTIONS.get(
                 moment.narrative_role,
                 ROLE_INSTRUCTIONS[NarrativeRole.RESOLUTION],
             )
 
-            # Extract causes (causal links where effect is in this moment's turn range)
             causes: list[str] = []
             consequences: list[str] = []
             for link in moment.causal_links:
@@ -785,19 +811,16 @@ class NarrativeEngine:
                 if link.cause_turn >= moment.turn_range[0] and link.cause_turn <= moment.turn_range[1]:
                     consequences.append(f"{link.pattern} (turn {link.effect_turn})")
 
-            # Build event text
             event_text = ""
             for e in moment.events:
                 event_text += f"\n- [{e.event_type}] {e.description} (actors: {', '.join(e.actors)}, importance: {e.importance}/10)"
 
-            # Named events
             named_text = ""
             if moment.named_events:
                 named_text = "\n\nHistorical landmarks in this period:\n"
                 for ne in moment.named_events:
                     named_text += f"- {ne.name} (turn {ne.turn}): {ne.description}\n"
 
-            # Causes and consequences context
             causal_text = ""
             if causes:
                 causal_text += "\n\nCAUSES leading to this moment:\n"
@@ -808,19 +831,11 @@ class NarrativeEngine:
                 for c in consequences:
                     causal_text += f"- {c}\n"
 
-            # Before/after context
             context_text = ""
             if before_summary:
                 context_text += f"\n\nBEFORE this moment:\n{before_summary}"
             if after_summary:
                 context_text += f"\n\nAFTER this moment (for foreshadowing):\n{after_summary}"
-
-            # Previous prose for style continuity
-            continuity_text = ""
-            if previous_prose:
-                # Include last 200 chars for continuity
-                excerpt = previous_prose[-200:]
-                continuity_text = f"\n\nPREVIOUS ENTRY (for style continuity):\n...{excerpt}"
 
             # M40: Build agent context with relationships
             agent_context_text = ""
@@ -835,7 +850,6 @@ class NarrativeEngine:
                             "character_b": gp.name,
                             "role_a": "captor",
                             "role_b": "captive",
-                            # born_turn is the best available proxy — GreatPerson has no captured_turn field
                             "since_turn": gp.born_turn,
                         })
 
@@ -844,10 +858,6 @@ class NarrativeEngine:
                     for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
                         moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
 
-                # M40: Passing empty displacement/region data — full agent context
-                # activation (displacement fractions, region names) requires threading
-                # snapshot data through narrate_batch, deferred to a future milestone.
-                # Relationships and named character data are fully active.
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons, {}, {},
                     social_edges=social_edges,
@@ -860,35 +870,99 @@ class NarrativeEngine:
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
 
-            # Era-adaptive register
-            snap = _closest_snap({s.turn: s for s in history}, moment.anchor_turn)
+            snap = _closest_snap(snap_map, moment.anchor_turn)
             dominant_era = get_dominant_era(moment, snap) if snap else "tribal"
             era_voice, era_style = ERA_REGISTER.get(dominant_era, ERA_REGISTER["tribal"])
 
-            # Narrative style: scenario override takes precedence over era register
             style_text = ""
             if self.narrative_style:
                 style_text = f"\n\nNARRATIVE STYLE: {self.narrative_style}"
             else:
                 style_text = f"\n\nNARRATIVE REGISTER: {era_style}"
 
-            # Build system prompt
             system = (
                 f"{era_voice} "
                 f"Do NOT include turn numbers or game mechanics in the prose. "
                 f"ROLE: {role_instruction}"
             )
 
-            # Build user prompt
             prompt = f"""NARRATIVE ROLE: {moment.narrative_role.value.upper()}
 {role_instruction}
 
 TURNS {moment.turn_range[0]}-{moment.turn_range[1]}:
 
-EVENTS:{event_text}{named_text}{causal_text}{context_text}{agent_context_text}{continuity_text}{style_text}
+EVENTS:{event_text}{named_text}{causal_text}{context_text}{agent_context_text}{style_text}
 
 Write 3-5 paragraphs of chronicle prose for this moment.
 Respond only with the chronicle prose. No preamble, no markdown formatting."""
+
+            result.append({
+                "prompt": prompt,
+                "system": system,
+                "agent_ctx": agent_ctx,
+            })
+
+        return result
+
+    def _narrate_batch_api(
+        self,
+        moments: list[NarrativeMoment],
+        prepared: list[dict],
+        on_progress: Callable[[int, int, float | None], None] | None = None,
+    ) -> list[ChronicleEntry]:
+        """Narrate via Anthropic Batch API — all prompts submitted at once."""
+        requests = [
+            {"prompt": p["prompt"], "system": p["system"], "max_tokens": 1000}
+            for p in prepared
+        ]
+
+        results = self.narrative_client.batch_complete(requests)
+
+        entries: list[ChronicleEntry] = []
+        for idx, (moment, narrative) in enumerate(zip(moments, results)):
+            if narrative is None:
+                descriptions = [e.description for e in moment.events if e.description]
+                narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
+
+            entries.append(ChronicleEntry(
+                turn=moment.anchor_turn,
+                covers_turns=moment.turn_range,
+                events=list(moment.events),
+                named_events=list(moment.named_events),
+                narrative=narrative,
+                importance=moment.score,
+                narrative_role=moment.narrative_role,
+                causal_links=list(moment.causal_links),
+            ))
+
+            if on_progress is not None:
+                on_progress(idx + 1, len(moments), None)
+
+        return entries
+
+    def _narrate_sequential(
+        self,
+        moments: list[NarrativeMoment],
+        prepared: list[dict],
+        on_progress: Callable[[int, int, float | None], None] | None = None,
+        gp_by_name: dict | None = None,
+    ) -> list[ChronicleEntry]:
+        """Narrate moments sequentially — for local and Gemini clients."""
+        entries: list[ChronicleEntry] = []
+        total = len(moments)
+        previous_prose: str | None = None
+        start_time: float | None = None
+        _first_failure = True
+
+        for idx, (moment, prep) in enumerate(zip(moments, prepared)):
+            prompt = prep["prompt"]
+            system = prep["system"]
+            agent_ctx = prep["agent_ctx"]
+
+            # Inject previous prose for style continuity (sequential only)
+            if previous_prose:
+                excerpt = previous_prose[-200:]
+                prompt += f"\n\nPREVIOUS ENTRY (for style continuity):\n...{excerpt}"
 
             # Call LLM with fallback
             try:
@@ -896,11 +970,9 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                     prompt, max_tokens=1000, system=system
                 )
             except Exception as exc:
-                # Log first failure per narrate_batch call for visibility
                 if _first_failure:
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
                     _first_failure = False
-                # Mechanical fallback: join event descriptions
                 descriptions = [
                     e.description for e in moment.events if e.description
                 ]
@@ -944,7 +1016,6 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                             moment.anchor_turn,
                         )
 
-            # Build ChronicleEntry
             entry = ChronicleEntry(
                 turn=moment.anchor_turn,
                 covers_turns=moment.turn_range,
@@ -965,7 +1036,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
             else:
                 elapsed = time.monotonic() - (start_time or time.monotonic())
                 if elapsed > 0 and completed > 1:
-                    per_moment = elapsed / (completed - 1)  # exclude warmup
+                    per_moment = elapsed / (completed - 1)
                     remaining = total - completed
                     eta = per_moment * remaining
                 else:

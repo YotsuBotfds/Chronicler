@@ -17,7 +17,12 @@ from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
 from chronicler.models import ChronicleEntry, NarrativeRole
 from chronicler.interestingness import find_boring_civs
-from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, AnthropicClient, create_clients
+from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
+
+
+def _tracks_tokens(client: Any) -> bool:
+    """Check if an LLM client tracks token usage (API clients)."""
+    return hasattr(client, "total_input_tokens")
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
@@ -89,7 +94,8 @@ def execute_run(
     # Fallback clients
     _sim = sim_client or _DummyClient()
     _narr = narrative_client or _DummyClient()
-    _api_mode = isinstance(_narr, AnthropicClient)
+    _narrator_mode = getattr(args, "narrator", "local")
+    _api_mode = _narrator_mode != "local"
 
     # Extract run parameters from args
     seed = args.seed
@@ -160,6 +166,32 @@ def execute_run(
     # Apply tuning overrides to world state
     if getattr(args, "tuning_overrides", None):
         world.tuning_overrides = args.tuning_overrides
+
+    # Apply preset (values don't override explicit tuning or CLI flags)
+    if getattr(args, "preset", None):
+        from chronicler.tuning import apply_preset
+        apply_preset(world.tuning_overrides, args.preset)
+
+    # Wire CLI simulation multipliers into tuning_overrides
+    from chronicler.tuning import (
+        K_AGGRESSION_BIAS, K_TECH_DIFFUSION_RATE, K_RESOURCE_ABUNDANCE,
+        K_TRADE_FRICTION, K_SEVERITY_MULTIPLIER, K_CULTURAL_DRIFT_SPEED,
+        K_RELIGION_INTENSITY, K_SECESSION_LIKELIHOOD,
+    )
+    _multiplier_flags = {
+        "aggression_bias": K_AGGRESSION_BIAS,
+        "tech_diffusion_rate": K_TECH_DIFFUSION_RATE,
+        "resource_abundance": K_RESOURCE_ABUNDANCE,
+        "trade_friction": K_TRADE_FRICTION,
+        "severity_multiplier": K_SEVERITY_MULTIPLIER,
+        "cultural_drift_speed": K_CULTURAL_DRIFT_SPEED,
+        "religion_intensity": K_RELIGION_INTENSITY,
+        "secession_likelihood": K_SECESSION_LIKELIHOOD,
+    }
+    for attr, key in _multiplier_flags.items():
+        val = getattr(args, attr, None)
+        if val is not None:
+            world.tuning_overrides[key] = val
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
@@ -447,7 +479,7 @@ def execute_run(
         print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
 
         # Token usage summary
-        if isinstance(_narr, AnthropicClient):
+        if _tracks_tokens(_narr):
             inp = _narr.total_input_tokens
             out = _narr.total_output_tokens
             print(f"API narration: {_narr.call_count} calls, "
@@ -477,7 +509,7 @@ def execute_run(
 
     # Write output
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(output_text)
+    output_path.write_text(output_text, encoding="utf-8")
     print(f"\nChronicle written to {output_path} ({len(output_text)} characters)")
 
     # Save final state
@@ -579,8 +611,8 @@ def execute_run(
         gap_summaries=gap_summaries,
     )
     # M44: narrator provenance metadata
-    bundle["metadata"]["narrator_mode"] = "api" if _api_mode else "local"
-    if isinstance(_narr, AnthropicClient):
+    bundle["metadata"]["narrator_mode"] = _narrator_mode
+    if _tracks_tokens(_narr):
         bundle["metadata"]["api_input_tokens"] = _narr.total_input_tokens
         bundle["metadata"]["api_output_tokens"] = _narr.total_output_tokens
 
@@ -684,6 +716,29 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Compare against a baseline batch_report.json (delta-only output)")
     parser.add_argument("--checkpoints", type=str, default=None,
                         help="Comma-separated checkpoint turns for analytics (e.g., 25,50,100)")
+    # --- Simulation multipliers (Tier 1 knobs) ---
+    parser.add_argument("--aggression-bias", type=float, default=None,
+                        help="WAR/EXPAND weight multiplier (default 1.0, >1 = more aggressive)")
+    parser.add_argument("--tech-diffusion-rate", type=float, default=None,
+                        help="Tech spread probability multiplier (default 1.0)")
+    parser.add_argument("--resource-abundance", type=float, default=None,
+                        help="Global resource production multiplier (default 1.0)")
+    parser.add_argument("--trade-friction", type=float, default=None,
+                        help="Trade route cost multiplier (default 1.0, >1 = harder trade)")
+    parser.add_argument("--severity-multiplier", type=float, default=None,
+                        help="Global negative event severity multiplier (default 1.0)")
+    parser.add_argument("--cultural-drift-speed", type=float, default=None,
+                        help="Cultural value drift multiplier (default 1.0)")
+    parser.add_argument("--religion-intensity", type=float, default=None,
+                        help="Religious event frequency multiplier (default 1.0)")
+    parser.add_argument("--secession-likelihood", type=float, default=None,
+                        help="Secession check weight multiplier (default 1.0)")
+    parser.add_argument("--preset", type=str, default=None,
+                        choices=["pangaea", "archipelago", "golden-age", "dark-age", "ice-age", "silk-road"],
+                        help="Preset parameter bundle (values don't override explicit flags)")
+    parser.add_argument("--narrative-voice", type=str, default=None,
+                        choices=["chronicle", "epic", "academic", "journalistic", "mythic"],
+                        help="Narrative voice preset for LLM narration")
     # --- M20a narration pipeline flags ---
     parser.add_argument("--narrate", type=Path, default=None,
                         help="Narrate a simulate-only bundle")
@@ -692,8 +747,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--narrate-output", type=Path, default=None,
                         help="Output path for narrated bundle")
     parser.add_argument("--narrator", type=str, default="local",
-                        choices=["local", "api"],
-                        help="Narrator backend: local (LM Studio) or api (Claude API)")
+                        choices=["local", "api", "gemini"],
+                        help="Narrator backend: local (LM Studio), api (Claude API), or gemini (Gemini API)")
     return parser
 
 
@@ -774,7 +829,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
     )
 
     # M44: Token summary
-    if isinstance(narrative_client, AnthropicClient):
+    if _tracks_tokens(narrative_client):
         inp = narrative_client.total_input_tokens
         out = narrative_client.total_output_tokens
         print(f"API narration: {narrative_client.call_count} calls, "
@@ -793,12 +848,12 @@ def _run_narrate(args: argparse.Namespace) -> None:
 
     # M44: narrator provenance
     result["metadata"]["narrator_mode"] = getattr(args, "narrator", "local")
-    if isinstance(narrative_client, AnthropicClient):
+    if _tracks_tokens(narrative_client):
         result["metadata"]["api_input_tokens"] = narrative_client.total_input_tokens
         result["metadata"]["api_output_tokens"] = narrative_client.total_output_tokens
 
-    with open(output_path, "w") as f:
-        _json.dump(result, f, indent=2)
+    with open(output_path, "w", encoding="utf-8") as f:
+        _json.dump(result, f, indent=2, ensure_ascii=False)
 
     print(f"Narrated {len(chronicle_entries)} entries -> {output_path}")
 
@@ -872,6 +927,29 @@ def main() -> None:
                   file=sys.stderr)
             sys.exit(1)
 
+    # --- --narrator gemini validation ---
+    if getattr(args, "narrator", "local") == "gemini":
+        if getattr(args, "simulate_only", False):
+            print("Error: --narrator gemini and --simulate-only are contradictory", file=sys.stderr)
+            sys.exit(1)
+        if args.live:
+            print("Error: --narrator gemini is incompatible with --live (API latency)", file=sys.stderr)
+            sys.exit(1)
+        if args.parallel is not None and args.batch:
+            print("Error: --narrator gemini is incompatible with --batch --parallel", file=sys.stderr)
+            sys.exit(1)
+        try:
+            from google import genai  # noqa: F401
+        except ImportError:
+            print("Error: --narrator gemini requires the google-genai package. "
+                  "Install with: pip install google-genai", file=sys.stderr)
+            sys.exit(1)
+        import os
+        if "GOOGLE_API_KEY" not in os.environ:
+            print("Error: --narrator gemini requires GOOGLE_API_KEY environment variable",
+                  file=sys.stderr)
+            sys.exit(1)
+
     # Skip LLM client and scenario resolution for live mode — run_live
     # handles both after receiving params from the client's start command.
     # Also skip for --analyze, which only reads already-written bundles.
@@ -913,6 +991,14 @@ def main() -> None:
         sim_client = None
         narrative_client = None
         scenario_config = None
+
+    # Load tuning YAML if provided (single-run and non-batch modes)
+    if not args.live and not getattr(args, "analyze", None):
+        if getattr(args, "tuning", None):
+            from chronicler.tuning import load_tuning
+            args.tuning_overrides = load_tuning(Path(args.tuning))
+        elif not hasattr(args, "tuning_overrides"):
+            args.tuning_overrides = {}
 
     # --- Dispatch ---
     if getattr(args, "analyze", None):

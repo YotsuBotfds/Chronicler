@@ -86,6 +86,100 @@ class AnthropicClient:
         self.call_count += 1
         return response.content[0].text.strip()
 
+    def batch_complete(
+        self,
+        requests: list[dict[str, Any]],
+        poll_interval: float = 10.0,
+    ) -> list[str | None]:
+        """Submit requests via Anthropic Message Batches API (50% cheaper).
+
+        Each request dict has keys: prompt, max_tokens, system (optional).
+        Returns list of response texts in the same order, None for failures.
+        """
+        import time
+
+        batch_requests = []
+        for i, req in enumerate(requests):
+            params: dict[str, Any] = {
+                "model": self.model,
+                "max_tokens": req.get("max_tokens", 500),
+                "messages": [{"role": "user", "content": req["prompt"]}],
+            }
+            if req.get("system"):
+                params["system"] = req["system"]
+            batch_requests.append({
+                "custom_id": f"moment-{i}",
+                "params": params,
+            })
+
+        batch = self._client.messages.batches.create(requests=batch_requests)
+        print(f"  Batch submitted: {batch.id} ({len(batch_requests)} requests)")
+
+        # Poll until complete
+        while batch.processing_status != "ended":
+            time.sleep(poll_interval)
+            batch = self._client.messages.batches.retrieve(batch.id)
+            succeeded = batch.request_counts.succeeded
+            total = len(batch_requests)
+            print(f"  Batch progress: {succeeded}/{total} complete")
+
+        # Collect results in order
+        results: dict[str, str | None] = {}
+        for result in self._client.messages.batches.results(batch.id):
+            custom_id = result.custom_id
+            if result.result.type == "succeeded":
+                msg = result.result.message
+                self.total_input_tokens += msg.usage.input_tokens
+                self.total_output_tokens += msg.usage.output_tokens
+                self.call_count += 1
+                results[custom_id] = msg.content[0].text.strip()
+            else:
+                results[custom_id] = None
+
+        return [results.get(f"moment-{i}") for i in range(len(requests))]
+
+
+class GeminiClient:
+    """Google Gemini SDK client for Gemini API calls.
+
+    Optional — requires `pip install google-genai`.
+    """
+
+    def __init__(self, client: Any, model: str = "gemini-2.5-pro"):
+        self.model = model
+        self._client = client
+        self.total_input_tokens: int = 0
+        self.total_output_tokens: int = 0
+        self.call_count: int = 0
+        self._rate_limit_delay: float = 12.0  # 5 RPM free tier
+
+    def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
+        import time
+
+        # Blocking sleep is safe here: narration is sequential, post-simulation.
+        if self.call_count > 0:
+            time.sleep(self._rate_limit_delay)
+
+        # Thinking models (2.5-flash/pro) use output budget for both thinking
+        # and visible text. Scale up so the visible response isn't truncated.
+        config: dict[str, Any] = {"max_output_tokens": max_tokens * 4}
+        if system:
+            config["system_instruction"] = system
+
+        response = self._client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=config,
+        )
+        usage = response.usage_metadata
+        self.total_input_tokens += usage.prompt_token_count
+        # Thinking models (2.5-flash/pro) split output into candidates + thoughts
+        self.total_output_tokens += (
+            (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0)
+        )
+        self.call_count += 1
+        return response.text.strip()
+
 
 def create_clients(
     local_url: str = DEFAULT_LOCAL_URL,
@@ -109,6 +203,12 @@ def create_clients(
         narrative_client: LLMClient = AnthropicClient(
             client=anthropic.Anthropic(),
             model=narrative_model or "claude-sonnet-4-6",
+        )
+    elif narrator == "gemini":
+        from google import genai
+        narrative_client = GeminiClient(
+            client=genai.Client(),
+            model=narrative_model or "gemini-2.5-pro",
         )
     else:
         narrative_client = LocalNarrativeClient(

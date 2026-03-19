@@ -6,6 +6,7 @@ from chronicler.llm import (
     LocalClient,
     LocalNarrativeClient,
     AnthropicClient,
+    GeminiClient,
     create_clients,
 )
 
@@ -24,6 +25,12 @@ class TestLLMClientProtocol:
     def test_anthropic_client_conforms_to_protocol(self):
         mock_sdk = MagicMock()
         client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+        assert hasattr(client, "complete")
+        assert hasattr(client, "model")
+
+    def test_gemini_client_conforms_to_protocol(self):
+        mock_sdk = MagicMock()
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
         assert hasattr(client, "complete")
         assert hasattr(client, "model")
 
@@ -149,6 +156,93 @@ class TestAnthropicClient:
         assert client.call_count == 2
 
 
+class TestGeminiClient:
+    def _make_mock_response(self, text="The empire rose...", prompt_tokens=150, candidates_tokens=80):
+        return MagicMock(
+            text=f"  {text}  ",  # whitespace to verify strip()
+            usage_metadata=MagicMock(
+                prompt_token_count=prompt_tokens,
+                candidates_token_count=candidates_tokens,
+            ),
+        )
+
+    def test_complete_calls_gemini_api(self):
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.return_value = self._make_mock_response()
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+
+        result = client.complete("Write a chronicle entry", max_tokens=500)
+        assert "empire" in result
+        mock_sdk.models.generate_content.assert_called_once()
+
+    def test_complete_with_system_prompt(self):
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.return_value = self._make_mock_response()
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+
+        client.complete("Write prose", system="You are a historian.")
+        call_args = mock_sdk.models.generate_content.call_args
+        assert call_args.kwargs["config"]["system_instruction"] == "You are a historian."
+
+    def test_token_tracking_accumulators(self):
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.return_value = self._make_mock_response(
+            prompt_tokens=150, candidates_tokens=80
+        )
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+
+        assert client.total_input_tokens == 0
+        assert client.total_output_tokens == 0
+        assert client.call_count == 0
+
+        client.complete("Write a chronicle entry", max_tokens=500)
+
+        assert client.total_input_tokens == 150
+        assert client.total_output_tokens == 80
+        assert client.call_count == 1
+
+    def test_token_tracking_accumulates_across_calls(self):
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.side_effect = [
+            self._make_mock_response(text="First", prompt_tokens=100, candidates_tokens=50),
+            self._make_mock_response(text="Second", prompt_tokens=200, candidates_tokens=100),
+        ]
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+        client._rate_limit_delay = 0  # skip sleep in tests
+
+        client.complete("First")
+        client.complete("Second")
+
+        assert client.total_input_tokens == 300
+        assert client.total_output_tokens == 150
+        assert client.call_count == 2
+
+    def test_rate_limit_skips_first_call(self):
+        """First call should not sleep, subsequent calls should."""
+        import unittest.mock as mock
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.return_value = self._make_mock_response()
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+        client._rate_limit_delay = 0.01
+
+        with mock.patch("time.sleep") as mock_sleep:
+            client.complete("First call")
+            mock_sleep.assert_not_called()
+
+            client.complete("Second call")
+            mock_sleep.assert_called_once_with(0.01)
+
+    def test_strips_response_whitespace(self):
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.return_value = self._make_mock_response(
+            text="  The empire rose  "
+        )
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+
+        result = client.complete("Write prose")
+        assert result == "The empire rose"
+
+
 class TestCreateClients:
     def test_local_only_default(self):
         """Default mode: both clients are local."""
@@ -224,3 +318,40 @@ class TestCreateClients:
         with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
             sim, narr = create_clients(narrator="local")
             assert isinstance(narr, LocalNarrativeClient)
+
+    def test_narrator_gemini_returns_gemini_client(self):
+        """When narrator='gemini', narrative client is GeminiClient."""
+        import unittest.mock as mock
+        mock_genai_module = MagicMock()
+        mock_google_module = MagicMock()
+        mock_google_module.genai = mock_genai_module
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {
+            "google": mock_google_module,
+            "google.genai": mock_genai_module,
+            "openai": mock_openai_module,
+        }):
+            _, narrative_client = create_clients(narrator="gemini")
+            assert isinstance(narrative_client, GeminiClient)
+            assert narrative_client.model == "gemini-2.5-pro"
+
+    def test_narrator_gemini_with_custom_model(self):
+        """--narrative-model flows through to GeminiClient."""
+        import unittest.mock as mock
+        mock_genai_module = MagicMock()
+        mock_google_module = MagicMock()
+        mock_google_module.genai = mock_genai_module
+        mock_openai_module = MagicMock()
+        mock_openai_module.OpenAI.return_value = MagicMock()
+
+        with mock.patch.dict("sys.modules", {
+            "google": mock_google_module,
+            "google.genai": mock_genai_module,
+            "openai": mock_openai_module,
+        }):
+            _, narrative_client = create_clients(
+                narrator="gemini", narrative_model="gemini-2.5-flash"
+            )
+            assert narrative_client.model == "gemini-2.5-flash"
