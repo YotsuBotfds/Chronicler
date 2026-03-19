@@ -411,6 +411,16 @@ def execute_run(
                 if gp.active and gp.agent_id is not None:
                     named_chars.add(gp.name)
 
+        # M45: Build gp_by_name for arc scoring
+        gp_by_name = {}
+        for civ in world.civilizations:
+            for gp in civ.great_persons:
+                if gp.active and gp.agent_id is not None:
+                    gp_by_name[gp.name] = gp
+        for gp in world.retired_persons:
+            if gp.death_turn is not None:
+                gp_by_name[gp.name] = gp
+
         moments, gap_summaries = curate(
             events=world.events_timeline,
             named_events=world.named_events,
@@ -418,14 +428,20 @@ def execute_run(
             budget=getattr(args, "budget", 50),
             seed=seed,
             named_characters=named_chars if named_chars else None,
+            gp_by_name=gp_by_name if gp_by_name else None,
         )
 
         def progress_cb(completed: int, total: int, eta: float | None) -> None:
             eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
             print(f"  Narrating {completed}/{total}{eta_str}")
 
+        # M45: Include retired persons for dead character arc context
+        all_great_persons = list(gp_by_name.values()) if gp_by_name else None
+
         chronicle_entries = engine.narrate_batch(
             moments, history, gap_summaries, on_progress=progress_cb,
+            great_persons=all_great_persons,
+            gp_by_name=gp_by_name if gp_by_name else None,
         )
 
         print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
@@ -717,6 +733,17 @@ def _run_narrate(args: argparse.Namespace) -> None:
             if gp.get("active") and gp.get("agent_id") is not None:
                 named_chars.add(gp.get("name", ""))
 
+    # M45: Build gp_by_name for arc scoring
+    from chronicler.models import GreatPerson as _GP
+    gp_by_name = {}
+    for civ_data in bundle.get("world_state", {}).get("civilizations", []):
+        for gp_data in civ_data.get("great_persons", []):
+            if gp_data.get("active") and gp_data.get("agent_id") is not None:
+                gp_by_name[gp_data.get("name", "")] = _GP(**gp_data)
+    for gp_data in bundle.get("world_state", {}).get("retired_persons", []):
+        if gp_data.get("death_turn") is not None:
+            gp_by_name[gp_data.get("name", "")] = _GP(**gp_data)
+
     # Curate moments
     moments, gap_summaries = curate(
         events=events,
@@ -725,6 +752,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         budget=budget,
         seed=seed,
         named_characters=named_chars if named_chars else None,
+        gp_by_name=gp_by_name if gp_by_name else None,
     )
 
     print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
@@ -736,8 +764,13 @@ def _run_narrate(args: argparse.Namespace) -> None:
         eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
         print(f"  Narrating {completed}/{total}{eta_str}")
 
+    # M45: Include retired persons for dead character arc context
+    all_great_persons = list(gp_by_name.values()) if gp_by_name else None
+
     chronicle_entries = engine.narrate_batch(
-        moments, history, gap_summaries, on_progress=progress_cb
+        moments, history, gap_summaries, on_progress=progress_cb,
+        great_persons=all_great_persons,
+        gp_by_name=gp_by_name if gp_by_name else None,
     )
 
     # M44: Token summary

@@ -96,6 +96,7 @@ def compute_base_scores(
     dominant_power: str,
     seed: int,
     named_characters: set[str] | None = None,
+    gp_by_name: dict | None = None,  # M45
 ) -> list[float]:
     """Score each event based on importance, named-event match, dominant
     power involvement, and rarity.
@@ -135,6 +136,23 @@ def compute_base_scores(
         if named_characters:
             if any(actor in named_characters for actor in ev.actors):
                 score += 2.0
+
+        # M45: Arc involvement bonus
+        if gp_by_name:
+            for actor in ev.actors:
+                _gp = gp_by_name.get(actor)
+                if _gp is None:
+                    continue
+                if _gp.arc_phase is not None or _gp.arc_type is not None:
+                    score += 1.5
+                    break
+
+            # Arc completion bonus — the defining moment
+            for actor in ev.actors:
+                _gp = gp_by_name.get(actor)
+                if _gp and _gp.arc_type_turn == ev.turn:
+                    score += 2.5
+                    break
 
         scores.append(score)
 
@@ -519,6 +537,7 @@ def curate(
     budget: int = 50,
     seed: int = 0,
     named_characters: set[str] | None = None,
+    gp_by_name: dict | None = None,  # M45
 ) -> tuple[list[NarrativeMoment], list[GapSummary]]:
     """Top-level curation pipeline.
 
@@ -542,7 +561,8 @@ def curate(
 
     # 2. Base scores
     scores = compute_base_scores(sorted_events, named_events, dominant, seed,
-                                  named_characters=named_characters)
+                                  named_characters=named_characters,
+                                  gp_by_name=gp_by_name)
 
     # 3. Causal links
     causal_links = compute_causal_links(sorted_events, scores)

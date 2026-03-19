@@ -16,6 +16,20 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, GreatPerson, WorldState
 
 # ---------------------------------------------------------------------------
+# M45: Deeds tracking
+# ---------------------------------------------------------------------------
+
+DEEDS_CAP = 10
+
+
+def _append_deed(gp: "GreatPerson", deed: str) -> None:
+    """Append a deed to a GreatPerson, capping at DEEDS_CAP entries."""
+    gp.deeds.append(deed)
+    if len(gp.deeds) > DEEDS_CAP:
+        gp.deeds = gp.deeds[-DEEDS_CAP:]
+
+
+# ---------------------------------------------------------------------------
 # Task 2: Modifier registry
 # ---------------------------------------------------------------------------
 
@@ -92,6 +106,7 @@ def _total_great_persons(world: WorldState) -> int:
 def _retire_person(gp: GreatPerson, civ: Civilization, world: WorldState) -> None:
     gp.active = False
     gp.fate = "retired"
+    _append_deed(gp, f"Retired in {gp.region or 'unknown'}")
     gp.death_turn = world.turn
     if gp in civ.great_persons:
         civ.great_persons.remove(gp)
@@ -261,6 +276,7 @@ def kill_great_person(
     gp.active = False
     gp.alive = False
     gp.fate = "dead"
+    _append_deed(gp, f"Died in {gp.region or 'unknown'}")
     gp.death_turn = world.turn
     if gp in civ.great_persons:
         civ.great_persons.remove(gp)
@@ -362,7 +378,8 @@ def check_pilgrimages(
         if current_turn >= gp.pilgrimage_return_turn:
             destination = gp.pilgrimage_destination or "unknown"
             gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
-            gp.arc_type = "Prophet"
+            gp.arc_type = "Prophet"  # Guard-compat shim: classifier confirms idempotently (M45 Decision 18)
+            _append_deed(gp, "Returned from pilgrimage as Prophet")
             gp.pilgrimage_destination = None
             gp.pilgrimage_return_turn = None
             events.append(Event(
@@ -425,6 +442,7 @@ def check_pilgrimages(
             current_turn
             + random.randint(PILGRIMAGE_DURATION_MIN, PILGRIMAGE_DURATION_MAX)
         )
+        _append_deed(gp, f"Departed on pilgrimage to {best_region}")
         faiths_departed.add(belief)
 
         events.append(Event(

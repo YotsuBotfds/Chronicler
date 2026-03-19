@@ -347,6 +347,9 @@ class GreatPerson(BaseModel):
     pilgrimage_destination: str | None = None
     pilgrimage_return_turn: int | None = None
     arc_type: str | None = None
+    arc_phase: str | None = None
+    arc_summary: str | None = None
+    arc_type_turn: int | None = None
     pilgrimage_skill_bonus: float = 0.0
     # M40: Social Networks
     origin_region: str | None = None

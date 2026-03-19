@@ -8,6 +8,7 @@ import numpy as np
 import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
+from chronicler.great_persons import _append_deed
 from chronicler.leaders import _pick_name, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
@@ -568,6 +569,8 @@ class AgentBridge:
             # M40: Set origin_region from promotions batch
             if origin_region < len(world.regions):
                 gp.origin_region = world.regions[origin_region].name
+            region_name = world.regions[origin_region].name if origin_region < len(world.regions) else "unknown"
+            _append_deed(gp, f"Promoted as {role} in {region_name}")
             civ.great_persons.append(gp)
             created.append(gp)
             self.named_agents[agent_id] = name
@@ -670,6 +673,8 @@ class AgentBridge:
                         importance=6,
                         source="agent",
                     ))
+                    if e.agent_id in self.gp_by_agent_id:
+                        _append_deed(self.gp_by_agent_id[e.agent_id], f"Returned to {target_name} after {turns_away} turns")
                     del self._departure_turns[e.agent_id]
                     continue  # don't also emit notable_migration
 
@@ -682,6 +687,8 @@ class AgentBridge:
                 importance=4,
                 source="agent",
             ))
+            if e.agent_id in self.gp_by_agent_id:
+                _append_deed(self.gp_by_agent_id[e.agent_id], f"Migrated from {source_name} to {target_name}")
 
         return character_events
 
@@ -713,6 +720,7 @@ class AgentBridge:
 
             gp.fate = "exile"
             gp.active = False
+            _append_deed(gp, f"Exiled after conquest of {gp.region or conquered_civ.name}")
 
             if gp.region in conquered_region_set:
                 # In conquered territory → hostage
@@ -760,6 +768,7 @@ class AgentBridge:
             # origin_civilization stays unchanged
             old_civ.great_persons.remove(gp)
             new_civ.great_persons.append(gp)
+            _append_deed(gp, f"Defected to {new_civ.name} during secession")
 
             try:
                 self._sim.set_agent_civ(gp.agent_id, new_civ_id)

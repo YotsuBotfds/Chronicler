@@ -1,0 +1,441 @@
+"""Tests for M45 arc classifier."""
+import pytest
+from chronicler.models import GreatPerson, Event
+from chronicler.arcs import classify_arc
+
+
+def _make_gp(**kwargs) -> GreatPerson:
+    defaults = dict(
+        name="Kiran", role="general", trait="bold",
+        civilization="Aram", origin_civilization="Aram",
+        born_turn=100, source="agent", agent_id=1,
+    )
+    defaults.update(kwargs)
+    return GreatPerson(**defaults)
+
+
+def _make_event(turn, event_type, actors, **kwargs) -> Event:
+    return Event(
+        turn=turn,
+        event_type=event_type,
+        actors=actors,
+        description=kwargs.get("description", ""),
+        importance=kwargs.get("importance", 5),
+        source=kwargs.get("source", "aggregate"),
+    )
+
+
+def test_classify_no_events():
+    gp = _make_gp()
+    phase, arc_type = classify_arc(gp, [], None, current_turn=150)
+    # Bold + active + career >= 20 → "rising" partial from Rise-and-Fall
+    # But also "embattled" partial from Tragic Hero (bold + active)
+    # Both have condition_count=1, Tragic Hero is later → "embattled" wins
+    assert phase == "embattled"
+    assert arc_type is None
+
+
+def test_classify_no_events_non_bold():
+    gp = _make_gp(trait="cautious")
+    phase, arc_type = classify_arc(gp, [], None, current_turn=150)
+    # cautious + active + career >= 20 → "rising" partial only
+    assert phase == "rising"
+    assert arc_type is None
+
+
+def test_classify_no_events_young():
+    """Character below RISING_CAREER_THRESHOLD -> no arc."""
+    gp = _make_gp(trait="cautious", born_turn=145)
+    phase, arc_type = classify_arc(gp, [], None, current_turn=150)
+    assert phase is None
+    assert arc_type is None
+
+
+def test_classify_rise_and_fall():
+    gp = _make_gp(trait="cautious", fate="dead", alive=False, active=False, death_turn=140)
+    events = [
+        _make_event(140, "character_death", ["Kiran", "Aram"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=140)
+    assert arc_type == "Rise-and-Fall"
+    assert phase == "fallen"
+
+
+def test_classify_exile_and_return():
+    gp = _make_gp(trait="cautious")
+    events = [
+        _make_event(120, "conquest_exile", ["Kiran", "Aram", "Bora"]),
+        _make_event(160, "exile_return", ["Kiran"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=160)
+    assert arc_type == "Exile-and-Return"
+
+
+def test_classify_exile_partial():
+    gp = _make_gp(trait="cautious")
+    events = [
+        _make_event(120, "conquest_exile", ["Kiran", "Aram", "Bora"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=150)
+    assert phase == "exiled"
+    assert arc_type is None
+
+
+def test_classify_tragic_hero():
+    gp = _make_gp(trait="bold", fate="dead", alive=False, active=False,
+                   death_turn=120)  # career = 20 turns < threshold of 35
+    phase, arc_type = classify_arc(gp, [], None, current_turn=120)
+    assert arc_type == "Tragic-Hero"
+    assert phase == "embattled"
+
+
+def test_classify_tragic_hero_long_career():
+    """Bold character who lived long is NOT a tragic hero."""
+    gp = _make_gp(trait="bold", fate="dead", alive=False, active=False,
+                   death_turn=200)  # career = 100 turns > threshold
+    events = [_make_event(200, "character_death", ["Kiran", "Aram"])]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=200)
+    # Rise-and-Fall should match (career >= 20, has death)
+    assert arc_type == "Rise-and-Fall"
+
+
+def test_classify_wanderer():
+    gp = _make_gp(trait="cautious")
+    events = [
+        _make_event(110, "notable_migration", ["Kiran"]),
+        _make_event(120, "notable_migration", ["Kiran"]),
+        _make_event(130, "notable_migration", ["Kiran"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=130)
+    assert arc_type == "Wanderer"
+    assert phase == "wandering"
+
+
+def test_classify_wanderer_partial():
+    gp = _make_gp(trait="cautious")
+    events = [
+        _make_event(110, "notable_migration", ["Kiran"]),
+        _make_event(120, "notable_migration", ["Kiran"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=120)
+    assert phase == "wandering"
+    assert arc_type is None
+
+
+def test_classify_defector():
+    gp = _make_gp(trait="cautious", civilization="Bora")
+    events = [
+        _make_event(130, "secession_defection", ["Kiran"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=130)
+    assert arc_type == "Defector"
+    assert phase == "defecting"
+
+
+def test_classify_defector_partial():
+    gp = _make_gp(trait="cautious", civilization="Bora")
+    phase, arc_type = classify_arc(gp, [], None, current_turn=130)
+    assert phase == "defecting"
+    assert arc_type is None
+
+
+def test_classify_prophet():
+    gp = _make_gp(role="prophet", trait="cautious")
+    events = [
+        _make_event(140, "pilgrimage_return", ["Kiran", "Aram"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=140)
+    assert arc_type == "Prophet"
+
+
+def test_classify_prophet_mid_pilgrimage():
+    gp = _make_gp(role="prophet", trait="cautious", pilgrimage_return_turn=160)
+    phase, arc_type = classify_arc(gp, [], None, current_turn=140)
+    assert phase == "converting"
+    assert arc_type is None
+
+
+def test_classify_martyr():
+    gp = _make_gp(role="prophet", trait="cautious", fate="dead", alive=False,
+                   active=False, death_turn=120)
+    events = [
+        _make_event(120, "character_death", ["Kiran", "Aram"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=120)
+    assert arc_type == "Martyr"
+
+
+def test_classify_martyr_long_career():
+    """Prophet who lived long is NOT a martyr."""
+    gp = _make_gp(role="prophet", trait="cautious", fate="dead", alive=False,
+                   active=False, death_turn=200)
+    events = [
+        _make_event(200, "character_death", ["Kiran", "Aram"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=200)
+    assert arc_type == "Rise-and-Fall"  # career >= 20, has death event
+
+
+def test_classify_reclassification():
+    """Wanderer reclassifies to Exile-and-Return when return event added."""
+    gp = _make_gp(trait="cautious")
+    events_before = [
+        _make_event(110, "notable_migration", ["Kiran"]),
+        _make_event(120, "notable_migration", ["Kiran"]),
+        _make_event(130, "notable_migration", ["Kiran"]),
+        _make_event(140, "conquest_exile", ["Kiran", "Aram", "Bora"]),
+    ]
+    _, type_before = classify_arc(gp, events_before, None, current_turn=150)
+    assert type_before == "Wanderer"
+
+    events_after = events_before + [
+        _make_event(180, "exile_return", ["Kiran"]),
+    ]
+    _, type_after = classify_arc(gp, events_after, None, current_turn=180)
+    assert type_after == "Exile-and-Return"
+
+
+def test_classify_priority():
+    """Bold prophet who died young: Martyr wins (later in check order)."""
+    gp = _make_gp(role="prophet", trait="bold", fate="dead",
+                   alive=False, active=False, death_turn=120)
+    events = [
+        _make_event(120, "character_death", ["Kiran", "Aram"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=120)
+    assert arc_type == "Martyr"
+
+
+def test_classify_dead_character():
+    """Death on current turn still classifies."""
+    gp = _make_gp(trait="cautious", fate="dead", alive=False, active=False, death_turn=140)
+    events = [
+        _make_event(140, "character_death", ["Kiran", "Aram"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=140)
+    assert arc_type == "Rise-and-Fall"
+    assert phase == "fallen"
+
+
+def test_arc_type_turn_set():
+    """arc_type_turn updates on classification — simulates call site."""
+    gp = _make_gp(trait="cautious")
+    events = [
+        _make_event(130, "notable_migration", ["Kiran"]),
+        _make_event(140, "notable_migration", ["Kiran"]),
+        _make_event(150, "notable_migration", ["Kiran"]),
+    ]
+    _, arc_type = classify_arc(gp, events, None, current_turn=150)
+    assert arc_type == "Wanderer"
+
+    prev_type = gp.arc_type
+    if arc_type is not None and arc_type != prev_type:
+        gp.arc_type = arc_type
+        gp.arc_type_turn = 150
+    assert gp.arc_type_turn == 150
+    assert gp.arc_type == "Wanderer"
+
+
+def test_events_filtered_by_character_name():
+    """Events not involving this character are ignored."""
+    gp = _make_gp(name="Kiran", trait="cautious")
+    events = [
+        _make_event(120, "character_death", ["OtherPerson", "Aram"]),
+        _make_event(130, "notable_migration", ["OtherPerson"]),
+    ]
+    phase, arc_type = classify_arc(gp, events, None, current_turn=150)
+    # Only Rise-and-Fall partial (career >= 20, active)
+    assert phase == "rising"
+    assert arc_type is None
+
+
+# --- Curator scoring tests ---
+
+from chronicler.curator import compute_base_scores
+
+
+def test_curator_arc_phase_bonus():
+    """arc_phase set -> +1.5 on character events."""
+    gp = _make_gp(arc_phase="rising", trait="cautious")
+    ev = _make_event(150, "conquest", ["Kiran", "Aram"])
+    gp_by_name = {"Kiran": gp}
+    named_chars = {"Kiran"}
+
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        named_characters=named_chars,
+        gp_by_name=gp_by_name,
+    )
+    # Base importance (5) + named char (+2.0) + arc involvement (+1.5) = at least 3.5 above base
+    base_scores = compute_base_scores([ev], [], "Aram", seed=0)
+    assert scores[0] >= base_scores[0] + 3.5
+
+
+def test_curator_arc_completion_bonus():
+    """Event on arc_type_turn -> +2.5."""
+    gp = _make_gp(arc_type="Rise-and-Fall", arc_type_turn=150, arc_phase="fallen", trait="cautious")
+    ev = _make_event(150, "character_death", ["Kiran", "Aram"])
+    gp_by_name = {"Kiran": gp}
+    named_chars = {"Kiran"}
+
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        named_characters=named_chars,
+        gp_by_name=gp_by_name,
+    )
+    # +2.0 (named) + 1.5 (arc involvement) + 2.5 (completion) = 6.0 above base
+    base_scores = compute_base_scores([ev], [], "Aram", seed=0)
+    assert scores[0] >= base_scores[0] + 6.0
+
+
+def test_curator_no_arc_no_bonus():
+    """Character with no arc -> only +2.0 named bonus."""
+    gp = _make_gp(trait="cautious")  # no arc_phase or arc_type
+    ev = _make_event(150, "conquest", ["Kiran", "Aram"])
+    gp_by_name = {"Kiran": gp}
+    named_chars = {"Kiran"}
+
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        named_characters=named_chars,
+        gp_by_name=gp_by_name,
+    )
+    base_scores = compute_base_scores([ev], [], "Aram", seed=0)
+    assert scores[0] == pytest.approx(base_scores[0] + 2.0)
+
+
+def test_curator_gp_by_name_none():
+    """gp_by_name=None -> no arc bonuses, no crash."""
+    ev = _make_event(150, "conquest", ["Kiran", "Aram"])
+    scores = compute_base_scores(
+        [ev], [], "Aram", seed=0,
+        gp_by_name=None,
+    )
+    assert len(scores) == 1
+
+
+# --- Narration context tests ---
+
+from chronicler.narrative import build_agent_context_block
+from chronicler.models import AgentContext
+
+
+def test_arc_context_in_prompt():
+    """arc_type and arc_phase appear in narrator prompt."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+            "arc_type": "Rise-and-Fall",
+            "arc_phase": "rising",
+            "trait": "bold",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "Rise-and-Fall" in text
+    assert "rising" in text
+
+
+def test_trait_rendered():
+    """Character trait appears in prompt block."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+            "trait": "bold",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "bold" in text
+
+
+def test_arc_summary_in_prompt():
+    """arc_summary appears in prompt when set."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+            "arc_summary": "Led the northern campaign. Rose to command.",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "Led the northern campaign" in text
+
+
+def test_arc_context_omitted_when_none():
+    """No Arc: line when both arc_type and arc_phase are absent."""
+    ctx = AgentContext(
+        named_characters=[{
+            "name": "Kiran",
+            "role": "General",
+            "civ": "Aram",
+            "status": "active",
+        }],
+    )
+    text = build_agent_context_block(ctx)
+    assert "Arc:" not in text
+    assert "Summary:" not in text
+
+
+# --- Arc summary tests ---
+
+from chronicler.narrative import _update_arc_summary
+
+
+def test_arc_summary_truncation():
+    """4th sentence drops the oldest."""
+    gp = _make_gp(arc_summary="Sentence one. Sentence two. Sentence three.")
+    _update_arc_summary(gp, "Sentence four")
+    assert "Sentence one" not in gp.arc_summary
+    assert "Sentence four" in gp.arc_summary
+
+
+def test_arc_summary_first():
+    """First summary on empty arc_summary."""
+    gp = _make_gp()
+    assert gp.arc_summary is None
+    _update_arc_summary(gp, "First deed")
+    assert "First deed" in gp.arc_summary
+
+
+# --- Dead character context test ---
+
+from chronicler.narrative import build_agent_context_for_moment
+from chronicler.models import NarrativeMoment, NarrativeRole
+
+
+def _make_moment(turn, events):
+    """Helper to build a valid NarrativeMoment for testing."""
+    return NarrativeMoment(
+        anchor_turn=turn,
+        turn_range=(turn, turn),
+        events=events,
+        named_events=[],
+        score=5.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+
+
+def test_dead_character_in_moment_context():
+    """Dead character whose name is in moment event actors appears in context."""
+    gp = _make_gp(
+        active=False, alive=False, fate="dead", death_turn=140,
+        arc_type="Rise-and-Fall", arc_phase="fallen",
+        arc_summary="Led the northern campaign.",
+    )
+    ev = _make_event(140, "character_death", ["Kiran", "Aram"], source="agent")
+    moment = _make_moment(140, [ev])
+    ctx = build_agent_context_for_moment(
+        moment, [gp], {}, {},
+    )
+    assert ctx is not None
+    names = [c["name"] for c in ctx.named_characters]
+    assert "Kiran" in names

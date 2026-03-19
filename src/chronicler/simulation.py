@@ -76,6 +76,7 @@ from chronicler.tuning import (
     K_MIGRATION_STABILITY, K_STABILITY_RECOVERY,
     get_override,
 )
+from chronicler.arcs import classify_arc
 
 
 # --- Type aliases for callbacks ---
@@ -1384,6 +1385,28 @@ def run_turn(
 
     # Record events
     world.events_timeline.extend(turn_events)
+
+    # M45: Arc classification — after events are on timeline, before snapshot
+    dynasty_reg = agent_bridge.dynasty_registry if agent_bridge else None
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            prev_type = gp.arc_type
+            gp.arc_phase, new_type = classify_arc(
+                gp, world.events_timeline, dynasty_reg, world.turn
+            )
+            if new_type is not None and new_type != prev_type:
+                gp.arc_type = new_type
+                gp.arc_type_turn = world.turn
+    # Recently dead — death is often the completing event
+    for gp in world.retired_persons:
+        if gp.death_turn == world.turn:
+            prev_type = gp.arc_type
+            gp.arc_phase, new_type = classify_arc(
+                gp, world.events_timeline, dynasty_reg, world.turn
+            )
+            if new_type is not None and new_type != prev_type:
+                gp.arc_type = new_type
+                gp.arc_type_turn = world.turn
 
     # Chronicle (narrative generation)
     chronicle_text = narrator(world, turn_events)
