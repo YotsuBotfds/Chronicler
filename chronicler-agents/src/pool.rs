@@ -64,6 +64,12 @@ pub struct AgentPool {
     pub need_spiritual: Vec<f32>,
     pub need_autonomy: Vec<f32>,
     pub need_purpose: Vec<f32>,
+    // M50a: Per-agent relationship store (8 slots)
+    pub rel_target_ids:   Vec<[u32; 8]>,
+    pub rel_sentiments:   Vec<[i8; 8]>,
+    pub rel_bond_types:   Vec<[u8; 8]>,
+    pub rel_formed_turns: Vec<[u16; 8]>,
+    pub rel_count:        Vec<u8>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -113,6 +119,11 @@ impl AgentPool {
             need_spiritual: Vec::with_capacity(capacity),
             need_autonomy: Vec::with_capacity(capacity),
             need_purpose: Vec::with_capacity(capacity),
+            rel_target_ids: Vec::with_capacity(capacity),
+            rel_sentiments: Vec::with_capacity(capacity),
+            rel_bond_types: Vec::with_capacity(capacity),
+            rel_formed_turns: Vec::with_capacity(capacity),
+            rel_count: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -178,6 +189,12 @@ impl AgentPool {
             self.need_spiritual[slot] = crate::agent::STARTING_NEED;
             self.need_autonomy[slot] = crate::agent::STARTING_NEED;
             self.need_purpose[slot] = crate::agent::STARTING_NEED;
+            // M50a relationship init
+            self.rel_target_ids[slot] = [0u32; 8];
+            self.rel_sentiments[slot] = [0i8; 8];
+            self.rel_bond_types[slot] = [255u8; 8]; // 255 = empty sentinel (not 0, since Kin=5)
+            self.rel_formed_turns[slot] = [0u16; 8];
+            self.rel_count[slot] = 0;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -220,6 +237,12 @@ impl AgentPool {
             self.need_spiritual.push(crate::agent::STARTING_NEED);
             self.need_autonomy.push(crate::agent::STARTING_NEED);
             self.need_purpose.push(crate::agent::STARTING_NEED);
+            // M50a relationship init
+            self.rel_target_ids.push([0u32; 8]);
+            self.rel_sentiments.push([0i8; 8]);
+            self.rel_bond_types.push([255u8; 8]);
+            self.rel_formed_turns.push([0u16; 8]);
+            self.rel_count.push(0);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -409,6 +432,18 @@ impl AgentPool {
             }
         }
         buckets
+    }
+
+    /// Linear scan to find the slot index for a given agent_id.
+    /// Returns None if not found or not alive.
+    pub fn find_slot_by_id(&self, agent_id: u32) -> Option<usize> {
+        if agent_id == 0 { return None; } // PARENT_NONE sentinel
+        for slot in 0..self.capacity() {
+            if self.alive[slot] && self.ids[slot] == agent_id {
+                return Some(slot);
+            }
+        }
+        None
     }
 }
 
