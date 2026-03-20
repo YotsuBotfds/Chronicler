@@ -61,6 +61,9 @@ fn main() {
         food_sufficiency: 1.0,
         merchant_margin: 0.0,
         merchant_trade_income: 0.0,
+        controller_changed_this_turn: false,
+        war_won_this_turn: false,
+        seceded_this_turn: false,
     }).collect();
 
     let num_civs = (num_regions.min(8)) as usize;

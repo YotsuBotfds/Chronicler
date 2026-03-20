@@ -158,3 +158,119 @@ class TestSanitizeCivName:
 
     def test_already_clean(self):
         assert sanitize_civ_name("rustborn") == "rustborn"
+
+
+class TestMulePromotion:
+    def test_get_mule_factor_active_window(self):
+        """Mule boost applies during active window."""
+        from chronicler.action_engine import get_mule_factor, MULE_ACTIVE_WINDOW, MULE_FADE_TURNS
+        from unittest.mock import MagicMock
+        gp = MagicMock()
+        gp.mule = True
+        gp.active = True
+        gp.born_turn = 100
+        gp.utility_overrides = {"WAR": 3.0}
+        # Active window
+        assert get_mule_factor(gp, "WAR", 110) == 3.0
+        # Fade period
+        factor = get_mule_factor(gp, "WAR", 100 + MULE_ACTIVE_WINDOW + 5)
+        assert 1.0 < factor < 3.0
+        # After fade
+        assert get_mule_factor(gp, "WAR", 100 + MULE_ACTIVE_WINDOW + MULE_FADE_TURNS + 1) == 1.0
+
+    def test_get_mule_factor_non_mule(self):
+        """Non-Mule returns 1.0."""
+        from chronicler.action_engine import get_mule_factor
+        from unittest.mock import MagicMock
+        gp = MagicMock()
+        gp.mule = False
+        assert get_mule_factor(gp, "WAR", 100) == 1.0
+
+    def test_get_mule_factor_suppression_floor(self):
+        """Suppression value below 0.1 returned raw; floor applied in weight loop."""
+        from chronicler.action_engine import get_mule_factor
+        from unittest.mock import MagicMock
+        gp = MagicMock()
+        gp.mule = True
+        gp.active = True
+        gp.born_turn = 100
+        gp.utility_overrides = {"WAR": 0.05}
+        # get_mule_factor returns the raw value; 0.1 floor is in the weight loop
+        assert get_mule_factor(gp, "WAR", 110) == 0.05
+
+    def test_get_mule_factor_unspecified_action(self):
+        """Actions not in utility_overrides return 1.0."""
+        from chronicler.action_engine import get_mule_factor
+        from unittest.mock import MagicMock
+        gp = MagicMock()
+        gp.mule = True
+        gp.active = True
+        gp.born_turn = 100
+        gp.utility_overrides = {"WAR": 3.0}
+        assert get_mule_factor(gp, "DEVELOP", 110) == 1.0
+
+    def test_get_mule_factor_inactive_gp(self):
+        """Inactive GreatPerson returns 1.0."""
+        from chronicler.action_engine import get_mule_factor
+        from unittest.mock import MagicMock
+        gp = MagicMock()
+        gp.mule = True
+        gp.active = False
+        gp.born_turn = 100
+        gp.utility_overrides = {"WAR": 3.0}
+        assert get_mule_factor(gp, "WAR", 110) == 1.0
+
+    def test_get_mule_factor_fade_midpoint(self):
+        """At midpoint of fade, factor is halfway between base and 1.0."""
+        from chronicler.action_engine import get_mule_factor, MULE_ACTIVE_WINDOW, MULE_FADE_TURNS
+        from unittest.mock import MagicMock
+        gp = MagicMock()
+        gp.mule = True
+        gp.active = True
+        gp.born_turn = 0
+        gp.utility_overrides = {"WAR": 3.0}
+        midpoint = MULE_ACTIVE_WINDOW + MULE_FADE_TURNS // 2
+        factor = get_mule_factor(gp, "WAR", midpoint)
+        expected = 3.0 + (1.0 - 3.0) * ((midpoint - MULE_ACTIVE_WINDOW) / MULE_FADE_TURNS)
+        assert abs(factor - expected) < 1e-9
+
+
+class TestRenderMemory:
+    def test_render_vivid(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 0, "source_civ": 0, "turn": 50, "intensity": -80, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani", "Tessaran"])
+        assert result is not None
+        assert "famine" in result
+        assert "vivid" in result
+        assert "Kethani" in result
+
+    def test_render_fading(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 6, "source_civ": 1, "turn": 100, "intensity": 40, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani", "Tessaran"])
+        assert result is not None
+        assert "fading" in result
+        assert "Tessaran" in result
+
+    def test_render_too_weak(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 0, "source_civ": 0, "turn": 50, "intensity": -10, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani"])
+        assert result is None
+
+    def test_render_unknown_civ(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 1, "source_civ": 99, "turn": 30, "intensity": -70, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani"])
+        assert result is not None
+        assert "unknown" in result
+
+    def test_render_prosperity_no_civ_substitution(self):
+        """Prosperity template has no {civ} placeholder."""
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 5, "source_civ": 0, "turn": 20, "intensity": 65, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani"])
+        assert result is not None
+        assert "prosperity" in result
+        assert "vivid" in result

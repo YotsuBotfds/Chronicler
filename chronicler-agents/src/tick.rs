@@ -51,6 +51,13 @@ pub fn tick_agents(
     let mut events: Vec<AgentEvent> = Vec::new();
 
     // -----------------------------------------------------------------------
+    // M48: Collect alive slots and decay memories as FIRST operation
+    // -----------------------------------------------------------------------
+    let alive_slots: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+    crate::memory::decay_memories(pool, &alive_slots);
+    let mut memory_intents: Vec<crate::memory::MemoryIntent> = Vec::with_capacity(alive_slots.len());
+
+    // -----------------------------------------------------------------------
     // 0. Skill growth — iterate all alive agents
     // -----------------------------------------------------------------------
     for slot in 0..pool.capacity() {
@@ -77,6 +84,33 @@ pub fn tick_agents(
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
     update_satisfaction(pool, regions, signals, wealth_percentiles);
+
+    // -----------------------------------------------------------------------
+    // M48: Famine + Prosperity intents (post-satisfaction, post-wealth)
+    // -----------------------------------------------------------------------
+    for &slot in &alive_slots {
+        let region_idx = pool.regions[slot] as usize;
+        if region_idx < regions.len() {
+            // Famine: food_sufficiency below threshold
+            if regions[region_idx].food_sufficiency < crate::agent::FAMINE_MEMORY_THRESHOLD {
+                memory_intents.push(crate::memory::MemoryIntent {
+                    agent_slot: slot,
+                    event_type: crate::memory::MemoryEventType::Famine as u8,
+                    source_civ: pool.civ_affinities[slot],
+                    intensity: crate::agent::FAMINE_DEFAULT_INTENSITY,
+                });
+            }
+        }
+        // Prosperity: wealth above threshold
+        if pool.wealth[slot] > crate::agent::PROSPERITY_THRESHOLD {
+            memory_intents.push(crate::memory::MemoryIntent {
+                agent_slot: slot,
+                event_type: crate::memory::MemoryEventType::Prosperity as u8,
+                source_civ: pool.civ_affinities[slot],
+                intensity: crate::agent::PROSPERITY_DEFAULT_INTENSITY,
+            });
+        }
+    }
 
     // -----------------------------------------------------------------------
     // 2. Pre-compute region stats for decisions
@@ -189,6 +223,96 @@ pub fn tick_agents(
             let new_loy = (pool.loyalty(slot) + delta).clamp(0.0, 1.0);
             pool.set_loyalty(slot, new_loy);
         }
+
+        // M48: Migration intents
+        for &(slot, _from, _to) in &pd.migrations {
+            memory_intents.push(crate::memory::MemoryIntent {
+                agent_slot: slot,
+                event_type: crate::memory::MemoryEventType::Migration as u8,
+                source_civ: pool.civ_affinities[slot],
+                intensity: crate::agent::MIGRATION_DEFAULT_INTENSITY,
+            });
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // M48: Battle + Victory intents (soldiers in contested regions)
+    // -----------------------------------------------------------------------
+    {
+        let region_groups_battle = pool.partition_by_region(num_regions as u16);
+        for (region_id, slots) in region_groups_battle.iter().enumerate() {
+            let is_contested = region_id < signals.contested_regions.len()
+                && signals.contested_regions[region_id];
+            if !is_contested {
+                continue;
+            }
+            for &slot in slots {
+                if !pool.is_alive(slot) {
+                    continue;
+                }
+                let is_soldier = pool.occupations[slot]
+                    == crate::agent::Occupation::Soldier as u8;
+                if is_soldier {
+                    // Battle intent for soldiers in contested regions
+                    memory_intents.push(crate::memory::MemoryIntent {
+                        agent_slot: slot,
+                        event_type: crate::memory::MemoryEventType::Battle as u8,
+                        source_civ: pool.civ_affinities[slot],
+                        intensity: crate::agent::BATTLE_DEFAULT_INTENSITY,
+                    });
+                    // Victory intent if this region's war was won
+                    if region_id < regions.len() && regions[region_id].war_won_this_turn {
+                        memory_intents.push(crate::memory::MemoryIntent {
+                            agent_slot: slot,
+                            event_type: crate::memory::MemoryEventType::Victory as u8,
+                            source_civ: pool.civ_affinities[slot],
+                            intensity: crate::agent::VICTORY_DEFAULT_INTENSITY,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // M48: Conquest + Secession intents (region-wide signals)
+    // -----------------------------------------------------------------------
+    {
+        let region_groups_signal = pool.partition_by_region(num_regions as u16);
+        for (region_id, slots) in region_groups_signal.iter().enumerate() {
+            if region_id >= regions.len() {
+                continue;
+            }
+            let region = &regions[region_id];
+            if region.controller_changed_this_turn {
+                // source_civ = the conquering civ (new controller), NOT the agent's own civ.
+                // This enables side differentiation: agents whose civ matches the conqueror
+                // get STAY boost (garrison instinct), others get MIGRATE (displacement).
+                let conquering_civ = region.controller_civ;
+                for &slot in slots {
+                    if pool.is_alive(slot) {
+                        memory_intents.push(crate::memory::MemoryIntent {
+                            agent_slot: slot,
+                            event_type: crate::memory::MemoryEventType::Conquest as u8,
+                            source_civ: conquering_civ,
+                            intensity: crate::agent::CONQUEST_DEFAULT_INTENSITY,
+                        });
+                    }
+                }
+            }
+            if region.seceded_this_turn {
+                for &slot in slots {
+                    if pool.is_alive(slot) {
+                        memory_intents.push(crate::memory::MemoryIntent {
+                            agent_slot: slot,
+                            event_type: crate::memory::MemoryEventType::Secession as u8,
+                            source_civ: pool.civ_affinities[slot],
+                            intensity: crate::agent::SECESSION_DEFAULT_INTENSITY,
+                        });
+                    }
+                }
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -222,6 +346,30 @@ pub fn tick_agents(
             .collect()
     };
 
+    // -----------------------------------------------------------------------
+    // M48: Build agent_id → slot reverse index for DeathOfKin lookups.
+    // Must be built BEFORE deaths so we can find children of dying parents.
+    // -----------------------------------------------------------------------
+    let mut id_to_slot: std::collections::HashMap<u32, usize> =
+        std::collections::HashMap::with_capacity(pool.alive_count());
+    for slot in 0..pool.capacity() {
+        if pool.is_alive(slot) {
+            id_to_slot.insert(pool.ids[slot], slot);
+        }
+    }
+
+    // Build parent_id → Vec<child_slot> reverse index for DeathOfKin
+    let mut parent_to_children: std::collections::HashMap<u32, Vec<usize>> =
+        std::collections::HashMap::new();
+    for slot in 0..pool.capacity() {
+        if pool.is_alive(slot) {
+            let parent_id = pool.parent_ids[slot];
+            if parent_id != crate::agent::PARENT_NONE {
+                parent_to_children.entry(parent_id).or_default().push(slot);
+            }
+        }
+    }
+
     // Sequential apply: deaths, age increments, births
     for dr in &demo_results {
         // Deaths
@@ -235,6 +383,23 @@ pub fn tick_agents(
                 occupation: pool.occupation(slot),
                 turn,
             });
+
+            // M48: DeathOfKin intent for each living child of the dying agent
+            let dying_agent_id = pool.ids[slot];
+            if let Some(children) = parent_to_children.get(&dying_agent_id) {
+                for &child_slot in children {
+                    // Only emit for children still alive at this point
+                    if pool.is_alive(child_slot) {
+                        memory_intents.push(crate::memory::MemoryIntent {
+                            agent_slot: child_slot,
+                            event_type: crate::memory::MemoryEventType::DeathOfKin as u8,
+                            source_civ: pool.civ_affinities[child_slot],
+                            intensity: crate::agent::DEATHOFKIN_DEFAULT_INTENSITY,
+                        });
+                    }
+                }
+            }
+
             pool.kill(slot);
         }
 
@@ -273,6 +438,18 @@ pub fn tick_agents(
                 occupation: crate::agent::Occupation::Farmer as u8,
                 turn,
             });
+
+            // M48: BirthOfKin intent for the parent
+            if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
+                if pool.is_alive(parent_slot) {
+                    memory_intents.push(crate::memory::MemoryIntent {
+                        agent_slot: parent_slot,
+                        event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
+                        source_civ: pool.civ_affinities[parent_slot],
+                        intensity: crate::agent::BIRTHOFKIN_DEFAULT_INTENSITY,
+                    });
+                }
+            }
         }
     }
 
@@ -299,6 +476,11 @@ pub fn tick_agents(
     // Stage 7: Conversion (M37)
     // Note: reuses stage 6's partition pattern. No agents move between stages 6-7.
     // -----------------------------------------------------------------------
+    // M48: Snapshot LIFE_EVENT_CONVERSION bits BEFORE conversion_tick runs,
+    // so we can detect which agents are NEWLY converted this tick.
+    let pre_conversion_bits: Vec<bool> = (0..pool.capacity())
+        .map(|s| pool.life_events[s] & crate::agent::LIFE_EVENT_CONVERSION != 0)
+        .collect();
     {
         let region_groups = pool.partition_by_region(num_regions as u16);
         for (region_id, slots) in region_groups.iter().enumerate() {
@@ -311,6 +493,54 @@ pub fn tick_agents(
                     pool, slots, &regions[region_id],
                     master_seed, turn, region_id, religion_mult,
                 );
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // M48: Conversion + Persecution intents (after conversion tick)
+    // -----------------------------------------------------------------------
+    {
+        let region_groups_conv = pool.partition_by_region(num_regions as u16);
+        for (region_id, slots) in region_groups_conv.iter().enumerate() {
+            if region_id >= regions.len() {
+                continue;
+            }
+            let region = &regions[region_id];
+            for &slot in slots {
+                if !pool.is_alive(slot) {
+                    continue;
+                }
+                // Conversion: newly converted this tick (bit was OFF before, ON after)
+                let newly_converted = slot < pre_conversion_bits.len()
+                    && !pre_conversion_bits[slot]
+                    && (pool.life_events[slot] & crate::agent::LIFE_EVENT_CONVERSION != 0);
+                if newly_converted {
+                    // Intensity: +50 voluntary, -50 if conquest conversion active
+                    let intensity = if region.conquest_conversion_active {
+                        -(crate::agent::CONVERSION_DEFAULT_INTENSITY.unsigned_abs() as i8)
+                    } else {
+                        crate::agent::CONVERSION_DEFAULT_INTENSITY
+                    };
+                    memory_intents.push(crate::memory::MemoryIntent {
+                        agent_slot: slot,
+                        event_type: crate::memory::MemoryEventType::Conversion as u8,
+                        source_civ: pool.civ_affinities[slot],
+                        intensity,
+                    });
+                }
+                // Persecution: minority belief + nonzero persecution intensity
+                if region.persecution_intensity > 0.0
+                    && pool.beliefs[slot] != region.majority_belief
+                    && pool.beliefs[slot] != crate::agent::BELIEF_NONE
+                {
+                    memory_intents.push(crate::memory::MemoryIntent {
+                        agent_slot: slot,
+                        event_type: crate::memory::MemoryEventType::Persecution as u8,
+                        source_civ: pool.civ_affinities[slot],
+                        intensity: crate::agent::PERSECUTION_DEFAULT_INTENSITY,
+                    });
+                }
             }
         }
     }
@@ -333,6 +563,22 @@ pub fn tick_agents(
         if pool.is_alive(slot) && pool.displacement_turns(slot) > 0 {
             pool.set_displacement_turns(slot, pool.displacement_turns(slot) - 1);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // M48: Gate clearing + consolidated memory write (LAST operation)
+    // -----------------------------------------------------------------------
+    {
+        let post_alive: Vec<usize> = (0..pool.capacity())
+            .filter(|&s| pool.is_alive(s))
+            .collect();
+        crate::memory::clear_memory_gates(
+            pool,
+            &post_alive,
+            regions,
+            &signals.contested_regions,
+        );
+        crate::memory::write_all_memories(pool, &memory_intents, turn as u16);
     }
 
     events
@@ -537,6 +783,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                                 wealth_percentile: wealth_pct,
                                 food_sufficiency: region.food_sufficiency,
                                 merchant_margin: region.merchant_margin,
+                                memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),
                             },
                         );
 
@@ -698,6 +945,9 @@ mod tests {
             food_sufficiency: 1.0,
             merchant_margin: 0.0,
             merchant_trade_income: 0.0,
+            controller_changed_this_turn: false,
+            war_won_this_turn: false,
+            seceded_this_turn: false,
         }
     }
 

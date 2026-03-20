@@ -350,6 +350,11 @@ pub fn evaluate_region_decisions(
             migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
         }
 
+        // M48: Memory-driven utility modifiers — additive, applied before NEG_INFINITY gate
+        let mem_mods = crate::memory::compute_memory_utility_modifiers(pool, slot);
+        rebel_util += mem_mods.rebel;
+        migrate_util += mem_mods.migrate;
+
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
         let u_migrate = if migrate_util > 0.0 { migrate_util } else { f32::NEG_INFINITY };
 
@@ -358,10 +363,11 @@ pub fn evaluate_region_decisions(
             &stats.occupation_supply[region_id],
             &stats.occupation_demand[region_id],
         );
-        let u_switch_raw = u_switch_base * personality_modifier(ambi, AMBITION_SWITCH_WEIGHT);
+        let u_switch_raw = u_switch_base * personality_modifier(ambi, AMBITION_SWITCH_WEIGHT)
+            + mem_mods.switch;
         let u_switch = if u_switch_raw > 0.0 { u_switch_raw } else { f32::NEG_INFINITY };
 
-        let u_stay = STAY_BASE;
+        let u_stay = STAY_BASE + mem_mods.stay;
 
         let chosen = gumbel_argmax(
             &[u_rebel, u_migrate, u_switch, u_stay],
@@ -614,6 +620,9 @@ mod tests {
             food_sufficiency: 1.0,
             merchant_margin: 0.0,
             merchant_trade_income: 0.0,
+            controller_changed_this_turn: false,
+            war_won_this_turn: false,
+            seceded_this_turn: false,
         }
     }
 

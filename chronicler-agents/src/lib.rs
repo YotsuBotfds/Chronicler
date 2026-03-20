@@ -18,6 +18,7 @@ pub mod named_characters;
 pub mod culture_tick;
 pub mod conversion_tick;
 pub mod social;
+pub mod memory;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
@@ -34,6 +35,15 @@ pub use tick::{tick_agents, AgentEvent};
 pub use named_characters::{CharacterRole, NamedCharacterRegistry};
 #[doc(hidden)]
 pub use social::{RelationshipType, SocialEdge, SocialGraph};
+#[doc(hidden)]
+pub use memory::{
+    MemoryEventType, MemoryIntent, MemoryUtilityModifiers, MEMORY_SLOTS,
+    factor_from_half_life, half_life_from_factor, default_decay_factor,
+    decay_memories, write_single_memory, write_all_memories,
+    clear_memory_gates, compute_memory_satisfaction_score,
+    compute_memory_utility_modifiers, agents_share_memory,
+    GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
+};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

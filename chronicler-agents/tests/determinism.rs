@@ -35,6 +35,9 @@ fn make_test_regions() -> Vec<RegionState> {
             food_sufficiency: 1.0,
             merchant_margin: 0.0,
             merchant_trade_income: 0.0,
+            controller_changed_this_turn: false,
+            war_won_this_turn: false,
+            seceded_this_turn: false,
         })
         .collect()
 }

@@ -37,6 +37,26 @@ from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILI
 from chronicler.emergence import get_severity_multiplier
 
 
+# M48: Mule constants [CALIBRATE M53]
+MULE_ACTIVE_WINDOW = 25
+MULE_FADE_TURNS = 10
+
+
+def get_mule_factor(gp, action_name: str, current_turn: int) -> float:
+    """Compute the Mule's weight multiplier for a given action."""
+    if not gp.mule or not gp.active:
+        return 1.0
+    age = current_turn - gp.born_turn
+    if age > MULE_ACTIVE_WINDOW + MULE_FADE_TURNS:
+        return 1.0
+    base = gp.utility_overrides.get(action_name, 1.0)
+    if age <= MULE_ACTIVE_WINDOW:
+        return base
+    # Fade period: linearly interpolate from base back toward 1.0
+    fade_progress = (age - MULE_ACTIVE_WINDOW) / MULE_FADE_TURNS
+    return base + (1.0 - base) * fade_progress
+
+
 class WarResult(NamedTuple):
     outcome: str  # "attacker_wins", "defender_wins", "stalemate"
     contested_region: str | None
@@ -485,6 +505,9 @@ def resolve_war(
     if att_power > def_power * decisive_ratio:
         if contested:
             contested.controller = attacker.name
+            # M48: Transient memory signals — conquest and victory
+            contested._controller_changed_this_turn = True
+            contested._war_won_this_turn = True
             # M43a: Conquest stockpile destruction — 50% of each good lost
             from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
             for _good in list(contested.stockpile.goods.keys()):
@@ -538,6 +561,9 @@ def resolve_war(
             defender.stability = clamp(defender.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
         return WarResult("attacker_wins", contested.name if contested else None)
     elif def_power > att_power * decisive_ratio:
+        # M48: Transient memory signal — defender won the battle on contested region
+        if contested:
+            contested._war_won_this_turn = True
         mult = get_severity_multiplier(attacker, world)
         if acc is not None:
             acc.add(att_idx, attacker, "military", -loser_mil_loss, "guard-action")
@@ -858,6 +884,15 @@ class ActionEngine:
             trade_divisor = get_override(self.world, K_PEACE_TRADE_DIVISOR, 5.0)
             weights[ActionType.DEVELOP] *= 1.0 + civ.peace_momentum / develop_divisor
             weights[ActionType.TRADE] *= 1.0 + civ.peace_momentum / trade_divisor
+
+        # M48: Mule weight modification
+        for gp in civ.great_persons:
+            if not gp.mule or not gp.active:
+                continue
+            for action in ActionType:
+                factor = get_mule_factor(gp, action.name, self.world.turn)
+                if weights[action] > 0:  # zero-weight stays zero
+                    weights[action] *= max(factor, 0.1)  # suppression floor at 0.1x
 
         history = self.world.action_history.get(civ.name, [])
         stubborn_limit = int(get_override(self.world, K_STUBBORN_STREAK_LIMIT, 5))

@@ -90,6 +90,10 @@ pub const CULTURE_DRIFT_OFFSET: u64       = 500;
 pub const CONVERSION_STREAM_OFFSET: u64   = 600;
 pub const PERSONALITY_STREAM_OFFSET: u64  = 700;
 pub const GOODS_ALLOC_STREAM_OFFSET: u64  = 800;
+// M48: Memory system (reserved, not consumed in M48 — deterministic writes)
+pub const MEMORY_STREAM_OFFSET: u64 = 900;
+// M48: Mule promotion (reserved for Rust, but M48 uses Python-side RNG)
+pub const MULE_STREAM_OFFSET: u64 = 1300;
 
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
@@ -161,6 +165,53 @@ pub const CLASS_TENSION_WEIGHT: f32 = 0.15; // [CALIBRATE] max penalty for poore
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;
 
+// M48: Memory event default intensities [CALIBRATE M53]
+pub const FAMINE_DEFAULT_INTENSITY: i8 = -80;
+pub const BATTLE_DEFAULT_INTENSITY: i8 = -60;
+pub const CONQUEST_DEFAULT_INTENSITY: i8 = -70;
+pub const PERSECUTION_DEFAULT_INTENSITY: i8 = -90;
+pub const MIGRATION_DEFAULT_INTENSITY: i8 = -30;
+pub const PROSPERITY_DEFAULT_INTENSITY: i8 = 50;
+pub const VICTORY_DEFAULT_INTENSITY: i8 = 60;
+pub const PROMOTION_DEFAULT_INTENSITY: i8 = 70;
+pub const BIRTHOFKIN_DEFAULT_INTENSITY: i8 = 40;
+pub const DEATHOFKIN_DEFAULT_INTENSITY: i8 = -80;
+pub const CONVERSION_DEFAULT_INTENSITY: i8 = 50;
+pub const SECESSION_DEFAULT_INTENSITY: i8 = -60;
+
+// M48: Memory event default half-lives in turns [CALIBRATE M53]
+pub const FAMINE_HALF_LIFE: f32 = 40.0;
+pub const BATTLE_HALF_LIFE: f32 = 25.0;
+pub const CONQUEST_HALF_LIFE: f32 = 30.0;
+pub const PERSECUTION_HALF_LIFE: f32 = 50.0;
+pub const MIGRATION_HALF_LIFE: f32 = 15.0;
+pub const PROSPERITY_HALF_LIFE: f32 = 20.0;
+pub const VICTORY_HALF_LIFE: f32 = 20.0;
+pub const PROMOTION_HALF_LIFE: f32 = 30.0;
+pub const BIRTHOFKIN_HALF_LIFE: f32 = 25.0;
+pub const DEATHOFKIN_HALF_LIFE: f32 = 35.0;
+pub const CONVERSION_HALF_LIFE: f32 = 20.0;
+pub const SECESSION_HALF_LIFE: f32 = 20.0;
+pub const LEGACY_HALF_LIFE: f32 = 100.0;
+
+// M48: Memory behavioral constants [CALIBRATE M53]
+pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.12;
+pub const FAMINE_MEMORY_THRESHOLD: f32 = 0.6;
+pub const PROSPERITY_THRESHOLD: f32 = 3.0;
+
+// M48: Memory utility modifier magnitudes [CALIBRATE M53]
+pub const FAMINE_MIGRATE_BOOST: f32 = 0.2;
+pub const BATTLE_BOLD_STAY_BOOST: f32 = 0.1;
+pub const BATTLE_CAUTIOUS_MIGRATE_BOOST: f32 = 0.15;
+pub const CONQUEST_CONQUERED_MIGRATE_BOOST: f32 = 0.3;
+pub const CONQUEST_CONQUEROR_STAY_BOOST: f32 = 0.1;
+pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.15;
+pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.2;
+pub const PROSPERITY_MIGRATE_PENALTY: f32 = 0.2;
+pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;
+pub const VICTORY_STAY_BOOST: f32 = 0.1;
+pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,6 +259,8 @@ mod tests {
             CONVERSION_STREAM_OFFSET,
             PERSONALITY_STREAM_OFFSET,
             GOODS_ALLOC_STREAM_OFFSET,
+            MEMORY_STREAM_OFFSET,
+            MULE_STREAM_OFFSET,
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {

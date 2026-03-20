@@ -16,6 +16,7 @@ fn m38a_base_inputs(occupation: u8) -> SatisfactionInputs {
         has_temple: false, persecution_intensity: 0.0,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
     }
 }
 

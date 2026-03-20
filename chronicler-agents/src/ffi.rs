@@ -377,6 +377,17 @@ impl AgentSimulator {
             .column_by_name("merchant_trade_income")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
+        // M48: Per-region transient memory signals
+        let controller_changed_col = rb
+            .column_by_name("controller_changed_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let war_won_col = rb
+            .column_by_name("war_won_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let seceded_col = rb
+            .column_by_name("seceded_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+
         // M37: Initial belief for spawn (per-region, controller civ's faith_id)
         let initial_belief_col = rb
             .column_by_name("initial_belief")
@@ -438,6 +449,9 @@ impl AgentSimulator {
                     food_sufficiency: food_sufficiency_col.map_or(1.0, |arr| arr.value(i)),
                     merchant_margin: merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
                     merchant_trade_income: merchant_trade_income_col.map_or(0.0, |arr| arr.value(i)),
+                    controller_changed_this_turn: controller_changed_col.map_or(false, |arr| arr.value(i)),
+                    war_won_this_turn: war_won_col.map_or(false, |arr| arr.value(i)),
+                    seceded_this_turn: seceded_col.map_or(false, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -545,6 +559,9 @@ impl AgentSimulator {
                 if let Some(arr) = food_sufficiency_col { r.food_sufficiency = arr.value(i); }
                 if let Some(arr) = merchant_margin_col { r.merchant_margin = arr.value(i); }
                 if let Some(arr) = merchant_trade_income_col { r.merchant_trade_income = arr.value(i); }
+                r.controller_changed_this_turn = controller_changed_col.map_or(false, |arr| arr.value(i));
+                r.war_won_this_turn = war_won_col.map_or(false, |arr| arr.value(i));
+                r.seceded_this_turn = seceded_col.map_or(false, |arr| arr.value(i));
             }
         }
         Ok(())
@@ -721,6 +738,31 @@ impl AgentSimulator {
         )
         .map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
+    }
+
+    /// M48: Return memory slots for a specific agent.
+    /// Returns Vec<(event_type, source_civ, turn, intensity, decay_factor)>.
+    /// Empty vec if agent not found or dead.
+    fn get_agent_memories(&self, agent_id: u32) -> Vec<(u8, u8, u16, i8, u8)> {
+        // O(N) scan for agent_id — acceptable for ~50 named character queries
+        let pool = &self.pool;
+        for slot in 0..pool.ids.len() {
+            if pool.id(slot) == agent_id && pool.is_alive(slot) {
+                let count = pool.memory_count[slot] as usize;
+                let mut result = Vec::with_capacity(count);
+                for i in 0..count {
+                    result.push((
+                        pool.memory_event_types[slot][i],
+                        pool.memory_source_civs[slot][i],
+                        pool.memory_turns[slot][i],
+                        pool.memory_intensities[slot][i],
+                        pool.memory_decay_factors[slot][i],
+                    ));
+                }
+                return result;
+            }
+        }
+        Vec::new()
     }
 
     /// Replace the social graph with edges from an Arrow RecordBatch.
