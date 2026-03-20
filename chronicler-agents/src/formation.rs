@@ -357,9 +357,94 @@ pub fn check_exile_bond(
 pub struct FormationStats {
     pub bonds_formed: u32,
     pub bonds_evicted: u32,
+    pub bonds_dissolved_structural: u32,
     pub pairs_evaluated: u32,
     pub pairs_eligible: u32,
 }
+
+// ---------------------------------------------------------------------------
+// Death cleanup sweep (Task 4)
+// ---------------------------------------------------------------------------
+
+/// Sweep all alive agents' relationship slots, removing bonds to dead agents.
+/// Returns dissolution events for narration and count of removed bonds.
+pub fn death_cleanup_sweep(
+    pool: &mut AgentPool,
+    alive_slots: &[usize],
+    dead_ids: &std::collections::HashSet<u32>,
+    turn: u32,
+) -> (Vec<crate::tick::AgentEvent>, u32) {
+    let mut events = Vec::new();
+    let mut removed: u32 = 0;
+
+    for &slot in alive_slots {
+        let mut i: usize = 0;
+        while i < pool.rel_count[slot] as usize {
+            let target_id = pool.rel_target_ids[slot][i];
+            if dead_ids.contains(&target_id) {
+                let bond_type = pool.rel_bond_types[slot][i];
+                events.push(crate::tick::AgentEvent {
+                    agent_id: pool.ids[slot],
+                    event_type: agent::LIFE_EVENT_DISSOLUTION,
+                    region: pool.regions[slot],
+                    target_region: bond_type as u16,
+                    civ_affinity: pool.civ_affinities[slot],
+                    occupation: pool.occupations[slot],
+                    turn,
+                });
+                crate::relationships::swap_remove_rel(pool, slot, i);
+                removed += 1;
+                // Don't increment i — swapped-in entry needs re-checking
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    (events, removed)
+}
+
+// ---------------------------------------------------------------------------
+// Belief-divergence cleanup (Task 4)
+// ---------------------------------------------------------------------------
+
+/// Remove CoReligionist bonds where beliefs have diverged.
+/// Returns the number of bonds removed.
+pub fn belief_divergence_cleanup(
+    pool: &mut AgentPool,
+    region_slots: &[usize],
+    id_to_slot: &HashMap<u32, usize>,
+) -> u32 {
+    let mut removed: u32 = 0;
+
+    for &slot in region_slots {
+        let src_belief = pool.beliefs[slot];
+        let mut i: usize = 0;
+        while i < pool.rel_count[slot] as usize {
+            if pool.rel_bond_types[slot][i] == BondType::CoReligionist as u8 {
+                let target_id = pool.rel_target_ids[slot][i];
+                // Resolve target to slot via id_to_slot (target may have migrated)
+                let beliefs_match = id_to_slot
+                    .get(&target_id)
+                    .map(|&target_slot| pool.beliefs[target_slot] == src_belief)
+                    .unwrap_or(false); // target not found (dead/gone) → diverged
+                if !beliefs_match {
+                    crate::relationships::swap_remove_rel(pool, slot, i);
+                    removed += 1;
+                    // Don't increment i — swapped-in entry needs re-checking
+                    continue;
+                }
+            }
+            i += 1;
+        }
+    }
+
+    removed
+}
+
+// ---------------------------------------------------------------------------
+// Formation scan orchestration support
+// ---------------------------------------------------------------------------
 
 /// Deterministic hash mix for pair-shuffling.
 /// Combines (turn, region_index, agent_id) into a u64 sort key.
@@ -566,6 +651,16 @@ pub fn formation_scan(
         // Build belief census for this region
         let belief_census = build_belief_census(pool, bucket);
         let region_pop = bucket.len() as u32;
+
+        // M50b: Belief-divergence cleanup — remove CoReligionist bonds
+        // where source and target beliefs have diverged.
+        // Build id_to_slot map for this region (targets may have migrated).
+        let id_to_slot: HashMap<u32, usize> = alive_slots
+            .iter()
+            .map(|&s| (pool.ids[s], s))
+            .collect();
+        let dissolved = belief_divergence_cleanup(pool, bucket, &id_to_slot);
+        stats.bonds_dissolved_structural += dissolved;
 
         // Per-agent formation budget tracking
         let mut agent_bonds_this_pass: HashMap<usize, u8> = HashMap::new();
@@ -1308,5 +1403,208 @@ mod tests {
         crate::relationships::write_rel(&mut pool, a, 7, 107, 10, BondType::Friend as u8, 1);
         pool.rel_count[a] = 8;
         assert!(has_capacity(&pool, a), "full with one evictable → has capacity");
+    }
+
+    // ── death_cleanup_sweep ────────────────────────────────────────────────
+
+    #[test]
+    fn test_death_cleanup_removes_bond_to_dead_target() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_b = pool.ids[b];
+        let id_c = pool.ids[c];
+
+        // a has bonds to b and c
+        crate::relationships::upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 50, 1);
+        crate::relationships::upsert_directed(&mut pool, a, id_c, BondType::Kin as u8, 60, 1);
+        assert_eq!(pool.rel_count[a], 2);
+
+        // Kill b
+        pool.kill(b);
+        let mut dead_ids = std::collections::HashSet::new();
+        dead_ids.insert(id_b);
+
+        let alive = vec![a, c];
+        let (events, removed) = death_cleanup_sweep(&mut pool, &alive, &dead_ids, 10);
+
+        // Bond to b should be removed, bond to c should remain
+        assert_eq!(removed, 1);
+        assert_eq!(pool.rel_count[a], 1);
+        assert_eq!(pool.rel_target_ids[a][0], id_c, "bond to c should remain");
+        assert_eq!(pool.rel_bond_types[a][0], BondType::Kin as u8);
+
+        // Should emit one dissolution event
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].agent_id, pool.ids[a]);
+        assert_eq!(events[0].event_type, agent::LIFE_EVENT_DISSOLUTION);
+        assert_eq!(events[0].target_region, BondType::Friend as u16);
+        assert_eq!(events[0].turn, 10);
+    }
+
+    #[test]
+    fn test_death_cleanup_packed_prefix_maintained() {
+        // Verify that after removing a bond at position 0, the remaining bonds
+        // are compacted with swap-remove and no gaps exist.
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let d = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_b = pool.ids[b];
+        let id_c = pool.ids[c];
+        let id_d = pool.ids[d];
+
+        // a has bonds: [b, c, d]
+        crate::relationships::upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 30, 1);
+        crate::relationships::upsert_directed(&mut pool, a, id_c, BondType::Rival as u8, -20, 2);
+        crate::relationships::upsert_directed(&mut pool, a, id_d, BondType::Kin as u8, 60, 3);
+        assert_eq!(pool.rel_count[a], 3);
+
+        // Kill b (at position 0)
+        pool.kill(b);
+        let mut dead_ids = std::collections::HashSet::new();
+        dead_ids.insert(id_b);
+
+        let alive = vec![a, c, d];
+        let (_events, removed) = death_cleanup_sweep(&mut pool, &alive, &dead_ids, 5);
+        assert_eq!(removed, 1);
+        assert_eq!(pool.rel_count[a], 2);
+
+        // Remaining bonds should be packed: slots [0] and [1] occupied, [2] cleared
+        let targets: Vec<u32> = (0..pool.rel_count[a] as usize)
+            .map(|i| pool.rel_target_ids[a][i])
+            .collect();
+        assert!(targets.contains(&id_c), "c bond should remain");
+        assert!(targets.contains(&id_d), "d bond should remain");
+        assert!(!targets.contains(&id_b), "b bond should be gone");
+    }
+
+    #[test]
+    fn test_death_cleanup_swap_remove_rechecks_swapped_entry() {
+        // When bond at [0] is removed, the last entry swaps in.
+        // If that swapped entry ALSO targets a dead agent, it should be removed too.
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let d = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_b = pool.ids[b];
+        let id_c = pool.ids[c];
+        let id_d = pool.ids[d];
+
+        // a has bonds: [b, c, d] at indices [0, 1, 2]
+        crate::relationships::upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 30, 1);
+        crate::relationships::upsert_directed(&mut pool, a, id_c, BondType::Rival as u8, -20, 2);
+        crate::relationships::upsert_directed(&mut pool, a, id_d, BondType::Friend as u8, 40, 3);
+
+        // Kill both b and d. When b at [0] is removed, d at [2] swaps to [0].
+        // The while loop should NOT skip d — it re-checks [0].
+        pool.kill(b);
+        pool.kill(d);
+        let mut dead_ids = std::collections::HashSet::new();
+        dead_ids.insert(id_b);
+        dead_ids.insert(id_d);
+
+        let alive = vec![a, c];
+        let (_events, removed) = death_cleanup_sweep(&mut pool, &alive, &dead_ids, 5);
+        assert_eq!(removed, 2, "both b and d bonds should be removed");
+        assert_eq!(pool.rel_count[a], 1, "only c should remain");
+        assert_eq!(pool.rel_target_ids[a][0], id_c, "remaining bond should target c");
+    }
+
+    // ── belief_divergence_cleanup ──────────────────────────────────────────
+
+    #[test]
+    fn test_belief_divergence_removes_coreligionist() {
+        let mut pool = AgentPool::new(8);
+        // a and b start with same belief (5), forming CoReligionist bond
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let id_b = pool.ids[b];
+        let id_a = pool.ids[a];
+
+        // Create symmetric CoReligionist bond
+        crate::relationships::upsert_symmetric(
+            &mut pool, a, b, BondType::CoReligionist as u8, 25, 1,
+        );
+        assert_eq!(pool.rel_count[a], 1);
+        assert_eq!(pool.rel_count[b], 1);
+
+        // b converts to belief 7 — beliefs diverge
+        pool.beliefs[b] = 7;
+
+        let region_slots = vec![a, b];
+        let id_map: HashMap<u32, usize> = vec![
+            (id_a, a),
+            (id_b, b),
+        ].into_iter().collect();
+
+        let removed = belief_divergence_cleanup(&mut pool, &region_slots, &id_map);
+        // Both sides' CoReligionist bonds should be removed (cleanup runs for each agent)
+        assert_eq!(removed, 2, "both a→b and b→a CoReligionist bonds removed");
+        assert_eq!(pool.rel_count[a], 0);
+        assert_eq!(pool.rel_count[b], 0);
+    }
+
+    #[test]
+    fn test_belief_divergence_preserves_non_coreligionist() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let id_b = pool.ids[b];
+        let id_a = pool.ids[a];
+
+        // Create both CoReligionist and Friend bonds
+        crate::relationships::upsert_symmetric(
+            &mut pool, a, b, BondType::CoReligionist as u8, 25, 1,
+        );
+        crate::relationships::upsert_symmetric(
+            &mut pool, a, b, BondType::Friend as u8, 30, 1,
+        );
+        assert_eq!(pool.rel_count[a], 2);
+
+        // b converts — beliefs diverge
+        pool.beliefs[b] = 7;
+
+        let region_slots = vec![a, b];
+        let id_map: HashMap<u32, usize> = vec![
+            (id_a, a),
+            (id_b, b),
+        ].into_iter().collect();
+
+        let removed = belief_divergence_cleanup(&mut pool, &region_slots, &id_map);
+        assert_eq!(removed, 2, "only CoReligionist removed (both sides)");
+        // Friend bond should remain
+        assert_eq!(pool.rel_count[a], 1);
+        assert_eq!(pool.rel_bond_types[a][0], BondType::Friend as u8);
+        assert_eq!(pool.rel_count[b], 1);
+        assert_eq!(pool.rel_bond_types[b][0], BondType::Friend as u8);
+    }
+
+    #[test]
+    fn test_belief_divergence_same_belief_untouched() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let id_b = pool.ids[b];
+        let id_a = pool.ids[a];
+
+        crate::relationships::upsert_symmetric(
+            &mut pool, a, b, BondType::CoReligionist as u8, 25, 1,
+        );
+
+        // Same belief — should NOT be removed
+        let region_slots = vec![a, b];
+        let id_map: HashMap<u32, usize> = vec![
+            (id_a, a),
+            (id_b, b),
+        ].into_iter().collect();
+
+        let removed = belief_divergence_cleanup(&mut pool, &region_slots, &id_map);
+        assert_eq!(removed, 0, "same belief → no removal");
+        assert_eq!(pool.rel_count[a], 1);
+        assert_eq!(pool.rel_count[b], 1);
     }
 }

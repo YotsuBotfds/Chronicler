@@ -54,9 +54,9 @@ pub use needs::{decay_needs, restore_needs, clamp_needs, update_needs, compute_n
 #[doc(hidden)]
 pub use signals::{CivSignals, TickSignals};
 #[doc(hidden)]
-pub use formation::{formation_scan, FormationStats};
+pub use formation::{formation_scan, FormationStats, death_cleanup_sweep, belief_divergence_cleanup};
 #[doc(hidden)]
-pub use agent::{FORMATION_CADENCE, MAX_NEW_BONDS_PER_PASS, MAX_NEW_BONDS_PER_REGION};
+pub use agent::{FORMATION_CADENCE, MAX_NEW_BONDS_PER_PASS, MAX_NEW_BONDS_PER_REGION, LIFE_EVENT_DISSOLUTION};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

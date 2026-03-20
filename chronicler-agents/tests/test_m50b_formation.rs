@@ -412,3 +412,134 @@ fn test_single_agent_in_region_no_panic() {
     assert_eq!(stats.bonds_formed, 0);
     assert_eq!(stats.pairs_evaluated, 0);
 }
+
+// ---------------------------------------------------------------------------
+// Test 9: Death of agent removes bonds from survivors (Task 4)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_death_cleanup_removes_survivor_bonds_to_dead() {
+    use chronicler_agents::{death_cleanup_sweep, LIFE_EVENT_DISSOLUTION};
+    use chronicler_agents::relationships::upsert_symmetric;
+
+    let mut pool = AgentPool::new(16);
+
+    // Three agents in region 0
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+    let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+    let id_a = pool.ids[a];
+    let id_b = pool.ids[b];
+    let id_c = pool.ids[c];
+
+    // a-b Friend bond, a-c Kin bond, b-c Friend bond
+    upsert_symmetric(&mut pool, a, b, BondType::Friend as u8, 50, 1);
+    upsert_symmetric(&mut pool, a, c, BondType::Kin as u8, 60, 1);
+    upsert_symmetric(&mut pool, b, c, BondType::Friend as u8, 40, 1);
+    assert_eq!(pool.rel_count[a], 2); // bonds to b and c
+    assert_eq!(pool.rel_count[b], 2); // bonds to a and c
+    assert_eq!(pool.rel_count[c], 2); // bonds to a and b
+
+    // Kill b
+    pool.kill(b);
+    let mut dead_ids = std::collections::HashSet::new();
+    dead_ids.insert(id_b);
+
+    let alive = vec![a, c]; // b is dead
+    let (events, removed) = death_cleanup_sweep(&mut pool, &alive, &dead_ids, 10);
+
+    // a had bond to b → removed. a still has bond to c.
+    assert_eq!(pool.rel_count[a], 1, "a should have 1 bond (to c)");
+    assert_eq!(pool.rel_target_ids[a][0], id_c);
+
+    // c had bond to b → removed. c still has bond to a.
+    assert_eq!(pool.rel_count[c], 1, "c should have 1 bond (to a)");
+    assert_eq!(pool.rel_target_ids[c][0], id_a);
+
+    // Should have 2 dissolution events (a→b removed, c→b removed)
+    assert_eq!(removed, 2);
+    assert_eq!(events.len(), 2);
+    for event in &events {
+        assert_eq!(event.event_type, LIFE_EVENT_DISSOLUTION);
+        assert_eq!(event.turn, 10);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 10: Belief divergence removes CoReligionist but not Friend/Kin (Task 4)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_belief_divergence_removes_coreligionist_not_friend() {
+    use chronicler_agents::belief_divergence_cleanup;
+    use chronicler_agents::relationships::upsert_symmetric;
+    use std::collections::HashMap;
+
+    let mut pool = AgentPool::new(16);
+
+    // Two agents, same belief (5)
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+    let id_a = pool.ids[a];
+    let id_b = pool.ids[b];
+
+    // Form CoReligionist + Friend bonds
+    upsert_symmetric(&mut pool, a, b, BondType::CoReligionist as u8, 25, 1);
+    upsert_symmetric(&mut pool, a, b, BondType::Friend as u8, 30, 1);
+    assert_eq!(pool.rel_count[a], 2);
+    assert_eq!(pool.rel_count[b], 2);
+
+    // b converts to belief 7
+    pool.beliefs[b] = 7;
+
+    let region_slots = vec![a, b];
+    let id_to_slot: HashMap<u32, usize> = vec![
+        (id_a, a),
+        (id_b, b),
+    ].into_iter().collect();
+
+    let removed = belief_divergence_cleanup(&mut pool, &region_slots, &id_to_slot);
+    // Both sides' CoReligionist removed (a→b and b→a)
+    assert_eq!(removed, 2, "CoReligionist bonds removed on both sides");
+
+    // Friend bonds should still be present
+    assert_eq!(pool.rel_count[a], 1, "a should keep Friend bond");
+    assert_eq!(pool.rel_bond_types[a][0], BondType::Friend as u8);
+    assert_eq!(pool.rel_count[b], 1, "b should keep Friend bond");
+    assert_eq!(pool.rel_bond_types[b][0], BondType::Friend as u8);
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: Formation scan includes belief divergence cleanup (Task 4)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_formation_scan_dissolves_diverged_coreligionist() {
+    use chronicler_agents::relationships::upsert_symmetric;
+
+    let mut pool = AgentPool::new(16);
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].controller_civ = 0;
+
+    // Two agents, same belief (5)
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 1, 2, 3, 5);
+
+    // Pre-existing CoReligionist bond
+    upsert_symmetric(&mut pool, a, b, BondType::CoReligionist as u8, 25, 1);
+    assert_eq!(pool.rel_count[a], 1);
+
+    // b converts to belief 7 — divergence
+    pool.beliefs[b] = 7;
+
+    // Formation scan at turn 0 (region 0 scanned)
+    let slots = alive_slots(&pool);
+    let stats = formation_scan(&mut pool, &regions, 0, &slots);
+
+    // CoReligionist bond should have been dissolved
+    assert!(stats.bonds_dissolved_structural >= 2, "diverged CoReligionist should be dissolved");
+    assert!(
+        find_relationship(&pool, a, pool.ids[b], BondType::CoReligionist as u8).is_none(),
+        "CoReligionist bond from a to b should be gone"
+    );
+}

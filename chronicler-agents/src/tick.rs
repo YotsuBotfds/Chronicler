@@ -477,6 +477,22 @@ pub fn tick_agents(
     }
 
     // -----------------------------------------------------------------------
+    // 5.1 M50b: Death cleanup sweep — remove bonds to this tick's dead agents
+    // -----------------------------------------------------------------------
+    let dead_ids: std::collections::HashSet<u32> = events.iter()
+        .filter(|e| e.event_type == 0) // event_type 0 = death
+        .map(|e| e.agent_id)
+        .collect();
+    if !dead_ids.is_empty() {
+        let alive_slots_post_demo: Vec<usize> = (0..pool.capacity())
+            .filter(|&s| pool.is_alive(s))
+            .collect();
+        let (dissolution_events, _removed) =
+            crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, &dead_ids, turn);
+        events.extend(dissolution_events);
+    }
+
+    // -----------------------------------------------------------------------
     // 6. Cultural drift (M36)
     // -----------------------------------------------------------------------
     {
