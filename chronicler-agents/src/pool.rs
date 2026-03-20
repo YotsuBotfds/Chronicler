@@ -57,6 +57,13 @@ pub struct AgentPool {
     pub memory_decay_factors: Vec<[u8; 8]>,
     pub memory_gates: Vec<u8>,
     pub memory_count: Vec<u8>,
+    // M49: Needs system (6 × f32 per agent)
+    pub need_safety: Vec<f32>,
+    pub need_material: Vec<f32>,
+    pub need_social: Vec<f32>,
+    pub need_spiritual: Vec<f32>,
+    pub need_autonomy: Vec<f32>,
+    pub need_purpose: Vec<f32>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -100,6 +107,12 @@ impl AgentPool {
             memory_decay_factors: Vec::with_capacity(capacity),
             memory_gates: Vec::with_capacity(capacity),
             memory_count: Vec::with_capacity(capacity),
+            need_safety: Vec::with_capacity(capacity),
+            need_material: Vec::with_capacity(capacity),
+            need_social: Vec::with_capacity(capacity),
+            need_spiritual: Vec::with_capacity(capacity),
+            need_autonomy: Vec::with_capacity(capacity),
+            need_purpose: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -159,6 +172,12 @@ impl AgentPool {
             self.memory_decay_factors[slot] = [0; 8];
             self.memory_gates[slot] = 0;
             self.memory_count[slot] = 0;
+            self.need_safety[slot] = crate::agent::STARTING_NEED;
+            self.need_material[slot] = crate::agent::STARTING_NEED;
+            self.need_social[slot] = crate::agent::STARTING_NEED;
+            self.need_spiritual[slot] = crate::agent::STARTING_NEED;
+            self.need_autonomy[slot] = crate::agent::STARTING_NEED;
+            self.need_purpose[slot] = crate::agent::STARTING_NEED;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -195,6 +214,12 @@ impl AgentPool {
             self.memory_decay_factors.push([0; 8]);
             self.memory_gates.push(0);
             self.memory_count.push(0);
+            self.need_safety.push(crate::agent::STARTING_NEED);
+            self.need_material.push(crate::agent::STARTING_NEED);
+            self.need_social.push(crate::agent::STARTING_NEED);
+            self.need_spiritual.push(crate::agent::STARTING_NEED);
+            self.need_autonomy.push(crate::agent::STARTING_NEED);
+            self.need_purpose.push(crate::agent::STARTING_NEED);
             self.alive.push(true);
             self.count += 1;
             slot

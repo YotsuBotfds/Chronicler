@@ -19,6 +19,7 @@ pub mod culture_tick;
 pub mod conversion_tick;
 pub mod social;
 pub mod memory;
+pub mod needs;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
@@ -44,6 +45,8 @@ pub use memory::{
     compute_memory_utility_modifiers, agents_share_memory,
     GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
 };
+#[doc(hidden)]
+pub use needs::NeedUtilityModifiers;
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

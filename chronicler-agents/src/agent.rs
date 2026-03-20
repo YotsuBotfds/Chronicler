@@ -212,6 +212,55 @@ pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;
 pub const VICTORY_STAY_BOOST: f32 = 0.1;
 pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;
 
+// M49: Needs system — starting value
+pub const STARTING_NEED: f32 = 0.5;
+
+// M49: Need decay rates [CALIBRATE M53]
+pub const SAFETY_DECAY: f32 = 0.015;
+pub const MATERIAL_DECAY: f32 = 0.012;
+pub const SOCIAL_DECAY: f32 = 0.008;
+pub const SPIRITUAL_DECAY: f32 = 0.010;
+pub const AUTONOMY_DECAY: f32 = 0.015;
+pub const PURPOSE_DECAY: f32 = 0.012;
+
+// M49: Need behavioral thresholds [CALIBRATE M53]
+pub const SAFETY_THRESHOLD: f32 = 0.3;
+pub const MATERIAL_THRESHOLD: f32 = 0.3;
+pub const SOCIAL_THRESHOLD: f32 = 0.25;
+pub const SPIRITUAL_THRESHOLD: f32 = 0.3;
+pub const AUTONOMY_THRESHOLD: f32 = 0.3;
+pub const PURPOSE_THRESHOLD: f32 = 0.35;
+
+// M49: Need behavioral weights [CALIBRATE M53]
+pub const SAFETY_WEIGHT: f32 = 0.7;
+pub const MATERIAL_WEIGHT: f32 = 0.5;
+pub const SOCIAL_WEIGHT: f32 = 0.5;
+pub const SPIRITUAL_WEIGHT: f32 = 0.4;
+pub const AUTONOMY_WEIGHT: f32 = 0.8;
+pub const PURPOSE_WEIGHT: f32 = 0.4;
+
+// M49: Restoration rates [CALIBRATE M53]
+pub const SAFETY_RESTORE_PEACE: f32 = 0.020;
+pub const SAFETY_RESTORE_HEALTH: f32 = 0.010;
+pub const SAFETY_RESTORE_FOOD: f32 = 0.008;
+pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;
+pub const MATERIAL_RESTORE_FOOD: f32 = 0.012;
+pub const MATERIAL_RESTORE_WEALTH: f32 = 0.015;
+pub const SOCIAL_RESTORE_POP: f32 = 0.010;
+pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;
+pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;
+pub const SOCIAL_PRIEST_MULT: f32 = 1.3;
+pub const SPIRITUAL_RESTORE_TEMPLE: f32 = 0.020;
+pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;
+pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.020;
+pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.010;
+pub const PURPOSE_RESTORE_SKILL: f32 = 0.020;
+pub const PURPOSE_RESTORE_WAR: f32 = 0.015;
+
+// M49: Infrastructure constants [CALIBRATE M53]
+pub const NEEDS_MODIFIER_CAP: f32 = 0.30;
+pub const AUTONOMY_DRIFT_WEIGHT: f32 = 2.0;
+
 #[cfg(test)]
 mod tests {
     use super::*;
