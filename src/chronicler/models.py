@@ -355,6 +355,11 @@ class GreatPerson(BaseModel):
     pilgrimage_skill_bonus: float = 0.0
     # M40: Social Networks
     origin_region: str | None = None
+    # M48: Mule promotion system
+    mule: bool = False
+    mule_memory_event_type: Optional[int] = None
+    utility_overrides: dict = Field(default_factory=dict)  # ActionType name -> multiplier
+    memories: list = Field(default_factory=list)  # cached from Rust via FFI
 
 
 class ShockContext(BaseModel):

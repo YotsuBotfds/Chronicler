@@ -32,6 +32,20 @@ EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
 OCCUPATION_NAMES = {0: "farmers", 1: "soldiers", 2: "merchants", 3: "scholars", 4: "priests"}
 ROLE_MAP = {0: "general", 1: "merchant", 2: "scientist", 3: "prophet", 4: "exile"}
 
+# M48: Mule promotion constants [CALIBRATE M53]
+MULE_PROMOTION_PROBABILITY = 0.07  # target 5-10%
+MULE_MAPPING = {
+    0: {"DEVELOP": 3.0, "TRADE": 2.0, "WAR": 0.3},        # Famine
+    1: {"WAR": 3.0, "DIPLOMACY": 0.5},                      # Battle
+    2: {"WAR": 3.0, "EXPAND": 2.0, "DIPLOMACY": 0.3},      # Conquest
+    3: {"FUND_INSTABILITY": 3.0, "TRADE": 0.5},             # Persecution
+    4: {"EXPAND": 3.0, "TRADE": 2.0},                       # Migration
+    6: {"WAR": 2.5, "EXPAND": 2.0},                         # Victory
+    9: {"DIPLOMACY": 3.0, "WAR": 0.3},                      # DeathOfKin
+    10: {"INVEST_CULTURE": 3.0, "BUILD": 2.0},              # Conversion
+    11: {"DIPLOMACY": 2.5, "INVEST_CULTURE": 2.0},          # Secession
+}
+
 SUMMARY_TEMPLATES = {
     "mass_migration": "{count} {occ_majority} fled {source_region} for {target_region}",
     "local_rebellion": "Rebellion erupted in {region} as {count} discontented {occ_majority} rose up",
@@ -487,6 +501,17 @@ class AgentBridge:
             )
             dynasty_events.extend(split_events)
 
+            # M48: Sync memories for active named characters
+            for civ_obj in world.civilizations:
+                for gp in civ_obj.great_persons:
+                    if gp.active and gp.agent_id is not None:
+                        raw_memories = self._sim.get_agent_memories(gp.agent_id)
+                        gp.memories = [
+                            {"event_type": m[0], "source_civ": m[1], "turn": m[2],
+                             "intensity": m[3], "decay_factor": m[4]}
+                            for m in raw_memories
+                        ]
+
             return summaries + char_events + death_events + dynasty_events
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
@@ -604,6 +629,20 @@ class AgentBridge:
                 de.turn = world.turn
                 self._pending_dynasty_events.append(de)
             self._origin_regions[agent_id] = origin_region
+
+            # M48: Mule promotion roll
+            if gp.agent_id is not None:
+                mule_rng = random.Random(world.seed + world.turn * 7919 + gp.agent_id)
+                if mule_rng.random() < MULE_PROMOTION_PROBABILITY:
+                    memories = self._sim.get_agent_memories(gp.agent_id)
+                    if memories:
+                        strongest = max(memories, key=lambda m: abs(m[3]))  # m[3] = intensity
+                        event_type = strongest[0]
+                        if event_type in MULE_MAPPING:
+                            gp.mule = True
+                            gp.mule_memory_event_type = event_type
+                            gp.utility_overrides = MULE_MAPPING[event_type]
+                            _append_deed(gp, f"Mule: shaped by memory type {event_type}")
 
         return created
 
