@@ -740,6 +740,31 @@ impl AgentSimulator {
         Ok(PyRecordBatch::new(batch))
     }
 
+    /// M48: Return memory slots for a specific agent.
+    /// Returns Vec<(event_type, source_civ, turn, intensity, decay_factor)>.
+    /// Empty vec if agent not found or dead.
+    fn get_agent_memories(&self, agent_id: u32) -> Vec<(u8, u8, u16, i8, u8)> {
+        // O(N) scan for agent_id — acceptable for ~50 named character queries
+        let pool = &self.pool;
+        for slot in 0..pool.ids.len() {
+            if pool.id(slot) == agent_id && pool.is_alive(slot) {
+                let count = pool.memory_count[slot] as usize;
+                let mut result = Vec::with_capacity(count);
+                for i in 0..count {
+                    result.push((
+                        pool.memory_event_types[slot][i],
+                        pool.memory_source_civs[slot][i],
+                        pool.memory_turns[slot][i],
+                        pool.memory_intensities[slot][i],
+                        pool.memory_decay_factors[slot][i],
+                    ));
+                }
+                return result;
+            }
+        }
+        Vec::new()
+    }
+
     /// Replace the social graph with edges from an Arrow RecordBatch.
     pub fn replace_social_edges(&mut self, batch: PyRecordBatch) -> PyResult<()> {
         let rb: RecordBatch = batch.into_inner();
