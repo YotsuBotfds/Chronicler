@@ -4,6 +4,7 @@ use chronicler_agents::{
     factor_from_half_life, half_life_from_factor,
     decay_memories, write_single_memory, write_all_memories,
     clear_memory_gates, compute_memory_satisfaction_score,
+    compute_memory_utility_modifiers,
     GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
     RegionState,
 };
@@ -822,4 +823,369 @@ fn test_write_all_memories_respects_pre_existing_gate() {
     // Famine should be blocked, Victory should be written
     assert_eq!(pool.memory_count[slot], 1);
     assert_eq!(pool.memory_event_types[slot][0], MemoryEventType::Victory as u8);
+}
+
+// ===========================================================================
+// Task 5: Gate bit tests — verify write_all_memories blocks gated duplicates
+// ===========================================================================
+
+#[test]
+fn test_memory_gate_battle() {
+    // Write BATTLE, gate set, second BATTLE blocked
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intent1 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Battle as u8,
+        source_civ: 0,
+        intensity: -60,
+    };
+    write_all_memories(&mut pool, &[intent1], 1);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_BATTLE, 0, "gate should be set after first BATTLE");
+
+    // Second BATTLE should be blocked by the gate
+    let intent2 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Battle as u8,
+        source_civ: 1,
+        intensity: -50,
+    };
+    write_all_memories(&mut pool, &[intent2], 2);
+
+    // Still only one BATTLE memory
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_intensities[slot][0], -60, "original BATTLE should be preserved");
+}
+
+#[test]
+fn test_memory_gate_famine() {
+    // Write FAMINE, gate set, second FAMINE blocked
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intent1 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Famine as u8,
+        source_civ: 0,
+        intensity: -80,
+    };
+    write_all_memories(&mut pool, &[intent1], 1);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_FAMINE, 0, "gate should be set after first FAMINE");
+
+    // Second FAMINE should be blocked by the gate
+    let intent2 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Famine as u8,
+        source_civ: 0,
+        intensity: -70,
+    };
+    write_all_memories(&mut pool, &[intent2], 2);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_intensities[slot][0], -80, "original FAMINE should be preserved");
+}
+
+#[test]
+fn test_memory_gate_prosperity() {
+    // Write PROSPERITY, gate set, second PROSPERITY blocked
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intent1 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Prosperity as u8,
+        source_civ: 0,
+        intensity: 50,
+    };
+    write_all_memories(&mut pool, &[intent1], 1);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_PROSPERITY, 0, "gate should be set after first PROSPERITY");
+
+    // Second PROSPERITY should be blocked by the gate
+    let intent2 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Prosperity as u8,
+        source_civ: 0,
+        intensity: 40,
+    };
+    write_all_memories(&mut pool, &[intent2], 2);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_intensities[slot][0], 50, "original PROSPERITY should be preserved");
+}
+
+#[test]
+fn test_memory_gate_persecution() {
+    // Write PERSECUTION, gate set, second PERSECUTION blocked
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intent1 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Persecution as u8,
+        source_civ: 0,
+        intensity: -90,
+    };
+    write_all_memories(&mut pool, &[intent1], 1);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_PERSECUTION, 0, "gate should be set after first PERSECUTION");
+
+    // Second PERSECUTION should be blocked by the gate
+    let intent2 = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Persecution as u8,
+        source_civ: 1,
+        intensity: -85,
+    };
+    write_all_memories(&mut pool, &[intent2], 2);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_intensities[slot][0], -90, "original PERSECUTION should be preserved");
+}
+
+// ===========================================================================
+// Task 6: Satisfaction modifier tests
+// ===========================================================================
+
+#[test]
+fn test_memory_satisfaction_inside_cap() {
+    // When other penalties consume full 0.40 budget, negative memory is absorbed
+    use chronicler_agents::satisfaction::{SatisfactionInputs, compute_satisfaction_with_culture};
+    use chronicler_agents::signals::CivShock;
+
+    // Max cultural mismatch (0.15) + religious mismatch (0.05) + persecution (0.15) + class tension (0.05)
+    // = 0.40 total → no budget left for memory
+    let sat_with_neg_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [4, 3, 2], controller_values: [0, 1, 5], // max cultural mismatch = 0.15
+        agent_belief: 3, majority_belief: 5,                    // religious mismatch = 0.05
+        has_temple: false, persecution_intensity: 1.0,           // persecution = 0.15
+        gini_coefficient: 1.0, wealth_percentile: 0.0,           // class tension fills remaining 0.05
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: -0.20, // negative memory — should be absorbed (no budget)
+    });
+
+    let sat_no_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [4, 3, 2], controller_values: [0, 1, 5],
+        agent_belief: 3, majority_belief: 5,
+        has_temple: false, persecution_intensity: 1.0,
+        gini_coefficient: 1.0, wealth_percentile: 0.0,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
+    });
+
+    // Memory should have no effect when budget is fully consumed
+    assert!((sat_with_neg_mem - sat_no_mem).abs() < 0.001,
+        "negative memory should be absorbed when budget full: with_mem={}, no_mem={}",
+        sat_with_neg_mem, sat_no_mem);
+}
+
+#[test]
+fn test_memory_satisfaction_partial_budget() {
+    // When budget remains, negative memory reduces satisfaction
+    use chronicler_agents::satisfaction::{SatisfactionInputs, compute_satisfaction_with_culture};
+    use chronicler_agents::signals::CivShock;
+
+    // No other penalties → full 0.40 budget available for memory
+    let sat_no_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [0, 1, 2], controller_values: [0, 1, 2],
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
+    });
+
+    let sat_neg_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [0, 1, 2], controller_values: [0, 1, 2],
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: -0.10, // negative memory
+    });
+
+    let diff = sat_no_mem - sat_neg_mem;
+    assert!(diff > 0.0, "negative memory should reduce satisfaction: no_mem={}, neg_mem={}", sat_no_mem, sat_neg_mem);
+    assert!((diff - 0.10).abs() < 0.001,
+        "expected 0.10 penalty, got {}", diff);
+}
+
+#[test]
+fn test_memory_satisfaction_positive_reduces_penalty() {
+    // Positive memory reduces total penalty but cannot go below 0 total penalty
+    use chronicler_agents::satisfaction::{SatisfactionInputs, compute_satisfaction_with_culture};
+    use chronicler_agents::signals::CivShock;
+
+    // Cultural mismatch = 0.10 (2 values differ)
+    let sat_no_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [4, 3, 2], controller_values: [4, 0, 1], // 1 overlap -> distance 2 -> 0.10 penalty
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
+    });
+
+    // Positive memory = +0.05 should reduce the 0.10 cultural penalty
+    let sat_pos_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [4, 3, 2], controller_values: [4, 0, 1],
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.05,
+    });
+
+    assert!(sat_pos_mem > sat_no_mem,
+        "positive memory should increase satisfaction: pos={}, no={}", sat_pos_mem, sat_no_mem);
+    assert!((sat_pos_mem - sat_no_mem - 0.05).abs() < 0.001,
+        "expected +0.05 boost, got {}", sat_pos_mem - sat_no_mem);
+
+    // Huge positive memory should not make total penalty negative (clamped at 0)
+    let sat_huge_pos = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [4, 3, 2], controller_values: [4, 0, 1],
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.50, // much larger than the 0.10 cultural penalty
+    });
+
+    // Should recover the full 0.10 cultural penalty but not more
+    let sat_zero_pen = compute_satisfaction_with_culture(&SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+        civ_at_war: false, region_contested: false, occ_matches_faction: false,
+        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        shock: CivShock::default(),
+        agent_values: [0, 1, 2], controller_values: [0, 1, 2], // no cultural penalty
+        agent_belief: 0xFF, majority_belief: 0xFF,
+        has_temple: false, persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
+    });
+
+    // huge positive memory with cultural penalty should equal zero-penalty baseline
+    assert!((sat_huge_pos - sat_zero_pen).abs() < 0.001,
+        "huge positive memory should zero out penalty, not grant bonus: huge_pos={}, zero_pen={}",
+        sat_huge_pos, sat_zero_pen);
+}
+
+// ===========================================================================
+// Task 7: Utility modifier tests
+// ===========================================================================
+
+#[test]
+fn test_utility_modifier_famine() {
+    // FAMINE memory boosts migrate
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intent = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Famine as u8,
+        source_civ: 0,
+        intensity: -80,
+    };
+    write_single_memory(&mut pool, &intent, 1);
+
+    let mods = compute_memory_utility_modifiers(&pool, slot);
+    assert!(mods.migrate > 0.0, "famine should boost migrate: {}", mods.migrate);
+    assert!((mods.rebel).abs() < 0.001, "famine should not affect rebel");
+    assert!((mods.switch).abs() < 0.001, "famine should not affect switch");
+    assert!((mods.stay).abs() < 0.001, "famine should not affect stay");
+}
+
+#[test]
+fn test_utility_modifier_conquest_sides() {
+    // Conquered vs conqueror get different modifiers
+    let mut pool = AgentPool::new(8);
+    // Agent in civ 0
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    // Conquest memory from civ 0 (conqueror side — source matches agent's civ)
+    let intent_conqueror = MemoryIntent {
+        agent_slot: slot,
+        event_type: MemoryEventType::Conquest as u8,
+        source_civ: 0, // same as agent's civ
+        intensity: -70,
+    };
+    write_single_memory(&mut pool, &intent_conqueror, 1);
+
+    let mods_conqueror = compute_memory_utility_modifiers(&pool, slot);
+    assert!(mods_conqueror.stay > 0.0, "conqueror should get stay boost: {}", mods_conqueror.stay);
+    assert!((mods_conqueror.migrate).abs() < 0.001, "conqueror should not get migrate boost");
+
+    // Reset for conquered test
+    pool.kill(slot);
+    let slot2 = pool.spawn(0, 1, Occupation::Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    // Conquest memory from civ 0 (conquered side — source doesn't match agent's civ 1)
+    let intent_conquered = MemoryIntent {
+        agent_slot: slot2,
+        event_type: MemoryEventType::Conquest as u8,
+        source_civ: 0, // different from agent's civ 1
+        intensity: -70,
+    };
+    write_single_memory(&mut pool, &intent_conquered, 1);
+
+    let mods_conquered = compute_memory_utility_modifiers(&pool, slot2);
+    assert!(mods_conquered.migrate > 0.0, "conquered should get migrate boost: {}", mods_conquered.migrate);
+    assert!((mods_conquered.stay).abs() < 0.001, "conquered should not get stay boost");
+}
+
+#[test]
+fn test_utility_modifier_no_memories() {
+    // All modifiers zero when no memories
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let mods = compute_memory_utility_modifiers(&pool, slot);
+    assert!((mods.rebel).abs() < 0.001, "rebel should be 0: {}", mods.rebel);
+    assert!((mods.migrate).abs() < 0.001, "migrate should be 0: {}", mods.migrate);
+    assert!((mods.switch).abs() < 0.001, "switch should be 0: {}", mods.switch);
+    assert!((mods.stay).abs() < 0.001, "stay should be 0: {}", mods.stay);
 }
