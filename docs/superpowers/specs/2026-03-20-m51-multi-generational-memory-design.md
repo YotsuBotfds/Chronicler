@@ -46,7 +46,7 @@ Legacy memory transfer occurs during the existing death processing block in `tic
 Legacy memories preserve their original `event_type`. The `MemoryEventType::Legacy` enum value (14) is **not used as the event_type**. Instead, a per-slot bitmask tracks legacy status.
 
 This means:
-- `compute_memory_utility_modifiers()` (memory.rs:258) sees a Famine memory and applies the famine migration boost — grandchildren of famine survivors are more inclined to migrate.
+- `compute_memory_utility_modifiers()` (memory.rs:244) sees a Famine memory and applies the famine migration boost — grandchildren of famine survivors are more inclined to migrate.
 - `compute_memory_satisfaction_score()` reads the original intensity — ancestral persecution weighs on satisfaction.
 - `agents_share_memory()` matches on the original event_type — two siblings with legacy Battle memories from the same parent can form bonds through M50b's shared-memory gate.
 - Narration renders the event-specific template with an "ancestral" prefix (see Section 5).
@@ -79,7 +79,13 @@ pub struct MemoryIntent {
 }
 ```
 
-In `write_single_memory()`: if `decay_factor_override.is_some()`, use it instead of `default_decay_factor(event_type)`. If `is_legacy`, set the corresponding bit in `memory_is_legacy`.
+**Required changes to `write_single_memory()` (memory.rs:143):**
+
+1. **Decay factor override:** After selecting `write_idx`, set `pool.memory_decay_factors[slot][write_idx] = intent.decay_factor_override.unwrap_or_else(|| default_decay_factor(intent.event_type))`. Currently line 166 unconditionally calls `default_decay_factor(intent.event_type)` — the override replaces this.
+2. **Legacy bit set:** If `intent.is_legacy`, set bit `write_idx` in `pool.memory_is_legacy[slot]`.
+3. **Legacy bit clear on eviction:** When an existing slot is evicted (the `min_idx` branch at count == 8), clear bit `min_idx` in `pool.memory_is_legacy[slot]` **before** writing the new data. This prevents stale legacy bits when a legacy memory is replaced by a non-legacy one.
+
+All three changes happen inside `write_single_memory()`. No separate clearing operation needed elsewhere.
 
 Non-legacy intents (all existing sites) use `is_legacy: false, decay_factor_override: None` — zero behavioral change.
 
@@ -120,9 +126,9 @@ Vec<(u8, u8, u16, i8, u8, bool)>
 //   event_type
 ```
 
-Python consumers updated at both sites:
-- Memory sync in `agent_bridge.py` (~line 508): add `is_legacy` to the dict.
-- Mule path in `agent_bridge.py` (~line 652): positional unpack updated for 6th element.
+Python consumer update:
+- Memory sync in `agent_bridge.py` (~line 508): add `"is_legacy": m[5]` to the dict comprehension.
+- Mule path in `agent_bridge.py` (~line 652): **no changes needed.** Uses index-based access (`m[3]` for intensity, `strongest[0]` for event_type) which is unaffected by the appended 6th element.
 
 ### 2.9 M57 Compatibility
 
@@ -217,7 +223,7 @@ def compute_dynasty_legitimacy(candidate: dict, civ: Civilization) -> float:
 
 **Scoring rules:**
 
-1. **Direct heir:** `candidate["parent_id"]` matches `civ.leader.agent_id` (both non-None) → return `LEGITIMACY_DIRECT_HEIR` (0.15). Strongest claim.
+1. **Direct heir:** `candidate["parent_id"]` matches `civ.leader.agent_id`, where both are non-zero and non-None (`parent_id` uses `PARENT_NONE = 0` as the no-parent sentinel, `agent_id` uses `None`) → return `LEGITIMACY_DIRECT_HEIR` (0.15). Strongest claim.
 
 2. **Same dynasty:** `candidate["dynasty_id"]` matches `civ.leader.dynasty_id` (both non-None) and rule 1 didn't match → return `LEGITIMACY_SAME_DYNASTY` (0.08). Cousin, sibling, or distant relative of the ruling house.
 
@@ -297,7 +303,7 @@ Gives the narrator material for lines like "Kiran, who still carried his grandfa
 - **Eviction of legacy:** When child buffer is full, legacy memory at intensity 20 is evictable by a new memory at intensity 25. Legacy bit cleared on eviction.
 - **Utility preservation:** Legacy Famine memory produces the same utility modifiers as a direct Famine memory (at lower intensity).
 - **Satisfaction preservation:** Legacy memories contribute to `compute_memory_satisfaction_score()` at their inherited intensity.
-- **Shared memory matching:** Two siblings with legacy Battle memories from the same parent (same event_type, turn within ±1) match via `agents_share_memory()`.
+- **Shared memory matching:** Two siblings with legacy Battle memories from the same parent (same event_type, same write-turn — the turn of parent death, not the original memory's turn) match via `agents_share_memory()`. Note: `write_all_memories()` stamps the current turn, so siblings inheriting from the same death event share identical turns. Distant relatives inheriting across different generations will NOT match (different write-turns).
 
 ### 5.2 Rust Integration Tests
 
@@ -386,6 +392,7 @@ All `[CALIBRATE]` for M53.
 - **Legacy persistence duration:** Monitor how many generations legacy memories survive across 200 seeds. Target: 2-3 for strong memories (|intensity| > 60), 1-2 for moderate. If too short, increase `LEGACY_HALF_LIFE` or reduce halving severity. If too long, decrease half-life.
 - **Legacy eviction rate:** Track what fraction of legacy memories are evicted before natural decay. If > 50% evicted within 20 turns of inheritance, the child's own life is overwhelming ancestry too fast — consider increasing `LEGACY_MIN_INTENSITY` to only transfer impactful memories.
 - **Legitimacy impact on succession:** Measure how often dynasty-linked GP candidates win succession with vs. without the legitimacy bonus. Target: noticeable but not dominant — dynasty candidates should win ~10-20% more often with the bonus, not 100%.
+- **Legitimacy activation rate:** Track how often the legitimacy system fires at all. The lineage bridge only exists for GP-sourced rulers — if most rulers are non-GP (abstract faction/external candidates), `civ.leader.agent_id` is None and no scoring happens. Measure the fraction of successions where the incumbent ruler has lineage data. If < 20%, the system is decorative. If this is a problem, consider lightweight lineage inference (e.g., "heir" succession type could inherit the previous ruler's dynasty_id) in a future milestone.
 - **Regnal numbering frequency:** Track how often ordinals > 0 appear. Target: 1-3 regnal repetitions per civ per 500-turn run in long-lived civs.
 - **Shared legacy bonds:** Monitor sibling/cousin pairs with matching legacy memories who form M50b bonds. If too rare (< 5% of eligible pairs), legacy memories may be decaying too fast before formation scans reach them.
 - **Persecution cascade amplification:** Legacy persecution memories add to the existing M38b + M48 + M49 triple-stacking concern. Monitor total rebel modifier budget for agents carrying both direct and legacy persecution memories.
