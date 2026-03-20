@@ -22,7 +22,7 @@ from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
 
 def _tracks_tokens(client: Any) -> bool:
     """Check if an LLM client tracks token usage (API clients)."""
-    return hasattr(client, "total_input_tokens")
+    return hasattr(client, "total_input_tokens") and isinstance(client.total_input_tokens, int)
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine

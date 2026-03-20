@@ -6,7 +6,7 @@ use crate::signals::CivShock;
 
 const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 const PEAK_YIELD: f32 = 1.0;
-const FOOD_SHORTAGE_WEIGHT: f32 = 0.3;   // [CALIBRATE] M42: max food penalty at zero supply
+const FOOD_SHORTAGE_WEIGHT: f32 = 0.15;  // [CALIBRATE] M42: max food penalty at zero supply (was 0.3, halved in M47c)
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
 
 /// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7

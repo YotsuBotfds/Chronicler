@@ -230,6 +230,7 @@ def compute_conversion_signals(
     named_agents: dict[int, str] | None = None,
     civ_majority_faiths: dict[int, int] | None = None,
     civ_name_to_id: dict[str, int] | None = None,
+    world: "WorldState | None" = None,
 ) -> list[tuple[int, float, int, bool]]:
     """Compute per-region conversion signals and write to region fields.
 
@@ -343,12 +344,13 @@ def compute_conversion_signals(
             prophet_multiplier = NAMED_PROPHET_MULTIPLIER if region_idx in prophet_regions else 1.0
 
             from chronicler.tuning import get_multiplier, K_RELIGION_INTENSITY
+            religion_mult = get_multiplier(world, K_RELIGION_INTENSITY) if world is not None else 1.0
             rate = (
                 BASE_CONVERSION_RATE
                 * priest_ratio
                 * doctrine_multiplier
                 * prophet_multiplier
-                * get_multiplier(world, K_RELIGION_INTENSITY)
+                * religion_mult
             )
 
         # M38b: Martyrdom boost (adds directly to conversion rate)

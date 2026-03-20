@@ -462,6 +462,9 @@ class TestAgentsWiring:
         """Create a mock AgentBridge for tests (Rust crate may not be built)."""
         mock_bridge = MagicMock()
         mock_bridge.close = MagicMock()
+        mock_bridge.get_snapshot.return_value = None
+        mock_bridge._sim.get_snapshot.return_value = None
+        mock_bridge.named_agents = {}
         return mock_bridge
 
     def test_agents_hybrid_sets_agent_mode(self, tmp_path):

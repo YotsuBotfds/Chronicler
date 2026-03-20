@@ -16,9 +16,17 @@ from chronicler.tech import _prev_era, remove_era_bonus
 from chronicler.tuning import (
     K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
+    K_REGRESSION_CULTURE_RESISTANCE_FLOOR, K_REGRESSION_CULTURE_RESISTANCE_DIVISOR,
     K_LOCUST_PROBABILITY, K_FLOOD_PROBABILITY, K_COLLAPSE_PROBABILITY,
     K_DROUGHT_INTENSIFICATION_PROBABILITY, K_COLLAPSE_MORTALITY_SPIKE,
     K_ECOLOGICAL_RECOVERY_PROBABILITY, K_ECOLOGICAL_RECOVERY_FRACTION,
+    K_SEVERITY_STRESS_DIVISOR, K_SEVERITY_STRESS_SCALE, K_SEVERITY_CAP,
+    K_STRESS_WAR_WEIGHT, K_STRESS_FAMINE_WEIGHT, K_STRESS_SECESSION_RISK,
+    K_STRESS_PANDEMIC_WEIGHT, K_STRESS_TWILIGHT_WEIGHT,
+    K_STRESS_OVEREXTENSION_THRESHOLD,
+    K_VOLCANO_POP_DRAIN, K_VOLCANO_STABILITY_DRAIN, K_VOLCANIC_WINTER_DURATION,
+    K_PANDEMIC_LEADER_KILL_PROB,
+    K_TECH_ACCIDENT_SOIL_LOSS, K_TECH_ACCIDENT_NEIGHBOR_SOIL_LOSS,
     get_override,
 )
 from chronicler.utils import civ_index, clamp, STAT_FLOOR, distribute_pop_loss, drain_region_pop, sync_civ_population
@@ -32,34 +40,39 @@ def compute_civ_stress(civ: Civilization, world: WorldState) -> int:
     """Compute per-civ stress from current world state. Returns 0-20."""
     stress = 0
 
-    # Active wars: 3 per war (active_wars is list[tuple[str, str]])
-    stress += sum(1 for w in world.active_wars if civ.name in w) * 3
+    # Active wars: per war weight
+    war_weight = int(get_override(world, K_STRESS_WAR_WEIGHT, 3))
+    stress += sum(1 for w in world.active_wars if civ.name in w) * war_weight
 
-    # Famine in controlled regions: 2 per famine region
+    # Famine in controlled regions: per famine region
+    famine_weight = int(get_override(world, K_STRESS_FAMINE_WEIGHT, 2))
     stress += sum(
         1 for r in world.regions
         if r.controller == civ.name and r.famine_cooldown > 0
-    ) * 2
+    ) * famine_weight
 
-    # Active secession risk: 4 if stability < 20 with 3+ regions
+    # Active secession risk: if stability < 20 with 3+ regions
+    secession_risk = int(get_override(world, K_STRESS_SECESSION_RISK, 4))
     if civ.stability < 20 and len(civ.regions) >= 3:
-        stress += 4
+        stress += secession_risk
 
-    # Active pandemic in controlled regions: 2 per infected region
+    # Active pandemic in controlled regions: per infected region
+    pandemic_weight = int(get_override(world, K_STRESS_PANDEMIC_WEIGHT, 2))
     infected_region_names = {p.region_name for p in world.pandemic_state}
     stress += sum(
         1 for r in world.regions
         if r.controller == civ.name and r.name in infected_region_names
-    ) * 2
+    ) * pandemic_weight
 
     # Recent turbulent succession: 2 if general/usurper within last 5 turns
     if (civ.leader.succession_type in ("general", "usurper")
             and world.turn - civ.leader.reign_start <= 5):
         stress += 2
 
-    # In twilight: 3
+    # In twilight
+    twilight_weight = int(get_override(world, K_STRESS_TWILIGHT_WEIGHT, 3))
     if civ.decline_turns > 0:
-        stress += 3
+        stress += twilight_weight
 
     # Active disaster conditions: 2 per qualifying condition
     stress += sum(
@@ -68,8 +81,9 @@ def compute_civ_stress(civ: Civilization, world: WorldState) -> int:
         and c.condition_type in ("drought", "volcanic_winter")
     ) * 2
 
-    # Overextension: 1 per region beyond 6
-    stress += max(0, len(civ.regions) - 6)
+    # Overextension: 1 per region beyond threshold
+    overext_thresh = int(get_override(world, K_STRESS_OVEREXTENSION_THRESHOLD, 6))
+    stress += max(0, len(civ.regions) - overext_thresh)
 
     return min(stress, 20)
 
@@ -86,10 +100,13 @@ def compute_all_stress(world: WorldState) -> None:
 
 def get_severity_multiplier(civ: Civilization, world: "WorldState | None" = None) -> float:
     """Return cascade severity multiplier. Composed with tuning multiplier, capped at 2.0."""
-    base = 1.0 + (civ.civ_stress / 20) * 0.5
+    divisor = get_override(world, K_SEVERITY_STRESS_DIVISOR, 20) if world else 20
+    scale = get_override(world, K_SEVERITY_STRESS_SCALE, 0.5) if world else 0.5
+    cap = get_override(world, K_SEVERITY_CAP, 2.0) if world else 2.0
+    base = 1.0 + (civ.civ_stress / divisor) * scale
     if world is not None:
         from chronicler.tuning import get_multiplier, K_SEVERITY_MULTIPLIER
-        return min(base * get_multiplier(world, K_SEVERITY_MULTIPLIER), 2.0)
+        return min(base * get_multiplier(world, K_SEVERITY_MULTIPLIER), cap)
     return base
 
 
@@ -300,9 +317,10 @@ def tick_pandemic(world: WorldState, acc=None) -> list[Event]:
             sync_civ_population(civ, world)
             civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
 
-        # Leader kill check: 5% per infected civ
+        # Leader kill check: per infected civ
         rng = random.Random(world.seed + world.turn * 1013 + hash(civ_name))
-        if rng.random() < 0.05:
+        leader_kill_prob = get_override(world, K_PANDEMIC_LEADER_KILL_PROB, 0.05)
+        if rng.random() < leader_kill_prob:
             from chronicler.succession import trigger_crisis
             old_leader = civ.leader
             old_leader.alive = False
@@ -397,14 +415,16 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
             civ = next((c for c in world.civilizations if c.name == region.controller), None)
             if civ:
                 mult = get_severity_multiplier(civ, world)
+                volcano_pop = int(get_override(world, K_VOLCANO_POP_DRAIN, 20))
+                volcano_stab = int(get_override(world, K_VOLCANO_STABILITY_DRAIN, 15))
                 if acc is not None:
                     civ_idx = civ_index(world, civ.name)
-                    acc.add(civ_idx, civ, "population", -20, "guard")
-                    acc.add(civ_idx, civ, "stability", -int(15 * mult), "signal")
+                    acc.add(civ_idx, civ, "population", -volcano_pop, "guard")
+                    acc.add(civ_idx, civ, "stability", -int(volcano_stab * mult), "signal")
                 else:
-                    drain_region_pop(region, 20)
+                    drain_region_pop(region, volcano_pop)
                     sync_civ_population(civ, world)
-                    civ.stability = clamp(civ.stability - int(15 * mult), STAT_FLOOR.get("stability", 0), 100)
+                    civ.stability = clamp(civ.stability - int(volcano_stab * mult), STAT_FLOOR.get("stability", 0), 100)
 
     world.climate_config.phase_offset += 1
 
@@ -417,10 +437,11 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
                 adjacent_civs.add(adj.controller)
     all_affected = affected_civs | adjacent_civs
     if all_affected:
+        winter_duration = int(get_override(world, K_VOLCANIC_WINTER_DURATION, 5))
         world.active_conditions.append(ActiveCondition(
             condition_type="volcanic_winter",
             affected_civs=list(all_affected),
-            duration=5,
+            duration=winter_duration,
             severity=40,
         ))
 
@@ -515,7 +536,8 @@ def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
     has_scientist = any(gp.role == "scientist" and gp.active for gp in civ.great_persons)
     max_hops = 1 if has_scientist else 2
 
-    target.ecology.soil = max(0.05, round(target.ecology.soil - 0.3, 4))
+    accident_soil = get_override(world, K_TECH_ACCIDENT_SOIL_LOSS, 0.3)
+    target.ecology.soil = max(0.05, round(target.ecology.soil - accident_soil, 4))
 
     affected_neighbors: set[str] = set()
     frontier = {target.name}
@@ -534,7 +556,8 @@ def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
     for rname in affected_neighbors:
         region = next((r for r in world.regions if r.name == rname), None)
         if region:
-            region.ecology.soil = max(0.05, round(region.ecology.soil - 0.15, 4))
+            neighbor_soil_loss = get_override(world, K_TECH_ACCIDENT_NEIGHBOR_SOIL_LOSS, 0.15)
+            region.ecology.soil = max(0.05, round(region.ecology.soil - neighbor_soil_loss, 4))
             if region.controller and region.controller != polluter_name:
                 if region.controller in world.relationships and polluter_name in world.relationships[region.controller]:
                     world.relationships[region.controller][polluter_name].disposition_drift -= 8
@@ -598,7 +621,9 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
             continue
 
         # Culture-based resistance: higher culture = lower regression probability
-        culture_resistance = max(0.2, 1.0 - civ.culture / 200)
+        resist_floor = get_override(world, K_REGRESSION_CULTURE_RESISTANCE_FLOOR, 0.2)
+        resist_divisor = get_override(world, K_REGRESSION_CULTURE_RESISTANCE_DIVISOR, 200)
+        culture_resistance = max(resist_floor, 1.0 - civ.culture / resist_divisor)
         best_prob = max(matching_probs) * culture_resistance
         rng = random.Random(world.seed + world.turn * 1037 + hash(civ.name))
         if rng.random() >= best_prob:

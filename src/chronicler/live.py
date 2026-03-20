@@ -255,7 +255,11 @@ class LiveServer:
                     if msg_type == "batch_load_report":
                         report_path = msg.get("path", "")
                         try:
-                            report = json.loads(Path(report_path).read_text())
+                            resolved = Path(report_path).resolve()
+                            allowed = Path("output").resolve()
+                            if not str(resolved).startswith(str(allowed)):
+                                raise ValueError(f"Path must be within output/: {report_path}")
+                            report = json.loads(resolved.read_text(encoding="utf-8"))
                             await websocket.send(json.dumps({
                                 "type": "batch_report_loaded",
                                 "report": report,

@@ -13,6 +13,21 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Event, Leader, NamedEvent, TechEra, WorldState,
     DOCTRINE_STANCE, Belief,
 )
+from chronicler.tuning import (
+    K_DEVELOP_COST_BASE, K_DEVELOP_COST_SCALE, K_DEVELOP_GAIN,
+    K_EXPAND_MILITARY_THRESHOLD, K_EXPAND_MILITARY_COST,
+    K_WAR_ATTACKER_TREASURY_COST, K_WAR_DEFENDER_TREASURY_COST,
+    K_WAR_DECISIVE_RATIO, K_WAR_WINNER_MILITARY_LOSS,
+    K_WAR_LOSER_MILITARY_LOSS, K_WAR_STALEMATE_MILITARY_LOSS,
+    K_WAR_STABILITY_LOSS, K_EMBARGO_STABILITY_DAMAGE,
+    K_EMBARGO_BANKING_DAMAGE, K_FORT_DEFENSE_BONUS,
+    K_MARTIAL_TRADITION_BONUS, K_NAVAL_POWER_BONUS,
+    K_WEIGHT_CAP, K_STREAK_LIMIT, K_STUBBORN_STREAK_LIMIT,
+    K_POWER_STRUGGLE_FACTOR, K_SECONDARY_TRAIT_BOOST,
+    K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
+    K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
+    get_override,
+)
 from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
@@ -62,9 +77,10 @@ def _era_at_least(era: TechEra, minimum: TechEra) -> bool:
 
 # --- Helpers ---
 
-def _power_struggle_factor(civ: Civilization) -> float:
-    """Returns 0.8 if civ is in a power struggle, 1.0 otherwise."""
-    return 0.8 if civ.factions.power_struggle else 1.0
+def _power_struggle_factor(civ: Civilization, world: "WorldState | None" = None) -> float:
+    """Returns reduced factor if civ is in a power struggle, 1.0 otherwise."""
+    factor = get_override(world, K_POWER_STRUGGLE_FACTOR, 0.8) if world else 0.8
+    return factor if civ.factions.power_struggle else 1.0
 
 
 # --- Action handlers ---
@@ -74,24 +90,27 @@ def _resolve_develop(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Invest in infrastructure: spend treasury to boost economy or culture."""
     if acc is not None:
         civ_idx = civ_index(world, civ.name)
-    cost = 5 + civ.economy // 10
+    cost_base = int(get_override(world, K_DEVELOP_COST_BASE, 5))
+    cost_scale = int(get_override(world, K_DEVELOP_COST_SCALE, 10))
+    cost = cost_base + civ.economy // cost_scale
     if civ.treasury >= cost:
         if acc is not None:
             acc.add(civ_idx, civ, "treasury", -cost, "keep")
         else:
             civ.treasury -= cost
-        factor = _power_struggle_factor(civ)
+        factor = _power_struggle_factor(civ, world)
+        dev_gain = int(get_override(world, K_DEVELOP_GAIN, 10))
         if civ.economy <= civ.culture:
             if acc is not None:
-                acc.add(civ_idx, civ, "economy", int(10 * factor), "guard-action")
+                acc.add(civ_idx, civ, "economy", int(dev_gain * factor), "guard-action")
             else:
-                civ.economy = clamp(civ.economy + int(10 * factor), STAT_FLOOR["economy"], 100)
+                civ.economy = clamp(civ.economy + int(dev_gain * factor), STAT_FLOOR["economy"], 100)
             target = "economy"
         else:
             if acc is not None:
-                acc.add(civ_idx, civ, "culture", int(10 * factor), "guard-action")
+                acc.add(civ_idx, civ, "culture", int(dev_gain * factor), "guard-action")
             else:
-                civ.culture = clamp(civ.culture + int(10 * factor), STAT_FLOOR["culture"], 100)
+                civ.culture = clamp(civ.culture + int(dev_gain * factor), STAT_FLOOR["culture"], 100)
             target = "culture"
         return Event(
             turn=world.turn, event_type="develop", actors=[civ.name],
@@ -112,14 +131,16 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
     # Filter out harsh terrain if below IRON era
     if not _era_at_least(civ.tech_era, TechEra.IRON) and civ.active_focus != "exploration":
         unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
-    if unclaimed and civ.military >= 30:
+    expand_mil_thresh = int(get_override(world, K_EXPAND_MILITARY_THRESHOLD, 30))
+    if unclaimed and civ.military >= expand_mil_thresh:
         target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
+        expand_mil_cost = int(get_override(world, K_EXPAND_MILITARY_COST, 10))
         if acc is not None:
-            acc.add(civ_idx, civ, "military", -10, "guard-action")
+            acc.add(civ_idx, civ, "military", -expand_mil_cost, "guard-action")
         else:
-            civ.military = clamp(civ.military - 10, STAT_FLOOR["military"], 100)
+            civ.military = clamp(civ.military - expand_mil_cost, STAT_FLOOR["military"], 100)
         # M19b: Track exploration capability firing into harsh terrain pre-Iron
         if civ.active_focus == "exploration" and not _era_at_least(civ.tech_era, TechEra.IRON) and target.terrain in HARSH_TERRAINS:
             world.events_timeline.append(Event(
@@ -318,14 +339,14 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
         if target:
             # M21: BANKING halves incoming embargo stability damage
             if target.active_focus == "banking":
-                embargo_damage = 2
+                embargo_damage = int(get_override(world, K_EMBARGO_BANKING_DAMAGE, 2))
                 world.events_timeline.append(Event(
                     turn=world.turn, event_type="capability_banking",
                     actors=[target.name], description=f"{target.name} banking reduces embargo damage",
                     importance=1,
                 ))
             else:
-                embargo_damage = 5
+                embargo_damage = int(get_override(world, K_EMBARGO_STABILITY_DAMAGE, 5))
             mult = get_severity_multiplier(target, world)
             if acc is not None:
                 target_idx = civ_index(world, target.name)
@@ -418,20 +439,23 @@ def resolve_war(
 
         # Fortification bonus
         fort_bonus = 0
+        fort_value = int(get_override(world, K_FORT_DEFENSE_BONUS, 15))
         for infra in contested.infrastructure:
             if infra.type == InfrastructureType.FORTIFICATIONS and infra.active:
-                fort_bonus = 15
+                fort_bonus = fort_value
                 break
         def_power += defense_bonus + fort_bonus
 
     # M17d: Martial tradition combat modifier
+    martial_bonus = int(get_override(world, K_MARTIAL_TRADITION_BONUS, 5))
     if "martial" in attacker.traditions:
-        att_power += 5
+        att_power += martial_bonus
     if "martial" in defender.traditions:
-        def_power += 5
-    # M21: NAVAL_POWER gives +10 defense if contested region is coastal
+        def_power += martial_bonus
+    # M21: NAVAL_POWER gives defense if contested region is coastal
+    naval_bonus = int(get_override(world, K_NAVAL_POWER_BONUS, 10))
     if defender.active_focus == "naval_power" and contested and contested.terrain == "coast":
-        def_power += 10
+        def_power += naval_bonus
         world.events_timeline.append(Event(
             turn=world.turn, event_type="capability_naval_power",
             actors=[defender.name], description=f"{defender.name} naval power boosts coastal defense",
@@ -439,16 +463,23 @@ def resolve_war(
         ))
 
     # War costs treasury regardless of outcome
+    att_war_cost = int(get_override(world, K_WAR_ATTACKER_TREASURY_COST, 20))
+    def_war_cost = int(get_override(world, K_WAR_DEFENDER_TREASURY_COST, 10))
     if acc is not None:
         att_idx = civ_index(world, attacker.name)
         def_idx = civ_index(world, defender.name)
-        acc.add(att_idx, attacker, "treasury", -20, "keep")
-        acc.add(def_idx, defender, "treasury", -10, "keep")
+        acc.add(att_idx, attacker, "treasury", -att_war_cost, "keep")
+        acc.add(def_idx, defender, "treasury", -def_war_cost, "keep")
     else:
-        attacker.treasury = max(0, attacker.treasury - 20)
-        defender.treasury = max(0, defender.treasury - 10)
+        attacker.treasury = max(0, attacker.treasury - att_war_cost)
+        defender.treasury = max(0, defender.treasury - def_war_cost)
 
-    if att_power > def_power * 1.3:
+    decisive_ratio = get_override(world, K_WAR_DECISIVE_RATIO, 1.3)
+    winner_mil_loss = int(get_override(world, K_WAR_WINNER_MILITARY_LOSS, 10))
+    loser_mil_loss = int(get_override(world, K_WAR_LOSER_MILITARY_LOSS, 20))
+    stalemate_mil_loss = int(get_override(world, K_WAR_STALEMATE_MILITARY_LOSS, 10))
+    war_stab_loss = int(get_override(world, K_WAR_STABILITY_LOSS, 10))
+    if att_power > def_power * decisive_ratio:
         if contested:
             contested.controller = attacker.name
             # M43a: Conquest stockpile destruction — 50% of each good lost
@@ -492,32 +523,32 @@ def resolve_war(
                 contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
         mult = get_severity_multiplier(defender, world)
         if acc is not None:
-            acc.add(att_idx, attacker, "military", -10, "guard-action")
-            acc.add(def_idx, defender, "military", -20, "guard-action")
-            acc.add(def_idx, defender, "stability", -int(10 * mult), "signal")
+            acc.add(att_idx, attacker, "military", -winner_mil_loss, "guard-action")
+            acc.add(def_idx, defender, "military", -loser_mil_loss, "guard-action")
+            acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "signal")
         else:
-            attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
-            defender.military = clamp(defender.military - 20, STAT_FLOOR["military"], 100)
-            defender.stability = clamp(defender.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+            attacker.military = clamp(attacker.military - winner_mil_loss, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - loser_mil_loss, STAT_FLOOR["military"], 100)
+            defender.stability = clamp(defender.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
         return WarResult("attacker_wins", contested.name if contested else None)
-    elif def_power > att_power * 1.3:
+    elif def_power > att_power * decisive_ratio:
         mult = get_severity_multiplier(attacker, world)
         if acc is not None:
-            acc.add(att_idx, attacker, "military", -20, "guard-action")
-            acc.add(def_idx, defender, "military", -10, "guard-action")
-            acc.add(att_idx, attacker, "stability", -int(10 * mult), "signal")
+            acc.add(att_idx, attacker, "military", -loser_mil_loss, "guard-action")
+            acc.add(def_idx, defender, "military", -winner_mil_loss, "guard-action")
+            acc.add(att_idx, attacker, "stability", -int(war_stab_loss * mult), "signal")
         else:
-            attacker.military = clamp(attacker.military - 20, STAT_FLOOR["military"], 100)
-            defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
-            attacker.stability = clamp(attacker.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+            attacker.military = clamp(attacker.military - loser_mil_loss, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - winner_mil_loss, STAT_FLOOR["military"], 100)
+            attacker.stability = clamp(attacker.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
         return WarResult("defender_wins", contested.name if contested else None)
     else:
         if acc is not None:
-            acc.add(att_idx, attacker, "military", -10, "guard-action")
-            acc.add(def_idx, defender, "military", -10, "guard-action")
+            acc.add(att_idx, attacker, "military", -stalemate_mil_loss, "guard-action")
+            acc.add(def_idx, defender, "military", -stalemate_mil_loss, "guard-action")
         else:
-            attacker.military = clamp(attacker.military - 10, STAT_FLOOR["military"], 100)
-            defender.military = clamp(defender.military - 10, STAT_FLOOR["military"], 100)
+            attacker.military = clamp(attacker.military - stalemate_mil_loss, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - stalemate_mil_loss, STAT_FLOOR["military"], 100)
         return WarResult("stalemate", None)
 
 
@@ -565,8 +596,8 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState, acc
         gain2 = int(gain2 * 1.5)
     if civ2.active_focus == "commerce" and civ1.active_focus != "networks":
         gain1 = int(gain1 * 1.5)
-    gain1 = int(gain1 * _power_struggle_factor(civ1))
-    gain2 = int(gain2 * _power_struggle_factor(civ2))
+    gain1 = int(gain1 * _power_struggle_factor(civ1, world))
+    gain2 = int(gain2 * _power_struggle_factor(civ2, world))
     if acc is not None:
         civ1_idx = civ_index(world, civ1.name)
         civ2_idx = civ_index(world, civ2.name)
@@ -632,7 +663,8 @@ class ActionEngine:
     def get_eligible_actions(self, civ: Civilization) -> list[ActionType]:
         eligible = [ActionType.DEVELOP, ActionType.DIPLOMACY]
         unclaimed = [r for r in self.world.regions if r.controller is None]
-        if civ.military >= 30 and unclaimed:
+        expand_thresh = int(get_override(self.world, K_EXPAND_MILITARY_THRESHOLD, 30))
+        if civ.military >= expand_thresh and unclaimed:
             eligible.append(ActionType.EXPAND)
         has_hostile = False
         if civ.name in self.world.relationships:
@@ -665,22 +697,25 @@ class ActionEngine:
         civ_routes = [r for r in get_active_trade_routes(self.world) if civ.name in r]
         if civ_routes and has_hostile:
             eligible.append(ActionType.EMBARGO)
-        # MOVE_CAPITAL: treasury >= 15 and regions >= 2
-        if civ.treasury >= 15 and len(civ.regions) >= 2:
+        # MOVE_CAPITAL: treasury >= threshold and regions >= 2
+        move_cap_req = int(get_override(self.world, K_MOVE_CAPITAL_TREASURY_REQ, 15))
+        if civ.treasury >= move_cap_req and len(civ.regions) >= 2:
             eligible.append(ActionType.MOVE_CAPITAL)
         # Vassal cannot declare war
         is_vassal = any(vr.vassal == civ.name for vr in self.world.vassal_relations)
         if is_vassal:
             eligible = [a for a in eligible if a != ActionType.WAR]
-        # FUND_INSTABILITY: treasury >= 8, has hostile neighbor, not vassal
-        if civ.treasury >= 8 and has_hostile and not is_vassal:
+        # FUND_INSTABILITY: treasury >= threshold, has hostile neighbor, not vassal
+        fund_instab_req = int(get_override(self.world, K_FUND_INSTABILITY_TREASURY_REQ, 8))
+        if civ.treasury >= fund_instab_req and has_hostile and not is_vassal:
             eligible.append(ActionType.FUND_INSTABILITY)
         # EXPLORE: fog of war active, treasury >= 5, unknown adjacent regions
         from chronicler.exploration import is_explore_eligible
         if is_explore_eligible(self.world, civ):
             eligible.append(ActionType.EXPLORE)
-        # M16c: INVEST_CULTURE requires culture >= 60 and valid targets
-        if civ.culture >= 60:
+        # M16c: INVEST_CULTURE requires culture >= threshold and valid targets
+        invest_culture_thresh = int(get_override(self.world, K_INVEST_CULTURE_THRESHOLD, 60))
+        if civ.culture >= invest_culture_thresh:
             from chronicler.tech import get_era_bonus
             global_proj = get_era_bonus(civ.tech_era, "culture_projection_range", default=1) == -1
             civ_regions = {r.name for r in self.world.regions if r.controller == civ.name}
@@ -727,13 +762,15 @@ class ActionEngine:
         self._apply_situational(civ, weights)
         if civ.leader.secondary_trait:
             boosted = SECONDARY_TRAIT_ACTION.get(civ.leader.secondary_trait)
+            secondary_boost = get_override(self.world, K_SECONDARY_TRAIT_BOOST, 1.3)
             if boosted and weights[boosted] > 0:
-                weights[boosted] *= 1.3
+                weights[boosted] *= secondary_boost
         if civ.leader.rival_civ:
             if civ.name in self.world.relationships:
                 rival_rel = self.world.relationships[civ.name].get(civ.leader.rival_civ)
+                rival_boost = get_override(self.world, K_RIVAL_WAR_BOOST, 1.5)
                 if rival_rel and rival_rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
-                    weights[ActionType.WAR] *= 1.5
+                    weights[ActionType.WAR] *= rival_boost
         # Grudge bias: each high-intensity grudge boosts WAR weight toward the rival civ
         if civ.leader.grudges and weights[ActionType.WAR] > 0:
             for grudge in civ.leader.grudges:
@@ -804,7 +841,9 @@ class ActionEngine:
         weights[ActionType.WAR] *= get_multiplier(self.world, K_AGGRESSION_BIAS)
 
         history = self.world.action_history.get(civ.name, [])
-        streak_limit = 5 if civ.leader.trait == "stubborn" else 3
+        stubborn_limit = int(get_override(self.world, K_STUBBORN_STREAK_LIMIT, 5))
+        normal_limit = int(get_override(self.world, K_STREAK_LIMIT, 3))
+        streak_limit = stubborn_limit if civ.leader.trait == "stubborn" else normal_limit
         if len(history) >= streak_limit:
             last_n = history[-streak_limit:]
             if len(set(last_n)) == 1:
@@ -813,9 +852,10 @@ class ActionEngine:
         # M19b: Track max pre-cap weight for analytics
         max_weight = max(weights.values()) if weights else 0
         civ.max_precap_weight = max_weight
-        # M21: Cap combined weight multiplier at 2.5x to prevent dominant action
-        if max_weight > 2.5:
-            scale = 2.5 / max_weight
+        # M21: Cap combined weight multiplier to prevent dominant action
+        weight_cap = get_override(self.world, K_WEIGHT_CAP, 2.5)
+        if max_weight > weight_cap:
+            scale = weight_cap / max_weight
             for action in weights:
                 weights[action] *= scale
         return weights

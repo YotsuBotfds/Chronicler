@@ -24,6 +24,13 @@ from chronicler.tuning import (
     K_SOIL_PRESSURE_THRESHOLD, K_SOIL_PRESSURE_STREAK_LIMIT,
     K_OVEREXTRACTION_STREAK_LIMIT, K_OVEREXTRACTION_YIELD_PENALTY,
     K_WORKERS_PER_YIELD_UNIT,
+    K_COOLING_WATER_LOSS, K_WARMING_TUNDRA_WATER_GAIN,
+    K_WATER_FACTOR_DENOMINATOR, K_SOIL_RECOVERY_POP_RATIO,
+    K_FOREST_POP_RATIO, K_FOREST_REGROWTH_WATER_GATE,
+    K_CROSS_EFFECT_FOREST_SOIL, K_CROSS_EFFECT_FOREST_THRESHOLD,
+    K_EXHAUSTED_TRICKLE_FRACTION, K_RESERVE_RAMP_THRESHOLD,
+    K_METALLURGY_MINE_REDUCTION, K_SOIL_PRESSURE_DEGRADATION_MULT,
+    K_FAMINE_POP_LOSS, K_FAMINE_REFUGEE_POP,
     get_override,
 )
 from chronicler.resources import (
@@ -58,9 +65,10 @@ _FLOOR_WATER = 0.10
 _FLOOR_FOREST = 0.00
 
 
-def effective_capacity(region: Region) -> int:
+def effective_capacity(region: Region, world: "WorldState | None" = None) -> int:
     soil = region.ecology.soil
-    water_factor = min(1.0, region.ecology.water / 0.5)
+    water_denom = get_override(world, K_WATER_FACTOR_DENOMINATOR, 0.5) if world else 0.5
+    water_factor = min(1.0, region.ecology.water / water_denom)
     cap_mod = region.capacity_modifier
     return max(int(region.carrying_capacity * cap_mod * soil * water_factor), 1)
 
@@ -111,9 +119,11 @@ def compute_resource_yields(
                 region.resource_reserves[slot] = max(0.0, reserves - extraction * depletion_rate)
             reserves = region.resource_reserves[slot]
             if reserves < 0.01:
-                yields[slot] = base * 0.04  # Exhausted trickle
+                trickle = get_override(world, K_EXHAUSTED_TRICKLE_FRACTION, 0.04) if world else 0.04
+                yields[slot] = base * trickle  # Exhausted trickle
                 continue
-            reserve_ramp = min(1.0, reserves / 0.25)
+            ramp_thresh = get_override(world, K_RESERVE_RAMP_THRESHOLD, 0.25) if world else 0.25
+            reserve_ramp = min(1.0, reserves / ramp_thresh)
 
         from chronicler.tuning import get_multiplier, K_RESOURCE_ABUNDANCE
         abundance = get_multiplier(world, K_RESOURCE_ABUNDANCE) if world else 1.0
@@ -178,7 +188,7 @@ def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldSta
     if has_mine:
         mine_rate = get_override(world, K_MINE_SOIL_DEGRADATION, 0.03)
         if civ and civ.active_focus == "metallurgy":
-            mine_rate *= 0.5
+            mine_rate *= get_override(world, K_METALLURGY_MINE_REDUCTION, 0.5)
             world.events_timeline.append(Event(
                 turn=world.turn, event_type="capability_metallurgy",
                 actors=[civ.name],
@@ -190,7 +200,7 @@ def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldSta
         region.ecology.soil -= mine_rate
 
     # Recovery: pressure-gated
-    if region.population < eff * 0.75:
+    if region.population < eff * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
         rate = get_override(world, K_SOIL_RECOVERY, 0.05)
         rate *= _pressure_multiplier(region)
         if civ and civ.active_focus == "agriculture":
@@ -210,10 +220,10 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
             rate *= get_override(world, K_IRRIGATION_DROUGHT_MULT, 1.5)
         region.ecology.water -= rate
     elif climate_phase == ClimatePhase.COOLING:
-        region.ecology.water -= 0.02
+        region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02)
     elif climate_phase == ClimatePhase.WARMING:
         if region.terrain == "tundra":
-            region.ecology.water += 0.05
+            region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
 
     # Recovery
     if climate_phase == ClimatePhase.TEMPERATE:
@@ -229,22 +239,26 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
 
 
 def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
-    if region.population > region.carrying_capacity * 0.5:
+    forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
+    if region.population > region.carrying_capacity * forest_pop_ratio:
         rate = get_override(world, K_FOREST_CLEARING, 0.02)
         region.ecology.forest_cover -= rate
 
     if climate_phase == ClimatePhase.COOLING:
         region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
 
-    if region.population < region.carrying_capacity * 0.5 and region.ecology.water >= 0.3:
+    water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)
+    if region.population < region.carrying_capacity * forest_pop_ratio and region.ecology.water >= water_gate:
         rate = get_override(world, K_FOREST_REGROWTH, 0.01)
         rate *= _pressure_multiplier(region)
         region.ecology.forest_cover += rate
 
 
-def _apply_cross_effects(region: Region) -> None:
-    if region.ecology.forest_cover > 0.5:
-        region.ecology.soil += 0.01
+def _apply_cross_effects(region: Region, world: "WorldState | None" = None) -> None:
+    forest_thresh = get_override(world, K_CROSS_EFFECT_FOREST_THRESHOLD, 0.5) if world else 0.5
+    if region.ecology.forest_cover > forest_thresh:
+        bonus = get_override(world, K_CROSS_EFFECT_FOREST_SOIL, 0.01) if world else 0.01
+        region.ecology.soil += bonus
 
 
 def _clamp_ecology(region: Region) -> None:
@@ -283,11 +297,12 @@ def _check_famine_yield(
 
         # --- Famine effects ---
         mult = get_severity_multiplier(civ, world)
+        famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "population", -int(5 * mult), "guard")
+            acc.add(civ_idx, civ, "population", -int(famine_pop * mult), "guard")
         else:
-            drain_region_pop(region, int(5 * mult))
+            drain_region_pop(region, int(famine_pop * mult))
             sync_civ_population(civ, world)
         drain = int(get_override(world, "stability.drain.famine_immediate", 3))
         if acc is not None:
@@ -302,7 +317,8 @@ def _check_famine_yield(
             if adj and adj.controller and adj.controller != civ.name:
                 neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
                 if neighbor:
-                    add_region_pop(adj, 5)
+                    refugee_pop = int(get_override(world, K_FAMINE_REFUGEE_POP, 5))
+                    add_region_pop(adj, refugee_pop)
                     sync_civ_population(neighbor, world)
                     neighbor_mult = get_severity_multiplier(neighbor, world)
                     if acc is not None:
@@ -500,14 +516,14 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
 
         # M35b: Depletion feedback
         soil_limit = int(get_override(world, K_SOIL_PRESSURE_STREAK_LIMIT, 30))
-        soil_mult = 2.0 if region.soil_pressure_streak >= soil_limit else 1.0
+        soil_mult = get_override(world, K_SOIL_PRESSURE_DEGRADATION_MULT, 2.0) if region.soil_pressure_streak >= soil_limit else 1.0
         depletion_events = update_depletion_feedback(region, world)
         m35b_events.extend(depletion_events)
 
         _tick_soil(region, civ, climate_phase, world, degradation_mult=soil_mult)
         _tick_water(region, civ, climate_phase, world)
         _tick_forest(region, civ, climate_phase, world)
-        _apply_cross_effects(region)
+        _apply_cross_effects(region, world)
         _clamp_ecology(region)
 
         if region.famine_cooldown > 0:
@@ -521,8 +537,8 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
         pre_water = region.ecology.water
         compute_disease_severity(region, world, pre_water, season_id=current_season_id)
         # Natural soil recovery (no civ bonuses)
-        eff = effective_capacity(region)
-        if region.population < eff * 0.75:
+        eff = effective_capacity(region, world)
+        if region.population < eff * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
             rate = get_override(world, K_SOIL_RECOVERY, 0.05)
             rate *= _pressure_multiplier(region)
             region.ecology.soil += rate
@@ -530,21 +546,23 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
         if climate_phase == ClimatePhase.DROUGHT:
             region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04)
         elif climate_phase == ClimatePhase.COOLING:
-            region.ecology.water -= 0.02
+            region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02)
         elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
-            region.ecology.water += 0.05
+            region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
         elif climate_phase == ClimatePhase.TEMPERATE:
             rate = get_override(world, K_WATER_RECOVERY, 0.03)
             rate *= _pressure_multiplier(region)
             region.ecology.water += rate
         # Forest: natural regrowth (water gate applies)
-        if region.population < region.carrying_capacity * 0.5 and region.ecology.water >= 0.3:
+        forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
+        water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)
+        if region.population < region.carrying_capacity * forest_pop_ratio and region.ecology.water >= water_gate:
             rate = get_override(world, K_FOREST_REGROWTH, 0.01)
             rate *= _pressure_multiplier(region)
             region.ecology.forest_cover += rate
         if climate_phase == ClimatePhase.COOLING:
             region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
-        _apply_cross_effects(region)
+        _apply_cross_effects(region, world)
         _clamp_ecology(region)
 
     # --- M35a: Upstream deforestation cascade ---

@@ -13,7 +13,24 @@ from chronicler.models import (
 )
 from chronicler.accumulator import normalize_shock
 from chronicler.ecology import effective_capacity
-from chronicler.tuning import K_GOVERNING_COST, get_override
+from chronicler.tuning import (
+    K_GOVERNING_COST,
+    K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
+    K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,
+    K_BALANCE_OF_POWER_PERIOD, K_VASSAL_TRIBUTE_RATE,
+    K_FEDERATION_ALLIED_TURNS, K_CONGRESS_PROBABILITY,
+    K_CAPITAL_LOSS_STABILITY, K_FEDERATION_EXIT_STABILITY,
+    K_FEDERATION_REMAINING_STABILITY,
+    K_EXILE_DURATION, K_VASSAL_REBELLION_BASE_PROB,
+    K_VASSAL_REBELLION_REDUCED_PROB,
+    K_RESTORATION_BASE_PROB, K_RESTORATION_RECOGNITION_BONUS,
+    K_TWILIGHT_DECLINE_TURNS, K_TWILIGHT_ABSORPTION_DECLINE,
+    K_TWILIGHT_POP_DRAIN, K_TWILIGHT_CULTURE_DRAIN,
+    K_FALLEN_EMPIRE_PEAK_REGIONS, K_FALLEN_EMPIRE_ASABIYA_BOOST,
+    K_MOVE_CAPITAL_COST, K_PROXY_WAR_STABILITY_DRAIN,
+    K_PROXY_WAR_ECONOMY_DRAIN, K_SECESSION_STABILITY_LOSS,
+    get_override,
+)
 from chronicler.utils import civ_index, clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
 from chronicler.intelligence import get_perceived_stat
 from chronicler.emergence import get_severity_multiplier
@@ -61,11 +78,12 @@ def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
 def resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Resolve MOVE_CAPITAL action: relocate capital to most central region."""
     from chronicler.models import ActiveCondition
+    move_cost = int(get_override(world, K_MOVE_CAPITAL_COST, 15))
     if acc is not None:
         civ_idx = civ_index(world, civ.name)
-        acc.add(civ_idx, civ, "treasury", -15, "keep")
+        acc.add(civ_idx, civ, "treasury", -move_cost, "keep")
     else:
-        civ.treasury -= 15
+        civ.treasury -= move_cost
 
     def avg_distance(candidate: str) -> float:
         distances = []
@@ -114,22 +132,22 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
     for civ in list(world.civilizations):
         if civ.active_focus == "surveillance":
-            secession_threshold = 10
+            secession_threshold = int(get_override(world, K_SECESSION_SURVEILLANCE_THRESHOLD, 10))
             world.events_timeline.append(Event(
                 turn=world.turn, event_type="capability_surveillance",
                 actors=[civ.name], description=f"{civ.name} surveillance lowers secession threshold",
                 importance=1,
             ))
         else:
-            secession_threshold = 20
+            secession_threshold = int(get_override(world, K_SECESSION_STABILITY_THRESHOLD, 20))
         if civ.stability >= secession_threshold or len(civ.regions) < 3:
             continue
 
-        prob = (20 - civ.stability) / 100
+        prob = (secession_threshold - civ.stability) / 100
 
         for pw in getattr(world, "proxy_wars", []):
             if pw.target_civ == civ.name:
-                prob += 0.05
+                prob += get_override(world, K_PROXY_WAR_SECESSION_BONUS, 0.05)
                 break
 
         # M38b: Religious faith mismatch raises secession probability
@@ -252,22 +270,23 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
         civ_idx = civ_index(world, civ.name)
         mult = get_severity_multiplier(civ, world)
+        secession_stab_loss = int(get_override(world, K_SECESSION_STABILITY_LOSS, 10))
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(civ_idx,
                 military_shock=normalize_shock(split_mil, civ.military),
                 economy_shock=normalize_shock(split_eco, civ.economy),
-                stability_shock=normalize_shock(int(10 * mult), civ.stability)))
+                stability_shock=normalize_shock(int(secession_stab_loss * mult), civ.stability)))
             civ.treasury -= split_tre  # treasury stays Python-side
         elif acc is not None:
             acc.add(civ_idx, civ, "military", -split_mil, "guard")
             acc.add(civ_idx, civ, "economy", -split_eco, "guard")
             acc.add(civ_idx, civ, "treasury", -split_tre, "keep")
-            acc.add(civ_idx, civ, "stability", -int(10 * mult), "signal")
+            acc.add(civ_idx, civ, "stability", -int(secession_stab_loss * mult), "signal")
         else:
             civ.military = max(civ.military - split_mil, 0)
             civ.economy = max(civ.economy - split_eco, 0)
             civ.treasury -= split_tre
-            civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - int(secession_stab_loss * mult), STAT_FLOOR["stability"], 100)
         civ.regions = remaining_regions
 
         for rn in breakaway_regions:
@@ -324,13 +343,14 @@ def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
         # Capital lost
         civ_idx = civ_index(world, civ.name)
         mult = get_severity_multiplier(civ, world)
+        cap_loss_stab = int(get_override(world, K_CAPITAL_LOSS_STABILITY, 20))
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(civ_idx,
-                stability_shock=normalize_shock(int(20 * mult), civ.stability)))
+                stability_shock=normalize_shock(int(cap_loss_stab * mult), civ.stability)))
         elif acc is not None:
-            acc.add(civ_idx, civ, "stability", -int(20 * mult), "signal")
+            acc.add(civ_idx, civ, "stability", -int(cap_loss_stab * mult), "signal")
         else:
-            civ.stability = clamp(civ.stability - int(20 * mult), STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - int(cap_loss_stab * mult), STAT_FLOOR["stability"], 100)
 
         # Pick best remaining region (highest effective_capacity)
         from chronicler.ecology import effective_capacity
@@ -390,8 +410,9 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
     world.war_start_turns.pop(key, None)
 
     # Create VassalRelation
+    tribute_rate = get_override(world, K_VASSAL_TRIBUTE_RATE, 0.15)
     world.vassal_relations.append(VassalRelation(
-        overlord=winner.name, vassal=loser.name, tribute_rate=0.15,
+        overlord=winner.name, vassal=loser.name, tribute_rate=tribute_rate,
     ))
 
     # Set dispositions
@@ -461,7 +482,7 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
             continue
 
         rng = random.Random(world.seed + world.turn + hash(vr.vassal))
-        prob = 0.05 if vr.overlord in rebelled_overlords else 0.15
+        prob = get_override(world, K_VASSAL_REBELLION_REDUCED_PROB, 0.05) if vr.overlord in rebelled_overlords else get_override(world, K_VASSAL_REBELLION_BASE_PROB, 0.15)
 
         if vr.overlord in rebelled_overlords:
             rel = world.relationships.get(vr.vassal, {}).get(vr.overlord)
@@ -549,7 +570,8 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             continue
         rels_a = world.relationships.get(civ_a.name, {})
         for civ_b_name, rel_ab in rels_a.items():
-            if rel_ab.allied_turns < 10:
+            fed_turns_req = int(get_override(world, K_FEDERATION_ALLIED_TURNS, 10))
+            if rel_ab.allied_turns < fed_turns_req:
                 continue
             pair = tuple(sorted([civ_a.name, civ_b_name]))
             if pair in checked_pairs:
@@ -557,7 +579,7 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             checked_pairs.add(pair)
 
             rel_ba = world.relationships.get(civ_b_name, {}).get(civ_a.name)
-            if rel_ba is None or rel_ba.allied_turns < 10:
+            if rel_ba is None or rel_ba.allied_turns < fed_turns_req:
                 continue
             if _is_vassal(civ_b_name, world):
                 continue
@@ -610,6 +632,8 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
                     exiting.append(member)
                     break
 
+        fed_exit_stab = int(get_override(world, K_FEDERATION_EXIT_STABILITY, 15))
+        fed_remain_stab = int(get_override(world, K_FEDERATION_REMAINING_STABILITY, 5))
         for member in exiting:
             fed.members.remove(member)
             civ = next((c for c in world.civilizations if c.name == member), None)
@@ -618,11 +642,11 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
                 mult = get_severity_multiplier(civ, world)
                 if world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(civ_idx,
-                        stability_shock=normalize_shock(int(15 * mult), civ.stability)))
+                        stability_shock=normalize_shock(int(fed_exit_stab * mult), civ.stability)))
                 elif acc is not None:
-                    acc.add(civ_idx, civ, "stability", -int(15 * mult), "signal")
+                    acc.add(civ_idx, civ, "stability", -int(fed_exit_stab * mult), "signal")
                 else:
-                    civ.stability = clamp(civ.stability - int(15 * mult), STAT_FLOOR["stability"], 100)
+                    civ.stability = clamp(civ.stability - int(fed_exit_stab * mult), STAT_FLOOR["stability"], 100)
             for remaining in fed.members:
                 rc = next((c for c in world.civilizations if c.name == remaining), None)
                 if rc:
@@ -630,11 +654,11 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
                     rc_mult = get_severity_multiplier(rc, world)
                     if world.agent_mode == "hybrid":
                         world.pending_shocks.append(CivShock(rc_idx,
-                            stability_shock=normalize_shock(int(5 * rc_mult), rc.stability)))
+                            stability_shock=normalize_shock(int(fed_remain_stab * rc_mult), rc.stability)))
                     elif acc is not None:
-                        acc.add(rc_idx, rc, "stability", -int(5 * rc_mult), "signal")
+                        acc.add(rc_idx, rc, "stability", -int(fed_remain_stab * rc_mult), "signal")
                     else:
-                        rc.stability = clamp(rc.stability - int(5 * rc_mult), STAT_FLOOR["stability"], 100)
+                        rc.stability = clamp(rc.stability - int(fed_remain_stab * rc_mult), STAT_FLOOR["stability"], 100)
 
         if len(fed.members) <= 1:
             feds_to_remove.append(fed)
@@ -693,16 +717,18 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
             continue
 
         mult = get_severity_multiplier(target, world)
+        pw_stab = int(get_override(world, K_PROXY_WAR_STABILITY_DRAIN, 3))
+        pw_econ = int(get_override(world, K_PROXY_WAR_ECONOMY_DRAIN, 2))
         if acc is not None:
             sponsor_idx = civ_index(world, sponsor.name)
             target_idx = civ_index(world, target.name)
             acc.add(sponsor_idx, sponsor, "treasury", -pw.treasury_per_turn, "keep")
-            acc.add(target_idx, target, "stability", -int(3 * mult), "signal")
-            acc.add(target_idx, target, "economy", -int(2 * mult), "signal")
+            acc.add(target_idx, target, "stability", -int(pw_stab * mult), "signal")
+            acc.add(target_idx, target, "economy", -int(pw_econ * mult), "signal")
         else:
             sponsor.treasury -= pw.treasury_per_turn
-            target.stability = clamp(target.stability - int(3 * mult), STAT_FLOOR["stability"], 100)
-            target.economy = clamp(target.economy - int(2 * mult), STAT_FLOOR["economy"], 100)
+            target.stability = clamp(target.stability - int(pw_stab * mult), STAT_FLOOR["stability"], 100)
+            target.economy = clamp(target.economy - int(pw_econ * mult), STAT_FLOOR["economy"], 100)
         pw.turns_active += 1
 
         if sponsor.treasury < 0:
@@ -782,7 +808,8 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
         return events
 
     rng = random.Random(world.seed + world.turn)
-    if rng.random() >= 0.05:
+    congress_prob = get_override(world, K_CONGRESS_PROBABILITY, 0.05)
+    if rng.random() >= congress_prob:
         return events
 
     civ_map = {c.name: c for c in world.civilizations}
@@ -896,7 +923,7 @@ def create_exile(eliminated: Civilization, conqueror: Civilization, world: World
         original_civ_name=eliminated.name,
         absorber_civ=conqueror.name,
         conquered_regions=list(eliminated.regions),
-        turns_remaining=20,
+        turns_remaining=int(get_override(world, K_EXILE_DURATION, 20)),
     )
     world.exile_modifiers.append(exile)
     return exile
@@ -944,7 +971,7 @@ def check_restoration(world: WorldState) -> list[Event]:
         if not available:
             continue
 
-        prob = 0.05 + 0.03 * len(exile.recognized_by)
+        prob = get_override(world, K_RESTORATION_BASE_PROB, 0.05) + get_override(world, K_RESTORATION_RECOGNITION_BONUS, 0.03) * len(exile.recognized_by)
         rng = random.Random(world.seed + world.turn + hash(exile.original_civ_name))
         if rng.random() >= prob:
             continue
@@ -1022,13 +1049,15 @@ def apply_balance_of_power(world: WorldState) -> list[Event]:
         return events
 
     dominant = max(scores, key=scores.get)
-    if scores[dominant] / total <= 0.40:
+    bop_threshold = get_override(world, K_BALANCE_OF_POWER_DOMINANCE, 0.40)
+    if scores[dominant] / total <= bop_threshold:
         world.balance_of_power_turns = 0
         return events
 
     world.balance_of_power_turns += 1
 
-    if world.balance_of_power_turns % 5 == 0:
+    bop_period = int(get_override(world, K_BALANCE_OF_POWER_PERIOD, 5))
+    if world.balance_of_power_turns % bop_period == 0:
         DISPOSITION_UPGRADE = {
             Disposition.HOSTILE: Disposition.SUSPICIOUS,
             Disposition.SUSPICIOUS: Disposition.NEUTRAL,
@@ -1055,22 +1084,24 @@ def update_peak_regions(world: WorldState) -> None:
         civ.peak_region_count = max(civ.peak_region_count, len(civ.regions))
 
 
-def _is_fallen_empire(civ: Civilization) -> bool:
+def _is_fallen_empire(civ: Civilization, world: "WorldState | None" = None) -> bool:
     """Check if civ qualifies as a fallen empire."""
-    return civ.peak_region_count >= 5 and len(civ.regions) == 1
+    peak_threshold = int(get_override(world, K_FALLEN_EMPIRE_PEAK_REGIONS, 5)) if world else 5
+    return civ.peak_region_count >= peak_threshold and len(civ.regions) == 1
 
 
 def apply_fallen_empire(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply fallen empire modifiers (asabiya boost)."""
     events: list[Event] = []
     for civ in world.civilizations:
-        if not _is_fallen_empire(civ):
+        if not _is_fallen_empire(civ, world):
             continue
+        asabiya_boost = get_override(world, K_FALLEN_EMPIRE_ASABIYA_BOOST, 0.05)
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
+            acc.add(civ_idx, civ, "asabiya", asabiya_boost, "keep")
         else:
-            civ.asabiya = min(civ.asabiya + 0.05, 1.0)
+            civ.asabiya = min(civ.asabiya + asabiya_boost, 1.0)
     return events
 
 
@@ -1090,32 +1121,36 @@ def update_decline_tracking(world: WorldState) -> None:
                 civ.decline_turns = 0
 
 
-def _in_twilight(civ: Civilization) -> bool:
-    return civ.decline_turns >= 20 and len(civ.regions) == 1
+def _in_twilight(civ: Civilization, world: "WorldState | None" = None) -> bool:
+    twilight_turns = int(get_override(world, K_TWILIGHT_DECLINE_TURNS, 20)) if world else 20
+    return civ.decline_turns >= twilight_turns and len(civ.regions) == 1
 
 
 def apply_twilight(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply twilight stat drains."""
     events: list[Event] = []
     for civ in world.civilizations:
-        if not _in_twilight(civ):
+        if not _in_twilight(civ, world):
             continue
+        twilight_pop = int(get_override(world, K_TWILIGHT_POP_DRAIN, 3))
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
             if acc is not None:
                 civ_idx = civ_index(world, civ.name)
-                acc.add(civ_idx, civ, "population", -3, "guard")
+                acc.add(civ_idx, civ, "population", -twilight_pop, "guard")
             else:
                 target_r = max(civ_regions, key=lambda r: r.population)
-                drain_region_pop(target_r, 3)
+                drain_region_pop(target_r, twilight_pop)
                 sync_civ_population(civ, world)
         mult = get_severity_multiplier(civ, world)
+        twilight_culture = int(get_override(world, K_TWILIGHT_CULTURE_DRAIN, 2))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "culture", -int(2 * mult), "signal")
+            acc.add(civ_idx, civ, "culture", -int(twilight_culture * mult), "signal")
         else:
-            civ.culture = clamp(civ.culture - int(2 * mult), STAT_FLOOR["culture"], 100)
-        if civ.decline_turns == 20:
+            civ.culture = clamp(civ.culture - int(twilight_culture * mult), STAT_FLOOR["culture"], 100)
+        twilight_threshold = int(get_override(world, K_TWILIGHT_DECLINE_TURNS, 20))
+        if civ.decline_turns == twilight_threshold:
             events.append(Event(
                 turn=world.turn, event_type="twilight",
                 actors=[civ.name],
@@ -1170,7 +1205,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                 ))
                 continue
 
-        if civ.decline_turns < 40 or len(civ.regions) != 1:
+        if civ.decline_turns < int(get_override(world, K_TWILIGHT_ABSORPTION_DECLINE, 40)) or len(civ.regions) != 1:
             continue
 
         region_map = {r.name: r for r in world.regions}

@@ -6,6 +6,14 @@ from collections import Counter
 
 from chronicler.agent_bridge import VALUE_TO_ID
 from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
+from chronicler.tuning import (
+    K_ASSIMILATION_THRESHOLD, K_ASSIMILATION_STABILITY_DRAIN,
+    K_RECONQUEST_COOLDOWN, K_ASSIMILATION_AGENT_THRESHOLD,
+    K_ASSIMILATION_GUARD_TURNS, K_PROPAGANDA_COST,
+    K_PROPAGANDA_ACCELERATION, K_COUNTER_PROPAGANDA_COST,
+    K_CULTURE_PROJECTION_THRESHOLD, K_PRESTIGE_DECAY, K_PRESTIGE_TRADE_DIVISOR,
+    get_override,
+)
 from chronicler.utils import civ_index, clamp
 from chronicler.emergence import get_severity_multiplier
 
@@ -169,7 +177,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                 world.active_conditions.append(ActiveCondition(
                     condition_type="restless_population",
                     affected_civs=[region.controller],
-                    duration=RECONQUEST_COOLDOWN,
+                    duration=int(get_override(world, K_RECONQUEST_COOLDOWN, 10)),
                     severity=5,
                 ))
             continue
@@ -179,7 +187,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
 
         if agent_snapshot is not None:
             # --- Agent-driven path ---
-            if region.foreign_control_turns >= ASSIMILATION_GUARD_TURNS:
+            if region.foreign_control_turns >= int(get_override(world, K_ASSIMILATION_GUARD_TURNS, 5)):
                 controller_civ = next(
                     (c for c in world.civilizations if c.name == region.controller), None
                 )
@@ -199,11 +207,11 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                                 total += 1
                                 if target_val_id in (cv0[j], cv1[j], cv2[j]):
                                     holders += 1
-                        if total > 0 and (holders / total) >= ASSIMILATION_AGENT_THRESHOLD:
+                        if total > 0 and (holders / total) >= get_override(world, K_ASSIMILATION_AGENT_THRESHOLD, 0.60):
                             assimilated = True
         else:
             # --- M16 timer-based fallback ---
-            if region.foreign_control_turns >= ASSIMILATION_THRESHOLD:
+            if region.foreign_control_turns >= int(get_override(world, K_ASSIMILATION_THRESHOLD, 15)):
                 assimilated = True
 
         if assimilated:
@@ -218,7 +226,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                 description=f"{region.name} has been culturally assimilated by {region.controller}.",
                 importance=6,
             ))
-        elif region.foreign_control_turns >= RECONQUEST_COOLDOWN:
+        elif region.foreign_control_turns >= int(get_override(world, K_RECONQUEST_COOLDOWN, 10)):
             controller = next(
                 (c for c in world.civilizations if c.name == region.controller), None
             )
@@ -226,10 +234,12 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                 mult = get_severity_multiplier(controller, world)
                 if acc is not None:
                     ctrl_idx = civ_index(world, controller.name)
-                    acc.add(ctrl_idx, controller, "stability", -int(ASSIMILATION_STABILITY_DRAIN * mult), "signal")
+                    assim_drain = int(get_override(world, K_ASSIMILATION_STABILITY_DRAIN, 3))
+                    acc.add(ctrl_idx, controller, "stability", -int(assim_drain * mult), "signal")
                 else:
+                    assim_drain = int(get_override(world, K_ASSIMILATION_STABILITY_DRAIN, 3))
                     controller.stability = clamp(
-                        controller.stability - int(ASSIMILATION_STABILITY_DRAIN * mult), 0, 100
+                        controller.stability - int(assim_drain * mult), 0, 100
                     )
 
 
@@ -240,13 +250,14 @@ CULTURE_PROJECTION_THRESHOLD = 60
 
 
 def _counter_propaganda_reaction(world: WorldState, defender, region, seed: int, acc=None) -> int:
-    if defender.treasury >= COUNTER_PROPAGANDA_COST:
+    counter_cost = int(get_override(world, K_COUNTER_PROPAGANDA_COST, 3))
+    if defender.treasury >= counter_cost:
         if acc is not None:
             defender_idx = civ_index(world, defender.name)
-            acc.add(defender_idx, defender, "treasury", -COUNTER_PROPAGANDA_COST, "keep")
+            acc.add(defender_idx, defender, "treasury", -counter_cost, "keep")
         else:
-            defender.treasury -= COUNTER_PROPAGANDA_COST
-        return -PROPAGANDA_ACCELERATION
+            defender.treasury -= counter_cost
+        return -int(get_override(world, K_PROPAGANDA_ACCELERATION, 3))
     return 0
 
 
@@ -276,7 +287,8 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
                 adjacent.update(r.adjacencies)
         targets = [r for r in candidates if r.name in adjacent]
 
-    if not targets or civ.treasury < PROPAGANDA_COST:
+    prop_cost = int(get_override(world, K_PROPAGANDA_COST, 5))
+    if not targets or civ.treasury < prop_cost:
         return Event(
             turn=world.turn, event_type="action", actors=[civ.name],
             description=f"{civ.name} attempts cultural influence but finds no valid target.",
@@ -293,9 +305,9 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
 
     if acc is not None:
         civ_idx = civ_index(world, civ.name)
-        acc.add(civ_idx, civ, "treasury", -PROPAGANDA_COST, "keep")
+        acc.add(civ_idx, civ, "treasury", -prop_cost, "keep")
     else:
-        civ.treasury -= PROPAGANDA_COST
+        civ.treasury -= prop_cost
 
     defender = next((c for c in world.civilizations if c.name == target.controller), None)
     adjustment = 0
@@ -303,19 +315,20 @@ def resolve_invest_culture(civ, world: WorldState, acc=None):
         adjustment = _counter_propaganda_reaction(world, defender, target, world.seed, acc=acc)
 
     # M21: MEDIA doubles propaganda acceleration
+    prop_accel = int(get_override(world, K_PROPAGANDA_ACCELERATION, 3))
     if civ.active_focus == "media":
-        base_accel = PROPAGANDA_ACCELERATION * 2
+        base_accel = prop_accel * 2
         world.events_timeline.append(Event(
             turn=world.turn, event_type="capability_media",
             actors=[civ.name], description=f"{civ.name} media doubles propaganda acceleration",
             importance=1,
         ))
     else:
-        base_accel = PROPAGANDA_ACCELERATION
+        base_accel = prop_accel
     net_acceleration = base_accel + adjustment
     # M22: Power struggle reduces action effectiveness by 20%
     from chronicler.action_engine import _power_struggle_factor
-    net_acceleration = int(net_acceleration * _power_struggle_factor(civ))
+    net_acceleration = int(net_acceleration * _power_struggle_factor(civ, world))
     target.foreign_control_turns += net_acceleration
 
     # M36: Set signal flag for Rust culture_tick to boost drift toward controller values
@@ -378,15 +391,17 @@ def check_cultural_victories(world: WorldState) -> None:
 
 def tick_prestige(world: WorldState, acc=None) -> None:
     """Decay prestige and award trade income bonus."""
+    prestige_decay = int(get_override(world, K_PRESTIGE_DECAY, 1))
+    prestige_divisor = int(get_override(world, K_PRESTIGE_TRADE_DIVISOR, 5))
     for civ in world.civilizations:
         if len(civ.regions) == 0:
             continue
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "prestige", -1, "keep")
+            acc.add(civ_idx, civ, "prestige", -prestige_decay, "keep")
         else:
-            civ.prestige = max(0, civ.prestige - 1)
-        trade_bonus = civ.prestige // 5
+            civ.prestige = max(0, civ.prestige - prestige_decay)
+        trade_bonus = civ.prestige // prestige_divisor
         if trade_bonus > 0:
             if acc is not None:
                 civ_idx = civ_index(world, civ.name)

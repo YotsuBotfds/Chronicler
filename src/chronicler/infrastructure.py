@@ -12,6 +12,13 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
 from chronicler.models import Event, InfrastructureType as IType, Infrastructure, PendingBuild
+from chronicler.tuning import (
+    K_TEMPLE_BUILD_COST, K_TEMPLE_BUILD_TURNS,
+    K_MAX_TEMPLES_PER_REGION, K_MAX_TEMPLES_PER_CIV,
+    K_TEMPLE_CONVERSION_BOOST, K_TEMPLE_PRESTIGE_PER_TURN,
+    K_CIV_PRESTIGE_PER_TEMPLE, K_SCORCHED_EARTH_TRAIT_BONUS,
+    get_override,
+)
 from chronicler.utils import civ_index
 
 
@@ -118,7 +125,8 @@ def scorched_earth_check(
     import hashlib
     from chronicler.models import Event
 
-    trait_bonus = 0.2 if defender.leader.trait == "aggressive" else 0.0
+    scorched_bonus = get_override(world, K_SCORCHED_EARTH_TRAIT_BONUS, 0.2)
+    trait_bonus = scorched_bonus if defender.leader.trait == "aggressive" else 0.0
     prob = min(1.0 - defender.stability / 100 + trait_bonus, 1.0)
 
     roll_input = f"{seed}:{lost_region.name}:{world.turn}:scorch"
@@ -183,7 +191,7 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
         if ptype not in valid_types or BUILD_SPECS[ptype].cost > civ.treasury:
             continue
         if ptype == IType.TEMPLES:
-            if _count_civ_temples(world, civ.name) >= MAX_TEMPLES_PER_CIV:
+            if _count_civ_temples(world, civ.name) >= int(get_override(world, K_MAX_TEMPLES_PER_CIV, 3)):
                 continue
             existing_temple = next(
                 (i for i in target_region.infrastructure if i.type == IType.TEMPLES and i.active),
@@ -242,12 +250,14 @@ def tick_temple_prestige(world):
     (+1/turn) and the delay has negligible behavioral impact.
     Note: temple_prestige is uncapped — M38b pilgrimage targeting consumes it.
     """
+    temple_prestige_rate = int(get_override(world, K_TEMPLE_PRESTIGE_PER_TURN, 1))
+    civ_prestige_rate = int(get_override(world, K_CIV_PRESTIGE_PER_TEMPLE, 1))
     civ_temple_counts = {}
     for region in world.regions:
         controller = getattr(region, 'controller', None)
         for infra in region.infrastructure:
             if infra.type == IType.TEMPLES and infra.active:
-                infra.temple_prestige += TEMPLE_PRESTIGE_PER_TURN
+                infra.temple_prestige += temple_prestige_rate
                 if controller:
                     civ_temple_counts[controller] = civ_temple_counts.get(controller, 0) + 1
 
@@ -256,7 +266,7 @@ def tick_temple_prestige(world):
             continue
         count = civ_temple_counts.get(civ.name, 0)
         if count > 0:
-            civ.prestige += CIV_PRESTIGE_PER_TEMPLE * count
+            civ.prestige += civ_prestige_rate * count
 
 
 def destroy_temple_on_conquest(region, attacker_civ, world) -> "Event | None":

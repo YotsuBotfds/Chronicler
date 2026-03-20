@@ -872,6 +872,7 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
             named_agents=getattr(world, '_named_agents', None),
             civ_majority_faiths=civ_faiths,
             civ_name_to_id=civ_name_to_id,
+            world=world,
         )
         # Signals are written directly to region fields by compute_conversion_signals
 

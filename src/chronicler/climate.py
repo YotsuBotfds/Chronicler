@@ -14,6 +14,13 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
 from chronicler.models import ClimateConfig, ClimatePhase, Event, InfrastructureType, Disposition, ResourceType
+from chronicler.tuning import (
+    K_DISASTER_COOLDOWN, K_EARTHQUAKE_SOIL_LOSS,
+    K_FLOOD_WATER_GAIN, K_WILDFIRE_FOREST_LOSS,
+    K_WILDFIRE_SUSPENSION_TURNS, K_SANDSTORM_SUSPENSION_TURNS,
+    K_MIGRATION_CAPACITY_RATIO,
+    get_override,
+)
 from chronicler.utils import civ_index
 from chronicler.emergence import get_severity_multiplier
 
@@ -113,10 +120,12 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
             if roll >= prob:
                 continue
 
-            region.disaster_cooldowns[dtype] = 10
+            cooldown = int(get_override(world, K_DISASTER_COOLDOWN, 10))
+            region.disaster_cooldowns[dtype] = cooldown
 
             if dtype == "earthquake":
-                region.ecology.soil = max(0.05, region.ecology.soil - 0.2)
+                eq_soil_loss = get_override(world, K_EARTHQUAKE_SOIL_LOSS, 0.2)
+                region.ecology.soil = max(0.05, region.ecology.soil - eq_soil_loss)
                 active_infra = [i for i in region.infrastructure if i.active]
                 if active_infra:
                     idx = int(_deterministic_roll(
@@ -132,7 +141,8 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "flood":
-                region.ecology.water = min(1.0, region.ecology.water + 0.1)
+                flood_water = get_override(world, K_FLOOD_WATER_GAIN, 0.1)
+                region.ecology.water = min(1.0, region.ecology.water + flood_water)
                 for i in region.infrastructure:
                     if i.type == InfrastructureType.PORTS and i.active:
                         i.active = False
@@ -144,8 +154,10 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "wildfire":
-                region.ecology.forest_cover = max(0.0, region.ecology.forest_cover - 0.3)
-                region.resource_suspensions[ResourceType.TIMBER] = 10
+                wildfire_loss = get_override(world, K_WILDFIRE_FOREST_LOSS, 0.3)
+                region.ecology.forest_cover = max(0.0, region.ecology.forest_cover - wildfire_loss)
+                wildfire_susp = int(get_override(world, K_WILDFIRE_SUSPENSION_TURNS, 10))
+                region.resource_suspensions[ResourceType.TIMBER] = wildfire_susp
                 events.append(Event(
                     turn=world.turn, event_type="wildfire",
                     actors=[region.controller or "nature"],
@@ -154,7 +166,8 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "sandstorm":
-                region.route_suspensions["trade_route"] = 5
+                sandstorm_susp = int(get_override(world, K_SANDSTORM_SUSPENSION_TURNS, 5))
+                region.route_suspensions["trade_route"] = sandstorm_susp
                 events.append(Event(
                     turn=world.turn, event_type="sandstorm",
                     actors=[region.controller or "nature"],
@@ -183,7 +196,8 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
         region_pop = region.population
         eff_cap = effective_capacity(region)
 
-        if eff_cap >= region_pop * 0.5:
+        migration_ratio = get_override(world, K_MIGRATION_CAPACITY_RATIO, 0.5)
+        if eff_cap >= region_pop * migration_ratio:
             continue
 
         surplus = region_pop - eff_cap
