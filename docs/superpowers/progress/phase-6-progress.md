@@ -150,55 +150,47 @@
 Report: `docs/superpowers/analytics/m47b-health-check-report.md`
 Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M47c notes).
 
-### M47c: Calibration + Narrative — 3-day time-box
+### M47c: Calibration — 50-turn death spiral FIXED, 500-turn war frequency deferred
 
-**Root cause analysis completed (2026-03-19 investigation session):**
+**Calibration session (2026-03-19):**
 
-The 8 structural failures share ONE root cause: **Rust agent satisfaction cascade in hybrid mode.**
+6 changes applied to break the satisfaction cascade death spiral. Phoebe review: no blocking issues.
 
-**Causal chain:**
-1. Non-food regions start with `food_sufficiency=0.0` (world_gen only seeds primary resource stockpile)
-2. `FOOD_SHORTAGE_WEIGHT=0.30` penalty stacks ON TOP of the -0.40 social penalty cap
-3. Combined penalties → satisfaction ~0.35 → `stability = mean(sat) × mean(loyalty) × 100` ≈ 20-35 at T1
-4. Stability feeds back into satisfaction via `civ_stability / 200.0` bonus → positive feedback loop
-5. Stability crash → brain drain/migration → population collapse → wars become lethal → death spiral
-6. `--agents=off` is completely stable (T1 stability 53-66) — the issue is purely in the Rust agent tick write-back
+**Rust-side changes (committed):**
+1. `agent.rs`: `RELIGIOUS_MISMATCH_WEIGHT` 0.10→0.05 (random T1 beliefs hit too hard)
+2. `agent.rs`: `FERTILITY_SATISFACTION_THRESHOLD` 0.40→0.30 (wartime dips shut off all births)
+3. `satisfaction.rs`: Stability bonus divisor 200→300 (weaken positive feedback loop)
+4. `satisfaction.rs`: War penalties 0.15+0.10→0.08+0.05 (whole-civ war penalty too harsh)
 
-**Fixes already applied (uncommitted):**
-- `world_gen.py`: Seed baseline grain stockpile for non-food regions (bug fix — civs at T0 obviously had food)
-- `satisfaction.rs`: `FOOD_SHORTAGE_WEIGHT` 0.30→0.15 (halved — was additive on top of 0.40 cap, combined 0.70 too harsh)
-- `tests/test_agent_bridge.py`: Snapshot schema updated for `wealth` column (stale Rust crate fix)
+**Python-side changes (committed):**
+5. `politics.py`: Secession threshold 20→10 (hybrid stability 15-30, old threshold fired constantly)
+6. `politics.py`: Surveillance threshold 10→5 (proportional)
 
-**Verified improvement (seed 1, 50 turns):**
-- Wars: 28→11 (matches agents=off baseline of 11)
-- T15 stability: 0-4 → 11-27 (still below agents=off 43-58)
-- Death spiral partially broken but ~20-point stability gap remains
+**50-turn results (20 seeds, validated):**
+- Wars: 13.3 mean (agents=off: 18) — reasonable
+- T15 stability: 19.1 mean (was ~2 pre-M47c) — death spiral broken
+- T1 stability: 28.7 mean (agents=off: 60.3) — expected gap from per-agent penalties
+- Only 4% of T15 civs at stability=0 (was ~50%+)
+- All 7 presets pass smoke test (5 seeds each)
 
-**Remaining calibration work for M47c implementer:**
-1. **Reduce RELIGIOUS_MISMATCH_WEIGHT** (agent.rs, currently 0.10) — agents start with diverse beliefs, hits hard from T1. Try 0.05.
-2. **Or weaken feedback loop** — `civ_stability / 200.0` divisor → try 300 (less amplification)
-3. Each change requires Rust recompile + `maturin develop --release`. Build takes ~22s.
-4. Verify with 20 seeds per adjustment, then full 200-seed confirmation.
-5. **Maturin PATH issue on Windows:** `maturin develop` can't find `rustc` via bash PATH. Workaround: run via Python subprocess with `env['PATH'] = r'C:\Users\tateb\.cargo\bin;...' + env['PATH']` and `env['RUSTUP_HOME']`/`env['CARGO_HOME']`. Then copy DLL manually: `cp target/release/chronicler_agents.dll .../site-packages/chronicler_agents/chronicler_agents.cp314-win_amd64.pyd` (must rename old .pyd first if locked).
-6. After Rust calibration converges, tune Python-side constants via `--tuning` YAML (fast iteration, no recompile).
-7. Preset validation matrix (7 presets, 20 seeds each).
-8. Narrative quality review (20 narrated chronicles).
+**500-turn results (5 seeds, NOT passing):**
+- Wars: 204-508 per run (target: 5-40)
+- Population collapses to 1-5 agents by T500
+- Root cause is NOT satisfaction — it's action engine war selection frequency
+- Binary `stability <= 20: WAR *= 0.1` damper is a cliff, not a ramp
+- Multiplicative war boosters (trait × military × rival × grudge × tradition) hit 2.5× cap regularly
 
-**3b constants extraction (background task):** Applied to main from worktree. 184 new `K_` keys in `tuning.py`, 523 insertions across 8 files. 1503/1542 non-hanging tests pass. The 3b agent got stuck running the 3 hanging integration tests — work was rescued via `git diff > patch`.
+**Deferred to M47d/Phase 7 — action engine war frequency:**
+- Smooth WAR damper from cliff to ramp (e.g., `war_weight *= min(stability / 30.0, 1.0)`)
+- War-weariness mechanic (recent wars reduce WAR weight)
+- Peace dividend (consecutive peaceful turns boost DEVELOP/TRADE weight)
+- Secession threshold may need revisiting once war frequency is fixed (currently very rare at threshold=10)
 
-**3 hanging integration tests:** `test_bundle.py`, `test_m36_regression.py`, `test_main.py` — still hang. These run full `execute_run()` and appear to get stuck in narration/reflection paths. Exclude with `--ignore` for now. A prior agent reportedly fixed this but the fix may not have landed on main.
+**3b constants extraction (background task):** Applied to main from worktree. 184 new `K_` keys in `tuning.py`, 523 insertions across 8 files.
 
-### Session Handoff (2026-03-19 — M47c investigation session)
+**3 hanging integration tests:** `test_bundle.py`, `test_m36_regression.py`, `test_main.py` — still hang. Exclude with `--ignore`.
 
-**Uncommitted changes on main:**
-- `src/chronicler/world_gen.py` — grain init for non-food regions
-- `chronicler-agents/src/satisfaction.rs` — FOOD_SHORTAGE_WEIGHT 0.30→0.15
-- `tests/test_agent_bridge.py` — snapshot schema includes `wealth`
-- `src/chronicler/tuning.py` + 7 source files — 3b constants extraction (from rescued worktree)
-- `.claude/settings.json` — added cargo check hook for .rs edits
-- `CLAUDE.md` — subagent dispatch checklist, hook docs updated
-- `.superpowers/phoebe-review/SKILL.md` — new review protocol skill
-- `docs/superpowers/progress/phase-6-progress.md` — this file
+**18 pre-existing Python test failures:** Import errors from 3b constants extraction, M38a faction count change. Not caused by M47c.
 
 **Next steps:**
 - M47c Rust-side calibration (RELIGIOUS_MISMATCH_WEIGHT, stability feedback loop)

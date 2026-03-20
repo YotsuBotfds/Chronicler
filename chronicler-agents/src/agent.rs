@@ -40,7 +40,7 @@ pub const FERTILITY_AGE_MIN: u16 = 16;
 pub const FERTILITY_AGE_MAX: u16 = 45;
 pub const FERTILITY_BASE_FARMER: f32 = 0.03;
 pub const FERTILITY_BASE_OTHER: f32 = 0.015;
-pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.4;
+pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.3;  // [CALIBRATE] M47c: 0.4→0.3 (wars pushing satisfaction below threshold killed all births)
 
 // Decision thresholds
 pub const REBEL_LOYALTY_THRESHOLD: f32 = 0.2;
@@ -131,7 +131,7 @@ pub const INVEST_CULTURE_BONUS: f32 = 0.10;
 // M37: Religion constants
 pub const LIFE_EVENT_CONVERSION: u8 = 1 << 6;  // bit 6 of life_events
 pub const BELIEF_NONE: u8 = 0xFF;              // sentinel for no belief assigned
-pub const RELIGIOUS_MISMATCH_WEIGHT: f32 = 0.10;
+pub const RELIGIOUS_MISMATCH_WEIGHT: f32 = 0.05;  // [CALIBRATE] M47c: 0.10→0.05 (diverse beliefs at T1 hit too hard)
 pub const SUSCEPTIBILITY_THRESHOLD: f32 = 0.4;  // satisfaction below this → 2× conversion
 pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
 pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability

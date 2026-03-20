@@ -132,14 +132,14 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
     for civ in list(world.civilizations):
         if civ.active_focus == "surveillance":
-            secession_threshold = int(get_override(world, K_SECESSION_SURVEILLANCE_THRESHOLD, 10))
+            secession_threshold = int(get_override(world, K_SECESSION_SURVEILLANCE_THRESHOLD, 5))  # M47c: 10→5 (proportional to base threshold change)
             world.events_timeline.append(Event(
                 turn=world.turn, event_type="capability_surveillance",
                 actors=[civ.name], description=f"{civ.name} surveillance lowers secession threshold",
                 importance=1,
             ))
         else:
-            secession_threshold = int(get_override(world, K_SECESSION_STABILITY_THRESHOLD, 20))
+            secession_threshold = int(get_override(world, K_SECESSION_STABILITY_THRESHOLD, 10))  # M47c: 20→10 (hybrid stability ~20-30, old threshold fired constantly)
         if civ.stability >= secession_threshold or len(civ.regions) < 3:
             continue
 

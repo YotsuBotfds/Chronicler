@@ -180,7 +180,9 @@ mod tests {
 
     #[test]
     fn test_fertility_low_satisfaction() {
-        assert!(fertility_rate(25, 0.4, 0, 0.8) == 0.0);
+        // M47c: threshold lowered to 0.3 — 0.3 is now below threshold, 0.4 is above
+        assert!(fertility_rate(25, 0.3, 0, 0.8) == 0.0);
+        assert!(fertility_rate(25, 0.31, 0, 0.8) > 0.0);
     }
 
     #[test]

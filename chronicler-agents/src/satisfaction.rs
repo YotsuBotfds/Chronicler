@@ -106,7 +106,7 @@ pub fn compute_satisfaction(
         _ => 0.6 - (1.0 - civ_stability as f32 / 100.0) * 0.2,   // Priest
     };
 
-    let stability_bonus = civ_stability as f32 / 200.0;
+    let stability_bonus = civ_stability as f32 / 300.0;  // [CALIBRATE] M47c: 200→300 (weaken positive feedback loop)
 
     let ds_raw = demand_supply_ratio * 0.2;
     let ds_bonus = ds_raw.clamp(-0.2, 0.2);
@@ -114,8 +114,8 @@ pub fn compute_satisfaction(
     let overcrowding_raw = (pop_over_capacity - 1.0) * 0.3;
     let overcrowding = overcrowding_raw * (overcrowding_raw > 0.0) as i32 as f32;
 
-    let war_pen = 0.15 * civ_at_war as i32 as f32
-                + 0.10 * region_contested as i32 as f32;
+    let war_pen = 0.08 * civ_at_war as i32 as f32   // [CALIBRATE] M47c: 0.15→0.08 (whole-civ penalty too harsh)
+                + 0.05 * region_contested as i32 as f32;  // [CALIBRATE] M47c: 0.10→0.05
 
     let faction_bonus = 0.05 * occ_matches_faction as i32 as f32;
 
@@ -428,7 +428,7 @@ mod tests {
             0, 0.8, 0.7, 80, 0.0, 0.8, false, false, false, false, 0, 0.0,
             &CivShock::default(), 0.0,
         );
-        // base = 0.78, stability = 0.40, total = 1.18 → clamped to 1.0
+        // base = 0.78, stability = 80/300 = 0.267, total = 1.047 → clamped to 1.0
         assert!((sat - 1.0).abs() < 0.01);
     }
 
@@ -448,8 +448,8 @@ mod tests {
             1, 0.5, 0.5, 60, 0.0, 0.9, false, false, true, false, 0, 0.6,
             &CivShock::default(), 0.0,
         );
-        // total = 1.03 → clamped to 1.0
-        assert!((sat - 1.0).abs() < 0.01);
+        // base=0.68, stability=60/300=0.20, faction=0.05 → 0.93
+        assert!(sat > 0.90 && sat <= 1.0);
     }
 
     #[test]
@@ -468,8 +468,8 @@ mod tests {
             3, 0.5, 0.5, 50, 0.0, 0.8, false, false, true, false, 0, 0.5,
             &CivShock::default(), 0.0,
         );
-        // base = 0.5 + 0.5*0.2 = 0.6, stability = 0.25, faction = 0.05 → 0.90
-        assert!(sat > 0.85 && sat <= 1.0);
+        // base=0.6, stability=50/300=0.167, faction=0.05 → 0.817
+        assert!(sat > 0.75 && sat <= 1.0);
     }
 
     #[test]
@@ -611,7 +611,8 @@ mod m41_tests {
 
     #[test]
     fn test_class_tension_priority_clamping() {
-        // Max cultural mismatch (0.15) + religious mismatch (0.10) + persecution (0.15) = 0.40
+        // Max cultural mismatch (0.15) + religious mismatch (0.05) + persecution (0.15) = 0.35
+        // Leaves 0.05 budget for class tension under the 0.40 cap
         let sat = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_values: [4, 3, 2], controller_values: [0, 1, 5],
             agent_belief: 3, majority_belief: 5,
@@ -626,7 +627,11 @@ mod m41_tests {
             gini_coefficient: 0.0, wealth_percentile: 0.0,
             ..m41_base_inputs()
         });
-        assert!((sat - sat_no_class).abs() < 0.001,
-            "Class tension should be zero when three core terms hit cap");
+        // Raw class tension = 1.0 * 1.0 * CLASS_TENSION_WEIGHT(0.15) = 0.15
+        // Clamped to remaining budget: 0.40 - 0.35 = 0.05
+        let remaining_budget = crate::agent::PENALTY_CAP
+            - (0.15 + crate::agent::RELIGIOUS_MISMATCH_WEIGHT + crate::agent::PERSECUTION_SAT_WEIGHT * 1.0);
+        assert!((sat_no_class - sat - remaining_budget).abs() < 0.001,
+            "Class tension should equal remaining budget ({}) under cap", remaining_budget);
     }
 }
