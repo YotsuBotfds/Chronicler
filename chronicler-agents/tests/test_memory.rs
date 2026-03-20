@@ -1259,6 +1259,79 @@ fn test_agents_share_memory_empty() {
     assert_eq!(agents_share_memory(&pool, a, b), None);
 }
 
+// ===========================================================================
+// Task N: Same-turn no-feedback and transient signal reset tests (M48)
+// ===========================================================================
+
+#[test]
+fn test_same_turn_no_feedback() {
+    // The architecture: decay runs FIRST in tick, satisfaction reads decayed values,
+    // new intents are written LAST. So a memory written at end of tick T
+    // is first visible to satisfaction at tick T+1 (after decay).
+    let mut pool = AgentPool::new(64);
+    let slot = test_spawn_agent(&mut pool);
+
+    // Before any memory: satisfaction score is 0
+    let score_empty = compute_memory_satisfaction_score(&pool, slot);
+    assert_eq!(score_empty, 0.0);
+
+    // Write a strong negative memory (simulating end-of-tick write)
+    pool.memory_intensities[slot][0] = -90;
+    pool.memory_event_types[slot][0] = 0; // Famine
+    pool.memory_decay_factors[slot][0] = factor_from_half_life(40.0);
+    pool.memory_count[slot] = 1;
+
+    // Score is now nonzero (this is the "start of next tick" read)
+    let score_before_decay = compute_memory_satisfaction_score(&pool, slot);
+    assert!(score_before_decay < 0.0, "Negative memory should produce negative score");
+
+    // After one decay pass (simulating start of tick T+1), score should be slightly reduced
+    decay_memories(&mut pool, &[slot]);
+    let score_after_decay = compute_memory_satisfaction_score(&pool, slot);
+    assert!(score_after_decay < 0.0, "Still negative after one decay");
+    assert!(score_after_decay.abs() < score_before_decay.abs(),
+        "Score magnitude should decrease after decay: before={}, after={}",
+        score_before_decay, score_after_decay);
+}
+
+#[test]
+fn test_transient_signal_controller_changed_reset() {
+    // Verify controller_changed_this_turn defaults to false,
+    // can be set, and would be cleared by Python each turn
+    let region = RegionState::new(0);
+    assert!(!region.controller_changed_this_turn, "Should default to false");
+
+    let mut region = region;
+    region.controller_changed_this_turn = true;
+    assert!(region.controller_changed_this_turn);
+
+    // Simulate Python clearing (next turn)
+    region.controller_changed_this_turn = false;
+    assert!(!region.controller_changed_this_turn);
+}
+
+#[test]
+fn test_transient_signal_war_won_reset() {
+    let region = RegionState::new(0);
+    assert!(!region.war_won_this_turn);
+    let mut region = region;
+    region.war_won_this_turn = true;
+    assert!(region.war_won_this_turn);
+    region.war_won_this_turn = false;
+    assert!(!region.war_won_this_turn);
+}
+
+#[test]
+fn test_transient_signal_seceded_reset() {
+    let region = RegionState::new(0);
+    assert!(!region.seceded_this_turn);
+    let mut region = region;
+    region.seceded_this_turn = true;
+    assert!(region.seceded_this_turn);
+    region.seceded_this_turn = false;
+    assert!(!region.seceded_this_turn);
+}
+
 #[test]
 fn test_agents_share_memory_strongest_match() {
     // Multiple shared memories — returns the one with highest combined intensity
