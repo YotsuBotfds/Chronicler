@@ -298,6 +298,9 @@ class Civilization(BaseModel):
     max_precap_weight: float = 0.0  # M19b: transient, tracks max weight before 2.5x cap
     civ_majority_faith: int = 0  # M37: computed from agent snapshot each turn
     previous_majority_faith: int = 0           # initialized to civ_majority_faith at world-gen
+    # M47d: War frequency calibration
+    war_weariness: float = 0.0
+    peace_momentum: float = 0.0
 
 
 class Relationship(BaseModel):
@@ -606,6 +609,9 @@ class CivSnapshot(BaseModel):
     action_counts: dict[str, int] = Field(default_factory=dict)  # M19b: cumulative action counts
     max_precap_weight: float = 0.0  # M19b: max weight before 2.5x cap
     last_action: str | None = None  # M19b: most recent action taken
+    # M47d: War frequency analytics
+    war_weariness: float = 0.0
+    peace_momentum: float = 0.0
 
 
 class RelationshipSnapshot(BaseModel):
