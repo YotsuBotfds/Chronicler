@@ -147,7 +147,7 @@ class Dynasty:
     dynasty_id: int          # monotonic counter
     founder_id: int          # agent_id of earliest promoted ancestor (the parent)
     founder_name: str        # frozen at founding
-    civ_id: int              # founding civ
+    civ_id: str              # founding civ name (matches GreatPerson.civilization)
     members: list[int]       # agent_ids of all promoted members
     founded_turn: int
     split_detected: bool     # one-shot flag for split event

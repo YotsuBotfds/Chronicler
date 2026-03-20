@@ -823,7 +823,7 @@ Civ-level treasury gains a tax component: `TAX_RATE × sum(merchant_wealth_in_ci
 - New SoA field in `pool.rs`: `wealth: Vec<f32>`
 - Wealth accumulation/decay in `tick.rs` (new phase or added to existing)
 - Resource-specific market dynamics modifier on wealth growth
-- Gini coefficient computation (Rust-side, per-civ)
+- Gini coefficient computation (Python-side from snapshot RecordBatch, per-civ)
 - Class tension signal through FFI
 - Treasury integration in Python (`accumulator.py` modifications)
 - Tests: wealth distribution shape, Gini bounds, tax/treasury integration
@@ -905,13 +905,23 @@ class RegionGoods:
 - **Occupation response:** Food price spikes correlate with increased farmer count in subsequent turns.
 - **No goods from nothing:** Total goods in system = sum of production - decay. Conservation law holds.
 
+### M41 Deferred Economic Integration (scoped into M42)
+
+M41 ships the wealth layer self-contained. M42 wires it into existing economic systems:
+
+- **Treasury tax wiring:** `TAX_RATE × sum(merchant_wealth)` replaces part of the aggregate income calculation in agent mode (`accumulator.py` modifications)
+- **`compute_tithe_base` swap:** M38a's `compute_tithe_base()` switches from `trade_income` to `sum(merchant_wealth)`, making tithes agent-derived
+- **Per-resource market pricing:** Market prices (new in M42) modulate M41 base income rates — a farmer growing spices in a spice-deficit region earns more than a wheat farmer in a wheat-surplus region
+- **Per-priest tithe share distribution:** `TITHE_RATE × compute_tithe_base(civ) / priest_count` distributes tithes among the civ's priests, wiring the feedback loop (more merchant wealth → higher tithes → wealthier priests → higher clergy satisfaction)
+
 ### Deliverables
 
 - Goods model with production tied to M34 resources (Python: new `goods.py` or `economy.py`)
 - Merchant carry model integrated with existing trade routes (Python: `simulation.py` Phase 2)
 - Price computation per region per category
 - Goods surplus/deficit signals through FFI
-- Tests: price responsiveness, merchant behavior, occupation response, conservation
+- M41 deferred economic integration: treasury tax wiring, tithe base swap, per-resource pricing, per-priest tithe share
+- Tests: price responsiveness, merchant behavior, occupation response, conservation, treasury integration with agent-derived wealth
 
 ---
 
@@ -998,7 +1008,8 @@ Regions importing >60% of their food are "trade dependent":
 - Supply shock propagation along trade routes
 - Trade dependency detection and embargo vulnerability
 - Raider attraction from stockpiles (utility modifier)
-- Tests: geographic trade patterns, salt economics, shock propagation, dependency vulnerability, stockpile buffer
+- Conservation law verification post-transport-decay (updates M42's conservation test to account for perishability during transport: total goods = production - stockpile decay - transport decay)
+- Tests: geographic trade patterns, salt economics, shock propagation, dependency vulnerability, stockpile buffer, conservation law
 
 ---
 
@@ -1051,6 +1062,8 @@ Test whether the elaborate ERA_REGISTER system prompt instructions improve or co
 - Era register A/B comparison report
 - Quality comparison report (20 seeds)
 - Cost documentation
+
+**Brainstorm enrichment (from `docs/superpowers/design/brainstorm-simulation-depth-and-parameters.md`):** M44 is the natural home for narrative voice presets (`--narrative-voice chronicle/epic/academic/journalistic/mythic`) and narrator persona system (court historian, traveling merchant, temple scribe, exile — each modifying the narrator prompt context). Also the right place to add `--chronicle-format` (annals/chronicle/encyclopedia/timeline) since format affects the narration prompt structure.
 
 ---
 
@@ -1116,76 +1129,9 @@ Moments that continue an active character arc score higher:
 
 ---
 
-## M46: Full Viewer Integration
+## ~~M46: Full Viewer Integration~~ — Dropped
 
-**Goal:** One consolidated viewer milestone covering all deferred visual work from Phases 3-6.
-
-### Phase 3-4 Backlog (~300 lines TS)
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| CivPanel | Tech focus badge (icon + tooltip) | M21 deferred |
-| CivPanel | Faction influence bar (four-segment: MIL/MER/CUL/CLR) | M22 + M38 |
-| RegionMap | Ecology variables on hover (soil/water/forest progress bars) | M23 deferred |
-| RegionMap | Intelligence quality indicator (confidence ring or fog overlay) | M24 deferred |
-
-### Phase 5 Agent Data (~400 lines TS)
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| RegionMap | Population heatmap (agent count, color by mean satisfaction) | M30 |
-| RegionMap | Occupation distribution donut on region hover | M30 |
-| TerritoryMap | Named character markers (icon + name label) | M30 |
-| TerritoryMap | Migration flow arrows (aggregate direction/volume, 10-turn window) | M30 |
-
-### Phase 6: Material World (~500 lines TS)
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| RegionMap | Resource icons per region (crop/mineral/special) | M34 |
-| RegionMap | Seasonal indicator (spring/summer/autumn/winter badge) | M34 |
-| RegionMap | River overlay (blue lines connecting river-adjacent regions) | M35 |
-| RegionMap | Disease severity heatmap layer (toggle) | M35 |
-| RegionMap | Trade flow arrows (goods type + volume along routes) | M42-M43 |
-
-### Phase 6: Society (~600 lines TS)
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| CharacterPanel (new) | Personality radar chart (3 axes: boldness, ambition, loyalty) | M33 |
-| CharacterPanel | Character arc timeline (horizontal, key events marked) | M45 |
-| CharacterPanel | Family tree (vertical, max 3 generations) | M39 |
-| CharacterPanel | Social network (d3-force mini-graph, relationships to other named chars) | M40 |
-| CharacterPanel | Religious identity + faith icon | M37-M38 |
-| RegionMap | Cultural identity overlay (color by dominant cultural values) | M36 |
-| RegionMap | Religious majority overlay (color by dominant faith) | M37 |
-| CivPanel | Wealth distribution histogram + Gini coefficient | M41 |
-| CivPanel | Class tension indicator | M41 |
-| CivPanel | Goods production/consumption balance | M42 |
-| CivPanel | Trade dependency indicator | M43 |
-
-### Bundle Schema
-
-`bundle_version: 3` (Phase 6 additions):
-- `named_characters` extended with personality, dynasty, faith, arc_type, relationships
-- `agent_wealth_distribution` per-civ summary (histogram bins + Gini)
-- `cultural_map` per-region cultural value distribution
-- `religious_map` per-region faith distribution
-- `goods_economy` per-region production, stockpiles, prices, trade flows
-- `resource_map` per-region resource types and yields
-
-### Estimated Scope
-
-~1800-2200 lines TypeScript across 12-15 components. Largest single viewer milestone, but captures 4 phases of deferred work in one pass.
-
-### Deliverables
-
-- All Phase 3-4 viewer backlog items
-- Material world visualizations (resources, rivers, disease, seasons, trade flows)
-- Agent visualization components (heatmap, occupation, characters, migration)
-- New CharacterPanel with personality, arc, family, social network, faith views
-- Cultural, religious, and economic overlays
-- `bundle_version: 3` schema
+**Dropped 2026-03-17.** Phase 7 will redesign the viewer from the ground up (M62) around the full Living Society data model. Incremental patches now would be throwaway work. All Phase 3-6 viewer requirements are preserved as an inventory in the Phase 7 roadmap (M62) so the redesign has a complete feature list.
 - Manual visual review across 5 sample bundles
 
 ---
@@ -1262,6 +1208,8 @@ Manual review of 20 curated+narrated chronicles:
 - Narrative quality notes and prompt adjustments
 - Structural issues flagged for Phase 7
 
+**Brainstorm enrichment (from `docs/superpowers/design/brainstorm-simulation-depth-and-parameters.md`):** M47 is the natural home for Tier 1 simulation multipliers as CLI flags: `--aggression-bias`, `--tech-diffusion-rate`, `--resource-abundance`, `--trade-friction`, `--severity-multiplier`, `--cultural-drift-speed`, `--religion-intensity`, `--secession-likelihood`. These are scalar multipliers on existing code paths, wired through the existing `tuning_overrides` mechanism. Also the right place to add `--preset` compound parameter bundles (pangaea, archipelago, golden-age, dark-age, ice-age, silk-road).
+
 ---
 
 ## Cross-Cutting Concerns
@@ -1327,7 +1275,7 @@ If scaling to 100K+ agents, M29 Phase B (SIMD verification, decision short-circu
 
 Phase 6 creates multi-system feedback chains that need careful tuning:
 
-1. **Satisfaction stacking:** Cultural mismatch (M36) + religious mismatch (M37) + persecution penalty (M38) + low ecology can all reduce satisfaction simultaneously. The branchless satisfaction formula clamps to [0.0, 1.0], so the floor exists, but many agents simultaneously hitting 0.0 could produce mass rebellion cascading into system instability. M47 tuning should verify that realistic scenarios don't push >30% of a region's agents to floor satisfaction.
+1. **Satisfaction stacking:** Cultural mismatch (M36) + religious mismatch (M37) + persecution penalty (M38) + class tension (M41) + low ecology can all reduce satisfaction simultaneously. **Decision 10 caps total non-ecological penalties at -0.4** (wired into `satisfaction.rs` at M36), guaranteeing at least 0.1 headroom above the rebellion threshold (0.2) when ecology is neutral. This is the structural guardrail — M47 tunes individual penalty weights within this budget, not the budget itself. Even with the cap, many agents simultaneously near the floor could produce mass rebellion cascading into system instability. M47 tuning should verify that realistic scenarios don't push >30% of a region's agents to floor satisfaction.
 
 2. **Treasury → temple → conversion → schism chain:** Temple construction (10 treasury, M38) depends on merchant-tax income (M41) which depends on trade profits (M42) which depend on supply (M43). A trade disruption can cascade into reduced treasury → no temple construction → slower conversion → demographic shift → schism. This is narratively rich but computationally creates a six-system loop. M47 should test this interaction chain specifically.
 
@@ -1361,9 +1309,9 @@ Phase 6 creates multi-system feedback chains that need careful tuning:
 | M43 Transport & Shocks | 5–7 | Medium–High | Shock propagation is the most complex new algorithm. Conservation law test here (not M42). |
 | M44 API Narration | 3–4 | Low | AnthropicClient exists; mostly wiring and quality comparison. Free-floating — can schedule flexibly. |
 | M45 Character Arcs | 4–5 | Medium | Arc classification is heuristic; new archetypes for religion |
-| M46 Viewer | 7–9 | Medium | Largest viewer milestone; ~2000 lines TS |
+| ~~M46 Viewer~~ | ~~7–9~~ | — | Dropped — deferred to Phase 7 viewer redesign (M62) |
 | M47 Tuning | 4–6 | Low–Medium | More constants to tune but proven pattern (M19b/M31). Includes deferred M31 constants. |
-| **Total** | **77–111** | | 18 milestones (~3× Phase 5 scope) |
+| **Total** | **70–102** | | 17 milestones (M46 dropped) |
 
 ---
 

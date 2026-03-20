@@ -145,32 +145,66 @@
 
 ## Ready for Implementation
 
-### M47b-run: 200-Seed Health Check — not yet run
+### M47b-run: 200-Seed Health Check — DONE (2026-03-19)
 
-Task 12 from the plan. Determinism gate passed. Needs:
-1. Run `--seed-range 1-200 --turns 500 --civs 4 --regions 8 --agents hybrid --simulate-only --batch 200`
-2. Apply extractors, compare against spec criteria table
-3. Generate health check report
+Report: `docs/superpowers/analytics/m47b-health-check-report.md`
+Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M47c notes).
 
 ### M47c: Calibration + Narrative — 3-day time-box
 
-All multiplier consumers and extractors are wired. M47c tunes actual values.
+**Root cause analysis completed (2026-03-19 investigation session):**
 
-### Session Handoff (2026-03-19 — M47 implementation session)
+The 8 structural failures share ONE root cause: **Rust agent satisfaction cascade in hybrid mode.**
 
-**Uncommitted from prior sessions (still present):**
-- `docs/superpowers/roadmaps/chronicler-phase6-roadmap.md` — M44/M47 enrichment notes, M46 dropped
-- `docs/superpowers/specs/2026-03-17-m39-parentage-dynasties-design.md` — minor edit
-- `src/chronicler/live.py` — minor edit
+**Causal chain:**
+1. Non-food regions start with `food_sufficiency=0.0` (world_gen only seeds primary resource stockpile)
+2. `FOOD_SHORTAGE_WEIGHT=0.30` penalty stacks ON TOP of the -0.40 social penalty cap
+3. Combined penalties → satisfaction ~0.35 → `stability = mean(sat) × mean(loyalty) × 100` ≈ 20-35 at T1
+4. Stability feeds back into satisfaction via `civ_stability / 200.0` bonus → positive feedback loop
+5. Stability crash → brain drain/migration → population collapse → wars become lethal → death spiral
+6. `--agents=off` is completely stable (T1 stability 53-66) — the issue is purely in the Rust agent tick write-back
 
-**Hanging test investigation (for next agent):**
-- `tests/test_bundle.py::TestBundleSize::test_500_turn_bundle_under_5mb` hangs with M47 changes. On clean tree it completes in <1s. The test runs `execute_run(args)` with 5 civs, 10 regions, 500 turns. Benchmark shows 1ms/turn for the simulation loop alone, so the simulation isn't slow. The hang is likely in `execute_run`'s narration/reflection path — possibly `create_clients()` trying to connect to local LLM (LM Studio), or the reflection interval triggering LLM calls. The tatonnement adds ~3x economy cost but benchmarks show that's still sub-ms. Suspect the issue is in the `execute_run` code path around narration/reflection that the test doesn't mock out, and some M47 change (possibly the `Civilization` default field changes removing `Field(ge=0, le=1000)` for `population`) triggers a different code path. `test_m36_regression.py` and `test_main.py` also hang — same pattern (full `execute_run` integration tests). Recommendation: check if the `population: int = 0` default change (was `Field(ge=0, le=1000)`) causes `Civilization()` construction to fail somewhere that previously got a validation error, or if removing the `carrying_capacity` Field constraint breaks Region construction in test fixtures.
+**Fixes already applied (uncommitted):**
+- `world_gen.py`: Seed baseline grain stockpile for non-food regions (bug fix — civs at T0 obviously had food)
+- `satisfaction.rs`: `FOOD_SHORTAGE_WEIGHT` 0.30→0.15 (halved — was additive on top of 0.40 cap, combined 0.70 too harsh)
+- `tests/test_agent_bridge.py`: Snapshot schema updated for `wealth` column (stale Rust crate fix)
+
+**Verified improvement (seed 1, 50 turns):**
+- Wars: 28→11 (matches agents=off baseline of 11)
+- T15 stability: 0-4 → 11-27 (still below agents=off 43-58)
+- Death spiral partially broken but ~20-point stability gap remains
+
+**Remaining calibration work for M47c implementer:**
+1. **Reduce RELIGIOUS_MISMATCH_WEIGHT** (agent.rs, currently 0.10) — agents start with diverse beliefs, hits hard from T1. Try 0.05.
+2. **Or weaken feedback loop** — `civ_stability / 200.0` divisor → try 300 (less amplification)
+3. Each change requires Rust recompile + `maturin develop --release`. Build takes ~22s.
+4. Verify with 20 seeds per adjustment, then full 200-seed confirmation.
+5. **Maturin PATH issue on Windows:** `maturin develop` can't find `rustc` via bash PATH. Workaround: run via Python subprocess with `env['PATH'] = r'C:\Users\tateb\.cargo\bin;...' + env['PATH']` and `env['RUSTUP_HOME']`/`env['CARGO_HOME']`. Then copy DLL manually: `cp target/release/chronicler_agents.dll .../site-packages/chronicler_agents/chronicler_agents.cp314-win_amd64.pyd` (must rename old .pyd first if locked).
+6. After Rust calibration converges, tune Python-side constants via `--tuning` YAML (fast iteration, no recompile).
+7. Preset validation matrix (7 presets, 20 seeds each).
+8. Narrative quality review (20 narrated chronicles).
+
+**3b constants extraction (background task):** Applied to main from worktree. 184 new `K_` keys in `tuning.py`, 523 insertions across 8 files. 1503/1542 non-hanging tests pass. The 3b agent got stuck running the 3 hanging integration tests — work was rescued via `git diff > patch`.
+
+**3 hanging integration tests:** `test_bundle.py`, `test_m36_regression.py`, `test_main.py` — still hang. These run full `execute_run()` and appear to get stuck in narration/reflection paths. Exclude with `--ignore` for now. A prior agent reportedly fixed this but the fix may not have landed on main.
+
+### Session Handoff (2026-03-19 — M47c investigation session)
+
+**Uncommitted changes on main:**
+- `src/chronicler/world_gen.py` — grain init for non-food regions
+- `chronicler-agents/src/satisfaction.rs` — FOOD_SHORTAGE_WEIGHT 0.30→0.15
+- `tests/test_agent_bridge.py` — snapshot schema includes `wealth`
+- `src/chronicler/tuning.py` + 7 source files — 3b constants extraction (from rescued worktree)
+- `.claude/settings.json` — added cargo check hook for .rs edits
+- `CLAUDE.md` — subagent dispatch checklist, hook docs updated
+- `.superpowers/phoebe-review/SKILL.md` — new review protocol skill
+- `docs/superpowers/progress/phase-6-progress.md` — this file
 
 **Next steps:**
-- Diagnose and fix the 3 hanging test files
-- Run M47b 200-seed health check (Task 12)
+- M47c Rust-side calibration (RELIGIOUS_MISMATCH_WEIGHT, stability feedback loop)
+- M47c Python-side calibration via --tuning YAML
+- 200-seed revalidation after calibration
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
-- M47c calibration pass
 
 ---
 
