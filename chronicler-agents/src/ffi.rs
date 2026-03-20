@@ -189,6 +189,7 @@ pub struct AgentSimulator {
     social_graph: crate::social::SocialGraph,
     initialized: bool,
     wealth_percentiles: Vec<f32>,
+    pub kin_bond_failures: u32,
 }
 
 #[pymethods]
@@ -211,6 +212,7 @@ impl AgentSimulator {
             social_graph: crate::social::SocialGraph::new(),
             initialized: false,
             wealth_percentiles: Vec::new(),
+            kin_bond_failures: 0,
         }
     }
 
@@ -590,7 +592,7 @@ impl AgentSimulator {
             self.wealth_percentiles.resize(self.pool.capacity(), 0.0);
         }
 
-        let events = crate::tick::tick_agents(
+        let (events, kin_failures) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
@@ -598,6 +600,7 @@ impl AgentSimulator {
             turn,
             &mut self.wealth_percentiles,
         );
+        self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))

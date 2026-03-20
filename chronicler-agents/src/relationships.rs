@@ -250,6 +250,32 @@ pub fn remove_symmetric(pool: &mut AgentPool, slot_a: usize, slot_b: usize, bond
     remove_directed(pool, slot_b, id_a, bond_type);
 }
 
+/// Form a kin bond between parent and child at birth.
+/// Atomic pair-write: both succeed or neither.
+/// `turn` is u32 from the tick entrypoint; truncated to u16 for storage.
+pub fn form_kin_bond(pool: &mut AgentPool, parent_slot: usize, child_slot: usize, turn: u32) -> bool {
+    let turn = turn as u16;
+    let parent_id = pool.ids[parent_slot];
+    let child_id = pool.ids[child_slot];
+    if parent_id == child_id { return false; }
+
+    let bond_type = BondType::Kin as u8;
+
+    // Resolve both sides before committing (atomic)
+    let res_parent = resolve_slot(pool, parent_slot, child_id, bond_type);
+    let res_child = resolve_slot(pool, child_slot, parent_id, bond_type);
+
+    let can_parent = !matches!(res_parent, SlotResolution::NoSlot);
+    let can_child = !matches!(res_child, SlotResolution::NoSlot);
+    if !can_parent || !can_child { return false; }
+
+    commit_resolved(pool, parent_slot, child_id, bond_type,
+                    crate::agent::KIN_INITIAL_PARENT, turn, res_parent);
+    commit_resolved(pool, child_slot, parent_id, bond_type,
+                    crate::agent::KIN_INITIAL_CHILD, turn, res_child);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,6 +471,40 @@ mod tests {
         assert_eq!(pool.rel_count[a], 2);
         assert!(find_relationship(&pool, a, id_b, BondType::Rival as u8).is_some());
         assert!(find_relationship(&pool, a, id_b, BondType::CoReligionist as u8).is_some());
+    }
+
+    #[test]
+    fn test_form_kin_bond() {
+        let (mut pool, slots) = setup_pool(2);
+        let parent = slots[0];
+        let child = slots[1];
+        assert!(form_kin_bond(&mut pool, parent, child, 50));
+        // Parent has kin bond to child
+        assert_eq!(pool.rel_count[parent], 1);
+        let (tid, sent, bt, _) = read_rel(&pool, parent, 0);
+        assert_eq!(tid, pool.ids[child]);
+        assert_eq!(sent, crate::agent::KIN_INITIAL_PARENT);
+        assert_eq!(bt, BondType::Kin as u8);
+        // Child has kin bond to parent
+        assert_eq!(pool.rel_count[child], 1);
+        let (tid, sent, bt, _) = read_rel(&pool, child, 0);
+        assert_eq!(tid, pool.ids[parent]);
+        assert_eq!(sent, crate::agent::KIN_INITIAL_CHILD);
+        assert_eq!(bt, BondType::Kin as u8);
+    }
+
+    #[test]
+    fn test_form_kin_bond_atomic_failure() {
+        let (mut pool, slots) = setup_pool(2);
+        let parent = slots[0];
+        let child = slots[1];
+        // Fill parent with 8 kin bonds
+        for i in 0..8 {
+            write_rel(&mut pool, parent, i, (200 + i) as u32, 50, BondType::Kin as u8, 1);
+        }
+        pool.rel_count[parent] = 8;
+        assert!(!form_kin_bond(&mut pool, parent, child, 50));
+        assert_eq!(pool.rel_count[child], 0); // child not written either
     }
 
     #[test]
