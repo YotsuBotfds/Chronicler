@@ -229,6 +229,70 @@ pub fn clear_memory_gates(
     }
 }
 
+/// Memory-driven additive modifiers for agent decision utilities.
+#[derive(Debug, Default)]
+pub struct MemoryUtilityModifiers {
+    pub rebel: f32,
+    pub migrate: f32,
+    pub switch: f32,
+    pub stay: f32,
+}
+
+/// Compute memory-driven utility modifiers for an agent's decision model.
+/// Each active memory slot contributes additive modifiers based on event type,
+/// intensity, and agent personality/civ context.
+pub fn compute_memory_utility_modifiers(pool: &AgentPool, slot: usize) -> MemoryUtilityModifiers {
+    let mut mods = MemoryUtilityModifiers::default();
+    let count = pool.memory_count[slot] as usize;
+    let boldness = pool.boldness[slot];
+
+    for i in 0..count {
+        let intensity = pool.memory_intensities[slot][i];
+        if intensity == 0 { continue; }
+        let scale = intensity as f32 / 128.0;
+        let abs_scale = scale.abs();
+        let event_type = pool.memory_event_types[slot][i];
+        let source_civ = pool.memory_source_civs[slot][i];
+        let agent_civ = pool.civ_affinities[slot];
+
+        match event_type {
+            0 => { // Famine
+                mods.migrate += agent::FAMINE_MIGRATE_BOOST * abs_scale;
+            }
+            1 => { // Battle
+                if boldness > 0.0 {
+                    mods.stay += agent::BATTLE_BOLD_STAY_BOOST * abs_scale;
+                } else {
+                    mods.migrate += agent::BATTLE_CAUTIOUS_MIGRATE_BOOST * abs_scale;
+                }
+            }
+            2 => { // Conquest
+                if source_civ == agent_civ {
+                    mods.stay += agent::CONQUEST_CONQUEROR_STAY_BOOST * abs_scale;
+                } else {
+                    mods.migrate += agent::CONQUEST_CONQUERED_MIGRATE_BOOST * abs_scale;
+                }
+            }
+            3 => { // Persecution
+                mods.rebel += agent::PERSECUTION_REBEL_BOOST_MEMORY * abs_scale;
+                mods.migrate += agent::PERSECUTION_MIGRATE_BOOST_MEMORY * abs_scale;
+            }
+            5 => { // Prosperity
+                mods.migrate -= agent::PROSPERITY_MIGRATE_PENALTY * abs_scale;
+                mods.switch -= agent::PROSPERITY_SWITCH_PENALTY * abs_scale;
+            }
+            6 => { // Victory
+                mods.stay += agent::VICTORY_STAY_BOOST * abs_scale;
+            }
+            9 => { // DeathOfKin
+                mods.migrate -= agent::DEATHOFKIN_MIGRATE_PENALTY * abs_scale;
+            }
+            _ => {}
+        }
+    }
+    mods
+}
+
 /// Compute memory satisfaction score for an agent.
 /// Sum of all active intensities, scaled and weighted.
 pub fn compute_memory_satisfaction_score(pool: &AgentPool, slot: usize) -> f32 {
