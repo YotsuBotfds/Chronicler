@@ -1,6 +1,6 @@
 # M48: Agent Memory — Design Spec
 
-> **Status:** Approved. Phoebe review complete (8 section reviews, all blocking items resolved).
+> **Status:** Approved. Phoebe design review (8 sections) + spec review (4 blocking items fixed, 12 observations noted).
 >
 > **Phase 7 Depth Track.** First milestone after M47. Depends on: M47 tuning pass (Phase 6 baseline).
 >
@@ -50,8 +50,8 @@ memory_count: Vec<u8>,                 // 1 byte/agent — 0-8 occupied slots
 
 ### Lifecycle
 
-- **`spawn()`:** Zero-initialize all memory fields. `memory_count = 0`. `memory_gates = 0`.
-- **`kill()`:** No explicit cleanup. Dead agent's memory is ignored. Slot reuse via free-list zero-initializes on next spawn (verify free-list reuse path zeroes these fields in `pool.rs`).
+- **`spawn()`:** Explicitly zero-initialize all 7 memory SoA fields. `memory_count = 0`. `memory_gates = 0`. All slot arrays zeroed. Both the free-list reuse branch AND the grow branch in `pool.rs` must set these fields — the existing spawn code does field-by-field assignment (lines 114-142), not bulk zeroing.
+- **`kill()`:** No explicit cleanup. Dead agent's memory is ignored. The next `spawn()` into that slot will explicitly zero-initialize.
 
 ---
 
@@ -266,10 +266,12 @@ All Rust-side. Gate checks happen at write time (not collection time) to keep pa
 | Signal | RegionState Field | Python Source | Intent |
 |---|---|---|---|
 | `controller_changed_this_turn` | `bool` | `_resolve_war_action()` in `action_engine.py` | Conquest — all agents in region |
-| `war_won_this_turn` | `bool` | `_resolve_war_action()` in `action_engine.py` | Victory — soldiers in region |
+| `war_won_this_turn` | `bool` | `_resolve_war_action()` in `action_engine.py` | Victory — soldiers in winning civ's contested regions |
 | `seceded_this_turn` | `bool` | `check_secession()` in `politics.py` | Secession — all agents in region |
 
 **Clear site (all three):** `simulation.py` before bridge tick. Same pattern as `conquered_this_turn`.
+
+**Signal architecture note:** The existing `conquered_this_turn` is per-CIV (a `set[int]` on WorldState). These three M48 signals are per-REGION (boolean on `Region` objects). Different granularity — M48 needs to know which specific regions changed, not just which civs were conquered. Implementation: in `_resolve_war_action()`, when `region.controller = attacker.name` is set for a conquered region, also set `region.controller_changed_this_turn = True` on that region. For `war_won_this_turn`, set on the contested/target regions where the winning civ's soldiers are present (not all winner regions — only regions involved in the war action).
 
 **Scope:** `controller_changed_this_turn` fires for **WAR conquest only**, not EXPAND or peaceful transfers. Matches existing `conquered_this_turn` semantics (CLAUDE.md: "conquered_this_turn fires for WAR conquest only, not EXPAND").
 
@@ -400,7 +402,7 @@ M48 implements the query. M50 wires it during bond formation checks. **No M48 be
 
 When `_process_promotions` creates a new GreatPerson, roll against `MULE_PROMOTION_PROBABILITY` `[CALIBRATE]` (target: 5-10%).
 
-**RNG:** Python-side `random.Random(world.seed + world.turn + agent_id + 7919)`. Not Rust STREAM_OFFSETS (promotion runs Python-side). Salt 7919 is prime, no collision with existing Python-side RNG salts.
+**RNG:** Python-side `random.Random(world.seed + world.turn * 7919 + agent_id)`. Not Rust STREAM_OFFSETS (promotion runs Python-side). Multiplicative salt separation (turn × 7919) avoids correlation with the existing name-pick RNG at `agent_bridge.py:563` which uses `random.Random(world.seed + world.turn + agent_id)`. Cross-agent/cross-turn seed collisions are accepted (deterministic but correlated — same pattern as existing Python RNG usage).
 
 ### On Mule Promotion
 
@@ -444,7 +446,7 @@ def get_mule_factor(gp: GreatPerson, action: ActionType, current_turn: int) -> f
 
 ### Action Engine Integration
 
-**Insertion point:** After aggression bias (line ~841), before streak-breaker (line ~843) in `_compute_weights()`.
+**Insertion point:** In `_compute_weights()`, AFTER all existing weight modifiers (including K_AGGRESSION_BIAS) and BEFORE the streak-breaker check and 2.5x proportional rescale cap. Execution order: ...aggression bias → **Mule loop** → streak-breaker → 2.5x cap.
 
 ```python
 # After K_AGGRESSION_BIAS application:
@@ -721,3 +723,22 @@ The following Phase 7 roadmap text is superseded by this spec:
 | LEGACY "permanent" | → 100t half-life (Section 3, Phoebe B-2) |
 
 Update `chronicler-phase7-roadmap.md` M48 section to reference this spec after implementation begins.
+
+---
+
+## 11. Spec Review Notes
+
+Observations from Phoebe spec review (non-blocking, documented for implementer awareness):
+
+| # | Note | Action |
+|---|------|--------|
+| O-1 | Decay i16 intermediate: negative bound is -128 × 255 = -32,640, also within i16 range (-32,768). Both positive and negative bounds are safe. | Document both bounds in implementation comments. |
+| O-2 | `life_events: u8` has only 1 bit remaining (bits 0-6 used). M48 does not need new bits (uses `memory_gates`), but Phase 7 milestones may. Proactive expansion to u16 is a candidate for M48 or earliest milestone that needs a new bit. | Flag in implementation plan. |
+| O-3 | `agents_share_memory()` turn tolerance: u16 boundary at turn 0 checking turn-1 would underflow. Use `turn.abs_diff(other_turn) <= 1`. | Implement with `abs_diff`. |
+| O-4 | Positive memory healing loop: uncapped positive memory score + satisfaction-fertility coupling could create demographic advantage for prosperous agents. | Add to M53 calibration targets. |
+| O-5 | `MEMORY_SATISFACTION_WEIGHT` 0.10-0.15 range: primary calibration concern is interaction with remaining cap budget, not the weight in isolation. | Note in M53 calibration plan. |
+| O-6 | DEATH_OF_KIN intent collection: intents collected DURING demographics (using pre-death reverse index), processed in consolidated write pass AFTER demographics completes. Two-step nature must be explicit in implementation. | Clarify in implementation plan. |
+| O-7 | `war_won_this_turn`: flag set on contested/target regions where the war was fought (winner's soldiers present), not all winner regions globally. | Specified in Section 4 signal table. |
+| O-9 | Consolidated write pass: must be the absolute last operation in `tick_agents()`, after displacement decrement, after conversion tick — after everything. | Verify in implementation. |
+| O-11 | 200-seed regression deferred to M53 per spec. A 20-seed smoke test (no crashes, satisfaction distribution not degenerate) is valuable even before calibration. | Consider adding to integration test suite. |
+| O-12 | `--agents=shadow` mode: memory writes are part of agent-side computation only. Shadow comparison metrics referencing satisfaction should account for the memory term difference between aggregate and agent paths. | Document in shadow mode notes. |
