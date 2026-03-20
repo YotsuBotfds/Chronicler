@@ -3,6 +3,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
 from chronicler.action_engine import ActionEngine
+from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR
 
 
 @pytest.fixture
@@ -88,7 +89,10 @@ class TestPersonalityWeights:
 
 class TestSituationalOverrides:
     def test_low_stability_boosts_diplomacy(self, engine_world):
+        # M47d: Use cautious leader — aggressive trait overwhelms situational signal with smooth damper.
+        # Test intent: low stability triggers DIPLOMACY * 3.0 boost that wins over WAR for a non-aggressive leader.
         civ = engine_world.civilizations[0]
+        civ.leader.trait = "cautious"
         civ.stability = 20
         w = ActionEngine(engine_world).compute_weights(civ)
         assert w[ActionType.DIPLOMACY] > w[ActionType.WAR]
@@ -164,3 +168,57 @@ class TestRivalryBoost:
         civ.leader.rival_civ = None
         w_without = ActionEngine(engine_world).compute_weights(civ)
         assert w_with[ActionType.WAR] > w_without[ActionType.WAR]
+
+
+class TestWarDamper:
+    """M47d: Smooth WAR damper replaces binary cliff."""
+
+    def test_high_stability_no_penalty(self, engine_world):
+        """Stability >= threshold: WAR weight unchanged."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.WAR] > 0
+
+    def test_mid_stability_partial_damper(self, engine_world):
+        """Stability at half threshold: WAR weight halved relative to undampened."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 15
+        engine = ActionEngine(engine_world)
+        weights_low = engine.compute_weights(civ)
+
+        civ.stability = 60
+        weights_high = engine.compute_weights(civ)
+
+        ratio = weights_low[ActionType.WAR] / weights_high[ActionType.WAR]
+        assert 0.45 <= ratio <= 0.55, f"Expected ~0.5 ratio, got {ratio}"
+
+    def test_zero_stability_uses_floor(self, engine_world):
+        """Stability 0: WAR weight at floor, not zero."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.WAR] > 0, "WAR should not be zero at stability 0"
+
+    def test_damper_does_not_amplify(self, engine_world):
+        """Stability above threshold should NOT boost WAR weight."""
+        civ = engine_world.civilizations[0]
+        engine = ActionEngine(engine_world)
+
+        civ.stability = 30
+        weights_at_threshold = engine.compute_weights(civ)
+
+        civ.stability = 90
+        weights_above = engine.compute_weights(civ)
+
+        assert abs(weights_at_threshold[ActionType.WAR] - weights_above[ActionType.WAR]) < 0.001
+
+    def test_diplomacy_boost_unchanged(self, engine_world):
+        """DIPLOMACY *= 3.0 still fires at stability <= 20."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 15
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.DIPLOMACY] > weights[ActionType.DEVELOP]

@@ -26,6 +26,7 @@ from chronicler.tuning import (
     K_POWER_STRUGGLE_FACTOR, K_SECONDARY_TRAIT_BOOST,
     K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
     K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
+    K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR,
     get_override,
 )
 from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
@@ -861,9 +862,14 @@ class ActionEngine:
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
+        # M47d: Smooth WAR damper — linear ramp from floor to 1.0
+        # Replaces binary cliff. DIPLOMACY boost stays as binary (qualitative regime change).
+        threshold = get_override(self.world, K_WAR_DAMPER_THRESHOLD, 30.0)
+        floor = get_override(self.world, K_WAR_DAMPER_FLOOR, 0.05)
+        war_damper = max(min(civ.stability / threshold, 1.0), floor)
+        weights[ActionType.WAR] *= war_damper
         if civ.stability <= 20:
             weights[ActionType.DIPLOMACY] *= 3.0
-            weights[ActionType.WAR] *= 0.1
         has_hostile = False
         if civ.name in self.world.relationships:
             for rel in self.world.relationships[civ.name].values():
