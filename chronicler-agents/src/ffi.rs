@@ -823,6 +823,113 @@ impl AgentSimulator {
         self.social_graph.replace(edges);
         Ok(())
     }
+
+    /// M50a: Apply batched relationship operations from an Arrow RecordBatch.
+    /// Columns: op_type(u8), agent_a(u32), agent_b(u32), bond_type(u8), sentiment(i8), formed_turn(u16)
+    /// op_type: 0=UpsertDirected, 1=UpsertSymmetric, 2=RemoveDirected, 3=RemoveSymmetric
+    pub fn apply_relationship_ops(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        let n = rb.num_rows();
+
+        macro_rules! named_col {
+            ($name:expr, $ty:ty) => {
+                rb.column_by_name($name)
+                    .and_then(|c| c.as_any().downcast_ref::<$ty>())
+                    .ok_or_else(|| PyValueError::new_err(concat!("missing or wrong type: ", $name)))?
+            };
+        }
+
+        let op_type_col = named_col!("op_type", arrow::array::UInt8Array);
+        let agent_a_col = named_col!("agent_a", arrow::array::UInt32Array);
+        let agent_b_col = named_col!("agent_b", arrow::array::UInt32Array);
+        let bond_type_col = named_col!("bond_type", arrow::array::UInt8Array);
+        let sentiment_col = named_col!("sentiment", arrow::array::Int8Array);
+        let formed_turn_col = named_col!("formed_turn", arrow::array::UInt16Array);
+
+        for i in 0..n {
+            let op = op_type_col.value(i);
+            let id_a = agent_a_col.value(i);
+            let id_b = agent_b_col.value(i);
+            let bt_raw = bond_type_col.value(i);
+            let sentiment = sentiment_col.value(i);
+            let formed_turn = formed_turn_col.value(i);
+
+            let bt = match crate::relationships::BondType::from_u8(bt_raw) {
+                Some(b) => b,
+                None => continue, // skip unknown bond type
+            };
+            let _ = bt; // validate only; we pass bt_raw to the helpers
+
+            match op {
+                0 => {
+                    // UpsertDirected: src and dst must be alive
+                    let slot_a = match self.pool.find_slot_by_id(id_a) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    if self.pool.find_slot_by_id(id_b).is_none() {
+                        continue; // dst must be alive
+                    }
+                    crate::relationships::upsert_directed(
+                        &mut self.pool, slot_a, id_b, bt_raw, sentiment, formed_turn,
+                    );
+                }
+                1 => {
+                    // UpsertSymmetric: both alive, reject asymmetric types
+                    if crate::relationships::is_asymmetric(bt_raw) {
+                        continue; // Mentor is asymmetric, cannot upsert symmetrically
+                    }
+                    let slot_a = match self.pool.find_slot_by_id(id_a) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    let slot_b = match self.pool.find_slot_by_id(id_b) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    crate::relationships::upsert_symmetric(
+                        &mut self.pool, slot_a, slot_b, bt_raw, sentiment, formed_turn,
+                    );
+                }
+                2 => {
+                    // RemoveDirected: source must be alive, target may be dead
+                    let slot_a = match self.pool.find_slot_by_id(id_a) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    crate::relationships::remove_directed(&mut self.pool, slot_a, id_b, bt_raw);
+                }
+                3 => {
+                    // RemoveSymmetric: remove whatever side still exists
+                    if let Some(slot_a) = self.pool.find_slot_by_id(id_a) {
+                        if self.pool.alive[slot_a] {
+                            crate::relationships::remove_directed(&mut self.pool, slot_a, id_b, bt_raw);
+                        }
+                    }
+                    if let Some(slot_b) = self.pool.find_slot_by_id(id_b) {
+                        if self.pool.alive[slot_b] {
+                            crate::relationships::remove_directed(&mut self.pool, slot_b, id_a, bt_raw);
+                        }
+                    }
+                }
+                _ => continue, // unknown op type
+            }
+        }
+        Ok(())
+    }
+
+    /// M50a: Return all relationship slots for one agent.
+    /// Returns Vec<(target_id, sentiment, bond_type, formed_turn)> or None if not found/dead.
+    fn get_agent_relationships(&self, agent_id: u32) -> Option<Vec<(u32, i8, u8, u16)>> {
+        let slot = self.pool.find_slot_by_id(agent_id)?;
+        if !self.pool.alive[slot] { return None; }
+        let count = self.pool.rel_count[slot] as usize;
+        let mut result = Vec::with_capacity(count);
+        for i in 0..count {
+            result.push(crate::relationships::read_rel(&self.pool, slot, i));
+        }
+        Some(result)
+    }
 }
 
 // ---------------------------------------------------------------------------
