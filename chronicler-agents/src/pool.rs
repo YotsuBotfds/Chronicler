@@ -49,6 +49,14 @@ pub struct AgentPool {
     pub parent_ids: Vec<u32>,
     // Wealth (M41) — personal economic accumulation
     pub wealth: Vec<f32>,
+    // M48: Memory ring buffer (8 slots per agent)
+    pub memory_event_types: Vec<[u8; 8]>,
+    pub memory_source_civs: Vec<[u8; 8]>,
+    pub memory_turns: Vec<[u16; 8]>,
+    pub memory_intensities: Vec<[i8; 8]>,
+    pub memory_decay_factors: Vec<[u8; 8]>,
+    pub memory_gates: Vec<u8>,
+    pub memory_count: Vec<u8>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -85,6 +93,13 @@ impl AgentPool {
             beliefs: Vec::with_capacity(capacity),
             parent_ids: Vec::with_capacity(capacity),
             wealth: Vec::with_capacity(capacity),
+            memory_event_types: Vec::with_capacity(capacity),
+            memory_source_civs: Vec::with_capacity(capacity),
+            memory_turns: Vec::with_capacity(capacity),
+            memory_intensities: Vec::with_capacity(capacity),
+            memory_decay_factors: Vec::with_capacity(capacity),
+            memory_gates: Vec::with_capacity(capacity),
+            memory_count: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -137,6 +152,13 @@ impl AgentPool {
             self.beliefs[slot] = belief;
             self.parent_ids[slot] = crate::agent::PARENT_NONE;
             self.wealth[slot] = crate::agent::STARTING_WEALTH;
+            self.memory_event_types[slot] = [0; 8];
+            self.memory_source_civs[slot] = [0; 8];
+            self.memory_turns[slot] = [0; 8];
+            self.memory_intensities[slot] = [0; 8];
+            self.memory_decay_factors[slot] = [0; 8];
+            self.memory_gates[slot] = 0;
+            self.memory_count[slot] = 0;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -166,6 +188,13 @@ impl AgentPool {
             self.beliefs.push(belief);
             self.parent_ids.push(crate::agent::PARENT_NONE);
             self.wealth.push(crate::agent::STARTING_WEALTH);
+            self.memory_event_types.push([0; 8]);
+            self.memory_source_civs.push([0; 8]);
+            self.memory_turns.push([0; 8]);
+            self.memory_intensities.push([0; 8]);
+            self.memory_decay_factors.push([0; 8]);
+            self.memory_gates.push(0);
+            self.memory_count.push(0);
             self.alive.push(true);
             self.count += 1;
             slot
