@@ -167,30 +167,32 @@ Maps `throne_name → count of rulers who held that throne name` for this civ. U
 
 ### 3.3 Name Function Split
 
-`_pick_name()` in `leaders.py` (line 154) is shared across GPs, hostages, agent promotions, and rulers. M51 **does not modify `_pick_name()`**. Instead:
+`_pick_name()` in `leaders.py` (line 154) is shared across GPs, hostages, agent promotions, and rulers. It appends to `world.used_leader_names` on every call. M51 **does not modify `_pick_name()` or `world.used_leader_names`** — non-ruler callers (GPs in `great_persons.py:156`, hostages in `relationships.py:335`, agent promotions in `agent_bridge.py:630`) continue to use `_pick_name()` with the global uniqueness list unchanged.
 
-**New function:** `_pick_regnal_name(civ, world, rng) -> tuple[str, str, int]` — returns `(title, throne_name, ordinal)`. Used only for ruler succession.
+**New function:** `_pick_regnal_name(civ, world, rng) -> tuple[str, str, int]` — returns `(title, throne_name, ordinal)`. Used only for ruler succession. Completely independent of `_pick_name()` and `world.used_leader_names`.
 
 - **Per-civ scoping:** Allow intra-civ reuse of throne names (necessary for numbering to fire). Cross-civ collision avoidance handled by checking other civs' current ruler throne names (lightweight, not the full `used_leader_names` machinery).
+- **Name pool source:** Draws from the same `CULTURAL_NAME_POOLS` as `_pick_name()`, but selects base names only (no title prepended during selection). Title chosen separately from `TITLES` list.
 - **Ordinal computation:** After selecting a throne name, check `civ.regnal_name_counts.get(throne_name, 0)`. If > 0, ordinal = count + 1. If 0, ordinal = 0 (first holder). Increment the counter.
 - **Display name composition:** `f"{title} {throne_name}"` if ordinal == 0, else `f"{title} {throne_name} {to_roman(ordinal)}"`.
-- Draws from the same cultural name pools as `_pick_name()` but without the global `used_leader_names` gate.
+- **Does not append to `world.used_leader_names`.** Ruler names and non-ruler character names occupy separate namespaces. A GP named "Kiran" and a ruler with throne_name "Kiran" can coexist.
 
 **`to_roman(n: int) -> str`** — trivial helper, handles 1-20 range (sufficient for any realistic game).
 
-**`world.used_leader_names`:** Removed from normal successor name selection. Retained only for founding and secession leader generation (cross-civ collision avoidance where regnal numbering doesn't apply).
+**Interaction between the two registries:** `_pick_name()` continues to use `world.used_leader_names` for global uniqueness across GPs, hostages, and promotions. `_pick_regnal_name()` uses `civ.regnal_name_counts` for per-civ ordinal tracking. The two registries are independent — a name used by a GP does not affect regnal numbering, and a throne name does not affect GP name availability.
 
 ### 3.4 GP Ascension & Regnal Names
 
 When a GP wins succession in `resolve_crisis_with_factions()` (factions.py line 596), the current code copies `gp_name` as-is to `new_leader.name`. M51 changes this:
 
-1. Extract the base name from the GP (strip any existing title prefix — split on first space, take the last part).
+1. **Extract the base name from the GP** using the known `TITLES` list (leaders.py:100-104). Strip any matching title prefix: iterate `TITLES`, check if `gp_name.startswith(title + " ")`, and if so, take the remainder. This handles multi-word titles like `"High Priestess"` correctly. If no title prefix matches (e.g., fallback names or untitled GPs), use the full `gp_name` as the base name.
 2. Use the base name as `throne_name`.
-3. Compute `regnal_ordinal` from `civ.regnal_name_counts`.
-4. Compose display name: `f"{title} {throne_name}"` or `f"{title} {throne_name} {to_roman(ordinal)}"`.
-5. Set `new_leader.throne_name`, `new_leader.regnal_ordinal`, `new_leader.agent_id`, `new_leader.dynasty_id`.
+3. Pick a new title from `TITLES` for the ruler (may differ from any title the GP held as a character — ascending to rule often changes the title).
+4. Compute `regnal_ordinal` from `civ.regnal_name_counts`.
+5. Compose display name: `f"{title} {throne_name}"` if ordinal == 0, else `f"{title} {throne_name} {to_roman(ordinal)}"`.
+6. Set `new_leader.throne_name`, `new_leader.regnal_ordinal`, `new_leader.agent_id`, `new_leader.dynasty_id`.
 
-The GP's personal name becomes their throne name, numbered in the civ's regnal sequence.
+The GP's personal base name becomes their throne name, numbered in the civ's regnal sequence. Title stripping uses the authoritative `TITLES` list, not string splitting — this handles "High Priestess Mira" → base name "Mira", "Chancellor Vesh" → "Vesh", and untitled "Kiran III" → "Kiran III" (the crude old numbering, if present, would be stripped to just "Kiran" by also checking for trailing Roman numeral patterns).
 
 ### 3.5 Ruler Creation Sites
 
@@ -201,6 +203,7 @@ All sites that create a ruler must initialize regnal metadata:
 | Founding rulers | `world_gen.py` | worldgen loop | Use `_pick_regnal_name()`, seed `regnal_name_counts[throne_name] = 1` |
 | Normal succession | `leaders.py` `generate_successor()` | ~189 | Use `_pick_regnal_name()` instead of `_pick_name()` |
 | Faction succession | `factions.py` `resolve_crisis_with_factions()` | ~582 | `_pick_regnal_name()` for non-GP winners; GP path per Section 3.4 |
+| Secession leader | `politics.py` `check_secession()` | ~241 | Direct `Leader(...)` construction — add `throne_name`, `regnal_ordinal`, seed `regnal_name_counts` on the new breakaway civ. Currently draws from `civ.leader_name_pool` with `used_leader_names` check; replace with `_pick_regnal_name()` for the breakaway civ |
 | Restored civ creation | `politics.py` | ~1001 | Use `_pick_regnal_name()`, seed counter |
 | Exile restoration | `succession.py` | ~298 | Use `_pick_regnal_name()`, seed counter |
 | Scenario overrides | `scenario.py` | ~534 | Currently mutates `used_leader_names` directly; also seed `regnal_name_counts` |
@@ -353,8 +356,8 @@ Gives the narrator material for lines like "Kiran, who still carried his grandfa
 - Lineage bridge in `resolve_crisis_with_factions()` GP winner block
 - GP ascension regnal name recomputation (not raw gp_name copy)
 - Succession event legitimacy phrasing
-- Regnal counter seeding at all 6 ruler creation sites
-- `world.used_leader_names` restricted to founding/secession only
+- Regnal counter seeding at all 7 ruler creation sites
+- GP title stripping via `TITLES` list (handles multi-word titles like "High Priestess")
 
 ### 6.2 Not In Scope
 
@@ -367,7 +370,7 @@ Gives the narrator material for lines like "Kiran, who still carried his grandfa
 - Legacy memory protection windows or reserved slots
 - Probabilistic legacy transfer (deterministic only)
 - Changes to `resolve_crisis()` in succession.py (legacy path)
-- Changes to `_pick_name()` (shared character-name helper, untouched)
+- Changes to `_pick_name()` or `world.used_leader_names` (shared character-name helper and registry, untouched — non-ruler callers in great_persons.py, relationships.py, agent_bridge.py continue unchanged)
 
 ---
 
