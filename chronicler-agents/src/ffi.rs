@@ -716,18 +716,48 @@ impl AgentSimulator {
     }
 
     /// Return current social graph edges as an Arrow RecordBatch.
+    /// Projects from the per-agent SoA relationship store (M50a) instead of the
+    /// old SocialGraph.  Same schema: [agent_a: u32, agent_b: u32, relationship: u8,
+    /// formed_turn: u16].  Only named-character bonds with bond_type 0-4 (M40-compatible).
     pub fn get_social_edges(&self) -> PyResult<PyRecordBatch> {
-        let n = self.social_graph.edge_count();
-        let mut agent_a_col = UInt32Builder::with_capacity(n);
-        let mut agent_b_col = UInt32Builder::with_capacity(n);
-        let mut rel_col = UInt8Builder::with_capacity(n);
-        let mut formed_col = UInt16Builder::with_capacity(n);
+        // Collect named character agent IDs for fast membership check
+        let named_ids: std::collections::HashSet<u32> = self.registry.characters.iter()
+            .map(|c| c.agent_id).collect();
 
-        for edge in &self.social_graph.edges {
-            agent_a_col.append_value(edge.agent_a);
-            agent_b_col.append_value(edge.agent_b);
-            rel_col.append_value(edge.relationship as u8);
-            formed_col.append_value(edge.formed_turn);
+        let mut agent_a_col = UInt32Builder::new();
+        let mut agent_b_col = UInt32Builder::new();
+        let mut rel_col = UInt8Builder::new();
+        let mut formed_col = UInt16Builder::new();
+
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.alive[slot] { continue; }
+            let agent_id = self.pool.ids[slot];
+            if !named_ids.contains(&agent_id) { continue; }
+
+            let count = self.pool.rel_count[slot] as usize;
+            for i in 0..count {
+                let bt = self.pool.rel_bond_types[slot][i];
+                // Only project M40-compatible types (0-4)
+                if bt > 4 { continue; }
+
+                let target_id = self.pool.rel_target_ids[slot][i];
+
+                if crate::relationships::is_asymmetric(bt) {
+                    // Mentor: emit from mentor side (this slot = mentor, target = apprentice)
+                    agent_a_col.append_value(agent_id);
+                    agent_b_col.append_value(target_id);
+                    rel_col.append_value(bt);
+                    formed_col.append_value(self.pool.rel_formed_turns[slot][i]);
+                } else {
+                    // Symmetric: emit only from the lower-id side to avoid duplicates
+                    if agent_id < target_id {
+                        agent_a_col.append_value(agent_id);
+                        agent_b_col.append_value(target_id);
+                        rel_col.append_value(bt);
+                        formed_col.append_value(self.pool.rel_formed_turns[slot][i]);
+                    }
+                }
+            }
         }
 
         let batch = RecordBatch::try_new(
