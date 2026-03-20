@@ -110,9 +110,9 @@ pub fn clamp_needs(pool: &mut AgentPool, alive_slots: &[usize]) {
 // Social restoration proxy
 // ---------------------------------------------------------------------------
 
-/// Pre-M50 proxy — replace with relationship count when M50 lands.
+/// Population-based social restoration proxy (pre-M50 baseline).
 /// Uses population/capacity ratio, occupation modifier, and age modifier.
-fn social_restoration(pool: &AgentPool, slot: usize, region: &RegionState) -> f32 {
+fn social_restoration_proxy(pool: &AgentPool, slot: usize, region: &RegionState) -> f32 {
     // Population ratio — guard for capacity == 0
     let pop_ratio = if region.carrying_capacity > 0 {
         (region.population as f32 / region.carrying_capacity as f32).min(1.0)
@@ -142,6 +142,35 @@ fn social_restoration(pool: &AgentPool, slot: usize, region: &RegionState) -> f3
 
     let deficit = 1.0 - pool.need_social[slot];
     base_rate * occ_mult * age_mult * deficit
+}
+
+/// Social restoration with M50b blend: pop proxy + bond factor.
+/// At alpha=0.0 (default), this is a pure proxy — bond scan skipped entirely.
+fn social_restoration(pool: &AgentPool, slot: usize, region: &RegionState) -> f32 {
+    let alpha = agent::SOCIAL_BLEND_ALPHA;
+
+    // Fast path: alpha == 0 → pure proxy, skip bond scan
+    if alpha == 0.0 {
+        return social_restoration_proxy(pool, slot, region);
+    }
+
+    let proxy = social_restoration_proxy(pool, slot, region);
+
+    // Bond factor: count positive-valence bonds with positive sentiment
+    let mut positive_count = 0u32;
+    for i in 0..pool.rel_count[slot] as usize {
+        if crate::relationships::is_positive_valence(pool.rel_bond_types[slot][i])
+            && pool.rel_sentiments[slot][i] > 0
+        {
+            positive_count += 1;
+        }
+    }
+    let deficit = 1.0 - pool.need_social[slot];
+    let bond_factor = agent::SOCIAL_RESTORE_BOND
+        * (positive_count as f32 / agent::SOCIAL_BOND_TARGET).min(1.0)
+        * deficit;
+
+    (1.0 - alpha) * proxy + alpha * bond_factor
 }
 
 // ---------------------------------------------------------------------------
@@ -483,6 +512,88 @@ mod tests {
             (after - before).abs() < 0.001,
             "Autonomy should NOT change with displacement: before={}, after={}",
             before, after
+        );
+    }
+
+    #[test]
+    fn test_social_restoration_alpha_zero_unchanged() {
+        // At alpha=0.0, result should be identical whether agent has bonds or not
+        use crate::relationships::BondType;
+
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.need_social[slot] = 0.3;
+
+        let region = make_region(0);
+
+        // Compute without bonds
+        let result_no_bonds = social_restoration(&pool, slot, &region);
+
+        // Add 3 positive bonds with positive sentiment
+        pool.rel_bond_types[slot][0] = BondType::Friend as u8;
+        pool.rel_sentiments[slot][0] = 50;
+        pool.rel_bond_types[slot][1] = BondType::Kin as u8;
+        pool.rel_sentiments[slot][1] = 80;
+        pool.rel_bond_types[slot][2] = BondType::Mentor as u8;
+        pool.rel_sentiments[slot][2] = 30;
+        pool.rel_count[slot] = 3;
+
+        // Compute with bonds (alpha is 0.0, so should be identical)
+        let result_with_bonds = social_restoration(&pool, slot, &region);
+
+        assert!(
+            (result_no_bonds - result_with_bonds).abs() < f32::EPSILON,
+            "At alpha=0.0, bonds should not affect result: no_bonds={}, with_bonds={}",
+            result_no_bonds, result_with_bonds
+        );
+        // Sanity: result should be positive (pop ratio 30/60 = 0.5, above threshold 0.3)
+        assert!(
+            result_no_bonds > 0.0,
+            "Expected positive restoration, got {}",
+            result_no_bonds
+        );
+    }
+
+    #[test]
+    fn test_social_restoration_proxy_matches_original() {
+        // Verify social_restoration_proxy produces the expected value
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 40, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.need_social[slot] = 0.4;
+
+        let region = make_region(0);
+
+        let result = social_restoration_proxy(&pool, slot, &region);
+
+        // pop_ratio = 30/60 = 0.5, base_rate = 0.010 * 0.5 = 0.005
+        // occ_mult = 1.0 (Farmer), age_mult = min(40/40, 1.0) = 1.0
+        // deficit = 1.0 - 0.4 = 0.6
+        // expected = 0.005 * 1.0 * 1.0 * 0.6 = 0.003
+        let expected = 0.003;
+        assert!(
+            (result - expected).abs() < 0.0001,
+            "Expected ~{}, got {}",
+            expected, result
+        );
+    }
+
+    #[test]
+    fn test_social_restoration_below_pop_threshold() {
+        // Below population threshold → 0.0
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.need_social[slot] = 0.3;
+
+        let mut region = make_region(0);
+        region.population = 10;
+        region.carrying_capacity = 100;
+        // pop_ratio = 10/100 = 0.1, below SOCIAL_RESTORE_POP_THRESHOLD (0.3)
+
+        let result = social_restoration(&pool, slot, &region);
+        assert!(
+            result == 0.0,
+            "Below pop threshold should return 0.0, got {}",
+            result
         );
     }
 
