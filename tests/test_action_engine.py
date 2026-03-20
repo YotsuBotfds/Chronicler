@@ -3,6 +3,7 @@ from chronicler.models import (
     ActionType, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
 from chronicler.action_engine import ActionEngine
+from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR
 
 
 @pytest.fixture
@@ -88,7 +89,10 @@ class TestPersonalityWeights:
 
 class TestSituationalOverrides:
     def test_low_stability_boosts_diplomacy(self, engine_world):
+        # M47d: Use cautious leader — aggressive trait overwhelms situational signal with smooth damper.
+        # Test intent: low stability triggers DIPLOMACY * 3.0 boost that wins over WAR for a non-aggressive leader.
         civ = engine_world.civilizations[0]
+        civ.leader.trait = "cautious"
         civ.stability = 20
         w = ActionEngine(engine_world).compute_weights(civ)
         assert w[ActionType.DIPLOMACY] > w[ActionType.WAR]
@@ -164,3 +168,199 @@ class TestRivalryBoost:
         civ.leader.rival_civ = None
         w_without = ActionEngine(engine_world).compute_weights(civ)
         assert w_with[ActionType.WAR] > w_without[ActionType.WAR]
+
+
+class TestWarDamper:
+    """M47d: Smooth WAR damper replaces binary cliff."""
+
+    def test_high_stability_no_penalty(self, engine_world):
+        """Stability >= threshold: WAR weight unchanged."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.WAR] > 0
+
+    def test_mid_stability_partial_damper(self, engine_world):
+        """Stability at half threshold: WAR weight halved relative to undampened."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 15
+        engine = ActionEngine(engine_world)
+        weights_low = engine.compute_weights(civ)
+
+        civ.stability = 60
+        weights_high = engine.compute_weights(civ)
+
+        ratio = weights_low[ActionType.WAR] / weights_high[ActionType.WAR]
+        assert 0.45 <= ratio <= 0.55, f"Expected ~0.5 ratio, got {ratio}"
+
+    def test_zero_stability_uses_floor(self, engine_world):
+        """Stability 0: WAR weight at floor, not zero."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.WAR] > 0, "WAR should not be zero at stability 0"
+
+    def test_damper_does_not_amplify(self, engine_world):
+        """Stability above threshold should NOT boost WAR weight."""
+        civ = engine_world.civilizations[0]
+        engine = ActionEngine(engine_world)
+
+        civ.stability = 30
+        weights_at_threshold = engine.compute_weights(civ)
+
+        civ.stability = 90
+        weights_above = engine.compute_weights(civ)
+
+        assert abs(weights_at_threshold[ActionType.WAR] - weights_above[ActionType.WAR]) < 0.001
+
+    def test_diplomacy_boost_unchanged(self, engine_world):
+        """DIPLOMACY *= 3.0 still fires at stability <= 20."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 15
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.DIPLOMACY] > weights[ActionType.DEVELOP]
+
+
+class TestWarWeariness:
+    """M47d: War-weariness suppresses WAR weight."""
+
+    def test_zero_weariness_no_penalty(self, engine_world):
+        """No weariness: WAR weight unaffected."""
+        civ = engine_world.civilizations[0]
+        civ.war_weariness = 0.0
+        engine = ActionEngine(engine_world)
+        weights_zero = engine.compute_weights(civ)
+
+        civ.war_weariness = 5.0
+        weights_weary = engine.compute_weights(civ)
+        assert weights_zero[ActionType.WAR] > weights_weary[ActionType.WAR]
+
+    def test_high_weariness_suppresses_war(self, engine_world):
+        """Chronic warmonger weariness (~23): WAR suppressed to ~12%."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+
+        civ.war_weariness = 0.0
+        war_fresh = engine.compute_weights(civ)[ActionType.WAR]
+
+        civ.war_weariness = 23.0
+        war_weary = engine.compute_weights(civ)[ActionType.WAR]
+
+        ratio = war_weary / war_fresh
+        assert 0.08 <= ratio <= 0.15, f"Expected ~0.12 ratio, got {ratio}"
+
+    def test_weariness_does_not_affect_other_actions(self, engine_world):
+        """Weariness only touches WAR, not DEVELOP or TRADE."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+
+        civ.war_weariness = 0.0
+        weights_fresh = engine.compute_weights(civ)
+
+        civ.war_weariness = 10.0
+        weights_weary = engine.compute_weights(civ)
+
+        assert abs(weights_fresh[ActionType.DEVELOP] - weights_weary[ActionType.DEVELOP]) < 0.001
+
+
+class TestPeaceDividend:
+    """M47d: Peace momentum boosts DEVELOP and TRADE weights."""
+
+    def test_zero_momentum_no_bonus(self, engine_world):
+        """No peace momentum: DEVELOP/TRADE unaffected."""
+        civ = engine_world.civilizations[0]
+        # Need NEUTRAL+ for TRADE to be eligible
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        civ.peace_momentum = 0.0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.DEVELOP] > 0
+        assert weights[ActionType.TRADE] > 0
+
+    def test_high_momentum_boosts_develop_trade(self, engine_world):
+        """20 turns of peace: DEVELOP and TRADE get 3x bonus."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        # Need NEUTRAL+ for TRADE to be eligible
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        engine = ActionEngine(engine_world)
+
+        civ.peace_momentum = 0.0
+        develop_base = engine.compute_weights(civ)[ActionType.DEVELOP]
+        trade_base = engine.compute_weights(civ)[ActionType.TRADE]
+
+        civ.peace_momentum = 20.0
+        develop_peace = engine.compute_weights(civ)[ActionType.DEVELOP]
+        trade_peace = engine.compute_weights(civ)[ActionType.TRADE]
+
+        develop_ratio = develop_peace / develop_base
+        trade_ratio = trade_peace / trade_base
+        assert 2.8 <= develop_ratio <= 3.2, f"Expected ~3.0 DEVELOP ratio, got {develop_ratio}"
+        assert 2.8 <= trade_ratio <= 3.2, f"Expected ~3.0 TRADE ratio, got {trade_ratio}"
+
+    def test_momentum_does_not_affect_war(self, engine_world):
+        """Peace momentum only touches DEVELOP/TRADE, not WAR."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+
+        civ.peace_momentum = 0.0
+        war_base = engine.compute_weights(civ)[ActionType.WAR]
+
+        civ.peace_momentum = 20.0
+        war_peace = engine.compute_weights(civ)[ActionType.WAR]
+
+        assert abs(war_base - war_peace) < 0.001
+
+
+class TestWarFrequencyIntegration:
+    """M47d: Verify all three mechanisms work together."""
+
+    def test_combined_suppression(self, engine_world):
+        """Low stability + high weariness + zero momentum = heavily suppressed WAR."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 15
+        civ.war_weariness = 10.0
+        civ.peace_momentum = 0.0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+
+        assert weights[ActionType.WAR] < weights[ActionType.DEVELOP]
+        assert weights[ActionType.WAR] < weights[ActionType.DIPLOMACY]
+
+    def test_peaceful_civ_prefers_develop(self, engine_world):
+        """High stability + zero weariness + high momentum = DEVELOP/TRADE dominant.
+
+        Uses cautious leader — aggressive trait overwhelms peace momentum for WAR-prone civs.
+        NEUTRAL disposition required to make TRADE eligible.
+        Test intent: peace momentum 3x boost wins over WAR for a non-aggressive leader.
+        """
+        civ = engine_world.civilizations[0]
+        civ.leader.trait = "cautious"
+        civ.stability = 50
+        civ.war_weariness = 0.0
+        civ.peace_momentum = 20.0
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+
+        assert weights[ActionType.DEVELOP] > weights[ActionType.WAR]
+        assert weights[ActionType.TRADE] > weights[ActionType.WAR]
+
+    def test_warmonger_still_can_fight(self, engine_world):
+        """Even with high weariness, WAR is not zero — just suppressed."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        civ.war_weariness = 23.0
+        civ.peace_momentum = 0.0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.WAR] > 0, "WAR should never be zero from weariness alone"

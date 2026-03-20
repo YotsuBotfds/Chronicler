@@ -8,6 +8,8 @@ from chronicler.simulation import (
     phase_consequences,
     run_turn,
     apply_asabiya_dynamics,
+    update_war_frequency_accumulators,
+    reset_war_frequency_on_extinction,
 )
 from chronicler.action_engine import resolve_war, resolve_trade
 from chronicler.simulation import apply_injected_event
@@ -20,6 +22,8 @@ from chronicler.models import (
     ActiveCondition,
     TechEra,
     NamedEvent,
+    Leader,
+    Region,
 )
 
 
@@ -496,3 +500,131 @@ class TestApplyInjectedEvent:
         apply_injected_event("drought", civ.name, sample_world)
         # drought handler creates an ActiveCondition
         assert len(sample_world.active_conditions) > old_conditions
+
+
+def _make_world_with_wars():
+    """Create a minimal world for testing weariness/momentum tick."""
+    civ_a = Civilization(
+        name="Civ A", population=50, military=50, economy=50, culture=50,
+        stability=50, tech_era=TechEra.IRON, treasury=150,
+        leader=Leader(name="Vaelith", trait="aggressive", reign_start=0),
+        regions=["Region A"],
+    )
+    civ_b = Civilization(
+        name="Civ B", population=50, military=50, economy=50, culture=50,
+        stability=50, tech_era=TechEra.IRON, treasury=150,
+        leader=Leader(name="Gorath", trait="cautious", reign_start=0),
+        regions=["Region B"],
+    )
+    civ_dead = Civilization(
+        name="Civ Dead", population=0, military=0, economy=0, culture=0,
+        stability=0, tech_era=TechEra.TRIBAL, treasury=0,
+        leader=Leader(name="Ghost", trait="cautious", reign_start=0),
+        regions=[],
+    )
+    world = WorldState(
+        name="Test", seed=42, turn=5,
+        regions=[
+            Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile", controller="Civ A"),
+            Region(name="Region B", terrain="plains", carrying_capacity=80, resources="fertile", controller="Civ B"),
+        ],
+        civilizations=[civ_a, civ_b, civ_dead],
+    )
+    return world
+
+
+class TestWarFrequencyAccumulators:
+    """M47d: Per-turn weariness and momentum update tick."""
+
+    def test_war_action_adds_increment(self):
+        world = _make_world_with_wars()
+        world.action_history = {"Civ A": ["war"], "Civ B": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].war_weariness > 0.0
+        assert world.civilizations[1].war_weariness == 0.0
+
+    def test_weariness_decays(self):
+        world = _make_world_with_wars()
+        world.civilizations[0].war_weariness = 10.0
+        world.action_history = {"Civ A": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].war_weariness < 10.0
+        assert world.civilizations[0].war_weariness == pytest.approx(10.0 * 0.95)
+
+    def test_passive_weariness_from_active_wars(self):
+        world = _make_world_with_wars()
+        world.active_wars = [("Civ A", "Civ B")]
+        world.action_history = {"Civ A": ["develop"], "Civ B": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].war_weariness > 0
+        assert world.civilizations[1].war_weariness > 0
+
+    def test_declaration_turn_double_counting(self):
+        """Civ that declares WAR gets INCREMENT + PASSIVE on same turn (intentional)."""
+        world = _make_world_with_wars()
+        world.action_history = {"Civ A": ["war"]}
+        world.active_wars = [("Civ A", "Civ B")]
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].war_weariness == pytest.approx(1.15)
+
+    def test_peace_momentum_increments(self):
+        world = _make_world_with_wars()
+        world.action_history = {"Civ A": ["develop"], "Civ B": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].peace_momentum == 1.0
+        assert world.civilizations[1].peace_momentum == 1.0
+
+    def test_peace_momentum_caps(self):
+        world = _make_world_with_wars()
+        world.civilizations[0].peace_momentum = 19.5
+        world.action_history = {"Civ A": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].peace_momentum == 20.0
+
+    def test_aggressor_peace_decay(self):
+        world = _make_world_with_wars()
+        world.civilizations[0].peace_momentum = 20.0
+        world.active_wars = [("Civ A", "Civ B")]
+        world.action_history = {"Civ A": ["develop"], "Civ B": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].peace_momentum == pytest.approx(20.0 * 0.3)
+
+    def test_defender_peace_decay(self):
+        world = _make_world_with_wars()
+        world.civilizations[1].peace_momentum = 20.0
+        world.active_wars = [("Civ A", "Civ B")]
+        world.action_history = {"Civ A": ["develop"], "Civ B": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[1].peace_momentum == pytest.approx(20.0 * 0.8)
+
+    def test_dead_civ_skipped(self):
+        world = _make_world_with_wars()
+        world.civilizations[2].war_weariness = 5.0
+        world.civilizations[2].peace_momentum = 10.0
+        world.action_history = {}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[2].war_weariness == 5.0
+        assert world.civilizations[2].peace_momentum == 10.0
+
+
+class TestExtinctionReset:
+    """M47d: Reset weariness/momentum when civ goes extinct."""
+
+    def test_extinction_resets_both_fields(self):
+        world = _make_world_with_wars()
+        civ = world.civilizations[0]
+        civ.war_weariness = 15.0
+        civ.peace_momentum = 10.0
+        civ.regions = []
+        reset_war_frequency_on_extinction(civ)
+        assert civ.war_weariness == 0.0
+        assert civ.peace_momentum == 0.0
+
+    def test_living_civ_not_reset(self):
+        world = _make_world_with_wars()
+        civ = world.civilizations[0]
+        civ.war_weariness = 15.0
+        civ.peace_momentum = 10.0
+        reset_war_frequency_on_extinction(civ)
+        assert civ.war_weariness == 15.0
+        assert civ.peace_momentum == 10.0

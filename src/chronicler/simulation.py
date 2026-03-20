@@ -1187,6 +1187,61 @@ def get_civ_capacities(world: WorldState) -> dict[int, int]:
     }
 
 
+def update_war_frequency_accumulators(world: WorldState) -> None:
+    """M47d: Per-turn update of war_weariness and peace_momentum on each living civ."""
+    from chronicler.tuning import (
+        K_WAR_WEARINESS_DECAY, K_WAR_WEARINESS_INCREMENT,
+        K_WAR_PASSIVE_WEARINESS, K_PEACE_MOMENTUM_BONUS,
+        K_PEACE_MOMENTUM_CAP, K_PEACE_MOMENTUM_WAR_DECAY,
+        K_PEACE_MOMENTUM_DEFENDER_DECAY,
+    )
+
+    decay = get_override(world, K_WAR_WEARINESS_DECAY, 0.95)
+    increment = get_override(world, K_WAR_WEARINESS_INCREMENT, 1.0)
+    passive = get_override(world, K_WAR_PASSIVE_WEARINESS, 0.15)
+    peace_bonus = get_override(world, K_PEACE_MOMENTUM_BONUS, 1.0)
+    peace_cap = get_override(world, K_PEACE_MOMENTUM_CAP, 20.0)
+    aggressor_decay = get_override(world, K_PEACE_MOMENTUM_WAR_DECAY, 0.3)
+    defender_decay = get_override(world, K_PEACE_MOMENTUM_DEFENDER_DECAY, 0.8)
+
+    for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            continue  # dead civ guard
+
+        # --- War weariness ---
+        history = world.action_history.get(civ.name, [])
+        chose_war = len(history) > 0 and history[-1] == ActionType.WAR.value
+
+        if chose_war:
+            civ.war_weariness = civ.war_weariness * decay + increment
+        else:
+            civ.war_weariness *= decay
+
+        # Passive weariness from active wars
+        for war in world.active_wars:
+            if civ.name in war:
+                civ.war_weariness += passive
+
+        # --- Peace momentum ---
+        is_aggressor = chose_war or any(w[0] == civ.name for w in world.active_wars)
+        is_defender = any(w[1] == civ.name for w in world.active_wars) and not is_aggressor
+        is_at_peace = not is_aggressor and not is_defender
+
+        if is_at_peace:
+            civ.peace_momentum = min(civ.peace_momentum + peace_bonus, peace_cap)
+        elif is_aggressor:
+            civ.peace_momentum *= aggressor_decay
+        elif is_defender:
+            civ.peace_momentum *= defender_decay
+
+
+def reset_war_frequency_on_extinction(civ: Civilization) -> None:
+    """M47d: Reset accumulators when civ loses all regions."""
+    if len(civ.regions) == 0:
+        civ.war_weariness = 0.0
+        civ.peace_momentum = 0.0
+
+
 # --- Turn orchestrator ---
 
 def run_turn(
@@ -1271,6 +1326,9 @@ def run_turn(
 
     # Phase 5: Action (selection + resolution)
     turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
+
+    # M47d: Update war-weariness and peace momentum accumulators
+    update_war_frequency_accumulators(world)
 
     conquered_civs = getattr(world, '_conquered_this_turn', set())
     world._conquered_this_turn = set()  # clear BEFORE passing to bridge (transient signal rule)

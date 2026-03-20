@@ -214,6 +214,20 @@ K_MOVE_CAPITAL_TREASURY_REQ = "action.move_capital_treasury_requirement"
 K_FUND_INSTABILITY_TREASURY_REQ = "action.fund_instability_treasury_requirement"
 K_INVEST_CULTURE_THRESHOLD = "action.invest_culture_culture_threshold"
 
+# War frequency calibration (M47d) [CALIBRATE]
+K_WAR_DAMPER_THRESHOLD = "action.war_damper_threshold"
+K_WAR_DAMPER_FLOOR = "action.war_damper_floor"
+K_WAR_WEARINESS_DECAY = "action.war_weariness_decay"
+K_WAR_WEARINESS_INCREMENT = "action.war_weariness_increment"
+K_WAR_PASSIVE_WEARINESS = "action.war_passive_weariness"
+K_WAR_WEARINESS_DIVISOR = "action.war_weariness_divisor"
+K_PEACE_MOMENTUM_BONUS = "action.peace_momentum_bonus"
+K_PEACE_MOMENTUM_CAP = "action.peace_momentum_cap"
+K_PEACE_MOMENTUM_WAR_DECAY = "action.peace_momentum_war_decay"
+K_PEACE_MOMENTUM_DEFENDER_DECAY = "action.peace_momentum_defender_decay"
+K_PEACE_DEVELOP_DIVISOR = "action.peace_develop_divisor"
+K_PEACE_TRADE_DIVISOR = "action.peace_trade_divisor"
+
 # --- Global simulation multipliers (Tier 1 CLI knobs) ---
 # Each defaults to 1.0 (no change). Values > 1.0 amplify, < 1.0 dampen.
 K_AGGRESSION_BIAS = "multiplier.aggression_bias"
@@ -315,6 +329,13 @@ KNOWN_OVERRIDES: set[str] = {
     K_POWER_STRUGGLE_FACTOR, K_SECONDARY_TRAIT_BOOST,
     K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
     K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
+    # War frequency calibration (M47d)
+    K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR,
+    K_WAR_WEARINESS_DECAY, K_WAR_WEARINESS_INCREMENT,
+    K_WAR_PASSIVE_WEARINESS, K_WAR_WEARINESS_DIVISOR,
+    K_PEACE_MOMENTUM_BONUS, K_PEACE_MOMENTUM_CAP,
+    K_PEACE_MOMENTUM_WAR_DECAY, K_PEACE_MOMENTUM_DEFENDER_DECAY,
+    K_PEACE_DEVELOP_DIVISOR, K_PEACE_TRADE_DIVISOR,
     # Global simulation multipliers
     K_AGGRESSION_BIAS, K_TECH_DIFFUSION_RATE, K_RESOURCE_ABUNDANCE,
     K_TRADE_FRICTION, K_SEVERITY_MULTIPLIER, K_CULTURAL_DRIFT_SPEED,

@@ -26,6 +26,9 @@ from chronicler.tuning import (
     K_POWER_STRUGGLE_FACTOR, K_SECONDARY_TRAIT_BOOST,
     K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
     K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
+    K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR,
+    K_WAR_WEARINESS_DIVISOR,
+    K_PEACE_DEVELOP_DIVISOR, K_PEACE_TRADE_DIVISOR,
     get_override,
 )
 from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
@@ -489,6 +492,9 @@ def resolve_war(
             contested.last_conquered_turn = world.turn
             attacker.regions.append(contested.name)
             defender.regions = [r for r in defender.regions if r != contested.name]
+            if len(defender.regions) == 0:
+                from chronicler.simulation import reset_war_frequency_on_extinction
+                reset_war_frequency_on_extinction(defender)
             if not hasattr(world, '_conquered_this_turn'):
                 world._conquered_this_turn = set()
             world._conquered_this_turn.add(world.civilizations.index(attacker))
@@ -840,6 +846,19 @@ class ActionEngine:
         from chronicler.tuning import get_multiplier, K_AGGRESSION_BIAS
         weights[ActionType.WAR] *= get_multiplier(self.world, K_AGGRESSION_BIAS)
 
+        # M47d: War-weariness penalty — suppresses WAR after multiplicative boosters
+        if civ.war_weariness > 0:
+            divisor = get_override(self.world, K_WAR_WEARINESS_DIVISOR, 3.0)
+            weariness_penalty = 1.0 / (1.0 + civ.war_weariness / divisor)
+            weights[ActionType.WAR] *= weariness_penalty
+
+        # M47d: Peace dividend — boost DEVELOP/TRADE from peace momentum
+        if civ.peace_momentum > 0:
+            develop_divisor = get_override(self.world, K_PEACE_DEVELOP_DIVISOR, 10.0)
+            trade_divisor = get_override(self.world, K_PEACE_TRADE_DIVISOR, 10.0)
+            weights[ActionType.DEVELOP] *= 1.0 + civ.peace_momentum / develop_divisor
+            weights[ActionType.TRADE] *= 1.0 + civ.peace_momentum / trade_divisor
+
         history = self.world.action_history.get(civ.name, [])
         stubborn_limit = int(get_override(self.world, K_STUBBORN_STREAK_LIMIT, 5))
         normal_limit = int(get_override(self.world, K_STREAK_LIMIT, 3))
@@ -861,9 +880,14 @@ class ActionEngine:
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
+        # M47d: Smooth WAR damper — linear ramp from floor to 1.0
+        # Replaces binary cliff. DIPLOMACY boost stays as binary (qualitative regime change).
+        threshold = get_override(self.world, K_WAR_DAMPER_THRESHOLD, 30.0)
+        floor = get_override(self.world, K_WAR_DAMPER_FLOOR, 0.05)
+        war_damper = max(min(civ.stability / threshold, 1.0), floor)
+        weights[ActionType.WAR] *= war_damper
         if civ.stability <= 20:
             weights[ActionType.DIPLOMACY] *= 3.0
-            weights[ActionType.WAR] *= 0.1
         has_hostile = False
         if civ.name in self.world.relationships:
             for rel in self.world.relationships[civ.name].values():
