@@ -578,7 +578,7 @@ Not implemented in M48. Interface contract documented for M53.
 
 ### Determinism
 
-- Same seed produces identical memory state. Memory writes are deterministic (no RNG in M48). Mule promotion roll uses Python `random.Random(world.seed + world.turn + agent_id + 7919)`.
+- Same seed produces identical memory state. Memory writes are deterministic (no RNG in M48). Mule promotion roll uses Python `random.Random(world.seed + world.turn * 7919 + agent_id)`.
 - `--agents=off` bit-identical output (memory system is Rust-side only, skipped entirely).
 
 ### Rust Unit Tests
