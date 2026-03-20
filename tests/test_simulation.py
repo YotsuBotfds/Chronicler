@@ -9,6 +9,7 @@ from chronicler.simulation import (
     run_turn,
     apply_asabiya_dynamics,
     update_war_frequency_accumulators,
+    reset_war_frequency_on_extinction,
 )
 from chronicler.action_engine import resolve_war, resolve_trade
 from chronicler.simulation import apply_injected_event
@@ -604,3 +605,26 @@ class TestWarFrequencyAccumulators:
         update_war_frequency_accumulators(world)
         assert world.civilizations[2].war_weariness == 5.0
         assert world.civilizations[2].peace_momentum == 10.0
+
+
+class TestExtinctionReset:
+    """M47d: Reset weariness/momentum when civ goes extinct."""
+
+    def test_extinction_resets_both_fields(self):
+        world = _make_world_with_wars()
+        civ = world.civilizations[0]
+        civ.war_weariness = 15.0
+        civ.peace_momentum = 10.0
+        civ.regions = []
+        reset_war_frequency_on_extinction(civ)
+        assert civ.war_weariness == 0.0
+        assert civ.peace_momentum == 0.0
+
+    def test_living_civ_not_reset(self):
+        world = _make_world_with_wars()
+        civ = world.civilizations[0]
+        civ.war_weariness = 15.0
+        civ.peace_momentum = 10.0
+        reset_war_frequency_on_extinction(civ)
+        assert civ.war_weariness == 15.0
+        assert civ.peace_momentum == 10.0

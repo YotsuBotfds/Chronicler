@@ -492,6 +492,9 @@ def resolve_war(
             contested.last_conquered_turn = world.turn
             attacker.regions.append(contested.name)
             defender.regions = [r for r in defender.regions if r != contested.name]
+            if len(defender.regions) == 0:
+                from chronicler.simulation import reset_war_frequency_on_extinction
+                reset_war_frequency_on_extinction(defender)
             if not hasattr(world, '_conquered_this_turn'):
                 world._conquered_this_turn = set()
             world._conquered_this_turn.add(world.civilizations.index(attacker))

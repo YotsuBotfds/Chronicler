@@ -1003,6 +1003,9 @@ def check_restoration(world: WorldState) -> list[Event]:
 
         if target_region in absorber.regions:
             absorber.regions.remove(target_region)
+        if len(absorber.regions) == 0:
+            from chronicler.simulation import reset_war_frequency_on_extinction
+            reset_war_frequency_on_extinction(absorber)
         region_map[target_region].controller = exile.original_civ_name
         sync_civ_population(absorber, world)
 
@@ -1190,6 +1193,8 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                     if rn in region_map_u:
                         region_map_u[rn].controller = best_absorber_u.name
                 civ.regions = []
+                from chronicler.simulation import reset_war_frequency_on_extinction
+                reset_war_frequency_on_extinction(civ)
                 to_remove.append(civ)
                 world.exile_modifiers.append(ExileModifier(
                     original_civ_name=civ.name,
@@ -1231,6 +1236,8 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
             if rn in region_map:
                 region_map[rn].controller = best_absorber.name
         civ.regions = []
+        from chronicler.simulation import reset_war_frequency_on_extinction
+        reset_war_frequency_on_extinction(civ)
         to_remove.append(civ)
 
         world.exile_modifiers.append(ExileModifier(

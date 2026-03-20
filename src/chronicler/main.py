@@ -305,6 +305,8 @@ def execute_run(
                     max_precap_weight=civ.max_precap_weight,
                     last_action=(world.action_history.get(civ.name, [])[-1] if world.action_history.get(civ.name) else None),
                     gini=getattr(agent_bridge, '_gini_by_civ', {}).get(civ_idx, 0.0) if agent_bridge else 0.0,
+                    war_weariness=civ.war_weariness,
+                    peace_momentum=civ.peace_momentum,
                 )
                 for civ_idx, civ in enumerate(world.civilizations)
             },
