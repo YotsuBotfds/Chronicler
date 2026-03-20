@@ -285,12 +285,16 @@ pub fn tick_agents(
             }
             let region = &regions[region_id];
             if region.controller_changed_this_turn {
+                // source_civ = the conquering civ (new controller), NOT the agent's own civ.
+                // This enables side differentiation: agents whose civ matches the conqueror
+                // get STAY boost (garrison instinct), others get MIGRATE (displacement).
+                let conquering_civ = region.controller_civ;
                 for &slot in slots {
                     if pool.is_alive(slot) {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
                             event_type: crate::memory::MemoryEventType::Conquest as u8,
-                            source_civ: pool.civ_affinities[slot],
+                            source_civ: conquering_civ,
                             intensity: crate::agent::CONQUEST_DEFAULT_INTENSITY,
                         });
                     }
