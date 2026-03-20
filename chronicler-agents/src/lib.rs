@@ -20,6 +20,7 @@ pub mod conversion_tick;
 pub mod social;
 pub mod memory;
 pub mod needs;
+pub mod relationships;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
