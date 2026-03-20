@@ -765,6 +765,26 @@ impl AgentSimulator {
         Vec::new()
     }
 
+    /// M49: Return need values for a specific agent.
+    /// Returns (safety, material, social, spiritual, autonomy, purpose).
+    /// None if agent not found or dead.
+    fn get_agent_needs(&self, agent_id: u32) -> Option<(f32, f32, f32, f32, f32, f32)> {
+        let pool = &self.pool;
+        for slot in 0..pool.ids.len() {
+            if pool.id(slot) == agent_id && pool.is_alive(slot) {
+                return Some((
+                    pool.need_safety[slot],
+                    pool.need_material[slot],
+                    pool.need_social[slot],
+                    pool.need_spiritual[slot],
+                    pool.need_autonomy[slot],
+                    pool.need_purpose[slot],
+                ));
+            }
+        }
+        None
+    }
+
     /// Replace the social graph with edges from an Arrow RecordBatch.
     pub fn replace_social_edges(&mut self, batch: PyRecordBatch) -> PyResult<()> {
         let rb: RecordBatch = batch.into_inner();
