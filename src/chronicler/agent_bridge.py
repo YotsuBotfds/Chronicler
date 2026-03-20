@@ -511,6 +511,14 @@ class AgentBridge:
                              "intensity": m[3], "decay_factor": m[4]}
                             for m in raw_memories
                         ]
+                        # M49: Sync needs for active named characters
+                        raw_needs = self._sim.get_agent_needs(gp.agent_id)
+                        if raw_needs is not None:
+                            gp.needs = {
+                                "safety": raw_needs[0], "material": raw_needs[1],
+                                "social": raw_needs[2], "spiritual": raw_needs[3],
+                                "autonomy": raw_needs[4], "purpose": raw_needs[5],
+                            }
 
             return summaries + char_events + death_events + dynasty_events
         elif self._mode == "shadow":

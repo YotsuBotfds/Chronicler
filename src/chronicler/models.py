@@ -360,6 +360,7 @@ class GreatPerson(BaseModel):
     mule_memory_event_type: Optional[int] = None
     utility_overrides: dict = Field(default_factory=dict)  # ActionType name -> multiplier
     memories: list = Field(default_factory=list)  # cached from Rust via FFI
+    needs: Optional[dict] = None  # M49: cached from Rust via FFI, None in aggregate mode
 
 
 class ShockContext(BaseModel):
