@@ -184,11 +184,11 @@ class TestWarDamper:
     def test_mid_stability_partial_damper(self, engine_world):
         """Stability at half threshold: WAR weight halved relative to undampened."""
         civ = engine_world.civilizations[0]
-        civ.stability = 15
+        civ.stability = 25  # half of threshold 50
         engine = ActionEngine(engine_world)
         weights_low = engine.compute_weights(civ)
 
-        civ.stability = 60
+        civ.stability = 80  # well above threshold
         weights_high = engine.compute_weights(civ)
 
         ratio = weights_low[ActionType.WAR] / weights_high[ActionType.WAR]
@@ -207,7 +207,7 @@ class TestWarDamper:
         civ = engine_world.civilizations[0]
         engine = ActionEngine(engine_world)
 
-        civ.stability = 30
+        civ.stability = 50  # at threshold
         weights_at_threshold = engine.compute_weights(civ)
 
         civ.stability = 90
@@ -239,7 +239,7 @@ class TestWarWeariness:
         assert weights_zero[ActionType.WAR] > weights_weary[ActionType.WAR]
 
     def test_high_weariness_suppresses_war(self, engine_world):
-        """Chronic warmonger weariness (~23): WAR suppressed to ~12%."""
+        """Chronic warmonger weariness (~23): WAR heavily suppressed."""
         civ = engine_world.civilizations[0]
         civ.stability = 50
         engine = ActionEngine(engine_world)
@@ -251,7 +251,8 @@ class TestWarWeariness:
         war_weary = engine.compute_weights(civ)[ActionType.WAR]
 
         ratio = war_weary / war_fresh
-        assert 0.08 <= ratio <= 0.15, f"Expected ~0.12 ratio, got {ratio}"
+        # With divisor 0.5: 1/(1+23/0.5) = 0.021
+        assert ratio < 0.05, f"Expected heavy suppression, got {ratio}"
 
     def test_weariness_does_not_affect_other_actions(self, engine_world):
         """Weariness only touches WAR, not DEVELOP or TRADE."""
@@ -284,7 +285,7 @@ class TestPeaceDividend:
         assert weights[ActionType.TRADE] > 0
 
     def test_high_momentum_boosts_develop_trade(self, engine_world):
-        """20 turns of peace: DEVELOP and TRADE get 3x bonus."""
+        """20 turns of peace: DEVELOP and TRADE get significant bonus."""
         civ = engine_world.civilizations[0]
         civ.stability = 50
         # Need NEUTRAL+ for TRADE to be eligible
@@ -302,8 +303,9 @@ class TestPeaceDividend:
 
         develop_ratio = develop_peace / develop_base
         trade_ratio = trade_peace / trade_base
-        assert 2.8 <= develop_ratio <= 3.2, f"Expected ~3.0 DEVELOP ratio, got {develop_ratio}"
-        assert 2.8 <= trade_ratio <= 3.2, f"Expected ~3.0 TRADE ratio, got {trade_ratio}"
+        # With divisor 5.0: 1 + 20/5 = 5.0x bonus
+        assert 4.5 <= develop_ratio <= 5.5, f"Expected ~5.0 DEVELOP ratio, got {develop_ratio}"
+        assert 4.5 <= trade_ratio <= 5.5, f"Expected ~5.0 TRADE ratio, got {trade_ratio}"
 
     def test_momentum_does_not_affect_war(self, engine_world):
         """Peace momentum only touches DEVELOP/TRADE, not WAR."""

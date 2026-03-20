@@ -848,14 +848,14 @@ class ActionEngine:
 
         # M47d: War-weariness penalty — suppresses WAR after multiplicative boosters
         if civ.war_weariness > 0:
-            divisor = get_override(self.world, K_WAR_WEARINESS_DIVISOR, 3.0)
+            divisor = get_override(self.world, K_WAR_WEARINESS_DIVISOR, 0.5)
             weariness_penalty = 1.0 / (1.0 + civ.war_weariness / divisor)
             weights[ActionType.WAR] *= weariness_penalty
 
         # M47d: Peace dividend — boost DEVELOP/TRADE from peace momentum
         if civ.peace_momentum > 0:
-            develop_divisor = get_override(self.world, K_PEACE_DEVELOP_DIVISOR, 10.0)
-            trade_divisor = get_override(self.world, K_PEACE_TRADE_DIVISOR, 10.0)
+            develop_divisor = get_override(self.world, K_PEACE_DEVELOP_DIVISOR, 5.0)
+            trade_divisor = get_override(self.world, K_PEACE_TRADE_DIVISOR, 5.0)
             weights[ActionType.DEVELOP] *= 1.0 + civ.peace_momentum / develop_divisor
             weights[ActionType.TRADE] *= 1.0 + civ.peace_momentum / trade_divisor
 
@@ -882,7 +882,7 @@ class ActionEngine:
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
         # M47d: Smooth WAR damper — linear ramp from floor to 1.0
         # Replaces binary cliff. DIPLOMACY boost stays as binary (qualitative regime change).
-        threshold = get_override(self.world, K_WAR_DAMPER_THRESHOLD, 30.0)
+        threshold = get_override(self.world, K_WAR_DAMPER_THRESHOLD, 50.0)
         floor = get_override(self.world, K_WAR_DAMPER_FLOOR, 0.05)
         war_damper = max(min(civ.stability / threshold, 1.0), floor)
         weights[ActionType.WAR] *= war_damper

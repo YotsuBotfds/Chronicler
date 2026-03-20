@@ -1197,12 +1197,12 @@ def update_war_frequency_accumulators(world: WorldState) -> None:
     )
 
     decay = get_override(world, K_WAR_WEARINESS_DECAY, 0.95)
-    increment = get_override(world, K_WAR_WEARINESS_INCREMENT, 1.0)
-    passive = get_override(world, K_WAR_PASSIVE_WEARINESS, 0.15)
+    increment = get_override(world, K_WAR_WEARINESS_INCREMENT, 2.0)
+    passive = get_override(world, K_WAR_PASSIVE_WEARINESS, 0.5)
     peace_bonus = get_override(world, K_PEACE_MOMENTUM_BONUS, 1.0)
     peace_cap = get_override(world, K_PEACE_MOMENTUM_CAP, 20.0)
-    aggressor_decay = get_override(world, K_PEACE_MOMENTUM_WAR_DECAY, 0.3)
-    defender_decay = get_override(world, K_PEACE_MOMENTUM_DEFENDER_DECAY, 0.8)
+    aggressor_decay = get_override(world, K_PEACE_MOMENTUM_WAR_DECAY, 0.5)
+    defender_decay = get_override(world, K_PEACE_MOMENTUM_DEFENDER_DECAY, 0.95)
 
     for civ in world.civilizations:
         if len(civ.regions) == 0:
@@ -1223,16 +1223,17 @@ def update_war_frequency_accumulators(world: WorldState) -> None:
                 civ.war_weariness += passive
 
         # --- Peace momentum ---
-        is_aggressor = chose_war or any(w[0] == civ.name for w in world.active_wars)
-        is_defender = any(w[1] == civ.name for w in world.active_wars) and not is_aggressor
-        is_at_peace = not is_aggressor and not is_defender
+        # Aggressor decay (0.3x) only when civ CHOSE WAR this turn — punishes the act,
+        # not the persistent state of an unresolved war. Weariness handles ongoing fatigue.
+        # Being in active_wars (either side) uses the gentler defender decay.
+        in_active_war = any(civ.name in w for w in world.active_wars)
 
-        if is_at_peace:
-            civ.peace_momentum = min(civ.peace_momentum + peace_bonus, peace_cap)
-        elif is_aggressor:
+        if chose_war:
             civ.peace_momentum *= aggressor_decay
-        elif is_defender:
+        elif in_active_war:
             civ.peace_momentum *= defender_decay
+        else:
+            civ.peace_momentum = min(civ.peace_momentum + peace_bonus, peace_cap)
 
 
 def reset_war_frequency_on_extinction(civ: Civilization) -> None:

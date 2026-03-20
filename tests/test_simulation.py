@@ -565,7 +565,8 @@ class TestWarFrequencyAccumulators:
         world.action_history = {"Civ A": ["war"]}
         world.active_wars = [("Civ A", "Civ B")]
         update_war_frequency_accumulators(world)
-        assert world.civilizations[0].war_weariness == pytest.approx(1.15)
+        # INCREMENT (2.0) + PASSIVE (0.5) = 2.5
+        assert world.civilizations[0].war_weariness == pytest.approx(2.5)
 
     def test_peace_momentum_increments(self):
         world = _make_world_with_wars()
@@ -581,13 +582,23 @@ class TestWarFrequencyAccumulators:
         update_war_frequency_accumulators(world)
         assert world.civilizations[0].peace_momentum == 20.0
 
-    def test_aggressor_peace_decay(self):
+    def test_chose_war_aggressor_decay(self):
+        """Only civs that CHOSE WAR this turn get aggressor decay (0.3x)."""
+        world = _make_world_with_wars()
+        world.civilizations[0].peace_momentum = 20.0
+        world.active_wars = [("Civ A", "Civ B")]
+        world.action_history = {"Civ A": ["war"], "Civ B": ["develop"]}
+        update_war_frequency_accumulators(world)
+        assert world.civilizations[0].peace_momentum == pytest.approx(20.0 * 0.5)
+
+    def test_in_war_without_choosing_gets_defender_decay(self):
+        """Civ in active_war (either side) but didn't choose WAR: defender decay."""
         world = _make_world_with_wars()
         world.civilizations[0].peace_momentum = 20.0
         world.active_wars = [("Civ A", "Civ B")]
         world.action_history = {"Civ A": ["develop"], "Civ B": ["develop"]}
         update_war_frequency_accumulators(world)
-        assert world.civilizations[0].peace_momentum == pytest.approx(20.0 * 0.3)
+        assert world.civilizations[0].peace_momentum == pytest.approx(20.0 * 0.95)
 
     def test_defender_peace_decay(self):
         world = _make_world_with_wars()
@@ -595,7 +606,7 @@ class TestWarFrequencyAccumulators:
         world.active_wars = [("Civ A", "Civ B")]
         world.action_history = {"Civ A": ["develop"], "Civ B": ["develop"]}
         update_war_frequency_accumulators(world)
-        assert world.civilizations[1].peace_momentum == pytest.approx(20.0 * 0.8)
+        assert world.civilizations[1].peace_momentum == pytest.approx(20.0 * 0.95)
 
     def test_dead_civ_skipped(self):
         world = _make_world_with_wars()
