@@ -1066,6 +1066,9 @@ fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<RecordBatch, Ar
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use pyo3_arrow::PyRecordBatch;
 
     #[test]
     fn test_personality_label_bold() {
@@ -1090,5 +1093,180 @@ mod tests {
     #[test]
     fn test_personality_label_steadfast() {
         assert_eq!(personality_label(0.1, 0.2, 0.8), Some("the Steadfast"));
+    }
+
+    // ---------------------------------------------------------------------------
+    // M50a relationship FFI tests
+    // ---------------------------------------------------------------------------
+
+    /// Build an ops RecordBatch. Each tuple: (op_type, agent_a, agent_b, bond_type, sentiment, formed_turn)
+    fn make_ops_batch(ops: &[(u8, u32, u32, u8, i8, u16)]) -> PyRecordBatch {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("op_type",     DataType::UInt8,  false),
+            Field::new("agent_a",     DataType::UInt32, false),
+            Field::new("agent_b",     DataType::UInt32, false),
+            Field::new("bond_type",   DataType::UInt8,  false),
+            Field::new("sentiment",   DataType::Int8,   false),
+            Field::new("formed_turn", DataType::UInt16, false),
+        ]));
+        let rb = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(UInt8Array::from(ops.iter().map(|o| o.0).collect::<Vec<_>>()))  as _,
+                Arc::new(UInt32Array::from(ops.iter().map(|o| o.1).collect::<Vec<_>>())) as _,
+                Arc::new(UInt32Array::from(ops.iter().map(|o| o.2).collect::<Vec<_>>())) as _,
+                Arc::new(UInt8Array::from(ops.iter().map(|o| o.3).collect::<Vec<_>>()))  as _,
+                Arc::new(Int8Array::from(ops.iter().map(|o| o.4).collect::<Vec<_>>()))   as _,
+                Arc::new(UInt16Array::from(ops.iter().map(|o| o.5).collect::<Vec<_>>())) as _,
+            ],
+        ).unwrap();
+        PyRecordBatch::new(rb)
+    }
+
+    /// Create a minimal simulator with two spawned agents. Returns (simulator, id_a, id_b).
+    fn make_sim_with_two_agents() -> (AgentSimulator, u32, u32) {
+        let mut sim = AgentSimulator::new(1, 42);
+        // Manually spawn two agents directly into the pool (bypassing set_region_state).
+        let slot_a = sim.pool.spawn(
+            0, 0, crate::agent::Occupation::Farmer, 20,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        let slot_b = sim.pool.spawn(
+            0, 0, crate::agent::Occupation::Farmer, 20,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        let id_a = sim.pool.ids[slot_a];
+        let id_b = sim.pool.ids[slot_b];
+        (sim, id_a, id_b)
+    }
+
+    // Test 1: UpsertDirected round-trip — apply op and read back via get_agent_relationships
+    #[test]
+    fn test_apply_ops_upsert_directed_round_trip() {
+        let (mut sim, id_a, id_b) = make_sim_with_two_agents();
+
+        // op=0 UpsertDirected, bond_type=6 (Friend), sentiment=50, formed_turn=10
+        let batch = make_ops_batch(&[(0, id_a, id_b, 6, 50, 10)]);
+        sim.apply_relationship_ops(batch).unwrap();
+
+        let rels = sim.get_agent_relationships(id_a).expect("agent_a must exist");
+        assert_eq!(rels.len(), 1);
+        let (target, sent, bt, ft) = rels[0];
+        assert_eq!(target, id_b);
+        assert_eq!(sent, 50);
+        assert_eq!(bt, 6); // Friend
+        assert_eq!(ft, 10);
+    }
+
+    // Test 2: Batch ordering — Upsert then Remove then Upsert on same bond
+    #[test]
+    fn test_apply_ops_batch_ordering_upsert_remove_upsert() {
+        let (mut sim, id_a, id_b) = make_sim_with_two_agents();
+
+        // Three ops in one batch: upsert Friend, remove Friend, upsert Friend again
+        let batch = make_ops_batch(&[
+            (0, id_a, id_b, 6, 30, 5),   // UpsertDirected Friend
+            (2, id_a, id_b, 6, 0, 0),    // RemoveDirected Friend (sentiment/ft fields ignored for remove)
+            (0, id_a, id_b, 6, 70, 15),  // UpsertDirected Friend again
+        ]);
+        sim.apply_relationship_ops(batch).unwrap();
+
+        let rels = sim.get_agent_relationships(id_a).expect("agent_a must exist");
+        assert_eq!(rels.len(), 1, "should end up with one bond after remove+re-upsert");
+        let (target, sent, _bt, ft) = rels[0];
+        assert_eq!(target, id_b);
+        assert_eq!(sent, 70);
+        assert_eq!(ft, 15); // new formed_turn since this is a fresh insert
+    }
+
+    // Test 3: Unknown bond_type (>7) is silently skipped — no panic, no bond written
+    #[test]
+    fn test_apply_ops_unknown_bond_type_skipped() {
+        let (mut sim, id_a, id_b) = make_sim_with_two_agents();
+
+        // bond_type=99 is not a valid BondType
+        let batch = make_ops_batch(&[(0, id_a, id_b, 99, 50, 10)]);
+        sim.apply_relationship_ops(batch).unwrap(); // must not panic
+
+        let rels = sim.get_agent_relationships(id_a).expect("agent_a must exist");
+        assert_eq!(rels.len(), 0, "invalid bond_type must be silently skipped");
+    }
+
+    // Test 4: RemoveDirected with dead/missing target succeeds (source must be alive)
+    #[test]
+    fn test_apply_ops_remove_directed_dead_target() {
+        let (mut sim, id_a, id_b) = make_sim_with_two_agents();
+
+        // First, form a directed bond from a to b
+        let upsert = make_ops_batch(&[(0, id_a, id_b, 6, 40, 5)]);
+        sim.apply_relationship_ops(upsert).unwrap();
+
+        // Kill agent_b in the pool
+        if let Some(slot_b) = sim.pool.find_slot_by_id(id_b) {
+            sim.pool.alive[slot_b] = false;
+        }
+
+        // RemoveDirected — source (id_a) is alive, target (id_b) is dead
+        // The op should succeed and remove the bond from id_a's side
+        let remove = make_ops_batch(&[(2, id_a, id_b, 6, 0, 0)]);
+        sim.apply_relationship_ops(remove).unwrap(); // must not panic
+
+        let rels = sim.get_agent_relationships(id_a).expect("agent_a must still be alive");
+        assert_eq!(rels.len(), 0, "bond must be removed even when target is dead");
+    }
+
+    // Test 5: RemoveSymmetric with one dead endpoint — still removes the live side
+    #[test]
+    fn test_apply_ops_remove_symmetric_one_dead_endpoint() {
+        let (mut sim, id_a, id_b) = make_sim_with_two_agents();
+
+        // UpsertSymmetric Rival (bond_type=1, symmetric)
+        let upsert = make_ops_batch(&[(1, id_a, id_b, 1, -30, 8)]);
+        sim.apply_relationship_ops(upsert).unwrap();
+
+        // Verify both sides exist before the remove
+        let rels_a = sim.get_agent_relationships(id_a).unwrap();
+        let rels_b = sim.get_agent_relationships(id_b).unwrap();
+        assert_eq!(rels_a.len(), 1);
+        assert_eq!(rels_b.len(), 1);
+
+        // Kill id_b
+        if let Some(slot_b) = sim.pool.find_slot_by_id(id_b) {
+            sim.pool.alive[slot_b] = false;
+        }
+
+        // RemoveSymmetric — id_b is dead, id_a is alive
+        let remove = make_ops_batch(&[(3, id_a, id_b, 1, 0, 0)]);
+        sim.apply_relationship_ops(remove).unwrap(); // must not panic
+
+        let rels_a = sim.get_agent_relationships(id_a).expect("id_a still alive");
+        assert_eq!(rels_a.len(), 0, "live side bond removed by RemoveSymmetric with dead partner");
+        // id_b is dead — get_agent_relationships should return None for it
+        assert!(sim.get_agent_relationships(id_b).is_none(), "dead agent returns None");
+    }
+
+    // Test 6: get_agent_relationships returns all bond types
+    #[test]
+    fn test_get_agent_relationships_all_bond_types() {
+        let (mut sim, id_a, id_b) = make_sim_with_two_agents();
+
+        // Mentor (asymmetric, 0), Rival (1), ExileBond (3), CoReligionist (4), Kin (5)
+        // We add four directed bonds from id_a to id_b with distinct bond types
+        let batch = make_ops_batch(&[
+            (0, id_a, id_b, 0, 60, 1),  // UpsertDirected Mentor
+            (0, id_a, id_b, 1, -20, 2), // UpsertDirected Rival
+            (0, id_a, id_b, 3, 40, 3),  // UpsertDirected ExileBond
+            (0, id_a, id_b, 4, 50, 4),  // UpsertDirected CoReligionist
+        ]);
+        sim.apply_relationship_ops(batch).unwrap();
+
+        let rels = sim.get_agent_relationships(id_a).expect("agent must exist");
+        assert_eq!(rels.len(), 4, "all four bond types must be stored");
+
+        let bond_types: std::collections::HashSet<u8> = rels.iter().map(|r| r.2).collect();
+        assert!(bond_types.contains(&0), "Mentor bond must be present");
+        assert!(bond_types.contains(&1), "Rival bond must be present");
+        assert!(bond_types.contains(&3), "ExileBond must be present");
+        assert!(bond_types.contains(&4), "CoReligionist must be present");
     }
 }
