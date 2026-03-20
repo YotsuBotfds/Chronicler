@@ -81,6 +81,11 @@ pub fn tick_agents(
     wealth_tick(pool, regions, signals, wealth_percentiles);
 
     // -----------------------------------------------------------------------
+    // 0.75 Needs decay + restoration (M49)
+    // -----------------------------------------------------------------------
+    crate::needs::update_needs(pool, regions, signals, wealth_percentiles);
+
+    // -----------------------------------------------------------------------
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
     update_satisfaction(pool, regions, signals, wealth_percentiles);
