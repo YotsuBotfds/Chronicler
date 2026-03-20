@@ -83,6 +83,51 @@ MEMORY_DESCRIPTIONS = {
 MEMORY_NARRATION_VIVID = 60   # [CALIBRATE M53]
 MEMORY_NARRATION_FADING = 30  # [CALIBRATE M53]
 
+# ---------------------------------------------------------------------------
+# M49: Need descriptions for narration
+# ---------------------------------------------------------------------------
+
+NEED_DESCRIPTIONS = {
+    "safety": "feels unsafe",
+    "material": "wants for material comfort",
+    "social": "is isolated",
+    "spiritual": "is spiritually adrift",
+    "autonomy": "chafes under foreign rule",
+    "purpose": "lacks a sense of purpose",
+}
+
+# Thresholds must match agent.rs constants
+_NEED_THRESHOLDS = {
+    "safety": 0.3, "material": 0.3, "social": 0.25,
+    "spiritual": 0.3, "autonomy": 0.3, "purpose": 0.35,
+}
+
+
+def render_needs(needs: dict) -> list[str]:
+    """Render needs as narrator context lines.
+
+    Returns lines like:
+      "Needs: Safety satisfied, Material LOW (0.18), ..."
+      "  - wants for material comfort"
+    """
+    if not needs:
+        return []
+    parts = []
+    low_descriptions = []
+    for name in ["safety", "material", "social", "spiritual", "autonomy", "purpose"]:
+        val = needs.get(name, 0.5)
+        threshold = _NEED_THRESHOLDS.get(name, 0.3)
+        if val < threshold:
+            parts.append(f"{name.title()} LOW ({val:.2f})")
+            desc = NEED_DESCRIPTIONS.get(name)
+            if desc:
+                low_descriptions.append(f"  - {desc}")
+        else:
+            parts.append(f"{name.title()} satisfied")
+    lines = [f"Needs: {', '.join(parts)}"]
+    lines.extend(low_descriptions)
+    return lines
+
 
 def render_memory(mem: dict, civ_names: list) -> str | None:
     """Render a memory slot as a natural language fragment."""
@@ -169,6 +214,12 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                     )
                     lines.append(f"  [MULE] Active influence: {overrides_str}")
                     lines.append(f"    Window: {remaining} turns remaining")
+            # M49: Needs context
+            char_needs = char.get("needs")
+            if char_needs:
+                needs_lines = render_needs(char_needs)
+                for line in needs_lines:
+                    lines.append(line)
         lines.append("")
 
     # M40: Render relationship context
@@ -284,6 +335,10 @@ def build_agent_context_for_moment(
         if hasattr(gp, "memories") and gp.memories:
             char["memories"] = gp.memories
             char["_civ_names"] = civ_names or []
+
+        # M49: Needs context
+        if hasattr(gp, "needs") and gp.needs:
+            char["needs"] = gp.needs
 
         # M48: Mule context
         if getattr(gp, "mule", False) and gp.active:
@@ -1069,7 +1124,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                             "Respond as:\n"
                             + "\n".join(f"{n}: [sentence]" for n in matched)
                         )
-                        summary_response = self.narrative_client.generate(summary_prompt)
+                        summary_response = self.narrative_client.complete(summary_prompt)
                         for name in matched:
                             prefix = f"{name}: "
                             for line in summary_response.split("\n"):
