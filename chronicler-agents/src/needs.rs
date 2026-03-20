@@ -18,6 +18,62 @@ pub struct NeedUtilityModifiers {
 }
 
 // ---------------------------------------------------------------------------
+// Utility modifiers
+// ---------------------------------------------------------------------------
+
+/// Compute threshold-gated utility modifiers from an agent's need state.
+pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtilityModifiers {
+    let mut mods = NeedUtilityModifiers::default();
+
+    // Safety → migrate +, stay -
+    let safety_deficit = (agent::SAFETY_THRESHOLD - pool.need_safety[slot]).max(0.0);
+    if safety_deficit > 0.0 {
+        mods.migrate += safety_deficit * agent::SAFETY_WEIGHT;
+        mods.stay -= safety_deficit * agent::SAFETY_WEIGHT;
+    }
+
+    // Material → migrate +, switch +
+    let material_deficit = (agent::MATERIAL_THRESHOLD - pool.need_material[slot]).max(0.0);
+    if material_deficit > 0.0 {
+        mods.migrate += material_deficit * agent::MATERIAL_WEIGHT;
+        mods.switch_occ += material_deficit * agent::MATERIAL_WEIGHT;
+    }
+
+    // Social → stay +, migrate -
+    let social_deficit = (agent::SOCIAL_THRESHOLD - pool.need_social[slot]).max(0.0);
+    if social_deficit > 0.0 {
+        mods.stay += social_deficit * agent::SOCIAL_WEIGHT;
+        mods.migrate -= social_deficit * agent::SOCIAL_WEIGHT;
+    }
+
+    // Spiritual → migrate +
+    let spiritual_deficit = (agent::SPIRITUAL_THRESHOLD - pool.need_spiritual[slot]).max(0.0);
+    if spiritual_deficit > 0.0 {
+        mods.migrate += spiritual_deficit * agent::SPIRITUAL_WEIGHT;
+    }
+
+    // Autonomy → rebel +
+    let autonomy_deficit = (agent::AUTONOMY_THRESHOLD - pool.need_autonomy[slot]).max(0.0);
+    if autonomy_deficit > 0.0 {
+        mods.rebel += autonomy_deficit * agent::AUTONOMY_WEIGHT;
+    }
+
+    // Purpose → switch +
+    let purpose_deficit = (agent::PURPOSE_THRESHOLD - pool.need_purpose[slot]).max(0.0);
+    if purpose_deficit > 0.0 {
+        mods.switch_occ += purpose_deficit * agent::PURPOSE_WEIGHT;
+    }
+
+    // Per-channel cap (needs-only — does not affect M38b/M48 modifiers)
+    mods.rebel = mods.rebel.min(agent::NEEDS_MODIFIER_CAP);
+    mods.migrate = mods.migrate.max(-agent::NEEDS_MODIFIER_CAP).min(agent::NEEDS_MODIFIER_CAP);
+    mods.switch_occ = mods.switch_occ.min(agent::NEEDS_MODIFIER_CAP);
+    mods.stay = mods.stay.max(-agent::NEEDS_MODIFIER_CAP).min(agent::NEEDS_MODIFIER_CAP);
+
+    mods
+}
+
+// ---------------------------------------------------------------------------
 // Decay — linear subtraction per need, clamp to 0.0
 // ---------------------------------------------------------------------------
 

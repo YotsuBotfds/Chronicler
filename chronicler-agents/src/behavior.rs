@@ -355,6 +355,11 @@ pub fn evaluate_region_decisions(
         rebel_util += mem_mods.rebel;
         migrate_util += mem_mods.migrate;
 
+        // M49: Need-driven utility modifiers — additive, applied after memory, before gate
+        let need_mods = crate::needs::compute_need_utility_modifiers(pool, slot);
+        rebel_util += need_mods.rebel;
+        migrate_util += need_mods.migrate;
+
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
         let u_migrate = if migrate_util > 0.0 { migrate_util } else { f32::NEG_INFINITY };
 
@@ -364,10 +369,10 @@ pub fn evaluate_region_decisions(
             &stats.occupation_demand[region_id],
         );
         let u_switch_raw = u_switch_base * personality_modifier(ambi, AMBITION_SWITCH_WEIGHT)
-            + mem_mods.switch;
+            + mem_mods.switch + need_mods.switch_occ;
         let u_switch = if u_switch_raw > 0.0 { u_switch_raw } else { f32::NEG_INFINITY };
 
-        let u_stay = STAY_BASE + mem_mods.stay;
+        let u_stay = STAY_BASE + mem_mods.stay + need_mods.stay;
 
         let chosen = gumbel_argmax(
             &[u_rebel, u_migrate, u_switch, u_stay],

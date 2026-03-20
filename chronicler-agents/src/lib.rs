@@ -48,7 +48,7 @@ pub use memory::{
 #[doc(hidden)]
 pub use needs::NeedUtilityModifiers;
 #[doc(hidden)]
-pub use needs::{decay_needs, restore_needs, clamp_needs, update_needs};
+pub use needs::{decay_needs, restore_needs, clamp_needs, update_needs, compute_need_utility_modifiers};
 #[doc(hidden)]
 pub use signals::{CivSignals, TickSignals};
 

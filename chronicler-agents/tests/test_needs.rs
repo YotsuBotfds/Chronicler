@@ -2,6 +2,7 @@ use chronicler_agents::{
     AgentPool, Occupation, RegionState,
     CivSignals, TickSignals,
     decay_needs, restore_needs, clamp_needs, update_needs,
+    compute_need_utility_modifiers,
 };
 
 // ---------------------------------------------------------------------------
@@ -406,6 +407,72 @@ fn test_purpose_soldier_at_war_bonus() {
         "Soldier at war ({}) should have more purpose than at peace ({})",
         pool_war.need_purpose[slot_war], pool_peace.need_purpose[slot_peace]
     );
+}
+
+// ===========================================================================
+// Task 3: Utility modifier tests
+// ===========================================================================
+
+#[test]
+fn test_utility_modifier_safety_migrate() {
+    let mut pool = AgentPool::new(16);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+    pool.need_safety[slot] = 0.1; // below threshold 0.3
+    let mods = compute_need_utility_modifiers(&pool, slot);
+    // deficit = 0.2, migrate = 0.2 * 0.7 = 0.14
+    assert!((mods.migrate - 0.14).abs() < 0.01,
+        "Expected migrate ~0.14, got {}", mods.migrate);
+    assert!(mods.stay < 0.0, "Safety unmet should reduce stay");
+}
+
+#[test]
+fn test_utility_modifier_above_threshold_zero() {
+    let mut pool = AgentPool::new(16);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+    // All needs at spawn (0.5) are above all thresholds (0.25-0.35)
+    let mods = compute_need_utility_modifiers(&pool, slot);
+    assert_eq!(mods.migrate, 0.0);
+    assert_eq!(mods.rebel, 0.0);
+    assert_eq!(mods.switch_occ, 0.0);
+    assert_eq!(mods.stay, 0.0);
+}
+
+#[test]
+fn test_utility_modifier_cap() {
+    let mut pool = AgentPool::new(16);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+    pool.need_safety[slot] = 0.0;    // max Safety migrate = 0.3 * 0.7 = 0.21
+    pool.need_material[slot] = 0.0;  // max Material migrate = 0.3 * 0.5 = 0.15
+    pool.need_spiritual[slot] = 0.0; // max Spiritual migrate = 0.3 * 0.4 = 0.12
+    let mods = compute_need_utility_modifiers(&pool, slot);
+    // Total uncapped = 0.21 + 0.15 + 0.12 = 0.48 > cap 0.30
+    assert!((mods.migrate - 0.30).abs() < 0.01,
+        "migrate should be capped at 0.30, got {}", mods.migrate);
+}
+
+#[test]
+fn test_autonomy_rebel_independently() {
+    let mut pool = AgentPool::new(16);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+    pool.need_autonomy[slot] = 0.0;
+    let mods = compute_need_utility_modifiers(&pool, slot);
+    // deficit = 0.3 * 0.8 = 0.24
+    assert!((mods.rebel - 0.24).abs() < 0.01,
+        "Expected rebel ~0.24, got {}", mods.rebel);
+}
+
+#[test]
+fn test_needs_only_rebellion_trigger() {
+    let mut pool = AgentPool::new(16);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+    pool.satisfactions[slot] = 0.6; // above rebel threshold
+    pool.loyalties[slot] = 0.5;     // above rebel threshold
+    pool.need_autonomy[slot] = 0.0; // full deficit
+    let mods = compute_need_utility_modifiers(&pool, slot);
+    assert!(mods.rebel > 0.0, "Autonomy deficit should produce positive rebel modifier");
+    // When base rebel_utility is 0.0 (above thresholds), adding needs makes total > 0.0
+    let simulated_total = 0.0 + mods.rebel;
+    assert!(simulated_total > 0.0, "Needs-only rebel should pass gate");
 }
 
 // ===========================================================================
