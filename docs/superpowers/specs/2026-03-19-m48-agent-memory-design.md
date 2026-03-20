@@ -117,6 +117,8 @@ Memory decay runs as the **first tick operation** ("Phase -0.5"), before skill g
 
 **NOT FIFO.** A cursor-based approach would evict the oldest memory regardless of significance. Intensity-based eviction protects strong memories (including M51 legacy memories) from being overwritten by trivial events.
 
+**M53 calibration candidate:** Recency-importance product eviction (`turns_since_event × 1/abs(intensity)`) is an alternative that favors a mix of old-strong and recent-weak memories over pure intensity ranking. Deferred because: current approach is simpler, preserves Mule-eligible memories unconditionally (important — Mule promotion reads the strongest memory), and the `turn` field is already available in the slot if the refinement lands later. Source: Stanford generative_agents retrieval weighting.
+
 ### LEGACY Bypass
 
 LEGACY memories (M51) write `decay_factor = 0` directly, bypassing the conversion function. The registry entry is "decay_factor: 0 (direct write)" — NOT "half-life: 0" (which would compute instant erasure). However, per Section 3, Legacy default half-life is 100 turns (very long, not permanent), to protect the 8-slot budget when M57 enables two-parent inheritance.
@@ -446,10 +448,10 @@ def get_mule_factor(gp: GreatPerson, action: ActionType, current_turn: int) -> f
 
 ### Action Engine Integration
 
-**Insertion point:** In `_compute_weights()`, AFTER all existing weight modifiers (including K_AGGRESSION_BIAS) and BEFORE the streak-breaker check and 2.5x proportional rescale cap. Execution order: ...aggression bias → **Mule loop** → streak-breaker → 2.5x cap.
+**Insertion point:** In `_compute_weights()`, AFTER all existing weight modifiers (including war-weariness and peace momentum from M47d) and BEFORE the streak-breaker check and 2.5x proportional rescale cap. Execution order: ...aggression bias → war-weariness → peace dividend → **Mule loop** → streak-breaker → 2.5x cap.
 
 ```python
-# After K_AGGRESSION_BIAS application:
+# After peace momentum (M47d), before streak-breaker:
 for gp in [gp for gp in world.great_persons if gp.mule and gp.active and gp.civilization == civ.name]:
     for action in ActionType:
         factor = get_mule_factor(gp, action, world.turn)
@@ -548,6 +550,8 @@ Memories:
 - `|intensity| > 60`: "vivid" / "strong"
 - `|intensity| 30-60`: "fading"
 - `|intensity| < 30`: omitted from narration context (too weak to mention)
+
+**Deferred refinement:** Three-factor retrieval weighting (recency:relevance:importance) for narration context selection would prioritize memories relevant to the current curated moment (same region, same event type) over merely recent ones. Deferred because: the intensity-threshold approach is adequate for M48 landing, and the refinement requires moment context in the `render_memory()` signature (available from curator pipeline but not yet threaded). Can land anytime without touching simulation systems. Source: Stanford generative_agents retrieval weighting.
 
 ### Mule Narrator Context
 

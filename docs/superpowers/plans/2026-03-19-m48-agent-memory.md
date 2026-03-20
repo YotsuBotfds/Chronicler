@@ -1451,7 +1451,7 @@ def get_mule_factor(gp, action_name: str, current_turn: int) -> float:
     return base + (1.0 - base) * fade_progress
 ```
 
-In `_compute_weights()`, after K_AGGRESSION_BIAS application and before the streak-breaker block, add:
+In `_compute_weights()`, after peace momentum (M47d) application and before the streak-breaker block, add. Execution order: ...aggression bias → war-weariness → peace dividend → **Mule loop** → streak-breaker → 2.5x cap:
 
 ```python
 # M48: Mule weight modification
