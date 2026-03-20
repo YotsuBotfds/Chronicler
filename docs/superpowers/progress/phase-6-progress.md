@@ -179,20 +179,21 @@ Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M
 
 **39 pre-existing Python test failures:** Import errors from 3b constants extraction, M38a faction count change. Not caused by M47c/M47d.
 
-### M47d: War Frequency Calibration — implemented (`abb6f82`..`3a1fbbd`)
+### M47d: War Frequency Calibration — merged, 200-seed VALIDATED (`abb6f82`..`58ca976`)
 
-- 6 commits on `feat/m47d-war-frequency` branch. 25 new M47d tests, all passing. Zero regressions.
+- 9 commits (6 implementation on `feat/m47d-war-frequency`, merged via `5ffc947`, calibration in `58ca976`). 26 M47d tests, all passing. Zero regressions.
 - **Spec:** `docs/superpowers/specs/2026-03-19-m47d-war-frequency-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-19-m47d-war-frequency.md`
-- **Mechanism 1:** Smooth WAR damper — `WAR *= max(min(stability / 30, 1.0), 0.05)` replaces binary cliff. Linear ramp, floor prevents zero. DIPLOMACY *= 3.0 stays as binary at stability <= 20.
-- **Mechanism 2:** War-weariness accumulator — `war_weariness: float` on Civilization. Exponential decay (0.95/turn), +1.0 on WAR action, +0.15 passive per active war. Effect: `WAR *= 1/(1 + weariness/3)`. Chronic warmonger steady state ~23 → 0.12x suppression.
-- **Mechanism 3:** Peace dividend — `peace_momentum: float` on Civilization. +1.0/turn at peace (cap 20), aggressor decay 0.3x, defender decay 0.8x. Effect: `DEVELOP *= 1 + momentum/10`, `TRADE *= 1 + momentum/10`.
-- **Mechanism 4:** Secession threshold deferred to post-validation calibration. Stays at 10.
+- **Mechanism 1:** Smooth WAR damper — `WAR *= max(min(stability / 50, 1.0), 0.05)` replaces binary cliff. Linear ramp, floor prevents zero. DIPLOMACY *= 3.0 stays as binary at stability <= 20.
+- **Mechanism 2:** War-weariness accumulator — `war_weariness: float` on Civilization. Exponential decay (0.95/turn), +2.0 on WAR action, +0.5 passive per active war. Effect: `WAR *= 1/(1 + weariness/0.5)`. Heavy suppression for chronic warmongers.
+- **Mechanism 3:** Peace dividend — `peace_momentum: float` on Civilization. +1.0/turn at peace (cap 20), aggressor decay 0.5x (only on turn civ CHOSE WAR), defender/ongoing-war decay 0.95x. Effect: `DEVELOP *= 1 + momentum/5`, `TRADE *= 1 + momentum/5`.
+- **Mechanism 4:** Secession threshold stays at 10. Secession frequency check deferred.
 - 12 new K_ constants in tuning.py (all [CALIBRATE]-tagged). Both fields on CivSnapshot for analytics.
 - Extinction resets at 4 sites (war conquest, 2× twilight absorption, exile restoration).
 - Weariness/momentum tick fires after `phase_action()` in `run_turn()`.
 - **Phoebe-reviewed:** 2 spec review passes, 2 plan review passes. All blocking issues resolved.
-- **200-seed validation pending.** Target: 5-40 wars per 500-turn run (was 204-508). Secession frequency check deferred.
+- **Calibration fix (58ca976):** Aggressor decay changed from per-turn (based on w[0] in active_wars) to one-shot (only when civ CHOSE WAR). Old approach zeroed peace momentum permanently since active_wars persist for hundreds of turns. Weariness handles ongoing fatigue via passive accumulation.
+- **200-seed validation (2026-03-19):** PASS. Median 24 wars (target 5-40). Mean 26.8, p10=16, p90=41, min=9, max=58. 90% of seeds in target range. Zero seeds below 5 (no overcorrection). Was 204-508 pre-M47d.
 
 ### M48: Agent Memory — spec + plan COMPLETE, Phoebe-approved (2026-03-19)
 
