@@ -377,6 +377,17 @@ impl AgentSimulator {
             .column_by_name("merchant_trade_income")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
+        // M48: Per-region transient memory signals
+        let controller_changed_col = rb
+            .column_by_name("controller_changed_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let war_won_col = rb
+            .column_by_name("war_won_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let seceded_col = rb
+            .column_by_name("seceded_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+
         // M37: Initial belief for spawn (per-region, controller civ's faith_id)
         let initial_belief_col = rb
             .column_by_name("initial_belief")
@@ -438,6 +449,9 @@ impl AgentSimulator {
                     food_sufficiency: food_sufficiency_col.map_or(1.0, |arr| arr.value(i)),
                     merchant_margin: merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
                     merchant_trade_income: merchant_trade_income_col.map_or(0.0, |arr| arr.value(i)),
+                    controller_changed_this_turn: controller_changed_col.map_or(false, |arr| arr.value(i)),
+                    war_won_this_turn: war_won_col.map_or(false, |arr| arr.value(i)),
+                    seceded_this_turn: seceded_col.map_or(false, |arr| arr.value(i)),
                 })
                 .collect();
 
@@ -545,6 +559,9 @@ impl AgentSimulator {
                 if let Some(arr) = food_sufficiency_col { r.food_sufficiency = arr.value(i); }
                 if let Some(arr) = merchant_margin_col { r.merchant_margin = arr.value(i); }
                 if let Some(arr) = merchant_trade_income_col { r.merchant_trade_income = arr.value(i); }
+                r.controller_changed_this_turn = controller_changed_col.map_or(false, |arr| arr.value(i));
+                r.war_won_this_turn = war_won_col.map_or(false, |arr| arr.value(i));
+                r.seceded_this_turn = seceded_col.map_or(false, |arr| arr.value(i));
             }
         }
         Ok(())

@@ -292,6 +292,8 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         for rn in breakaway_regions:
             if rn in region_map:
                 region_map[rn].controller = breakaway_name
+                # M48: Transient memory signal — region seceded this turn
+                region_map[rn]._seceded_this_turn = True
 
         sync_civ_population(civ, world)
 

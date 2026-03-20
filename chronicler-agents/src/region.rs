@@ -57,11 +57,15 @@ pub struct RegionState {
     pub food_sufficiency: f32,
     pub merchant_margin: f32,
     pub merchant_trade_income: f32,
+    // M48: Per-region transient memory signals (cleared each turn by build_region_batch)
+    pub controller_changed_this_turn: bool,
+    pub war_won_this_turn: bool,
+    pub seceded_this_turn: bool,
 }
 
 impl RegionState {
     pub fn new(region_id: u16) -> Self {
-        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0, river_mask: 0, endemic_severity: 0.0, culture_investment_active: false, controller_values: [0xFF, 0xFF, 0xFF], conversion_rate: 0.0, conversion_target_belief: 0xFF, conquest_conversion_active: false, majority_belief: 0xFF, has_temple: false, persecution_intensity: 0.0, schism_convert_from: 0xFF, schism_convert_to: 0xFF, farmer_income_modifier: 1.0, food_sufficiency: 1.0, merchant_margin: 0.0, merchant_trade_income: 0.0 }
+        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0, river_mask: 0, endemic_severity: 0.0, culture_investment_active: false, controller_values: [0xFF, 0xFF, 0xFF], conversion_rate: 0.0, conversion_target_belief: 0xFF, conquest_conversion_active: false, majority_belief: 0xFF, has_temple: false, persecution_intensity: 0.0, schism_convert_from: 0xFF, schism_convert_to: 0xFF, farmer_income_modifier: 1.0, food_sufficiency: 1.0, merchant_margin: 0.0, merchant_trade_income: 0.0, controller_changed_this_turn: false, war_won_this_turn: false, seceded_this_turn: false }
     }
 }
 

@@ -485,6 +485,9 @@ def resolve_war(
     if att_power > def_power * decisive_ratio:
         if contested:
             contested.controller = attacker.name
+            # M48: Transient memory signals — conquest and victory
+            contested._controller_changed_this_turn = True
+            contested._war_won_this_turn = True
             # M43a: Conquest stockpile destruction — 50% of each good lost
             from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
             for _good in list(contested.stockpile.goods.keys()):
@@ -538,6 +541,9 @@ def resolve_war(
             defender.stability = clamp(defender.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
         return WarResult("attacker_wins", contested.name if contested else None)
     elif def_power > att_power * decisive_ratio:
+        # M48: Transient memory signal — defender won the battle on contested region
+        if contested:
+            contested._war_won_this_turn = True
         mult = get_severity_multiplier(attacker, world)
         if acc is not None:
             acc.add(att_idx, attacker, "military", -loser_mil_loss, "guard-action")

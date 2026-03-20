@@ -200,6 +200,74 @@ class TestTransientSignalCleanup:
         assert vals2[0] is False
 
 
+class TestM48TransientMemorySignals:
+    """M48: Per-region transient memory signals clear after build_region_batch."""
+
+    def test_controller_changed_flag_clears_after_read(self, sample_world):
+        """_controller_changed_this_turn must not persist across batch builds."""
+        sample_world.regions[0]._controller_changed_this_turn = True
+        batch1 = build_region_batch(sample_world)
+        vals1 = batch1.column("controller_changed_this_turn").to_pylist()
+        assert vals1[0] is True
+        assert all(v is False for v in vals1[1:])
+
+        batch2 = build_region_batch(sample_world)
+        vals2 = batch2.column("controller_changed_this_turn").to_pylist()
+        assert vals2[0] is False
+
+    def test_war_won_flag_clears_after_read(self, sample_world):
+        """_war_won_this_turn must not persist across batch builds."""
+        sample_world.regions[1]._war_won_this_turn = True
+        batch1 = build_region_batch(sample_world)
+        vals1 = batch1.column("war_won_this_turn").to_pylist()
+        assert vals1[1] is True
+        assert vals1[0] is False
+
+        batch2 = build_region_batch(sample_world)
+        vals2 = batch2.column("war_won_this_turn").to_pylist()
+        assert vals2[1] is False
+
+    def test_seceded_flag_clears_after_read(self, sample_world):
+        """_seceded_this_turn must not persist across batch builds."""
+        sample_world.regions[2]._seceded_this_turn = True
+        batch1 = build_region_batch(sample_world)
+        vals1 = batch1.column("seceded_this_turn").to_pylist()
+        assert vals1[2] is True
+
+        batch2 = build_region_batch(sample_world)
+        vals2 = batch2.column("seceded_this_turn").to_pylist()
+        assert vals2[2] is False
+
+    def test_all_three_signals_default_false(self, sample_world):
+        """When no signals are set, all columns default to False."""
+        batch = build_region_batch(sample_world)
+        for col_name in ["controller_changed_this_turn", "war_won_this_turn", "seceded_this_turn"]:
+            assert col_name in batch.schema.names
+            vals = batch.column(col_name).to_pylist()
+            assert all(v is False for v in vals), f"{col_name} should default to all False"
+
+    def test_batch_has_correct_arrow_types(self, sample_world):
+        """M48 columns must be Boolean Arrow type."""
+        import pyarrow as pa
+        batch = build_region_batch(sample_world)
+        for col_name in ["controller_changed_this_turn", "war_won_this_turn", "seceded_this_turn"]:
+            assert batch.schema.field(col_name).type == pa.bool_()
+
+    def test_multiple_signals_on_different_regions(self, sample_world):
+        """Multiple signals on different regions are all captured and cleared."""
+        sample_world.regions[0]._controller_changed_this_turn = True
+        sample_world.regions[0]._war_won_this_turn = True
+        sample_world.regions[1]._seceded_this_turn = True
+        batch = build_region_batch(sample_world)
+        assert batch.column("controller_changed_this_turn").to_pylist()[0] is True
+        assert batch.column("war_won_this_turn").to_pylist()[0] is True
+        assert batch.column("seceded_this_turn").to_pylist()[1] is True
+        # All cleared after
+        batch2 = build_region_batch(sample_world)
+        for col_name in ["controller_changed_this_turn", "war_won_this_turn", "seceded_this_turn"]:
+            assert all(v is False for v in batch2.column(col_name).to_pylist())
+
+
 class TestDynastyIntegration:
     """M39: Verify dynasty system is wired into AgentBridge."""
 

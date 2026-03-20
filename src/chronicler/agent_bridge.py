@@ -180,6 +180,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         r.schism_convert_from = 0xFF
         r.schism_convert_to = 0xFF
 
+    # M48: Read per-region memory transient signals into locals, then clear
+    controller_changed_vals = [getattr(r, '_controller_changed_this_turn', False) for r in world.regions]
+    war_won_vals = [getattr(r, '_war_won_this_turn', False) for r in world.regions]
+    seceded_vals = [getattr(r, '_seceded_this_turn', False) for r in world.regions]
+    for r in world.regions:
+        r._controller_changed_this_turn = False
+        r._war_won_this_turn = False
+        r._seceded_this_turn = False
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -262,6 +271,10 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             [economy_result.merchant_trade_incomes.get(r.name, 0.0) if economy_result else 0.0
              for r in world.regions], type=pa.float32(),
         ),
+        # M48: Per-region transient memory signals
+        "controller_changed_this_turn": pa.array(controller_changed_vals, type=pa.bool_()),
+        "war_won_this_turn": pa.array(war_won_vals, type=pa.bool_()),
+        "seceded_this_turn": pa.array(seceded_vals, type=pa.bool_()),
     })
 
 

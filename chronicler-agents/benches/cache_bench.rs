@@ -68,6 +68,9 @@ fn setup_packed() -> (AgentPool, Vec<RegionState>, TickSignals) {
         food_sufficiency: 1.0,
         merchant_margin: 0.0,
         merchant_trade_income: 0.0,
+        controller_changed_this_turn: false,
+        war_won_this_turn: false,
+        seceded_this_turn: false,
     }).collect();
     let signals = make_signals(4, num_regions as usize);
     let mut pool = AgentPool::new(10_000);
@@ -112,6 +115,9 @@ fn setup_scattered() -> (AgentPool, Vec<RegionState>, TickSignals) {
         food_sufficiency: 1.0,
         merchant_margin: 0.0,
         merchant_trade_income: 0.0,
+        controller_changed_this_turn: false,
+        war_won_this_turn: false,
+        seceded_this_turn: false,
     }).collect();
     let signals = make_signals(4, num_regions as usize);
     // Spawn 15K agents, then kill every 3rd to leave 10K alive across 15K slots
