@@ -1,6 +1,8 @@
 /// M50a Relationship Substrate
 /// Per-agent relationship store: BondType enum and classification helpers.
 
+use std::collections::HashMap;
+
 /// Bond types. Values 0-4 match M40 RelationshipType for zero-translation compatibility.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -248,6 +250,69 @@ pub fn remove_symmetric(pool: &mut AgentPool, slot_a: usize, slot_b: usize, bond
     let id_b = pool.ids[slot_b];
     remove_directed(pool, slot_a, id_b, bond_type);
     remove_directed(pool, slot_b, id_a, bond_type);
+}
+
+// ---------------------------------------------------------------------------
+// Task 7: Sentiment drift
+// ---------------------------------------------------------------------------
+
+/// Per-tick sentiment drift for all agents.
+/// Phase 0.8: after needs (0.75), before satisfaction (1.0).
+pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
+    let turn_u16 = turn as u16;
+
+    // Build id→slot lookup (alive agents only)
+    let mut id_to_slot: HashMap<u32, usize> = HashMap::with_capacity(pool.capacity());
+    for slot in 0..pool.capacity() {
+        if pool.alive[slot] {
+            id_to_slot.insert(pool.ids[slot], slot);
+        }
+    }
+
+    for agent_slot in 0..pool.capacity() {
+        if !pool.alive[agent_slot] { continue; }
+        let count = pool.rel_count[agent_slot] as usize;
+        let agent_region = pool.regions[agent_slot];
+
+        for i in 0..count {
+            let target_id = pool.rel_target_ids[agent_slot][i];
+            let bond_type = pool.rel_bond_types[agent_slot][i];
+            let mut sent = pool.rel_sentiments[agent_slot][i] as i16;
+
+            // Dead/missing targets → not co-located (separation rules)
+            let co_located = id_to_slot.get(&target_id)
+                .map(|&ts| pool.alive[ts] && pool.regions[ts] == agent_region)
+                .unwrap_or(false);
+
+            let valence = is_positive_valence(bond_type);
+
+            if co_located {
+                if valence {
+                    // Positive: strengthen toward +127, cadence-gated above threshold
+                    if sent <= crate::agent::STRONG_TIE_THRESHOLD
+                        || turn_u16 % crate::agent::STRONG_TIE_CADENCE == 0
+                    {
+                        sent = (sent + crate::agent::POSITIVE_COLOC_DRIFT).min(127);
+                    }
+                } else {
+                    // Negative: deepen toward -128
+                    sent = (sent - crate::agent::NEGATIVE_COLOC_DRIFT).max(-128);
+                }
+            } else {
+                // Separated: decay toward 0
+                if sent > 0 {
+                    sent = (sent - crate::agent::POSITIVE_SEPARATION_DECAY).max(0);
+                } else if sent < 0 {
+                    // Negative decays slower (cadence-gated)
+                    if turn_u16 % crate::agent::NEGATIVE_DECAY_CADENCE == 0 {
+                        sent = (sent + 1).min(0);
+                    }
+                }
+            }
+
+            pool.rel_sentiments[agent_slot][i] = sent as i8;
+        }
+    }
 }
 
 /// Form a kin bond between parent and child at birth.
@@ -522,5 +587,98 @@ mod tests {
         // Now slot 0 has sentiment 17, slots 1-6 have 11-16
         // Evict should pick slot 1 (sentiment 11, the new weakest at lowest index)
         assert_eq!(find_evictable(&pool, a), Some(1));
+    }
+
+    #[test]
+    fn test_drift_positive_colocation_strengthens() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        // Put both in region 0
+        pool.regions[b] = 0;
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 50, 1);
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], 51);
+    }
+
+    #[test]
+    fn test_drift_negative_colocation_deepens() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        pool.regions[b] = 0; // same region as a
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Rival as u8, -50, 1);
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], -51);
+    }
+
+    #[test]
+    fn test_drift_separation_positive_decays() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        // setup_pool assigns different regions (0 and 1)
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 50, 1);
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], 49);
+    }
+
+    #[test]
+    fn test_drift_separation_negative_slow_decay() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Grudge as u8, -50, 1);
+        // Turn 1: not on cadence (NEGATIVE_DECAY_CADENCE=4)
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], -50);
+        // Turn 4: on cadence (4 % 4 == 0)
+        drift_relationships(&mut pool, 4);
+        assert_eq!(pool.rel_sentiments[a][0], -49);
+    }
+
+    #[test]
+    fn test_drift_dead_target_uses_separation_rules() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        pool.regions[b] = 0; // same region initially
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 50, 1);
+        pool.alive[b] = false; // kill target
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], 49); // separation decay, not co-located
+    }
+
+    #[test]
+    fn test_drift_strong_tie_cadence() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        pool.regions[b] = 0; // same region
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Kin as u8, 105, 1);
+        // Turn 1: above threshold (100), not on cadence (STRONG_TIE_CADENCE=2, 1%2!=0)
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], 105); // no drift
+        // Turn 2: on cadence (2%2==0)
+        drift_relationships(&mut pool, 2);
+        assert_eq!(pool.rel_sentiments[a][0], 106);
+    }
+
+    #[test]
+    fn test_drift_saturating_math() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        pool.regions[b] = 0;
+        let id_b = pool.ids[b];
+        upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 127, 1);
+        drift_relationships(&mut pool, 1);
+        assert_eq!(pool.rel_sentiments[a][0], 127); // clamped, not overflow
     }
 }

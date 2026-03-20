@@ -86,6 +86,11 @@ pub fn tick_agents(
     crate::needs::update_needs(pool, regions, signals, wealth_percentiles);
 
     // -----------------------------------------------------------------------
+    // 0.8 Relationship sentiment drift (M50a)
+    // -----------------------------------------------------------------------
+    crate::relationships::drift_relationships(pool, turn);
+
+    // -----------------------------------------------------------------------
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
     update_satisfaction(pool, regions, signals, wealth_percentiles);
