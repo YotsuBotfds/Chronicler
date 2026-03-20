@@ -10,14 +10,11 @@ An optional **agent layer** (written in Rust) runs per-agent computation for dem
 
 The LLM **only narrates** — it never makes simulation decisions. You can run with local inference (LM Studio), Claude API, or Gemini API for narrative generation, or skip narration entirely with `--simulate-only`.
 
-A **React/TypeScript viewer** connects via WebSocket for real-time visualization of running simulations.
-
 ## Requirements
 
 - **Python 3.13+**
 - **Rust toolchain** (for the `chronicler-agents` crate — optional, needed for agent mode)
 - **LM Studio** or an API key for narration (optional — simulation runs without it)
-- **Node.js 18+** (optional — only for the viewer)
 
 ## Installation
 
@@ -26,29 +23,40 @@ A **React/TypeScript viewer** connects via WebSocket for real-time visualization
 git clone https://github.com/YotsuBotfds/Chronicler.git
 cd Chronicler
 
-# Create a virtual environment
+# Run the setup script
+bash setup.sh            # Linux / Mac / Git Bash
+setup.bat                # Windows Command Prompt
+```
+
+The setup script creates a virtual environment, installs Python dependencies, builds the Rust agent crate (if Rust is installed), and sets up the viewer (if Node.js is installed). Optional flags:
+
+| Flag | Effect |
+|------|--------|
+| `--no-rust` | Skip Rust agent crate build |
+| `--api` | Install Claude API narration support |
+| `--gemini` | Install Gemini API narration support |
+
+### Manual Installation
+
+If you prefer to install manually:
+
+```bash
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
 # .venv\Scripts\activate   # Windows
 
-# Install Python dependencies
 pip install -e .
 
-# (Optional) Install API narration support
+# (Optional) API narration support
 pip install -e ".[api]"      # Claude API
 pip install -e ".[gemini]"   # Gemini API
 
-# (Optional) Build the Rust agent crate
+# (Optional) Rust agent crate
 cd chronicler-agents
 pip install maturin
 maturin develop --release
 cd ..
 
-# (Optional) Set up the viewer
-cd viewer
-npm install
-npm run dev
-cd ..
 ```
 
 ## Quick Start
@@ -70,8 +78,6 @@ chronicler --seed 42 --turns 80 --scenario scenarios/two_empires.yaml
 chronicler --seed 42 --turns 100 --simulate-only
 chronicler --narrate output/chronicle_bundle.json --narrator api --budget 50
 
-# Live mode with viewer
-chronicler --live --live-port 8765
 ```
 
 ## Run Modes
@@ -84,7 +90,6 @@ chronicler --live --live-port 8765
 | `--parallel` | Parallel workers for batch mode |
 | `--fork state.json` | Fork from a saved state with a new seed |
 | `--interactive` | Pause at intervals for commands |
-| `--live` | WebSocket server for real-time viewer |
 | `--narrate bundle.json` | Narrate a simulate-only bundle after the fact |
 | `--analyze dir/` | Analyze a batch directory and produce reports |
 | `--resume state.json` | Resume from a saved state |
@@ -120,7 +125,6 @@ Available presets: `pangaea`, `archipelago`, `golden-age`, `dark-age`, `ice-age`
 ```
 src/chronicler/       # Python simulation + narration (main codebase)
 chronicler-agents/    # Rust agent crate (per-agent computation via PyO3/Arrow)
-viewer/               # React/TypeScript real-time viewer
 scenarios/            # YAML scenario files
 tests/                # Python test suite
 ```
