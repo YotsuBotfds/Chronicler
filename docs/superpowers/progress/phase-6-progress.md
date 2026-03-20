@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-18 (M43b implementation session)
+> **Last updated:** 2026-03-19 (M47 Tier A + M47a + M47b-prep merged)
 
 ---
 
@@ -102,11 +102,75 @@
 - **No Rust changes.** Entirely Python-side.
 - **Calibration constants:** `SHOCK_DELTA_THRESHOLD=0.30`, `SHOCK_SEVERITY_FLOOR=0.8`, `TRADE_DEPENDENCY_THRESHOLD=0.6`, `RAIDER_THRESHOLD=200.0` [CALIBRATE], `RAIDER_WAR_WEIGHT=0.15`, `RAIDER_CAP=2.0`. All `[CALIBRATE]` for M47.
 
+### M44: API Narration Pipeline — merged (`dce271c`)
+
+- 8 commits on `feat/m44-api-narration` branch. 15 new tests, all passing.
+- **Spec:** `docs/superpowers/specs/2026-03-18-m44-api-narration-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-18-m44-api-narration.md`
+- `--narrator api|local` CLI argument with validation (5 conflict checks above `_run_narrate()` early return).
+- `create_clients()` gains `narrator` parameter — returns `AnthropicClient` when `"api"`.
+- `AnthropicClient` token tracking: 3 accumulators (`total_input_tokens`, `total_output_tokens`, `call_count`), console summary, bundle metadata (`narrator_mode`, `api_input_tokens`, `api_output_tokens`).
+- `execute_run()` API path: noop per-turn narrator (extends existing `_simulate_only` pattern), reflections gated off entirely (`not _api_mode and should_reflect(...)`), post-loop curator + `narrate_batch()` before `agent_bridge.close()`.
+- `gap_summaries` threaded to both `compile_chronicle()` and `assemble_bundle()`.
+- First-failure warning in `narrate_batch()` — `logger.warning` on first exception per call, per-call local variable (not instance attr).
+- Bug fix: `_run_narrate()` reads `events_timeline` key from bundles (was `events`, which didn't match `assemble_bundle()`'s output key).
+- Pre-existing test mock fixed: `test_complete_calls_anthropic_api` now includes `usage` fields (prevents MagicMock `__radd__` corruption of accumulators).
+- **Phoebe implementation review passed.** NB-1 (batch token bleed across seeds — low urgency edge case), NB-2 (usage mock — fixed in `a559c2b`).
+- **No Rust changes.** Entirely Python-side. No simulation determinism impact.
+- **M44 deliverables still pending:** ERA_REGISTER A/B experiment (pre-implementation, 4 conditions), 20-seed quality comparison (post-implementation, controlled pipeline). Both are manual evaluation tasks.
+
+### M45: Character Arc Tracking — merged (`6c997f3`)
+
+- 10 commits on M45 implementation. Arc classifier with 8 archetypes, deeds population at 9 mutation points, curator scoring (+1.5 arc, +2.5 completion), arc summaries via API follow-up calls, dead character filter relaxed.
+- **Spec:** `docs/superpowers/specs/` (M45 spec)
+- **Plan:** `docs/superpowers/plans/` (M45 plan)
+
+### M47: Phase 6 Tuning Pass — Tier A + M47a + M47b-prep merged (`d99b178`)
+
+- 1 commit, 36 files changed, 835 insertions, 225 deletions. 532 Python tests pass, 188 Rust tests pass, 2 pre-existing failures.
+- **Spec:** `docs/superpowers/specs/2026-03-19-m47-tuning-pass-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-19-m47-tuning-pass.md`
+- **Tier A:** Civ-removal fix — `world.civilizations.remove(civ)` deleted from `check_twilight_absorption()`. Dead civs stay in list (`len(regions)==0` convention). Dead-civ guards at 13 critical loop sites + `_write_back()`.
+- **M47a consumer wiring:** 8 multipliers wired (all default 1.0, no behavioral change). Python: K_AGGRESSION_BIAS (action_engine), K_TRADE_FRICTION (economy `friction_multiplier` param), K_RESOURCE_ABUNDANCE (ecology yields), K_SECESSION_LIKELIHOOD (politics prob), K_TECH_DIFFUSION_RATE (tech cost division). Rust FFI: `cultural_drift_multiplier` and `religion_intensity_multiplier` as CivSignals fields, wired in culture_tick.rs/conversion_tick.rs via tick.rs lookup.
+- **M47a severity cap:** `get_severity_multiplier(civ, world)` composes base × tuning, capped at 2.0. 11 existing call sites updated to pass `world`. `world` param is optional (defaults to base-only for backward compat).
+- **M47a severity fix:** 25 missing severity sites fixed across 9 files (politics 11, simulation 4, action_engine 3, leaders 2, climate/culture/ecology/emergence/succession 1 each). 7 new tests in `tests/test_severity.py`.
+- **M47a tatonnement:** 3-pass Walrasian price iteration in `compute_economy()`. Damping=0.2, per-pass clamp [0.5, 2.0], convergence threshold 0.01. All [CALIBRATE] for M47c.
+- **M47a Pydantic cleanup:** Removed misleading `ge=/le=` Field constraints from `models.py` (silently ignored with `validate_assignment=False`). Tests expecting validation-time rejection removed.
+- **M47b-prep:** Gini on CivSnapshot (populated from `AgentBridge._gini_by_civ` via `enumerate` index). `CivThematicContext` deleted (dead infrastructure). `NarrationContext.civ_context` field removed. `region_map` cached property on WorldState via `PrivateAttr` (inline replacements deferred). 9 analytics extractors added.
+- **Multiplier validation:** `load_tuning()` rejects multiplier values ≤ 0.
+- **Bit-identical:** `--agents=off` determinism verified at default multipliers.
+- **Python-side consumers also wired:** `culture.py` (drift), `religion.py` (conversion rate, schism threshold inverse scaling with 0.10 floor, persecution intensity).
+
 ---
 
 ## Ready for Implementation
 
-*(No milestones currently in implementation queue. Next: M44 or M45.)*
+### M47b-run: 200-Seed Health Check — not yet run
+
+Task 12 from the plan. Determinism gate passed. Needs:
+1. Run `--seed-range 1-200 --turns 500 --civs 4 --regions 8 --agents hybrid --simulate-only --batch 200`
+2. Apply extractors, compare against spec criteria table
+3. Generate health check report
+
+### M47c: Calibration + Narrative — 3-day time-box
+
+All multiplier consumers and extractors are wired. M47c tunes actual values.
+
+### Session Handoff (2026-03-19 — M47 implementation session)
+
+**Uncommitted from prior sessions (still present):**
+- `docs/superpowers/roadmaps/chronicler-phase6-roadmap.md` — M44/M47 enrichment notes, M46 dropped
+- `docs/superpowers/specs/2026-03-17-m39-parentage-dynasties-design.md` — minor edit
+- `src/chronicler/live.py` — minor edit
+
+**Hanging test investigation (for next agent):**
+- `tests/test_bundle.py::TestBundleSize::test_500_turn_bundle_under_5mb` hangs with M47 changes. On clean tree it completes in <1s. The test runs `execute_run(args)` with 5 civs, 10 regions, 500 turns. Benchmark shows 1ms/turn for the simulation loop alone, so the simulation isn't slow. The hang is likely in `execute_run`'s narration/reflection path — possibly `create_clients()` trying to connect to local LLM (LM Studio), or the reflection interval triggering LLM calls. The tatonnement adds ~3x economy cost but benchmarks show that's still sub-ms. Suspect the issue is in the `execute_run` code path around narration/reflection that the test doesn't mock out, and some M47 change (possibly the `Civilization` default field changes removing `Field(ge=0, le=1000)` for `population`) triggers a different code path. `test_m36_regression.py` and `test_main.py` also hang — same pattern (full `execute_run` integration tests). Recommendation: check if the `population: int = 0` default change (was `Field(ge=0, le=1000)`) causes `Civilization()` construction to fail somewhere that previously got a validation error, or if removing the `carrying_capacity` Field constraint breaks Region construction in test fixtures.
+
+**Next steps:**
+- Diagnose and fix the 3 hanging test files
+- Run M47b 200-seed health check (Task 12)
+- ERA_REGISTER A/B experiment (manual, deferred from M44)
+- M47c calibration pass
 
 ---
 
@@ -114,9 +178,11 @@
 
 - **Transient signal rule (CLAUDE.md):** Clear BEFORE return in builder functions. 2+ turn integration test required for every new transient signal.
 - **M34 farmer-as-miner:** Resolved. M41 added `is_extractive()` dispatch; M42 replaced it with market-derived `farmer_income_modifier`.
-- **M44 (API narration):** Free-floating — schedule flexibly between heavy milestones.
+- **M44 (API narration):** Merged. ERA_REGISTER A/B experiment and 20-seed quality comparison still pending (manual evaluation tasks, not implementation).
 - **~~Viewer extensions (M46)~~ — Dropped 2026-03-17.** Phase 7 redesigns the viewer from scratch (M62). All Phase 3-6 viewer requirements preserved as inventory in Phase 7 roadmap.
-- **Spec-ahead strategy:** Tier 1 spec-able: M44. Tier 2: M45.
+- **M44: Sequential batch token accumulation bleeds across seeds.** `--batch N --narrator api` shares one `AnthropicClient` across seeds; seed 2's bundle metadata shows seed 1+2 cumulative tokens. Low urgency — edge case, tokens for operator awareness not billing. Fix: reset accumulators per `execute_run()`, or snapshot deltas. Phoebe NB-1.
+- **M44: `_run_narrate()` agent context still limited.** Pre-existing gap — `narrate_batch()` call in `_run_narrate()` doesn't thread `great_persons`, `social_edges`, `gini_by_civ`, `economy_result`. API and local narration both equally affected. Not M44 scope.
+- **Spec-ahead strategy:** M44 merged. M45 design complete (spec doc pending).
 - **M42 analytics deferred:** Price time series extractor needs bundle format update to persist `EconomyResult` prices into turn snapshots. Land when bundle schema is designed (M43 or M62).
 - **M42+M43a 200-seed regression pending:** Calibration values (PER_CAPITA_FOOD, RAW_MATERIAL_PER_SOLDIER, LUXURY_PER_WEALTHY_AGENT, LUXURY_DEMAND_THRESHOLD, MERCHANT_MARGIN_NORMALIZER, TAX_RATE, BASE_FARMER_INCOME, plus M43a transport/decay/stockpile constants) need tuning before regression is meaningful.
 - **M43a: `RegionStockpile` is persistent, `RegionGoods` remains transient.** CLAUDE.md note "M43 adds stockpile persistence" is now landed. `food_sufficiency` source changed from single-turn supply to pre-consumption stockpile.
@@ -125,9 +191,22 @@
 - **M43a: Per-good import decomposition assumes single resource slot.** Inline comment documents M41 Decision 14 dependency. Multi-slot milestone would need broader decomposition.
 - **M43a: Conquest stockpile destruction wiring untested by M43a tests.** Formula is tested; integration point covered by existing war/action tests (which now operate on stockpile-bearing regions).
 - **M43a: `--agents=off` stockpile accumulation test not written.** Phoebe recommended. Low priority.
-- **Phase 7 draft roadmap:** `docs/superpowers/roadmaps/chronicler-phase7-draft.md` — provisional, subject to revision as Phase 6 milestones land.
-- **M43b: `CivThematicContext` population deferred.** Field `trade_dependency_summary` exists but is never set — `CivThematicContext` is dead infrastructure (defined but never constructed). Wire when `NarrationContext.civ_context` construction is implemented.
+- **Phase 7 roadmap:** `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md` — draft, M47 dependency for sequencing. Phase 8-9 horizon extracted to `chronicler-phase8-9-horizon.md`.
+- **Phase 8-9 brainstorm enrichments:** Most brainstorm "new systems" are content for existing milestones, not new milestones. Disease → M55, diaspora → M50, legal systems → M63, education → M63/M64, language → M68, espionage → M71. See enrichment notes on each milestone.
+- **~~Tier 1 multiplier consumers not wired~~** — Fixed in M47 (`d99b178`). All 8 consumers wired.
+- **~~`--tuning` YAML loading was missing for single runs.~~** Fixed in prior uncommitted main.py, now committed.
+- **~~M43b: `CivThematicContext` population deferred.~~** Deleted entirely in M47 (`d99b178`).
 - **M43b: `trade_dependent_regions` not scoped to moment civs.** Phoebe O-1. The spec says filter by controller, but `build_agent_context_for_moment` lacks world access. Currently includes all trade-dependent regions. Low impact — narration context is already scoped to agent events.
 - **M43b: `_get_adjacent_enemy_regions()` rebuilds region_map per call.** Phoebe O-2. Fine at current civ counts (~10). If civ count grows, cache `region_map` on `ActionEngine`.
-- **M42+M43a+M43b 200-seed regression pending.** Three milestones unvalidated. Top structural risk. Calibration values needed before regression is meaningful.
+- **M42+M43a+M43b+M44+M45+M47 200-seed health check pending.** Six milestones unvalidated. M47b extractors landed, health check run (Task 12) not yet executed. Absolute thresholds, not delta regression.
+- **~~CRITICAL: Civ-removal stale-index bug.~~** Fixed in M47 Tier A (`d99b178`). Dead civs stay in list, 13 guards added.
+- **~~25 severity multiplier sites missing.~~** Fixed in M47 (`d99b178`). All 25 sites now use `get_severity_multiplier(civ, world)`.
+- **K_PEAK_YIELD has no consumer.** Defined in `tuning.py` but never read anywhere. No yield cap exists in `compute_resource_yields()`. K_RESOURCE_ABUNDANCE scales linearly with no upper bound. Downstream `food_sufficiency` clamp at [0, 2.0] is the effective guard.
+- **~~`AgentBridge._gini_by_civ` keyed by int, not name.~~** Fixed in M47 (`d99b178`). Snapshot uses `enumerate` index.
+- **M45: `gp.deeds` is defined but never populated.** The field exists on GreatPerson (models.py:334), narrative pipeline reads `gp.deeds[-3:]` (narrative.py:173), but nothing ever appends. M45 fixes this with 9 mutation points.
+- **M45: `gp.region` not auto-synced from agent snapshot.** Only set at major transitions (creation, conquest, hostage release). Agent migration doesn't update GP region. Affects Wanderer classification — use `notable_migration` event count instead of region field.
+- **M45: `build_agent_context_for_moment()` excludes dead characters.** Line 162 filters `if not gp.active`. Death moments (the most important arc events) don't get accumulated arc context in the prompt. M45 relaxes filter to include characters whose names appear in moment event actors.
+- **M45: Character events include character name in `actors`.** Verified: `character_death` actors=[name, civ.name], `exile_return` actors=[name], `notable_migration` actors=[name], `conquest_exile` actors=[gp.name, conquered_civ, conqueror_civ]. The `gp.name in e.actors` filter works for character-specific events. Civ-level events (war, trade, rebellion) only have civ names — classifier operates on character events only.
 - **Fullscale Phoebe review (2026-03-18):** CLAUDE.md line counts + file table updated, simulation.py docstring aligned, dead `derive_food_sufficiency()` removed, Phase 7 viewer scope estimate corrected.
+- **M47: 3 integration test files hang after Pydantic cleanup.** `test_bundle.py::TestBundleSize::test_500_turn_bundle_under_5mb`, `test_m36_regression.py`, `test_main.py` — all run full `execute_run()` integration. Complete in <1s on clean tree, hang indefinitely with M47 changes. The simulation loop benchmarks at 1ms/turn, so tatonnement is not the cause. Suspected root cause: removing `ge=/le=` Field constraints changed default values (e.g., `population: int = 0` was `Field(ge=0, le=1000)`, `stability: int = 50` was `Field(ge=0, le=100)`) — test fixtures may rely on old default behaviors or the Civilization constructor may now accept states that trigger infinite loops in the simulation. Investigation started but not completed. See session handoff for details.
+- **M47: `region_map` inline replacements deferred.** The `world.region_map` cached property is added but the ~19 inline `{r.name: r for r in world.regions}` rebuilds are NOT yet replaced. Safe — property works alongside inline rebuilds. Replace opportunistically. `invalidate_region_map()` calls not yet added at region mutation sites.
