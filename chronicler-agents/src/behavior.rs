@@ -43,7 +43,7 @@ fn smoothstep(x: usize, edge0: usize, edge1: usize) -> f32 {
 /// Maps a personality dimension [-1, +1] to a utility multiplier.
 /// Output clamped to >= 0.0 to prevent sign flips at high weights.
 #[inline]
-fn personality_modifier(dimension: f32, weight: f32) -> f32 {
+pub fn personality_modifier(dimension: f32, weight: f32) -> f32 {
     (1.0 + dimension * weight).max(0.0)
 }
 

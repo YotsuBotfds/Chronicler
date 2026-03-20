@@ -47,6 +47,10 @@ pub use memory::{
 };
 #[doc(hidden)]
 pub use needs::NeedUtilityModifiers;
+#[doc(hidden)]
+pub use needs::{decay_needs, restore_needs, clamp_needs, update_needs};
+#[doc(hidden)]
+pub use signals::{CivSignals, TickSignals};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
