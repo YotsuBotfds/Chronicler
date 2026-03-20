@@ -61,6 +61,41 @@ def _update_arc_summary(gp, new_sentence: str) -> None:
 _DESPERATE_EVENTS = {"local_rebellion", "demographic_crisis"}
 _RESTLESS_EVENTS = {"loyalty_cascade", "brain_drain", "occupation_shift"}
 
+# ---------------------------------------------------------------------------
+# M48: Memory descriptions for narration
+# ---------------------------------------------------------------------------
+
+MEMORY_DESCRIPTIONS = {
+    0: "a great famine under the {civ}",
+    1: "combat against the {civ}",
+    2: "the fall of the {civ}",
+    3: "persecution by the {civ}",
+    4: "a migration from {civ} lands",
+    5: "a time of prosperity",
+    6: "victory over the {civ}",
+    7: "a great achievement",
+    8: "the birth of a child",
+    9: "the death of kin",
+    10: "a change of faith",
+    11: "the fracture of the {civ}",
+}
+
+MEMORY_NARRATION_VIVID = 60   # [CALIBRATE M53]
+MEMORY_NARRATION_FADING = 30  # [CALIBRATE M53]
+
+
+def render_memory(mem: dict, civ_names: list) -> str | None:
+    """Render a memory slot as a natural language fragment."""
+    intensity = abs(mem.get("intensity", 0))
+    if intensity < MEMORY_NARRATION_FADING:
+        return None  # too weak to mention
+    template = MEMORY_DESCRIPTIONS.get(mem["event_type"], "an event")
+    source = mem.get("source_civ", 0)
+    civ_name = civ_names[source] if source < len(civ_names) else "unknown"
+    descriptor = "vivid" if intensity >= MEMORY_NARRATION_VIVID else "fading"
+    text = template.format(civ=civ_name)
+    return f"{text} (turn {mem['turn']}, {descriptor})"
+
 
 def compute_population_mood(events: list[Event]) -> str:
     """Compute population mood from agent events. Worst wins."""
@@ -115,6 +150,25 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                 else:
                     dynasty_line += f" ({char['dynasty_living']}/{char['dynasty_total']} living)"
                 lines.append(dynasty_line)
+            # M48: Memory context
+            if char.get("memories"):
+                civ_names = char.get("_civ_names", [])
+                rendered = [render_memory(m, civ_names) for m in char["memories"]]
+                rendered = [r for r in rendered if r is not None]
+                if rendered:
+                    lines.append("  Memories:")
+                    for r in rendered:
+                        lines.append(f"    - {r}")
+            # M48: Mule context
+            if char.get("mule") and char.get("status") == "active":
+                overrides = char.get("utility_overrides", {})
+                remaining = char.get("mule_remaining", 0)
+                if remaining > 0 and overrides:
+                    overrides_str = ", ".join(
+                        f"{k} x{v}" for k, v in overrides.items()
+                    )
+                    lines.append(f"  [MULE] Active influence: {overrides_str}")
+                    lines.append(f"    Window: {remaining} turns remaining")
         lines.append("")
 
     # M40: Render relationship context
@@ -176,6 +230,8 @@ def build_agent_context_for_moment(
     civ_idx: int | None = None,                    # M41: which civ to pull gini for
     gini_by_civ: dict[int, float] | None = None,   # M41: per-civ Gini coefficients
     economy_result=None,  # M43b
+    civ_names: list[str] | None = None,  # M48: for memory rendering
+    world_turn: int = 0,  # M48: current turn for Mule window calculation
 ) -> AgentContext | None:
     """Build AgentContext if the moment has agent-source or economy events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
@@ -223,6 +279,19 @@ def build_agent_context_for_moment(
             char["arc_summary"] = gp.arc_summary
         if gp.trait:
             char["trait"] = gp.trait
+
+        # M48: Memory context
+        if hasattr(gp, "memories") and gp.memories:
+            char["memories"] = gp.memories
+            char["_civ_names"] = civ_names or []
+
+        # M48: Mule context
+        if getattr(gp, "mule", False) and gp.active:
+            from chronicler.action_engine import MULE_ACTIVE_WINDOW, MULE_FADE_TURNS
+            char["mule"] = True
+            char["utility_overrides"] = getattr(gp, "utility_overrides", {})
+            remaining = (gp.born_turn + MULE_ACTIVE_WINDOW + MULE_FADE_TURNS) - world_turn
+            char["mule_remaining"] = max(0, remaining)
 
         chars.append(char)
 
