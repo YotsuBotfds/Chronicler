@@ -439,10 +439,12 @@ pub fn tick_agents(
             // M50a: auto-form kin bond between parent and child
             if birth.parent_id != crate::agent::PARENT_NONE {
                 if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                    // Guard: parent may have died earlier in same demographics batch
-                    if !pool.alive[parent_slot] { /* skip dead parent */ }
-                    else if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
-                        kin_bond_failures += 1;
+                    // Guard: parent may have died and slot reused by earlier birth in same batch.
+                    // Check both alive AND id match to detect stale HashMap entries.
+                    if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
+                        if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
+                            kin_bond_failures += 1;
+                        }
                     }
                 }
             }
@@ -462,7 +464,7 @@ pub fn tick_agents(
 
             // M48: BirthOfKin intent for the parent
             if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                if pool.is_alive(parent_slot) {
+                if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: parent_slot,
                         event_type: crate::memory::MemoryEventType::BirthOfKin as u8,

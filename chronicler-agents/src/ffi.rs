@@ -189,6 +189,7 @@ pub struct AgentSimulator {
     social_graph: crate::social::SocialGraph,
     initialized: bool,
     wealth_percentiles: Vec<f32>,
+    #[pyo3(get)]
     pub kin_bond_failures: u32,
 }
 
@@ -966,9 +967,12 @@ impl AgentSimulator {
                     );
                 }
                 1 => {
-                    // UpsertSymmetric: both alive, reject asymmetric types
-                    if crate::relationships::is_asymmetric(bt_raw) {
-                        continue; // Mentor is asymmetric, cannot upsert symmetrically
+                    // UpsertSymmetric: both alive, reject asymmetric types AND Kin
+                    // Kin bonds must go through Rust-native birth path (form_kin_bond)
+                    if crate::relationships::is_asymmetric(bt_raw)
+                        || bt_raw == crate::relationships::BondType::Kin as u8
+                    {
+                        continue;
                     }
                     let slot_a = match self.pool.find_slot_by_id(id_a) {
                         Some(s) => s,
