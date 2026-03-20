@@ -764,7 +764,9 @@ In `relationships.rs`:
 /// Form a kin bond between parent and child at birth.
 /// Atomic pair-write: both succeed or neither.
 /// Returns true if both bonds were written.
-pub fn form_kin_bond(pool: &mut AgentPool, parent_slot: usize, child_slot: usize, turn: u16) -> bool {
+/// `turn` is u32 from the tick entrypoint; truncated to u16 for storage (wraps at 65535).
+pub fn form_kin_bond(pool: &mut AgentPool, parent_slot: usize, child_slot: usize, turn: u32) -> bool {
+    let turn = turn as u16; // Storage is u16; wraps are acceptable (same as memory_turns)
     let parent_id = pool.ids[parent_slot];
     let child_id = pool.ids[child_slot];
     if parent_id == child_id { return false; }
@@ -802,7 +804,7 @@ In `tick.rs`, after `pool.parent_ids[new_slot] = birth.parent_id;` (line ~432), 
             }
 ```
 
-Also add `let mut kin_bond_failures: u32 = 0;` at the start of the demographics section. After the birth loop, log failures: `if kin_bond_failures > 0 { log::debug!("M50a: {} kin bond formations failed (slot exhaustion)", kin_bond_failures); }`. This is diagnostic-only — no need to persist or return the counter.
+Add a `pub kin_bond_failures: u32` field to `AgentSimulator` in `ffi.rs` (after existing fields, initialized to 0). In the birth loop, increment it on failure: `self.kin_bond_failures += 1;` (this requires threading the counter through the tick call — check how `AgentSimulator` fields are accessed in tick. If tick takes `&mut AgentSimulator`, increment directly. If tick only takes `&mut AgentPool`, add a local counter and write back after the birth loop). Also log: `if kin_bond_failures > 0 { log::debug!("M50a: {} kin bond formations failed", kin_bond_failures); }`.
 
 - [ ] **Step 3: Write test for kin auto-formation**
 
@@ -877,7 +879,9 @@ use std::collections::HashMap;
 
 /// Per-tick sentiment drift for all agents.
 /// Phase 0.8: after needs (0.75), before satisfaction (1.0).
-pub fn drift_relationships(pool: &mut AgentPool, turn: u16) {
+/// `turn` is u32 from the tick entrypoint; cast to u16 for cadence modulo checks.
+pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
+    let turn_u16 = turn as u16; // For cadence modulo only; wraps are fine
     // Build id→slot lookup (alive agents only)
     let mut id_to_slot: HashMap<u32, usize> = HashMap::with_capacity(pool.capacity());
     for slot in 0..pool.capacity() {
@@ -907,7 +911,7 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u16) {
                 if valence {
                     // Positive: strengthen toward +127, cadence-gated above threshold
                     if sent <= crate::agent::STRONG_TIE_THRESHOLD
-                        || turn % crate::agent::STRONG_TIE_CADENCE == 0
+                        || turn_u16 % crate::agent::STRONG_TIE_CADENCE == 0
                     {
                         sent = (sent + crate::agent::POSITIVE_COLOC_DRIFT).min(127);
                     }
@@ -921,7 +925,7 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u16) {
                     sent = (sent - crate::agent::POSITIVE_SEPARATION_DECAY).max(0);
                 } else if sent < 0 {
                     // Negative decays slower (cadence-gated)
-                    if turn % crate::agent::NEGATIVE_DECAY_CADENCE == 0 {
+                    if turn_u16 % crate::agent::NEGATIVE_DECAY_CADENCE == 0 {
                         sent = (sent + 1).min(0);
                     }
                 }
@@ -1125,12 +1129,19 @@ After `replace_social_edges()` (~line 822), add:
                     if !self.pool.alive[slot_a] { continue; }
                     crate::relationships::remove_directed(&mut self.pool, slot_a, id_b, bt);
                 }
-                3 => { // RemoveSymmetric
-                    let Some(slot_a) = self.pool.find_slot_by_id(id_a) else { continue; };
-                    let Some(slot_b) = self.pool.find_slot_by_id(id_b) else { continue; };
-                    // Both sources must be alive (own their slots)
-                    if self.pool.alive[slot_a] && self.pool.alive[slot_b] {
-                        crate::relationships::remove_symmetric(&mut self.pool, slot_a, slot_b, bt);
+                3 => { // RemoveSymmetric — remove whatever side still exists
+                    // Each side is independent: if one endpoint is dead, still
+                    // remove the bond on the living side. This prevents stale
+                    // symmetric bonds surviving indefinitely after one party dies.
+                    if let Some(slot_a) = self.pool.find_slot_by_id(id_a) {
+                        if self.pool.alive[slot_a] {
+                            crate::relationships::remove_directed(&mut self.pool, slot_a, id_b, bt);
+                        }
+                    }
+                    if let Some(slot_b) = self.pool.find_slot_by_id(id_b) {
+                        if self.pool.alive[slot_b] {
+                            crate::relationships::remove_directed(&mut self.pool, slot_b, id_a, bt);
+                        }
                     }
                 }
                 _ => {
@@ -1325,11 +1336,22 @@ Replace the existing implementation that writes to `self.social_graph` with a sh
 
         // 3. Diff: removals = current - incoming, additions = incoming - current
         for &(a, b, bt) in current.difference(&incoming) {
-            if let Some(slot_a) = self.pool.find_slot_by_id(a) {
-                if crate::relationships::is_asymmetric(bt) {
+            if crate::relationships::is_asymmetric(bt) {
+                // Mentor: remove from mentor side only
+                if let Some(slot_a) = self.pool.find_slot_by_id(a) {
                     crate::relationships::remove_directed(&mut self.pool, slot_a, b, bt);
-                } else if let Some(slot_b) = self.pool.find_slot_by_id(b) {
-                    crate::relationships::remove_symmetric(&mut self.pool, slot_a, slot_b, bt);
+                }
+            } else {
+                // Symmetric: remove whatever side still exists (one may be dead)
+                if let Some(slot_a) = self.pool.find_slot_by_id(a) {
+                    if self.pool.alive[slot_a] {
+                        crate::relationships::remove_directed(&mut self.pool, slot_a, b, bt);
+                    }
+                }
+                if let Some(slot_b) = self.pool.find_slot_by_id(b) {
+                    if self.pool.alive[slot_b] {
+                        crate::relationships::remove_directed(&mut self.pool, slot_b, a, bt);
+                    }
                 }
             }
         }
@@ -1449,42 +1471,32 @@ git commit -m "feat(m50a): Python integration — agent_bonds field, apply_relat
 
 ### Task 12: Rust Integration Tests
 
+**Note on test placement:** `AgentSimulator` lives in the private `ffi` module and is NOT publicly exported from the crate. External integration tests (`chronicler-agents/tests/`) cannot construct it. Therefore:
+
+- **Pool-level tests** (kin formation, drift, eviction, slot ops): go in `relationships.rs` `#[cfg(test)]` module using `AgentPool` directly (already covered in Tasks 3, 4, 6, 7).
+- **FFI round-trip tests** (apply_relationship_ops, get_social_edges projection, batch ordering, invalid ops): go in `ffi.rs` `#[cfg(test)]` module where `AgentSimulator` is accessible.
+- **End-to-end tick tests** (kin at birth → drift → projection): also in `ffi.rs` tests or as Python-side tests (Task 13).
+
 **Files:**
-- Create: `chronicler-agents/tests/test_relationships.rs`
+- Modify: `chronicler-agents/src/ffi.rs` (add `#[cfg(test)]` module)
 
-- [ ] **Step 1: Write integration tests**
+- [ ] **Step 1: Add FFI-level tests to ffi.rs**
 
-Create `chronicler-agents/tests/test_relationships.rs`:
+At the bottom of `ffi.rs`, add a `#[cfg(test)]` module. Before writing, read the existing test patterns in `ffi.rs` (if any) or in `memory.rs`/`needs.rs` for how to construct test pools and simulators within the crate.
+
+Tests to implement in `ffi.rs #[cfg(test)]`:
 
 ```rust
-//! M50a relationship substrate integration tests.
-//!
-//! Tests end-to-end behavior: kin formation at birth → drift over multiple turns →
-//! eviction under slot pressure → projection compatibility.
-
-// Import patterns vary by test file convention in this crate.
-// Check existing integration test files (e.g., test_memory.rs) for the correct
-// import pattern and constructor usage before writing.
-
-// Tests to implement:
-// 1. Kin bond formed after simulated birth, visible via get_agent_relationships
-// 2. Multi-turn drift: co-located kin bond sentiment increases each tick
-// 3. Slot exhaustion: 8 kin bonds → social upsert fails
-// 4. apply_relationship_ops round-trip: build Arrow batch, apply, verify store state
-// 5. get_social_edges projection: only types 0-4, only named characters, a<b convention
-// 6. Batch ordering: Upsert→Remove→Upsert in one batch produces correct final state
-// 7. Invalid ops: dead agent, unknown bond type, symmetric Mentor → all skipped
-// 8. Remove with dead target: succeeds (source alive, target dead)
-// 9. Determinism: same operations in same order produce identical store state
+// 1. apply_relationship_ops round-trip: build Arrow batch with UpsertDirected,
+//    apply, verify store state via get_agent_relationships
+// 2. get_social_edges projection: types 0-4 only, named characters only, a<b
+// 3. Batch ordering: Upsert→Remove→Upsert produces correct final state
+// 4. Invalid ops: dead agent, unknown bond_type, symmetric Mentor → skipped
+// 5. Remove with dead target: source alive, target dead → succeeds
+// 6. RemoveSymmetric with one dead endpoint: living side cleaned up
 ```
 
-**Important:** Before writing test bodies, read an existing integration test file (e.g., `chronicler-agents/tests/test_memory.rs` or `chronicler-agents/tests/test_needs.rs`) to understand:
-- How to construct `AgentSimulator` in tests
-- How to build Arrow `RecordBatch` in tests
-- How `RegionState` is constructed (use constructor functions, NOT struct literals)
-- How to call FFI methods from integration tests
-
-Mirror that pattern exactly. Each test should be self-contained with its own pool setup.
+**Important:** Use `AgentPool::new()` and `pool.spawn(...)` with the full parameter signature (check existing code for the exact parameters). Do NOT use struct literals for RegionState.
 
 - [ ] **Step 2: Run integration tests**
 
