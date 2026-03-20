@@ -318,3 +318,49 @@ class TestPeaceDividend:
         war_peace = engine.compute_weights(civ)[ActionType.WAR]
 
         assert abs(war_base - war_peace) < 0.001
+
+
+class TestWarFrequencyIntegration:
+    """M47d: Verify all three mechanisms work together."""
+
+    def test_combined_suppression(self, engine_world):
+        """Low stability + high weariness + zero momentum = heavily suppressed WAR."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 15
+        civ.war_weariness = 10.0
+        civ.peace_momentum = 0.0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+
+        assert weights[ActionType.WAR] < weights[ActionType.DEVELOP]
+        assert weights[ActionType.WAR] < weights[ActionType.DIPLOMACY]
+
+    def test_peaceful_civ_prefers_develop(self, engine_world):
+        """High stability + zero weariness + high momentum = DEVELOP/TRADE dominant.
+
+        Uses cautious leader — aggressive trait overwhelms peace momentum for WAR-prone civs.
+        NEUTRAL disposition required to make TRADE eligible.
+        Test intent: peace momentum 3x boost wins over WAR for a non-aggressive leader.
+        """
+        civ = engine_world.civilizations[0]
+        civ.leader.trait = "cautious"
+        civ.stability = 50
+        civ.war_weariness = 0.0
+        civ.peace_momentum = 20.0
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+
+        assert weights[ActionType.DEVELOP] > weights[ActionType.WAR]
+        assert weights[ActionType.TRADE] > weights[ActionType.WAR]
+
+    def test_warmonger_still_can_fight(self, engine_world):
+        """Even with high weariness, WAR is not zero — just suppressed."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        civ.war_weariness = 23.0
+        civ.peace_momentum = 0.0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.WAR] > 0, "WAR should never be zero from weariness alone"
