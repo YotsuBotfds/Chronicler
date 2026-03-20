@@ -46,7 +46,7 @@ pub fn tick_agents(
     master_seed: [u8; 32],
     turn: u32,
     wealth_percentiles: &mut [f32],
-) -> Vec<AgentEvent> {
+) -> (Vec<AgentEvent>, u32) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -84,6 +84,11 @@ pub fn tick_agents(
     // 0.75 Needs decay + restoration (M49)
     // -----------------------------------------------------------------------
     crate::needs::update_needs(pool, regions, signals, wealth_percentiles);
+
+    // -----------------------------------------------------------------------
+    // 0.8 Relationship sentiment drift (M50a)
+    // -----------------------------------------------------------------------
+    crate::relationships::drift_relationships(pool, turn);
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
@@ -376,6 +381,7 @@ pub fn tick_agents(
     }
 
     // Sequential apply: deaths, age increments, births
+    let mut kin_bond_failures: u32 = 0;
     for dr in &demo_results {
         // Deaths
         for &(slot, region) in &dr.deaths {
@@ -430,6 +436,18 @@ pub fn tick_agents(
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             pool.parent_ids[new_slot] = birth.parent_id;
+            // M50a: auto-form kin bond between parent and child
+            if birth.parent_id != crate::agent::PARENT_NONE {
+                if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
+                    // Guard: parent may have died and slot reused by earlier birth in same batch.
+                    // Check both alive AND id match to detect stale HashMap entries.
+                    if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
+                        if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
+                            kin_bond_failures += 1;
+                        }
+                    }
+                }
+            }
             // Set all 5 skill slots to SKILL_NEWBORN
             for occ in 0..OCCUPATION_COUNT {
                 pool.skills[new_slot * 5 + occ] = SKILL_NEWBORN;
@@ -446,7 +464,7 @@ pub fn tick_agents(
 
             // M48: BirthOfKin intent for the parent
             if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                if pool.is_alive(parent_slot) {
+                if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: parent_slot,
                         event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
@@ -586,7 +604,7 @@ pub fn tick_agents(
         crate::memory::write_all_memories(pool, &memory_intents, turn as u16);
     }
 
-    events
+    (events, kin_bond_failures)
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,7 +1022,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let events = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1076,8 +1094,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let ea = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
-            let eb = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
+            let (ea, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
+            let (eb, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1111,7 +1129,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let events = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(

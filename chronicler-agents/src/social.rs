@@ -1,3 +1,7 @@
+// DEPRECATED (M50a): SocialGraph is no longer authoritative.
+// Relationships are stored per-agent in pool.rs SoA fields.
+// This struct will be deleted once replace_social_edges() shim is removed.
+
 /// Relationship type enum — matches Python-side constants.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

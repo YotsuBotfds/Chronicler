@@ -83,7 +83,8 @@ Each phase reads/mutates a shared `WorldState`. Pydantic models throughout (`val
 | `conversion_tick.rs` | Belief conversion per-agent rolls |
 | `culture_tick.rs` | Cultural drift per-agent |
 | `signals.rs` | CivSignals/TickSignals parsing from Arrow columns |
-| `social.rs` | SocialGraph, SocialEdge, RelationshipType for named character relationships (M40) |
+| `social.rs` | SocialGraph, SocialEdge, RelationshipType for named character relationships (M40) — DEPRECATED, replaced by relationships.rs |
+| `relationships.rs` | Per-agent relationship store (M50a): BondType enum, slot helpers, upsert/remove ops, kin formation, sentiment drift |
 
 ### ActionType Enum (models.py)
 

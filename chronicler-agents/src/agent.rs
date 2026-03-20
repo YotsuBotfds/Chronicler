@@ -94,6 +94,8 @@ pub const GOODS_ALLOC_STREAM_OFFSET: u64  = 800;
 pub const MEMORY_STREAM_OFFSET: u64 = 900;
 // M48: Mule promotion (reserved for Rust, but M48 uses Python-side RNG)
 pub const MULE_STREAM_OFFSET: u64 = 1300;
+// M50 — Relationship formation / dissolution (not consumed in M50a)
+pub const RELATIONSHIP_STREAM_OFFSET: u64 = 1100;
 
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
@@ -261,6 +263,21 @@ pub const PURPOSE_RESTORE_WAR: f32 = 0.015;
 pub const NEEDS_MODIFIER_CAP: f32 = 0.30;
 pub const AUTONOMY_DRIFT_WEIGHT: f32 = 2.0;
 
+// ── M50a: Relationship Substrate ──────────────────────────────────────────────
+// Kin auto-formation initial sentiments
+pub const KIN_INITIAL_PARENT: i8 = 60;   // [CALIBRATE M53] parent→child
+pub const KIN_INITIAL_CHILD: i8 = 40;    // [CALIBRATE M53] child→parent
+
+// Sentiment drift — co-located bonds
+pub const POSITIVE_COLOC_DRIFT: i16 = 1;           // [CALIBRATE M53] per-tick positive drift
+pub const NEGATIVE_COLOC_DRIFT: i16 = 1;           // [CALIBRATE M53] per-tick negative deepening
+pub const STRONG_TIE_THRESHOLD: i16 = 100;         // [CALIBRATE M53] cadence kicks in above this
+pub const STRONG_TIE_CADENCE: u16 = 2;             // [CALIBRATE M53] drift every N ticks above threshold
+
+// Sentiment drift — separation decay
+pub const POSITIVE_SEPARATION_DECAY: i16 = 1;      // [CALIBRATE M53] per-tick positive decay
+pub const NEGATIVE_DECAY_CADENCE: u16 = 4;         // [CALIBRATE M53] ticks between negative decay steps
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,6 +327,7 @@ mod tests {
             GOODS_ALLOC_STREAM_OFFSET,
             MEMORY_STREAM_OFFSET,
             MULE_STREAM_OFFSET,
+            RELATIONSHIP_STREAM_OFFSET,
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {

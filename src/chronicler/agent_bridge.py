@@ -519,6 +519,13 @@ class AgentBridge:
                                 "social": raw_needs[2], "spiritual": raw_needs[3],
                                 "autonomy": raw_needs[4], "purpose": raw_needs[5],
                             }
+                        # M50a: relationship sync
+                        raw_bonds = self._sim.get_agent_relationships(gp.agent_id)
+                        if raw_bonds is not None:
+                            gp.agent_bonds = [
+                                {"target_id": b[0], "sentiment": b[1], "bond_type": b[2], "formed_turn": b[3]}
+                                for b in raw_bonds
+                            ]
 
             return summaries + char_events + death_events + dynasty_events
         elif self._mode == "shadow":
@@ -1150,3 +1157,23 @@ class AgentBridge:
                 pa.array(formed, type=pa.uint16()),
             ], names=["agent_a", "agent_b", "relationship", "formed_turn"])
         self._sim.replace_social_edges(batch)
+
+    def apply_relationship_ops(self, ops: list[dict]) -> None:
+        """Apply batched relationship ops to the Rust store.
+        Each op: {"op_type": int, "agent_a": int, "agent_b": int,
+                  "bond_type": int, "sentiment": int, "formed_turn": int}
+        """
+        if not ops:
+            return
+        arrays = [
+            pa.array([o["op_type"] for o in ops], type=pa.uint8()),
+            pa.array([o["agent_a"] for o in ops], type=pa.uint32()),
+            pa.array([o["agent_b"] for o in ops], type=pa.uint32()),
+            pa.array([o["bond_type"] for o in ops], type=pa.uint8()),
+            pa.array([o.get("sentiment", 0) for o in ops], type=pa.int8()),
+            pa.array([o.get("formed_turn", 0) for o in ops], type=pa.uint16()),
+        ]
+        batch = pa.RecordBatch.from_arrays(arrays, names=[
+            "op_type", "agent_a", "agent_b", "bond_type", "sentiment", "formed_turn"
+        ])
+        self._sim.apply_relationship_ops(batch)
