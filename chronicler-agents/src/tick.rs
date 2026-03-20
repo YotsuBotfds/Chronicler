@@ -589,12 +589,14 @@ pub fn tick_agents(
     }
 
     // -----------------------------------------------------------------------
-    // M48: Gate clearing + consolidated memory write (LAST operation)
+    // M48: Gate clearing + consolidated memory write
     // -----------------------------------------------------------------------
+    // Rebuild post-demographics alive list (Critical Plan Issue #1: must use
+    // post-demographics slots, not tick-start `alive_slots` snapshot).
+    let post_alive: Vec<usize> = (0..pool.capacity())
+        .filter(|&s| pool.is_alive(s))
+        .collect();
     {
-        let post_alive: Vec<usize> = (0..pool.capacity())
-            .filter(|&s| pool.is_alive(s))
-            .collect();
         crate::memory::clear_memory_gates(
             pool,
             &post_alive,
@@ -603,6 +605,16 @@ pub fn tick_agents(
         );
         crate::memory::write_all_memories(pool, &memory_intents, turn as u16);
     }
+
+    // -----------------------------------------------------------------------
+    // M50b: Formation scan (LAST operation before return)
+    // -----------------------------------------------------------------------
+    let _formation_stats = crate::formation::formation_scan(
+        pool,
+        regions,
+        turn,
+        &post_alive,
+    );
 
     (events, kin_bond_failures)
 }

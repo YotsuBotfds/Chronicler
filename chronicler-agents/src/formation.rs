@@ -349,6 +349,314 @@ pub fn check_exile_bond(
 }
 
 // ---------------------------------------------------------------------------
+// Formation scan orchestration (Task 3)
+// ---------------------------------------------------------------------------
+
+/// Stats emitted by a single formation scan pass.
+#[derive(Default, Debug)]
+pub struct FormationStats {
+    pub bonds_formed: u32,
+    pub bonds_evicted: u32,
+    pub pairs_evaluated: u32,
+    pub pairs_eligible: u32,
+}
+
+/// Deterministic hash mix for pair-shuffling.
+/// Combines (turn, region_index, agent_id) into a u64 sort key.
+fn mix_hash(a: u32, b: u32, c: u32) -> u64 {
+    let mut h = (a as u64).wrapping_mul(0x9E3779B97F4A7C15);
+    h ^= (b as u64).wrapping_mul(0x517CC1B727220A95);
+    h ^= (c as u64).wrapping_mul(0x6C62272E07BB0142);
+    h ^= h >> 33;
+    h = h.wrapping_mul(0xFF51AFD7ED558CCD);
+    h ^= h >> 33;
+    h
+}
+
+/// Build a belief census for a list of slots: belief_id -> count.
+fn build_belief_census(pool: &AgentPool, slots: &[usize]) -> HashMap<u8, usize> {
+    let mut census: HashMap<u8, usize> = HashMap::new();
+    for &s in slots {
+        let b = pool.beliefs[s];
+        if b != agent::BELIEF_NONE {
+            *census.entry(b).or_insert(0) += 1;
+        }
+    }
+    census
+}
+
+/// Check whether agents a and b share a positive contact (triadic closure).
+/// Returns true if there exists some agent c such that:
+///   - a has a relationship to c with sentiment >= TRIADIC_MIN_SENTIMENT
+///   - b has a relationship to c with sentiment >= TRIADIC_MIN_SENTIMENT
+fn has_shared_positive_contact(pool: &AgentPool, a: usize, b: usize) -> bool {
+    let count_a = pool.rel_count[a] as usize;
+    let count_b = pool.rel_count[b] as usize;
+    if count_a == 0 || count_b == 0 {
+        return false;
+    }
+    // Iterate a's contacts, check if b also has a positive link to the same target
+    for i in 0..count_a {
+        if pool.rel_sentiments[a][i] < agent::TRIADIC_MIN_SENTIMENT {
+            continue;
+        }
+        let target_id = pool.rel_target_ids[a][i];
+        for j in 0..count_b {
+            if pool.rel_target_ids[b][j] == target_id
+                && pool.rel_sentiments[b][j] >= agent::TRIADIC_MIN_SENTIMENT
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Check if an agent has capacity for a new relationship.
+fn has_capacity(pool: &AgentPool, slot: usize) -> bool {
+    let count = pool.rel_count[slot] as usize;
+    if count < crate::relationships::REL_SLOTS {
+        return true;
+    }
+    // Full — check if there's an evictable slot
+    crate::relationships::find_evictable(pool, slot).is_some()
+}
+
+/// Check if directed bond source has capacity (only source side matters for Mentor).
+fn has_capacity_directed(pool: &AgentPool, src_slot: usize) -> bool {
+    has_capacity(pool, src_slot)
+}
+
+/// Evaluate a pair for all bond types and return the first candidate that passes.
+/// Early rejection cascade order: Friend, CoReligionist, Rival, Mentor, Grudge, ExileBond.
+fn evaluate_pair(
+    pool: &AgentPool,
+    a: usize,
+    b: usize,
+    belief_census: &HashMap<u8, usize>,
+    region_pop: u32,
+    region: &RegionState,
+    triadic: bool,
+) -> Option<FormationCandidate> {
+    // Try each gate in priority order — first match wins
+    if let Some(c) = check_friend(pool, a, b, triadic) {
+        return Some(c);
+    }
+    if let Some(c) = check_coreligionist(pool, a, b, belief_census, region_pop) {
+        return Some(c);
+    }
+    if let Some(c) = check_rival(pool, a, b) {
+        return Some(c);
+    }
+    if let Some(c) = check_mentor(pool, a, b) {
+        return Some(c);
+    }
+    if let Some(c) = check_grudge(pool, a, b) {
+        return Some(c);
+    }
+    if let Some(c) = check_exile_bond(pool, a, b, region) {
+        return Some(c);
+    }
+    None
+}
+
+/// Attempt to form a bond from a FormationCandidate. Returns (formed, evicted).
+fn attempt_bond(
+    pool: &mut AgentPool,
+    a: usize,
+    b: usize,
+    candidate: &FormationCandidate,
+    turn: u32,
+) -> (bool, bool) {
+    let turn_u16 = turn as u16;
+    if candidate.directed {
+        // Mentor: directed bond from mentor to apprentice
+        let (src, dst) = if candidate.source_is_first { (a, b) } else { (b, a) };
+        let dst_id = pool.ids[dst];
+        let was_full = pool.rel_count[src] as usize >= crate::relationships::REL_SLOTS;
+        let ok = crate::relationships::upsert_directed(
+            pool, src, dst_id,
+            candidate.bond_type as u8, candidate.sentiment, turn_u16,
+        );
+        if ok {
+            let evicted = was_full; // if full before, eviction happened
+            (true, evicted)
+        } else {
+            (false, false)
+        }
+    } else {
+        // Symmetric: both sides
+        let was_full_a = pool.rel_count[a] as usize >= crate::relationships::REL_SLOTS;
+        let was_full_b = pool.rel_count[b] as usize >= crate::relationships::REL_SLOTS;
+        let ok = crate::relationships::upsert_symmetric(
+            pool, a, b,
+            candidate.bond_type as u8, candidate.sentiment, turn_u16,
+        );
+        if ok {
+            let evicted = was_full_a || was_full_b;
+            (true, evicted)
+        } else {
+            (false, false)
+        }
+    }
+}
+
+/// Main formation scan. Called once per tick, after memory write.
+///
+/// Staggered cadence: only scans regions where `region_index % FORMATION_CADENCE == turn % FORMATION_CADENCE`.
+/// Within each scanned region: deterministic hash-based shuffle, pair iteration with early rejection cascade.
+pub fn formation_scan(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    turn: u32,
+    alive_slots: &[usize],
+) -> FormationStats {
+    let mut stats = FormationStats::default();
+    let cadence_phase = turn % agent::FORMATION_CADENCE;
+
+    // Bucket alive agents by region
+    let num_regions = regions.len();
+    let mut region_buckets: Vec<Vec<usize>> = vec![Vec::new(); num_regions];
+    for &slot in alive_slots {
+        let r = pool.regions[slot] as usize;
+        if r < num_regions {
+            region_buckets[r].push(slot);
+        }
+    }
+
+    for region_idx in 0..num_regions {
+        // Staggered cadence check
+        if (region_idx as u32) % agent::FORMATION_CADENCE != cadence_phase {
+            continue;
+        }
+
+        let bucket = &mut region_buckets[region_idx];
+        if bucket.len() < 2 {
+            continue;
+        }
+
+        // Deterministic shuffle: sort by hash(turn, region_idx, agent_id)
+        bucket.sort_by_key(|&slot| {
+            mix_hash(turn, region_idx as u32, pool.ids[slot])
+        });
+
+        // Build belief census for this region
+        let belief_census = build_belief_census(pool, bucket);
+        let region_pop = bucket.len() as u32;
+
+        // Per-agent formation budget tracking
+        let mut agent_bonds_this_pass: HashMap<usize, u8> = HashMap::new();
+        let mut region_bonds: u32 = 0;
+
+        // Pair iteration: (i, j) where i < j
+        let n = bucket.len();
+        for i in 0..n {
+            if region_bonds >= agent::MAX_NEW_BONDS_PER_REGION {
+                break;
+            }
+
+            let slot_a = bucket[i];
+            let a_budget = agent_bonds_this_pass.get(&slot_a).copied().unwrap_or(0);
+            if a_budget >= agent::MAX_NEW_BONDS_PER_PASS {
+                continue;
+            }
+
+            for j in (i + 1)..n {
+                if region_bonds >= agent::MAX_NEW_BONDS_PER_REGION {
+                    break;
+                }
+
+                // Re-check slot_a budget (may have been incremented by prior j iterations)
+                let a_budget_now = agent_bonds_this_pass.get(&slot_a).copied().unwrap_or(0);
+                if a_budget_now >= agent::MAX_NEW_BONDS_PER_PASS {
+                    break; // slot_a exhausted, skip remaining j's
+                }
+
+                let slot_b = bucket[j];
+                let b_budget = agent_bonds_this_pass.get(&slot_b).copied().unwrap_or(0);
+                if b_budget >= agent::MAX_NEW_BONDS_PER_PASS {
+                    continue;
+                }
+
+                stats.pairs_evaluated += 1;
+
+                // Early rejection: existing bond between this pair (any type)
+                let id_b = pool.ids[slot_b];
+                if has_any_bond(pool, slot_a, id_b) {
+                    continue;
+                }
+
+                // Capacity check: symmetric bonds need both sides, directed needs source only
+                // We don't know the bond type yet, so check both sides conservatively
+                if !has_capacity(pool, slot_a) || !has_capacity(pool, slot_b) {
+                    continue;
+                }
+
+                // Triadic closure check (for Friend gate threshold reduction)
+                let triadic = has_shared_positive_contact(pool, slot_a, slot_b);
+
+                // Evaluate pair through all gates
+                let candidate = evaluate_pair(
+                    pool, slot_a, slot_b,
+                    &belief_census, region_pop,
+                    &regions[region_idx],
+                    triadic,
+                );
+
+                let candidate = match candidate {
+                    Some(c) => c,
+                    None => continue,
+                };
+
+                stats.pairs_eligible += 1;
+
+                // For directed bonds (Mentor), only source needs capacity
+                if candidate.directed {
+                    let src = if candidate.source_is_first { slot_a } else { slot_b };
+                    if !has_capacity_directed(pool, src) {
+                        continue;
+                    }
+                }
+
+                // Attempt bond formation
+                let (formed, evicted) = attempt_bond(pool, slot_a, slot_b, &candidate, turn);
+                if formed {
+                    stats.bonds_formed += 1;
+                    if evicted {
+                        stats.bonds_evicted += 1;
+                    }
+                    region_bonds += 1;
+                    *agent_bonds_this_pass.entry(slot_a).or_insert(0) += 1;
+                    if !candidate.directed {
+                        // Symmetric bonds consume budget on both sides
+                        *agent_bonds_this_pass.entry(slot_b).or_insert(0) += 1;
+                    } else {
+                        // Directed: only source consumes budget
+                        let src = if candidate.source_is_first { slot_a } else { slot_b };
+                        if src != slot_a {
+                            *agent_bonds_this_pass.entry(slot_b).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    stats
+}
+
+/// Check if agent at slot has any existing bond to target_id.
+fn has_any_bond(pool: &AgentPool, slot: usize, target_id: u32) -> bool {
+    let count = pool.rel_count[slot] as usize;
+    for i in 0..count {
+        if pool.rel_target_ids[slot][i] == target_id {
+            return true;
+        }
+    }
+    false
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -819,5 +1127,129 @@ mod tests {
         assert!(result.is_some(), "shared homeland exile bond should form");
         let c = result.unwrap();
         assert_eq!(c.sentiment, agent::EXILE_INITIAL_SENTIMENT + 5, "homeland bonus +5");
+    }
+
+    // ── mix_hash ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mix_hash_deterministic() {
+        let h1 = mix_hash(10, 5, 42);
+        let h2 = mix_hash(10, 5, 42);
+        assert_eq!(h1, h2, "same inputs must produce same hash");
+    }
+
+    #[test]
+    fn test_mix_hash_different_inputs_differ() {
+        let h1 = mix_hash(10, 5, 42);
+        let h2 = mix_hash(10, 5, 43);
+        assert_ne!(h1, h2, "different agent_id should produce different hash");
+        let h3 = mix_hash(11, 5, 42);
+        assert_ne!(h1, h3, "different turn should produce different hash");
+    }
+
+    // ── build_belief_census ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_belief_census_counts() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 7);
+        let d = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let census = build_belief_census(&pool, &[a, b, c, d]);
+        assert_eq!(census.get(&5).copied().unwrap_or(0), 2);
+        assert_eq!(census.get(&7).copied().unwrap_or(0), 1);
+        assert_eq!(census.get(&BELIEF_NONE), None, "BELIEF_NONE should be excluded");
+    }
+
+    // ── has_shared_positive_contact ─────────────────────────────────────────
+
+    #[test]
+    fn test_triadic_no_contacts() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        assert!(!has_shared_positive_contact(&pool, a, b), "no contacts → no triadic");
+    }
+
+    #[test]
+    fn test_triadic_shared_positive_contact() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_c = pool.ids[c];
+        // a → c with high sentiment
+        crate::relationships::upsert_directed(&mut pool, a, id_c, BondType::Friend as u8, 50, 1);
+        // b → c with high sentiment
+        crate::relationships::upsert_directed(&mut pool, b, id_c, BondType::Friend as u8, 50, 1);
+        assert!(has_shared_positive_contact(&pool, a, b), "shared positive contact c");
+    }
+
+    #[test]
+    fn test_triadic_below_threshold() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_c = pool.ids[c];
+        // a → c with sentiment below TRIADIC_MIN_SENTIMENT (40)
+        crate::relationships::upsert_directed(&mut pool, a, id_c, BondType::Friend as u8, 20, 1);
+        crate::relationships::upsert_directed(&mut pool, b, id_c, BondType::Friend as u8, 50, 1);
+        assert!(!has_shared_positive_contact(&pool, a, b), "a's sentiment too low");
+    }
+
+    // ── has_any_bond ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_has_any_bond_true() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_b = pool.ids[b];
+        crate::relationships::upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 30, 1);
+        assert!(has_any_bond(&pool, a, id_b));
+    }
+
+    #[test]
+    fn test_has_any_bond_false() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_b = pool.ids[b];
+        assert!(!has_any_bond(&pool, a, id_b));
+    }
+
+    // ── has_capacity ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_has_capacity_empty() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        assert!(has_capacity(&pool, a), "empty rel slots → has capacity");
+    }
+
+    #[test]
+    fn test_has_capacity_full_all_protected() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        for i in 0..8 {
+            crate::relationships::write_rel(&mut pool, a, i, (100 + i) as u32, 50, BondType::Kin as u8, 1);
+        }
+        pool.rel_count[a] = 8;
+        assert!(!has_capacity(&pool, a), "full with all protected → no capacity");
+    }
+
+    #[test]
+    fn test_has_capacity_full_with_evictable() {
+        let mut pool = AgentPool::new(4);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        for i in 0..7 {
+            crate::relationships::write_rel(&mut pool, a, i, (100 + i) as u32, 50, BondType::Kin as u8, 1);
+        }
+        // Last slot is evictable (Friend, not protected)
+        crate::relationships::write_rel(&mut pool, a, 7, 107, 10, BondType::Friend as u8, 1);
+        pool.rel_count[a] = 8;
+        assert!(has_capacity(&pool, a), "full with one evictable → has capacity");
     }
 }
