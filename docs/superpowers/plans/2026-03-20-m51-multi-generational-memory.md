@@ -29,7 +29,7 @@
 | File | Change | Responsibility |
 |------|--------|---------------|
 | `src/chronicler/models.py` | Modify | Add `Leader` fields (`agent_id`, `dynasty_id`, `throne_name`, `regnal_ordinal`), add `Civilization.regnal_name_counts` |
-| `src/chronicler/leaders.py` | Modify | Add `_pick_regnal_name()`, `to_roman()`, `strip_title()` helpers |
+| `src/chronicler/leaders.py` | Modify | Add `_pick_regnal_name()`, `to_roman()` helpers; modify `_pick_name()` to also return base_name |
 | `src/chronicler/factions.py` | Modify | Extend GP candidate dict, wire legitimacy scoring, lineage bridge in GP winner block |
 | `src/chronicler/dynasties.py` | Modify | Add `compute_dynasty_legitimacy()` function |
 | `src/chronicler/agent_bridge.py` | Modify | Update memory sync dict for 6-tuple |
@@ -289,7 +289,7 @@ use chronicler_agents::memory::{MemoryIntent, write_single_memory, extract_legac
 
 #[test]
 fn test_extract_legacy_memories_top_2() {
-    let mut pool = AgentPool::new();
+    let mut pool = AgentPool::new(16);
     let slot = pool.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 30,
                           0.0, 0.0, 0.0, 0, 0, 0, 0);
 
@@ -313,7 +313,7 @@ fn test_extract_legacy_memories_top_2() {
 
 #[test]
 fn test_extract_legacy_memories_filters_below_threshold() {
-    let mut pool = AgentPool::new();
+    let mut pool = AgentPool::new(16);
     let slot = pool.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 30,
                           0.0, 0.0, 0.0, 0, 0, 0, 0);
 
@@ -331,7 +331,7 @@ fn test_extract_legacy_memories_filters_below_threshold() {
 
 #[test]
 fn test_extract_legacy_memories_empty_buffer() {
-    let mut pool = AgentPool::new();
+    let mut pool = AgentPool::new(16);
     let slot = pool.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 30,
                           0.0, 0.0, 0.0, 0, 0, 0, 0);
 
@@ -652,21 +652,11 @@ if is_legacy:
     description = f"an ancestral memory of {description}"
 ```
 
-- [ ] **Step 4: Add legacy memory block to build_agent_context_for_moment**
+- [ ] **Step 4: Legacy memories render through the existing `memories` path**
 
-In the character context assembly section (~lines 337-340), after rendering normal memories, add a separate block for legacy memories:
+Legacy memories are already in `gp.memories` (the sync loop includes them). The `render_memory()` change from Step 3 adds the "ancestral" prefix when `is_legacy` is true. No separate `ancestral_memories` field needed — legacy memories flow through the existing `memories` key in character context, and the narrator sees "an ancestral memory of famine" alongside "a vivid memory of battle" in the same list. The prefixing in `render_memory()` is sufficient.
 
-```python
-legacy_memories = [m for m in (gp.memories or []) if m.get("is_legacy")]
-if legacy_memories:
-    legacy_lines = []
-    for m in legacy_memories:
-        rendered = render_memory(m, civ_names=civ_names)
-        if rendered:
-            legacy_lines.append(rendered)
-    if legacy_lines:
-        char_dict["ancestral_memories"] = legacy_lines
-```
+Verify: read `build_agent_context_for_moment()` (~line 337) and confirm that the existing `memories` rendering path calls `render_memory()` for each memory dict. If so, the `is_legacy` prefix is automatically included. No code change needed in this step — just verify the integration.
 
 - [ ] **Step 5: Run tests**
 
@@ -709,7 +699,7 @@ def test_leader_with_regnal_data():
     assert leader.regnal_ordinal == 2
 
 def test_civilization_has_regnal_name_counts():
-    civ = Civilization(name="Aram")
+    civ = Civilization(name="Aram", leader=Leader(name="Founder", trait="bold", reign_start=0))
     assert civ.regnal_name_counts == {}
     civ.regnal_name_counts["Kiran"] = 1
     assert civ.regnal_name_counts["Kiran"] == 1
@@ -751,17 +741,43 @@ git commit -m "feat(m51): Leader regnal fields + Civilization.regnal_name_counts
 
 ---
 
-## Task 8: _pick_regnal_name + to_roman + strip_title
+## Task 8: _pick_regnal_name + to_roman + base_name on GreatPerson
 
 **Files:**
-- Modify: `src/chronicler/leaders.py` (add 3 new functions)
+- Modify: `src/chronicler/leaders.py` (add `_pick_regnal_name`, `to_roman`; modify `_pick_name` to return base_name)
+- Modify: `src/chronicler/models.py` (add `GreatPerson.base_name`)
+- Modify: `src/chronicler/agent_bridge.py` (set base_name at promotion time)
+- Modify: `src/chronicler/great_persons.py` (set base_name if _pick_name is used there)
 - Test: `tests/test_m51_regnal.py`
 
-- [ ] **Step 1: Write failing tests**
+**Design note:** Instead of reverse-parsing display names via `strip_title()`, M51 stores a structured `base_name` on GreatPerson at promotion time. `_pick_name()` already knows the base name before composing `"Title BaseName"` — just return/store it. This avoids coupling regnal logic to display-name parsing and handles multi-word titles ("High Priestess") and title-less fallbacks correctly.
+
+- [ ] **Step 1: Add `base_name` field to GreatPerson**
+
+In `src/chronicler/models.py`, add to `GreatPerson`:
 
 ```python
-from chronicler.leaders import to_roman, strip_title, _pick_regnal_name
-from chronicler.models import Civilization, WorldState, Leader
+base_name: str | None = None  # M51: personal name without title, set at promotion
+```
+
+- [ ] **Step 2: Modify `_pick_name()` to also store base_name**
+
+`_pick_name()` (leaders.py:154) selects `base_name` from the pool and composes `f"{title} {base_name}"`. Currently it only returns the full string. Two options:
+
+**(a) Return a tuple** — changes all 4+ callers. Invasive.
+**(b) Add an optional out-parameter or return the base_name separately** — awkward in Python.
+**(c) Store base_name on the call site after the fact** — each caller that needs it extracts from the known pool.
+
+Simplest approach: **add a module-level helper** `_last_base_name` or return a named tuple. But cleanest: **make `_pick_name()` return `(full_name, base_name)` tuple** and update the 4 call sites (leaders.py:211, great_persons.py:156, relationships.py:335, agent_bridge.py:630). Each call site currently does `name = _pick_name(...)` — change to `name, base_name = _pick_name(...)` and use `base_name` where available. Sites that don't need base_name simply ignore it with `name, _ = _pick_name(...)`.
+
+- [ ] **Step 3: Write failing tests**
+
+```python
+from chronicler.leaders import to_roman, _pick_regnal_name
+from chronicler.models import Civilization, Leader
+
+def _make_civ(name="Aram"):
+    return Civilization(name=name, leader=Leader(name="Founder", trait="bold", reign_start=0))
 
 def test_to_roman():
     assert to_roman(2) == "II"
@@ -771,42 +787,22 @@ def test_to_roman():
     assert to_roman(14) == "XIV"
     assert to_roman(20) == "XX"
 
-def test_strip_title_single_word():
-    assert strip_title("Emperor Kiran") == "Kiran"
-    assert strip_title("King Vesh") == "Vesh"
-
-def test_strip_title_multi_word():
-    assert strip_title("High Priestess Mira") == "Mira"
-
-def test_strip_title_no_title():
-    assert strip_title("Kiran") == "Kiran"
-
-def test_strip_title_fallback_with_numeral():
-    # Old crude numbering — strip trailing I-sequences
-    assert strip_title("Kiran III") == "Kiran"
-
 def test_pick_regnal_name_first_ruler():
     """First ruler with a name gets ordinal 0 (no numeral)."""
-    civ = Civilization(name="Aram")
-    # Minimal world state for the function
+    civ = _make_civ()
     world = _make_world_with_civs([civ])
     import random
     rng = random.Random(42)
     title, throne_name, ordinal = _pick_regnal_name(civ, world, rng)
-    assert title in TITLES  # from leaders.py
     assert isinstance(throne_name, str)
     assert ordinal == 0
     assert civ.regnal_name_counts[throne_name] == 1
 
 def test_pick_regnal_name_second_ruler_gets_ordinal_2():
     """Second ruler with same throne name gets ordinal 2 ('II')."""
-    civ = Civilization(name="Aram")
+    civ = _make_civ()
     civ.regnal_name_counts["Kiran"] = 1
-    world = _make_world_with_civs([civ])
-    import random
-    rng = random.Random(42)
-    # Force selection of "Kiran" — may need to mock pool or iterate
-    # For the test, directly test the ordinal logic:
+    # Directly test ordinal logic
     count = civ.regnal_name_counts.get("Kiran", 0)
     ordinal = count + 1 if count > 0 else 0
     assert ordinal == 2
@@ -814,12 +810,12 @@ def test_pick_regnal_name_second_ruler_gets_ordinal_2():
 
 Note: `_make_world_with_civs` is a test helper — construct a minimal `WorldState` with the given civs. Check existing test files for patterns.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 4: Run tests to verify they fail**
 
 Run: `pytest tests/test_m51_regnal.py::test_to_roman -v`
 Expected: FAIL — function not found
 
-- [ ] **Step 3: Implement to_roman**
+- [ ] **Step 5: Implement to_roman**
 
 In `src/chronicler/leaders.py`, add:
 
@@ -835,26 +831,7 @@ def to_roman(n: int) -> str:
     return result
 ```
 
-- [ ] **Step 4: Implement strip_title**
-
-```python
-def strip_title(display_name: str) -> str:
-    """Extract base name from a display name by stripping known title prefixes
-    and trailing crude Roman numeral sequences."""
-    import re
-    for title in sorted(TITLES, key=len, reverse=True):  # longest first
-        prefix = title + " "
-        if display_name.startswith(prefix):
-            display_name = display_name[len(prefix):]
-            break
-    # Strip trailing crude 'I' sequences (old numbering fallback)
-    display_name = re.sub(r'\s+I{2,}$', '', display_name)
-    # Strip trailing proper Roman numerals
-    display_name = re.sub(r'\s+(?:XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)$', '', display_name)
-    return display_name.strip()
-```
-
-- [ ] **Step 5: Implement _pick_regnal_name**
+- [ ] **Step 6: Implement _pick_regnal_name**
 
 ```python
 def _pick_regnal_name(
@@ -963,7 +940,7 @@ For each site, apply the same pattern: use `_pick_regnal_name()` to get `(title,
 
 **politics.py (~line 1001, restored civ):** Same pattern — replace name derivation with `_pick_regnal_name()`.
 
-**succession.py (~line 298, exile restoration):** This uses `gp.name` for the returning exile. Unlike normal succession, exile restoration should keep the GP's personal name as throne name (they are returning to power, not adopting a new name). Use `strip_title(gp.name)` to extract the base name, compute ordinal from `civ.regnal_name_counts`, compose display name, set `throne_name` and `regnal_ordinal`. Do NOT call `_pick_regnal_name()` here — it would generate a random new name.
+**succession.py (~line 298, exile restoration):** This uses `gp.name` for the returning exile. Unlike normal succession, exile restoration should keep the GP's personal name as throne name (they are returning to power, not adopting a new name). Use `gp.base_name` (set at promotion time) as the throne name, compute ordinal from `civ.regnal_name_counts`, compose display name, set `throne_name` and `regnal_ordinal`. Do NOT call `_pick_regnal_name()` here — it would generate a random new name. Do NOT use `strip_title()` — rely on the structured `base_name` field instead.
 
 **scenario.py (~line 535):** Scenario overrides that mutate `used_leader_names` should also seed `civ.regnal_name_counts` for the overridden leader's throne_name.
 
@@ -1018,7 +995,7 @@ if winner and winner.get("source") == "great_person":
     gp_trait = winner.get("gp_trait")
 
     if gp_name:
-        from chronicler.leaders import strip_title, to_roman, TITLES
+        from chronicler.leaders import to_roman, TITLES
         import random as _random
         _rng = _random.Random(world.seed + world.turn + hash(civ.name) + 1)
 
@@ -1030,7 +1007,9 @@ if winner and winner.get("source") == "great_person":
             if civ.regnal_name_counts[new_leader.throne_name] <= 0:
                 del civ.regnal_name_counts[new_leader.throne_name]
 
-        throne_name = strip_title(gp_name)
+        # Use structured base_name from GP (set at promotion time in
+        # _pick_name), not reverse-parsed from display name.
+        throne_name = winner.get("gp_base_name") or gp_name
         title = _rng.choice(TITLES)
         count = civ.regnal_name_counts.get(throne_name, 0)
         ordinal = count + 1 if count > 0 else 0
@@ -1050,9 +1029,10 @@ if winner and winner.get("source") == "great_person":
     new_leader.agent_id = winner.get("agent_id")
     new_leader.dynasty_id = winner.get("dynasty_id")
 
-    # Mark the GP dead (existing code)
+    # Mark the GP dead — use agent_id for stable matching (not name string)
+    winner_agent_id = winner.get("agent_id")
     for gp in civ.great_persons:
-        if gp.name == winner.get("gp_name") and gp.active:
+        if gp.agent_id == winner_agent_id and gp.active:
             gp.active = False
             gp.alive = False
             gp.fate = "ascended_to_leadership"
@@ -1088,42 +1068,42 @@ from chronicler.models import Leader, Civilization
 
 def test_legitimacy_direct_heir():
     """GP whose parent_id matches ruler's agent_id gets full bonus."""
-    civ = Civilization(name="Aram")
-    civ.leader = Leader(name="King Kiran", trait="bold", reign_start=0,
-                        agent_id=100, dynasty_id=1)
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
     candidate = {"parent_id": 100, "dynasty_id": 1, "agent_id": 200}
     score = compute_dynasty_legitimacy(candidate, civ)
     assert score == 0.15  # LEGITIMACY_DIRECT_HEIR
 
 def test_legitimacy_same_dynasty():
     """GP with matching dynasty_id but different parent gets lesser bonus."""
-    civ = Civilization(name="Aram")
-    civ.leader = Leader(name="King Kiran", trait="bold", reign_start=0,
-                        agent_id=100, dynasty_id=1)
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
     candidate = {"parent_id": 50, "dynasty_id": 1, "agent_id": 200}
     score = compute_dynasty_legitimacy(candidate, civ)
     assert score == 0.08  # LEGITIMACY_SAME_DYNASTY
 
 def test_legitimacy_no_match():
     """GP from unrelated dynasty gets 0."""
-    civ = Civilization(name="Aram")
-    civ.leader = Leader(name="King Kiran", trait="bold", reign_start=0,
-                        agent_id=100, dynasty_id=1)
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
     candidate = {"parent_id": 50, "dynasty_id": 2, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
 
 def test_legitimacy_no_ruler_lineage():
     """When ruler has no agent_id (non-GP), all candidates get 0."""
-    civ = Civilization(name="Aram")
-    civ.leader = Leader(name="King Kiran", trait="bold", reign_start=0)
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0)
+    civ = Civilization(name="Aram", leader=ruler)
     candidate = {"parent_id": 100, "dynasty_id": 1, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
 
 def test_legitimacy_parent_none_sentinel():
     """parent_id=0 (PARENT_NONE) should not match any ruler."""
-    civ = Civilization(name="Aram")
-    civ.leader = Leader(name="King Kiran", trait="bold", reign_start=0,
-                        agent_id=0)  # edge case: ruler agent_id is 0
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=0)  # edge case: ruler agent_id is 0
+    civ = Civilization(name="Aram", leader=ruler)
     candidate = {"parent_id": 0, "dynasty_id": None, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
 ```
@@ -1195,6 +1175,7 @@ candidates.append({
     "agent_id": gp.agent_id,
     "parent_id": gp.parent_id,
     "dynasty_id": gp.dynasty_id,
+    "gp_base_name": gp.base_name,  # M51: structured base name for regnal use
 })
 ```
 
@@ -1238,18 +1219,27 @@ def test_succession_event_direct_heir_phrasing():
 
 - [ ] **Step 2: Modify event description in resolve_crisis_with_factions**
 
-In `src/chronicler/factions.py` at the event creation block (~line 626), compute legitimacy context:
+**IMPORTANT:** `resolve_crisis_with_factions()` assigns `civ.leader = new_leader` at line 589, BEFORE the event block at ~line 626. So scoring legitimacy at event-creation time would compare the winner against themselves (the new ruler). Fix: capture the legitimacy score EARLY — before the leader swap — and store it in a local variable.
+
+In `src/chronicler/factions.py`, add at the top of `resolve_crisis_with_factions()` (~line 548, after `old_leader = civ.leader`):
 
 ```python
-# Legitimacy phrasing
-legitimacy_phrase = ""
+# M51: Capture legitimacy before leader swap (civ.leader changes at step 6)
+winner_legitimacy = 0.0
 if winner and winner.get("source") == "great_person":
     from chronicler.dynasties import compute_dynasty_legitimacy
-    leg = compute_dynasty_legitimacy(winner, civ)
-    if leg >= 0.15:
-        legitimacy_phrase = ", by right of blood,"
-    elif leg >= 0.08:
-        legitimacy_phrase = ", of the ruling house,"
+    winner_legitimacy = compute_dynasty_legitimacy(winner, civ)
+```
+
+Then at the event creation block (~line 626), use the pre-captured value:
+
+```python
+# Legitimacy phrasing (from pre-swap computation)
+legitimacy_phrase = ""
+if winner_legitimacy >= 0.15:
+    legitimacy_phrase = ", by right of blood,"
+elif winner_legitimacy >= 0.08:
+    legitimacy_phrase = ", of the ruling house,"
 
 events.append(Event(
     turn=world.turn,
