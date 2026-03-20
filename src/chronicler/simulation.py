@@ -1235,7 +1235,7 @@ def update_war_frequency_accumulators(world: WorldState) -> None:
             civ.peace_momentum *= defender_decay
 
 
-def reset_war_frequency_on_extinction(civ) -> None:
+def reset_war_frequency_on_extinction(civ: Civilization) -> None:
     """M47d: Reset accumulators when civ loses all regions."""
     if len(civ.regions) == 0:
         civ.war_weariness = 0.0
