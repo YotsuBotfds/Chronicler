@@ -397,12 +397,16 @@ fn has_shared_positive_contact(pool: &AgentPool, a: usize, b: usize) -> bool {
     }
     // Iterate a's contacts, check if b also has a positive link to the same target
     for i in 0..count_a {
+        if !crate::relationships::is_positive_valence(pool.rel_bond_types[a][i]) {
+            continue;
+        }
         if pool.rel_sentiments[a][i] < agent::TRIADIC_MIN_SENTIMENT {
             continue;
         }
         let target_id = pool.rel_target_ids[a][i];
         for j in 0..count_b {
             if pool.rel_target_ids[b][j] == target_id
+                && crate::relationships::is_positive_valence(pool.rel_bond_types[b][j])
                 && pool.rel_sentiments[b][j] >= agent::TRIADIC_MIN_SENTIMENT
             {
                 return true;
@@ -427,8 +431,9 @@ fn has_capacity_directed(pool: &AgentPool, src_slot: usize) -> bool {
     has_capacity(pool, src_slot)
 }
 
-/// Evaluate a pair for all bond types and return the first candidate that passes.
-/// Early rejection cascade order: Friend, CoReligionist, Rival, Mentor, Grudge, ExileBond.
+/// Evaluate a pair for all bond types and return ALL candidates that pass.
+/// Only skips a bond type if that specific type already exists between the pair.
+/// Evaluation order: Friend, CoReligionist, Rival, Mentor, Grudge, ExileBond.
 fn evaluate_pair(
     pool: &AgentPool,
     a: usize,
@@ -437,27 +442,45 @@ fn evaluate_pair(
     region_pop: u32,
     region: &RegionState,
     triadic: bool,
-) -> Option<FormationCandidate> {
-    // Try each gate in priority order — first match wins
-    if let Some(c) = check_friend(pool, a, b, triadic) {
-        return Some(c);
+) -> Vec<FormationCandidate> {
+    let id_b = pool.ids[b];
+    let mut candidates = Vec::new();
+
+    if crate::relationships::find_relationship(pool, a, id_b, BondType::Friend as u8).is_none() {
+        if let Some(c) = check_friend(pool, a, b, triadic) {
+            candidates.push(c);
+        }
     }
-    if let Some(c) = check_coreligionist(pool, a, b, belief_census, region_pop) {
-        return Some(c);
+    if crate::relationships::find_relationship(pool, a, id_b, BondType::CoReligionist as u8).is_none() {
+        if let Some(c) = check_coreligionist(pool, a, b, belief_census, region_pop) {
+            candidates.push(c);
+        }
     }
-    if let Some(c) = check_rival(pool, a, b) {
-        return Some(c);
+    if crate::relationships::find_relationship(pool, a, id_b, BondType::Rival as u8).is_none() {
+        if let Some(c) = check_rival(pool, a, b) {
+            candidates.push(c);
+        }
     }
-    if let Some(c) = check_mentor(pool, a, b) {
-        return Some(c);
+    // Mentor is directed: check from both sides
+    if crate::relationships::find_relationship(pool, a, id_b, BondType::Mentor as u8).is_none()
+        && crate::relationships::find_relationship(pool, b, pool.ids[a], BondType::Mentor as u8).is_none()
+    {
+        if let Some(c) = check_mentor(pool, a, b) {
+            candidates.push(c);
+        }
     }
-    if let Some(c) = check_grudge(pool, a, b) {
-        return Some(c);
+    if crate::relationships::find_relationship(pool, a, id_b, BondType::Grudge as u8).is_none() {
+        if let Some(c) = check_grudge(pool, a, b) {
+            candidates.push(c);
+        }
     }
-    if let Some(c) = check_exile_bond(pool, a, b, region) {
-        return Some(c);
+    if crate::relationships::find_relationship(pool, a, id_b, BondType::ExileBond as u8).is_none() {
+        if let Some(c) = check_exile_bond(pool, a, b, region) {
+            candidates.push(c);
+        }
     }
-    None
+
+    candidates
 }
 
 /// Attempt to form a bond from a FormationCandidate. Returns (formed, evicted).
@@ -580,14 +603,7 @@ pub fn formation_scan(
 
                 stats.pairs_evaluated += 1;
 
-                // Early rejection: existing bond between this pair (any type)
-                let id_b = pool.ids[slot_b];
-                if has_any_bond(pool, slot_a, id_b) {
-                    continue;
-                }
-
-                // Capacity check: symmetric bonds need both sides, directed needs source only
-                // We don't know the bond type yet, so check both sides conservatively
+                // Capacity check: conservative pre-filter (both sides)
                 if !has_capacity(pool, slot_a) || !has_capacity(pool, slot_b) {
                     continue;
                 }
@@ -595,45 +611,64 @@ pub fn formation_scan(
                 // Triadic closure check (for Friend gate threshold reduction)
                 let triadic = has_shared_positive_contact(pool, slot_a, slot_b);
 
-                // Evaluate pair through all gates
-                let candidate = evaluate_pair(
+                // Evaluate pair through all gates — returns all eligible bond types
+                let candidates = evaluate_pair(
                     pool, slot_a, slot_b,
                     &belief_census, region_pop,
                     &regions[region_idx],
                     triadic,
                 );
 
-                let candidate = match candidate {
-                    Some(c) => c,
-                    None => continue,
-                };
+                if candidates.is_empty() {
+                    continue;
+                }
 
                 stats.pairs_eligible += 1;
 
-                // For directed bonds (Mentor), only source needs capacity
-                if candidate.directed {
-                    let src = if candidate.source_is_first { slot_a } else { slot_b };
-                    if !has_capacity_directed(pool, src) {
-                        continue;
+                // Attempt each candidate with budget checks
+                for candidate in &candidates {
+                    if region_bonds >= agent::MAX_NEW_BONDS_PER_REGION {
+                        break;
                     }
-                }
+                    let a_budget_inner = agent_bonds_this_pass.get(&slot_a).copied().unwrap_or(0);
+                    let b_budget_inner = agent_bonds_this_pass.get(&slot_b).copied().unwrap_or(0);
 
-                // Attempt bond formation
-                let (formed, evicted) = attempt_bond(pool, slot_a, slot_b, &candidate, turn);
-                if formed {
-                    stats.bonds_formed += 1;
-                    if evicted {
-                        stats.bonds_evicted += 1;
-                    }
-                    region_bonds += 1;
-                    *agent_bonds_this_pass.entry(slot_a).or_insert(0) += 1;
-                    if !candidate.directed {
-                        // Symmetric bonds consume budget on both sides
-                        *agent_bonds_this_pass.entry(slot_b).or_insert(0) += 1;
-                    } else {
-                        // Directed: only source consumes budget
+                    if candidate.directed {
+                        // Directed: only source needs budget and capacity
                         let src = if candidate.source_is_first { slot_a } else { slot_b };
-                        if src != slot_a {
+                        let src_budget = agent_bonds_this_pass.get(&src).copied().unwrap_or(0);
+                        if src_budget >= agent::MAX_NEW_BONDS_PER_PASS {
+                            continue;
+                        }
+                        if !has_capacity_directed(pool, src) {
+                            continue;
+                        }
+                    } else {
+                        // Symmetric: both sides need budget
+                        if a_budget_inner >= agent::MAX_NEW_BONDS_PER_PASS
+                            || b_budget_inner >= agent::MAX_NEW_BONDS_PER_PASS
+                        {
+                            continue;
+                        }
+                        if !has_capacity(pool, slot_a) || !has_capacity(pool, slot_b) {
+                            continue;
+                        }
+                    }
+
+                    let (formed, evicted) = attempt_bond(pool, slot_a, slot_b, candidate, turn);
+                    if formed {
+                        stats.bonds_formed += 1;
+                        if evicted {
+                            stats.bonds_evicted += 1;
+                        }
+                        region_bonds += 1;
+                        if candidate.directed {
+                            // Directed: only source consumes budget
+                            let src = if candidate.source_is_first { slot_a } else { slot_b };
+                            *agent_bonds_this_pass.entry(src).or_insert(0) += 1;
+                        } else {
+                            // Symmetric bonds consume budget on both sides
+                            *agent_bonds_this_pass.entry(slot_a).or_insert(0) += 1;
                             *agent_bonds_this_pass.entry(slot_b).or_insert(0) += 1;
                         }
                     }
@@ -643,17 +678,6 @@ pub fn formation_scan(
     }
 
     stats
-}
-
-/// Check if agent at slot has any existing bond to target_id.
-fn has_any_bond(pool: &AgentPool, slot: usize, target_id: u32) -> bool {
-    let count = pool.rel_count[slot] as usize;
-    for i in 0..count {
-        if pool.rel_target_ids[slot][i] == target_id {
-            return true;
-        }
-    }
-    false
 }
 
 // ---------------------------------------------------------------------------
@@ -1199,25 +1223,58 @@ mod tests {
         assert!(!has_shared_positive_contact(&pool, a, b), "a's sentiment too low");
     }
 
-    // ── has_any_bond ────────────────────────────────────────────────────────
-
     #[test]
-    fn test_has_any_bond_true() {
-        let mut pool = AgentPool::new(4);
+    fn test_triadic_negative_valence_excluded() {
+        let mut pool = AgentPool::new(8);
         let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
         let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
-        let id_b = pool.ids[b];
-        crate::relationships::upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 30, 1);
-        assert!(has_any_bond(&pool, a, id_b));
+        let c = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
+        let id_c = pool.ids[c];
+        // a → c as Rival (negative valence) with high sentiment magnitude
+        crate::relationships::upsert_directed(&mut pool, a, id_c, BondType::Rival as u8, 50, 1);
+        // b → c as Grudge (negative valence) with high sentiment magnitude
+        crate::relationships::upsert_directed(&mut pool, b, id_c, BondType::Grudge as u8, 50, 1);
+        assert!(!has_shared_positive_contact(&pool, a, b),
+            "Rival/Grudge bonds should not count as positive contacts for triadic closure");
+    }
+
+    // ── multi-bond per pair ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_evaluate_pair_allows_multi_bond() {
+        let mut pool = AgentPool::new(8);
+        // Agent pair: same occ, same civ, same belief (minority), shared memory
+        // Should qualify for both Friend and CoReligionist
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        write_battle_memory(&mut pool, a, 10);
+        write_battle_memory(&mut pool, b, 10);
+        let mut census = HashMap::new();
+        census.insert(5u8, 2);
+        let region = RegionState::new(0);
+        let candidates = evaluate_pair(&pool, a, b, &census, 100, &region, false);
+        assert!(candidates.len() >= 2, "should return multiple candidates, got {}", candidates.len());
+        let types: Vec<u8> = candidates.iter().map(|c| c.bond_type as u8).collect();
+        assert!(types.contains(&(BondType::Friend as u8)), "should include Friend");
+        assert!(types.contains(&(BondType::CoReligionist as u8)), "should include CoReligionist");
     }
 
     #[test]
-    fn test_has_any_bond_false() {
-        let mut pool = AgentPool::new(4);
-        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
-        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, BELIEF_NONE);
-        let id_b = pool.ids[b];
-        assert!(!has_any_bond(&pool, a, id_b));
+    fn test_evaluate_pair_skips_existing_type() {
+        let mut pool = AgentPool::new(8);
+        let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 20, 0.5, 0, 1, 2, 5);
+        write_battle_memory(&mut pool, a, 10);
+        write_battle_memory(&mut pool, b, 10);
+        // Pre-existing Friend bond
+        crate::relationships::upsert_symmetric(&mut pool, a, b, BondType::Friend as u8, 30, 1);
+        let mut census = HashMap::new();
+        census.insert(5u8, 2);
+        let region = RegionState::new(0);
+        let candidates = evaluate_pair(&pool, a, b, &census, 100, &region, false);
+        let types: Vec<u8> = candidates.iter().map(|c| c.bond_type as u8).collect();
+        assert!(!types.contains(&(BondType::Friend as u8)), "should skip existing Friend");
+        assert!(types.contains(&(BondType::CoReligionist as u8)), "should still include CoReligionist");
     }
 
     // ── has_capacity ────────────────────────────────────────────────────────
