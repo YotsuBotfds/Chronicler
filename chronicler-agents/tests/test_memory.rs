@@ -4,7 +4,7 @@ use chronicler_agents::{
     factor_from_half_life, half_life_from_factor,
     decay_memories, write_single_memory, write_all_memories,
     clear_memory_gates, compute_memory_satisfaction_score,
-    compute_memory_utility_modifiers,
+    compute_memory_utility_modifiers, agents_share_memory,
     GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
     RegionState,
 };
@@ -1188,4 +1188,102 @@ fn test_utility_modifier_no_memories() {
     assert!((mods.migrate).abs() < 0.001, "migrate should be 0: {}", mods.migrate);
     assert!((mods.switch).abs() < 0.001, "switch should be 0: {}", mods.switch);
     assert!((mods.stay).abs() < 0.001, "stay should be 0: {}", mods.stay);
+}
+
+// ===========================================================================
+// Task 12: Bond formation query — agents_share_memory
+// ===========================================================================
+
+#[test]
+fn test_agents_share_memory_match() {
+    // Two agents with same event_type and same turn
+    let mut pool = AgentPool::new(64);
+    let a = test_spawn_agent(&mut pool);
+    let b = test_spawn_agent(&mut pool);
+    // Give both a BATTLE memory at turn 50
+    pool.memory_event_types[a][0] = 1; // Battle
+    pool.memory_turns[a][0] = 50;
+    pool.memory_intensities[a][0] = -60;
+    pool.memory_count[a] = 1;
+    pool.memory_event_types[b][0] = 1;
+    pool.memory_turns[b][0] = 50;
+    pool.memory_intensities[b][0] = -40;
+    pool.memory_count[b] = 1;
+    let result = agents_share_memory(&pool, a, b);
+    assert_eq!(result, Some((1, 50)));
+}
+
+#[test]
+fn test_agents_share_memory_no_match() {
+    let mut pool = AgentPool::new(64);
+    let a = test_spawn_agent(&mut pool);
+    let b = test_spawn_agent(&mut pool);
+    pool.memory_event_types[a][0] = 1;
+    pool.memory_turns[a][0] = 50;
+    pool.memory_intensities[a][0] = -60;
+    pool.memory_count[a] = 1;
+    pool.memory_event_types[b][0] = 2; // different type
+    pool.memory_turns[b][0] = 50;
+    pool.memory_intensities[b][0] = -40;
+    pool.memory_count[b] = 1;
+    assert_eq!(agents_share_memory(&pool, a, b), None);
+}
+
+#[test]
+fn test_agents_share_memory_turn_tolerance() {
+    // Turn difference of 1 should match, difference of 2 should not
+    let mut pool = AgentPool::new(64);
+    let a = test_spawn_agent(&mut pool);
+    let b = test_spawn_agent(&mut pool);
+    pool.memory_event_types[a][0] = 1;
+    pool.memory_turns[a][0] = 50;
+    pool.memory_intensities[a][0] = -60;
+    pool.memory_count[a] = 1;
+    // turn 51 — within tolerance
+    pool.memory_event_types[b][0] = 1;
+    pool.memory_turns[b][0] = 51;
+    pool.memory_intensities[b][0] = -40;
+    pool.memory_count[b] = 1;
+    assert!(agents_share_memory(&pool, a, b).is_some());
+    // turn 52 — outside tolerance
+    pool.memory_turns[b][0] = 52;
+    assert!(agents_share_memory(&pool, a, b).is_none());
+}
+
+#[test]
+fn test_agents_share_memory_empty() {
+    // No memories — should return None
+    let mut pool = AgentPool::new(64);
+    let a = test_spawn_agent(&mut pool);
+    let b = test_spawn_agent(&mut pool);
+    assert_eq!(agents_share_memory(&pool, a, b), None);
+}
+
+#[test]
+fn test_agents_share_memory_strongest_match() {
+    // Multiple shared memories — returns the one with highest combined intensity
+    let mut pool = AgentPool::new(64);
+    let a = test_spawn_agent(&mut pool);
+    let b = test_spawn_agent(&mut pool);
+    // Shared Battle memory at turn 10 with low intensity
+    pool.memory_event_types[a][0] = 1;
+    pool.memory_turns[a][0] = 10;
+    pool.memory_intensities[a][0] = -20;
+    // Shared Famine memory at turn 50 with high intensity
+    pool.memory_event_types[a][1] = 0;
+    pool.memory_turns[a][1] = 50;
+    pool.memory_intensities[a][1] = -80;
+    pool.memory_count[a] = 2;
+
+    pool.memory_event_types[b][0] = 1;
+    pool.memory_turns[b][0] = 10;
+    pool.memory_intensities[b][0] = -15;
+    pool.memory_event_types[b][1] = 0;
+    pool.memory_turns[b][1] = 50;
+    pool.memory_intensities[b][1] = -70;
+    pool.memory_count[b] = 2;
+
+    let result = agents_share_memory(&pool, a, b);
+    // Famine: 80 + 70 = 150 combined > Battle: 20 + 15 = 35
+    assert_eq!(result, Some((0, 50)));
 }

@@ -233,3 +233,44 @@ class TestMulePromotion:
         factor = get_mule_factor(gp, "WAR", midpoint)
         expected = 3.0 + (1.0 - 3.0) * ((midpoint - MULE_ACTIVE_WINDOW) / MULE_FADE_TURNS)
         assert abs(factor - expected) < 1e-9
+
+
+class TestRenderMemory:
+    def test_render_vivid(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 0, "source_civ": 0, "turn": 50, "intensity": -80, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani", "Tessaran"])
+        assert result is not None
+        assert "famine" in result
+        assert "vivid" in result
+        assert "Kethani" in result
+
+    def test_render_fading(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 6, "source_civ": 1, "turn": 100, "intensity": 40, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani", "Tessaran"])
+        assert result is not None
+        assert "fading" in result
+        assert "Tessaran" in result
+
+    def test_render_too_weak(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 0, "source_civ": 0, "turn": 50, "intensity": -10, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani"])
+        assert result is None
+
+    def test_render_unknown_civ(self):
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 1, "source_civ": 99, "turn": 30, "intensity": -70, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani"])
+        assert result is not None
+        assert "unknown" in result
+
+    def test_render_prosperity_no_civ_substitution(self):
+        """Prosperity template has no {civ} placeholder."""
+        from chronicler.narrative import render_memory
+        mem = {"event_type": 5, "source_civ": 0, "turn": 20, "intensity": 65, "decay_factor": 10}
+        result = render_memory(mem, ["Kethani"])
+        assert result is not None
+        assert "prosperity" in result
+        assert "vivid" in result

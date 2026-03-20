@@ -307,6 +307,30 @@ pub fn compute_memory_satisfaction_score(pool: &AgentPool, slot: usize) -> f32 {
     (sum as f32 / 1024.0) * agent::MEMORY_SATISFACTION_WEIGHT
 }
 
+/// M50 interface: Check if two agents share a memory (same event_type, turn within +/-1).
+/// Returns (event_type, turn) of the strongest shared match, or None.
+pub fn agents_share_memory(pool: &AgentPool, a: usize, b: usize) -> Option<(u8, u16)> {
+    let count_a = pool.memory_count[a] as usize;
+    let count_b = pool.memory_count[b] as usize;
+    let mut best: Option<(u8, u16, u16)> = None; // (event_type, turn, combined_intensity)
+    for i in 0..count_a {
+        let et_a = pool.memory_event_types[a][i];
+        let turn_a = pool.memory_turns[a][i];
+        let int_a = pool.memory_intensities[a][i].unsigned_abs() as u16;
+        for j in 0..count_b {
+            if pool.memory_event_types[b][j] == et_a
+                && turn_a.abs_diff(pool.memory_turns[b][j]) <= 1
+            {
+                let combined = int_a + pool.memory_intensities[b][j].unsigned_abs() as u16;
+                if best.is_none() || combined > best.unwrap().2 {
+                    best = Some((et_a, turn_a, combined));
+                }
+            }
+        }
+    }
+    best.map(|(et, turn, _)| (et, turn))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
