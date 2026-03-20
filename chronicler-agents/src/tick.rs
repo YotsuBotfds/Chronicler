@@ -779,6 +779,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                                 wealth_percentile: wealth_pct,
                                 food_sufficiency: region.food_sufficiency,
                                 merchant_margin: region.merchant_margin,
+                                memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),
                             },
                         );
 
