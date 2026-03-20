@@ -1,8 +1,8 @@
-# Phase 6 Progress — Living Society
+# Phase 6+7 Progress — Living Society + Depth Track
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-19 (M48 spec complete, M47d design in progress)
+> **Last updated:** 2026-03-20 (M48+M49 both merged to main)
 
 ---
 
@@ -141,86 +141,105 @@
 - **Bit-identical:** `--agents=off` determinism verified at default multipliers.
 - **Python-side consumers also wired:** `culture.py` (drift), `religion.py` (conversion rate, schism threshold inverse scaling with 0.10 floor, persecution intensity).
 
+### M48: Agent Memory — merged (`136c93e`)
+
+- 14 commits on `feat/m48-agent-memory` branch (12 implementation + 1 Phoebe fix + 1 test gap fill). 241 Rust tests, 48+ Python tests.
+- **Spec:** `docs/superpowers/specs/2026-03-19-m48-agent-memory-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-19-m48-agent-memory.md`
+- **Phoebe reviews:** Plan review (5 blocking fixes pre-implementation), implementation review (1 blocking fix: conquest source_civ), final pass (clean).
+- **Rust (chronicler-agents):**
+  - `memory.rs` (new, 389 lines): MemoryEventType enum (14 types), MemoryIntent, gate bits, decay hot path (integer-only), eviction (min-intensity), half-life conversion, compute_memory_satisfaction_score(), compute_memory_utility_modifiers(), agents_share_memory() (M50 interface), write_all_memories(), clear_memory_gates().
+  - `pool.rs`: 7 SoA memory fields (50 bytes/agent). Zero-init in both spawn branches.
+  - `agent.rs`: ~45 calibration constants ([CALIBRATE M53]), 2 STREAM_OFFSETS reserved (900, 1300).
+  - `tick.rs`: Memory decay first, 11 intent collection sites across all tick phases, parent-to-child reverse index for DEATH_OF_KIN, consolidated write last.
+  - `satisfaction.rs`: `memory_score` field on SatisfactionInputs, 5th-priority penalty clamping inside 0.40 cap.
+  - `behavior.rs`: Memory utility modifiers wired into evaluate_region_decisions() (7 event types → rebel/migrate/switch/stay).
+  - `region.rs`: 3 transient boolean fields (controller_changed_this_turn, war_won_this_turn, seceded_this_turn).
+  - `ffi.rs`: 3 signal columns parsed (both init + update branches), get_agent_memories() pymethod.
+- **Python:**
+  - `models.py`: 4 GreatPerson fields (mule, mule_memory_event_type, utility_overrides, memories).
+  - `agent_bridge.py`: 3 transient signal columns in build_region_batch() with clear-before-return, Mule detection in _process_promotions() (7% probability, 9 event mappings), memory sync per tick.
+  - `action_engine.py`: get_mule_factor() with 25-turn window + 10-turn fade, Mule weight loop (after peace dividend, before streak-breaker, before 2.5x cap), 0.1x suppression floor.
+  - `politics.py`: _seceded_this_turn signal in check_secession().
+  - `narrative.py`: MEMORY_DESCRIPTIONS (12 templates), render_memory() with vivid/fading descriptors, Mule context rendering.
+- **Key design decisions:** Consolidated write phase (no same-turn feedback), conquest source_civ = conquering civ (not agent's own), memory inside 0.40 cap as 5th priority, multiplicative Mule boost.
+- **Phoebe observations (non-blocking):** Promotion intent deferred (Python-side, no Rust write path), Victory memories not civ-filtered (minor — losers in region also get Victory), `default_decay_factor()` recomputes powf/ln per write (cold-path acceptable).
+
+### M49: Needs System — merged (`ae05b92`)
+
+- 8 commits on `feat/m49-needs-system` branch. 268 Rust tests, 6 Python tests, all passing.
+- **Spec:** `docs/superpowers/specs/2026-03-20-m49-needs-system-design.md` (658 lines, 13 sections)
+- **Plan:** `docs/superpowers/plans/2026-03-20-m49-needs-system.md` (1056 lines, 8 tasks)
+- **Brainstorming:** 5 design questions, each individually Phoebe-reviewed + holistic cross-decision review. 3 blocking issues found and resolved in holistic review (utility stacking cap, needs-as-independent-trigger, missing architectural decisions).
+- **Rust (chronicler-agents):**
+  - `needs.rs` (new): NeedUtilityModifiers struct, decay_needs (linear subtraction), restore_needs (proportional to deficit), clamp_needs, update_needs entry point, compute_need_utility_modifiers (threshold-gated), social_restoration pre-M50 proxy.
+  - `pool.rs`: 6 SoA f32 fields (24 bytes/agent). Spawn at STARTING_NEED=0.5 in both branches.
+  - `agent.rs`: 37 calibration constants ([CALIBRATE M53]) — 6 decay, 6 threshold, 6 weight, 16 restoration, 3 infrastructure.
+  - `tick.rs`: `update_needs()` inserted between wealth_tick and update_satisfaction (step 0.75).
+  - `behavior.rs`: `personality_modifier` made `pub`. Need utility modifiers wired after M48 memory modifiers, before NEG_INFINITY gates. Per-channel NEEDS_MODIFIER_CAP=0.30. Autonomy deficit accelerates loyalty drift (multiplier on negative drift only).
+  - `ffi.rs`: `get_agent_needs(agent_id)` pymethod returning `Option<(f32,f32,f32,f32,f32,f32)>`.
+- **Python:**
+  - `models.py`: `GreatPerson.needs: Optional[dict] = None` (None in aggregate mode — no serialization diff).
+  - `agent_bridge.py`: Needs sync in hybrid branch after memory sync. 6-tuple → named dict.
+  - `narrative.py`: NEED_DESCRIPTIONS (6 templates), render_needs() with LOW/satisfied labels, wired into build_agent_context_for_moment + build_agent_context_block.
+- **Key design decisions:** 6 needs (sharp Safety/Autonomy split), hybrid restoration (binary for bools, proportional for f32s), uniform linear decay, per-agent restoration conditions for diversity, threshold-gated utility modifiers `(THRESHOLD - need).max(0) * WEIGHT`, needs can independently trigger rebellion (explicit decision), needs-only cap 0.30 (does not retroactively affect M38b/M48), Autonomy uses civ_affinity (political, not ethnic), memory-needs coupling deferred to M53.
+- **M53 calibration flags (10):** persecution triple-stacking, famine double-counting, needs-only rebellion rate (<5%), need activation fraction (peacetime 10-20%, crisis 40-70%), migration sloshing, sawtooth oscillation, duty cycle per need, social proxy adequacy, negative modifier trapping, Autonomy assimilation loop.
+
 ---
+
+## In Progress
+
+### M50a: Relationship Substrate — merged (`a4d68f8`)
+
+- 12 commits on `feat/m50a-relationship-substrate` branch + 2 Phoebe fix commits.
+- **Spec:** `docs/superpowers/specs/2026-03-20-m50a-relationship-substrate-design.md`
+- **Rust (chronicler-agents):**
+  - `relationships.rs` (new): BondType enum (Mentor=0..Grudge=7), SoA helpers (find_relationship, write_rel, swap_remove_rel, find_evictable, upsert_directed, upsert_symmetric), is_protected/is_positive_valence predicates.
+  - `pool.rs`: 5 SoA relationship fields (65 bytes/agent). Sentinel init (bond_types = [255; 8]).
+  - `tick.rs`: Kin auto-formation at birth (form_kin_bond), sentiment drift at phase 0.8, stale-parent-slot fix (ids check in birth loop).
+  - `ffi.rs`: apply_relationship_ops (4 op types via Arrow batch), get_agent_relationships (per-agent FFI), get_social_edges (M40 projection), replace_social_edges (deprecated shim with diff-based translation), kin_bond_failures counter with PyO3 getter.
+  - `agent.rs`: 8 drift/kin constants, RELATIONSHIP_STREAM_OFFSET=1100 registered in collision test.
+- **Python:**
+  - `models.py`: `GreatPerson.agent_bonds: Optional[list] = None`
+  - `agent_bridge.py`: apply_relationship_ops wrapper, agent_bonds sync in per-GP loop.
+- **Key design decisions:** Single truth source (per-agent SoA, not SocialGraph). M40 `get_social_edges()` is a projection, `replace_social_edges()` is a deprecated diff-based shim. Kin-only Rust-native formation; all other formation via Python ops (transitional — M50b changes this). UpsertSymmetric(Kin) explicitly blocked. `formed_turn` preserved on re-upsert.
+
+### M50b: Relationship Emergence & Cohorts — in progress (worktree `feat/m50b-relationship-emergence`)
+
+- **Spec:** `docs/superpowers/specs/2026-03-20-m50b-relationship-emergence-cohorts-design.md` (Phoebe-reviewed, 2 passes)
+- **Plan:** `docs/superpowers/plans/2026-03-20-m50b-relationship-emergence-cohorts.md` (Phoebe-reviewed, 1 pass + user review, 6 known issues documented in plan addendum)
+- **Implementation status:** Tasks 1-2 of 8 complete on `feat/m50b-relationship-emergence` branch.
+
+**Session handoff (2026-03-20):**
+
+Completed:
+- Task 1: 27 formation constants in agent.rs, `synthesis_budget: Vec<u8>` dormant field in pool.rs, `agents_share_memory_with_valence()` in memory.rs (5 tests). Commit `51a9fe6`.
+- Task 2: `formation.rs` created (823 lines). `cultural_similarity()`, `compatibility_score()`, 6 per-type gate functions (check_friend, check_coreligionist, check_rival, check_mentor, check_grudge, check_exile_bond) with `FormationCandidate` result type. 29 tests passing. Commit `69f1fc9`.
+
+Remaining (Tasks 3-8):
+- Task 3: Formation scan orchestration — staggered cadence, hash-based shuffle, pair iteration, early rejection cascade, triadic closure, budgeting. Wire into `tick.rs` at phase 8.
+- Task 4: Death cleanup at phase 5.1 + belief-divergence cleanup on cadence. Wire into `tick.rs`.
+- Task 5: Social-need blend in `needs.rs` (`alpha=0.0`). Independent of Tasks 3-4.
+- Task 6: `get_relationship_stats()` + `get_all_relationships()` FFI methods + distribution snapshots.
+- Task 7: Python bridge — `rust_owns_formation` flag, gate off `form_and_sync_relationships()`, dissolution event collection.
+- Task 8: Narration widening + analytics extractor.
+
+Known plan issues to fix during implementation (documented in plan addendum):
+1. Formation scan must use post-demographics alive_slots, not tick-start snapshot.
+2. Dissolution events need target_id — add field to AgentEvent.
+3. Narration source swap references wrong scope — use _prepare_narration_prompts where gp_by_agent_id is available.
+4. Spawn signature in test helpers — check actual M50a signature before writing.
+5. Distribution snapshots not fully specified — add computation gated by --relationship-stats.
+6. Transient signal 2-turn test missing — add to Task 3 integration tests.
+
+Next session: Continue subagent-driven development from Task 3. Use `/init-cici` then dispatch Task 3 implementer to the worktree.
 
 ## Ready for Implementation
 
-### M47b-run: 200-Seed Health Check — DONE (2026-03-19)
-
-Report: `docs/superpowers/analytics/m47b-health-check-report.md`
-Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M47c notes).
-
-### M47c: Calibration — 50-turn death spiral FIXED
-
-**Calibration session (2026-03-19):**
-
-6 changes applied to break the satisfaction cascade death spiral. Phoebe review: no blocking issues.
-
-**Rust-side changes (committed):**
-1. `agent.rs`: `RELIGIOUS_MISMATCH_WEIGHT` 0.10→0.05 (random T1 beliefs hit too hard)
-2. `agent.rs`: `FERTILITY_SATISFACTION_THRESHOLD` 0.40→0.30 (wartime dips shut off all births)
-3. `satisfaction.rs`: Stability bonus divisor 200→300 (weaken positive feedback loop)
-4. `satisfaction.rs`: War penalties 0.15+0.10→0.08+0.05 (whole-civ war penalty too harsh)
-
-**Python-side changes (committed):**
-5. `politics.py`: Secession threshold 20→10 (hybrid stability 15-30, old threshold fired constantly)
-6. `politics.py`: Surveillance threshold 10→5 (proportional)
-
-**50-turn results (20 seeds, validated):**
-- Wars: 13.3 mean (agents=off: 18) — reasonable
-- T15 stability: 19.1 mean (was ~2 pre-M47c) — death spiral broken
-- T1 stability: 28.7 mean (agents=off: 60.3) — expected gap from per-agent penalties
-- Only 4% of T15 civs at stability=0 (was ~50%+)
-- All 7 presets pass smoke test (5 seeds each)
-
-**3b constants extraction (background task):** Applied to main from worktree. 184 new `K_` keys in `tuning.py`, 523 insertions across 8 files.
-
-**3 hanging integration tests:** `test_bundle.py`, `test_m36_regression.py`, `test_main.py` — still hang. Exclude with `--ignore`.
-
-**39 pre-existing Python test failures:** Import errors from 3b constants extraction, M38a faction count change. Not caused by M47c/M47d.
-
-### M47d: War Frequency Calibration — merged, 200-seed VALIDATED (`abb6f82`..`58ca976`)
-
-- 9 commits (6 implementation on `feat/m47d-war-frequency`, merged via `5ffc947`, calibration in `58ca976`). 26 M47d tests, all passing. Zero regressions.
-- **Spec:** `docs/superpowers/specs/2026-03-19-m47d-war-frequency-design.md`
-- **Plan:** `docs/superpowers/plans/2026-03-19-m47d-war-frequency.md`
-- **Mechanism 1:** Smooth WAR damper — `WAR *= max(min(stability / 50, 1.0), 0.05)` replaces binary cliff. Linear ramp, floor prevents zero. DIPLOMACY *= 3.0 stays as binary at stability <= 20.
-- **Mechanism 2:** War-weariness accumulator — `war_weariness: float` on Civilization. Exponential decay (0.95/turn), +2.0 on WAR action, +0.5 passive per active war. Effect: `WAR *= 1/(1 + weariness/0.5)`. Heavy suppression for chronic warmongers.
-- **Mechanism 3:** Peace dividend — `peace_momentum: float` on Civilization. +1.0/turn at peace (cap 20), aggressor decay 0.5x (only on turn civ CHOSE WAR), defender/ongoing-war decay 0.95x. Effect: `DEVELOP *= 1 + momentum/5`, `TRADE *= 1 + momentum/5`.
-- **Mechanism 4:** Secession threshold stays at 10. Secession frequency check deferred.
-- 12 new K_ constants in tuning.py (all [CALIBRATE]-tagged). Both fields on CivSnapshot for analytics.
-- Extinction resets at 4 sites (war conquest, 2× twilight absorption, exile restoration).
-- Weariness/momentum tick fires after `phase_action()` in `run_turn()`.
-- **Phoebe-reviewed:** 2 spec review passes, 2 plan review passes. All blocking issues resolved.
-- **Calibration fix (58ca976):** Aggressor decay changed from per-turn (based on w[0] in active_wars) to one-shot (only when civ CHOSE WAR). Old approach zeroed peace momentum permanently since active_wars persist for hundreds of turns. Weariness handles ongoing fatigue via passive accumulation.
-- **200-seed validation (2026-03-19):** PASS. Median 24 wars (target 5-40). Mean 26.8, p10=16, p90=41, min=9, max=58. 90% of seeds in target range. Zero seeds below 5 (no overcorrection). Was 204-508 pre-M47d.
-
-### M48: Agent Memory — spec + plan COMPLETE, Phoebe-approved (2026-03-19)
-
-- **Spec:** `docs/superpowers/specs/2026-03-19-m48-agent-memory-design.md` (745 lines, 11 sections)
-- **Plan:** `docs/superpowers/plans/2026-03-19-m48-agent-memory.md` (12 tasks, 1635 lines)
-- **Commits:** `1abc6a1` (initial spec), `4316c38` (spec blocking fixes), `5f9b5b8` (RNG formula fix), `cada96d` (implementation plan)
-- 8-round iterative design review with Phoebe (Q1-Q7 design questions + 8 spec sections)
-- Spec review: 4 blocking issues fixed, 12 observations documented in Section 11
-- Plan review: 5 blocking issues fixed (spawn signature caveat, satisfaction function signature, transient signal clearing order, `is_contested()` → TickSignals, missing `test_same_turn_no_feedback`)
-- **Key design decisions:** Half-life Option C (cold-path conversion, hot-path multiply), `source_civ: u8` (not `actor_id: u16`), memory inside 0.40 cap (5th priority), multiplicative Mule boost (not additive floor), consolidated write phase, selective FFI query.
-- **Ready for implementation.** 12 tasks, subagent-dispatchable. Depends on M47 tuning completion (M47c/d).
-
-### M47d: War Frequency Fix — design COMPLETE, implementation plan pending
-
-- 4 mechanisms designed, all Phoebe-reviewed:
-  1. Smooth WAR damper: `WAR *= max(stability / 30, 0.05)` — replaces binary cliff
-  2. War-weariness accumulator: exponential decay (0.95/turn), +1.0 on WAR choice, +0.15 passive per active war
-  3. Peace dividend: peace_momentum accumulator, caps at 20, DEVELOP/TRADE bonus up to 3x
-  4. Secession threshold: keep at 10, revisit after 200-seed validation
-- Defender-aware mechanics: passive weariness lower for defenders, peace momentum decays gently (0.8x vs 0.3x for aggressors)
-- 12 new calibration constants, all [CALIBRATE]
-- Implementation plan being written in separate session. Final codebase review after M47 tuning completes.
-
 **Next steps:**
-- M47d implementation (war frequency fix — blocks 500-turn validation)
-- M47d 200-seed validation (verify 5-40 war target)
-- M48 implementation (12-task plan ready, subagent-dispatchable, after M47d lands)
+- M50b Tasks 3-8 (continue subagent-driven development in worktree)
+- M48+M49+M50 200-seed regression deferred to M53 — memory + needs + relationships are uncalibrated
+- M53 calibration pass (~125 Rust constants across M48+M49+M50, tiered strategy in M49 spec Section 9)
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -261,5 +280,14 @@ Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M
 - **Fullscale Phoebe review (2026-03-18):** CLAUDE.md line counts + file table updated, simulation.py docstring aligned, dead `derive_food_sufficiency()` removed, Phase 7 viewer scope estimate corrected.
 - **M47: 3 integration test files hang after Pydantic cleanup.** `test_bundle.py::TestBundleSize::test_500_turn_bundle_under_5mb`, `test_m36_regression.py`, `test_main.py` — all run full `execute_run()` integration. Complete in <1s on clean tree, hang indefinitely with M47 changes. The simulation loop benchmarks at 1ms/turn, so tatonnement is not the cause. Suspected root cause: removing `ge=/le=` Field constraints changed default values (e.g., `population: int = 0` was `Field(ge=0, le=1000)`, `stability: int = 50` was `Field(ge=0, le=100)`) — test fixtures may rely on old default behaviors or the Civilization constructor may now accept states that trigger infinite loops in the simulation. Investigation started but not completed. See session handoff for details.
 - **M47: `region_map` inline replacements deferred.** The `world.region_map` cached property is added but the ~19 inline `{r.name: r for r in world.regions}` rebuilds are NOT yet replaced. Safe — property works alongside inline rebuilds. Replace opportunistically. `invalidate_region_map()` calls not yet added at region mutation sites.
-- **M48 spec: `_detect_character_events` referenced but doesn't exist by that name.** Section 7 says memory caching happens "after `_detect_character_events`" — implementer must identify the correct Phase 10 insertion point (likely after `_process_promotions`, before arc classification).
-- **M48 spec: Phase 7 roadmap text outdated.** Section 10 lists 5 divergences (actor_id→source_civ, decay_rate→decay_factor, 64→50 bytes, additive→multiplicative Mule, permanent→100t Legacy). Update roadmap when M48 implementation begins.
+- **~~M48 spec: `_detect_character_events` referenced but doesn't exist by that name.~~** Resolved — memory sync placed in tick() hybrid branch loop, after events processed.
+- **~~M48 spec: Phase 7 roadmap text outdated.~~** Resolved — spec Section 10 documents 5 divergences.
+- **M48: Promotion intent not generated.** `MemoryEventType::Promotion` has constants and decay factor but no intent collection in tick.rs. Promotion happens Python-side in `_process_promotions()`. No Rust-to-Python memory write path exists. Wire when character arc system needs it.
+- **M48: Victory memories not civ-filtered.** `war_won_this_turn` is a bare boolean on RegionState. ALL soldiers in the region get Victory memories, including losing side. Fix requires `war_winning_civ: u8` field on RegionState + civ filtering in tick.rs intent collection.
+- **M48: `default_decay_factor()` recomputes `factor_from_half_life()` per write.** Cold-path (thousands/turn, not millions). Could be lazy-static lookup table if memory write volume increases.
+- **M48: `build_agent_context_for_moment()` new params not wired in batch path.** `civ_names`/`world_turn` params default to None/0 for backward compatibility. Memory/Mule context populated when callers pass those params. `_prepare_narration_prompts` does not wire them yet.
+- **M49: Persecution triple-stacking.** M38b direct boost (0.30) + M48 memory boost (~0.10) + M49 Autonomy need boost (up to 0.24) all push rebel/migrate. Total can reach ~0.64 additive on rebel. M53 priority calibration target.
+- **M49: `_NEED_THRESHOLDS` in narrative.py must stay synced with agent.rs constants.** Both files define threshold values (0.3, 0.25, 0.35). No compile-time enforcement. If thresholds change in M53 calibration, update both.
+- **M49: Social need pre-M50 proxy.** `social_restoration()` in needs.rs uses occupation + age + population density. Marked `// Pre-M50 proxy`. M50 replaces with actual relationship count.
+- **M49: Phase 7 roadmap estimates ~24 M49 constants.** Actual count is 37. Update roadmap when next editing it.
+- **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Verify numerically in M53 Tier 3 calibration.
