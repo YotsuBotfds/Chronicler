@@ -27,6 +27,8 @@ from chronicler.tuning import (
     K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
     K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
     K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR,
+    K_WAR_WEARINESS_DIVISOR,
+    K_PEACE_DEVELOP_DIVISOR, K_PEACE_TRADE_DIVISOR,
     get_override,
 )
 from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
@@ -840,6 +842,19 @@ class ActionEngine:
         # M47: Aggression bias multiplier
         from chronicler.tuning import get_multiplier, K_AGGRESSION_BIAS
         weights[ActionType.WAR] *= get_multiplier(self.world, K_AGGRESSION_BIAS)
+
+        # M47d: War-weariness penalty — suppresses WAR after multiplicative boosters
+        if civ.war_weariness > 0:
+            divisor = get_override(self.world, K_WAR_WEARINESS_DIVISOR, 3.0)
+            weariness_penalty = 1.0 / (1.0 + civ.war_weariness / divisor)
+            weights[ActionType.WAR] *= weariness_penalty
+
+        # M47d: Peace dividend — boost DEVELOP/TRADE from peace momentum
+        if civ.peace_momentum > 0:
+            develop_divisor = get_override(self.world, K_PEACE_DEVELOP_DIVISOR, 10.0)
+            trade_divisor = get_override(self.world, K_PEACE_TRADE_DIVISOR, 10.0)
+            weights[ActionType.DEVELOP] *= 1.0 + civ.peace_momentum / develop_divisor
+            weights[ActionType.TRADE] *= 1.0 + civ.peace_momentum / trade_divisor
 
         history = self.world.action_history.get(civ.name, [])
         stubborn_limit = int(get_override(self.world, K_STUBBORN_STREAK_LIMIT, 5))

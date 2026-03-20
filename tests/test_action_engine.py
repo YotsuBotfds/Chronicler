@@ -222,3 +222,99 @@ class TestWarDamper:
         engine = ActionEngine(engine_world)
         weights = engine.compute_weights(civ)
         assert weights[ActionType.DIPLOMACY] > weights[ActionType.DEVELOP]
+
+
+class TestWarWeariness:
+    """M47d: War-weariness suppresses WAR weight."""
+
+    def test_zero_weariness_no_penalty(self, engine_world):
+        """No weariness: WAR weight unaffected."""
+        civ = engine_world.civilizations[0]
+        civ.war_weariness = 0.0
+        engine = ActionEngine(engine_world)
+        weights_zero = engine.compute_weights(civ)
+
+        civ.war_weariness = 5.0
+        weights_weary = engine.compute_weights(civ)
+        assert weights_zero[ActionType.WAR] > weights_weary[ActionType.WAR]
+
+    def test_high_weariness_suppresses_war(self, engine_world):
+        """Chronic warmonger weariness (~23): WAR suppressed to ~12%."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+
+        civ.war_weariness = 0.0
+        war_fresh = engine.compute_weights(civ)[ActionType.WAR]
+
+        civ.war_weariness = 23.0
+        war_weary = engine.compute_weights(civ)[ActionType.WAR]
+
+        ratio = war_weary / war_fresh
+        assert 0.08 <= ratio <= 0.15, f"Expected ~0.12 ratio, got {ratio}"
+
+    def test_weariness_does_not_affect_other_actions(self, engine_world):
+        """Weariness only touches WAR, not DEVELOP or TRADE."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+
+        civ.war_weariness = 0.0
+        weights_fresh = engine.compute_weights(civ)
+
+        civ.war_weariness = 10.0
+        weights_weary = engine.compute_weights(civ)
+
+        assert abs(weights_fresh[ActionType.DEVELOP] - weights_weary[ActionType.DEVELOP]) < 0.001
+
+
+class TestPeaceDividend:
+    """M47d: Peace momentum boosts DEVELOP and TRADE weights."""
+
+    def test_zero_momentum_no_bonus(self, engine_world):
+        """No peace momentum: DEVELOP/TRADE unaffected."""
+        civ = engine_world.civilizations[0]
+        # Need NEUTRAL+ for TRADE to be eligible
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        civ.peace_momentum = 0.0
+        engine = ActionEngine(engine_world)
+        weights = engine.compute_weights(civ)
+        assert weights[ActionType.DEVELOP] > 0
+        assert weights[ActionType.TRADE] > 0
+
+    def test_high_momentum_boosts_develop_trade(self, engine_world):
+        """20 turns of peace: DEVELOP and TRADE get 3x bonus."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        # Need NEUTRAL+ for TRADE to be eligible
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        engine = ActionEngine(engine_world)
+
+        civ.peace_momentum = 0.0
+        develop_base = engine.compute_weights(civ)[ActionType.DEVELOP]
+        trade_base = engine.compute_weights(civ)[ActionType.TRADE]
+
+        civ.peace_momentum = 20.0
+        develop_peace = engine.compute_weights(civ)[ActionType.DEVELOP]
+        trade_peace = engine.compute_weights(civ)[ActionType.TRADE]
+
+        develop_ratio = develop_peace / develop_base
+        trade_ratio = trade_peace / trade_base
+        assert 2.8 <= develop_ratio <= 3.2, f"Expected ~3.0 DEVELOP ratio, got {develop_ratio}"
+        assert 2.8 <= trade_ratio <= 3.2, f"Expected ~3.0 TRADE ratio, got {trade_ratio}"
+
+    def test_momentum_does_not_affect_war(self, engine_world):
+        """Peace momentum only touches DEVELOP/TRADE, not WAR."""
+        civ = engine_world.civilizations[0]
+        civ.stability = 50
+        engine = ActionEngine(engine_world)
+
+        civ.peace_momentum = 0.0
+        war_base = engine.compute_weights(civ)[ActionType.WAR]
+
+        civ.peace_momentum = 20.0
+        war_peace = engine.compute_weights(civ)[ActionType.WAR]
+
+        assert abs(war_base - war_peace) < 0.001
