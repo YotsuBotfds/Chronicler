@@ -858,7 +858,7 @@ impl AgentSimulator {
                 let r = r_col.value(i);
                 let t = t_col.value(i);
                 // Guard: only named characters
-                if !named_ids.contains(&a) && !named_ids.contains(&b) { continue; }
+                if !named_ids.contains(&a) || !named_ids.contains(&b) { continue; }
                 let key = if crate::relationships::is_asymmetric(r) {
                     (a, b, r)
                 } else {

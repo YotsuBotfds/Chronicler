@@ -439,7 +439,9 @@ pub fn tick_agents(
             // M50a: auto-form kin bond between parent and child
             if birth.parent_id != crate::agent::PARENT_NONE {
                 if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                    if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
+                    // Guard: parent may have died earlier in same demographics batch
+                    if !pool.alive[parent_slot] { /* skip dead parent */ }
+                    else if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                         kin_bond_failures += 1;
                     }
                 }
