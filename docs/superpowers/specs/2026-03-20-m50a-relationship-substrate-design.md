@@ -167,11 +167,17 @@ One Arrow RecordBatch per turn. Schema:
 
 ### 4.6 Invalid-Op Guards
 
-Skip ops where:
+**Upsert ops** — skip where:
 - Either `agent_id` is dead or not found in pool.
 - `bond_type` is unknown (>7 or 255).
 - `UpsertSymmetric` used with an asymmetric type (Mentor). Kin uses two directed writes in Rust birth path, not `UpsertSymmetric`.
 - `target_id == src_agent_id` (self-bond).
+
+**Remove ops** — skip where:
+- The **source** `agent_id` (the agent whose slot is being cleared) is not found in pool.
+- `bond_type` is unknown (>7 or 255).
+
+**Remove ops explicitly allow dead targets.** The source agent must be alive (it owns the slot being cleared), but the target may be dead. This is required for dead-target cleanup: Python dissolution logic issues `RemoveDirected` ops to clear bonds whose targets have died. Without this, protected kin bonds to dead agents would accumulate indefinitely and eventually consume all 8 slots.
 
 Debug log on all skips.
 
@@ -193,21 +199,26 @@ Only direct parent-child kin bonds auto-form in Rust. No sibling inference. No o
 
 ### 5.2 Mechanism
 
-In `demographics.rs` birth handling, after setting `parent_id`:
+In `tick.rs` birth loop (line ~417), after `pool.spawn()` returns `new_slot` and `parent_id` is set (line ~432):
 
 ```rust
-relationships::form_kin_bond(pool, parent_slot, child_slot, turn);
+// Resolve parent_id → parent_slot via linear scan (acceptable: ~100-500 births/turn)
+if let Some(parent_slot) = pool.find_slot_by_id(birth.parent_id) {
+    relationships::form_kin_bond(pool, parent_slot, new_slot, turn);
+}
 ```
+
+`pool.find_slot_by_id(id)` is a linear scan of `pool.ids[0..pool.len]`. At birth frequency (~100-500/turn), this is acceptable. If M50b or later increases birth volume, the drift pass's `HashMap<u32, usize>` can be reused (but births happen after drift, so it would need to be built separately or cached on the tick context).
 
 Writes two directed entries:
 - Parent → child: sentiment `KIN_INITIAL_PARENT` `[CALIBRATE]` (~+60)
 - Child → parent: sentiment `KIN_INITIAL_CHILD` `[CALIBRATE]` (~+40)
 
-Uses standard slot allocation with protection/eviction rules.
+**Atomic pair-write:** Both entries must succeed or neither is written (same invariant as `UpsertSymmetric`). Resolve admissible slots on both sides first, then commit both. This prevents half-formed kin bonds where one side has the relationship and the other doesn't.
 
 ### 5.3 Failure Handling
 
-If the parent has 8 protected slots (extreme edge case), the parent→child bond fails. Increments `kin_bond_failures: u32` counter on `AgentSimulator` — observable for diagnostics, operationally a no-op (does not panic or retry).
+If either side has no admissible slot (e.g., parent has 8 protected slots), the entire kin formation fails — neither side is written. Increments `kin_bond_failures: u32` counter on `AgentSimulator` — observable for diagnostics, operationally a no-op (does not panic or retry).
 
 ---
 
@@ -231,9 +242,11 @@ For each agent, for each occupied slot `[0..rel_count)`:
 if co_located:
     if valence:
         // positive bond, same region → strengthen toward +127
-        drift = POSITIVE_COLOC_DRIFT
-        if sentiment > STRONG_TIE_THRESHOLD: drift *= STRONG_TIE_DRIFT_FACTOR
-        sentiment = min(sentiment + drift, 127)
+        // Above STRONG_TIE_THRESHOLD: cadence-based slowing (drift every N ticks)
+        if sentiment <= STRONG_TIE_THRESHOLD:
+            sentiment = min(sentiment + POSITIVE_COLOC_DRIFT, 127)
+        elif turn % STRONG_TIE_CADENCE == 0:
+            sentiment = min(sentiment + POSITIVE_COLOC_DRIFT, 127)
     else:
         // negative bond, same region → deepen toward -128
         sentiment = max(sentiment - NEGATIVE_COLOC_DRIFT, -128)
@@ -251,7 +264,7 @@ else:
 
 ### 6.3 Key Properties
 
-- **Dead targets:** Target not found or `!alive` → sentiment decays under separation rules. Slot is NOT auto-removed — Python dissolution logic handles cleanup via `RemoveDirected` ops.
+- **Dead targets:** Target not found or `!alive` → sentiment decays under separation rules. Slot is NOT auto-removed by drift — Python dissolution logic handles cleanup via `RemoveDirected` ops (which allow dead targets per Section 4.6). This ensures protected kin bonds to dead parents/children are eventually cleaned up rather than accumulating indefinitely.
 - **Protected bonds drift identically** to unprotected. Protection only affects eviction. You can resent your parent.
 - **No RNG.** Drift is deterministic from state — no probability rolls in M50a.
 - **All constants `[CALIBRATE]` for M53.**
@@ -266,8 +279,8 @@ else:
 | `NEGATIVE_COLOC_DRIFT` | Drift | 1 | Per-tick negative co-located drift |
 | `POSITIVE_SEPARATION_DECAY` | Drift | 1 | Per-tick positive separation decay |
 | `NEGATIVE_DECAY_CADENCE` | Drift | 4 | Ticks between negative decay steps |
-| `STRONG_TIE_THRESHOLD` | Drift | 100 | Diminishing returns threshold |
-| `STRONG_TIE_DRIFT_FACTOR` | Drift | 0.5 | Drift multiplier above threshold |
+| `STRONG_TIE_THRESHOLD` | Drift | 100 | Cadence-based slowing above this |
+| `STRONG_TIE_CADENCE` | Drift | 2 | Drift every N ticks above threshold (integer, avoids truncation) |
 
 8 constants. All `[CALIBRATE]` for M53.
 
