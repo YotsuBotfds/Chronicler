@@ -403,7 +403,7 @@ fn get_agent_needs(&self, agent_id: u32) -> Option<(f32, f32, f32, f32, f32, f32
 New field on `GreatPerson` in `models.py`:
 
 ```python
-needs: dict = Field(default_factory=dict)  # cached from Rust via FFI
+needs: Optional[dict] = None  # M49: cached from Rust via FFI, None in aggregate mode
 ```
 
 Synced in `AgentBridge.tick()` hybrid branch, immediately after the memory sync (lines 504-513):

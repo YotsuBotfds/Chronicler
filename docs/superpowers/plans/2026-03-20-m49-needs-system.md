@@ -63,13 +63,15 @@
 In `chronicler-agents/tests/test_needs.rs`:
 
 ```rust
-use chronicler_agents::pool::AgentPool;
+// Import from crate root re-exports — pool is private, AgentPool is re-exported
+use chronicler_agents::AgentPool;
+use chronicler_agents::Occupation;
 
 #[test]
 fn test_needs_spawn_at_starting_value() {
     let mut pool = AgentPool::new(16);
     // Use actual spawn() signature from pool.rs lines 112-125
-    let slot = pool.spawn(0, 0, chronicler_agents::Occupation::Farmer, 20,
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20,
         0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
     assert!((pool.need_safety[slot] - 0.5).abs() < 0.001);
     assert!((pool.need_material[slot] - 0.5).abs() < 0.001);
@@ -82,14 +84,14 @@ fn test_needs_spawn_at_starting_value() {
 #[test]
 fn test_needs_reuse_reset() {
     let mut pool = AgentPool::new(16);
-    let slot = pool.spawn(0, 0, chronicler_agents::Occupation::Farmer, 20,
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20,
         0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
     // Dirty the needs
     pool.need_safety[slot] = 0.1;
     pool.need_purpose[slot] = 0.9;
     pool.kill(slot);
     // Respawn — should reset to STARTING_NEED
-    let slot2 = pool.spawn(0, 0, chronicler_agents::Occupation::Farmer, 20,
+    let slot2 = pool.spawn(0, 0, Occupation::Farmer, 20,
         0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
     assert_eq!(slot, slot2); // free-list reuse
     assert!((pool.need_safety[slot2] - 0.5).abs() < 0.001);
@@ -99,7 +101,7 @@ fn test_needs_reuse_reset() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cargo nextest run -p chronicler-agents test_needs_spawn`
+Run: `cd chronicler-agents && cargo nextest run test_needs_spawn`
 Expected: Compilation error — `need_safety` field does not exist on AgentPool.
 
 - [ ] **Step 3: Add need constants to agent.rs**
@@ -232,7 +234,7 @@ self.need_purpose.push(agent::STARTING_NEED);
 
 - [ ] **Step 7: Run tests to verify they pass**
 
-Run: `cargo nextest run -p chronicler-agents test_needs`
+Run: `cd chronicler-agents && cargo nextest run test_needs`
 Expected: PASS for both `test_needs_spawn_at_starting_value` and `test_needs_reuse_reset`.
 
 - [ ] **Step 8: Commit**
@@ -362,7 +364,7 @@ fn test_equilibrium_convergence() {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo nextest run -p chronicler-agents test_needs`
+Run: `cd chronicler-agents && cargo nextest run test_needs`
 Expected: Compilation error — `decay_needs`, `restore_needs`, `clamp_needs` don't exist.
 
 - [ ] **Step 3: Implement decay, restoration, and clamp in needs.rs**
@@ -516,7 +518,7 @@ At `behavior.rs` line 46, change `fn personality_modifier` to `pub fn personalit
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cargo nextest run -p chronicler-agents test_needs`
+Run: `cd chronicler-agents && cargo nextest run test_needs`
 Expected: All PASS.
 
 - [ ] **Step 6: Commit**
@@ -594,30 +596,36 @@ fn test_needs_only_rebellion_trigger() {
     // ABOVE rebellion thresholds can still rebel from Autonomy need alone.
     // rebel_utility() returns 0.0 when sat > 0.2 and loy > 0.2.
     // Need modifier adds to 0.0, pushing above the NEG_INFINITY gate.
+    //
+    // NOTE: rebel_utility is private in behavior.rs — we cannot call it from
+    // integration tests. Instead, verify that the needs modifier is positive
+    // and that when added to a zero base, the result passes the > 0.0 gate.
+    // The gate logic (if rebel_util > 0.0 { rebel_util } else { NEG_INFINITY })
+    // is existing verified code in behavior.rs.
     let mut pool = AgentPool::new(16);
-    let slot = pool.spawn(/* actual params with default personality */);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20,
+        0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
     pool.satisfactions[slot] = 0.6; // well above REBEL_SATISFACTION_THRESHOLD (0.2)
     pool.loyalties[slot] = 0.5;     // well above REBEL_LOYALTY_THRESHOLD (0.2)
     pool.need_autonomy[slot] = 0.0; // full deficit → rebel mod = 0.24
 
-    // Base rebel utility should be 0.0 (above both thresholds)
-    let base = crate::behavior::rebel_utility(0.5, 0.6, 10);
-    assert_eq!(base, 0.0, "Base rebel utility should be zero above thresholds");
-
     // Need modifier should be positive
     let mods = compute_need_utility_modifiers(&pool, slot);
     assert!(mods.rebel > 0.0, "Autonomy deficit should produce positive rebel modifier");
+    assert!((mods.rebel - 0.24).abs() < 0.01,
+        "Full Autonomy deficit should give ~0.24 rebel mod, got {}", mods.rebel);
 
-    // Combined: 0.0 * personality + 0.0 (no persecution) + 0.0 (no memory) + mods.rebel > 0.0
-    // This passes the NEG_INFINITY gate, making rebellion a selectable action
-    let total = 0.0 + mods.rebel; // base 0 + needs
-    assert!(total > 0.0, "Needs-only rebel utility should be positive: {}", total);
+    // When base rebel_utility is 0.0 (sat and loy above thresholds),
+    // adding needs modifier makes total > 0.0, passing the NEG_INFINITY gate.
+    // This means the agent CAN rebel from need alone.
+    let simulated_total = 0.0 + mods.rebel; // base 0 + needs only
+    assert!(simulated_total > 0.0, "Needs-only rebel should pass gate: {}", simulated_total);
 }
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cargo nextest run -p chronicler-agents test_utility_modifier`
+Run: `cd chronicler-agents && cargo nextest run test_utility_modifier`
 Expected: Compilation error — `compute_need_utility_modifiers` doesn't exist.
 
 - [ ] **Step 3: Implement compute_need_utility_modifiers in needs.rs**
@@ -713,7 +721,7 @@ let u_stay = STAY_BASE + mem_mods.stay + need_mods.stay;
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cargo nextest run -p chronicler-agents`
+Run: `cd chronicler-agents && cargo nextest run`
 Expected: All pass including new needs tests and all existing tests.
 
 - [ ] **Step 6: Commit**
@@ -777,7 +785,7 @@ let effective_drift = LOYALTY_DRIFT_RATE
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo nextest run -p chronicler-agents`
+Run: `cd chronicler-agents && cargo nextest run`
 Expected: All pass.
 
 - [ ] **Step 4: Commit**
@@ -807,7 +815,7 @@ crate::needs::update_needs(pool, regions, signals, wealth_percentiles);
 
 - [ ] **Step 2: Run full Rust test suite**
 
-Run: `cargo nextest run -p chronicler-agents`
+Run: `cd chronicler-agents && cargo nextest run`
 Expected: All pass. Existing determinism tests should still pass since needs are deterministic.
 
 - [ ] **Step 3: Commit**
@@ -852,7 +860,7 @@ fn get_agent_needs(&self, agent_id: u32) -> Option<(f32, f32, f32, f32, f32, f32
 
 - [ ] **Step 2: Run Rust tests**
 
-Run: `cargo nextest run -p chronicler-agents`
+Run: `cd chronicler-agents && cargo nextest run`
 Expected: All pass.
 
 - [ ] **Step 3: Commit**
@@ -875,8 +883,10 @@ git commit -m "feat(m49): get_agent_needs FFI method for named character narrati
 In `models.py`, after line 362 (`memories: list = Field(default_factory=list)`), add:
 
 ```python
-needs: dict = Field(default_factory=dict)  # M49: cached from Rust via FFI
+needs: Optional[dict] = None  # M49: cached from Rust via FFI, None in aggregate mode
 ```
+
+Using `Optional[dict] = None` instead of `dict = Field(default_factory=dict)` ensures `--agents=off` serialization is unaffected — Pydantic's `exclude_none` or default JSON encoding will omit `None` fields. The bridge sync sets it to a dict only in hybrid mode when the agent is found in the Rust pool.
 
 - [ ] **Step 2: Add needs sync in agent_bridge.py**
 
@@ -1027,12 +1037,58 @@ class TestNeedsRendering:
     def test_need_descriptions_complete(self):
         for name in ["safety", "material", "social", "spiritual", "autonomy", "purpose"]:
             assert name in NEED_DESCRIPTIONS
+
+
+class TestFFIBridge:
+    """Tests that exercise the get_agent_needs FFI method and AgentBridge sync.
+    These require a live AgentSimulator — use the existing test fixtures.
+    """
+
+    def test_get_agent_needs_returns_six_floats(self, hybrid_world_fixture):
+        """FFI method returns a 6-tuple of floats for a living agent."""
+        world, bridge = hybrid_world_fixture
+        # Run one turn to populate agents
+        from chronicler.simulation import run_turn
+        run_turn(world, bridge=bridge)
+        # Pick any active GreatPerson with an agent_id
+        for gp in [gp for c in world.civilizations for gp in c.great_persons
+                    if gp.active and gp.agent_id is not None]:
+            raw = bridge._sim.get_agent_needs(gp.agent_id)
+            assert raw is not None, f"Agent {gp.agent_id} should have needs"
+            assert len(raw) == 6, f"Expected 6-tuple, got {len(raw)}"
+            for val in raw:
+                assert 0.0 <= val <= 1.0, f"Need {val} out of [0,1] range"
+            break
+        else:
+            pytest.skip("No active agent-sourced GreatPerson in fixture")
+
+    def test_get_agent_needs_dead_returns_none(self, hybrid_world_fixture):
+        """FFI method returns None for non-existent agent."""
+        _, bridge = hybrid_world_fixture
+        assert bridge._sim.get_agent_needs(999999) is None
+
+    def test_bridge_sync_populates_gp_needs(self, hybrid_world_fixture):
+        """After bridge.tick(), GreatPerson.needs dict is populated."""
+        world, bridge = hybrid_world_fixture
+        from chronicler.simulation import run_turn
+        run_turn(world, bridge=bridge)
+        for gp in [gp for c in world.civilizations for gp in c.great_persons
+                    if gp.active and gp.agent_id is not None]:
+            assert gp.needs is not None, "Bridge should sync needs"
+            assert isinstance(gp.needs, dict)
+            assert "safety" in gp.needs
+            assert "purpose" in gp.needs
+            break
+        else:
+            pytest.skip("No active agent-sourced GreatPerson in fixture")
 ```
+
+Note: The `hybrid_world_fixture` follows the pattern used by existing bridge tests. The implementer should check `tests/test_agent_bridge.py` for the fixture definition. If no suitable fixture exists, create a minimal one that initializes an `AgentBridge` in hybrid mode with a small world.
 
 - [ ] **Step 4: Run Python tests**
 
 Run: `pytest tests/test_needs.py -v`
-Expected: All PASS.
+Expected: All PASS (FFI tests may need the fixture — skip gracefully if not available).
 
 - [ ] **Step 5: Commit**
 
@@ -1047,10 +1103,12 @@ git commit -m "feat(m49): need narration rendering with LOW/satisfied context"
 
 After all 8 tasks are complete:
 
-- [ ] `cargo nextest run -p chronicler-agents` — all Rust tests pass (including existing 188+)
+- [ ] `cd chronicler-agents && cargo nextest run` — all Rust tests pass (including existing 188+)
 - [ ] `pytest tests/test_needs.py -v` — all Python needs tests pass
 - [ ] `pytest tests/ -v --ignore=tests/test_bundle.py --ignore=tests/test_m36_regression.py --ignore=tests/test_main.py` — full Python suite passes (excluding known hanging tests)
-- [ ] `--agents=off` mode produces identical output (needs are Rust-only)
+- [ ] `--agents=off` mode: simulation mechanics identical (needs are Rust-only, `GreatPerson.needs` is `None` in aggregate mode — no serialization diff)
 - [ ] Equilibrium convergence test passes (200 ticks → need converges near `1 - D/R_total`)
-- [ ] Needs-only rebellion test: agent with sat > 0.2, loyalty > 0.2, Autonomy need = 0.0 can rebel
+- [ ] Needs-only rebellion test: agent with sat > 0.2, loyalty > 0.2, Autonomy need = 0.0 produces positive rebel modifier
+- [ ] FFI bridge test: `get_agent_needs()` returns 6-tuple for live agent, `None` for dead/missing
+- [ ] Bridge sync test: `GreatPerson.needs` populated as dict after `AgentBridge.tick()`
 - [ ] No new files created outside the scope specified above
