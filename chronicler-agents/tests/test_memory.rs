@@ -2,7 +2,10 @@ use chronicler_agents::{
     AgentPool, Occupation, BELIEF_NONE, MEMORY_SLOTS,
     MemoryEventType, MemoryIntent,
     factor_from_half_life, half_life_from_factor,
-    decay_memories, write_single_memory, compute_memory_satisfaction_score,
+    decay_memories, write_single_memory, write_all_memories,
+    clear_memory_gates, compute_memory_satisfaction_score,
+    GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
+    RegionState,
 };
 
 // ---------------------------------------------------------------------------
@@ -385,4 +388,438 @@ fn test_memory_satisfaction_score_mixed() {
         "opposing memories should cancel: score={}",
         score
     );
+}
+
+// ===========================================================================
+// Task 4: Consolidated write and gate clearing tests
+// ===========================================================================
+
+#[test]
+fn test_consolidated_write_ordering() {
+    // Multiple intents from different "phases" all write correctly
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intents = vec![
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Famine as u8,
+            source_civ: 0,
+            intensity: -80,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Battle as u8,
+            source_civ: 1,
+            intensity: -60,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Prosperity as u8,
+            source_civ: 0,
+            intensity: 50,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Migration as u8,
+            source_civ: 2,
+            intensity: -30,
+        },
+    ];
+
+    write_all_memories(&mut pool, &intents, 10);
+
+    // All 4 should be written
+    assert_eq!(pool.memory_count[slot], 4);
+
+    // Verify each was written in order (slots 0..3)
+    assert_eq!(pool.memory_event_types[slot][0], MemoryEventType::Famine as u8);
+    assert_eq!(pool.memory_intensities[slot][0], -80);
+    assert_eq!(pool.memory_source_civs[slot][0], 0);
+
+    assert_eq!(pool.memory_event_types[slot][1], MemoryEventType::Battle as u8);
+    assert_eq!(pool.memory_intensities[slot][1], -60);
+    assert_eq!(pool.memory_source_civs[slot][1], 1);
+
+    assert_eq!(pool.memory_event_types[slot][2], MemoryEventType::Prosperity as u8);
+    assert_eq!(pool.memory_intensities[slot][2], 50);
+
+    assert_eq!(pool.memory_event_types[slot][3], MemoryEventType::Migration as u8);
+    assert_eq!(pool.memory_intensities[slot][3], -30);
+    assert_eq!(pool.memory_source_civs[slot][3], 2);
+
+    // All turns should be 10
+    for i in 0..4 {
+        assert_eq!(pool.memory_turns[slot][i], 10);
+    }
+}
+
+#[test]
+fn test_consolidated_write_multiple_agents() {
+    // Intents spread across different agents all land correctly
+    let mut pool = AgentPool::new(8);
+    let slot_a = test_spawn_agent(&mut pool);
+    let slot_b = pool.spawn(1, 1, Occupation::Soldier, 30, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    let intents = vec![
+        MemoryIntent {
+            agent_slot: slot_a,
+            event_type: MemoryEventType::Famine as u8,
+            source_civ: 0,
+            intensity: -80,
+        },
+        MemoryIntent {
+            agent_slot: slot_b,
+            event_type: MemoryEventType::Battle as u8,
+            source_civ: 1,
+            intensity: -60,
+        },
+        MemoryIntent {
+            agent_slot: slot_a,
+            event_type: MemoryEventType::Victory as u8,
+            source_civ: 0,
+            intensity: 60,
+        },
+    ];
+
+    write_all_memories(&mut pool, &intents, 5);
+
+    assert_eq!(pool.memory_count[slot_a], 2);
+    assert_eq!(pool.memory_count[slot_b], 1);
+
+    assert_eq!(pool.memory_event_types[slot_a][0], MemoryEventType::Famine as u8);
+    assert_eq!(pool.memory_event_types[slot_a][1], MemoryEventType::Victory as u8);
+    assert_eq!(pool.memory_event_types[slot_b][0], MemoryEventType::Battle as u8);
+}
+
+#[test]
+fn test_gate_blocks_duplicate_write() {
+    // Write BATTLE twice — second is blocked by gate
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intents = vec![
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Battle as u8,
+            source_civ: 0,
+            intensity: -60,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Battle as u8,
+            source_civ: 1,
+            intensity: -50, // different intensity to distinguish
+        },
+    ];
+
+    write_all_memories(&mut pool, &intents, 10);
+
+    // Only one should be written
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_event_types[slot][0], MemoryEventType::Battle as u8);
+    assert_eq!(pool.memory_intensities[slot][0], -60); // first intent
+    assert_eq!(pool.memory_source_civs[slot][0], 0); // first intent's source_civ
+
+    // Gate bit should be set
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_BATTLE, 0);
+}
+
+#[test]
+fn test_gate_blocks_famine_duplicate() {
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intents = vec![
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Famine as u8,
+            source_civ: 0,
+            intensity: -80,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Famine as u8,
+            source_civ: 0,
+            intensity: -70,
+        },
+    ];
+
+    write_all_memories(&mut pool, &intents, 10);
+
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_intensities[slot][0], -80);
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_FAMINE, 0);
+}
+
+#[test]
+fn test_non_gated_types_allow_duplicates() {
+    // Non-gated types (e.g. Migration) can be written multiple times
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    let intents = vec![
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Migration as u8,
+            source_civ: 0,
+            intensity: -30,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Migration as u8,
+            source_civ: 1,
+            intensity: -25,
+        },
+    ];
+
+    write_all_memories(&mut pool, &intents, 10);
+
+    // Both should be written (Migration is not gated)
+    assert_eq!(pool.memory_count[slot], 2);
+    assert_eq!(pool.memory_event_types[slot][0], MemoryEventType::Migration as u8);
+    assert_eq!(pool.memory_event_types[slot][1], MemoryEventType::Migration as u8);
+}
+
+#[test]
+fn test_gate_clearing_battle() {
+    // Set BATTLE gate, then clear when agent is not in contested region
+    let mut pool = AgentPool::new(8);
+    let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    // Manually set gate bit
+    pool.memory_gates[slot] = GATE_BIT_BATTLE;
+
+    let regions = vec![RegionState::new(0)];
+    let contested = vec![false]; // NOT contested
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    // Gate should be cleared because region is not contested
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_BATTLE, 0);
+}
+
+#[test]
+fn test_gate_not_cleared_battle_still_contested() {
+    // Battle gate stays if soldier IS in contested region
+    let mut pool = AgentPool::new(8);
+    let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    pool.memory_gates[slot] = GATE_BIT_BATTLE;
+
+    let regions = vec![RegionState::new(0)];
+    let contested = vec![true]; // still contested
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    // Gate should remain because soldier is still in contested region
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_BATTLE, 0);
+}
+
+#[test]
+fn test_gate_clearing_battle_not_soldier() {
+    // Battle gate clears if agent is NOT a soldier (even if contested)
+    let mut pool = AgentPool::new(8);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    pool.memory_gates[slot] = GATE_BIT_BATTLE;
+
+    let regions = vec![RegionState::new(0)];
+    let contested = vec![true]; // contested but agent is not soldier
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    // Gate should clear because agent is not a soldier
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_BATTLE, 0);
+}
+
+#[test]
+fn test_gate_clearing_famine() {
+    // Famine gate clears when food_sufficiency >= 1.0
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    pool.memory_gates[slot] = GATE_BIT_FAMINE;
+
+    let mut region = RegionState::new(0);
+    region.food_sufficiency = 1.0; // sufficient food
+    let regions = vec![region];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_FAMINE, 0);
+}
+
+#[test]
+fn test_gate_not_cleared_famine_still_starving() {
+    // Famine gate stays when food_sufficiency < 1.0
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    pool.memory_gates[slot] = GATE_BIT_FAMINE;
+
+    let mut region = RegionState::new(0);
+    region.food_sufficiency = 0.5; // still starving
+    let regions = vec![region];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_FAMINE, 0);
+}
+
+#[test]
+fn test_gate_clearing_prosperity() {
+    // Prosperity gate clears when wealth drops below threshold
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    pool.memory_gates[slot] = GATE_BIT_PROSPERITY;
+    pool.wealth[slot] = 1.0; // below PROSPERITY_THRESHOLD (3.0)
+
+    let regions = vec![RegionState::new(0)];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_PROSPERITY, 0);
+}
+
+#[test]
+fn test_gate_not_cleared_prosperity_still_wealthy() {
+    // Prosperity gate stays when wealth >= threshold
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    pool.memory_gates[slot] = GATE_BIT_PROSPERITY;
+    pool.wealth[slot] = 5.0; // above PROSPERITY_THRESHOLD (3.0)
+
+    let regions = vec![RegionState::new(0)];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_PROSPERITY, 0);
+}
+
+#[test]
+fn test_gate_clearing_persecution() {
+    // Persecution gate clears when persecution_intensity is 0
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    pool.memory_gates[slot] = GATE_BIT_PERSECUTION;
+
+    let mut region = RegionState::new(0);
+    region.persecution_intensity = 0.0;
+    let regions = vec![region];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_PERSECUTION, 0);
+}
+
+#[test]
+fn test_gate_not_cleared_persecution_active() {
+    // Persecution gate stays when persecution is active
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    pool.memory_gates[slot] = GATE_BIT_PERSECUTION;
+
+    let mut region = RegionState::new(0);
+    region.persecution_intensity = 0.5;
+    let regions = vec![region];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_PERSECUTION, 0);
+}
+
+#[test]
+fn test_gate_clearing_multiple_bits() {
+    // Multiple gate bits — only the ones whose conditions are met get cleared
+    let mut pool = AgentPool::new(8);
+    let slot = pool.spawn(0, 0, Occupation::Soldier, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE);
+
+    // Set all 4 gate bits
+    pool.memory_gates[slot] = GATE_BIT_BATTLE | GATE_BIT_PROSPERITY | GATE_BIT_FAMINE | GATE_BIT_PERSECUTION;
+    pool.wealth[slot] = 1.0; // below prosperity threshold → clear
+
+    let mut region = RegionState::new(0);
+    region.food_sufficiency = 1.0; // sufficient → clear famine
+    region.persecution_intensity = 0.5; // active → keep persecution
+    let regions = vec![region];
+    let contested = vec![true]; // contested + soldier → keep battle
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    // Battle: still contested + soldier → stays
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_BATTLE, 0, "battle gate should remain");
+    // Prosperity: wealth < threshold → cleared
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_PROSPERITY, 0, "prosperity gate should clear");
+    // Famine: food sufficient → cleared
+    assert_eq!(pool.memory_gates[slot] & GATE_BIT_FAMINE, 0, "famine gate should clear");
+    // Persecution: still active → stays
+    assert_ne!(pool.memory_gates[slot] & GATE_BIT_PERSECUTION, 0, "persecution gate should remain");
+}
+
+#[test]
+fn test_gate_skip_when_zero() {
+    // Agent with gates=0 is skipped (no mutations)
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+    pool.memory_gates[slot] = 0;
+
+    let regions = vec![RegionState::new(0)];
+    let contested = vec![false];
+
+    let alive = vec![slot];
+    clear_memory_gates(&mut pool, &alive, &regions, &contested);
+
+    assert_eq!(pool.memory_gates[slot], 0);
+}
+
+#[test]
+fn test_write_all_memories_respects_pre_existing_gate() {
+    // If gate is already set from a previous tick, new intents of that type are blocked
+    let mut pool = AgentPool::new(8);
+    let slot = test_spawn_agent(&mut pool);
+
+    // Pre-set the famine gate (from a previous tick)
+    pool.memory_gates[slot] = GATE_BIT_FAMINE;
+
+    let intents = vec![
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Famine as u8,
+            source_civ: 0,
+            intensity: -80,
+        },
+        MemoryIntent {
+            agent_slot: slot,
+            event_type: MemoryEventType::Victory as u8,
+            source_civ: 0,
+            intensity: 60,
+        },
+    ];
+
+    write_all_memories(&mut pool, &intents, 10);
+
+    // Famine should be blocked, Victory should be written
+    assert_eq!(pool.memory_count[slot], 1);
+    assert_eq!(pool.memory_event_types[slot][0], MemoryEventType::Victory as u8);
 }

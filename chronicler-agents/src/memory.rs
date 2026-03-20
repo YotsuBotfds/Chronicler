@@ -166,6 +166,69 @@ pub fn write_single_memory(pool: &mut AgentPool, intent: &MemoryIntent, turn: u1
     pool.memory_decay_factors[slot][write_idx] = default_decay_factor(intent.event_type);
 }
 
+/// Process all collected memory intents in a single pass.
+/// Gate checks happen here (not at collection time).
+pub fn write_all_memories(pool: &mut AgentPool, intents: &[MemoryIntent], turn: u16) {
+    for intent in intents {
+        let slot = intent.agent_slot;
+        let gate = gate_bit_for(intent.event_type);
+        if gate != 0 && (pool.memory_gates[slot] & gate) != 0 {
+            continue; // gated — skip
+        }
+        write_single_memory(pool, intent, turn);
+        if gate != 0 {
+            pool.memory_gates[slot] |= gate;
+        }
+    }
+}
+
+/// Clear gate bits based on current conditions.
+/// Called before write_all_memories each tick so that recurring events
+/// can fire again once the triggering condition has lapsed.
+pub fn clear_memory_gates(
+    pool: &mut AgentPool,
+    alive_slots: &[usize],
+    regions: &[crate::region::RegionState],
+    contested_regions: &[bool],
+) {
+    for &slot in alive_slots {
+        let gates = pool.memory_gates[slot];
+        if gates == 0 {
+            continue;
+        }
+        let region_idx = pool.regions[slot] as usize;
+        let region = &regions[region_idx];
+        let mut new_gates = gates;
+        // Bit 0 (BATTLE): clear if not soldier OR not contested
+        if gates & GATE_BIT_BATTLE != 0 {
+            let is_soldier = pool.occupations[slot] == crate::agent::Occupation::Soldier as u8;
+            let is_contested = contested_regions.get(region_idx).copied().unwrap_or(false);
+            if !is_soldier || !is_contested {
+                new_gates &= !GATE_BIT_BATTLE;
+            }
+        }
+        // Bit 1 (PROSPERITY): clear if wealth < threshold
+        if gates & GATE_BIT_PROSPERITY != 0 {
+            if pool.wealth[slot] < crate::agent::PROSPERITY_THRESHOLD {
+                new_gates &= !GATE_BIT_PROSPERITY;
+            }
+        }
+        // Bit 2 (FAMINE): clear if food_sufficiency >= 1.0
+        if gates & GATE_BIT_FAMINE != 0 {
+            if region.food_sufficiency >= 1.0 {
+                new_gates &= !GATE_BIT_FAMINE;
+            }
+        }
+        // Bit 3 (PERSECUTION): clear if persecution_intensity == 0
+        if gates & GATE_BIT_PERSECUTION != 0 {
+            if region.persecution_intensity <= 0.0 {
+                new_gates &= !GATE_BIT_PERSECUTION;
+            }
+        }
+        pool.memory_gates[slot] = new_gates;
+    }
+}
+
 /// Compute memory satisfaction score for an agent.
 /// Sum of all active intensities, scaled and weighted.
 pub fn compute_memory_satisfaction_score(pool: &AgentPool, slot: usize) -> f32 {
