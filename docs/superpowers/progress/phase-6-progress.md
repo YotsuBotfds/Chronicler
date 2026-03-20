@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-19 (M47 Tier A + M47a + M47b-prep merged)
+> **Last updated:** 2026-03-19 (M48 spec complete, M47d design in progress)
 
 ---
 
@@ -150,7 +150,7 @@
 Report: `docs/superpowers/analytics/m47b-health-check-report.md`
 Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M47c notes).
 
-### M47c: Calibration — 50-turn death spiral FIXED, 500-turn war frequency deferred
+### M47c: Calibration — 50-turn death spiral FIXED
 
 **Calibration session (2026-03-19):**
 
@@ -173,29 +173,53 @@ Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M
 - Only 4% of T15 civs at stability=0 (was ~50%+)
 - All 7 presets pass smoke test (5 seeds each)
 
-**500-turn results (5 seeds, NOT passing):**
-- Wars: 204-508 per run (target: 5-40)
-- Population collapses to 1-5 agents by T500
-- Root cause is NOT satisfaction — it's action engine war selection frequency
-- Binary `stability <= 20: WAR *= 0.1` damper is a cliff, not a ramp
-- Multiplicative war boosters (trait × military × rival × grudge × tradition) hit 2.5× cap regularly
-
-**Deferred to M47d/Phase 7 — action engine war frequency:**
-- Smooth WAR damper from cliff to ramp (e.g., `war_weight *= min(stability / 30.0, 1.0)`)
-- War-weariness mechanic (recent wars reduce WAR weight)
-- Peace dividend (consecutive peaceful turns boost DEVELOP/TRADE weight)
-- Secession threshold may need revisiting once war frequency is fixed (currently very rare at threshold=10)
-
 **3b constants extraction (background task):** Applied to main from worktree. 184 new `K_` keys in `tuning.py`, 523 insertions across 8 files.
 
 **3 hanging integration tests:** `test_bundle.py`, `test_m36_regression.py`, `test_main.py` — still hang. Exclude with `--ignore`.
 
-**18 pre-existing Python test failures:** Import errors from 3b constants extraction, M38a faction count change. Not caused by M47c.
+**39 pre-existing Python test failures:** Import errors from 3b constants extraction, M38a faction count change. Not caused by M47c/M47d.
+
+### M47d: War Frequency Calibration — implemented (`abb6f82`..`3a1fbbd`)
+
+- 6 commits on `feat/m47d-war-frequency` branch. 25 new M47d tests, all passing. Zero regressions.
+- **Spec:** `docs/superpowers/specs/2026-03-19-m47d-war-frequency-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-19-m47d-war-frequency.md`
+- **Mechanism 1:** Smooth WAR damper — `WAR *= max(min(stability / 30, 1.0), 0.05)` replaces binary cliff. Linear ramp, floor prevents zero. DIPLOMACY *= 3.0 stays as binary at stability <= 20.
+- **Mechanism 2:** War-weariness accumulator — `war_weariness: float` on Civilization. Exponential decay (0.95/turn), +1.0 on WAR action, +0.15 passive per active war. Effect: `WAR *= 1/(1 + weariness/3)`. Chronic warmonger steady state ~23 → 0.12x suppression.
+- **Mechanism 3:** Peace dividend — `peace_momentum: float` on Civilization. +1.0/turn at peace (cap 20), aggressor decay 0.3x, defender decay 0.8x. Effect: `DEVELOP *= 1 + momentum/10`, `TRADE *= 1 + momentum/10`.
+- **Mechanism 4:** Secession threshold deferred to post-validation calibration. Stays at 10.
+- 12 new K_ constants in tuning.py (all [CALIBRATE]-tagged). Both fields on CivSnapshot for analytics.
+- Extinction resets at 4 sites (war conquest, 2× twilight absorption, exile restoration).
+- Weariness/momentum tick fires after `phase_action()` in `run_turn()`.
+- **Phoebe-reviewed:** 2 spec review passes, 2 plan review passes. All blocking issues resolved.
+- **200-seed validation pending.** Target: 5-40 wars per 500-turn run (was 204-508). Secession frequency check deferred.
+
+### M48: Agent Memory — spec + plan COMPLETE, Phoebe-approved (2026-03-19)
+
+- **Spec:** `docs/superpowers/specs/2026-03-19-m48-agent-memory-design.md` (745 lines, 11 sections)
+- **Plan:** `docs/superpowers/plans/2026-03-19-m48-agent-memory.md` (12 tasks, 1635 lines)
+- **Commits:** `1abc6a1` (initial spec), `4316c38` (spec blocking fixes), `5f9b5b8` (RNG formula fix), `cada96d` (implementation plan)
+- 8-round iterative design review with Phoebe (Q1-Q7 design questions + 8 spec sections)
+- Spec review: 4 blocking issues fixed, 12 observations documented in Section 11
+- Plan review: 5 blocking issues fixed (spawn signature caveat, satisfaction function signature, transient signal clearing order, `is_contested()` → TickSignals, missing `test_same_turn_no_feedback`)
+- **Key design decisions:** Half-life Option C (cold-path conversion, hot-path multiply), `source_civ: u8` (not `actor_id: u16`), memory inside 0.40 cap (5th priority), multiplicative Mule boost (not additive floor), consolidated write phase, selective FFI query.
+- **Ready for implementation.** 12 tasks, subagent-dispatchable. Depends on M47 tuning completion (M47c/d).
+
+### M47d: War Frequency Fix — design COMPLETE, implementation plan pending
+
+- 4 mechanisms designed, all Phoebe-reviewed:
+  1. Smooth WAR damper: `WAR *= max(stability / 30, 0.05)` — replaces binary cliff
+  2. War-weariness accumulator: exponential decay (0.95/turn), +1.0 on WAR choice, +0.15 passive per active war
+  3. Peace dividend: peace_momentum accumulator, caps at 20, DEVELOP/TRADE bonus up to 3x
+  4. Secession threshold: keep at 10, revisit after 200-seed validation
+- Defender-aware mechanics: passive weariness lower for defenders, peace momentum decays gently (0.8x vs 0.3x for aggressors)
+- 12 new calibration constants, all [CALIBRATE]
+- Implementation plan being written in separate session. Final codebase review after M47 tuning completes.
 
 **Next steps:**
-- M47c Rust-side calibration (RELIGIOUS_MISMATCH_WEIGHT, stability feedback loop)
-- M47c Python-side calibration via --tuning YAML
-- 200-seed revalidation after calibration
+- M47d implementation (war frequency fix — blocks 500-turn validation)
+- M47d 200-seed validation (verify 5-40 war target)
+- M48 implementation (12-task plan ready, subagent-dispatchable, after M47d lands)
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -236,3 +260,5 @@ Results: 6 PASS, 2 BORDERLINE, 8 STRUCTURAL. Single root cause identified (see M
 - **Fullscale Phoebe review (2026-03-18):** CLAUDE.md line counts + file table updated, simulation.py docstring aligned, dead `derive_food_sufficiency()` removed, Phase 7 viewer scope estimate corrected.
 - **M47: 3 integration test files hang after Pydantic cleanup.** `test_bundle.py::TestBundleSize::test_500_turn_bundle_under_5mb`, `test_m36_regression.py`, `test_main.py` — all run full `execute_run()` integration. Complete in <1s on clean tree, hang indefinitely with M47 changes. The simulation loop benchmarks at 1ms/turn, so tatonnement is not the cause. Suspected root cause: removing `ge=/le=` Field constraints changed default values (e.g., `population: int = 0` was `Field(ge=0, le=1000)`, `stability: int = 50` was `Field(ge=0, le=100)`) — test fixtures may rely on old default behaviors or the Civilization constructor may now accept states that trigger infinite loops in the simulation. Investigation started but not completed. See session handoff for details.
 - **M47: `region_map` inline replacements deferred.** The `world.region_map` cached property is added but the ~19 inline `{r.name: r for r in world.regions}` rebuilds are NOT yet replaced. Safe — property works alongside inline rebuilds. Replace opportunistically. `invalidate_region_map()` calls not yet added at region mutation sites.
+- **M48 spec: `_detect_character_events` referenced but doesn't exist by that name.** Section 7 says memory caching happens "after `_detect_character_events`" — implementer must identify the correct Phase 10 insertion point (likely after `_process_promotions`, before arc classification).
+- **M48 spec: Phase 7 roadmap text outdated.** Section 10 lists 5 divergences (actor_id→source_civ, decay_rate→decay_factor, 64→50 bytes, additive→multiplicative Mule, permanent→100t Legacy). Update roadmap when M48 implementation begins.
