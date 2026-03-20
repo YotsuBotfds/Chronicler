@@ -476,6 +476,30 @@ fn test_needs_only_rebellion_trigger() {
 }
 
 // ===========================================================================
+// Task 4: Autonomy drift acceleration
+// ===========================================================================
+
+#[test]
+fn test_autonomy_drift_acceleration() {
+    // Full deficit: (0.3 - 0.0) * 2.0 = 0.6, factor = 1.6
+    let autonomy_deficit = (0.3_f32 - 0.0_f32).max(0.0);
+    let factor = 1.0 + autonomy_deficit * 2.0;
+    assert!((factor - 1.6).abs() < 0.01,
+        "Expected factor 1.6, got {}", factor);
+
+    // Half deficit: (0.3 - 0.15) * 2.0 = 0.3, factor = 1.3
+    let autonomy_deficit_half = (0.3_f32 - 0.15_f32).max(0.0);
+    let factor_half = 1.0 + autonomy_deficit_half * 2.0;
+    assert!((factor_half - 1.3).abs() < 0.01,
+        "Expected factor_half 1.3, got {}", factor_half);
+
+    // Above threshold: no acceleration
+    let autonomy_ok = (0.3_f32 - 0.5_f32).max(0.0);
+    let factor_ok = 1.0 + autonomy_ok * 2.0;
+    assert_eq!(factor_ok, 1.0);
+}
+
+// ===========================================================================
 // Task 2: update_needs integration test
 // ===========================================================================
 

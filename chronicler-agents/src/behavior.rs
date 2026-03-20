@@ -427,8 +427,13 @@ pub fn evaluate_region_decisions(
             if let Some(other_civ) = best_other_civ {
                 // Other civ is happier — drift away
                 // Personality-modified drift: steadfast (+1) drifts slower, mercenary (-1) faster
+                // M49: Autonomy need accelerates negative loyalty drift
+                let autonomy_deficit = (crate::agent::AUTONOMY_THRESHOLD
+                    - pool.need_autonomy[slot]).max(0.0);
+                let autonomy_factor = 1.0 + autonomy_deficit * crate::agent::AUTONOMY_DRIFT_WEIGHT;
                 let effective_drift = LOYALTY_DRIFT_RATE
-                    * personality_modifier(-ltrait, LOYALTY_TRAIT_WEIGHT);
+                    * personality_modifier(-ltrait, LOYALTY_TRAIT_WEIGHT)
+                    * autonomy_factor;
                 if loy - effective_drift < LOYALTY_FLIP_THRESHOLD {
                     // Would drop below flip threshold — flip civ
                     pending.loyalty_flips.push((slot, other_civ));
