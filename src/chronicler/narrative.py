@@ -390,8 +390,21 @@ def build_agent_context_for_moment(
                         "character_a": c["name"],
                         "character_b": target_name,
                         "sentiment": sent_desc,
-                        "formed_turn": bond.get("formed_turn", 0),
+                        "since_turn": bond.get("formed_turn", 0),
                     })
+        # Also include dissolved edges from Rust-side dissolution events
+        for edge in (dissolved_edges or []):
+            agent_a, agent_b, rel_type, formed_turn = edge
+            name_a = name_map.get(agent_a, "")
+            name_b = name_map.get(agent_b, "")
+            if name_a not in char_names and name_b not in char_names:
+                continue
+            relationships.append({
+                "type": rel_type_names.get(rel_type, "unknown") + " (dissolved)",
+                "character_a": name_a,
+                "character_b": name_b,
+                "since_turn": formed_turn,
+            })
     else:
         # Legacy M40 path: use social_edges
         all_edges = list(social_edges or []) + list(dissolved_edges or [])

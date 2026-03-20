@@ -699,8 +699,13 @@ pub fn formation_scan(
 
                 stats.pairs_evaluated += 1;
 
-                // Capacity check: conservative pre-filter (both sides)
-                if !has_capacity(pool, slot_a) || !has_capacity(pool, slot_b) {
+                // Capacity pre-filter: skip only if NEITHER side has room.
+                // Directed bonds (Mentor) only need source-side capacity, so
+                // we can't reject a pair where one side is full — the full side
+                // might be the apprentice (destination) of a directed bond.
+                let a_has_cap = has_capacity(pool, slot_a);
+                let b_has_cap = has_capacity(pool, slot_b);
+                if !a_has_cap && !b_has_cap {
                     continue;
                 }
 
