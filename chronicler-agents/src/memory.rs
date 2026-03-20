@@ -331,6 +331,39 @@ pub fn agents_share_memory(pool: &AgentPool, a: usize, b: usize) -> Option<(u8, 
     best.map(|(et, turn, _)| (et, turn))
 }
 
+/// M50b interface: Check if two agents share a memory (same event_type, turn within +/-1).
+/// Returns (event_type, turn, intensity_a, intensity_b) of the strongest shared match
+/// (by combined absolute intensity), preserving the original signed values.
+/// Used by Grudge formation gate to detect negative-valence shared experiences.
+pub fn agents_share_memory_with_valence(
+    pool: &AgentPool,
+    a: usize,
+    b: usize,
+) -> Option<(u8, u16, i8, i8)> {
+    let count_a = pool.memory_count[a] as usize;
+    let count_b = pool.memory_count[b] as usize;
+    // (event_type, turn, intensity_a, intensity_b, combined_abs)
+    let mut best: Option<(u8, u16, i8, i8, u16)> = None;
+    for i in 0..count_a {
+        let et_a = pool.memory_event_types[a][i];
+        let turn_a = pool.memory_turns[a][i];
+        let int_a = pool.memory_intensities[a][i];
+        let abs_a = int_a.unsigned_abs() as u16;
+        for j in 0..count_b {
+            if pool.memory_event_types[b][j] == et_a
+                && turn_a.abs_diff(pool.memory_turns[b][j]) <= 1
+            {
+                let int_b = pool.memory_intensities[b][j];
+                let combined = abs_a + int_b.unsigned_abs() as u16;
+                if best.is_none() || combined > best.unwrap().4 {
+                    best = Some((et_a, turn_a, int_a, int_b, combined));
+                }
+            }
+        }
+    }
+    best.map(|(et, turn, int_a, int_b, _)| (et, turn, int_a, int_b))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -384,5 +417,94 @@ mod tests {
         // Unknown types return 0
         assert_eq!(default_decay_factor(12), 0);
         assert_eq!(default_decay_factor(255), 0);
+    }
+
+    // ── agents_share_memory_with_valence tests ─────────────────────────────────
+
+    fn make_pool_with_two_agents() -> (crate::pool::AgentPool, usize, usize) {
+        let mut pool = crate::pool::AgentPool::new(4);
+        let a = pool.spawn(0, 0, crate::agent::Occupation::Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let b = pool.spawn(0, 0, crate::agent::Occupation::Farmer, 30, 0.5, 0.5, 0.5, 0, 1, 2, crate::agent::BELIEF_NONE);
+        (pool, a, b)
+    }
+
+    #[test]
+    fn test_valence_shared_battle_returns_correct_fields() {
+        // Two agents share a Battle memory at the same turn — should return
+        // (event_type=1, turn=50, intensity_a, intensity_b) with correct signed values.
+        let (mut pool, a, b) = make_pool_with_two_agents();
+        let battle = MemoryEventType::Battle as u8;
+
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: -40 }, 50);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: -35 }, 50);
+
+        let result = agents_share_memory_with_valence(&pool, a, b);
+        assert!(result.is_some(), "Expected a shared memory match");
+        let (et, turn, int_a, int_b) = result.unwrap();
+        assert_eq!(et, battle, "event_type should be Battle");
+        assert_eq!(turn, 50, "turn should be 50");
+        assert_eq!(int_a, -40, "intensity_a should be -40");
+        assert_eq!(int_b, -35, "intensity_b should be -35");
+    }
+
+    #[test]
+    fn test_valence_different_event_types_returns_none() {
+        // Agent a has a Battle memory, agent b has a Famine memory — no shared type.
+        let (mut pool, a, b) = make_pool_with_two_agents();
+
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: MemoryEventType::Battle as u8, source_civ: 1, intensity: -40 }, 50);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: MemoryEventType::Famine as u8, source_civ: 1, intensity: -35 }, 50);
+
+        let result = agents_share_memory_with_valence(&pool, a, b);
+        assert!(result.is_none(), "Different event types should not match");
+    }
+
+    #[test]
+    fn test_valence_opposite_sign_intensities_both_returned() {
+        // One agent experienced a Conquest as positive (glory), the other as negative (loss).
+        // The function should preserve both signed values.
+        let (mut pool, a, b) = make_pool_with_two_agents();
+        let conquest = MemoryEventType::Conquest as u8;
+
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: conquest, source_civ: 2, intensity: 50 }, 80);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: conquest, source_civ: 2, intensity: -45 }, 80);
+
+        let result = agents_share_memory_with_valence(&pool, a, b);
+        assert!(result.is_some(), "Expected a shared memory match");
+        let (et, turn, int_a, int_b) = result.unwrap();
+        assert_eq!(et, conquest);
+        assert_eq!(turn, 80);
+        assert_eq!(int_a, 50, "intensity_a should be positive");
+        assert_eq!(int_b, -45, "intensity_b should be negative");
+    }
+
+    #[test]
+    fn test_valence_no_memories_returns_none() {
+        // Both agents have zero memories — should return None immediately.
+        let (pool, a, b) = make_pool_with_two_agents();
+        assert!(agents_share_memory_with_valence(&pool, a, b).is_none());
+    }
+
+    #[test]
+    fn test_valence_picks_strongest_by_combined_abs() {
+        // Agent a has two memories of same type; agent b matches both. The stronger
+        // combined-abs pair should be returned.
+        let (mut pool, a, b) = make_pool_with_two_agents();
+        let battle = MemoryEventType::Battle as u8;
+
+        // Weak pair: abs sum = 10 + 10 = 20
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: 10 }, 10);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: 10 }, 10);
+
+        // Strong pair: abs sum = 60 + 55 = 115
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: 60 }, 20);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: 55 }, 20);
+
+        let result = agents_share_memory_with_valence(&pool, a, b);
+        assert!(result.is_some());
+        let (_, turn, int_a, int_b) = result.unwrap();
+        assert_eq!(turn, 20, "strongest pair should be at turn 20");
+        assert_eq!(int_a, 60);
+        assert_eq!(int_b, 55);
     }
 }

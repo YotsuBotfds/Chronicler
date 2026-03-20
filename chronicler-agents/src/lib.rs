@@ -43,7 +43,7 @@ pub use memory::{
     factor_from_half_life, half_life_from_factor, default_decay_factor,
     decay_memories, write_single_memory, write_all_memories,
     clear_memory_gates, compute_memory_satisfaction_score,
-    compute_memory_utility_modifiers, agents_share_memory,
+    compute_memory_utility_modifiers, agents_share_memory, agents_share_memory_with_valence,
     GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
 };
 #[doc(hidden)]

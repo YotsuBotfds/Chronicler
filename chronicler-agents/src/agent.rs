@@ -278,6 +278,62 @@ pub const STRONG_TIE_CADENCE: u16 = 2;             // [CALIBRATE M53] drift ever
 pub const POSITIVE_SEPARATION_DECAY: i16 = 1;      // [CALIBRATE M53] per-tick positive decay
 pub const NEGATIVE_DECAY_CADENCE: u16 = 4;         // [CALIBRATE M53] ticks between negative decay steps
 
+// M50b: Formation constants [CALIBRATE M53]
+pub const FORMATION_CADENCE: u32 = 6;
+
+// Similarity weights
+pub const W_CULTURE: f32 = 0.35;
+pub const W_BELIEF: f32 = 0.35;
+pub const W_OCCUPATION: f32 = 0.15;
+pub const W_AFFINITY: f32 = 0.15;
+
+// Rank crossing
+pub const SAME_RANK_WEIGHT: f32 = 1.0;
+pub const CROSS_RANK_WEIGHT: f32 = 0.5;
+
+// Friend bond
+pub const FRIEND_THRESHOLD: f32 = 0.50;
+pub const FRIEND_INITIAL_SENTIMENT: i8 = 30;
+
+// Minority coreligionist bond
+pub const MINORITY_THRESHOLD: f32 = 0.40;
+pub const CORELIGIONIST_INITIAL_SENTIMENT: i8 = 25;
+
+// Rival bond
+pub const RIVAL_WEALTH_PROXIMITY: f32 = 50.0;
+pub const RIVAL_SIMILARITY_FLOOR: f32 = 0.30;
+pub const RIVAL_MIN_AMBITION: f32 = 0.50;
+pub const RIVAL_INITIAL_SENTIMENT: i8 = -20;
+
+// Mentor bond
+pub const MENTOR_AGE_GAP: u16 = 15;
+pub const MENTOR_INITIAL_SENTIMENT: i8 = 35;
+
+// Grudge bond
+pub const GRUDGE_INITIAL_SENTIMENT: i8 = -30;
+
+// Exile solidarity bond
+pub const EXILE_INITIAL_SENTIMENT: i8 = 35;
+
+// Triadic closure
+pub const TRIADIC_MIN_SENTIMENT: i8 = 40;
+pub const TRIADIC_THRESHOLD_REDUCTION: f32 = 0.15;
+
+// Formation scan limits
+pub const MAX_NEW_BONDS_PER_PASS: u8 = 2;
+pub const MAX_NEW_BONDS_PER_REGION: u32 = 50;
+
+// Social-need blend
+pub const SOCIAL_BLEND_ALPHA: f32 = 0.0;
+pub const SOCIAL_RESTORE_BOND: f32 = 0.010;
+pub const SOCIAL_BOND_TARGET: f32 = 4.0;
+
+// Synthesis budget
+pub const SYNTHESIS_BUDGET_MAX: u8 = 100;
+
+// Life-event dissolution cadence
+pub const LIFE_EVENT_DISSOLUTION: u8 = 6;
+
 #[cfg(test)]
 mod tests {
     use super::*;

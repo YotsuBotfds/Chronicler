@@ -70,6 +70,8 @@ pub struct AgentPool {
     pub rel_bond_types:   Vec<[u8; 8]>,
     pub rel_formed_turns: Vec<[u16; 8]>,
     pub rel_count:        Vec<u8>,
+    // M50b: Synthesis budget — dormant field (no decrement logic yet)
+    pub synthesis_budget: Vec<u8>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -124,6 +126,7 @@ impl AgentPool {
             rel_bond_types: Vec::with_capacity(capacity),
             rel_formed_turns: Vec::with_capacity(capacity),
             rel_count: Vec::with_capacity(capacity),
+            synthesis_budget: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -195,6 +198,7 @@ impl AgentPool {
             self.rel_bond_types[slot] = [255u8; 8]; // 255 = empty sentinel (not 0, since Kin=5)
             self.rel_formed_turns[slot] = [0u16; 8];
             self.rel_count[slot] = 0;
+            self.synthesis_budget[slot] = crate::agent::SYNTHESIS_BUDGET_MAX;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -243,6 +247,7 @@ impl AgentPool {
             self.rel_bond_types.push([255u8; 8]);
             self.rel_formed_turns.push([0u16; 8]);
             self.rel_count.push(0);
+            self.synthesis_budget.push(crate::agent::SYNTHESIS_BUDGET_MAX);
             self.alive.push(true);
             self.count += 1;
             slot
