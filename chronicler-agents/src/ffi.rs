@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use arrow::array::{UInt8Builder, UInt16Builder, UInt32Builder, StringBuilder};
+use arrow::array::{Int8Builder, UInt8Builder, UInt16Builder, UInt32Builder, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
@@ -191,6 +191,8 @@ pub struct AgentSimulator {
     wealth_percentiles: Vec<f32>,
     #[pyo3(get)]
     pub kin_bond_failures: u32,
+    formation_stats: crate::formation::FormationStats,
+    prev_kin_bond_failures: u32,
 }
 
 #[pymethods]
@@ -214,6 +216,8 @@ impl AgentSimulator {
             initialized: false,
             wealth_percentiles: Vec::new(),
             kin_bond_failures: 0,
+            formation_stats: crate::formation::FormationStats::default(),
+            prev_kin_bond_failures: 0,
         }
     }
 
@@ -593,7 +597,7 @@ impl AgentSimulator {
             self.wealth_percentiles.resize(self.pool.capacity(), 0.0);
         }
 
-        let (events, kin_failures) = crate::tick::tick_agents(
+        let (events, kin_failures, formation_stats) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
@@ -601,7 +605,9 @@ impl AgentSimulator {
             turn,
             &mut self.wealth_percentiles,
         );
+        self.prev_kin_bond_failures = self.kin_bond_failures;
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
+        self.formation_stats = formation_stats;
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
@@ -1024,6 +1030,153 @@ impl AgentSimulator {
             result.push(crate::relationships::read_rel(&self.pool, slot, i));
         }
         Some(result)
+    }
+
+    /// M50b: Return formation stats + distribution metrics as a flat HashMap.
+    /// Includes per-tick formation counters, kin_bond_failures delta, and
+    /// distribution snapshots (mean rel count, sentiment, bond type counts,
+    /// cross-civ fraction).
+    #[pyo3(name = "get_relationship_stats")]
+    pub fn get_relationship_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
+        let mut stats = std::collections::HashMap::new();
+
+        // Formation stats from last tick
+        stats.insert("bonds_formed".into(), self.formation_stats.bonds_formed as f64);
+        stats.insert("bonds_dissolved_structural".into(), self.formation_stats.bonds_dissolved_structural as f64);
+        stats.insert("bonds_evicted".into(), self.formation_stats.bonds_evicted as f64);
+        stats.insert("pairs_evaluated".into(), self.formation_stats.pairs_evaluated as f64);
+        stats.insert("pairs_eligible".into(), self.formation_stats.pairs_eligible as f64);
+
+        // Kin bond failures delta (this tick vs last tick)
+        let delta = self.kin_bond_failures.saturating_sub(self.prev_kin_bond_failures);
+        stats.insert("kin_bond_failures_delta".into(), delta as f64);
+
+        // Distribution snapshots: single pass over alive agents
+        let mut alive_count: u64 = 0;
+        let mut total_rel_count: u64 = 0;
+        let mut positive_sentiment_sum: f64 = 0.0;
+        let mut positive_sentiment_count: u64 = 0;
+        let mut bond_type_counts = [0u64; 8];
+        let mut cross_civ_bonds: u64 = 0;
+        let mut total_directed_slots: u64 = 0;
+
+        // Build id_to_slot map for cross-civ lookups
+        let mut id_to_slot: std::collections::HashMap<u32, usize> =
+            std::collections::HashMap::with_capacity(self.pool.alive_count());
+        for slot in 0..self.pool.capacity() {
+            if self.pool.alive[slot] {
+                id_to_slot.insert(self.pool.ids[slot], slot);
+            }
+        }
+
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.alive[slot] { continue; }
+            alive_count += 1;
+            let count = self.pool.rel_count[slot] as usize;
+            total_rel_count += count as u64;
+
+            let src_civ = self.pool.civ_affinities[slot];
+
+            for i in 0..count {
+                let bond_type = self.pool.rel_bond_types[slot][i];
+                let sentiment = self.pool.rel_sentiments[slot][i];
+                let target_id = self.pool.rel_target_ids[slot][i];
+
+                // Bond type counts
+                if (bond_type as usize) < 8 {
+                    bond_type_counts[bond_type as usize] += 1;
+                }
+
+                // Positive sentiment for positive-valence bonds
+                if crate::relationships::is_positive_valence(bond_type) && sentiment > 0 {
+                    positive_sentiment_sum += sentiment as f64;
+                    positive_sentiment_count += 1;
+                }
+
+                // Cross-civ check
+                total_directed_slots += 1;
+                if let Some(&target_slot) = id_to_slot.get(&target_id) {
+                    if self.pool.civ_affinities[target_slot] != src_civ {
+                        cross_civ_bonds += 1;
+                    }
+                }
+                // If target not found (dead), don't count as cross-civ
+            }
+        }
+
+        // Write distribution metrics
+        let mean_rel = if alive_count > 0 { total_rel_count as f64 / alive_count as f64 } else { 0.0 };
+        stats.insert("mean_rel_count".into(), mean_rel);
+
+        let mean_pos_sent = if positive_sentiment_count > 0 {
+            positive_sentiment_sum / positive_sentiment_count as f64
+        } else { 0.0 };
+        stats.insert("mean_positive_sentiment".into(), mean_pos_sent);
+
+        for i in 0..8 {
+            stats.insert(format!("bond_type_count_{}", i), bond_type_counts[i] as f64);
+        }
+
+        let cross_frac = if total_directed_slots > 0 {
+            cross_civ_bonds as f64 / total_directed_slots as f64
+        } else { 0.0 };
+        stats.insert("cross_civ_bond_fraction".into(), cross_frac);
+
+        Ok(stats)
+    }
+
+    /// M50b: Return ALL relationship edges as an Arrow RecordBatch.
+    /// Schema: [agent_id: u32, target_id: u32, sentiment: i8, bond_type: u8, formed_turn: u16]
+    /// One row per occupied relationship slot across all alive agents.
+    #[pyo3(name = "get_all_relationships")]
+    pub fn get_all_relationships(&self) -> PyResult<PyRecordBatch> {
+        // Pre-count total edges for capacity hint
+        let mut total_edges: usize = 0;
+        for slot in 0..self.pool.capacity() {
+            if self.pool.alive[slot] {
+                total_edges += self.pool.rel_count[slot] as usize;
+            }
+        }
+
+        let mut agent_id_col = UInt32Builder::with_capacity(total_edges);
+        let mut target_id_col = UInt32Builder::with_capacity(total_edges);
+        let mut sentiment_col = Int8Builder::with_capacity(total_edges);
+        let mut bond_type_col = UInt8Builder::with_capacity(total_edges);
+        let mut formed_turn_col = UInt16Builder::with_capacity(total_edges);
+
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.alive[slot] { continue; }
+            let agent_id = self.pool.ids[slot];
+            let count = self.pool.rel_count[slot] as usize;
+            for i in 0..count {
+                agent_id_col.append_value(agent_id);
+                target_id_col.append_value(self.pool.rel_target_ids[slot][i]);
+                sentiment_col.append_value(self.pool.rel_sentiments[slot][i]);
+                bond_type_col.append_value(self.pool.rel_bond_types[slot][i]);
+                formed_turn_col.append_value(self.pool.rel_formed_turns[slot][i]);
+            }
+        }
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("agent_id", DataType::UInt32, false),
+            Field::new("target_id", DataType::UInt32, false),
+            Field::new("sentiment", DataType::Int8, false),
+            Field::new("bond_type", DataType::UInt8, false),
+            Field::new("formed_turn", DataType::UInt16, false),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(agent_id_col.finish()) as _,
+                Arc::new(target_id_col.finish()) as _,
+                Arc::new(sentiment_col.finish()) as _,
+                Arc::new(bond_type_col.finish()) as _,
+                Arc::new(formed_turn_col.finish()) as _,
+            ],
+        )
+        .map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
     }
 }
 

@@ -46,7 +46,7 @@ pub fn tick_agents(
     master_seed: [u8; 32],
     turn: u32,
     wealth_percentiles: &mut [f32],
-) -> (Vec<AgentEvent>, u32) {
+) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -625,14 +625,14 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // M50b: Formation scan (LAST operation before return)
     // -----------------------------------------------------------------------
-    let _formation_stats = crate::formation::formation_scan(
+    let formation_stats = crate::formation::formation_scan(
         pool,
         regions,
         turn,
         &post_alive,
     );
 
-    (events, kin_bond_failures)
+    (events, kin_bond_failures, formation_stats)
 }
 
 // ---------------------------------------------------------------------------
@@ -1050,7 +1050,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1122,8 +1122,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
-            let (eb, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
+            let (ea, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
+            let (eb, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1157,7 +1157,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
