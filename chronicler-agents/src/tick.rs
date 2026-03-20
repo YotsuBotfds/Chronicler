@@ -483,13 +483,15 @@ pub fn tick_agents(
         .filter(|e| e.event_type == 0) // event_type 0 = death
         .map(|e| e.agent_id)
         .collect();
+    let mut death_dissolved_count: u32 = 0;
     if !dead_ids.is_empty() {
         let alive_slots_post_demo: Vec<usize> = (0..pool.capacity())
             .filter(|&s| pool.is_alive(s))
             .collect();
-        let (dissolution_events, _removed) =
+        let (dissolution_events, removed) =
             crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, &dead_ids, turn);
         events.extend(dissolution_events);
+        death_dissolved_count = removed;
     }
 
     // -----------------------------------------------------------------------
@@ -625,12 +627,13 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // M50b: Formation scan (LAST operation before return)
     // -----------------------------------------------------------------------
-    let formation_stats = crate::formation::formation_scan(
+    let mut formation_stats = crate::formation::formation_scan(
         pool,
         regions,
         turn,
         &post_alive,
     );
+    formation_stats.bonds_dissolved_death = death_dissolved_count;
 
     (events, kin_bond_failures, formation_stats)
 }

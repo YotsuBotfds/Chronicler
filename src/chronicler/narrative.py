@@ -366,6 +366,7 @@ def build_agent_context_for_moment(
         5: "kin", 6: "friend", 7: "grudge",
     }
     name_map = agent_name_map or {}
+    char_names = {c["name"] for c in chars}
 
     if gp_by_agent_id:
         # M50b path: use agent_bonds from Rust per-agent store
@@ -394,7 +395,6 @@ def build_agent_context_for_moment(
     else:
         # Legacy M40 path: use social_edges
         all_edges = list(social_edges or []) + list(dissolved_edges or [])
-        char_names = {c["name"] for c in chars}
         for edge in all_edges:
             agent_a, agent_b, rel_type, formed_turn = edge
             name_a = name_map.get(agent_a, "")

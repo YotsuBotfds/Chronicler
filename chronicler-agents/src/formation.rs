@@ -358,6 +358,7 @@ pub struct FormationStats {
     pub bonds_formed: u32,
     pub bonds_evicted: u32,
     pub bonds_dissolved_structural: u32,
+    pub bonds_dissolved_death: u32,
     pub pairs_evaluated: u32,
     pub pairs_eligible: u32,
 }

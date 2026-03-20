@@ -1043,6 +1043,7 @@ impl AgentSimulator {
         // Formation stats from last tick
         stats.insert("bonds_formed".into(), self.formation_stats.bonds_formed as f64);
         stats.insert("bonds_dissolved_structural".into(), self.formation_stats.bonds_dissolved_structural as f64);
+        stats.insert("bonds_dissolved_death".into(), self.formation_stats.bonds_dissolved_death as f64);
         stats.insert("bonds_evicted".into(), self.formation_stats.bonds_evicted as f64);
         stats.insert("pairs_evaluated".into(), self.formation_stats.pairs_evaluated as f64);
         stats.insert("pairs_eligible".into(), self.formation_stats.pairs_eligible as f64);
