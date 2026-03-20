@@ -752,6 +752,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--narrator", type=str, default="local",
                         choices=["local", "api", "gemini"],
                         help="Narrator backend: local (LM Studio), api (Claude API), or gemini (Gemini API)")
+    parser.add_argument("--relationship-stats", action="store_true",
+                        help="Enable per-tick relationship distribution snapshots")
     return parser
 
 

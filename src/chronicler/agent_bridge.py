@@ -28,7 +28,8 @@ TERRAIN_MAP = {
 FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
 
 EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
-                  3: "occupation_switch", 4: "loyalty_flip", 5: "birth"}
+                  3: "occupation_switch", 4: "loyalty_flip", 5: "birth",
+                  6: "dissolution"}
 OCCUPATION_NAMES = {0: "farmers", 1: "soldiers", 2: "merchants", 3: "scholars", 4: "priests"}
 ROLE_MAP = {0: "general", 1: "merchant", 2: "scientist", 3: "prophet", 4: "exile"}
 
@@ -420,6 +421,7 @@ class AgentBridge:
         self._gini_by_civ: dict[int, float] = {}  # M41: per-civ Gini from last tick
         self._wealth_stats: dict[int, dict] = {}  # M41: per-civ wealth stats from last tick
         self._economy_result = None  # M42: economy result for signal wiring
+        self.rust_owns_formation = True  # M50b: Rust owns formation in agent modes
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -487,6 +489,17 @@ class AgentBridge:
             raw_events = self._convert_events(agent_events, world.turn)
             death_events = self._process_deaths(raw_events, world)  # step 2
             world.agent_events_raw.extend(raw_events)
+
+            # M50b: collect dissolution events from Rust tick
+            dissolution_events = [e for e in raw_events if e.event_type == "dissolution"]
+            if dissolution_events:
+                dissolved_list = world.dissolved_edges_by_turn.get(world.turn, [])
+                for e in dissolution_events:
+                    # target_region field repurposed as bond_type in dissolution events
+                    dissolved_list.append(
+                        (e.agent_id, 0, e.target_region, world.turn)
+                    )
+                world.dissolved_edges_by_turn[world.turn] = dissolved_list
 
             char_events = self._detect_character_events(raw_events, world)  # step 3
 

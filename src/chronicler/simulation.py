@@ -1400,29 +1400,31 @@ def run_turn(
     if agent_bridge is not None:
         from chronicler.relationships import form_and_sync_relationships, compute_belief_data, REL_RIVAL
 
-        # Build active agent IDs from all living named characters
-        active_ids = set()
-        for civ in world.civilizations:
-            for gp in civ.great_persons:
-                if gp.active and gp.agent_id is not None:
-                    active_ids.add(gp.agent_id)
+        # M50b: gate off Python-side formation when Rust owns it
+        if not agent_bridge.rust_owns_formation:
+            # Build active agent IDs from all living named characters
+            active_ids = set()
+            for civ in world.civilizations:
+                for gp in civ.great_persons:
+                    if gp.active and gp.agent_id is not None:
+                        active_ids.add(gp.agent_id)
 
-        # Build belief data from the agent snapshot via bridge
-        try:
-            snap = agent_bridge.get_snapshot()
-        except Exception:
-            snap = None
-        belief_by_agent, region_belief_fractions = compute_belief_data(
-            snap, active_ids, world.regions,
-        )
+            # Build belief data from the agent snapshot via bridge
+            try:
+                snap = agent_bridge.get_snapshot()
+            except Exception:
+                snap = None
+            belief_by_agent, region_belief_fractions = compute_belief_data(
+                snap, active_ids, world.regions,
+            )
 
-        dissolved = form_and_sync_relationships(
-            world, agent_bridge, active_ids, belief_by_agent, region_belief_fractions,
-        )
-        if dissolved:
-            # dissolved_edges_by_turn: at most ~10 edges/turn × 500 turns = ~5000 entries.
-            # Cleaned up when world is garbage-collected (exclude=True, not serialized).
-            world.dissolved_edges_by_turn[world.turn] = dissolved
+            dissolved = form_and_sync_relationships(
+                world, agent_bridge, active_ids, belief_by_agent, region_belief_fractions,
+            )
+            if dissolved:
+                # dissolved_edges_by_turn: at most ~10 edges/turn × 500 turns = ~5000 entries.
+                # Cleaned up when world is garbage-collected (exclude=True, not serialized).
+                world.dissolved_edges_by_turn[world.turn] = dissolved
 
         # Generate rivalry events for curator
         new_edges = agent_bridge.read_social_edges()
