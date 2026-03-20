@@ -1647,3 +1647,27 @@ def extract_conversion_rates(bundles: list[dict]) -> dict:
 def extract_trade_flow_by_distance(bundles: list[dict]) -> dict:
     """Trade flow by distance — requires per-route data in bundle (deferred)."""
     return {"note": "Requires per-route EconomyResult bundling (deferred to M62 viewer)"}
+
+
+def extract_relationship_metrics(bundles: list[dict], checkpoints=None) -> dict:
+    """Extract per-turn relationship formation/dissolution metrics."""
+    metrics: dict[str, list] = {
+        "bonds_formed_per_turn": [],
+        "bonds_dissolved_per_turn": [],
+        "mean_rel_count_per_turn": [],
+    }
+    for bundle in bundles:
+        metadata = bundle.get("metadata", {})
+        rel_stats = metadata.get("relationship_stats", [])
+        for turn_stats in rel_stats:
+            metrics["bonds_formed_per_turn"].append(
+                turn_stats.get("bonds_formed", 0)
+            )
+            metrics["bonds_dissolved_per_turn"].append(
+                turn_stats.get("bonds_dissolved_death", 0)
+                + turn_stats.get("bonds_dissolved_structural", 0)
+            )
+            metrics["mean_rel_count_per_turn"].append(
+                turn_stats.get("mean_rel_count", 0)
+            )
+    return metrics

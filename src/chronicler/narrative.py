@@ -310,6 +310,9 @@ def build_agent_context_for_moment(
                 for d in gp.deeds[-3:]
             ],
         }
+        # M50b: include agent_id for bond lookups
+        if gp.agent_id is not None:
+            char["agent_id"] = gp.agent_id
         # M39: dynasty context
         if dynasty_registry is not None and gp_by_agent_id is not None and gp.agent_id:
             dynasty = dynasty_registry.get_dynasty_for(gp.agent_id, gp_by_agent_id)
@@ -356,28 +359,57 @@ def build_agent_context_for_moment(
     disp_values = list(displacement_by_region.values())
     avg_disp = sum(disp_values) / len(disp_values) if disp_values else 0.0
 
-    # M40: Merge relationship sources into AgentContext.relationships
+    # M40+M50b: Merge relationship sources into AgentContext.relationships
     relationships: list[dict] = []
-    rel_type_names = {0: "mentor", 1: "rival", 2: "marriage", 3: "exile_bond", 4: "co_religionist"}
+    rel_type_names = {
+        0: "mentor", 1: "rival", 2: "marriage", 3: "exile_bond", 4: "co_religionist",
+        5: "kin", 6: "friend", 7: "grudge",
+    }
     name_map = agent_name_map or {}
 
-    all_edges = list(social_edges or []) + list(dissolved_edges or [])
-    char_names = {c["name"] for c in chars}
-    for edge in all_edges:
-        agent_a, agent_b, rel_type, formed_turn = edge
-        name_a = name_map.get(agent_a, "")
-        name_b = name_map.get(agent_b, "")
-        if name_a not in char_names and name_b not in char_names:
-            continue
-        rel = {
-            "type": rel_type_names.get(rel_type, "unknown"),
-            "character_a": name_a,
-            "character_b": name_b,
-            "role_a": "mentor" if rel_type == 0 else None,
-            "role_b": "apprentice" if rel_type == 0 else None,
-            "since_turn": formed_turn,
-        }
-        relationships.append(rel)
+    if gp_by_agent_id:
+        # M50b path: use agent_bonds from Rust per-agent store
+        for c in chars:
+            aid = c.get("agent_id")
+            gp = gp_by_agent_id.get(aid) if aid is not None else None
+            if gp and gp.agent_bonds:
+                for bond in gp.agent_bonds:
+                    target_name = name_map.get(bond["target_id"])
+                    if target_name is None:
+                        continue  # Skip unnamed targets
+                    sentiment = bond.get("sentiment", 0)
+                    sent_desc = (
+                        "deep" if abs(sentiment) > 80 else
+                        "strong" if abs(sentiment) > 40 else
+                        "mild" if abs(sentiment) > 0 else
+                        "fading"
+                    )
+                    relationships.append({
+                        "type": rel_type_names.get(bond["bond_type"], "unknown"),
+                        "character_a": c["name"],
+                        "character_b": target_name,
+                        "sentiment": sent_desc,
+                        "formed_turn": bond.get("formed_turn", 0),
+                    })
+    else:
+        # Legacy M40 path: use social_edges
+        all_edges = list(social_edges or []) + list(dissolved_edges or [])
+        char_names = {c["name"] for c in chars}
+        for edge in all_edges:
+            agent_a, agent_b, rel_type, formed_turn = edge
+            name_a = name_map.get(agent_a, "")
+            name_b = name_map.get(agent_b, "")
+            if name_a not in char_names and name_b not in char_names:
+                continue
+            rel = {
+                "type": rel_type_names.get(rel_type, "unknown"),
+                "character_a": name_a,
+                "character_b": name_b,
+                "role_a": "mentor" if rel_type == 0 else None,
+                "role_b": "apprentice" if rel_type == 0 else None,
+                "since_turn": formed_turn,
+            }
+            relationships.append(rel)
 
     # Add hostage relationships
     for h in (hostage_data or []):
@@ -914,6 +946,14 @@ class NarrativeEngine:
         total = len(moments)
         result = []
 
+        # M50b: Build gp_by_agent_id for bond-source narration
+        gp_by_agent_id: dict | None = None
+        if great_persons:
+            gp_by_agent_id = {}
+            for gp in great_persons:
+                if gp.agent_id is not None:
+                    gp_by_agent_id[gp.agent_id] = gp
+
         for idx, moment in enumerate(moments):
             prev_moment = moments[idx - 1] if idx > 0 else None
             next_moment = moments[idx + 1] if idx < total - 1 else None
@@ -983,6 +1023,7 @@ class NarrativeEngine:
 
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons, {}, {},
+                    gp_by_agent_id=gp_by_agent_id,
                     social_edges=social_edges,
                     dissolved_edges=moment_dissolved if moment_dissolved else None,
                     agent_name_map=agent_name_map,
