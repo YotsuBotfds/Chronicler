@@ -612,3 +612,27 @@ class TestCivDestruction:
         tick_artifacts(world)
         assert world.artifacts[0].status == ArtifactStatus.ACTIVE
         assert world.artifacts[0].holder_name == "Exile"
+
+
+class TestArtifactPrestigeIntegration:
+    def test_artifact_prestige_adds_to_treasury(self):
+        """Artifact prestige should add to treasury via trade bonus in tick_prestige()."""
+        from chronicler.culture import tick_prestige
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = 0
+        civ.treasury = 100
+        world._artifact_prestige_by_civ = {"TestCiv": 5}
+        tick_prestige(world)
+        assert civ.treasury > 100
+
+    def test_no_artifact_prestige_no_extra_treasury(self):
+        """When no artifacts and 0 prestige, no trade bonus to treasury."""
+        from chronicler.culture import tick_prestige
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = 0
+        treasury_before = civ.treasury
+        world._artifact_prestige_by_civ = {}
+        tick_prestige(world)
+        assert civ.treasury <= treasury_before

@@ -402,6 +402,9 @@ def tick_prestige(world: WorldState, acc=None) -> None:
         else:
             civ.prestige = max(0, civ.prestige - prestige_decay)
         trade_bonus = civ.prestige // prestige_divisor
+        # M52: Add ephemeral artifact prestige to trade bonus
+        if hasattr(world, '_artifact_prestige_by_civ'):
+            trade_bonus += world._artifact_prestige_by_civ.get(civ.name, 0)
         if trade_bonus > 0:
             if acc is not None:
                 civ_idx = civ_index(world, civ.name)
