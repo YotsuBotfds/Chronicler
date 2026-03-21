@@ -228,7 +228,7 @@
 
 ## In Progress
 
-### M53: Depth Tuning Pass — integration pass done, constants frozen
+### M53: Depth Tuning Pass — complete, frozen, oracles run
 
 - **Branch:** `feat/m53-depth-tuning` (30 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
@@ -310,8 +310,15 @@
 5. **Overcrowding penalty was zeroing satisfaction.** Uncapped `(pop/cap - 1.0) * 0.3` at 5x capacity gave 1.2 penalty, forcing satisfaction to 0 and blocking all fertility. Cap at 0.30 preserves pressure up to 2x while preventing runaway zeroing. Overcrowding already punished via ecology, disease, and demography.
 6. **This is a provisional baseline**, not the final word. M53 tuning may reveal remaining edge cases that require further demographic adjustment.
 
-**M53 Tasks Complete:** 1-14 (infrastructure + baseline v2), 15-20 (Pass 1a-f), 21 (integration + freeze)
-**M53 Tasks Next:** 22-23 (oracle suite + final gate)
+**M53 Tasks Complete:** 1-23 (all). Infrastructure, baseline, 6 system passes, integration, freeze, oracles, final gate.
+**M53 Status:** Ready to merge. See `docs/superpowers/analytics/m53b-validation-report.md` for oracle results.
+
+**Oracle results summary:**
+- Oracle 1 (Community): PASS (15/20)
+- Oracle 3 (Era Inflection): SOFT FAIL (60%, likely passes at 500t)
+- Oracle 5 (Artifacts): PARTIAL (creation OK, destruction target needs recalibration)
+- Oracle 6 (Six Arcs): PASS (6/6 families)
+- Oracles 2, 4: Deferred (need per-agent event instrumentation)
 
 #### Integration Pass Results (Task 21, 20 seeds × 200 turns)
 
