@@ -375,6 +375,119 @@ def detect_inflection_points(
     return inflection_points
 
 
+def compute_cohort_distinctiveness(
+    communities: list[set[int]],
+    events_data: list[dict],
+    agent_data: dict,
+    event_type: int = 1,
+) -> dict:
+    """Oracle 4: Validate that community membership anchors behavior.
+
+    Compares migration (or other behavioral event) rates between community
+    members and a matched control group of non-community agents drawn from
+    the same demographic profile (civ_affinity, region, occupation).
+
+    Parameters
+    ----------
+    communities:
+        List of sets of agent_ids, as returned by detect_communities().
+    events_data:
+        List of dicts with keys: agent_id, event_type, turn.
+    agent_data:
+        Dict of column lists. Required keys:
+        agent_id, civ_affinity, region, occupation.
+    event_type:
+        Event type code to count (default 1 = migration).
+
+    Returns
+    -------
+    dict with keys:
+        communities_analyzed  – number of communities processed
+        community_event_rate  – mean migration rate across all community members
+        control_event_rate    – mean migration rate across matched control agents
+        effect_direction      – "community_lower", "community_higher", or "equal"
+    """
+    # --- Build per-agent demographic lookup --------------------------------
+    ids = agent_data["agent_id"]
+    civ_aff = agent_data["civ_affinity"]
+    regions = agent_data["region"]
+    occupations = agent_data["occupation"]
+
+    demo: dict[int, tuple] = {}  # agent_id -> (civ_affinity, region, occupation)
+    for i, aid in enumerate(ids):
+        demo[aid] = (civ_aff[i], regions[i], occupations[i])
+
+    # --- Count events per agent --------------------------------------------
+    event_counts: dict[int, int] = {}
+    for ev in events_data:
+        if ev["event_type"] == event_type:
+            aid = ev["agent_id"]
+            event_counts[aid] = event_counts.get(aid, 0) + 1
+
+    # --- Identify all community members ------------------------------------
+    all_community_ids: set[int] = set()
+    for community in communities:
+        all_community_ids.update(community)
+
+    # Non-community agents available as controls
+    all_agent_ids = set(ids)
+    non_community_ids = all_agent_ids - all_community_ids
+
+    # --- For each community, find matched control agents -------------------
+    community_ids_used: list[int] = []
+    control_ids_used: list[int] = []
+    communities_analyzed = 0
+
+    for community in communities:
+        communities_analyzed += 1
+        members = list(community)
+
+        # Build demographic profile: bucket counts for majority matching
+        # Strategy: for each community member, find a non-community agent
+        # with the exact same (civ_affinity, region, occupation).
+        available_controls = list(non_community_ids)
+        used_controls: set[int] = set()
+
+        for member_id in members:
+            member_demo = demo.get(member_id)
+            if member_demo is None:
+                continue
+            for ctrl_id in available_controls:
+                if ctrl_id in used_controls:
+                    continue
+                ctrl_demo = demo.get(ctrl_id)
+                if ctrl_demo == member_demo:
+                    used_controls.add(ctrl_id)
+                    break
+
+        community_ids_used.extend(members)
+        control_ids_used.extend(used_controls)
+
+    # --- Compute event rates -----------------------------------------------
+    def _rate(id_list: list[int]) -> float:
+        if not id_list:
+            return 0.0
+        total = sum(event_counts.get(aid, 0) for aid in id_list)
+        return total / len(id_list)
+
+    community_rate = _rate(community_ids_used)
+    control_rate = _rate(control_ids_used)
+
+    if community_rate < control_rate:
+        direction = "community_lower"
+    elif community_rate > control_rate:
+        direction = "community_higher"
+    else:
+        direction = "equal"
+
+    return {
+        "communities_analyzed": communities_analyzed,
+        "community_event_rate": community_rate,
+        "control_event_rate": control_rate,
+        "effect_direction": direction,
+    }
+
+
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Implementation: load two bundles with same seed, compare

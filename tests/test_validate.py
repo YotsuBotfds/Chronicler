@@ -89,3 +89,34 @@ def test_era_inflection_no_false_positive_on_noise():
     from chronicler.validate import detect_inflection_points
     points = detect_inflection_points(pop_series, smoothing_window=5)
     assert len(points) == 0
+
+
+def test_cohort_distinctiveness_detects_anchoring():
+    """Community members migrate less than matched non-community agents."""
+    from chronicler.validate import compute_cohort_distinctiveness
+    # Community: agents 0-4 (low migration)
+    communities = [{0, 1, 2, 3, 4}]
+    # Events: community agents migrate rarely, non-community agents migrate more
+    events_data = [
+        # Community: 1 migration
+        {"agent_id": 0, "event_type": 1, "turn": 10},
+        # Non-community: 4 migrations
+        {"agent_id": 5, "event_type": 1, "turn": 5},
+        {"agent_id": 6, "event_type": 1, "turn": 8},
+        {"agent_id": 7, "event_type": 1, "turn": 12},
+        {"agent_id": 8, "event_type": 1, "turn": 15},
+    ]
+    # Agent demographics for matching
+    agent_data = {
+        "agent_id": list(range(10)),
+        "civ_affinity": [0]*10,
+        "region": [0]*10,
+        "occupation": [1]*10,  # all soldiers
+    }
+    result = compute_cohort_distinctiveness(
+        communities=communities,
+        events_data=events_data,
+        agent_data=agent_data,
+    )
+    assert result["community_event_rate"] < result["control_event_rate"]
+    assert result["communities_analyzed"] == 1
