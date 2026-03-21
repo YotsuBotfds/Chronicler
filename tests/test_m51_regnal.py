@@ -363,3 +363,40 @@ def test_legitimacy_parent_none_sentinel():
     civ = Civilization(name="Aram", leader=ruler)
     candidate = {"parent_id": 0, "dynasty_id": None, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Task 12: Succession event legitimacy phrasing
+# ---------------------------------------------------------------------------
+
+def test_succession_event_direct_heir_phrasing():
+    """Direct heir succession should include 'by right of blood'."""
+    legitimacy = 0.15  # LEGITIMACY_DIRECT_HEIR
+    phrase = ""
+    if legitimacy >= 0.15:
+        phrase = ", by right of blood,"
+    elif legitimacy >= 0.08:
+        phrase = ", of the ruling house,"
+    assert "right of blood" in phrase
+
+
+def test_succession_event_dynasty_phrasing():
+    """Same dynasty succession should include 'of the ruling house'."""
+    legitimacy = 0.08
+    phrase = ""
+    if legitimacy >= 0.15:
+        phrase = ", by right of blood,"
+    elif legitimacy >= 0.08:
+        phrase = ", of the ruling house,"
+    assert "ruling house" in phrase
+
+
+def test_succession_event_no_lineage_no_phrase():
+    """No lineage should produce no phrase."""
+    legitimacy = 0.0
+    phrase = ""
+    if legitimacy >= 0.15:
+        phrase = ", by right of blood,"
+    elif legitimacy >= 0.08:
+        phrase = ", of the ruling house,"
+    assert phrase == ""

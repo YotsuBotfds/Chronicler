@@ -640,7 +640,7 @@ def _apply_external_backer_effects(civ, world, winner: dict) -> None:
 def _build_succession_resolution_description(civ, old_leader, new_leader, legitimacy_phrase: str = "") -> str:
     return (
         f"The succession crisis in {civ.name} ends: "
-        f"{new_leader.name} rises to power after the fall of {old_leader.name}."
+        f"{new_leader.name}{legitimacy_phrase} rises to power after the fall of {old_leader.name}."
     )
 
 
@@ -664,6 +664,12 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
 
     # Determine force_type from winner
     force_type = _winner_force_type(winner)
+
+    # M51: Capture legitimacy BEFORE leader swap (civ.leader changes at step 6)
+    winner_legitimacy = 0.0
+    if winner and winner.get("source") == "great_person":
+        from chronicler.dynasties import compute_dynasty_legitimacy
+        winner_legitimacy = compute_dynasty_legitimacy(winner, civ)
 
     # 2. Mark old leader dead
     old_leader.alive = False
@@ -699,11 +705,17 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     create_exiled_leader(old_leader, civ, world)
 
     # 11. Emit event
+    # M51: Legitimacy phrasing (computed before leader swap above)
+    legitimacy_phrase = ""
+    if winner_legitimacy >= 0.15:
+        legitimacy_phrase = ", by right of blood,"
+    elif winner_legitimacy >= 0.08:
+        legitimacy_phrase = ", of the ruling house,"
     events.append(Event(
         turn=world.turn,
         event_type="succession_crisis_resolved",
         actors=[civ.name],
-        description=_build_succession_resolution_description(civ, old_leader, new_leader),
+        description=_build_succession_resolution_description(civ, old_leader, new_leader, legitimacy_phrase),
         importance=8,
     ))
 
