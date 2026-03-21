@@ -30,3 +30,18 @@ fn test_get_all_memories_returns_record_batch() {
     assert_eq!(inner.num_columns(), 9);
     assert_eq!(inner.num_rows(), 3); // 1 memory from agent a + 2 from agent b
 }
+
+#[test]
+fn test_get_all_needs_returns_record_batch() {
+    let mut sim = AgentSimulator::new(2, 42);
+    // Spawn agents with different occupations
+    let _slot_a = sim.pool.spawn(0, 0, Occupation::Farmer, 20, 0.5, 0.3, 0.6, 0, 0, 0, 0);
+    let _slot_b = sim.pool.spawn(0, 0, Occupation::Soldier, 25, 0.7, 0.8, 0.4, 0, 0, 0, 0);
+
+    let batch = sim.get_all_needs().unwrap();
+    let inner = batch.as_ref();
+    // Schema: agent_id, safety, autonomy, social, spiritual, material, purpose,
+    //         civ_affinity, region, occupation, satisfaction, boldness, ambition, loyalty_trait
+    assert_eq!(inner.num_columns(), 14);
+    assert_eq!(inner.num_rows(), 2);
+}

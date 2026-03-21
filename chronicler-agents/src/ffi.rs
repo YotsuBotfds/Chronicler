@@ -1255,6 +1255,88 @@ impl AgentSimulator {
         .map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
     }
+
+    /// M53: Return ALL agent needs as an Arrow RecordBatch.
+    /// Schema: [agent_id: u32, safety: f32, autonomy: f32, social: f32, spiritual: f32,
+    ///          material: f32, purpose: f32, civ_affinity: u16, region: u16,
+    ///          occupation: u8, satisfaction: f32, boldness: f32, ambition: f32, loyalty_trait: f32]
+    /// One row per alive agent.
+    #[pyo3(name = "get_all_needs")]
+    pub fn get_all_needs(&self) -> PyResult<PyRecordBatch> {
+        let live = self.pool.alive_count();
+
+        let mut agent_id_col = UInt32Builder::with_capacity(live);
+        let mut safety_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut autonomy_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut social_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut spiritual_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut material_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut purpose_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut civ_affinity_col = UInt16Builder::with_capacity(live);
+        let mut region_col = UInt16Builder::with_capacity(live);
+        let mut occupation_col = UInt8Builder::with_capacity(live);
+        let mut satisfaction_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut boldness_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut ambition_col = arrow::array::Float32Builder::with_capacity(live);
+        let mut loyalty_trait_col = arrow::array::Float32Builder::with_capacity(live);
+
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.alive[slot] { continue; }
+            agent_id_col.append_value(self.pool.ids[slot]);
+            safety_col.append_value(self.pool.need_safety[slot]);
+            autonomy_col.append_value(self.pool.need_autonomy[slot]);
+            social_col.append_value(self.pool.need_social[slot]);
+            spiritual_col.append_value(self.pool.need_spiritual[slot]);
+            material_col.append_value(self.pool.need_material[slot]);
+            purpose_col.append_value(self.pool.need_purpose[slot]);
+            civ_affinity_col.append_value(self.pool.civ_affinities[slot] as u16);
+            region_col.append_value(self.pool.regions[slot]);
+            occupation_col.append_value(self.pool.occupations[slot]);
+            satisfaction_col.append_value(self.pool.satisfactions[slot]);
+            boldness_col.append_value(self.pool.boldness[slot]);
+            ambition_col.append_value(self.pool.ambition[slot]);
+            loyalty_trait_col.append_value(self.pool.loyalty_trait[slot]);
+        }
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("agent_id",     DataType::UInt32,  false),
+            Field::new("safety",       DataType::Float32, false),
+            Field::new("autonomy",     DataType::Float32, false),
+            Field::new("social",       DataType::Float32, false),
+            Field::new("spiritual",    DataType::Float32, false),
+            Field::new("material",     DataType::Float32, false),
+            Field::new("purpose",      DataType::Float32, false),
+            Field::new("civ_affinity", DataType::UInt16,  false),
+            Field::new("region",       DataType::UInt16,  false),
+            Field::new("occupation",   DataType::UInt8,   false),
+            Field::new("satisfaction", DataType::Float32, false),
+            Field::new("boldness",     DataType::Float32, false),
+            Field::new("ambition",     DataType::Float32, false),
+            Field::new("loyalty_trait",DataType::Float32, false),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(agent_id_col.finish())    as _,
+                Arc::new(safety_col.finish())       as _,
+                Arc::new(autonomy_col.finish())     as _,
+                Arc::new(social_col.finish())       as _,
+                Arc::new(spiritual_col.finish())    as _,
+                Arc::new(material_col.finish())     as _,
+                Arc::new(purpose_col.finish())      as _,
+                Arc::new(civ_affinity_col.finish()) as _,
+                Arc::new(region_col.finish())       as _,
+                Arc::new(occupation_col.finish())   as _,
+                Arc::new(satisfaction_col.finish()) as _,
+                Arc::new(boldness_col.finish())     as _,
+                Arc::new(ambition_col.finish())     as _,
+                Arc::new(loyalty_trait_col.finish()) as _,
+            ],
+        )
+        .map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
 }
 
 // ---------------------------------------------------------------------------
