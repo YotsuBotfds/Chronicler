@@ -104,6 +104,8 @@ class WorldState(BaseModel):
     artifacts: list[Artifact] = Field(default_factory=list)
     # Transient (PrivateAttr, not persisted):
     _artifact_intents: list = PrivateAttr(default_factory=list)
+    _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)
+    _artifact_prestige_by_civ: dict = PrivateAttr(default_factory=dict)  # str -> int, ephemeral
 ```
 
 `artifact_id` assignment: derived from `max(a.artifact_id for a in world.artifacts, default=0) + 1` at creation time. No stored counter — the artifact list is the source of truth.
@@ -148,9 +150,28 @@ class ArtifactIntent:
 | Cultural production (`cultural_work`) | `simulation.py` | `phase_cultural_milestones()` when milestone fires AND prosperity gate passes | type=ARTWORK/TREATISE/MONUMENT |
 | Cultural production (`cultural_renaissance`) | `simulation.py` | `phase_random_events()` handler (line ~700) when event fires AND prosperity gate passes | type=ARTWORK/TREATISE/MONUMENT |
 
-### 4.3 Conquest: Transfer Intents, Not Creation
+### 4.3 Conquest & Lifecycle: Transfer/Lifecycle Intents
 
-Conquest does not create new artifacts. Instead, `_resolve_war_action()` emits explicit **transfer intents** for artifacts belonging to the defeated civ. Transfer logic lives in `tick_artifacts()`. See Section 5 for transfer rules.
+Conquest and civ destruction do not create artifacts — they move or destroy existing ones. These transitions use a separate `ArtifactLifecycleIntent` (distinct from the creation-focused `ArtifactIntent`):
+
+```python
+@dataclass
+class ArtifactLifecycleIntent:
+    action: str               # "conquest_transfer", "twilight_absorption", "civ_destruction"
+    losing_civ: str
+    gaining_civ: str | None   # None for civ_destruction without absorber
+    region: str               # conquered/absorbed region
+    is_capital: bool          # True if this was the losing civ's capital
+    is_full_absorption: bool  # True if losing civ has zero regions after this
+    is_destructive: bool      # True if scorched_earth_check() fired
+```
+
+**Emission sites:**
+- `action_engine.py` → `_resolve_war_action()`: emits `"conquest_transfer"` intents on successful conquest
+- `politics.py` → `check_twilight_absorption()`: emits `"twilight_absorption"` intents when a civ is absorbed
+- `simulation.py` → dead-civ detection: emits `"civ_destruction"` for civs reaching zero regions without an absorber
+
+Transfer/lifecycle logic lives in `tick_artifacts()`. See Section 5 for the rules applied to each intent type.
 
 ### 4.4 Prosperity Gate
 
@@ -172,7 +193,7 @@ def _prosperity_gate(civ, world) -> bool:
 
 When the prosperity gate passes, artifact creation has a per-event probability: `CULTURAL_PRODUCTION_CHANCE` (`[CALIBRATE M53]`, default 0.15).
 
-**Region selection for civ-wide cultural events:** Both `cultural_work` (from `phase_cultural_milestones()`) and `cultural_renaissance` (from `phase_random_events()`) are civ-level events with no inherent region. The intent uses `civ.regions[0]` as the `origin_region` — the capital/primary region. This determines where anchored cultural artifacts (monuments) are placed.
+**Region selection for civ-wide cultural events:** Both `cultural_work` (from `phase_cultural_milestones()`) and `cultural_renaissance` (from `phase_random_events()`) are civ-level events with no inherent region. The intent uses `civ.capital_region` as the `origin_region` (falling back to `civ.regions[0]` if capital is None). This determines where anchored cultural artifacts (monuments) are placed. `capital_region` is stable across `MOVE_CAPITAL` and secession — it always reflects the current capital.
 
 Cultural faction dominance biases **what kind** of artifact gets produced (ARTWORK vs TREATISE vs MONUMENT), not **whether** production happens.
 
@@ -182,11 +203,11 @@ Cultural faction dominance biases **what kind** of artifact gets produced (ARTWO
 
 **Responsibilities:**
 1. Process `_artifact_intents` → create `Artifact` objects with generated names
-2. Handle conquest transfers (from transfer intents)
+2. Process `_artifact_lifecycle_intents` → transfers, destruction, loss (see Section 5)
 3. Handle holder lifecycle (scan character-held artifacts for inactive GPs)
-4. Compute artifact prestige contributions through accumulator
+4. Compute `_artifact_prestige_by_civ` ephemeral dict (consumed by `tick_prestige()` next turn)
 5. Emit events for significant transitions
-6. Clear `_artifact_intents`
+6. Clear `_artifact_intents` and `_artifact_lifecycle_intents`
 
 ### 4.6 GP-Driven Artifact Types by Role
 
@@ -227,6 +248,8 @@ When a region is conquered via `_resolve_war_action()`:
 - Destructive conquest: `status = DESTROYED`. History: "Destroyed during the sack of {region}, turn {t}."
 
 **Definition of destructive conquest:** Conquest is destructive when the existing `scorched_earth_check()` in `infrastructure.py` fires (the defender's infrastructure is destroyed, probabilistic). Scorched earth is a defender-initiated action — the defender is destroying their own infrastructure to deny it to the attacker. Anchored artifacts in the region are destroyed alongside the infrastructure. Militant temple destruction (`destroy_temple_for_replacement()`) is a separate, faith-driven action and does **not** trigger artifact destruction — only scorched earth does.
+
+**Temple replacement and relics:** When `destroy_temple_for_replacement()` deactivates an existing temple to build a new one of a different faith, temple-anchored relics remain in the region. The relic's `anchor_region` is unchanged — it is anchored to the *site*, not the temple infrastructure. The relic's `owner_civ` follows the region controller. The relic's conversion bonus only applies if `owner_civ == region.controller` (Section 6.2), so a conquered relic of the old faith does not help the new faith's conversion rate.
 
 **Portable civ-owned artifacts (no holder):**
 - Transfer only on **capital capture or full civ absorption**. Ordinary non-capital region loss does not expose portable artifacts. This avoids the problem of a single border region conquest sweeping the entire portable collection.
@@ -275,25 +298,24 @@ Only significant transitions emit events. Routine ownership changes (anchored ar
 
 ## 6. Mechanical Effects
 
-### 6.1 Ongoing Prestige Contribution
+### 6.1 Artifact Prestige — Ephemeral Term, Not Stock Mutation
 
-Artifact prestige is an **ongoing per-turn source**, not a one-time grant. Each turn, `tick_artifacts()` computes per-civ artifact prestige and adds it through the accumulator:
+Artifact prestige is an **ephemeral derived term** computed each turn from currently-held artifacts. It does **not** mutate the `civ.prestige` stock. Lose the artifact, lose the bonus immediately — no accumulated residue to decay.
+
+**Why not mutate the stock:** `civ.prestige` decays by only 1/turn (`tick_prestige()` in `culture.py`). If artifacts add 2-4/turn to the stock, a civ holding a MONUMENT for 50 turns accumulates ~150 prestige from it alone. On loss, that accumulated prestige persists and takes 150 turns to decay. That is not "self-correcting" — it's a long-term pump.
+
+**Implementation:** `tick_artifacts()` computes `artifact_prestige` per civ each turn and stores it on a transient field `world._artifact_prestige_by_civ: dict[str, int]` (PrivateAttr, cleared each turn). The existing `tick_prestige()` in `culture.py` reads this field and adds it to the trade income bonus calculation alongside the stock-derived bonus:
 
 ```python
-for civ_idx, civ in enumerate(world.civilizations):
-    if len(civ.regions) == 0:
-        continue
-    artifact_prestige = sum(
-        a.prestige_value for a in world.artifacts
-        if a.owner_civ == civ.name and a.status == ArtifactStatus.ACTIVE
-    )
-    if artifact_prestige > 0:
-        acc.add(civ_idx, civ, "prestige", artifact_prestige, "keep")
+# In tick_prestige() — modified to include artifact term:
+trade_bonus = civ.prestige // prestige_divisor
+artifact_bonus = world._artifact_prestige_by_civ.get(civ.name, 0)
+total_trade_bonus = trade_bonus + artifact_bonus
 ```
 
-**Ordering and one-turn lag:** `tick_prestige()` runs in Phase 3 (line 523 of `simulation.py`), while `tick_artifacts()` runs at the end of Phase 10. This means artifact prestige from turn N does not contribute to the prestige-based trade bonus computed by `tick_prestige()` until turn N+1. This one-turn lag is **intentional** and matches the codebase convention (Gini one-turn lag in `AgentBridge._gini_by_civ`, conversion signal lag). Artifacts raise the prestige floor — a civ with many active artifacts has a higher baseline that decays more slowly toward zero.
+The artifact term is computed in Phase 10 of turn N and consumed by `tick_prestige()` in Phase 3 of turn N+1. This one-turn lag is **intentional** and matches codebase conventions (Gini lag, conversion signal lag).
 
-When `acc is None` (aggregate mode, Phase 10), artifact prestige is applied directly: `civ.prestige += artifact_prestige`. This matches the standard `if acc is not None / else` pattern used throughout `phase_consequences()`.
+**No accumulator involvement.** Artifact prestige does not flow through the `StatAccumulator`. It is a derived signal, not a mutation. This avoids the Phase 10 accumulator timing problem (keep-category changes are applied before `phase_consequences()` runs in hybrid mode — any late `acc.add()` would be orphaned).
 
 **Prestige values by type (all `[CALIBRATE M53]`):**
 
@@ -411,7 +433,7 @@ ARTIFACTS:
 - The Sacred Chalice of Ashara (relic, temple-bound in Ashara) — holy relic of the Ashkari faith
 ```
 
-Name, type, holder/location status, origin snippet from `history[0]`.
+Name, type, holder/location status, origin snippet from the immutable `origin_event` field (not `history[0]`, which could be trimmed by the history cap).
 
 ### 8.2 Event Types
 
@@ -451,14 +473,9 @@ ARTIFACT_DESCRIPTIONS = {
 
 ### 9.1 Bundle Export
 
-Artifacts are serialized into the bundle under a new top-level key `"artifacts"`:
+Artifacts are serialized as part of the `"world_state"` key in the bundle, via `WorldState.artifacts`. Since `assemble_bundle()` already serializes the full `world.model_dump_json()` into `"world_state"`, no additional top-level key is needed. All artifacts (active, lost, destroyed) are included automatically — the full history is the narrative value.
 
-```python
-# In assemble_bundle():
-"artifacts": [a.model_dump() for a in world.artifacts]
-```
-
-All artifacts (active, lost, destroyed) are included — the full history is the narrative value. This is an additive schema change; current bundle consumers tolerate additive keys.
+No separate `"artifacts"` top-level key. Single source of truth in `"world_state"`.
 
 ### 9.2 Analytics Extractor
 
@@ -496,15 +513,16 @@ This is a **deliberate product boundary**: aggregate mode gets ambient and GP-dr
 
 | File | Changes |
 |------|---------|
-| `models.py` | `Artifact`, `ArtifactType`, `ArtifactStatus`, `ArtifactIntent` models. `WorldState.artifacts` field, `_artifact_intents` PrivateAttr. `GreatPerson.mule_artifact_created: bool = False` |
+| `models.py` | `Artifact`, `ArtifactType`, `ArtifactStatus`, `ArtifactIntent`, `ArtifactLifecycleIntent` models. `WorldState.artifacts` field, `_artifact_intents`/`_artifact_lifecycle_intents`/`_artifact_prestige_by_civ` PrivateAttrs. `GreatPerson.mule_artifact_created: bool = False` |
 | `great_persons.py` | Intent emission in `check_great_person_generation()` for aggregate-mode GP artifacts (parallel to agent_bridge hook) |
 | `simulation.py` | `tick_artifacts()` call in Phase 10 (end, before timeline write). Intent emission in `phase_cultural_milestones()` and `cultural_renaissance` handler |
 | `infrastructure.py` | Intent emission in `tick_infrastructure()` on temple completion |
-| `action_engine.py` | Intent emission in Mule action success path. Transfer intents in `_resolve_war_action()` on conquest |
+| `action_engine.py` | Intent emission in Mule action success path. Lifecycle intents in `_resolve_war_action()` on conquest |
 | `agent_bridge.py` | Intent emission in `_process_promotions()` for high-prestige GP promotions |
+| `politics.py` | Lifecycle intents in `check_twilight_absorption()` for civ absorption |
+| `culture.py` | `tick_prestige()` reads `world._artifact_prestige_by_civ` for ephemeral artifact trade bonus |
 | `narrative.py` | `artifact_context_text` in prompt assembly (separate from agent context). `ARTIFACT_DESCRIPTIONS` dict |
 | `analytics.py` | `extract_artifacts()` extractor |
-| `bundle.py` | `"artifacts"` key in `assemble_bundle()` output |
 
 ### No Rust Changes
 
@@ -556,7 +574,7 @@ All `[CALIBRATE M53]`:
 | 2 | Intent-based creation (detect inline, create centrally) | Triggers span Phase 2, 8, 10, and agent tick. Centralizes naming, prestige, history, and duplicate guards in one function. Mirrors M48 memory intent pattern. |
 | 3 | Portability/anchoring model for conquest | Better than raw type-based transfer. Monuments stay, weapons move, relics can go either way. |
 | 4 | Portable capture restricted to capital/full absorption | Without `storage_region`, any single region conquest would sweep all portable artifacts. Capital-only is historically resonant and avoids tracking per-artifact location for civ-owned portables. |
-| 5 | Ongoing prestige source, not one-time grant | Transfers, loss, and conquest are all mechanically self-correcting. Lose the artifact, lose the prestige next turn. No reversal bookkeeping. |
+| 5 | Ephemeral prestige term, not stock mutation | Artifact prestige is a derived signal feeding into `tick_prestige()`, not a mutation of `civ.prestige`. Lose the artifact, lose the bonus immediately. Avoids long-term prestige pump from stock accumulation + slow decay. |
 | 6 | Cultural production via existing `cultural_work`/`cultural_renaissance` events | No new "golden age" system needed. Prosperity gate + probability on existing events. Faction biases type, not production. |
 | 7 | B narrative (events for transitions, no causal patterns) | Artifact events compete normally. Causal patterns deferred to M53b after observing actual event density. |
 | 8 | World-level registry, not per-civ lists | Anchored/lost/character-held/exile states don't map to per-civ ownership. Single source of truth. Transfers are field updates, not list surgery. |
@@ -569,3 +587,9 @@ All `[CALIBRATE M53]`:
 | 15 | Declared wars only in prosperity gate | Proxy wars (`FUND_INSTABILITY`) do not block cultural production. Deliberate simplification — M53a calibration target. |
 | 16 | Scorched earth = destructive conquest | Artifact destruction tied to existing `scorched_earth_check()`. Militant temple replacement does not destroy artifacts. |
 | 17 | GP artifacts in aggregate mode via parallel hook | `check_great_person_generation()` gets its own intent emission, mirroring `_process_promotions()` in agent mode. |
+| 18 | Separate `ArtifactLifecycleIntent` for transfers | Creation intents and lifecycle intents have different field requirements. Conquest/absorption/destruction carry losing_civ, gaining_civ, capital flag, destructive flag — none of which apply to creation. |
+| 19 | No accumulator writes in Phase 10 for artifact prestige | Keep-category accumulator changes are applied before `phase_consequences()` runs in hybrid mode. Late `acc.add()` would be orphaned. Ephemeral dict avoids the timing issue entirely. |
+| 20 | `capital_region` for cultural production placement | `civ.capital_region` is stable across MOVE_CAPITAL and secession. `civ.regions[0]` drifts with list reordering. |
+| 21 | Bundle: artifacts in `world_state`, no separate key | `WorldState.artifacts` serializes automatically via `model_dump_json()`. No duplicate top-level key. Single source of truth. |
+| 22 | Narrative origin from `origin_event`, not `history[0]` | History cap (10 entries) could trim the creation fragment. `origin_event` is immutable. |
+| 23 | Temple-replaced relics stay anchored to site | Relics are anchored to the region, not the temple infrastructure. Temple replacement does not destroy or relocate them. |
