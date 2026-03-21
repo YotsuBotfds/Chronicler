@@ -1,9 +1,9 @@
 # M53a/b: Depth Tuning Pass — Design Spec
 
 > **Date:** 2026-03-21
-> **Status:** Draft — Phoebe review pass 1 complete, user review pass 2 complete (M52 sync), ready for implementation planning
-> **Prerequisites:** M48 (merged), M49 (merged), M50a (merged), M50b (merged), M51 (spec+plan, implementation pending), M52 (merged)
-> **Depends on:** M48-M52 (full scope). M48-M50 + M52 tuning can begin once M51 stabilizes; M51-dependent sections are marked PENDING SUBSTRATE.
+> **Status:** Approved — Phoebe + user review complete, implementation plan in progress
+> **Prerequisites:** M48 (merged), M49 (merged), M50a (merged), M50b (merged), M51 (merged), M52 (merged)
+> **Depends on:** M48-M52 (all merged). Full scope is active — no pending substrates.
 
 ---
 
@@ -17,12 +17,7 @@ M53 is the explicit gate before M54a. If depth systems create unstable dynamics 
 
 All work is categorized into three readiness buckets:
 
-| Bucket | Systems | Status | Can begin |
-|--------|---------|--------|-----------|
-| **Ready once M51 stabilizes** | M48 memory, M49 needs, M50 relationships, M48 Mule, M52 artifacts | Substrate merged | Immediately after M51 lands |
-| **Pending M51 substrate** | Legacy memory constants, dynasty-chain metrics, inherited-cohort validation, succession legitimacy weights | M51 spec+plan complete, not implemented | After M51 implementation + stabilization |
-
-M51-pending sections are designed now but implemented as a supplement pass after M51 lands. They do not block the initial M53 freeze of M48-M50 + M52 constants.
+All M48-M52 substrates are merged. The full constant inventory is active scope — no pending substrates remain. All 6 system passes (1a-1f) are part of the M53a gate.
 
 ## 3. Canonical Benchmark Profile
 
@@ -127,9 +122,13 @@ CivSnapshot lacks satisfaction distribution and occupation breakdown. Add a per-
 
 `extract_artifacts()` in `analytics.py` (line 1654) already extracts: total/active/lost/destroyed counts, per-civ artifact counts, per-type distribution, total prestige contribution, Mule-origin artifact count. This is sufficient as the M53a baseline extractor. If tuning reveals gaps (e.g., per-turn creation rate time series, narrative visibility frequency), extend this extractor rather than creating a new one.
 
-### 4.6 Pending-Substrate Placeholder
+### 4.6 Legacy Extractor
 
-- **`extract_legacy_chain_metrics()`** — [PENDING M51] legacy memory persistence across generations, dynasty memory chain length, legitimacy activation rate (fraction of successions where `civ.leader.agent_id is not None`)
+**`extract_legacy_chain_metrics()`** — new extractor for M51 legacy system:
+- Legacy memory persistence across generations (mean legacy intensity at 2nd/3rd generation)
+- Dynasty memory chain length (how many generations carry inherited memories)
+- Legitimacy activation rate (fraction of successions where `civ.leader.agent_id is not None`)
+- Source: bulk memory export (`get_all_memories()` with `is_legacy` column) + `GreatPerson` dynasty data from bundles
 
 ## 5. M53a.1 — Tuning Pipeline
 
@@ -171,7 +170,7 @@ Each pass tunes one system's constants while holding others fixed. Scout loops (
 | 1b | Needs (M49) | Decay rates (6), thresholds (6), weights (6), restoration rates (16), infrastructure constants (3) (~37 Rust) | Need activation fraction (peacetime 10-20%, crisis 40-70%), behavioral diversity, sawtooth check, duty cycle per need | 1a (memory feeds needs indirectly) |
 | 1c | Relationships (M50) | Kin sentiments (2), co-location drift (4), strong-tie threshold/cadence (2), separation decay (2), formation gate constants (~28: similarity weights, rank crossing, per-type gates, triadic closure, scan limits, dissolution cadence), `SOCIAL_BLEND_ALPHA` (~36 Rust) | Bond count/agent (target: 3-5 at steady state), formation/dissolution rates, sentiment distribution, social-need restoration adequacy | 1a (shared memory → bond eligibility) |
 | 1d | Mule (M48) | `MULE_PROMOTION_PROBABILITY`, `MULE_ACTIVE_WINDOW`, `MULE_FADE_TURNS` (3 scalars) + `MULE_MAPPING` (9 event-type entries with ~22 individual weight values) (~25 Python) | Mule frequency (~0-1 per 100 turns at 50K), impact window visibility (80%+ curator selection), civ action distribution shift during window | 1a-1c (Mule effects ripple through all systems) |
-| 1e | Legacy [PENDING M51] | `LEGACY_HALF_LIFE`, `LEGACY_MIN_INTENSITY`, `LEGACY_MAX_MEMORIES`, `LEGITIMACY_DIRECT_HEIR`, `LEGITIMACY_SAME_DYNASTY`, regnal constants (~6) | Legacy persistence (2-3 generations), dynasty chain length, legitimacy activation rate (>20% of successions) | 1a, 1c, M51 substrate |
+| 1e | Legacy (M51) | `LEGACY_HALF_LIFE`, `LEGACY_MIN_INTENSITY`, `LEGACY_MAX_MEMORIES` (3 Rust in `agent.rs`), `LEGITIMACY_DIRECT_HEIR`, `LEGITIMACY_SAME_DYNASTY` (2 Python in `dynasties.py`), regnal naming constants (~6 total) | Legacy persistence (2-3 generations), dynasty chain length, legitimacy activation rate (>20% of successions), inherited-cohort formation | 1a, 1c |
 | 1f | Artifacts (M52) | `CULTURAL_PRODUCTION_CHANCE`, `GP_PRESTIGE_THRESHOLD`, `RELIC_CONVERSION_BONUS`, `PROSPERITY_STABILITY_THRESHOLD`, `PROSPERITY_TREASURY_THRESHOLD`, `HISTORY_CAP` (6 scalars) + `PRESTIGE_BY_TYPE` (7 type→value entries) (~13 Python in `artifacts.py`) | Artifact accumulation (1-3 per civ per 100 turns via `extract_artifacts()`), Mule artifact rate (~50-70% of Mules produce artifact), narrative visibility (artifact context in curated moments), relic conversion bonus impact | 1d (Mule artifacts) |
 
 **M49 calibration flag checklist** — each system pass explicitly checks the relevant flags:
@@ -191,7 +190,7 @@ Each pass tunes one system's constants while holding others fixed. Scout loops (
 
 ### 5.4 Phase 2: Integration Pass
 
-After all system passes (1a-1d + 1f, plus 1e when M51 lands), run a full gate (200x500) with all tuned constants active together.
+After all 6 system passes (1a-1f), run a full gate (200x500) with all tuned constants active together.
 
 **Cross-system checks:**
 - Satisfaction floor-hitting rate: <30% of any region's agents at floor simultaneously
@@ -219,7 +218,7 @@ After integration passes, commit the frozen state:
 |------|-------|---------|----------------|
 | **HARD** | Cross-system and structural constants | Satisfaction weights, 0.40 penalty cap, clamp priority order, rebellion/migration consideration thresholds, relationship slot budget, `SOCIAL_BLEND_ALPHA`, needs-only rebellion gates, Mule utility floor (if materially shifts civ action distributions) | Documented justification + full M53 regression suite + oracle subset re-run + explicit approval |
 | **SOFT** | System-local tuning values | Individual memory half-lives, specific need restoration/decay rates, Mule window/fade, kin sentiment values, formation cadence thresholds, artifact production probabilities, legacy intensity cutoffs | Relevant system's regression metrics must hold |
-| **UNFROZEN** | Pending-substrate constants | M51-dependent constants (legacy, legitimacy, regnal) | Not frozen until M51 lands and supplement pass completes → tagged `[FROZEN M53-SUPPLEMENT]` |
+All constants are eligible for HARD or SOFT freeze — no UNFROZEN tier needed since all substrates have landed.
 
 **Source tag updates:** `[CALIBRATE M53]` → `[FROZEN M53 HARD]` or `[FROZEN M53 SOFT]`. The YAML snapshot is the authoritative freeze record; source tags are helpful but secondary.
 
@@ -423,7 +422,7 @@ All must hold simultaneously:
 
 1. Smoke gate passed (Phase -1)
 2. Baseline sweep completed and documented (`tuning/m53_baseline.yaml`)
-3. System passes 1a-1d + 1f completed (1e deferred to M51 substrate)
+3. All 6 system passes (1a-1f) completed
 4. Integration pass completed — no cross-system degeneracy
 5. Regression suite passes (Section 7)
 6. Frozen YAML snapshot committed (`tuning/m53a_frozen.yaml`)
@@ -448,7 +447,7 @@ M53a + M53b both pass. This is the explicit gate before M54a begins.
 - **HARD-frozen constant change:** Documented justification + full M53 regression suite + oracle subset re-run + explicit approval
 - **SOFT-frozen constant change:** Relevant system's regression metrics must hold
 - **Scale findings (M54+):** Default to scale-local fixes. Depth constant reopening requires explicit approval.
-- **M51 pending-substrate constants:** Get their own freeze pass when M51 lands and stabilizes → tagged `[FROZEN M53-SUPPLEMENT]`
+- All substrates merged — no supplement passes needed
 
 ## 9. New FFI Surface
 
@@ -473,11 +472,9 @@ Both methods are validation-only — called by the sidecar writer, not the simul
 | Sub-milestone | Scope | Est. Days |
 |---------------|-------|-----------|
 | M53a.0 | Observability: extractors, bulk FFI, sidecar format, validation_summary, tag normalization | 1-2 |
-| M53a.1 | Tuning: smoke → baseline → 5 system passes (1a-1d + 1f) → integration → freeze | 2-3 |
+| M53a.1 | Tuning: smoke → baseline → 6 system passes (1a-1f) → integration → freeze | 3-4 |
 | M53b | Oracles: validate module, 4 blocking + 2 committed oracles (artifact lifecycle + six arcs) + 1 stretch, reports | 2-3 |
-| **Total** | | **5-8** |
-
-Pending-substrate supplement pass (1e) adds ~1-2 days when M51 lands.
+| **Total** | | **6-9** |
 
 ## 12. Risk Register
 
