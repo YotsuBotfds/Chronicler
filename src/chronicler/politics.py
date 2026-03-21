@@ -1204,6 +1204,15 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                 civ.regions = []
                 from chronicler.simulation import reset_war_frequency_on_extinction
                 reset_war_frequency_on_extinction(civ)
+                # M52: Artifact lifecycle intent for twilight absorption
+                from chronicler.artifacts import emit_conquest_lifecycle_intent
+                for rn in absorbed_regions:
+                    emit_conquest_lifecycle_intent(
+                        world, losing_civ=civ.name, gaining_civ=best_absorber_u.name,
+                        region=rn,
+                        is_capital=(rn == civ.capital_region),
+                        is_destructive=False,
+                    )
                 to_remove.append(civ)
                 world.exile_modifiers.append(ExileModifier(
                     original_civ_name=civ.name,
@@ -1240,6 +1249,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
         if best_absorber is None:
             continue
 
+        absorbed_regions_tw = list(civ.regions)
         for rn in civ.regions:
             best_absorber.regions.append(rn)
             if rn in region_map:
@@ -1247,6 +1257,15 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
         civ.regions = []
         from chronicler.simulation import reset_war_frequency_on_extinction
         reset_war_frequency_on_extinction(civ)
+        # M52: Artifact lifecycle intent for twilight absorption
+        from chronicler.artifacts import emit_conquest_lifecycle_intent
+        for rn in absorbed_regions_tw:
+            emit_conquest_lifecycle_intent(
+                world, losing_civ=civ.name, gaining_civ=best_absorber.name,
+                region=rn,
+                is_capital=(rn == civ.capital_region),
+                is_destructive=False,
+            )
         to_remove.append(civ)
 
         world.exile_modifiers.append(ExileModifier(

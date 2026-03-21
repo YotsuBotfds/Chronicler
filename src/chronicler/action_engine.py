@@ -523,9 +523,19 @@ def resolve_war(
             world._conquered_this_turn.add(world.civilizations.index(attacker))
             # Scorched earth check
             reaction = REACTION_REGISTRY.get("region_lost")
+            scorch_events = []
             if reaction:
                 scorch_events = reaction(world, defender, contested, seed)
                 world.events_timeline.extend(scorch_events)
+            # M52: Artifact lifecycle intent
+            from chronicler.artifacts import emit_conquest_lifecycle_intent
+            _scorched = bool(scorch_events)
+            _was_capital = (contested.name == defender.capital_region)
+            emit_conquest_lifecycle_intent(
+                world, losing_civ=defender.name, gaining_civ=attacker.name,
+                region=contested.name, is_capital=_was_capital,
+                is_destructive=_scorched,
+            )
             # Fog: reveal conquered region adjacencies
             if world.fog_of_war and attacker.known_regions is not None:
                 known_set = set(attacker.known_regions)

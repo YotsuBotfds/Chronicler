@@ -792,3 +792,73 @@ class TestGPPromotionIntent:
         )
         emit_gp_artifact_intent(world, civ, gp)
         assert len(world._artifact_intents) == 0
+
+
+class TestConquestLifecycleIntentEmission:
+    def test_conquest_emits_lifecycle_intent(self):
+        from chronicler.artifacts import emit_conquest_lifecycle_intent
+        world = _make_world_with_civ()
+        world._artifact_lifecycle_intents = []
+        emit_conquest_lifecycle_intent(
+            world, losing_civ="Defender", gaining_civ="Attacker",
+            region="Region1", is_capital=True, is_destructive=False,
+        )
+        assert len(world._artifact_lifecycle_intents) == 1
+        intent = world._artifact_lifecycle_intents[0]
+        assert intent.action == "conquest_transfer"
+        assert intent.is_capital is True
+
+    def test_full_absorption_detected_when_no_regions(self):
+        from chronicler.artifacts import emit_conquest_lifecycle_intent
+        from chronicler.models import Civilization, Leader
+        world = _make_world_with_civ()
+        defender = Civilization(
+            name="Defender", values=["Honor"],
+            leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=[],
+        )
+        world.civilizations.append(defender)
+        world._artifact_lifecycle_intents = []
+        emit_conquest_lifecycle_intent(
+            world, losing_civ="Defender", gaining_civ="Attacker",
+            region="Region1", is_capital=True, is_destructive=False,
+        )
+        assert world._artifact_lifecycle_intents[0].is_full_absorption is True
+
+    def test_not_full_absorption_when_regions_remain(self):
+        from chronicler.artifacts import emit_conquest_lifecycle_intent
+        world = _make_world_with_civ()
+        world._artifact_lifecycle_intents = []
+        emit_conquest_lifecycle_intent(
+            world, losing_civ="TestCiv", gaining_civ="Attacker",
+            region="Region1", is_capital=False, is_destructive=False,
+        )
+        assert world._artifact_lifecycle_intents[0].is_full_absorption is False
+
+    def test_civ_destruction_intent(self):
+        from chronicler.artifacts import emit_civ_destruction_intent
+        world = _make_world_with_civ()
+        world._artifact_lifecycle_intents = []
+        emit_civ_destruction_intent(world, "DeadCiv")
+        assert len(world._artifact_lifecycle_intents) == 1
+        intent = world._artifact_lifecycle_intents[0]
+        assert intent.action == "civ_destruction"
+        assert intent.losing_civ == "DeadCiv"
+        assert intent.gaining_civ is None
+
+    def test_dead_civ_auto_detected_in_tick(self):
+        """Dead civ with active artifact but no lifecycle intent gets auto-detected."""
+        from chronicler.models import Civilization, Leader
+        world = _make_world_with_civ()
+        dead_civ = Civilization(
+            name="DeadCiv", values=["Honor"],
+            leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=[],
+        )
+        world.civilizations.append(dead_civ)
+        _make_active_artifact(world, ArtifactType.RELIC, anchored=True,
+                               owner_civ="DeadCiv", region="LostRegion")
+        world.turn = 50
+        events = tick_artifacts(world)
+        assert world.artifacts[0].status == ArtifactStatus.LOST
+        assert any(e.event_type == "artifact_lost" for e in events)

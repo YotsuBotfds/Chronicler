@@ -327,6 +327,24 @@ def tick_artifacts(world) -> list[Event]:
         elif intent.action == "civ_destruction":
             _process_civ_destruction(world, intent, events)
 
+    # 2b. Auto-detect dead civs with active artifacts not already handled
+    for civ in world.civilizations:
+        if len(civ.regions) == 0:
+            has_active = any(
+                a.status == ArtifactStatus.ACTIVE and a.owner_civ == civ.name
+                for a in world.artifacts
+            )
+            if has_active:
+                already_handled = any(
+                    intent.losing_civ == civ.name
+                    for intent in world._artifact_lifecycle_intents
+                )
+                if not already_handled:
+                    emit_civ_destruction_intent(world, civ.name)
+                    _process_civ_destruction(
+                        world, world._artifact_lifecycle_intents[-1], events,
+                    )
+
     # 3. Holder lifecycle — check for inactive holders
     _process_holder_lifecycle(world, events)
 
@@ -417,6 +435,42 @@ def emit_mule_artifact_intent(world, civ, gp, action_name: str) -> None:
         context=f"Born of {gp.name}'s influence over {civ.name}",
     ))
     gp.mule_artifact_created = True
+
+
+def emit_conquest_lifecycle_intent(
+    world, losing_civ: str, gaining_civ: str, region: str,
+    is_capital: bool, is_destructive: bool,
+) -> None:
+    """Emit a lifecycle intent for conquest or twilight absorption."""
+    losing = None
+    for c in world.civilizations:
+        if c.name == losing_civ:
+            losing = c
+            break
+    is_full = losing is not None and len(losing.regions) == 0
+
+    world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
+        action="conquest_transfer",
+        losing_civ=losing_civ,
+        gaining_civ=gaining_civ,
+        region=region,
+        is_capital=is_capital,
+        is_full_absorption=is_full,
+        is_destructive=is_destructive,
+    ))
+
+
+def emit_civ_destruction_intent(world, civ_name: str) -> None:
+    """Emit lifecycle intent when a civ reaches zero regions without absorber."""
+    world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
+        action="civ_destruction",
+        losing_civ=civ_name,
+        gaining_civ=None,
+        region="",
+        is_capital=True,
+        is_full_absorption=True,
+        is_destructive=False,
+    ))
 
 
 def _prosperity_gate(civ, world) -> bool:
