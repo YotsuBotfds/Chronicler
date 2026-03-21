@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-20 (M50b merged to main)
+> **Last updated:** 2026-03-21 (M53 infrastructure on feat/m53-depth-tuning)
 
 ---
 
@@ -228,6 +228,59 @@
 
 ## In Progress
 
+### M53: Depth Tuning Pass — infrastructure complete, tuning BLOCKED on demographics
+
+- **Branch:** `feat/m53-depth-tuning` (16 commits, not merged to main)
+- **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-21-m53-depth-tuning-validation.md` (23 tasks)
+- **Commits this session (infrastructure + diagnosis):**
+  - `4729484` — normalize [CALIBRATE M53] tags (124 individual tags)
+  - `b19959d` — get_all_memories() bulk Arrow FFI export
+  - `385cf23` — get_all_needs() bulk Arrow FFI export with join columns
+  - `0323f15` — sidecar writer/reader (graph snapshots, agent aggregates, community summaries)
+  - `fcb0700` — wire sidecar into simulation loop + relationship-stats metadata
+  - `62f2f9b` — extract_bond_health, extract_era_signals, extract_legacy_chain_metrics
+  - `e0465e3` — validate module scaffold + determinism scrubbed comparison
+  - `432dd09` — Oracle 1: community/cohort detection via label propagation
+  - `cc324d4` — Oracle 2: needs behavioral diversity matched-cohort comparison
+  - `535858f` — Oracle 3: era inflection detection via smoothed changepoints
+  - `0f47f55` — Oracle 4: cohort behavioral distinctiveness vs matched control
+  - `822b14e` — Oracle 5: artifact lifecycle validation
+  - `e57b7d0` — Oracle 6: six emotional arcs civ trajectory classification
+  - `6339077` — fix sidecar arro3 API + M52 self.world bug
+  - `c284b01` — baseline sweep (40×200 seeds, agent extinction at turn 77)
+  - `f075c74` — fix demographics: mixed age seeding + debug counters
+- **Tests:** 16 Python tests (3 sidecar, 3 analytics, 10 validate), 2 Rust FFI tests. All passing.
+- **New files:** `src/chronicler/validate.py`, `src/chronicler/sidecar.py`, `tests/test_validate.py`, `tests/test_sidecar.py`, `tests/test_m53_analytics.py`, `scripts/m53_baseline.py`, `chronicler-agents/tests/test_m53_ffi.rs`
+- **Modified files:** `chronicler-agents/src/ffi.rs` (3 FFI exports + age seeding + debug counters), `chronicler-agents/src/agent.rs` (INITIAL_AGE_STREAM_OFFSET + tag normalization), `chronicler-agents/src/lib.rs` (AgentSimulator re-export), `src/chronicler/agent_bridge.py` (sidecar wiring + M52 bug fix), `src/chronicler/main.py` (--validation-sidecar + --relationship-stats wiring), `src/chronicler/analytics.py` (3 new extractors, extract_relationship_metrics → extract_bond_health rename)
+
+#### Session Handoff — BLOCKING: Agent Demographic Collapse
+
+**The Problem:** Agent population collapses to 0 in ~80 turns at default constants. 40-seed baseline showed mean extinction at turn 77. This is a **substrate problem**, not an M53 calibration problem — the depth system constants (M48-M51) are 5th-priority clamped under the 0.40 penalty cap and contribute negligibly to the collapse.
+
+**Root Cause (diagnosed):**
+1. **Initial age seeding was all age=0** — no agents started in the fertile age range (16-45). Fixed in `f075c74` with mixed age distribution, but collapse still occurs (362→14 agents in 30 turns, only 13 births total).
+2. **40:1 death-to-birth ratio** — at default constants, mortality vastly exceeds fertility. Per-turn debug log (turn 0-5): 12-64 deaths/turn, 0 births/turn. Even after age fix, births peak at ~4/turn vs 18-46 deaths/turn.
+3. **Likely contributing factors** (not yet isolated): high `eco_stress` from low soil/water, `WAR_CASUALTY_MULTIPLIER=2.0` on soldiers, possibly `endemic_severity` adding directly to mortality rate.
+
+**What Needs to Happen Next:**
+1. Add per-turn demographic breakdown to debug log: deaths by age band (young/adult/elder), deaths with eco_stress > 1.0, deaths with is_soldier_at_war, count of fertility-eligible agents with satisfaction > 0.3. The `last_tick_deaths`/`last_tick_births`/`last_tick_alive` counters are already on `AgentSimulator` — extend with category breakdowns.
+2. Reduce `MORTALITY_ADULT` (currently 0.01/turn = 1%) — try 0.005 first. This is in `agent.rs:31`.
+3. Increase `FERTILITY_BASE_FARMER` (currently 0.03) and `FERTILITY_BASE_OTHER` (currently 0.015) — try 0.05/0.03.
+4. If collapse persists, check `endemic_severity` passed to `mortality_rate()` — this is added directly and could dominate.
+5. Only resume M53 depth system tuning (Tasks 15-20) after agents survive 200+ turns with stable or growing population.
+
+**M53 Tasks Complete (infrastructure):** 1-13 (tag normalization, FFI exports, sidecar, analytics, validate scaffold, 6 oracles)
+**M53 Tasks Blocked (tuning):** 14-23 (baseline sweep done but results show collapse; system passes, integration gate, oracle suite all require stable demographics)
+
+**Uncommitted:** `.claude/settings.json` has updated hooks (Python DLL dir in PATH for cargo test on Windows). Not committed because it's project settings, not implementation code.
+
+#### Other Fixes This Session
+
+- **M52 bug: `self.world` → `world` in `_process_promotions()`** (`6339077`). Pre-existing bug where `emit_gp_artifact_intent` was called with `self.world` but AgentBridge doesn't store world as instance attribute.
+- **Rust test DLL issue:** `python314.dll` not in PATH for cargo test on Windows. Diagnosed: Python core dir (`pythoncore-3.14-64/`) not in PATH. Fixed via `export PATH` in pre-commit hook and cargo check hook. Use `export` not inline `PATH=...` — the latter doesn't propagate to cargo's child processes on Windows.
+- **arro3 vs pyarrow:** pyo3-arrow 0.17 returns `arro3.core.RecordBatch` not pyarrow. Use `batch.column(name).to_pylist()` for column access, not `batch.to_pydict()`. Fixed in sidecar wiring (`6339077`).
+
 ### M51: Multi-Generational Memory — spec + plan complete, ready for implementation
 
 - **Spec:** `docs/superpowers/specs/2026-03-20-m51-multi-generational-memory-design.md` (Phoebe-reviewed 2 passes + user review 1 pass, all fixes applied)
@@ -254,9 +307,9 @@
 ## Ready for Implementation
 
 **Next steps:**
+- **PRIORITY: Fix agent demographic collapse** — prerequisite for M53 tuning. See M53 session handoff above.
 - M51 implementation (spec + plan ready, 14 tasks)
-- M48+M49+M50 200-seed regression deferred to M53 — memory + needs + relationships are uncalibrated
-- M53 calibration pass (~125+ Rust constants across M48+M49+M50+M51, tiered strategy in M49 spec Section 9)
+- M53 depth system tuning (Tasks 15-23) — blocked on demographics fix
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -318,3 +371,9 @@
 - **M50b: `check_friend` evaluates compatibility before shared memory.** Spec cascade puts expensive checks last. At current memory slot counts (5 max), cost difference is negligible. Low priority.
 - **M49: Phase 7 roadmap estimates ~24 M49 constants.** Actual count is 37. Update roadmap when next editing it.
 - **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Verify numerically in M53 Tier 3 calibration.
+- **CRITICAL: Agent demographic collapse.** All agents die within ~80 turns at default constants. Root cause: age=0 initial seeding (fixed) + base mortality >> fertility (not yet fixed). The depth systems (M48-M51) are NOT the cause — they're 5th-priority clamped. Fix `MORTALITY_ADULT` and `FERTILITY_BASE_*` in `agent.rs` before resuming M53 tuning.
+- **M52: `self.world` bug in `_process_promotions()`.** Fixed in `6339077`. `emit_gp_artifact_intent` was called with `self.world` but AgentBridge doesn't store world as instance attribute.
+- **~~M50b: `--relationship-stats` flag not wired.~~** Wired in M53 (`fcb0700`). `AgentBridge` now calls `get_relationship_stats()` per tick when flag is set, accumulates in `_relationship_stats_history`, injected into bundle metadata.
+- **arro3 vs pyarrow API.** pyo3-arrow 0.17 returns `arro3.core.RecordBatch`, not pyarrow. Use `batch.column(name).to_pylist()` for column access. `to_pydict()` does NOT exist on arro3. Convert to pyarrow via `pa.record_batch(batch)` if needed.
+- **Windows Rust test DLL fix.** Python 3.14 DLL (`python314.dll`) lives in `pythoncore-3.14-64/` dir which isn't in PATH. Pre-commit hook must use `export PATH=...` not inline `PATH=... command` — the latter doesn't propagate to cargo's child processes on Windows. Fixed in `.claude/settings.json` hooks.
+- **Module deployment.** After `cargo build --release`, copy `target/release/chronicler_agents.dll` to `<python-site-packages>/chronicler_agents/chronicler_agents.cp314-win_amd64.pyd`. Rename-then-copy pattern needed if the file is locked (old → `.old`, then copy new).
