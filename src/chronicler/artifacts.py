@@ -10,7 +10,7 @@ from chronicler.models import (
     ArtifactIntent, ArtifactLifecycleIntent, Event,
 )
 
-# --- Calibration constants [CALIBRATE M53] ---
+# --- Calibration constants [FROZEN M53 SOFT] ---
 
 CULTURAL_PRODUCTION_CHANCE = 0.15
 GP_PRESTIGE_THRESHOLD = 50

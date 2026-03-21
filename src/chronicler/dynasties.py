@@ -130,8 +130,8 @@ class DynastyRegistry:
 # Succession legitimacy scoring
 # ---------------------------------------------------------------------------
 
-LEGITIMACY_DIRECT_HEIR = 0.15   # [CALIBRATE M53]
-LEGITIMACY_SAME_DYNASTY = 0.08  # [CALIBRATE M53]
+LEGITIMACY_DIRECT_HEIR = 0.15   # [FROZEN M53 SOFT]
+LEGITIMACY_SAME_DYNASTY = 0.08  # [FROZEN M53 SOFT]
 
 
 def compute_dynasty_legitimacy(candidate: dict, civ) -> float:

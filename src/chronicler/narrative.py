@@ -80,8 +80,8 @@ MEMORY_DESCRIPTIONS = {
     11: "the fracture of the {civ}",
 }
 
-MEMORY_NARRATION_VIVID = 60   # [CALIBRATE M53]
-MEMORY_NARRATION_FADING = 30  # [CALIBRATE M53]
+MEMORY_NARRATION_VIVID = 60   # [FROZEN M53 SOFT]
+MEMORY_NARRATION_FADING = 30  # [FROZEN M53 SOFT]
 
 # ---------------------------------------------------------------------------
 # M49: Need descriptions for narration

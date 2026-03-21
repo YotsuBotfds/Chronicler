@@ -38,9 +38,9 @@ from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILI
 from chronicler.emergence import get_severity_multiplier
 
 
-# M48: Mule constants [CALIBRATE M53]
-MULE_ACTIVE_WINDOW = 30   # raised from 25: GP bursts happen at T35-50, need window to reach T65-80
-MULE_FADE_TURNS = 10
+# M48: Mule constants [FROZEN M53 SOFT]
+MULE_ACTIVE_WINDOW = 30   # [FROZEN M53 SOFT] raised from 25
+MULE_FADE_TURNS = 10      # [FROZEN M53 SOFT]
 
 
 def get_mule_factor(gp, action_name: str, current_turn: int) -> float:

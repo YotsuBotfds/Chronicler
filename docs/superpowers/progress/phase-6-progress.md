@@ -228,7 +228,7 @@
 
 ## In Progress
 
-### M53: Depth Tuning Pass — Pass 1 social+autonomy landed, Pass 1d-1f next
+### M53: Depth Tuning Pass — integration pass done, constants frozen
 
 - **Branch:** `feat/m53-depth-tuning` (30 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
@@ -310,8 +310,24 @@
 5. **Overcrowding penalty was zeroing satisfaction.** Uncapped `(pop/cap - 1.0) * 0.3` at 5x capacity gave 1.2 penalty, forcing satisfaction to 0 and blocking all fertility. Cap at 0.30 preserves pressure up to 2x while preventing runaway zeroing. Overcrowding already punished via ecology, disease, and demography.
 6. **This is a provisional baseline**, not the final word. M53 tuning may reveal remaining edge cases that require further demographic adjustment.
 
-**M53 Tasks Complete:** 1-14 (infrastructure + baseline v2), 15-17 (Pass 1a-c), 18-20 (Pass 1d-f)
-**M53 Tasks Next:** 21-23 (integration pass + oracles + freeze)
+**M53 Tasks Complete:** 1-14 (infrastructure + baseline v2), 15-20 (Pass 1a-f), 21 (integration + freeze)
+**M53 Tasks Next:** 22-23 (oracle suite + final gate)
+
+#### Integration Pass Results (Task 21, 20 seeds × 200 turns)
+
+| Metric | T50 | T100 | T200 | Gate |
+|--------|-----|------|------|------|
+| sat_mean | 0.27 | 0.39 | 0.24 | OK (startup dip) |
+| sat_floor_frac | 0.13 (max 0.70) | 0.00 | 0.00 | PASS after T50 |
+| social_below_025 | 0.02 | 0.21 | 0.19 | PASS |
+| autonomy_below_030 | 0.45 | 0.38 | 0.10 | PASS (improving) |
+| safety_below_030 | 0.00 | 0.01 | 0.00 | PASS |
+| mem_slots | 7.17 | 6.20 | 2.40 | PASS |
+| civs | 4.0 | 3.55 | 3.35 | PASS (2-4 range, 20/20) |
+| rebellions/seed | — | — | 85.1 | Active |
+| migrations/seed | — | — | 138.5 | Active |
+
+**Freeze applied:** All `[CALIBRATE M53]` → `[FROZEN M53 HARD]` (4 changed constants) or `[FROZEN M53 SOFT]` (all defaults). Tags in agent.rs, action_engine.py, agent_bridge.py, artifacts.py, dynasties.py, narrative.py.
 
 #### Pass 1d-1f Results (20 seeds × 200 turns, seeds 10-29)
 
