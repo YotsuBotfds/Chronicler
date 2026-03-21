@@ -117,7 +117,7 @@ pub fn default_decay_factor(event_type: u8) -> u8 {
         9 => factor_from_half_life(agent::DEATHOFKIN_HALF_LIFE),
         10 => factor_from_half_life(agent::CONVERSION_HALF_LIFE),
         11 => factor_from_half_life(agent::SECESSION_HALF_LIFE),
-        14 => factor_from_half_life(agent::LEGACY_HALF_LIFE),
+        14 => factor_from_half_life(agent::LEGACY_HALF_LIFE), // Vestigial: M51 legacy memories use original event_type + decay_factor_override
         _ => 0,
     }
 }
