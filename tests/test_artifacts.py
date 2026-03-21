@@ -3,6 +3,7 @@ import pytest
 from chronicler.models import (
     Artifact, ArtifactType, ArtifactStatus,
     ArtifactIntent, ArtifactLifecycleIntent, WorldState,
+    GreatPerson,
 )
 
 
@@ -143,3 +144,16 @@ class TestWorldStateArtifactFields:
         assert '_artifact_intents' not in data
         assert '_artifact_lifecycle_intents' not in data
         assert '_artifact_prestige_by_civ' not in data
+
+
+class TestGreatPersonArtifactField:
+    def test_mule_artifact_created_default_false(self):
+        gp = GreatPerson(
+            name="Kiran the Bold",
+            role="general",
+            trait="courageous",
+            civilization="Kethani Empire",
+            origin_civilization="Kethani Empire",
+            born_turn=10,
+        )
+        assert gp.mule_artifact_created is False
