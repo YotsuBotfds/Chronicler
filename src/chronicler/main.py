@@ -832,6 +832,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         moments, history, gap_summaries, on_progress=progress_cb,
         great_persons=all_great_persons,
         gp_by_name=gp_by_name if gp_by_name else None,
+        world=world,
     )
 
     # M44: Token summary

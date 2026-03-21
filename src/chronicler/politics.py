@@ -1212,6 +1212,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                         region=rn,
                         is_capital=(rn == civ.capital_region),
                         is_destructive=False,
+                        action="twilight_absorption",
                     )
                 to_remove.append(civ)
                 world.exile_modifiers.append(ExileModifier(
@@ -1265,6 +1266,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                 region=rn,
                 is_capital=(rn == civ.capital_region),
                 is_destructive=False,
+                action="twilight_absorption",
             )
         to_remove.append(civ)
 

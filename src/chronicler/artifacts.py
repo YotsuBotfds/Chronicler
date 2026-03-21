@@ -440,6 +440,7 @@ def emit_mule_artifact_intent(world, civ, gp, action_name: str) -> None:
 def emit_conquest_lifecycle_intent(
     world, losing_civ: str, gaining_civ: str, region: str,
     is_capital: bool, is_destructive: bool,
+    action: str = "conquest_transfer",
 ) -> None:
     """Emit a lifecycle intent for conquest or twilight absorption."""
     losing = None
@@ -450,7 +451,7 @@ def emit_conquest_lifecycle_intent(
     is_full = losing is not None and len(losing.regions) == 0
 
     world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
-        action="conquest_transfer",
+        action=action,
         losing_civ=losing_civ,
         gaining_civ=gaining_civ,
         region=region,
@@ -554,6 +555,7 @@ ARTIFACT_DESCRIPTIONS = {
 
 def _get_relevant_artifacts(world, moment, max_count: int = 3) -> list:
     """Return artifacts relevant to a narrative moment (max 3)."""
+    seen = set()
     relevant = []
 
     actor_names = set()
@@ -566,16 +568,19 @@ def _get_relevant_artifacts(world, moment, max_count: int = 3) -> list:
             moment_regions.add(ne.region)
 
     for a in world.artifacts:
-        if a.status != ArtifactStatus.ACTIVE:
+        if a.status != ArtifactStatus.ACTIVE or a.artifact_id in seen:
             continue
         if a.holder_name and a.holder_name in actor_names:
             relevant.append(a)
+            seen.add(a.artifact_id)
             continue
         if a.anchored and a.anchor_region in moment_regions:
             relevant.append(a)
+            seen.add(a.artifact_id)
             continue
         if a.owner_civ in actor_names and (a.mule_origin or a.prestige_value >= 3):
             relevant.append(a)
+            seen.add(a.artifact_id)
 
     return relevant[:max_count]
 
