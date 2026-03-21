@@ -228,58 +228,71 @@
 
 ## In Progress
 
-### M53: Depth Tuning Pass — infrastructure complete, tuning BLOCKED on demographics
+### M53: Depth Tuning Pass — infrastructure complete, demographic substrate partially stabilized
 
-- **Branch:** `feat/m53-depth-tuning` (16 commits, not merged to main)
+- **Branch:** `feat/m53-depth-tuning` (22 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-21-m53-depth-tuning-validation.md` (23 tasks)
-- **Commits this session (infrastructure + diagnosis):**
-  - `4729484` — normalize [CALIBRATE M53] tags (124 individual tags)
-  - `b19959d` — get_all_memories() bulk Arrow FFI export
-  - `385cf23` — get_all_needs() bulk Arrow FFI export with join columns
-  - `0323f15` — sidecar writer/reader (graph snapshots, agent aggregates, community summaries)
-  - `fcb0700` — wire sidecar into simulation loop + relationship-stats metadata
-  - `62f2f9b` — extract_bond_health, extract_era_signals, extract_legacy_chain_metrics
-  - `e0465e3` — validate module scaffold + determinism scrubbed comparison
-  - `432dd09` — Oracle 1: community/cohort detection via label propagation
-  - `cc324d4` — Oracle 2: needs behavioral diversity matched-cohort comparison
-  - `535858f` — Oracle 3: era inflection detection via smoothed changepoints
-  - `0f47f55` — Oracle 4: cohort behavioral distinctiveness vs matched control
-  - `822b14e` — Oracle 5: artifact lifecycle validation
-  - `e57b7d0` — Oracle 6: six emotional arcs civ trajectory classification
-  - `6339077` — fix sidecar arro3 API + M52 self.world bug
-  - `c284b01` — baseline sweep (40×200 seeds, agent extinction at turn 77)
-  - `f075c74` — fix demographics: mixed age seeding + debug counters
-- **Tests:** 16 Python tests (3 sidecar, 3 analytics, 10 validate), 2 Rust FFI tests. All passing.
-- **New files:** `src/chronicler/validate.py`, `src/chronicler/sidecar.py`, `tests/test_validate.py`, `tests/test_sidecar.py`, `tests/test_m53_analytics.py`, `scripts/m53_baseline.py`, `chronicler-agents/tests/test_m53_ffi.rs`
-- **Modified files:** `chronicler-agents/src/ffi.rs` (3 FFI exports + age seeding + debug counters), `chronicler-agents/src/agent.rs` (INITIAL_AGE_STREAM_OFFSET + tag normalization), `chronicler-agents/src/lib.rs` (AgentSimulator re-export), `src/chronicler/agent_bridge.py` (sidecar wiring + M52 bug fix), `src/chronicler/main.py` (--validation-sidecar + --relationship-stats wiring), `src/chronicler/analytics.py` (3 new extractors, extract_relationship_metrics → extract_bond_health rename)
+- **Commits — infrastructure (prior session):**
+  - `4729484`..`f075c74` — 16 commits: tag normalization, FFI exports, sidecar, analytics, validate scaffold, 6 oracles, baseline sweep, mixed age seeding
+- **Commits — demographic fix (this session):**
+  - `5135522` — fix(determinism): replace hash()-based seeds with stable SHA256 helper
+  - `b6972aa` — feat(m53): demographic debug infrastructure + disease probe
+  - `9e36df1` — fix(demographics): disease mortality additive → multiplicative
+  - `ebec710` — fix(demographics): B+C+D constants + younger-fertile age mix
+- **Tests:** 393 Rust tests (1 new disease-at-cap test), 16 Python tests. All passing.
+- **New files this session:** `scripts/m53_demographics_probe.py` (probe harness with per-turn diagnostic output)
+- **Key changes this session:**
+  - `DemographicDebug` struct in tick.rs — 13 per-tick counters (deaths by age band, disease/war/eco attribution, fertile-eligible by occupation, expected rates, sat-near-threshold)
+  - `get_demographic_debug()` + `get_age_histogram()` FFI methods on AgentSimulator
+  - Birth counter bug fix: ffi.rs was counting event_type==3 (occ_switch) not 5 (birth)
+  - Disease mortality formula: additive → multiplicative (`base*eco*war*(1+disease*SCALE)`)
+  - `DISEASE_MORTALITY_SCALE=10.0` [CALIBRATE M53] — at cap 0.15: 2.5x mortality (was 16x additive)
+  - `MORTALITY_ADULT` 0.01→0.005, `MORTALITY_ELDER` 0.05→0.03
+  - `FERTILITY_BASE_FARMER` 0.03→0.05, `FERTILITY_BASE_OTHER` 0.015→0.03
+  - Age mix: 20/55/20/5% at 0-15/16-30/31-45/46-60 (was 30/50/15/5%, no elders at spawn)
 
-#### Session Handoff — BLOCKING: Agent Demographic Collapse
+#### Session Handoff — Demographics Partially Stabilized, Generational Gap Remaining
 
-**The Problem:** Agent population collapses to 0 in ~80 turns at default constants. 40-seed baseline showed mean extinction at turn 77. This is a **substrate problem**, not an M53 calibration problem — the depth system constants (M48-M51) are 5th-priority clamped under the 0.40 penalty cap and contribute negligibly to the collapse.
+**Current state:** 7/20 seeds extinct by T200 (was 20/20 pre-fix). Population survives to T100+ in most seeds. The remaining extinction mode is **generational handoff failure** — the initial cohort ages out of fertility before enough second-generation agents mature, population drops below ~20, stochastic die-off follows.
 
-**Root Cause (diagnosed):**
-1. **Initial age seeding was all age=0** — no agents started in the fertile age range (16-45). Fixed in `f075c74` with mixed age distribution, but collapse still occurs (362→14 agents in 30 turns, only 13 births total).
-2. **40:1 death-to-birth ratio** — at default constants, mortality vastly exceeds fertility. Per-turn debug log (turn 0-5): 12-64 deaths/turn, 0 births/turn. Even after age fix, births peak at ~4/turn vs 18-46 deaths/turn.
-3. **Likely contributing factors** (not yet isolated): high `eco_stress` from low soil/water, `WAR_CASUALTY_MULTIPLIER=2.0` on soldiers, possibly `endemic_severity` adding directly to mortality rate.
+**Probe results summary (all 20 seeds × 200 turns, seeds 10-29):**
+
+| Configuration | Extinctions | Alive T50 | Alive T100 | B/D T20-40 |
+|---------------|-------------|-----------|------------|------------|
+| Pre-fix (additive disease) | ~20/20 | 8 | 1 | 0.13 |
+| Mult disease only | — | 82 | 17 | 0.15 |
+| B+C (mort+fert) | — | 133 | 38 | 0.14 |
+| B+C+D (+ elder) | 6/10 | 172 | 39 | 0.20 |
+| B+C+D+age-mix (current) | **7/20** | **188** | **27** | **0.17** |
+| Disease cap 0.10 | 11/20 | 204 | 26 | 0.16 |
+| War casualty 1.5 | 11/20 | 176 | 20 | 0.13 |
+| FERTILITY_AGE_MIN 14 | 9/20 | 178 | 27 | 0.13 |
+| FERTILITY_AGE_MAX 50 | **6/20** | 187 | **36** | **0.18** |
+
+**Key findings:**
+1. **Disease was the primary killer.** Additive `+disease_severity` in mortality formula gave 16%/turn adult mortality at cap. Multiplicative fix alone gave 10x survival improvement.
+2. **Disease and war are population stabilizers, not just killers.** Reducing disease cap (0.15→0.10) or war casualty (2.0→1.5) both caused MORE extinctions via overshoot-collapse.
+3. **FERTILITY_AGE_MAX=50 is the most promising next lever** (6/20 extinct, best T100 count) — extends generational overlap so first-gen agents produce births longer while second-gen matures. Not yet committed.
+4. **FERTILITY_AGE_MIN=14 doesn't help** — too few agents in that band.
+5. **Birth counter was wrong** — old code counted occ_switches as births. Real birth counts were much lower than reported.
+6. **Determinism fix landed** — Python hash()-based seeds replaced with SHA256. All prior probes used non-deterministic seeds; results validated on new seed ranges post-fix.
 
 **What Needs to Happen Next:**
-1. Add per-turn demographic breakdown to debug log: deaths by age band (young/adult/elder), deaths with eco_stress > 1.0, deaths with is_soldier_at_war, count of fertility-eligible agents with satisfaction > 0.3. The `last_tick_deaths`/`last_tick_births`/`last_tick_alive` counters are already on `AgentSimulator` — extend with category breakdowns.
-2. Reduce `MORTALITY_ADULT` (currently 0.01/turn = 1%) — try 0.005 first. This is in `agent.rs:31`.
-3. Increase `FERTILITY_BASE_FARMER` (currently 0.03) and `FERTILITY_BASE_OTHER` (currently 0.015) — try 0.05/0.03.
-4. If collapse persists, check `endemic_severity` passed to `mortality_rate()` — this is added directly and could dominate.
-5. Only resume M53 depth system tuning (Tasks 15-20) after agents survive 200+ turns with stable or growing population.
+1. **Probe FERTILITY_AGE_MAX=50** combined with current baseline — commit if it gets <=3-4/20 extinctions.
+2. If still >3-4/20, consider **carrying capacity feedback on fertility** or **age-dependent fertility curve** (structural change, not constant tweak).
+3. If <=3-4/20 achieved, formalize as the demographic substrate baseline and resume M53 depth tuning (Tasks 14-23).
+4. **Do NOT touch disease cap or war casualty** — they're functioning as beneficial population regulators.
 
-**M53 Tasks Complete (infrastructure):** 1-13 (tag normalization, FFI exports, sidecar, analytics, validate scaffold, 6 oracles)
-**M53 Tasks Blocked (tuning):** 14-23 (baseline sweep done but results show collapse; system passes, integration gate, oracle suite all require stable demographics)
-
-**Uncommitted:** `.claude/settings.json` has updated hooks (Python DLL dir in PATH for cargo test on Windows). Not committed because it's project settings, not implementation code.
+**M53 Tasks Complete (infrastructure):** 1-13
+**M53 Tasks Blocked (tuning):** 14-23 — require <=2-3/20 extinction rate before proceeding
 
 #### Other Fixes This Session
 
-- **M52 bug: `self.world` → `world` in `_process_promotions()`** (`6339077`). Pre-existing bug where `emit_gp_artifact_intent` was called with `self.world` but AgentBridge doesn't store world as instance attribute.
-- **Rust test DLL issue:** `python314.dll` not in PATH for cargo test on Windows. Diagnosed: Python core dir (`pythoncore-3.14-64/`) not in PATH. Fixed via `export PATH` in pre-commit hook and cargo check hook. Use `export` not inline `PATH=...` — the latter doesn't propagate to cargo's child processes on Windows.
-- **arro3 vs pyarrow:** pyo3-arrow 0.17 returns `arro3.core.RecordBatch` not pyarrow. Use `batch.column(name).to_pylist()` for column access, not `batch.to_pydict()`. Fixed in sidecar wiring (`6339077`).
+- **Determinism fix (`5135522`):** Python hash() seeds replaced with stable SHA256 helper in `utils.py`. Wired through 12 modules. 159 tests pass, cross-process determinism verified.
+- **Birth counter bug (`b6972aa`):** ffi.rs `last_tick_births` was filtering event_type==3 (occ_switch) instead of 5 (birth). Prior "13 births total" was counting occupation switches.
+- **M52 bug (`6339077`, prior session):** `self.world` → `world` in `_process_promotions()`.
+- **Rust test DLL / arro3 issues** (prior session, still documented in gotchas).
 
 ### M51: Multi-Generational Memory — spec + plan complete, ready for implementation
 
@@ -307,9 +320,9 @@
 ## Ready for Implementation
 
 **Next steps:**
-- **PRIORITY: Fix agent demographic collapse** — prerequisite for M53 tuning. See M53 session handoff above.
-- M51 implementation (spec + plan ready, 14 tasks)
-- M53 depth system tuning (Tasks 15-23) — blocked on demographics fix
+- **PRIORITY: Finish demographic stabilization** — probe FERTILITY_AGE_MAX=50 next, then decide if structural fertility changes needed. Target: <=2-3/20 extinctions at 200 turns. See M53 session handoff.
+- M51 implementation (spec + plan ready, 14 tasks) — can proceed in parallel on separate branch
+- M53 depth system tuning (Tasks 14-23) — blocked on demographic gate
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -371,7 +384,11 @@
 - **M50b: `check_friend` evaluates compatibility before shared memory.** Spec cascade puts expensive checks last. At current memory slot counts (5 max), cost difference is negligible. Low priority.
 - **M49: Phase 7 roadmap estimates ~24 M49 constants.** Actual count is 37. Update roadmap when next editing it.
 - **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Verify numerically in M53 Tier 3 calibration.
-- **CRITICAL: Agent demographic collapse.** All agents die within ~80 turns at default constants. Root cause: age=0 initial seeding (fixed) + base mortality >> fertility (not yet fixed). The depth systems (M48-M51) are NOT the cause — they're 5th-priority clamped. Fix `MORTALITY_ADULT` and `FERTILITY_BASE_*` in `agent.rs` before resuming M53 tuning.
+- **Demographics: generational handoff gap.** Population declines through T80-150 as initial cohort ages out of fertility before second generation matures. 7/20 seeds extinct at T200 with current constants. Disease and war are stabilizers (reducing them causes overshoot-collapse). Next lever: FERTILITY_AGE_MAX=50 (6/20 in isolated probe). Do NOT touch disease cap or war casualty.
+- **Disease mortality is multiplicative (M53 fix).** Formula changed from `base*eco*war + disease` to `base*eco*war*(1+disease*SCALE)`. DISEASE_MORTALITY_SCALE=10.0 [CALIBRATE M53]. At cap 0.15: 2.5x mortality. Old additive formula gave 16%/turn at cap — primary cause of original population collapse.
+- **Disease/war volatility reduction causes overshoot-collapse.** Lowering DISEASE_SEVERITY_CAP (0.15→0.10) or WAR_CASUALTY_MULTIPLIER (2.0→1.5) both increased extinctions from 7/20 to 11/20. These pressure sources prevent population overshoot that leads to harder crashes. Counterintuitive but confirmed across 20-seed probes.
+- **Birth counter was wrong prior to `b6972aa`.** ffi.rs `last_tick_births` filtered event_type==3 (occ_switch) not 5 (birth). All prior birth count reports from `last_tick_births` were measuring occupation switches. Fixed.
+- **Determinism: Python hash() seeds were non-deterministic.** Fixed in `5135522` with SHA256-based `stable_seed()` in utils.py. All prior M53 cross-process comparisons were invalid. Bundle timestamps remain non-deterministic metadata (acceptable).
 - **M52: `self.world` bug in `_process_promotions()`.** Fixed in `6339077`. `emit_gp_artifact_intent` was called with `self.world` but AgentBridge doesn't store world as instance attribute.
 - **~~M50b: `--relationship-stats` flag not wired.~~** Wired in M53 (`fcb0700`). `AgentBridge` now calls `get_relationship_stats()` per tick when flag is set, accumulates in `_relationship_stats_history`, injected into bundle metadata.
 - **arro3 vs pyarrow API.** pyo3-arrow 0.17 returns `arro3.core.RecordBatch`, not pyarrow. Use `batch.column(name).to_pylist()` for column access. `to_pydict()` does NOT exist on arro3. Convert to pyarrow via `pa.record_batch(batch)` if needed.
