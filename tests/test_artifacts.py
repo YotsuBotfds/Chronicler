@@ -5,7 +5,7 @@ from chronicler.models import (
     ArtifactIntent, ArtifactLifecycleIntent, WorldState,
     GreatPerson,
 )
-from chronicler.artifacts import tick_artifacts, PRESTIGE_BY_TYPE
+from chronicler.artifacts import tick_artifacts, PRESTIGE_BY_TYPE, _prosperity_gate, select_cultural_artifact_type
 
 
 def _make_world_with_civ(civ_name="TestCiv", region_name="Region1", values=None):
@@ -373,3 +373,86 @@ class TestTickArtifactsCreation:
         tick_artifacts(world)
         assert len(world.artifacts[0].history) == 1
         assert "turn 10" in world.artifacts[0].history[0]
+
+
+class TestProsperityGate:
+    def test_prosperous_civ_passes(self):
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 50
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 0
+        world.active_wars = []
+        assert _prosperity_gate(civ, world) is True
+
+    def test_low_stability_fails(self):
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 60
+        civ.treasury = 50
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 0
+        world.active_wars = []
+        assert _prosperity_gate(civ, world) is False
+
+    def test_at_war_fails(self):
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 50
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 0
+        world.active_wars = [("TestCiv", "EnemyCiv")]
+        assert _prosperity_gate(civ, world) is False
+
+    def test_in_decline_fails(self):
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 50
+        civ.decline_turns = 3
+        civ.succession_crisis_turns_remaining = 0
+        world.active_wars = []
+        assert _prosperity_gate(civ, world) is False
+
+    def test_succession_crisis_fails(self):
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 50
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 5
+        world.active_wars = []
+        assert _prosperity_gate(civ, world) is False
+
+    def test_low_treasury_fails(self):
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 10
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 0
+        world.active_wars = []
+        assert _prosperity_gate(civ, world) is False
+
+
+class TestCulturalArtifactTypeSelection:
+    def test_returns_valid_type(self):
+        from chronicler.models import Civilization, Leader
+        civ = Civilization(
+            name="TestCiv", values=["Knowledge"], leader=Leader(name="L", trait="t", reign_start=0),
+            regions=["R1"],
+        )
+        atype = select_cultural_artifact_type(civ, seed=42)
+        assert atype in (ArtifactType.ARTWORK, ArtifactType.TREATISE, ArtifactType.MONUMENT)
+
+    def test_deterministic(self):
+        from chronicler.models import Civilization, Leader
+        civ = Civilization(
+            name="TestCiv", values=["Knowledge"], leader=Leader(name="L", trait="t", reign_start=0),
+            regions=["R1"],
+        )
+        t1 = select_cultural_artifact_type(civ, seed=42)
+        t2 = select_cultural_artifact_type(civ, seed=42)
+        assert t1 == t2

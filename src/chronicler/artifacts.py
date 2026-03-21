@@ -244,6 +244,47 @@ def tick_artifacts(world) -> list[Event]:
     return events
 
 
+def _prosperity_gate(civ, world) -> bool:
+    """Check whether a civ is in a prosperous enough state for cultural production."""
+    return (
+        civ.stability > PROSPERITY_STABILITY_THRESHOLD
+        and civ.treasury >= PROSPERITY_TREASURY_THRESHOLD
+        and not any(civ.name in war for war in world.active_wars)
+        and civ.decline_turns == 0
+        and civ.succession_crisis_turns_remaining == 0
+    )
+
+
+def select_cultural_artifact_type(civ, seed: int) -> ArtifactType:
+    """Select cultural artifact type, biased by faction dominance."""
+    import random as _random
+    rng = _random.Random(seed)
+
+    weights = {
+        ArtifactType.ARTWORK: 1.0,
+        ArtifactType.TREATISE: 1.0,
+        ArtifactType.MONUMENT: 1.0,
+    }
+
+    if hasattr(civ, 'factions') and civ.factions is not None:
+        from chronicler.factions import get_dominant_faction
+        try:
+            dominant = get_dominant_faction(civ.factions).value
+            if dominant == "cultural":
+                weights[ArtifactType.ARTWORK] = 2.0
+                weights[ArtifactType.TREATISE] = 1.5
+            elif dominant == "military":
+                weights[ArtifactType.MONUMENT] = 2.0
+            elif dominant == "merchant":
+                weights[ArtifactType.ARTWORK] = 1.5
+        except (ValueError, AttributeError):
+            pass
+
+    types = list(weights.keys())
+    w = [weights[t] for t in types]
+    return rng.choices(types, weights=w, k=1)[0]
+
+
 def _roman(n: int) -> str:
     """Simple roman numeral for small collision suffixes."""
     numerals = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
