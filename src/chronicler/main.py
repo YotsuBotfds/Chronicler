@@ -477,6 +477,7 @@ def execute_run(
             moments, history, gap_summaries, on_progress=progress_cb,
             great_persons=all_great_persons,
             gp_by_name=gp_by_name if gp_by_name else None,
+            world=world,
         )
 
         print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")

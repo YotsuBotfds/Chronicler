@@ -919,6 +919,8 @@ class NarrativeEngine:
         economy_result=None,
         # M45: Arc summary follow-up (API mode only)
         gp_by_name: dict | None = None,
+        # M52: World state for artifact context in prompts
+        world=None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments.
 
@@ -927,6 +929,9 @@ class NarrativeEngine:
         Per-moment fallback on LLM failure (mechanical summary, batch continues).
         Progress: on_progress(completed, total, eta_seconds).
         """
+        # M52: Store world for artifact context
+        self._world = world
+
         # Build prompts and context for all moments up front
         prepared = self._prepare_narration_prompts(
             moments, history, great_persons, social_edges,
@@ -1050,6 +1055,15 @@ class NarrativeEngine:
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
 
+            # M52: Artifact context
+            artifact_context_text = ""
+            if hasattr(self, '_world') and self._world is not None:
+                from chronicler.artifacts import _get_relevant_artifacts, render_artifact_context
+                relevant_artifacts = _get_relevant_artifacts(self._world, moment)
+                artifact_context_text = render_artifact_context(relevant_artifacts)
+                if artifact_context_text:
+                    artifact_context_text = "\n\n" + artifact_context_text
+
             snap = _closest_snap(snap_map, moment.anchor_turn)
             dominant_era = get_dominant_era(moment, snap) if snap else "tribal"
             era_voice, era_style = ERA_REGISTER.get(dominant_era, ERA_REGISTER["tribal"])
@@ -1071,7 +1085,7 @@ class NarrativeEngine:
 
 TURNS {moment.turn_range[0]}-{moment.turn_range[1]}:
 
-EVENTS:{event_text}{named_text}{causal_text}{context_text}{agent_context_text}{style_text}
+EVENTS:{event_text}{named_text}{causal_text}{context_text}{agent_context_text}{artifact_context_text}{style_text}
 
 Write 3-5 paragraphs of chronicle prose for this moment.
 Respond only with the chronicle prose. No preamble, no markdown formatting."""

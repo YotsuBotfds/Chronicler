@@ -535,3 +535,59 @@ def _roman(n: int) -> str:
     numerals = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
                 6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X"}
     return numerals.get(n, str(n))
+
+
+# ---------------------------------------------------------------------------
+# M52 Task 12: Narrative integration — artifact context for narrator prompts
+# ---------------------------------------------------------------------------
+
+ARTIFACT_DESCRIPTIONS = {
+    ArtifactType.RELIC: "a sacred relic",
+    ArtifactType.WEAPON: "a legendary weapon",
+    ArtifactType.MONUMENT: "a great monument",
+    ArtifactType.ARTWORK: "a renowned work of art",
+    ArtifactType.TREATISE: "a scholarly treatise",
+    ArtifactType.MANIFESTO: "a political manifesto",
+    ArtifactType.TRADE_GOOD: "a prized luxury",
+}
+
+
+def _get_relevant_artifacts(world, moment, max_count: int = 3) -> list:
+    """Return artifacts relevant to a narrative moment (max 3)."""
+    relevant = []
+
+    actor_names = set()
+    for e in moment.events:
+        actor_names.update(e.actors)
+
+    moment_regions = set()
+    for ne in moment.named_events:
+        if hasattr(ne, 'region') and ne.region:
+            moment_regions.add(ne.region)
+
+    for a in world.artifacts:
+        if a.status != ArtifactStatus.ACTIVE:
+            continue
+        if a.holder_name and a.holder_name in actor_names:
+            relevant.append(a)
+            continue
+        if a.anchored and a.anchor_region in moment_regions:
+            relevant.append(a)
+            continue
+        if a.owner_civ in actor_names and (a.mule_origin or a.prestige_value >= 3):
+            relevant.append(a)
+
+    return relevant[:max_count]
+
+
+def render_artifact_context(artifacts: list) -> str:
+    """Render artifact context block for narrator prompt."""
+    if not artifacts:
+        return ""
+    lines = ["ARTIFACTS:"]
+    for a in artifacts:
+        holder_info = f"held by {a.holder_name}" if a.holder_name else (
+            f"temple-bound in {a.anchor_region}" if a.anchored else f"owned by {a.owner_civ}"
+        )
+        lines.append(f"- {a.name} ({a.artifact_type.value}, {holder_info}) — {a.origin_event}")
+    return "\n".join(lines)

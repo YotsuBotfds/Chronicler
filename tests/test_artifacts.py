@@ -904,3 +904,65 @@ class TestRelicConversionBonus:
         modifier = get_relic_conversion_modifier(world, region)
         expected = 1.0 + 0.15
         assert abs(modifier - expected) < 0.01
+
+
+class TestArtifactNarrativeContext:
+    def test_get_relevant_artifacts_character_held(self):
+        from chronicler.artifacts import _get_relevant_artifacts
+        from chronicler.models import NarrativeMoment, NarrativeRole, Event
+        world = _make_world_with_civ()
+        _make_active_artifact(
+            world, ArtifactType.WEAPON, anchored=False, owner_civ="TestCiv",
+            holder_name="Kiran", holder_born_turn=8,
+        )
+        moment = NarrativeMoment(
+            anchor_turn=10, turn_range=(9, 11),
+            events=[Event(turn=10, event_type="war", actors=["Kiran", "TestCiv"],
+                         description="Battle", importance=8)],
+            named_events=[], score=10.0, causal_links=[],
+            narrative_role=NarrativeRole.CLIMAX, bonus_applied=0,
+        )
+        relevant = _get_relevant_artifacts(world, moment)
+        assert len(relevant) == 1
+        assert relevant[0].holder_name == "Kiran"
+
+    def test_get_relevant_artifacts_max_3(self):
+        from chronicler.artifacts import _get_relevant_artifacts
+        from chronicler.models import NarrativeMoment, NarrativeRole, Event
+        world = _make_world_with_civ()
+        for i in range(5):
+            _make_active_artifact(
+                world, ArtifactType.RELIC, anchored=True,
+                owner_civ="TestCiv", region="Region1",
+            )
+        moment = NarrativeMoment(
+            anchor_turn=10, turn_range=(9, 11),
+            events=[Event(turn=10, event_type="war", actors=["TestCiv"],
+                         description="Battle", importance=8)],
+            named_events=[], score=10.0, causal_links=[],
+            narrative_role=NarrativeRole.CLIMAX, bonus_applied=0,
+        )
+        relevant = _get_relevant_artifacts(world, moment)
+        assert len(relevant) <= 3
+
+    def test_render_artifact_context(self):
+        from chronicler.artifacts import render_artifact_context
+        a = Artifact(
+            artifact_id=1, name="The Iron Blade of Tessara",
+            artifact_type=ArtifactType.WEAPON, anchored=False,
+            origin_turn=5, origin_event="Forged at promotion",
+            origin_region="Tessara", creator_name="Kiran",
+            creator_civ="Kethani", owner_civ="Kethani",
+            holder_name="Kiran", holder_born_turn=8,
+            anchor_region=None, prestige_value=2,
+            status=ArtifactStatus.ACTIVE, history=["created"],
+        )
+        text = render_artifact_context([a])
+        assert "ARTIFACTS:" in text
+        assert "The Iron Blade of Tessara" in text
+        assert "weapon" in text.lower()
+        assert "Kiran" in text
+
+    def test_render_empty_returns_empty(self):
+        from chronicler.artifacts import render_artifact_context
+        assert render_artifact_context([]) == ""
