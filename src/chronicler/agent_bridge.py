@@ -717,6 +717,10 @@ class AgentBridge:
                             gp.utility_overrides = MULE_MAPPING[event_type]
                             _append_deed(gp, f"Mule: shaped by memory type {event_type}")
 
+            # M52: GP artifact intent
+            from chronicler.artifacts import emit_gp_artifact_intent
+            emit_gp_artifact_intent(self.world, civ, gp)
+
         return created
 
     def _process_deaths(self, raw_events, world) -> list:

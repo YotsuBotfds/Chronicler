@@ -726,3 +726,69 @@ class TestTempleRelicIntent:
         tick_infrastructure(world)
 
         assert len(world._artifact_intents) == 0
+
+
+class TestGPPromotionIntent:
+    def test_high_prestige_general_promotion_emits_weapon_intent(self):
+        from chronicler.artifacts import GP_PRESTIGE_THRESHOLD
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = GP_PRESTIGE_THRESHOLD + 10
+        world._artifact_intents = []
+        world.turn = 15
+
+        from chronicler.artifacts import emit_gp_artifact_intent
+        gp = GreatPerson(
+            name="Kiran", role="general", trait="brave", civilization="TestCiv",
+            origin_civilization="TestCiv", born_turn=15,
+        )
+        emit_gp_artifact_intent(world, civ, gp)
+        assert len(world._artifact_intents) == 1
+        assert world._artifact_intents[0].artifact_type == ArtifactType.WEAPON
+        assert world._artifact_intents[0].holder_name == "Kiran"
+
+    def test_low_prestige_no_intent(self):
+        from chronicler.artifacts import GP_PRESTIGE_THRESHOLD
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = GP_PRESTIGE_THRESHOLD - 10
+        world._artifact_intents = []
+
+        from chronicler.artifacts import emit_gp_artifact_intent
+        gp = GreatPerson(
+            name="Kiran", role="general", trait="brave", civilization="TestCiv",
+            origin_civilization="TestCiv", born_turn=15,
+        )
+        emit_gp_artifact_intent(world, civ, gp)
+        assert len(world._artifact_intents) == 0
+
+    def test_prophet_promotion_emits_relic(self):
+        from chronicler.artifacts import GP_PRESTIGE_THRESHOLD
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = GP_PRESTIGE_THRESHOLD + 10
+        world._artifact_intents = []
+
+        from chronicler.artifacts import emit_gp_artifact_intent
+        gp = GreatPerson(
+            name="Prophet", role="prophet", trait="wise", civilization="TestCiv",
+            origin_civilization="TestCiv", born_turn=20,
+        )
+        emit_gp_artifact_intent(world, civ, gp)
+        assert len(world._artifact_intents) == 1
+        assert world._artifact_intents[0].artifact_type == ArtifactType.RELIC
+
+    def test_exile_promotion_no_artifact(self):
+        from chronicler.artifacts import GP_PRESTIGE_THRESHOLD
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = GP_PRESTIGE_THRESHOLD + 10
+        world._artifact_intents = []
+
+        from chronicler.artifacts import emit_gp_artifact_intent
+        gp = GreatPerson(
+            name="Exile", role="exile", trait="shrewd", civilization="TestCiv",
+            origin_civilization="TestCiv", born_turn=20,
+        )
+        emit_gp_artifact_intent(world, civ, gp)
+        assert len(world._artifact_intents) == 0

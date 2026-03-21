@@ -234,6 +234,11 @@ def check_great_person_generation(civ: Civilization, world: WorldState) -> list[
             spawned.append(gp)
             civ.event_counts["prophet_trigger"] = 0
 
+    # M52: GP artifact intent (aggregate mode)
+    from chronicler.artifacts import emit_gp_artifact_intent
+    for gp in spawned:
+        emit_gp_artifact_intent(world, civ, gp)
+
     return spawned
 
 

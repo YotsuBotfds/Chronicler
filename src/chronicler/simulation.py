@@ -566,6 +566,12 @@ def phase_action(
         # Track action counts (for trait evolution)
         civ.action_counts[action.value] = civ.action_counts.get(action.value, 0) + 1
 
+        # M52: Mule artifact on action success
+        from chronicler.artifacts import emit_mule_artifact_intent
+        for gp in civ.great_persons:
+            if gp.mule and gp.active:
+                emit_mule_artifact_intent(world, civ, gp, action.name)
+
         events.append(event)
 
     return events

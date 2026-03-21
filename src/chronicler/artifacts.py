@@ -345,6 +345,80 @@ def tick_artifacts(world) -> list[Event]:
     return events
 
 
+_GP_ROLE_TO_ARTIFACT = {
+    "general": (ArtifactType.WEAPON, True),
+    "prophet": (ArtifactType.RELIC, False),
+    "merchant": (ArtifactType.ARTWORK, False),
+    "scientist": (ArtifactType.TREATISE, False),
+}
+
+
+def emit_gp_artifact_intent(world, civ, gp) -> None:
+    """Emit artifact creation intent for a newly promoted GP, if prestige threshold is met."""
+    if civ.prestige < GP_PRESTIGE_THRESHOLD:
+        return
+    mapping = _GP_ROLE_TO_ARTIFACT.get(gp.role)
+    if mapping is None:
+        return
+
+    artifact_type, character_held = mapping
+    region = gp.origin_region or civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
+
+    world._artifact_intents.append(ArtifactIntent(
+        artifact_type=artifact_type,
+        trigger="gp_promotion",
+        creator_name=gp.name,
+        creator_born_turn=gp.born_turn,
+        holder_name=gp.name if character_held else None,
+        holder_born_turn=gp.born_turn if character_held else None,
+        civ_name=civ.name,
+        region_name=region,
+        anchored=None,
+        context=f"Created at the rise of {gp.name}",
+    ))
+
+
+def emit_mule_artifact_intent(world, civ, gp, action_name: str) -> None:
+    """Emit Mule artifact intent on first matching action success."""
+    from chronicler.action_engine import MULE_ACTIVE_WINDOW
+    if not gp.mule or not gp.active or gp.mule_artifact_created:
+        return
+    age = world.turn - gp.born_turn
+    if age > MULE_ACTIVE_WINDOW:
+        return
+
+    if gp.utility_overrides.get(action_name, 1.0) <= 1.0:
+        return
+
+    _MULE_ACTION_ARTIFACTS = {
+        ("general", "WAR"): ArtifactType.RELIC,
+        ("general", "DEVELOP"): ArtifactType.TREATISE,
+        ("merchant", "TRADE"): ArtifactType.TRADE_GOOD,
+        ("merchant", "FUND_INSTABILITY"): ArtifactType.MANIFESTO,
+        ("prophet", "BUILD"): ArtifactType.RELIC,
+        ("scientist", "DEVELOP"): ArtifactType.TREATISE,
+    }
+    artifact_type = _MULE_ACTION_ARTIFACTS.get((gp.role, action_name))
+    if artifact_type is None:
+        return
+
+    region = gp.origin_region or civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
+    world._artifact_intents.append(ArtifactIntent(
+        artifact_type=artifact_type,
+        trigger="mule_action",
+        creator_name=gp.name,
+        creator_born_turn=gp.born_turn,
+        holder_name=gp.name,
+        holder_born_turn=gp.born_turn,
+        civ_name=civ.name,
+        region_name=region,
+        anchored=None,
+        mule_origin=True,
+        context=f"Born of {gp.name}'s influence over {civ.name}",
+    ))
+    gp.mule_artifact_created = True
+
+
 def _prosperity_gate(civ, world) -> bool:
     """Check whether a civ is in a prosperous enough state for cultural production."""
     return (
