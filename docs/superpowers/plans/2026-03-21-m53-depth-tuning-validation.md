@@ -290,13 +290,15 @@ Expected: FAIL — module does not exist
 
 - [ ] **Step 3: Implement `SidecarWriter` and `SidecarReader`**
 
-Create `src/chronicler/sidecar.py`. Use Arrow IPC for graph snapshots (efficient binary), JSON for agent aggregates and community summaries (small, human-readable). Files organized as:
+Create `src/chronicler/sidecar.py`. Use Arrow IPC for graph snapshots and needs snapshots (efficient binary), JSON for agent aggregates and community summaries (small, human-readable). Methods: `write_graph_snapshot()`, `write_needs_snapshot()`, `write_agent_aggregate()`, `write_community_summary()`, plus corresponding readers. Files organized as:
 
 ```
 <seed_dir>/
   validation_summary/
     graph_turn_010.arrow
+    needs_turn_010.arrow
     graph_turn_020.arrow
+    needs_turn_020.arrow
     ...
     aggregate_turn_010.json
     community_turn_100.json
@@ -342,10 +344,13 @@ In `agent_bridge.py`, add `validation_sidecar: bool = False` parameter to `Agent
 
 - [ ] **Step 2: Wire sidecar writer into agent bridge tick**
 
-In `agent_bridge.py`, add sidecar writing logic. When `self._sidecar` is set:
-- Every 10 turns: call `get_all_relationships()` and `get_all_memories()` to write graph+memory snapshot
-- Every 10 turns: compute agent aggregate from snapshot data (satisfaction mean/std, occupation counts, need means, memory occupancy)
-- On validation runs: compute condensed community summary at each snapshot point
+In `agent_bridge.py`, add sidecar writing logic. When `self._sidecar` is set, every 10 turns:
+- Call `self._sim.get_all_relationships()` + `self._sim.get_all_memories()` → write graph+memory snapshot via `self._sidecar.write_graph_snapshot()`
+- Call `self._sim.get_all_needs()` → write needs snapshot via `self._sidecar.write_needs_snapshot()` (Oracle 2 requires this for matched-cohort comparison)
+- Compute `AgentAggregate` from the needs + snapshot data: satisfaction mean/std, occupation counts, per-need means, memory slot occupancy → write via `self._sidecar.write_agent_aggregate()`
+- Compute condensed community summary from graph snapshot → write via `self._sidecar.write_community_summary()`
+
+All three bulk FFI calls (`get_all_relationships`, `get_all_memories`, `get_all_needs`) are called at the same sample points so the data is temporally consistent for oracle joins.
 
 - [ ] **Step 3: Wire `--relationship-stats` → `get_relationship_stats()` → bundle metadata**
 
@@ -723,9 +728,15 @@ def test_artifact_oracle_checks_creation_rate():
 
 - [ ] **Step 2: Implement `check_artifact_lifecycle()`**
 
-Import `extract_artifacts` from `chronicler.analytics` into `validate.py`. Consumes `extract_artifacts()` output. Checks: creation rate (1-3 per civ per 100 turns), type diversity (no type >50%), loss/destruction rate (10-30%), Mule artifact fraction. Relic conversion and narrative visibility checks delegated to narration sample pass.
+Import `extract_artifacts` from `chronicler.analytics` into `validate.py`. `check_artifact_lifecycle()` has two sub-checks:
 
-Note: `validate.py` imports from `analytics.py` for bundle-level extractors (`extract_artifacts`, `extract_era_signals`). The validate module consumes exported data — it does not run the simulation.
+**Sub-check A (bundle-only, runs on full 200-seed gate):** Creation rate (1-3 per civ per 100 turns), type diversity (no type >50%), loss/destruction rate (10-30%), Mule artifact fraction (50-70% of Mules produce artifact). Uses `extract_artifacts()` output.
+
+**Sub-check B (narration sample, runs on 10-seed narrated subset in Task 22 Step 5):** Relic conversion impact (regions with relics show higher conversion rate — compare against `extract_conversion_rates()` output for relic-holding vs non-relic regions). Narrative visibility (>=50% of curated moments involving artifact-holding named characters include artifact context in prose — scan narrated output for artifact names). This sub-check feeds back into the oracle's pass/fail: if Sub-check A passes but Sub-check B fails, the oracle reports "PARTIAL — mechanical OK, narrative gap."
+
+Both sub-checks contribute to the oracle's final result. The oracle is not complete until Task 22 Step 5 runs the narration sample.
+
+Note: `validate.py` imports from `analytics.py` for bundle-level extractors (`extract_artifacts`, `extract_era_signals`, `extract_conversion_rates`). The validate module consumes exported data — it does not run the simulation.
 
 - [ ] **Step 3: Run tests, verify pass**
 
@@ -789,21 +800,21 @@ git commit -m "feat(m53): Oracle 6 — six emotional arcs civ trajectory classif
 
 - [ ] **Step 2: Run smoke gate**
 
-Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 50 --agents hybrid --simulate-only --batch 5 --parallel 4 --validation-sidecar`
-Verify: No crashes, sidecar files written, no NaN/all-zero degeneracy.
+Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 50 --agents hybrid --simulate-only --batch 5 --parallel 4 --validation-sidecar --output output/m53/smoke/chronicle.md`
+Verify: No crashes, sidecar files written in `output/m53/smoke/`, no NaN/all-zero degeneracy.
 
 - [ ] **Step 3: Run determinism check**
 
 Run two identical seeds, verify scrubbed equality:
 ```bash
-PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 50 --agents hybrid --simulate-only
-PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 50 --agents hybrid --simulate-only --output output/determinism_check
-python -m chronicler.validate --batch-dir output/ --oracles determinism
+PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 50 --agents hybrid --simulate-only --output output/m53/determinism_a/chronicle.md
+PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 50 --agents hybrid --simulate-only --output output/m53/determinism_b/chronicle.md
+python -m chronicler.validate --batch-dir output/m53/determinism_a --oracles determinism --compare output/m53/determinism_b
 ```
 
 - [ ] **Step 4: Run baseline sweep**
 
-Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 200 --agents hybrid --simulate-only --batch 40 --parallel 12 --validation-sidecar`
+Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 200 --agents hybrid --simulate-only --batch 40 --parallel 12 --validation-sidecar --output output/m53/baseline/chronicle.md`
 
 - [ ] **Step 5: Collect and save baseline metrics**
 
@@ -833,7 +844,7 @@ From baseline sweep: check memory slot occupancy, intensity distribution, satisf
 For each constant adjustment:
 1. Edit value in `agent.rs`
 2. `cargo build --release -p chronicler-agents` (hooks auto-run cargo check)
-3. Run scout: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 200 --agents hybrid --simulate-only --batch 40 --parallel 12 --validation-sidecar`
+3. Run scout: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 200 --agents hybrid --simulate-only --batch 40 --parallel 12 --validation-sidecar --output output/m53/scout_1a/chronicle.md` (increment suffix per iteration)
 4. Check metrics against targets
 5. Iterate
 
@@ -841,7 +852,7 @@ Key calibration flag to check: **negative modifier trapping** — do memory-driv
 
 - [ ] **Step 3: Run full gate for memory freeze confirmation**
 
-Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --simulate-only --batch 200 --parallel 12`
+Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --simulate-only --batch 200 --parallel 12 --output output/m53/gate_1a/chronicle.md`
 
 - [ ] **Step 4: Record frozen memory constants**
 
@@ -1024,7 +1035,7 @@ git commit -m "tune(m53): Pass 1f — artifact constants (M52)"
 
 - [ ] **Step 1: Run full integration gate**
 
-Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --simulate-only --batch 200 --parallel 12`
+Run: `PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --simulate-only --batch 200 --parallel 12 --output output/m53/integration/chronicle.md`
 
 - [ ] **Step 2: Check cross-system metrics**
 
@@ -1068,7 +1079,7 @@ git commit -m "tune(m53): integration pass complete — all constants frozen"
 
 Run seeds 42-61 (20 seeds) with full validation sidecar:
 ```bash
-PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --simulate-only --batch 20 --parallel 12 --validation-sidecar
+PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --simulate-only --batch 20 --parallel 12 --validation-sidecar --output output/m53/oracle_subset/chronicle.md
 ```
 
 - [ ] **Step 2: Run all oracles**
@@ -1093,7 +1104,7 @@ python -m chronicler.validate --batch-dir output/batch_42 --oracles all
 
 Run 10-seed narration sample for era inflection alignment and artifact narrative visibility:
 ```bash
-PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --narrator api --batch 10
+PYTHONHASHSEED=0 python -m chronicler --seed 42 --turns 500 --agents hybrid --narrator api --batch 10 --output output/m53/narration_sample/chronicle.md
 ```
 
 - [ ] **Step 6: Write validation report**
