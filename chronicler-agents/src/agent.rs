@@ -96,6 +96,8 @@ pub const MEMORY_STREAM_OFFSET: u64 = 900;
 pub const MULE_STREAM_OFFSET: u64 = 1300;
 // M50 — Relationship formation / dissolution (not consumed in M50a)
 pub const RELATIONSHIP_STREAM_OFFSET: u64 = 1100;
+// M53: Initial age seeding (one-time spawn path only)
+pub const INITIAL_AGE_STREAM_OFFSET: u64 = 1400;
 
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
@@ -386,6 +388,7 @@ mod tests {
             MEMORY_STREAM_OFFSET,
             MULE_STREAM_OFFSET,
             RELATIONSHIP_STREAM_OFFSET,
+            INITIAL_AGE_STREAM_OFFSET,
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {

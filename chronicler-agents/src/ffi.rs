@@ -10,7 +10,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
 
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 use crate::agent::{Occupation, PERSONALITY_LABEL_THRESHOLD};
@@ -193,6 +193,13 @@ pub struct AgentSimulator {
     pub kin_bond_failures: u32,
     formation_stats: crate::formation::FormationStats,
     prev_kin_bond_failures: u32,
+    // M53: per-tick demographic counters for debug reporting
+    #[pyo3(get)]
+    pub last_tick_deaths: u32,
+    #[pyo3(get)]
+    pub last_tick_births: u32,
+    #[pyo3(get)]
+    pub last_tick_alive: u32,
 }
 
 #[pymethods]
@@ -218,6 +225,9 @@ impl AgentSimulator {
             kin_bond_failures: 0,
             formation_stats: crate::formation::FormationStats::default(),
             prev_kin_bond_failures: 0,
+            last_tick_deaths: 0,
+            last_tick_births: 0,
+            last_tick_alive: 0,
         }
     }
 
@@ -487,6 +497,12 @@ impl AgentSimulator {
                 );
                 let civ_mean = [0.0f32; 3]; // Civ means not yet available at initial spawn
 
+                // M53: mixed age distribution at initial spawn (was all age=0)
+                let mut age_rng = ChaCha8Rng::from_seed(self.master_seed);
+                age_rng.set_stream(
+                    region_id as u64 * 1000 + crate::agent::INITIAL_AGE_STREAM_OFFSET,
+                );
+
                 // M37: use controller civ's faith_id as initial belief if provided
                 let belief = if let Some(col) = &initial_belief_col {
                     col.value(i)
@@ -494,25 +510,48 @@ impl AgentSimulator {
                     crate::agent::BELIEF_NONE
                 };
 
+                // Fertility-heavy age distribution:
+                //   30% ages 0-15 (young)
+                //   50% ages 16-40 (prime fertile/working)
+                //   15% ages 41-55 (older adult)
+                //    5% ages 56-65 (elder)
+                let mut assign_age = |rng: &mut ChaCha8Rng| -> u16 {
+                    let roll: f32 = rng.gen();
+                    if roll < 0.30 {
+                        (roll / 0.30 * 16.0) as u16
+                    } else if roll < 0.80 {
+                        16 + ((roll - 0.30) / 0.50 * 25.0) as u16
+                    } else if roll < 0.95 {
+                        41 + ((roll - 0.80) / 0.15 * 15.0) as u16
+                    } else {
+                        56 + ((roll - 0.95) / 0.05 * 10.0) as u16
+                    }
+                };
+
                 for _ in 0..n_farmer {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    let age = assign_age(&mut age_rng);
+                    self.pool.spawn(region_id, civ, Occupation::Farmer, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_soldier {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    let age = assign_age(&mut age_rng);
+                    self.pool.spawn(region_id, civ, Occupation::Soldier, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_merchant {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    let age = assign_age(&mut age_rng);
+                    self.pool.spawn(region_id, civ, Occupation::Merchant, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_scholar {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    let age = assign_age(&mut age_rng);
+                    self.pool.spawn(region_id, civ, Occupation::Scholar, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
                 for _ in 0..n_priest {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
-                    self.pool.spawn(region_id, civ, Occupation::Priest, 0, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    let age = assign_age(&mut age_rng);
+                    self.pool.spawn(region_id, civ, Occupation::Priest, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
                 }
             }
 
@@ -608,6 +647,12 @@ impl AgentSimulator {
         self.prev_kin_bond_failures = self.kin_bond_failures;
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
         self.formation_stats = formation_stats;
+
+        // M53: demographic debug counters
+        // event_type 0 = death, 3 = birth (from tick.rs AgentEvent)
+        self.last_tick_deaths = events.iter().filter(|e| e.event_type == 0).count() as u32;
+        self.last_tick_births = events.iter().filter(|e| e.event_type == 3).count() as u32;
+        self.last_tick_alive = self.pool.alive.iter().filter(|&&a| a).count() as u32;
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
