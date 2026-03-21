@@ -29,7 +29,7 @@
 | File | Change | Responsibility |
 |------|--------|---------------|
 | `src/chronicler/models.py` | Modify | Add `Leader` fields (`agent_id`, `dynasty_id`, `throne_name`, `regnal_ordinal`), add `Civilization.regnal_name_counts` |
-| `src/chronicler/leaders.py` | Modify | Add `_pick_regnal_name()`, `to_roman()` helpers; modify `_pick_name()` to also return base_name |
+| `src/chronicler/leaders.py` | Modify | Add `strip_title()`, `_pick_base_name()`, `_pick_regnal_name()`, `to_roman()` helpers; keep `_pick_name()` returning `str` |
 | `src/chronicler/factions.py` | Modify | Extend GP candidate dict, wire legitimacy scoring, lineage bridge in GP winner block |
 | `src/chronicler/dynasties.py` | Modify | Add `compute_dynasty_legitimacy()` function |
 | `src/chronicler/agent_bridge.py` | Modify | Update memory sync dict for 6-tuple |
@@ -741,16 +741,23 @@ git commit -m "feat(m51): Leader regnal fields + Civilization.regnal_name_counts
 
 ---
 
-## Task 8: _pick_regnal_name + to_roman + base_name on GreatPerson
+## Task 8: _pick_base_name + _pick_regnal_name + to_roman + base_name on GreatPerson
 
 **Files:**
-- Modify: `src/chronicler/leaders.py` (add `_pick_regnal_name`, `to_roman`; modify `_pick_name` to return base_name)
+- Modify: `src/chronicler/leaders.py` (add `strip_title`, `_pick_base_name`, `_pick_regnal_name`, `to_roman`)
 - Modify: `src/chronicler/models.py` (add `GreatPerson.base_name`)
-- Modify: `src/chronicler/agent_bridge.py` (set base_name at promotion time)
-- Modify: `src/chronicler/great_persons.py` (set base_name if _pick_name is used there)
+- Modify: `src/chronicler/agent_bridge.py` (set `gp.base_name` at promotion time)
 - Test: `tests/test_m51_regnal.py`
 
-**Design note:** Instead of reverse-parsing display names via `strip_title()`, M51 stores a structured `base_name` on GreatPerson at promotion time. `_pick_name()` already knows the base name before composing `"Title BaseName"` — just return/store it. This avoids coupling regnal logic to display-name parsing and handles multi-word titles ("High Priestess") and title-less fallbacks correctly.
+**Design note:** `_pick_name()` stays unchanged — returns `str`, all existing callers untouched. Instead, M51 adds:
+
+1. **`_pick_base_name(civ, world, rng) -> str`** — the core name-selection logic extracted from `_pick_name()`. Selects a base name from cultural pools without composing a title. `_pick_name()` is refactored to call `_pick_base_name()` internally and compose the display string, but its return type remains `str`.
+
+2. **`strip_title(display_name) -> str`** — reverse-parses an existing display name to extract the base name. Used as a transitional path for existing GPs whose `base_name` field was never set (pre-M51 data). Handles multi-word titles ("High Priestess") via the `TITLES` list.
+
+3. At GP creation/promotion sites, set `gp.base_name = _pick_base_name(...)` when creating a new GP, or `gp.base_name = strip_title(gp.name)` as a transitional fallback for existing named characters.
+
+This avoids touching the 4 unrelated `_pick_name()` callers (hostages, non-ruler GPs, agent promotions) while giving Track B the structured base-name seam it needs.
 
 - [ ] **Step 1: Add `base_name` field to GreatPerson**
 
@@ -760,24 +767,88 @@ In `src/chronicler/models.py`, add to `GreatPerson`:
 base_name: str | None = None  # M51: personal name without title, set at promotion
 ```
 
-- [ ] **Step 2: Modify `_pick_name()` to also store base_name**
+- [ ] **Step 2: Implement `strip_title` and `_pick_base_name`**
 
-`_pick_name()` (leaders.py:154) selects `base_name` from the pool and composes `f"{title} {base_name}"`. Currently it only returns the full string. Two options:
+In `src/chronicler/leaders.py`:
 
-**(a) Return a tuple** — changes all 4+ callers. Invasive.
-**(b) Add an optional out-parameter or return the base_name separately** — awkward in Python.
-**(c) Store base_name on the call site after the fact** — each caller that needs it extracts from the known pool.
+```python
+import re
 
-Simplest approach: **add a module-level helper** `_last_base_name` or return a named tuple. But cleanest: **make `_pick_name()` return `(full_name, base_name)` tuple** and update the 4 call sites (leaders.py:211, great_persons.py:156, relationships.py:335, agent_bridge.py:630). Each call site currently does `name = _pick_name(...)` — change to `name, base_name = _pick_name(...)` and use `base_name` where available. Sites that don't need base_name simply ignore it with `name, _ = _pick_name(...)`.
+def strip_title(display_name: str) -> str:
+    """Extract base name from a display name by stripping known title prefixes
+    and trailing crude Roman numeral sequences."""
+    for title in sorted(TITLES, key=len, reverse=True):  # longest first
+        prefix = title + " "
+        if display_name.startswith(prefix):
+            display_name = display_name[len(prefix):]
+            break
+    # Strip trailing crude 'I' sequences (old numbering fallback)
+    display_name = re.sub(r'\s+I{2,}$', '', display_name)
+    # Strip trailing proper Roman numerals
+    display_name = re.sub(r'\s+(?:XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)$', '', display_name)
+    return display_name.strip()
+
+
+def _pick_base_name(civ, world, rng) -> str:
+    """Select a base name from cultural pools. No title, no used_leader_names gate.
+    This is the name-selection core that _pick_name() wraps."""
+    archetype = get_archetype_for_domains(civ.domains)
+    pool = CULTURAL_NAME_POOLS[archetype]
+    used_bases = set()
+    for used in world.used_leader_names:
+        parts = used.split(" ", 1)
+        used_bases.add(parts[-1] if len(parts) > 1 else parts[0])
+        used_bases.add(used)
+    available = [n for n in pool if n not in used_bases]
+    if not available:
+        available = [n for n in CULTURAL_NAME_POOLS["default"] if n not in used_bases]
+    if not available:
+        return rng.choice(pool)  # fallback: allow reuse
+    return rng.choice(available)
+```
+
+Then optionally refactor `_pick_name()` to call `_pick_base_name()` internally — this is a pure refactor, no behavioral change for any caller:
+
+```python
+def _pick_name(civ, world, rng) -> str:
+    # ... existing custom pool logic (leader_name_pool) stays ...
+    base_name = _pick_base_name(civ, world, rng)
+    title = rng.choice(TITLES)
+    full_name = f"{title} {base_name}"
+    world.used_leader_names.append(full_name)
+    return full_name
+```
+
+- [ ] **Step 2b: Set `gp.base_name` at promotion sites**
+
+At the GP promotion site in `agent_bridge.py` (~line 630 where `_pick_name()` is called), set `gp.base_name` after the name is generated:
+
+```python
+gp.base_name = strip_title(gp.name)
+```
+
+This uses `strip_title` as a transitional path since `_pick_name()` still returns just a string. For newly created GPs, the base_name will always be accurate because `strip_title` operates on a name that was just composed from known components.
 
 - [ ] **Step 3: Write failing tests**
 
 ```python
-from chronicler.leaders import to_roman, _pick_regnal_name
+from chronicler.leaders import to_roman, strip_title, _pick_base_name, _pick_regnal_name
 from chronicler.models import Civilization, Leader
 
 def _make_civ(name="Aram"):
     return Civilization(name=name, leader=Leader(name="Founder", trait="bold", reign_start=0))
+
+def test_strip_title_single_word():
+    assert strip_title("Emperor Kiran") == "Kiran"
+
+def test_strip_title_multi_word():
+    assert strip_title("High Priestess Mira") == "Mira"
+
+def test_strip_title_no_title():
+    assert strip_title("Kiran") == "Kiran"
+
+def test_strip_title_with_numeral():
+    assert strip_title("Kiran III") == "Kiran"
 
 def test_to_roman():
     assert to_roman(2) == "II"
@@ -815,7 +886,7 @@ Note: `_make_world_with_civs` is a test helper — construct a minimal `WorldSta
 Run: `pytest tests/test_m51_regnal.py::test_to_roman -v`
 Expected: FAIL — function not found
 
-- [ ] **Step 5: Implement to_roman**
+- [ ] **Step 5: Implement to_roman** (strip_title and _pick_base_name already in Step 2)
 
 In `src/chronicler/leaders.py`, add:
 
@@ -831,7 +902,7 @@ def to_roman(n: int) -> str:
     return result
 ```
 
-- [ ] **Step 6: Implement _pick_regnal_name**
+- [ ] **Step 6: Implement _pick_regnal_name** (uses _pick_base_name internally for name pool selection)
 
 ```python
 def _pick_regnal_name(
@@ -876,7 +947,7 @@ Expected: PASS
 
 ```
 git add src/chronicler/leaders.py tests/test_m51_regnal.py
-git commit -m "feat(m51): _pick_regnal_name, to_roman, strip_title helpers"
+git commit -m "feat(m51): _pick_base_name, _pick_regnal_name, to_roman, strip_title helpers + GreatPerson.base_name"
 ```
 
 ---
