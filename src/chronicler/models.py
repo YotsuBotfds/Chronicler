@@ -129,6 +129,22 @@ class InfrastructureType(str, Enum):
     TEMPLES = "temples"
 
 
+class ArtifactType(str, Enum):
+    RELIC = "relic"
+    WEAPON = "weapon"
+    MONUMENT = "monument"
+    ARTWORK = "artwork"
+    TREATISE = "treatise"
+    MANIFESTO = "manifesto"
+    TRADE_GOOD = "trade_good"
+
+
+class ArtifactStatus(str, Enum):
+    ACTIVE = "active"
+    LOST = "lost"
+    DESTROYED = "destroyed"
+
+
 class ClimatePhase(str, Enum):
     TEMPERATE = "temperate"
     WARMING = "warming"
@@ -149,6 +165,26 @@ class Infrastructure(BaseModel):
     active: bool = True
     faith_id: int = -1
     temple_prestige: int = 0
+
+
+class Artifact(BaseModel):
+    artifact_id: int
+    name: str
+    artifact_type: ArtifactType
+    anchored: bool
+    origin_turn: int
+    origin_event: str
+    origin_region: str
+    creator_name: str | None
+    creator_civ: str
+    owner_civ: str | None
+    holder_name: str | None
+    holder_born_turn: int | None
+    anchor_region: str | None
+    prestige_value: int
+    status: ArtifactStatus
+    history: list[str] = Field(default_factory=list)
+    mule_origin: bool = False
 
 
 class PendingBuild(BaseModel):
@@ -393,6 +429,7 @@ class GreatPerson(BaseModel):
     origin_region: str | None = None
     # M48: Mule promotion system
     mule: bool = False
+    mule_artifact_created: bool = False
     mule_memory_event_type: Optional[int] = None
     utility_overrides: dict = Field(default_factory=dict)  # ActionType name -> multiplier
     memories: list = Field(default_factory=list)  # cached from Rust via FFI
@@ -533,6 +570,32 @@ class AgentEventRecord:
     occupation: int
 
 
+@dataclass
+class ArtifactIntent:
+    artifact_type: ArtifactType
+    trigger: str
+    creator_name: str | None
+    creator_born_turn: int | None
+    holder_name: str | None
+    holder_born_turn: int | None
+    civ_name: str
+    region_name: str
+    anchored: bool | None = None
+    mule_origin: bool = False
+    context: str = ""
+
+
+@dataclass
+class ArtifactLifecycleIntent:
+    action: str
+    losing_civ: str
+    gaining_civ: str | None
+    region: str
+    is_capital: bool
+    is_full_absorption: bool
+    is_destructive: bool
+
+
 # --- Top-level state ---
 
 class WorldState(BaseModel):
@@ -592,8 +655,14 @@ class WorldState(BaseModel):
     rivers: list[River] = Field(default_factory=list)
     # M37: Religion
     belief_registry: list[Belief] = Field(default_factory=list)  # max 16 faiths
+    # M52: Artifacts & Significant Items
+    artifacts: list[Artifact] = Field(default_factory=list)
     # M47: Cached region lookup
     _region_map: dict[str, "Region"] | None = PrivateAttr(default=None)
+    # M52: Transient artifact pipeline signals (not serialized)
+    _artifact_intents: list = PrivateAttr(default_factory=list)
+    _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)
+    _artifact_prestige_by_civ: dict = PrivateAttr(default_factory=dict)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
