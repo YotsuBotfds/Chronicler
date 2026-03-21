@@ -35,7 +35,7 @@ OCCUPATION_NAMES = {0: "farmers", 1: "soldiers", 2: "merchants", 3: "scholars", 
 ROLE_MAP = {0: "general", 1: "merchant", 2: "scientist", 3: "prophet", 4: "exile"}
 
 # M48: Mule promotion constants [CALIBRATE M53]
-MULE_PROMOTION_PROBABILITY = 0.07  # target 5-10%
+MULE_PROMOTION_PROBABILITY = 0.12  # raised from 0.07: GP promotion is bursty, need higher rate to land Mules in >50% of seeds
 MULE_MAPPING = {
     0: {"DEVELOP": 3.0, "TRADE": 2.0, "WAR": 0.3},        # Famine
     1: {"WAR": 3.0, "DIPLOMACY": 0.5},                      # Battle

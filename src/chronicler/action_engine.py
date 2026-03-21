@@ -39,7 +39,7 @@ from chronicler.emergence import get_severity_multiplier
 
 
 # M48: Mule constants [CALIBRATE M53]
-MULE_ACTIVE_WINDOW = 25
+MULE_ACTIVE_WINDOW = 30   # raised from 25: GP bursts happen at T35-50, need window to reach T65-80
 MULE_FADE_TURNS = 10
 
 

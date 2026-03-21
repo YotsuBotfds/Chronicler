@@ -310,8 +310,29 @@
 5. **Overcrowding penalty was zeroing satisfaction.** Uncapped `(pop/cap - 1.0) * 0.3` at 5x capacity gave 1.2 penalty, forcing satisfaction to 0 and blocking all fertility. Cap at 0.30 preserves pressure up to 2x while preventing runaway zeroing. Overcrowding already punished via ecology, disease, and demography.
 6. **This is a provisional baseline**, not the final word. M53 tuning may reveal remaining edge cases that require further demographic adjustment.
 
-**M53 Tasks Complete:** 1-14 (infrastructure + baseline v2), 15-17 (Pass 1a memory sanity, 1b autonomy, 1c social)
-**M53 Tasks Next:** 18-20 (Pass 1d-f: Mule, Legacy, Artifacts), then 21-23 (integration + oracles)
+**M53 Tasks Complete:** 1-14 (infrastructure + baseline v2), 15-17 (Pass 1a-c), 18-20 (Pass 1d-f)
+**M53 Tasks Next:** 21-23 (integration pass + oracles + freeze)
+
+#### Pass 1d-1f Results (20 seeds × 200 turns, seeds 10-29)
+
+**Pass 1d — Mule (M48):**
+- `MULE_PROMOTION_PROBABILITY`: 0.07 → **0.12** (GP promotion is bursty, need higher hit rate)
+- `MULE_ACTIVE_WINDOW`: 25 → **30** (extend influence beyond initial GP burst)
+- MULE_MAPPING weights: **unchanged** (narratively coherent, no calibration needed)
+- Result: 50% of seeds have Mules (was 35%), mean 1.9 at T50. All Mules expire by T100 — structural (GP promotion is cohort-based, all hit threshold at same turn ~T36).
+- GPs ARE promoting (18 mean at T50, gotcha about 0.0 GP mean outdated post-demographic fixes). Dominated by merchants.
+
+**Pass 1e — Legacy (M51):**
+- All constants **unchanged**: LEGACY_HALF_LIFE=100, LEGACY_MIN_INTENSITY=10, LEGACY_MAX_MEMORIES=2
+- Legacy memory counts: 37.8 at T50, 46.2 at T100 (peak), 20.9 at T200. 100% seed presence at T100.
+- LEGITIMACY_DIRECT_HEIR=0.15, LEGITIMACY_SAME_DYNASTY=0.08: **unchanged but inert**. Only 0.1 successions/seed in 200 turns. Leaders rarely change — legitimacy scoring never activates. Structural issue, not constant issue.
+
+**Pass 1f — Artifacts (M52):**
+- All constants **unchanged**: CULTURAL_PRODUCTION_CHANCE=0.15, GP_PRESTIGE_THRESHOLD=50, etc.
+- Artifact rate: 2.3 at T50, 4.5 at T100, 8.7 at T200 (total ever created).
+- 50% loss/destruction rate (was 10-30% target). Driven by civ extinction — when civs fall, artifacts become LOST. Acceptable — lost artifacts are still narrative content.
+
+**Total constants changed across all Pass 1 (a-f): 6** (out of ~145+). Social(2) + autonomy(2) + Mule(2). Memory, legacy, artifact, and legitimacy systems all well-calibrated at defaults.
 
 #### Other Fixes This Session
 
@@ -320,26 +341,34 @@
 - **M52 bug (`6339077`, prior session):** `self.world` → `world` in `_process_promotions()`.
 - **Rust test DLL / arro3 issues** (prior session, still documented in gotchas).
 
-### M51: Multi-Generational Memory — spec + plan complete, ready for implementation
+### M51: Multi-Generational Memory — merged (`412d238`)
 
-- **Spec:** `docs/superpowers/specs/2026-03-20-m51-multi-generational-memory-design.md` (Phoebe-reviewed 2 passes + user review 1 pass, all fixes applied)
-- **Plan:** `docs/superpowers/plans/2026-03-20-m51-multi-generational-memory.md` (Phoebe-reviewed 1 pass + user review 1 pass, all fixes applied)
-- **Commits this session (design only, no implementation):**
-  - `185edd3` — M51 design spec
-  - `71b3f51` — Phoebe review fixes (2 blocking + 4 non-blocking)
-  - `8cbb49d` — User review fixes (GP title stripping, name registry separation, missing secession site)
-  - `ed5ff02` — Implementation plan (14 tasks)
-  - `36e01a4` — User review plan fixes (5 issues: legitimacy timing, structured base_name, agent_id retirement, dead ancestral_memories field, Civilization test construction)
-- **Two tracks:** Track A (Rust legacy memory transfer, 6 tasks) and Track B (Python succession scoring + regnal numbering, 8 tasks). Tracks are independent — can be parallelized.
-- **Key design decisions this session:**
-  - Legacy memories preserve original event_type (Famine, Battle, etc.) — `MemoryEventType::Legacy` (14) is NOT used as event_type. Legacy status tracked via `memory_is_legacy: Vec<u8>` bitmask (1 byte/agent).
-  - Option A for buffer interaction: legacy memories compete in regular ring buffer, no reserved slots or protection windows. Tuning levers: `LEGACY_HALF_LIFE` (100 turns), `LEGACY_MIN_INTENSITY` (post-halving threshold).
-  - Succession scoring scoped to incumbent ruling line only (not any living dynasty). Additive weight on GP candidates (0.15 direct heir, 0.08 same dynasty).
-  - Regnal numbering is per-civ, stored at succession time on Leader. `_pick_regnal_name()` is a new function independent of `_pick_name()` and `world.used_leader_names`.
-  - GP base_name stored structurally on GreatPerson at promotion time — no display-name reverse-parsing. `_pick_name()` returns `(full_name, base_name)` tuple.
-  - Legitimacy captured BEFORE leader swap in `resolve_crisis_with_factions()`.
-  - GP retirement uses `agent_id` (stable key), not name string match.
-- **Next session:** Choose execution approach (subagent-driven vs inline) and begin implementation.
+- 15 commits on M51 implementation. Legacy memory transfer, regnal naming, dynasty legitimacy scoring.
+- **Spec:** `docs/superpowers/specs/2026-03-20-m51-multi-generational-memory-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-20-m51-multi-generational-memory.md`
+- **Rust:**
+  - `memory.rs`: `memory_is_legacy` SoA bitmask, `write_single_memory` decay override for legacy transfer, legacy extraction + death-path intent emission.
+  - `ffi.rs`: `get_agent_memories` returns 6-tuple with legacy flag.
+- **Python:**
+  - `models.py`: Leader regnal fields (`regnal_name`, `regnal_number`), `Civilization.regnal_name_counts`, `GreatPerson.base_name`.
+  - `leaders.py`: `strip_title()`, `_pick_base_name()`, `_pick_regnal_name()`, `to_roman()`. Wired into all 7 ruler creation sites.
+  - `dynasties.py`: Dynasty legitimacy scoring, GP candidate lineage fields (`LEGITIMACY_DIRECT_HEIR=0.15`, `LEGITIMACY_SAME_DYNASTY=0.08`).
+  - `narrative.py`: Legacy memory rendering with ancestral prefix, succession legitimacy phrasing.
+  - `agent_bridge.py`: Memory sync includes is_legacy from FFI.
+- **Key design decisions:** Legacy memories preserve original event_type (not `MemoryEventType::Legacy`). `memory_is_legacy` bitmask tracks status. Legacy memories compete in regular ring buffer. Regnal numbering per-civ. GP `base_name` set at promotion via `strip_title()`. Legitimacy captured BEFORE leader swap.
+
+### M52: Artifacts & Cultural Production — merged (`b4fa883`)
+
+- 18 commits on M52 implementation. Artifact lifecycle, cultural production, narrative integration.
+- **Spec/Plan:** M52 spec and plan docs.
+- **Python (entirely Python-side, no Rust changes):**
+  - `artifacts.py` (new): `tick_artifacts()` core — creation from intents, prestige, naming. Artifact lifecycle (conquest transfers, holder reversion, civ destruction). Prosperity gate, cultural artifact type selection. Relic conversion bonus (non-stacking, owner-gated). `extract_artifacts()` analytics extractor.
+  - `models.py`: Artifact data model — types, `Artifact`, `WorldState.artifacts`, intent fields.
+  - `agent_bridge.py`: GP promotion + Mule artifact intents (agent and aggregate paths). Temple completion emits relic artifact intent.
+  - `narrative.py`: Artifact narrative context — relevance selection + prompt rendering.
+  - `simulation.py`: `tick_artifacts()` wired into turn loop. Cultural production intents. Conquest, twilight absorption, civ destruction lifecycle intents.
+  - `culture.py`: Ephemeral artifact prestige in `tick_prestige()` trade bonus.
+- **Key design decisions:** Intent-based creation (intents emitted from multiple sites, `tick_artifacts()` processes them). Artifact naming with cultural flavor vocabulary. `CULTURAL_PRODUCTION_CHANCE=0.15`, `GP_PRESTIGE_THRESHOLD=50`, `RELIC_CONVERSION_BONUS=0.15`.
 
 ---
 
@@ -348,7 +377,6 @@
 **Next steps:**
 - **PRIORITY: M53 Pass 1d-1f (Tasks 18-20)** — Mule, Legacy, Artifacts. Core needs systems are done.
 - **Then:** Tasks 21-23 (integration pass + oracles + freeze)
-- M51 implementation (spec + plan ready, 14 tasks) — can proceed in parallel on separate branch
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -356,11 +384,8 @@
 ## Known Gotchas / Deferred Items
 
 - **Transient signal rule (CLAUDE.md):** Clear BEFORE return in builder functions. 2+ turn integration test required for every new transient signal.
-- **M51: `MemoryEventType::Legacy` (14) is vestigial.** Legacy memories preserve original event_type and use `memory_is_legacy` bitmask instead. The `default_decay_factor(14)` match arm in memory.rs is dead code — add a comment during implementation noting this.
-- **M51: `_pick_name()` stays unchanged (returns `str`).** New `_pick_base_name()` extracts the name-selection core. `_pick_name()` optionally refactored to call `_pick_base_name()` internally, but return type stays `str`. `strip_title()` used as transitional fallback for existing display names. `gp.base_name` set at promotion time via `strip_title(gp.name)`.
-- **M51: world_gen.py leader construction ordering.** The Leader is constructed inline inside the Civilization constructor (line 143). `_pick_regnal_name()` requires a Civilization object. Restructure: construct Civ with placeholder leader, then replace via `_pick_regnal_name()`.
-- **M51: GP ascension phantom regnal counter.** When a GP wins succession, `generate_successor()` already called `_pick_regnal_name()` and incremented the counter for a name that won't be used. The GP block must undo this phantom increment before computing the GP's own ordinal.
-- **M51: Legitimacy scoring only activates for GP-sourced rulers.** If most successions produce abstract/external candidates, `civ.leader.agent_id` is None and dynasty scoring is inert. M53 should measure activation rate — if < 20%, system is decorative.
+- **~~M51 implementation gotchas~~** — All resolved during M51 implementation (`412d238`). Legacy bitmask, regnal naming, phantom counter, legitimacy scoring all landed.
+- **M51: Legitimacy activation rate unmeasured.** If most successions produce abstract/external candidates, dynasty scoring is inert. M53 should measure — if < 20%, system is decorative.
 - **M51: Legacy + persecution stacking.** Legacy persecution memories add to M38b + M48 + M49 triple-stacking concern. Monitor total rebel modifier budget in M53.
 - **M34 farmer-as-miner:** Resolved. M41 added `is_extractive()` dispatch; M42 replaced it with market-derived `farmer_income_modifier`.
 - **M44 (API narration):** Merged. ERA_REGISTER A/B experiment and 20-seed quality comparison still pending (manual evaluation tasks, not implementation).

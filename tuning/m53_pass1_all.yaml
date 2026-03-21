@@ -1,0 +1,41 @@
+# M53 Pass 1 — All system passes complete (1a-1f)
+# Changes from baseline_v2:
+#   Pass 1a (memory): no changes needed (7/8 slots, intensity ~43)
+#   Pass 1b (autonomy): AUTONOMY_DECAY 0.015->0.010, AUTONOMY_RESTORE_NO_PERSC 0.010->0.020
+#   Pass 1c (social): SOCIAL_BLEND_ALPHA 0.0->0.3, SOCIAL_RESTORE_BOND 0.010->0.030
+#   Pass 1d (Mule): MULE_PROMOTION_PROBABILITY 0.07->0.12, MULE_ACTIVE_WINDOW 25->30
+#   Pass 1e (legacy): no changes needed (37-46 legacy mems at T50-T100, 100% seeds)
+#   Pass 1f (artifacts): no changes needed (8.7 total T200, 50% loss from civ extinction)
+
+## Rust Constants (changed from baseline_v2)
+AUTONOMY_DECAY: 0.010          # was 0.015 — aligns with spiritual decay rate
+AUTONOMY_RESTORE_NO_PERSC: 0.020  # was 0.010 — foreign-controlled eq at 0.50
+SOCIAL_BLEND_ALPHA: 0.3        # was 0.0 — enables bond-factor in social restoration
+SOCIAL_RESTORE_BOND: 0.030     # was 0.010 — 3x to outpace 0.008 decay through proxy
+
+## Python Constants (changed from baseline_v2)
+MULE_PROMOTION_PROBABILITY: 0.12  # was 0.07 — GP promotion is bursty, need higher hit rate
+MULE_ACTIVE_WINDOW: 30           # was 25 — extend influence beyond initial burst
+
+## Unchanged from baseline_v2 (confirmed in Pass 1d-1f)
+LEGACY_HALF_LIFE: 100.0
+LEGACY_MAX_MEMORIES: 2
+LEGACY_MIN_INTENSITY: 10
+LEGITIMACY_DIRECT_HEIR: 0.15
+LEGITIMACY_SAME_DYNASTY: 0.08
+CULTURAL_PRODUCTION_CHANCE: 0.15
+GP_PRESTIGE_THRESHOLD: 50
+RELIC_CONVERSION_BONUS: 0.15
+PROSPERITY_STABILITY_THRESHOLD: 70
+PROSPERITY_TREASURY_THRESHOLD: 20
+HISTORY_CAP: 10
+MULE_FADE_TURNS: 10
+
+## Findings
+# - Mule: 50% of seeds have Mules (was 35% at 0.07). Only appear during T35-T50 GP burst.
+#   Structural: GP promotion is cohort-based (all hit threshold at same turn). Not fixable via Mule constants.
+# - Legacy: 100% seed presence at T100, peak 46.2 legacy mems, decays naturally. Healthy.
+# - Legitimacy: INERT. Only 0.1 successions/seed in 200 turns. System can't activate.
+#   Structural: leaders rarely change. Not fixable via legitimacy weight constants.
+# - Artifacts: 8.7 total at T200. 50% loss rate from civ extinction (was 10-30% target).
+#   Structural: civs dying lose artifacts. Acceptable — lost artifacts still narrative content.
