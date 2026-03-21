@@ -74,6 +74,8 @@ pub struct MemoryIntent {
     pub event_type: u8,
     pub source_civ: u8,
     pub intensity: i8,
+    pub is_legacy: bool,
+    pub decay_factor_override: Option<u8>,
 }
 
 /// Convert half-life in turns to per-tick decay factor (u8).
@@ -435,8 +437,8 @@ mod tests {
         let (mut pool, a, b) = make_pool_with_two_agents();
         let battle = MemoryEventType::Battle as u8;
 
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: -40 }, 50);
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: -35 }, 50);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: -40, is_legacy: false, decay_factor_override: None }, 50);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: -35, is_legacy: false, decay_factor_override: None }, 50);
 
         let result = agents_share_memory_with_valence(&pool, a, b);
         assert!(result.is_some(), "Expected a shared memory match");
@@ -452,8 +454,8 @@ mod tests {
         // Agent a has a Battle memory, agent b has a Famine memory — no shared type.
         let (mut pool, a, b) = make_pool_with_two_agents();
 
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: MemoryEventType::Battle as u8, source_civ: 1, intensity: -40 }, 50);
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: MemoryEventType::Famine as u8, source_civ: 1, intensity: -35 }, 50);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: MemoryEventType::Battle as u8, source_civ: 1, intensity: -40, is_legacy: false, decay_factor_override: None }, 50);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: MemoryEventType::Famine as u8, source_civ: 1, intensity: -35, is_legacy: false, decay_factor_override: None }, 50);
 
         let result = agents_share_memory_with_valence(&pool, a, b);
         assert!(result.is_none(), "Different event types should not match");
@@ -466,8 +468,8 @@ mod tests {
         let (mut pool, a, b) = make_pool_with_two_agents();
         let conquest = MemoryEventType::Conquest as u8;
 
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: conquest, source_civ: 2, intensity: 50 }, 80);
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: conquest, source_civ: 2, intensity: -45 }, 80);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: conquest, source_civ: 2, intensity: 50, is_legacy: false, decay_factor_override: None }, 80);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: conquest, source_civ: 2, intensity: -45, is_legacy: false, decay_factor_override: None }, 80);
 
         let result = agents_share_memory_with_valence(&pool, a, b);
         assert!(result.is_some(), "Expected a shared memory match");
@@ -493,12 +495,12 @@ mod tests {
         let battle = MemoryEventType::Battle as u8;
 
         // Weak pair: abs sum = 10 + 10 = 20
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: 10 }, 10);
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: 10 }, 10);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: 10, is_legacy: false, decay_factor_override: None }, 10);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: 10, is_legacy: false, decay_factor_override: None }, 10);
 
         // Strong pair: abs sum = 60 + 55 = 115
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: 60 }, 20);
-        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: 55 }, 20);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: a, event_type: battle, source_civ: 1, intensity: 60, is_legacy: false, decay_factor_override: None }, 20);
+        write_single_memory(&mut pool, &MemoryIntent { agent_slot: b, event_type: battle, source_civ: 1, intensity: 55, is_legacy: false, decay_factor_override: None }, 20);
 
         let result = agents_share_memory_with_valence(&pool, a, b);
         assert!(result.is_some());

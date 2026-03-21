@@ -108,6 +108,8 @@ pub fn tick_agents(
                     event_type: crate::memory::MemoryEventType::Famine as u8,
                     source_civ: pool.civ_affinities[slot],
                     intensity: crate::agent::FAMINE_DEFAULT_INTENSITY,
+                    is_legacy: false,
+                    decay_factor_override: None,
                 });
             }
         }
@@ -118,6 +120,8 @@ pub fn tick_agents(
                 event_type: crate::memory::MemoryEventType::Prosperity as u8,
                 source_civ: pool.civ_affinities[slot],
                 intensity: crate::agent::PROSPERITY_DEFAULT_INTENSITY,
+                is_legacy: false,
+                decay_factor_override: None,
             });
         }
     }
@@ -241,6 +245,8 @@ pub fn tick_agents(
                 event_type: crate::memory::MemoryEventType::Migration as u8,
                 source_civ: pool.civ_affinities[slot],
                 intensity: crate::agent::MIGRATION_DEFAULT_INTENSITY,
+                is_legacy: false,
+                decay_factor_override: None,
             });
         }
     }
@@ -269,6 +275,8 @@ pub fn tick_agents(
                         event_type: crate::memory::MemoryEventType::Battle as u8,
                         source_civ: pool.civ_affinities[slot],
                         intensity: crate::agent::BATTLE_DEFAULT_INTENSITY,
+                        is_legacy: false,
+                        decay_factor_override: None,
                     });
                     // Victory intent if this region's war was won
                     if region_id < regions.len() && regions[region_id].war_won_this_turn {
@@ -277,6 +285,8 @@ pub fn tick_agents(
                             event_type: crate::memory::MemoryEventType::Victory as u8,
                             source_civ: pool.civ_affinities[slot],
                             intensity: crate::agent::VICTORY_DEFAULT_INTENSITY,
+                            is_legacy: false,
+                            decay_factor_override: None,
                         });
                     }
                 }
@@ -306,6 +316,8 @@ pub fn tick_agents(
                             event_type: crate::memory::MemoryEventType::Conquest as u8,
                             source_civ: conquering_civ,
                             intensity: crate::agent::CONQUEST_DEFAULT_INTENSITY,
+                            is_legacy: false,
+                            decay_factor_override: None,
                         });
                     }
                 }
@@ -318,6 +330,8 @@ pub fn tick_agents(
                             event_type: crate::memory::MemoryEventType::Secession as u8,
                             source_civ: pool.civ_affinities[slot],
                             intensity: crate::agent::SECESSION_DEFAULT_INTENSITY,
+                            is_legacy: false,
+                            decay_factor_override: None,
                         });
                     }
                 }
@@ -406,6 +420,8 @@ pub fn tick_agents(
                             event_type: crate::memory::MemoryEventType::DeathOfKin as u8,
                             source_civ: pool.civ_affinities[child_slot],
                             intensity: crate::agent::DEATHOFKIN_DEFAULT_INTENSITY,
+                            is_legacy: false,
+                            decay_factor_override: None,
                         });
                     }
                 }
@@ -470,6 +486,8 @@ pub fn tick_agents(
                         event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
                         source_civ: pool.civ_affinities[parent_slot],
                         intensity: crate::agent::BIRTHOFKIN_DEFAULT_INTENSITY,
+                        is_legacy: false,
+                        decay_factor_override: None,
                     });
                 }
             }
@@ -568,6 +586,8 @@ pub fn tick_agents(
                         event_type: crate::memory::MemoryEventType::Conversion as u8,
                         source_civ: pool.civ_affinities[slot],
                         intensity,
+                        is_legacy: false,
+                        decay_factor_override: None,
                     });
                 }
                 // Persecution: minority belief + nonzero persecution intensity
@@ -580,6 +600,8 @@ pub fn tick_agents(
                         event_type: crate::memory::MemoryEventType::Persecution as u8,
                         source_civ: pool.civ_affinities[slot],
                         intensity: crate::agent::PERSECUTION_DEFAULT_INTENSITY,
+                        is_legacy: false,
+                        decay_factor_override: None,
                     });
                 }
             }
