@@ -636,3 +636,56 @@ class TestArtifactPrestigeIntegration:
         world._artifact_prestige_by_civ = {}
         tick_prestige(world)
         assert civ.treasury <= treasury_before
+
+
+class TestCulturalProductionIntents:
+    def test_cultural_work_emits_intent_when_prosperous(self):
+        """phase_cultural_milestones should emit artifact intent when prosperity gate passes."""
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 50
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 0
+        civ.culture = 80
+        civ.cultural_milestones = []
+        civ.capital_region = "Region1"
+        world.active_wars = []
+        world.turn = 10
+        world.seed = 1
+
+        from chronicler.simulation import phase_cultural_milestones
+        found = False
+        for s in range(100):
+            world.seed = s
+            civ.cultural_milestones = []
+            world._artifact_intents = []
+            phase_cultural_milestones(world)
+            if world._artifact_intents:
+                found = True
+                break
+        assert found, "No artifact intent emitted after 100 seeds"
+
+    def test_cultural_renaissance_emits_intent(self):
+        """_apply_event_effects for cultural_renaissance should emit artifact intent."""
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.treasury = 50
+        civ.decline_turns = 0
+        civ.succession_crisis_turns_remaining = 0
+        civ.capital_region = "Region1"
+        world.active_wars = []
+        world.turn = 10
+        world.seed = 1
+
+        from chronicler.simulation import _apply_event_effects
+        found = False
+        for s in range(100):
+            world.seed = s
+            world._artifact_intents = []
+            _apply_event_effects("cultural_renaissance", civ, world)
+            if world._artifact_intents:
+                found = True
+                break
+        assert found, "No artifact intent emitted after 100 seeds"

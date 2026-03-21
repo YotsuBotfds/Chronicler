@@ -704,6 +704,29 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
         else:
             civ.culture = clamp(civ.culture + 20, STAT_FLOOR["culture"], 100)
             civ.stability = clamp(civ.stability + 10, STAT_FLOOR["stability"], 100)
+        # M52: Cultural renaissance artifact production
+        from chronicler.artifacts import (
+            _prosperity_gate, select_cultural_artifact_type,
+            CULTURAL_PRODUCTION_CHANCE,
+        )
+        from chronicler.models import ArtifactIntent
+        import random as _rng_mod
+        _art_rng = _rng_mod.Random(world.seed + world.turn + civ_idx + 8888)
+        if _prosperity_gate(civ, world) and _art_rng.random() < CULTURAL_PRODUCTION_CHANCE:
+            _art_type = select_cultural_artifact_type(civ, seed=world.seed + world.turn + civ_idx)
+            _art_region = civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
+            world._artifact_intents.append(ArtifactIntent(
+                artifact_type=_art_type,
+                trigger="cultural_renaissance",
+                creator_name=None,
+                creator_born_turn=None,
+                holder_name=None,
+                holder_born_turn=None,
+                civ_name=civ.name,
+                region_name=_art_region,
+                anchored=True if _art_type.value == "monument" else None,
+                context=f"Produced during a cultural renaissance of {civ.name}",
+            ))
     elif event_type == "migration":
         from chronicler.ecology import effective_capacity
         civ_regions = [r for r in world.regions if r.controller == civ.name]
@@ -1143,6 +1166,29 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
                     turn=world.turn, event_type="cultural_work", actors=[civ.name],
                     description=ne.description, importance=6,
                 ))
+                # M52: Cultural artifact production
+                from chronicler.artifacts import (
+                    _prosperity_gate, select_cultural_artifact_type,
+                    CULTURAL_PRODUCTION_CHANCE,
+                )
+                from chronicler.models import ArtifactIntent
+                import random as _rng_mod
+                _art_rng = _rng_mod.Random(world.seed + world.turn + civ_idx + 9999)
+                if _prosperity_gate(civ, world) and _art_rng.random() < CULTURAL_PRODUCTION_CHANCE:
+                    _art_type = select_cultural_artifact_type(civ, seed=world.seed + world.turn + civ_idx)
+                    _art_region = civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
+                    world._artifact_intents.append(ArtifactIntent(
+                        artifact_type=_art_type,
+                        trigger="cultural_work",
+                        creator_name=None,
+                        creator_born_turn=None,
+                        holder_name=None,
+                        holder_born_turn=None,
+                        civ_name=civ.name,
+                        region_name=_art_region,
+                        anchored=True if _art_type.value == "monument" else None,
+                        context=f"Produced during a cultural milestone of {civ.name}",
+                    ))
     return events
 
 
@@ -1462,6 +1508,11 @@ def run_turn(
     # --- M18: Decrement black swan cooldown ---
     if world.black_swan_cooldown > 0:
         world.black_swan_cooldown -= 1
+
+    # M52: Artifact processing
+    from chronicler.artifacts import tick_artifacts
+    artifact_events = tick_artifacts(world)
+    turn_events.extend(artifact_events)
 
     # Record events
     world.events_timeline.extend(turn_events)
