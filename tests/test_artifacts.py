@@ -966,3 +966,81 @@ class TestArtifactNarrativeContext:
     def test_render_empty_returns_empty(self):
         from chronicler.artifacts import render_artifact_context
         assert render_artifact_context([]) == ""
+
+
+class TestArtifactAnalytics:
+    def test_extract_artifacts_basic(self):
+        from chronicler.analytics import extract_artifacts
+        bundle = {
+            "world_state": {
+                "artifacts": [
+                    {"artifact_type": "relic", "status": "active", "owner_civ": "TestCiv",
+                     "prestige_value": 3, "mule_origin": False, "origin_turn": 5},
+                    {"artifact_type": "weapon", "status": "active", "owner_civ": "TestCiv",
+                     "prestige_value": 2, "mule_origin": False, "origin_turn": 10},
+                    {"artifact_type": "monument", "status": "lost", "owner_civ": None,
+                     "prestige_value": 4, "mule_origin": True, "origin_turn": 20},
+                ],
+            },
+            "metadata": {"seed": 42, "total_turns": 100},
+        }
+        result = extract_artifacts([bundle])
+        assert result["total_artifacts"] == 3
+        assert result["active_artifacts"] == 2
+        assert result["lost_artifacts"] == 1
+        assert result["artifacts_by_civ"]["TestCiv"] == 2
+        assert result["mule_artifacts"] == 1
+
+
+class TestTransientSignalReset:
+    def test_artifact_intents_cleared_each_turn(self):
+        """Verify _artifact_intents is empty after tick_artifacts runs."""
+        world = _make_world_with_civ()
+        world.turn = 1
+        world._artifact_intents.append(ArtifactIntent(
+            artifact_type=ArtifactType.RELIC, trigger="test",
+            creator_name=None, creator_born_turn=None,
+            holder_name=None, holder_born_turn=None,
+            civ_name="TestCiv", region_name="Region1",
+            anchored=True, context="test",
+        ))
+        tick_artifacts(world)
+        assert world._artifact_intents == []
+        assert world._artifact_lifecycle_intents == []
+
+        # Turn 2: no intents, should still clear
+        world.turn = 2
+        tick_artifacts(world)
+        assert world._artifact_intents == []
+
+    def test_artifact_prestige_recomputed_each_turn(self):
+        """Verify _artifact_prestige_by_civ is recomputed, not accumulated."""
+        world = _make_world_with_civ()
+        _make_active_artifact(world, ArtifactType.MONUMENT, owner_civ="TestCiv")
+
+        world.turn = 1
+        tick_artifacts(world)
+        prestige_t1 = world._artifact_prestige_by_civ.get("TestCiv", 0)
+
+        world.turn = 2
+        tick_artifacts(world)
+        prestige_t2 = world._artifact_prestige_by_civ.get("TestCiv", 0)
+
+        assert prestige_t1 == prestige_t2
+        assert prestige_t1 == PRESTIGE_BY_TYPE[ArtifactType.MONUMENT]
+
+    def test_prestige_drops_on_artifact_loss(self):
+        """Verify prestige disappears when artifact is lost."""
+        world = _make_world_with_civ()
+        _make_active_artifact(world, ArtifactType.MONUMENT, owner_civ="TestCiv")
+
+        world.turn = 1
+        tick_artifacts(world)
+        assert world._artifact_prestige_by_civ.get("TestCiv", 0) > 0
+
+        # Destroy the artifact
+        world.artifacts[0].status = ArtifactStatus.LOST
+        world.artifacts[0].owner_civ = None
+        world.turn = 2
+        tick_artifacts(world)
+        assert world._artifact_prestige_by_civ.get("TestCiv", 0) == 0

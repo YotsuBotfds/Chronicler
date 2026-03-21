@@ -1223,6 +1223,7 @@ def generate_report(
     precap_weights = extract_precap_weights(bundles, checkpoints=cps)
     action_persistence = extract_action_persistence(bundles)
     new_event_types = extract_new_event_types(bundles)
+    artifacts = extract_artifacts(bundles)
 
     report = {
         "metadata": metadata,
@@ -1247,6 +1248,7 @@ def generate_report(
         "precap_weights": precap_weights,
         "action_persistence": action_persistence,
         "new_event_types": new_event_types,
+        "artifacts": artifacts,
     }
 
     report["anomalies"] = detect_anomalies(report)
@@ -1647,6 +1649,49 @@ def extract_conversion_rates(bundles: list[dict]) -> dict:
 def extract_trade_flow_by_distance(bundles: list[dict]) -> dict:
     """Trade flow by distance — requires per-route data in bundle (deferred)."""
     return {"note": "Requires per-route EconomyResult bundling (deferred to M62 viewer)"}
+
+
+def extract_artifacts(bundles: list[dict]) -> dict:
+    """Extract artifact metrics from bundle dicts."""
+    total = 0
+    active = 0
+    lost = 0
+    destroyed = 0
+    by_civ: dict[str, int] = {}
+    by_type: dict[str, int] = {}
+    prestige = 0
+    mule = 0
+
+    for bundle in bundles:
+        artifacts = bundle.get("world_state", {}).get("artifacts", [])
+        total += len(artifacts)
+        for a in artifacts:
+            status = a.get("status", "active")
+            if status == "active":
+                active += 1
+                owner = a.get("owner_civ")
+                if owner:
+                    by_civ[owner] = by_civ.get(owner, 0) + 1
+                    prestige += a.get("prestige_value", 0)
+            elif status == "lost":
+                lost += 1
+            elif status == "destroyed":
+                destroyed += 1
+            atype = a.get("artifact_type", "unknown")
+            by_type[atype] = by_type.get(atype, 0) + 1
+            if a.get("mule_origin"):
+                mule += 1
+
+    return {
+        "total_artifacts": total,
+        "active_artifacts": active,
+        "lost_artifacts": lost,
+        "destroyed_artifacts": destroyed,
+        "artifacts_by_civ": dict(by_civ),
+        "artifacts_by_type": dict(by_type),
+        "total_prestige_contribution": prestige,
+        "mule_artifacts": mule,
+    }
 
 
 def extract_relationship_metrics(bundles: list[dict], checkpoints=None) -> dict:
