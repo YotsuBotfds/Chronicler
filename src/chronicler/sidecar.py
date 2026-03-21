@@ -89,11 +89,14 @@ class SidecarWriter:
         if hasattr(needs_batch, "to_pydict"):
             # PyArrow RecordBatch or Table
             data = needs_batch.to_pydict()
+        elif hasattr(needs_batch, "column_names"):
+            # arro3 RecordBatch — convert column-by-column
+            data = {name: needs_batch.column(name).to_pylist() for name in needs_batch.column_names}
         elif isinstance(needs_batch, dict):
             data = needs_batch
         else:
             raise TypeError(
-                f"needs_batch must be a dict or PyArrow RecordBatch, got {type(needs_batch)}"
+                f"needs_batch must be a dict or RecordBatch, got {type(needs_batch)}"
             )
 
         payload = {"turn": turn, "columns": data}

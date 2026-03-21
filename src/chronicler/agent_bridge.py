@@ -643,33 +643,30 @@ class AgentBridge:
         try:
             rel_batch = self._sim.get_all_relationships()
             edges = []
-            inner = rel_batch.to_pydict()
-            if inner and inner.get("agent_id"):
-                for i in range(len(inner["agent_id"])):
-                    edges.append((
-                        inner["agent_id"][i],
-                        inner["target_id"][i],
-                        inner["bond_type"][i],
-                        inner["sentiment"][i],
-                    ))
+            if rel_batch.num_rows > 0:
+                agent_ids = rel_batch.column("agent_id").to_pylist()
+                target_ids = rel_batch.column("target_id").to_pylist()
+                bond_types = rel_batch.column("bond_type").to_pylist()
+                sentiments = rel_batch.column("sentiment").to_pylist()
+                for i in range(len(agent_ids)):
+                    edges.append((agent_ids[i], target_ids[i], bond_types[i], sentiments[i]))
         except Exception:
             edges = []
 
         try:
             mem_batch = self._sim.get_all_memories()
             mem_sigs: dict = {}
-            inner = mem_batch.to_pydict()
-            if inner and inner.get("agent_id"):
-                for i in range(len(inner["agent_id"])):
-                    aid = inner["agent_id"][i]
+            if mem_batch.num_rows > 0:
+                m_agent_ids = mem_batch.column("agent_id").to_pylist()
+                m_event_types = mem_batch.column("event_type").to_pylist()
+                m_turns = mem_batch.column("turn").to_pylist()
+                m_intensities = mem_batch.column("intensity").to_pylist()
+                for i in range(len(m_agent_ids)):
+                    aid = m_agent_ids[i]
                     if aid not in mem_sigs:
                         mem_sigs[aid] = []
-                    valence = -1 if inner["intensity"][i] < 0 else 1
-                    mem_sigs[aid].append((
-                        inner["event_type"][i],
-                        inner["turn"][i],
-                        valence,
-                    ))
+                    valence = -1 if m_intensities[i] < 0 else 1
+                    mem_sigs[aid].append((m_event_types[i], m_turns[i], valence))
         except Exception:
             mem_sigs = {}
 
@@ -685,17 +682,14 @@ class AgentBridge:
         # Agent aggregate: per-civ satisfaction mean/std from snapshot
         try:
             snap = self._sim.get_snapshot()
-            snap_dict = snap.to_pydict()
             agg: dict = {}
-            if snap_dict and "civ_affinity" in snap_dict and snap_dict["civ_affinity"]:
+            if snap.num_rows > 0:
                 from collections import defaultdict
                 civ_data: dict = defaultdict(lambda: {"sats": []})
-                sat_list = snap_dict.get("satisfaction", [])
-                civ_list = snap_dict["civ_affinity"]
+                civ_list = snap.column("civ_affinity").to_pylist()
+                sat_list = snap.column("satisfaction").to_pylist()
                 for i in range(len(civ_list)):
-                    civ = civ_list[i]
-                    sat = sat_list[i] if i < len(sat_list) else 0.5
-                    civ_data[civ]["sats"].append(sat)
+                    civ_data[civ_list[i]]["sats"].append(sat_list[i])
                 for civ, cd in civ_data.items():
                     sats = cd["sats"]
                     n = len(sats)
@@ -827,7 +821,7 @@ class AgentBridge:
 
             # M52: GP artifact intent
             from chronicler.artifacts import emit_gp_artifact_intent
-            emit_gp_artifact_intent(self.world, civ, gp)
+            emit_gp_artifact_intent(world, civ, gp)
 
         return created
 
