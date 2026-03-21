@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-20 (M48+M49 both merged to main)
+> **Last updated:** 2026-03-20 (M50b merged to main)
 
 ---
 
@@ -185,10 +185,6 @@
 - **Key design decisions:** 6 needs (sharp Safety/Autonomy split), hybrid restoration (binary for bools, proportional for f32s), uniform linear decay, per-agent restoration conditions for diversity, threshold-gated utility modifiers `(THRESHOLD - need).max(0) * WEIGHT`, needs can independently trigger rebellion (explicit decision), needs-only cap 0.30 (does not retroactively affect M38b/M48), Autonomy uses civ_affinity (political, not ethnic), memory-needs coupling deferred to M53.
 - **M53 calibration flags (10):** persecution triple-stacking, famine double-counting, needs-only rebellion rate (<5%), need activation fraction (peacetime 10-20%, crisis 40-70%), migration sloshing, sawtooth oscillation, duty cycle per need, social proxy adequacy, negative modifier trapping, Autonomy assimilation loop.
 
----
-
-## In Progress
-
 ### M50a: Relationship Substrate — merged (`a4d68f8`)
 
 - 12 commits on `feat/m50a-relationship-substrate` branch + 2 Phoebe fix commits.
@@ -204,42 +200,63 @@
   - `agent_bridge.py`: apply_relationship_ops wrapper, agent_bonds sync in per-GP loop.
 - **Key design decisions:** Single truth source (per-agent SoA, not SocialGraph). M40 `get_social_edges()` is a projection, `replace_social_edges()` is a deprecated diff-based shim. Kin-only Rust-native formation; all other formation via Python ops (transitional — M50b changes this). UpsertSymmetric(Kin) explicitly blocked. `formed_turn` preserved on re-upsert.
 
-### M50b: Relationship Emergence & Cohorts — in progress (worktree `feat/m50b-relationship-emergence`)
+### M50b: Relationship Emergence & Cohorts — merged (`50301ea`)
 
+- 12 commits on `feat/m50b-relationship-emergence` branch (8 implementation + 3 review fixes + 1 spec/plan docs). 376 Rust tests, 17/18 Python narrative tests (1 pre-existing failure).
 - **Spec:** `docs/superpowers/specs/2026-03-20-m50b-relationship-emergence-cohorts-design.md` (Phoebe-reviewed, 2 passes)
-- **Plan:** `docs/superpowers/plans/2026-03-20-m50b-relationship-emergence-cohorts.md` (Phoebe-reviewed, 1 pass + user review, 6 known issues documented in plan addendum)
-- **Implementation status:** Tasks 1-2 of 8 complete on `feat/m50b-relationship-emergence` branch.
+- **Plan:** `docs/superpowers/plans/2026-03-20-m50b-relationship-emergence-cohorts.md`
+- **Phoebe implementation review passed.** B-1 (death dissolution counter) and B-2 (char_names scope) fixed. User review found 3 additional issues: `since_turn` key mismatch, dissolved edges dropped in M50b path, directed capacity prefilter — all fixed.
+- **Rust (chronicler-agents):**
+  - `formation.rs` (new, ~1600 lines): `cultural_similarity()`, `compatibility_score()`, 6 per-type gate functions, `FormationCandidate`/`FormationStats` structs, `formation_scan()` with staggered cadence (hash-based shuffle, pair iteration, early rejection cascade, triadic closure, per-agent/per-region budgeting), `death_cleanup_sweep()`, `belief_divergence_cleanup()`, `mix_hash()`, `has_shared_positive_contact()`, `build_belief_census()`, `evaluate_pair()` (returns Vec for multi-bond-per-pair), `attempt_bond()`.
+  - `tick.rs`: Death cleanup at phase 5.1 (post-demographics), formation scan at phase 8 (last operation before return). Return type changed to 3-tuple `(Vec<AgentEvent>, u32, FormationStats)`.
+  - `ffi.rs`: `get_relationship_stats()` (19 keys: 5 formation counters + 1 kin delta + 4 distribution metrics + 8 bond_type_counts + 1 death dissolution), `get_all_relationships()` (Arrow RecordBatch bulk export).
+  - `agent.rs`: 27 formation constants + `LIFE_EVENT_DISSOLUTION: u8 = 6`.
+  - `pool.rs`: `synthesis_budget: Vec<u8>` dormant field (1 byte/agent).
+  - `memory.rs`: `agents_share_memory_with_valence()` (signed intensities for Grudge gate).
+  - `needs.rs`: Social-need blend `(1-α)*proxy + α*bond_factor` with `SOCIAL_BLEND_ALPHA=0.0` (early return, zero perf cost).
+  - `tests/test_m50b_formation.rs`: 14 integration tests (staggered scheduling, friend formation, cap enforcement, determinism, transient signal 2-turn test, death cleanup, belief divergence).
+- **Python:**
+  - `agent_bridge.py`: `rust_owns_formation = True`, dissolution event collection (event_type=6 → `dissolved_edges_by_turn`).
+  - `simulation.py`: `form_and_sync_relationships()` gated off when `rust_owns_formation`.
+  - `main.py`: `--relationship-stats` CLI flag (parsed but not wired to consumer).
+  - `narrative.py`: `rel_type_names` widened for Kin/Friend/Grudge, M50b bond source swap from `gp.agent_bonds` with sentiment descriptors (deep/strong/mild/fading), unnamed target filtering, dissolved edges consumed in M50b path.
+  - `analytics.py`: `extract_relationship_metrics()` extractor.
+- **Key design decisions:** Deterministic formation (no RNG consumed, stream offset 1100 reserved for M53 probabilistic). Multi-bond-per-pair (Friend + CoReligionist can form simultaneously). Directed bonds only need source-side capacity. Formation scan uses post-demographics alive_slots. `evaluate_pair()` returns Vec (all eligible types), not Option (first match). Dissolution events carry bond_type in `target_region` field (dead target's agent_id unavailable — O-3 deferred).
+- **Phoebe observations (non-blocking):** O-1 (`check_friend` evaluates compatibility before shared memory — negligible cost difference), O-2 (`id_to_slot` rebuilt per-region instead of hoisted — minor perf), O-3 (dissolution events lack dead target's agent_id — known plan issue #2), O-4 (`--relationship-stats` flag not wired to consumer — deferred).
 
-**Session handoff (2026-03-20):**
+---
 
-Completed:
-- Task 1: 27 formation constants in agent.rs, `synthesis_budget: Vec<u8>` dormant field in pool.rs, `agents_share_memory_with_valence()` in memory.rs (5 tests). Commit `51a9fe6`.
-- Task 2: `formation.rs` created (823 lines). `cultural_similarity()`, `compatibility_score()`, 6 per-type gate functions (check_friend, check_coreligionist, check_rival, check_mentor, check_grudge, check_exile_bond) with `FormationCandidate` result type. 29 tests passing. Commit `69f1fc9`.
+## In Progress
 
-Remaining (Tasks 3-8):
-- Task 3: Formation scan orchestration — staggered cadence, hash-based shuffle, pair iteration, early rejection cascade, triadic closure, budgeting. Wire into `tick.rs` at phase 8.
-- Task 4: Death cleanup at phase 5.1 + belief-divergence cleanup on cadence. Wire into `tick.rs`.
-- Task 5: Social-need blend in `needs.rs` (`alpha=0.0`). Independent of Tasks 3-4.
-- Task 6: `get_relationship_stats()` + `get_all_relationships()` FFI methods + distribution snapshots.
-- Task 7: Python bridge — `rust_owns_formation` flag, gate off `form_and_sync_relationships()`, dissolution event collection.
-- Task 8: Narration widening + analytics extractor.
+### M51: Multi-Generational Memory — spec + plan complete, ready for implementation
 
-Known plan issues to fix during implementation (documented in plan addendum):
-1. Formation scan must use post-demographics alive_slots, not tick-start snapshot.
-2. Dissolution events need target_id — add field to AgentEvent.
-3. Narration source swap references wrong scope — use _prepare_narration_prompts where gp_by_agent_id is available.
-4. Spawn signature in test helpers — check actual M50a signature before writing.
-5. Distribution snapshots not fully specified — add computation gated by --relationship-stats.
-6. Transient signal 2-turn test missing — add to Task 3 integration tests.
+- **Spec:** `docs/superpowers/specs/2026-03-20-m51-multi-generational-memory-design.md` (Phoebe-reviewed 2 passes + user review 1 pass, all fixes applied)
+- **Plan:** `docs/superpowers/plans/2026-03-20-m51-multi-generational-memory.md` (Phoebe-reviewed 1 pass + user review 1 pass, all fixes applied)
+- **Commits this session (design only, no implementation):**
+  - `185edd3` — M51 design spec
+  - `71b3f51` — Phoebe review fixes (2 blocking + 4 non-blocking)
+  - `8cbb49d` — User review fixes (GP title stripping, name registry separation, missing secession site)
+  - `ed5ff02` — Implementation plan (14 tasks)
+  - `36e01a4` — User review plan fixes (5 issues: legitimacy timing, structured base_name, agent_id retirement, dead ancestral_memories field, Civilization test construction)
+- **Two tracks:** Track A (Rust legacy memory transfer, 6 tasks) and Track B (Python succession scoring + regnal numbering, 8 tasks). Tracks are independent — can be parallelized.
+- **Key design decisions this session:**
+  - Legacy memories preserve original event_type (Famine, Battle, etc.) — `MemoryEventType::Legacy` (14) is NOT used as event_type. Legacy status tracked via `memory_is_legacy: Vec<u8>` bitmask (1 byte/agent).
+  - Option A for buffer interaction: legacy memories compete in regular ring buffer, no reserved slots or protection windows. Tuning levers: `LEGACY_HALF_LIFE` (100 turns), `LEGACY_MIN_INTENSITY` (post-halving threshold).
+  - Succession scoring scoped to incumbent ruling line only (not any living dynasty). Additive weight on GP candidates (0.15 direct heir, 0.08 same dynasty).
+  - Regnal numbering is per-civ, stored at succession time on Leader. `_pick_regnal_name()` is a new function independent of `_pick_name()` and `world.used_leader_names`.
+  - GP base_name stored structurally on GreatPerson at promotion time — no display-name reverse-parsing. `_pick_name()` returns `(full_name, base_name)` tuple.
+  - Legitimacy captured BEFORE leader swap in `resolve_crisis_with_factions()`.
+  - GP retirement uses `agent_id` (stable key), not name string match.
+- **Next session:** Choose execution approach (subagent-driven vs inline) and begin implementation.
 
-Next session: Continue subagent-driven development from Task 3. Use `/init-cici` then dispatch Task 3 implementer to the worktree.
+---
 
 ## Ready for Implementation
 
 **Next steps:**
-- M50b Tasks 3-8 (continue subagent-driven development in worktree)
+- M51 implementation (spec + plan ready, 14 tasks)
 - M48+M49+M50 200-seed regression deferred to M53 — memory + needs + relationships are uncalibrated
-- M53 calibration pass (~125 Rust constants across M48+M49+M50, tiered strategy in M49 spec Section 9)
+- M53 calibration pass (~125+ Rust constants across M48+M49+M50+M51, tiered strategy in M49 spec Section 9)
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -247,6 +264,12 @@ Next session: Continue subagent-driven development from Task 3. Use `/init-cici`
 ## Known Gotchas / Deferred Items
 
 - **Transient signal rule (CLAUDE.md):** Clear BEFORE return in builder functions. 2+ turn integration test required for every new transient signal.
+- **M51: `MemoryEventType::Legacy` (14) is vestigial.** Legacy memories preserve original event_type and use `memory_is_legacy` bitmask instead. The `default_decay_factor(14)` match arm in memory.rs is dead code — add a comment during implementation noting this.
+- **M51: `_pick_name()` returns `(full_name, base_name)` tuple.** All 4+ callers (leaders.py:211, great_persons.py:156, relationships.py:335, agent_bridge.py:630) must be updated. Sites that don't need base_name use `name, _ = _pick_name(...)`.
+- **M51: world_gen.py leader construction ordering.** The Leader is constructed inline inside the Civilization constructor (line 143). `_pick_regnal_name()` requires a Civilization object. Restructure: construct Civ with placeholder leader, then replace via `_pick_regnal_name()`.
+- **M51: GP ascension phantom regnal counter.** When a GP wins succession, `generate_successor()` already called `_pick_regnal_name()` and incremented the counter for a name that won't be used. The GP block must undo this phantom increment before computing the GP's own ordinal.
+- **M51: Legitimacy scoring only activates for GP-sourced rulers.** If most successions produce abstract/external candidates, `civ.leader.agent_id` is None and dynasty scoring is inert. M53 should measure activation rate — if < 20%, system is decorative.
+- **M51: Legacy + persecution stacking.** Legacy persecution memories add to M38b + M48 + M49 triple-stacking concern. Monitor total rebel modifier budget in M53.
 - **M34 farmer-as-miner:** Resolved. M41 added `is_extractive()` dispatch; M42 replaced it with market-derived `farmer_income_modifier`.
 - **M44 (API narration):** Merged. ERA_REGISTER A/B experiment and 20-seed quality comparison still pending (manual evaluation tasks, not implementation).
 - **~~Viewer extensions (M46)~~ — Dropped 2026-03-17.** Phase 7 redesigns the viewer from scratch (M62). All Phase 3-6 viewer requirements preserved as inventory in Phase 7 roadmap.
@@ -288,6 +311,10 @@ Next session: Continue subagent-driven development from Task 3. Use `/init-cici`
 - **M48: `build_agent_context_for_moment()` new params not wired in batch path.** `civ_names`/`world_turn` params default to None/0 for backward compatibility. Memory/Mule context populated when callers pass those params. `_prepare_narration_prompts` does not wire them yet.
 - **M49: Persecution triple-stacking.** M38b direct boost (0.30) + M48 memory boost (~0.10) + M49 Autonomy need boost (up to 0.24) all push rebel/migrate. Total can reach ~0.64 additive on rebel. M53 priority calibration target.
 - **M49: `_NEED_THRESHOLDS` in narrative.py must stay synced with agent.rs constants.** Both files define threshold values (0.3, 0.25, 0.35). No compile-time enforcement. If thresholds change in M53 calibration, update both.
-- **M49: Social need pre-M50 proxy.** `social_restoration()` in needs.rs uses occupation + age + population density. Marked `// Pre-M50 proxy`. M50 replaces with actual relationship count.
+- **~~M49: Social need pre-M50 proxy.~~** Resolved in M50b. `social_restoration()` now has blend formula `(1-α)*proxy + α*bond_factor`. Alpha=0.0 at ship; M53 ramps.
+- **M50b: Dissolution events lack dead target's agent_id.** `AgentEvent.target_region` is repurposed for bond_type; dead agent's ID is not carried. Python stores `(agent_id, 0, bond_type, turn)` with 0 as placeholder. Narration can say "a bond was severed" but not "between X and Y." Fix requires adding `target_agent_id: u32` field to AgentEvent. Deferred — not blocking until M53b needs dissolution trace data.
+- **M50b: `--relationship-stats` flag parsed but not wired.** CLI flag exists, FFI `get_relationship_stats()` exists, analytics extractor expects `metadata["relationship_stats"]`. No Python-side call site invokes the FFI method or stores the metadata. Distribution metrics are always computed (cheap at current agent counts). Wire when approaching 200K+ agents or for M53 calibration.
+- **M50b: `id_to_slot` HashMap rebuilt per-region.** Spec says build pool-wide map once per cadence tick. Implementation rebuilds from `alive_slots` inside the region loop. Correct behavior, minor perf waste (~100K unnecessary hash insertions per tick with 50K agents). Hoist above region loop if formation scan shows in profiles.
+- **M50b: `check_friend` evaluates compatibility before shared memory.** Spec cascade puts expensive checks last. At current memory slot counts (5 max), cost difference is negligible. Low priority.
 - **M49: Phase 7 roadmap estimates ~24 M49 constants.** Actual count is 37. Update roadmap when next editing it.
 - **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Verify numerically in M53 Tier 3 calibration.
