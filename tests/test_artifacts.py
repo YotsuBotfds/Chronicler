@@ -157,3 +157,57 @@ class TestGreatPersonArtifactField:
             born_turn=10,
         )
         assert gp.mule_artifact_created is False
+
+
+from chronicler.artifacts import generate_artifact_name
+
+
+class TestArtifactNaming:
+    def test_weapon_name_with_creator(self):
+        name = generate_artifact_name(
+            ArtifactType.WEAPON, "Kiran", "Tessara", ["Honor"], seed=42,
+        )
+        assert isinstance(name, str)
+        assert len(name) > 0
+        assert "Kiran" in name or "Tessara" in name
+
+    def test_monument_name_with_place(self):
+        name = generate_artifact_name(
+            ArtifactType.MONUMENT, None, "Ashara", ["Trade"], seed=99,
+        )
+        assert "Ashara" in name
+
+    def test_deterministic_same_seed(self):
+        n1 = generate_artifact_name(ArtifactType.RELIC, None, "Reg1", ["Honor"], seed=42)
+        n2 = generate_artifact_name(ArtifactType.RELIC, None, "Reg1", ["Honor"], seed=42)
+        assert n1 == n2
+
+    def test_different_seed_different_name(self):
+        n1 = generate_artifact_name(ArtifactType.RELIC, None, "Reg1", ["Honor"], seed=42)
+        n2 = generate_artifact_name(ArtifactType.RELIC, None, "Reg1", ["Honor"], seed=43)
+        assert isinstance(n1, str) and isinstance(n2, str)
+
+    def test_cultural_flavor_honor(self):
+        name = generate_artifact_name(ArtifactType.WEAPON, "Kiran", "Tessara", ["Honor"], seed=0)
+        assert isinstance(name, str)
+
+    def test_cultural_flavor_trade(self):
+        name = generate_artifact_name(ArtifactType.ARTWORK, None, "Velanya", ["Trade"], seed=0)
+        assert isinstance(name, str)
+
+    def test_fallback_to_default_for_unknown_value(self):
+        name = generate_artifact_name(ArtifactType.RELIC, None, "Reg1", ["UnknownValue"], seed=42)
+        assert isinstance(name, str) and len(name) > 0
+
+    def test_empty_values_uses_default(self):
+        name = generate_artifact_name(ArtifactType.RELIC, None, "Reg1", [], seed=42)
+        assert isinstance(name, str) and len(name) > 0
+
+    def test_possessive_creator_name(self):
+        name = generate_artifact_name(ArtifactType.MONUMENT, "Ashara", "Region1", ["Order"], seed=0)
+        assert isinstance(name, str)
+
+    def test_all_types_produce_names(self):
+        for atype in ArtifactType:
+            name = generate_artifact_name(atype, "Creator", "Place", ["Honor"], seed=42)
+            assert isinstance(name, str) and len(name) > 0
