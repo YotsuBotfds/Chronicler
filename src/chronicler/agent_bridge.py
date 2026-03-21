@@ -10,7 +10,7 @@ import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.great_persons import _append_deed
-from chronicler.leaders import _pick_name, ALL_TRAITS
+from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
@@ -685,6 +685,7 @@ class AgentBridge:
                 agent_id=agent_id,
                 parent_id=parent_id,
             )
+            gp.base_name = strip_title(gp.name)
             # M40: Set origin_region from promotions batch
             if origin_region < len(world.regions):
                 gp.origin_region = world.regions[origin_region].name

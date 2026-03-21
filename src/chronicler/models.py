@@ -398,6 +398,7 @@ class GreatPerson(BaseModel):
     memories: list = Field(default_factory=list)  # cached from Rust via FFI
     needs: Optional[dict] = None  # M49: cached from Rust via FFI, None in aggregate mode
     agent_bonds: Optional[list] = None  # M50a: synced from Rust per-agent store
+    base_name: str | None = None  # M51: personal name without title, set at promotion
 
 
 class ShockContext(BaseModel):

@@ -1,5 +1,6 @@
 """M51 Regnal Naming Tests."""
 from chronicler.models import Leader, Civilization
+from chronicler.leaders import to_roman, strip_title
 
 
 def test_leader_has_regnal_fields():
@@ -22,3 +23,28 @@ def test_civilization_has_regnal_name_counts():
     assert civ.regnal_name_counts == {}
     civ.regnal_name_counts["Kiran"] = 1
     assert civ.regnal_name_counts["Kiran"] == 1
+
+
+def test_strip_title_single_word():
+    assert strip_title("Emperor Kiran") == "Kiran"
+
+
+def test_strip_title_multi_word():
+    assert strip_title("High Priestess Mira") == "Mira"
+
+
+def test_strip_title_no_title():
+    assert strip_title("Kiran") == "Kiran"
+
+
+def test_strip_title_with_numeral():
+    assert strip_title("Kiran III") == "Kiran"
+
+
+def test_to_roman():
+    assert to_roman(2) == "II"
+    assert to_roman(3) == "III"
+    assert to_roman(4) == "IV"
+    assert to_roman(9) == "IX"
+    assert to_roman(14) == "XIV"
+    assert to_roman(20) == "XX"
