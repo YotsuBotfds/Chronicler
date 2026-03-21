@@ -113,6 +113,14 @@ pub const WAR_CASUALTY_MULTIPLIER: f32 = 2.0;
 // At baseline (0.01): 1.1x. At cap (0.15): 2.5x.
 pub const DISEASE_MORTALITY_SCALE: f32 = 10.0;  // [CALIBRATE M53]
 
+// Overcrowding — satisfaction penalty for pop > carrying capacity
+// Uncapped, this zeroes satisfaction at 3-7x capacity, blocking all fertility
+// and making M48-M51 depth systems inert. Cap preserves intended pressure
+// up to ~2x while stopping runaway zeroing. Overcrowding is already punished
+// through ecology, disease flares, and downstream demography.
+pub const OVERCROWDING_WEIGHT: f32 = 0.3;       // [CALIBRATE M53]
+pub const OVERCROWDING_PENALTY_CAP: f32 = 0.30; // [CALIBRATE M53]
+
 // Life-event bitflags for named character promotion (M30)
 pub const LIFE_EVENT_REBELLION: u8     = 1 << 0;
 pub const LIFE_EVENT_MIGRATION: u8     = 1 << 1;

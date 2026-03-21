@@ -111,8 +111,8 @@ pub fn compute_satisfaction(
     let ds_raw = demand_supply_ratio * 0.2;
     let ds_bonus = ds_raw.clamp(-0.2, 0.2);
 
-    let overcrowding_raw = (pop_over_capacity - 1.0) * 0.3;
-    let overcrowding = overcrowding_raw * (overcrowding_raw > 0.0) as i32 as f32;
+    let overcrowding_raw = (pop_over_capacity - 1.0) * crate::agent::OVERCROWDING_WEIGHT;
+    let overcrowding = overcrowding_raw.clamp(0.0, crate::agent::OVERCROWDING_PENALTY_CAP);
 
     let war_pen = 0.08 * civ_at_war as i32 as f32   // [CALIBRATE] M47c: 0.15→0.08 (whole-civ penalty too harsh)
                 + 0.05 * region_contested as i32 as f32;  // [CALIBRATE] M47c: 0.10→0.05
