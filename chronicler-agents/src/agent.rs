@@ -37,7 +37,8 @@ const _: () = assert!(MAX_CIVS <= u8::MAX as usize);
 
 // Fertility
 pub const FERTILITY_AGE_MIN: u16 = 16;
-pub const FERTILITY_AGE_MAX: u16 = 45;
+pub const FERTILITY_FULL_AGE_MAX: u16 = 50;   // M53: full fertility up to this age
+pub const FERTILITY_TAPER_AGE_MAX: u16 = 60;  // M53: linear taper to zero by this age
 pub const FERTILITY_BASE_FARMER: f32 = 0.05;   // M53: was 0.03 (B+C combined fix)
 pub const FERTILITY_BASE_OTHER: f32 = 0.03;    // M53: was 0.015 (B+C combined fix)
 pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.3;  // [CALIBRATE] M47c: 0.4→0.3 (wars pushing satisfaction below threshold killed all births)

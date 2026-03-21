@@ -101,7 +101,7 @@ def run_probe(seed: int, turns: int, probe: str, verbose: bool = False):
             "young": hist.get("young_0_19", 0),
             "adult": hist.get("adult_20_59", 0),
             "elder": hist.get("elder_60_plus", 0),
-            "fertile_range": hist.get("fertile_range_16_45", 0),
+            "fertile_range": hist.get("fertile_range_16_60", 0),
         }
         results.append(row)
 
@@ -128,7 +128,7 @@ def print_age_histogram(hist: dict, label: str):
     print(f"  Young (0-19):       {hist.get('young_0_19', 0):5d} ({hist.get('young_0_19', 0)/total*100:.1f}%)")
     print(f"  Adult (20-59):      {hist.get('adult_20_59', 0):5d} ({hist.get('adult_20_59', 0)/total*100:.1f}%)")
     print(f"  Elder (60+):        {hist.get('elder_60_plus', 0):5d} ({hist.get('elder_60_plus', 0)/total*100:.1f}%)")
-    print(f"  Fertile (16-45):    {hist.get('fertile_range_16_45', 0):5d} ({hist.get('fertile_range_16_45', 0)/total*100:.1f}%)")
+    print(f"  Fertile (16-45):    {hist.get('fertile_range_16_60', 0):5d} ({hist.get('fertile_range_16_60', 0)/total*100:.1f}%)")
     print(f"  Total:              {total:5d}")
 
 

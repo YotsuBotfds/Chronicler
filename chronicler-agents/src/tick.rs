@@ -6,7 +6,7 @@ use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
 use crate::agent::{
-    AGE_ADULT, AGE_ELDER, FERTILITY_AGE_MIN, FERTILITY_AGE_MAX,
+    AGE_ADULT, AGE_ELDER, FERTILITY_AGE_MIN, FERTILITY_TAPER_AGE_MAX,
     FERTILITY_SATISFACTION_THRESHOLD,
     DECISION_STREAM_OFFSET, PERSONALITY_STREAM_OFFSET,
     LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
@@ -1052,7 +1052,7 @@ fn tick_region_demographics(
             pending.aged.push(slot);
 
             // Track fertility eligibility
-            if age >= FERTILITY_AGE_MIN && age <= FERTILITY_AGE_MAX {
+            if age >= FERTILITY_AGE_MIN && age <= FERTILITY_TAPER_AGE_MAX {
                 debug.fertile_age_total += 1;
                 if sat > FERTILITY_SATISFACTION_THRESHOLD {
                     let occ_idx = occ as usize;

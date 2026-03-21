@@ -30,13 +30,24 @@ pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, diseas
     base * eco_stress * war_mult * disease_mult
 }
 
+/// Fertility with age taper (M53): full rate 16-40, linear decline 41-55, zero after 55.
+/// Replaces hard cutoff at FERTILITY_AGE_MAX which caused entire cohorts to drop out
+/// of the breeding pool simultaneously, creating generational handoff failures.
 pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) -> f32 {
-    let eligible = (age >= FERTILITY_AGE_MIN
-        && age <= FERTILITY_AGE_MAX
-        && satisfaction > FERTILITY_SATISFACTION_THRESHOLD) as i32 as f32;
+    let age_mult = if age < FERTILITY_AGE_MIN {
+        0.0
+    } else if age <= FERTILITY_FULL_AGE_MAX {
+        1.0
+    } else if age <= FERTILITY_TAPER_AGE_MAX {
+        1.0 - (age - FERTILITY_FULL_AGE_MAX) as f32
+            / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32
+    } else {
+        0.0
+    };
+    let sat_gate = (satisfaction > FERTILITY_SATISFACTION_THRESHOLD) as i32 as f32;
     let base = if occupation == 0 { FERTILITY_BASE_FARMER } else { FERTILITY_BASE_OTHER };
     let ecology_mod = 0.5 + soil * 0.5;
-    base * ecology_mod * eligible
+    base * ecology_mod * age_mult * sat_gate
 }
 
 use rand::prelude::*;
@@ -181,14 +192,14 @@ mod tests {
     #[test]
     fn test_fertility_eligible_farmer() {
         let rate = fertility_rate(25, 0.6, 0, 0.8);
-        let expected = 0.03 * 0.9;
+        let expected = FERTILITY_BASE_FARMER * 0.9;  // M53: use constant, not hardcoded
         assert!((rate - expected).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_eligible_soldier() {
         let rate = fertility_rate(25, 0.6, 1, 0.8);
-        let expected = 0.015 * 0.9;
+        let expected = FERTILITY_BASE_OTHER * 0.9;  // M53: use constant, not hardcoded
         assert!((rate - expected).abs() < 0.001);
     }
 
@@ -199,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_fertility_too_old() {
-        assert!(fertility_rate(46, 0.8, 0, 0.8) == 0.0);
+        assert!(fertility_rate(61, 0.8, 0, 0.8) == 0.0);  // past FERTILITY_TAPER_AGE_MAX (60)
     }
 
     #[test]
@@ -212,7 +223,7 @@ mod tests {
     #[test]
     fn test_fertility_bad_soil() {
         let rate = fertility_rate(25, 0.6, 0, 0.0);
-        let expected = 0.03 * 0.5;
+        let expected = FERTILITY_BASE_FARMER * 0.5;
         assert!((rate - expected).abs() < 0.001);
     }
 
@@ -222,8 +233,41 @@ mod tests {
     }
 
     #[test]
-    fn test_fertility_boundary_age_max() {
-        assert!(fertility_rate(45, 0.6, 0, 0.8) > 0.0);
+    fn test_fertility_full_at_50() {
+        // Age 50 = last full-rate year
+        let rate = fertility_rate(50, 0.6, 0, 0.8);
+        let expected = FERTILITY_BASE_FARMER * 0.9;
+        assert!((rate - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fertility_taper_at_51() {
+        // Age 51 = first taper year: 1.0 - 1/10 = 9/10
+        let rate = fertility_rate(51, 0.6, 0, 0.8);
+        let full = FERTILITY_BASE_FARMER * 0.9;
+        let taper = 1.0 - 1.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
+        assert!((rate - full * taper).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fertility_taper_midpoint() {
+        // Age 55 = midpoint of taper (50..60): 1.0 - 5/10
+        let rate = fertility_rate(55, 0.6, 0, 0.8);
+        let full = FERTILITY_BASE_FARMER * 0.9;
+        let taper = 1.0 - 5.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
+        assert!((rate - full * taper).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fertility_taper_at_60() {
+        // Age 60 = end of taper: 1.0 - 15/15 = 0.0
+        assert!(fertility_rate(60, 0.6, 0, 0.8) == 0.0);
+    }
+
+    #[test]
+    fn test_fertility_past_taper() {
+        // Age 61 = past taper range
+        assert!(fertility_rate(61, 0.6, 0, 0.8) == 0.0);
     }
 
     #[test]

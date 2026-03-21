@@ -1127,14 +1127,14 @@ impl AgentSimulator {
                 crate::agent::AGE_ADULT..crate::agent::AGE_ELDER => adult += 1,
                 _ => elder += 1,
             }
-            if age >= crate::agent::FERTILITY_AGE_MIN && age <= crate::agent::FERTILITY_AGE_MAX {
+            if age >= crate::agent::FERTILITY_AGE_MIN && age <= crate::agent::FERTILITY_TAPER_AGE_MAX {
                 fertile_range += 1;
             }
         }
         m.insert("young_0_19".into(), young);
         m.insert("adult_20_59".into(), adult);
         m.insert("elder_60_plus".into(), elder);
-        m.insert("fertile_range_16_45".into(), fertile_range);
+        m.insert("fertile_range_16_60".into(), fertile_range);
         m.insert("total_alive".into(), total);
         m
     }
