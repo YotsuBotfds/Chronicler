@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from chronicler.models import WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition
+from chronicler.utils import stable_hash_int
 
 
 # --- Task 19: Event counts tracking ---
@@ -154,7 +155,12 @@ def check_folk_hero(gp: GreatPerson, civ: Civilization, world: WorldState, conte
     """Check if a dead great person becomes a folk hero. Returns True if they do."""
     if not is_dramatic_death(context):
         return False
-    roll = (world.seed + (gp.death_turn or world.turn) + hash(gp.name)) % 100
+    roll = stable_hash_int(
+        "folk_hero",
+        world.seed,
+        gp.death_turn or world.turn,
+        gp.name,
+    ) % 100
     if roll < FOLK_HERO_CHANCE * 100:
         _add_folk_hero(gp, civ, context)
         return True

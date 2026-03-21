@@ -8,7 +8,7 @@ import re
 from chronicler.models import (
     ActiveCondition, Civilization, Event, Leader, NamedEvent, TechEra, WorldState,
 )
-from chronicler.utils import civ_index, clamp, STAT_FLOOR
+from chronicler.utils import civ_index, clamp, stable_hash_int, STAT_FLOOR
 from chronicler.emergence import get_severity_multiplier
 
 
@@ -289,7 +289,9 @@ def _pick_regnal_name(civ: Civilization, world: WorldState, rng: random.Random) 
 
 
 def generate_successor(civ: Civilization, world: WorldState, seed: int, force_type: str | None = None, acc=None) -> Leader:
-    rng = random.Random(seed + world.turn + hash(civ.name))
+    rng = random.Random(
+        stable_hash_int("successor", seed, world.turn, civ.name)
+    )
     old_leader = civ.leader
     if force_type:
         stype = force_type

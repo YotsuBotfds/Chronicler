@@ -31,6 +31,7 @@ from chronicler.tuning import (
     K_PEACE_DEVELOP_DIVISOR, K_PEACE_TRADE_DIVISOR,
     get_override,
 )
+from chronicler.utils import stable_hash_int
 from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
@@ -974,5 +975,7 @@ class ActionEngine:
         action_weights = [weights[a] for a in actions]
         if not actions:
             return ActionType.DEVELOP
-        rng = random.Random(seed + self.world.turn + hash(civ.name))
+        rng = random.Random(
+            stable_hash_int("action_select", seed, self.world.turn, civ.name)
+        )
         return rng.choices(actions, weights=action_weights, k=1)[0]

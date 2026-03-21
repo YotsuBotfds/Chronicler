@@ -19,6 +19,7 @@ from chronicler.models import (
     NarrativeRole,
     TurnSnapshot,
 )
+from chronicler.utils import stable_hash_int
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -65,7 +66,7 @@ def compute_dominant_power(
 ) -> str:
     """Find the civ with the most cumulative region-turns across history.
 
-    Ties are broken deterministically via ``hash((seed, civ_name))``.
+    Ties are broken deterministically via a stable SHA256-derived hash.
     """
     region_turns: Counter[str] = Counter()
     for snap in history:
@@ -83,7 +84,7 @@ def compute_dominant_power(
         return tied[0]
 
     # Deterministic tiebreak
-    return min(tied, key=lambda n: hash((seed, n)))
+    return min(tied, key=lambda n: stable_hash_int("dominant_power", seed, n))
 
 
 # ---------------------------------------------------------------------------

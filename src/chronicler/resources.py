@@ -5,6 +5,7 @@ import random
 
 from chronicler.models import Disposition, Event, InfrastructureType, Region, Resource, WorldState
 from chronicler.models import EMPTY_SLOT, ResourceType
+from chronicler.utils import stable_hash_int
 
 # --- M34: Resource type constants ---
 
@@ -45,7 +46,7 @@ def assign_resource_types(regions: list[Region], seed: int) -> None:
     for region in regions:
         if region.resource_types[0] != EMPTY_SLOT:
             continue  # Already assigned
-        rng = random.Random(seed + hash(region.name))
+        rng = random.Random(stable_hash_int("resource_types", seed, region.name))
 
         # Slot 1: deterministic primary
         primary = TERRAIN_PRIMARY.get(region.terrain, ResourceType.GRAIN)
@@ -115,7 +116,7 @@ def assign_resources(regions: list[Region], seed: int) -> None:
     for region in regions:
         if region.specialized_resources:
             continue
-        rng = random.Random(seed + hash(region.name))
+        rng = random.Random(stable_hash_int("resources", seed, region.name))
         probs = TERRAIN_RESOURCE_PROBS.get(region.terrain, {})
         resources: list[Resource] = []
         for resource, prob in probs.items():

@@ -303,6 +303,26 @@ class TestDuration:
         assert gp.pilgrimage_return_turn is not None
         assert current_turn + PILGRIMAGE_DURATION_MIN <= gp.pilgrimage_return_turn <= current_turn + PILGRIMAGE_DURATION_MAX
 
+    def test_departure_return_turn_is_deterministic(self):
+        """Identical departure inputs should produce the same return turn."""
+        gp_a = _make_gp(agent_id=1)
+        gp_b = _make_gp(agent_id=1)
+
+        snap = _make_snapshot(
+            agent_id=1,
+            occupation=_PRIEST_OCCUPATION,
+            loyalty_trait=0.0,
+            loyalty=0.9,
+            belief=0,
+        )
+        temple = _make_temple(faith_id=0, prestige=10)
+        temples = [("HolyCity", temple)]
+
+        check_pilgrimages([gp_a], temples, snap, current_turn=50, belief_registry=[])
+        check_pilgrimages([gp_b], temples, snap, current_turn=50, belief_registry=[])
+
+        assert gp_a.pilgrimage_return_turn == gp_b.pilgrimage_return_turn
+
     def test_departure_event_importance_is_4(self):
         """Departure event has importance=4."""
         gp = _make_gp(agent_id=1)

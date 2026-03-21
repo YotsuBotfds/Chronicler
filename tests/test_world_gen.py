@@ -1,4 +1,10 @@
 """Tests for initial world generation."""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 from unittest.mock import MagicMock
 from chronicler.world_gen import generate_world, generate_regions, assign_civilizations
@@ -90,6 +96,53 @@ class TestGenerateWorld:
         for civ in world.civilizations:
             assert civ.leader.name in world.used_leader_names
         assert len(world.used_leader_names) == len(set(world.used_leader_names))
+
+    def test_cross_process_deterministic_with_randomized_python_hash_seed(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(repo_root / "src")
+        env.pop("PYTHONHASHSEED", None)
+
+        script = """
+import json
+from chronicler.world_gen import generate_world
+
+world = generate_world(seed=42, num_regions=8, num_civs=4)
+payload = {
+    "regions": [
+        {
+            "name": region.name,
+            "resource_types": [int(rt) for rt in region.resource_types],
+            "resource_base_yields": [round(val, 6) for val in region.resource_base_yields],
+        }
+        for region in world.regions
+    ],
+    "civilizations": [
+        {
+            "name": civ.name,
+            "leader": civ.leader.name,
+            "regions": list(civ.regions),
+        }
+        for civ in world.civilizations
+    ],
+}
+print(json.dumps(payload, sort_keys=True))
+""".strip()
+
+        out_a = subprocess.check_output(
+            [sys.executable, "-c", script],
+            cwd=repo_root,
+            env=env,
+            text=True,
+        )
+        out_b = subprocess.check_output(
+            [sys.executable, "-c", script],
+            cwd=repo_root,
+            env=env,
+            text=True,
+        )
+
+        assert json.loads(out_a) == json.loads(out_b)
 
 
 class TestLLMWorldGeneration:

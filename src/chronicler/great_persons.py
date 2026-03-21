@@ -11,6 +11,7 @@ from chronicler.religion import (
     PILGRIMAGE_SKILL_BOOST,
     _PRIEST_OCCUPATION,
 )
+from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:
     from chronicler.models import Civilization, GreatPerson, WorldState
@@ -152,7 +153,9 @@ def _enforce_cap(civ: Civilization, world: WorldState) -> None:
 def _create_great_person(role: str, civ: Civilization, world: WorldState) -> GreatPerson:
     """Instantiate a new GreatPerson, append it to civ.great_persons, and return it."""
     from chronicler.models import GreatPerson
-    rng = random.Random(world.seed + world.turn + hash(civ.name) + hash(role))
+    rng = random.Random(
+        stable_hash_int("great_person_spawn", world.seed, world.turn, civ.name, role)
+    )
     name = _pick_name(civ, world, rng)
     trait = rng.choice(ALL_TRAITS)
     gp = GreatPerson(
@@ -248,7 +251,7 @@ def check_great_person_generation(civ: Civilization, world: WorldState) -> list[
 
 def _compute_lifespan(seed: int, born_turn: int, name: str) -> int:
     """Return a deterministic lifespan in [20, 30] for a Great Person."""
-    return 20 + ((seed + born_turn + hash(name)) % 11)
+    return 20 + (stable_hash_int("great_person_lifespan", seed, born_turn, name) % 11)
 
 
 def check_lifespan_expiry(civ: Civilization, world: WorldState) -> list[GreatPerson]:
@@ -443,10 +446,19 @@ def check_pilgrimages(
 
         # Send GP on pilgrimage
         gp.pilgrimage_destination = best_region
-        gp.pilgrimage_return_turn = (
-            current_turn
-            + random.randint(PILGRIMAGE_DURATION_MIN, PILGRIMAGE_DURATION_MAX)
+        duration_span = PILGRIMAGE_DURATION_MAX - PILGRIMAGE_DURATION_MIN + 1
+        duration = PILGRIMAGE_DURATION_MIN + (
+            stable_hash_int(
+                "pilgrimage_duration",
+                current_turn,
+                gp.name,
+                gp.civilization,
+                gp.agent_id,
+                belief,
+                best_region,
+            ) % duration_span
         )
+        gp.pilgrimage_return_turn = current_turn + duration
         _append_deed(gp, f"Departed on pilgrimage to {best_region}")
         faiths_departed.add(belief)
 

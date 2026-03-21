@@ -5,7 +5,7 @@ import random
 
 from chronicler.models import Civilization, Event, GreatPerson, Leader, NamedEvent, WorldState
 from chronicler.models import Disposition
-from chronicler.utils import civ_index
+from chronicler.utils import civ_index, stable_hash_int
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import strip_title, _compose_regnal_name, TITLES
 
@@ -80,7 +80,9 @@ def is_in_crisis(civ: Civilization) -> bool:
 
 def trigger_crisis(civ: Civilization, world: WorldState) -> None:
     """Begin a succession crisis. Duration scales with region count (1-5 turns)."""
-    rng = random.Random(world.seed + world.turn + hash(civ.name))
+    rng = random.Random(
+        stable_hash_int("trigger_crisis", world.seed, world.turn, civ.name)
+    )
     duration = min(5, max(1, len(civ.regions) // 2 + rng.randint(1, 2)))
     civ.succession_crisis_turns_remaining = duration
 
@@ -112,7 +114,9 @@ def resolve_crisis(civ: Civilization, world: WorldState) -> list[Event]:
     # Determine succession type from candidates if available
     force_type: str | None = None
     if civ.succession_candidates:
-        rng = random.Random(world.seed + world.turn + hash(civ.name))
+        rng = random.Random(
+            stable_hash_int("resolve_crisis", world.seed, world.turn, civ.name)
+        )
         candidate = rng.choice(civ.succession_candidates)
         candidate_type = candidate.get("type", "")
         if candidate_type == "military":
@@ -290,7 +294,9 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                 base_prob *= 0.3
             elif exile_faction:
                 base_prob *= 1.5
-            rng = random.Random(world.seed + world.turn + hash(gp.name))
+            rng = random.Random(
+                stable_hash_int("exile_restoration", world.seed, world.turn, gp.name)
+            )
             if rng.random() < base_prob:
                 gp.active = False
                 gp.fate = "ascended"

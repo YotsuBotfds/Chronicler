@@ -31,7 +31,14 @@ from chronicler.tuning import (
     K_PROXY_WAR_ECONOMY_DRAIN, K_SECESSION_STABILITY_LOSS,
     get_override,
 )
-from chronicler.utils import civ_index, clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
+from chronicler.utils import (
+    civ_index,
+    clamp,
+    stable_hash_int,
+    STAT_FLOOR,
+    sync_civ_population,
+    drain_region_pop,
+)
 from chronicler.intelligence import get_perceived_stat
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
@@ -166,7 +173,9 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         prob *= get_multiplier(world, K_SECESSION_LIKELIHOOD)
         prob = min(prob, 1.0)
 
-        rng = random.Random(world.seed + world.turn + hash(civ.name))
+        rng = random.Random(
+            stable_hash_int("secession", world.seed, world.turn, civ.name)
+        )
         if rng.random() >= prob:
             continue
 
@@ -255,7 +264,9 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         )
 
         # Apply regnal naming to the breakaway leader now that breakaway_civ exists
-        regnal_rng = random.Random(world.seed + world.turn + hash(breakaway_name) + 0x51)
+        regnal_rng = random.Random(
+            stable_hash_int("secession_regnal", world.seed, world.turn, breakaway_name)
+        )
         title, throne_name, ordinal = _pick_regnal_name(breakaway_civ, world, regnal_rng)
         leader_name = _compose_regnal_name(title, throne_name, ordinal)
         breakaway_civ.leader.name = leader_name
@@ -387,7 +398,9 @@ def choose_vassalize_or_absorb(
     """Return True to vassalize, False to absorb."""
     if winner.stability <= 40:
         return False
-    rng = random.Random(world.seed + world.turn + hash(winner.name))
+    rng = random.Random(
+        stable_hash_int("vassalize_or_absorb", world.seed, world.turn, winner.name)
+    )
     trait = winner.leader.trait
     if trait in _ABSORPTION_BIAS_TRAITS:
         threshold = 0.3
@@ -482,7 +495,9 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
         if eff_stab >= 25 and eff_treas >= 10:
             continue
 
-        rng = random.Random(world.seed + world.turn + hash(vr.vassal))
+        rng = random.Random(
+            stable_hash_int("vassal_rebellion", world.seed, world.turn, vr.vassal)
+        )
         prob = get_override(world, K_VASSAL_REBELLION_REDUCED_PROB, 0.05) if vr.overlord in rebelled_overlords else get_override(world, K_VASSAL_REBELLION_BASE_PROB, 0.15)
 
         if vr.overlord in rebelled_overlords:
@@ -767,7 +782,15 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
         if target is None:
             continue
 
-        rng = random.Random(world.seed + world.turn + hash(pw.sponsor) + hash(pw.target_civ))
+        rng = random.Random(
+            stable_hash_int(
+                "proxy_detection",
+                world.seed,
+                world.turn,
+                pw.sponsor,
+                pw.target_civ,
+            )
+        )
         detection_prob = target.culture / 100
         if rng.random() < detection_prob:
             pw.detected = True
@@ -973,7 +996,14 @@ def check_restoration(world: WorldState) -> list[Event]:
             continue
 
         prob = get_override(world, K_RESTORATION_BASE_PROB, 0.05) + get_override(world, K_RESTORATION_RECOGNITION_BONUS, 0.03) * len(exile.recognized_by)
-        rng = random.Random(world.seed + world.turn + hash(exile.original_civ_name))
+        rng = random.Random(
+            stable_hash_int(
+                "restoration",
+                world.seed,
+                world.turn,
+                exile.original_civ_name,
+            )
+        )
         if rng.random() >= prob:
             continue
 
@@ -1001,7 +1031,14 @@ def check_restoration(world: WorldState) -> list[Event]:
             regions=[target_region], capital_region=target_region,
         )
         # Apply regnal naming now that restored_civ exists
-        regnal_rng = random.Random(world.seed + world.turn + hash(exile.original_civ_name) + 0x51)
+        regnal_rng = random.Random(
+            stable_hash_int(
+                "restoration_regnal",
+                world.seed,
+                world.turn,
+                exile.original_civ_name,
+            )
+        )
         title, throne_name, ordinal = _pick_regnal_name(restored_civ, world, regnal_rng)
         leader_name = _compose_regnal_name(title, throne_name, ordinal)
         restored_civ.leader.name = leader_name

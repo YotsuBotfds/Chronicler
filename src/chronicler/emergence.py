@@ -29,7 +29,15 @@ from chronicler.tuning import (
     K_TECH_ACCIDENT_SOIL_LOSS, K_TECH_ACCIDENT_NEIGHBOR_SOIL_LOSS,
     get_override,
 )
-from chronicler.utils import civ_index, clamp, STAT_FLOOR, distribute_pop_loss, drain_region_pop, sync_civ_population
+from chronicler.utils import (
+    civ_index,
+    clamp,
+    stable_hash_int,
+    STAT_FLOOR,
+    distribute_pop_loss,
+    drain_region_pop,
+    sync_civ_population,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +326,9 @@ def tick_pandemic(world: WorldState, acc=None) -> list[Event]:
             civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
 
         # Leader kill check: per infected civ
-        rng = random.Random(world.seed + world.turn * 1013 + hash(civ_name))
+        rng = random.Random(
+            stable_hash_int("pandemic_leader_kill", world.seed, world.turn, civ_name)
+        )
         leader_kill_prob = get_override(world, K_PANDEMIC_LEADER_KILL_PROB, 0.05)
         if rng.random() < leader_kill_prob:
             from chronicler.succession import trigger_crisis
@@ -625,7 +635,9 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
         resist_divisor = get_override(world, K_REGRESSION_CULTURE_RESISTANCE_DIVISOR, 200)
         culture_resistance = max(resist_floor, 1.0 - civ.culture / resist_divisor)
         best_prob = max(matching_probs) * culture_resistance
-        rng = random.Random(world.seed + world.turn * 1037 + hash(civ.name))
+        rng = random.Random(
+            stable_hash_int("tech_regression", world.seed, world.turn, civ.name)
+        )
         if rng.random() >= best_prob:
             continue
 

@@ -2,10 +2,43 @@
 
 from __future__ import annotations
 
+import hashlib
+from enum import Enum
+
 
 def clamp(value: int, low: int, high: int) -> int:
     """Clamp an integer value to [low, high]."""
     return max(low, min(high, value))
+
+
+def _stable_serialize(value: object) -> str:
+    """Serialize nested values into a deterministic string representation."""
+    if isinstance(value, Enum):
+        return f"enum:{value.__class__.__name__}:{_stable_serialize(value.value)}"
+    if value is None:
+        return "none"
+    if isinstance(value, (bool, int, float, str, bytes)):
+        return repr(value)
+    if isinstance(value, tuple):
+        return "(" + ",".join(_stable_serialize(item) for item in value) + ")"
+    if isinstance(value, list):
+        return "[" + ",".join(_stable_serialize(item) for item in value) + "]"
+    if isinstance(value, (set, frozenset)):
+        items = sorted(_stable_serialize(item) for item in value)
+        return "{" + ",".join(items) + "}"
+    if isinstance(value, dict):
+        items = sorted(
+            (_stable_serialize(key), _stable_serialize(val))
+            for key, val in value.items()
+        )
+        return "{" + ",".join(f"{key}:{val}" for key, val in items) + "}"
+    return repr(value)
+
+
+def stable_hash_int(*parts: object) -> int:
+    """Return a process-stable integer hash for deterministic seeding/tiebreaks."""
+    payload = "|".join(_stable_serialize(part) for part in parts).encode("utf-8")
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big", signed=False)
 
 
 STAT_FLOOR: dict[str, int] = {

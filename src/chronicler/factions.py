@@ -13,6 +13,7 @@ from chronicler.models import (
     Leader,
     WorldState,
 )
+from chronicler.utils import stable_hash_int
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -588,7 +589,9 @@ def _apply_gp_successor_winner(civ, new_leader, winner: dict) -> None:
         throne_name = winner.get("gp_base_name") or strip_title(gp_name)
 
         # Seed RNG for title selection
-        _rng = _random.Random(hash(civ.name) + hash(gp_name))
+        _rng = _random.Random(
+            stable_hash_int("gp_successor_title", civ.name, gp_name)
+        )
         title = _rng.choice(TITLES)
 
         count = civ.regnal_name_counts.get(throne_name, 0)
@@ -654,7 +657,9 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     from chronicler.succession import create_exiled_leader
 
     events: list[Event] = []
-    rng = random.Random(world.seed + world.turn + hash(civ.name))
+    rng = random.Random(
+        stable_hash_int("crisis_with_factions", world.seed, world.turn, civ.name)
+    )
 
     old_leader = civ.leader
     candidates = civ.succession_candidates

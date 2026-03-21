@@ -44,6 +44,7 @@ from chronicler.utils import (
     civ_index,
     clamp,
     get_civ,
+    stable_hash_int,
     STAT_FLOOR,
     sync_civ_population,
     sync_all_populations,
@@ -664,7 +665,9 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
         check_rival_fall(civ, old_leader.name, world)
         # Check whether death triggers a succession crisis instead of immediate succession
         crisis_prob = compute_crisis_probability(civ, world)
-        rng = _random.Random(world.seed + world.turn + hash(civ.name))
+        rng = _random.Random(
+            stable_hash_int("leader_death_crisis", world.seed, world.turn, civ.name)
+        )
         if crisis_prob > 0.0 and rng.random() < crisis_prob and not is_in_crisis(civ):
             trigger_crisis(civ, world)
             world.events_timeline.append(Event(

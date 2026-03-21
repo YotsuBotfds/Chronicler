@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 
 from chronicler.models import Civilization, TechEra, WorldState
+from chronicler.utils import stable_hash_int
 
 TECH_BREAKTHROUGH_NAMES: dict[TechEra, str] = {
     TechEra.BRONZE: "The Forging of Bronze",
@@ -49,8 +50,7 @@ _ORDINALS = ["Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"]
 
 
 def _seed_rng(base_seed: int, turn: int, extra: str) -> random.Random:
-    combined = base_seed + turn + hash(extra)
-    return random.Random(combined)
+    return random.Random(stable_hash_int("named_event", base_seed, turn, extra))
 
 
 def generate_battle_name(region: str, era: TechEra, world: WorldState, seed: int) -> str:

@@ -12,7 +12,7 @@ from chronicler.models import (
     River, TechEra, TerrainTransitionRule, WorldState,
     ResourceType, EMPTY_SLOT,
 )
-from chronicler.utils import sync_civ_population
+from chronicler.utils import stable_hash_int, sync_civ_population
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
 from chronicler.leaders import strip_title
 
@@ -440,7 +440,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
             for slot in range(3):
                 if region.resource_types[slot] == EMPTY_SLOT:
                     region.resource_types[slot] = ResourceType.FISH
-                    rng = _rng_mod.Random(world.seed + hash(region.name) + 0xF15F)
+                    rng = _rng_mod.Random(
+                        stable_hash_int("river_fish", world.seed, region.name)
+                    )
                     variance = rng.uniform(-0.2, 0.2)
                     region.resource_base_yields[slot] = RESOURCE_BASE[ResourceType.FISH] * (1.0 + variance)
                     break

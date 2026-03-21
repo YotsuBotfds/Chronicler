@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 
 from chronicler.models import GreatPerson, WorldState
+from chronicler.utils import stable_hash_int
 
 # M40: Relationship type constants (match Rust RelationshipType repr(u8))
 REL_MENTOR = 0
@@ -194,7 +195,9 @@ def check_marriage_formation(world: WorldState, existing_edges: list[tuple]) -> 
             ]
             if not gp1_candidates or not gp2_candidates:
                 continue
-            rng = random.Random(world.seed + world.turn + hash(pair))
+            rng = random.Random(
+                stable_hash_int("marriage", world.seed, world.turn, pair)
+            )
             if rng.random() < 0.30:
                 gp1, gp2 = gp1_candidates[0], gp2_candidates[0]
                 a, b = min(gp1.agent_id, gp2.agent_id), max(gp1.agent_id, gp2.agent_id)
@@ -330,7 +333,9 @@ def capture_hostage(
     candidates = [gp for gp in loser.great_persons if gp.active and not gp.is_hostage]
     if not candidates:
         import random as _random
-        rng = _random.Random(world.seed + world.turn + hash(loser.name))
+        rng = _random.Random(
+            stable_hash_int("hostage", world.seed, world.turn, loser.name)
+        )
         from chronicler.leaders import _pick_name
         name = _pick_name(loser, world, rng)
         hostage = GreatPerson(
