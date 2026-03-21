@@ -280,6 +280,101 @@ def compute_needs_diversity(
     }
 
 
+def detect_inflection_points(
+    series: list[float],
+    smoothing_window: int = 5,
+) -> list[int]:
+    """Oracle 3: Detect era inflection points in a time series.
+
+    Uses smoothed-derivative magnitude detection with auto-calibrated
+    threshold based on the derivative's own standard deviation. An inflection
+    point is a turn where the local slope of the smoothed series exceeds
+    3.0 × std of the derivative, indicating a structural shift
+    (collapse, rapid growth, recovery) rather than noise.
+
+    Nearby candidate points within ``smoothing_window`` turns are collapsed
+    to the single highest-magnitude point to avoid duplicate reporting of
+    the same transition.
+
+    Parameters
+    ----------
+    series:
+        List of numeric values (e.g. population per turn).
+    smoothing_window:
+        Rolling mean window size for smoothing (default 5).
+
+    Returns
+    -------
+    List of turn indices where inflection points occur (large-magnitude
+    slope changes in the smoothed series). Returns an empty list for
+    series that are noisy but structurally stable.
+    """
+    n = len(series)
+    if n < smoothing_window + 1:
+        return []
+
+    # Step 1: Rolling mean smoothing
+    smoothed: list[float] = []
+    for i in range(n):
+        start = max(0, i - smoothing_window + 1)
+        window = series[start : i + 1]
+        smoothed.append(sum(window) / len(window))
+
+    # Step 2: First derivative (diff of smoothed values)
+    deriv: list[float] = [smoothed[i + 1] - smoothed[i] for i in range(n - 1)]
+
+    # Step 3: Auto-calibrated threshold — 3.0 × std of first derivative.
+    # Using derivative std (not series std) keeps the threshold proportional
+    # to typical turn-to-turn slope variation, making detection sensitive to
+    # structural shifts but blind to slow drift or noise.
+    mean_d = sum(deriv) / len(deriv)
+    var_d = sum((d - mean_d) ** 2 for d in deriv) / len(deriv)
+    std_d = var_d ** 0.5
+    threshold = 3.0 * std_d
+
+    if threshold == 0.0:
+        # Flat series — no inflection points possible
+        return []
+
+    # Step 4: Find points where |derivative| exceeds threshold.
+    # Skip the first (smoothing_window - 1) steps to avoid warm-up artifacts
+    # from the rolling mean operating on an incomplete window at series start.
+    # These represent large structural shifts in the series.
+    candidates: list[tuple[int, float]] = []  # (turn_index, abs_magnitude)
+    warmup = smoothing_window - 1
+    for i, d in enumerate(deriv):
+        if i < warmup:
+            continue
+        if abs(d) > threshold:
+            # Turn index in original series: derivative at i spans [i, i+1]
+            candidates.append((i + 1, abs(d)))
+
+    if not candidates:
+        return []
+
+    # Step 5: Collapse nearby candidates within smoothing_window into single peak
+    # Sort by index (already in order), merge clusters.
+    inflection_points: list[int] = []
+    cluster_start = candidates[0][0]
+    cluster_best_idx = candidates[0][0]
+    cluster_best_mag = candidates[0][1]
+
+    for turn_idx, mag in candidates[1:]:
+        if turn_idx - cluster_start <= smoothing_window:
+            # Same cluster — keep best magnitude
+            if mag > cluster_best_mag:
+                cluster_best_mag = mag
+                cluster_best_idx = turn_idx
+        else:
+            inflection_points.append(cluster_best_idx)
+            cluster_start = turn_idx
+            cluster_best_idx = turn_idx
+            cluster_best_mag = mag
+
+    inflection_points.append(cluster_best_idx)
+    return inflection_points
+
+
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Implementation: load two bundles with same seed, compare

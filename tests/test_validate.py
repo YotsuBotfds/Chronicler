@@ -72,3 +72,20 @@ def test_needs_diversity_detects_behavioral_difference():
     )
     assert result["pairs_found"] > 0
     assert result["low_need_event_rate"] > result["high_need_event_rate"]
+
+
+def test_era_inflection_detects_collapse():
+    """Detect inflection point when population drops >30%."""
+    pop_series = [100]*50 + [60]*50  # sharp drop at t=50
+    from chronicler.validate import detect_inflection_points
+    points = detect_inflection_points(pop_series, smoothing_window=5)
+    assert any(45 <= p <= 55 for p in points)
+
+
+def test_era_inflection_no_false_positive_on_noise():
+    """Noisy but stable series produces no inflection points."""
+    import random; random.seed(42)
+    pop_series = [100 + random.randint(-5, 5) for _ in range(100)]
+    from chronicler.validate import detect_inflection_points
+    points = detect_inflection_points(pop_series, smoothing_window=5)
+    assert len(points) == 0
