@@ -1,4 +1,24 @@
 """M51 Legacy Integration Tests."""
+from chronicler.narrative import render_memory
+
+
+def test_render_legacy_memory():
+    mem = {"event_type": 0, "source_civ": 1, "turn": 50,
+           "intensity": -45, "decay_factor": 7, "is_legacy": True}
+    result = render_memory(mem, civ_names=["Aram", "Kethani"])
+    assert result is not None
+    assert "ancestral" in result.lower() or "inherited" in result.lower()
+    # Should still mention the event content, not just generic "legacy"
+    assert "famine" in result.lower()
+
+
+def test_render_normal_memory_no_ancestral():
+    mem = {"event_type": 0, "source_civ": 1, "turn": 50,
+           "intensity": -80, "decay_factor": 20, "is_legacy": False}
+    result = render_memory(mem, civ_names=["Aram", "Kethani"])
+    assert result is not None
+    assert "ancestral" not in result.lower()
+    assert "inherited" not in result.lower()
 
 
 def test_memory_sync_includes_legacy_flag():

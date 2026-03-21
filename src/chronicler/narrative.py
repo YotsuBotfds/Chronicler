@@ -16,7 +16,7 @@ from typing import Callable, Sequence
 
 logger = logging.getLogger(__name__)
 
-from chronicler.llm import LLMClient
+from chronicler.llm import AnthropicClient, GeminiClient, LLMClient
 from chronicler.models import (
     ActionType,
     AgentContext,
@@ -134,11 +134,14 @@ def render_memory(mem: dict, civ_names: list) -> str | None:
     intensity = abs(mem.get("intensity", 0))
     if intensity < MEMORY_NARRATION_FADING:
         return None  # too weak to mention
+    is_legacy = mem.get("is_legacy", False)
     template = MEMORY_DESCRIPTIONS.get(mem["event_type"], "an event")
     source = mem.get("source_civ", 0)
     civ_name = civ_names[source] if source < len(civ_names) else "unknown"
     descriptor = "vivid" if intensity >= MEMORY_NARRATION_VIVID else "fading"
     text = template.format(civ=civ_name)
+    if is_legacy:
+        text = f"an ancestral memory of {text}"
     return f"{text} (turn {mem['turn']}, {descriptor})"
 
 
@@ -340,7 +343,7 @@ def build_agent_context_for_moment(
             char["_civ_names"] = civ_names or []
 
         # M49: Needs context
-        if hasattr(gp, "needs") and gp.needs:
+        if gp.active and hasattr(gp, "needs") and gp.needs:
             char["needs"] = gp.needs
 
         # M48: Mule context
@@ -855,11 +858,11 @@ class NarrativeEngine:
 
     def _is_api_client(self) -> bool:
         """Check if narrative_client is an API backend (not local)."""
-        return hasattr(self.narrative_client, "total_input_tokens")
+        return isinstance(self.narrative_client, (AnthropicClient, GeminiClient))
 
     def _supports_batch(self) -> bool:
         """Check if narrative_client supports batch_complete()."""
-        return hasattr(self.narrative_client, "batch_complete")
+        return isinstance(self.narrative_client, AnthropicClient)
 
     def select_action(self, civ: Civilization, world: WorldState) -> ActionType:
         """Ask the LLM to choose an action for a civilization.
