@@ -755,6 +755,8 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Narrator backend: local (LM Studio), api (Claude API), or gemini (Gemini API)")
     parser.add_argument("--relationship-stats", action="store_true",
                         help="Enable per-tick relationship distribution snapshots")
+    parser.add_argument("--validation-sidecar", action="store_true",
+                        help="Write heavy validation sidecars (graph snapshots, agent aggregates)")
     return parser
 
 
