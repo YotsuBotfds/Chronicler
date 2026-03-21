@@ -199,7 +199,14 @@ def execute_run(
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
         from chronicler.agent_bridge import AgentBridge
-        agent_bridge = AgentBridge(world, mode=agent_mode)
+        _use_sidecar = getattr(args, "validation_sidecar", False)
+        agent_bridge = AgentBridge(
+            world,
+            mode=agent_mode,
+            validation_sidecar=_use_sidecar,
+            output_dir=output_path.parent if _use_sidecar else None,
+            relationship_stats=getattr(args, "relationship_stats", False),
+        )
 
     # M43b: Economy tracker (persists across turns for EMA-based shock detection)
     economy_tracker = None
@@ -619,6 +626,10 @@ def execute_run(
     if _tracks_tokens(_narr):
         bundle["metadata"]["api_input_tokens"] = _narr.total_input_tokens
         bundle["metadata"]["api_output_tokens"] = _narr.total_output_tokens
+
+    # M53: relationship stats metadata
+    if agent_bridge is not None and agent_bridge._collect_rel_stats:
+        bundle["metadata"]["relationship_stats"] = agent_bridge.relationship_stats
 
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)

@@ -440,7 +440,10 @@ def build_signals(world: WorldState, shocks: list | None = None,
 
 class AgentBridge:
     def __init__(self, world: WorldState, mode: str = "demographics-only",
-                 shadow_output: Path | None = None):
+                 shadow_output: Path | None = None,
+                 validation_sidecar: bool = False,
+                 output_dir: Path | None = None,
+                 relationship_stats: bool = False):
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         self._mode = mode
         self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
@@ -460,6 +463,14 @@ class AgentBridge:
         self._wealth_stats: dict[int, dict] = {}  # M41: per-civ wealth stats from last tick
         self._economy_result = None  # M42: economy result for signal wiring
         self.rust_owns_formation = True  # M50b: Rust owns formation in agent modes
+        # M53: Validation sidecar
+        self._sidecar = None
+        if validation_sidecar and output_dir is not None:
+            from chronicler.sidecar import SidecarWriter
+            self._sidecar = SidecarWriter(output_dir)
+        # M53: Relationship stats collection
+        self._collect_rel_stats = relationship_stats
+        self._relationship_stats_history: list = []
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -470,6 +481,14 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
+
+        # M53: relationship stats collection (all modes)
+        if self._collect_rel_stats:
+            try:
+                stats = self._sim.get_relationship_stats()
+                self._relationship_stats_history.append(stats)
+            except Exception:
+                pass
 
         if self._mode == "hybrid":
             self._write_back(world)
@@ -584,6 +603,9 @@ class AgentBridge:
                                 for b in raw_bonds
                             ]
 
+            # M53: sidecar snapshot (hybrid mode)
+            if self._sidecar and world.turn % 10 == 0:
+                self._write_sidecar_snapshot(world)
             return summaries + char_events + death_events + dynasty_events
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
@@ -596,11 +618,97 @@ class AgentBridge:
             self._process_deaths(raw_events, world)
             world.agent_events_raw.extend(raw_events)
             self._event_window.append(raw_events)
+            # M53: sidecar snapshot (shadow mode)
+            if self._sidecar and world.turn % 10 == 0:
+                self._write_sidecar_snapshot(world)
             return []
         elif self._mode == "demographics-only":
             self._apply_demographics_clamp(world)
+            # M53: sidecar snapshot (demographics-only mode)
+            if self._sidecar and world.turn % 10 == 0:
+                self._write_sidecar_snapshot(world)
             return []
         return []
+
+    @property
+    def relationship_stats(self) -> list:
+        """M53: Per-tick relationship stats history (populated when --relationship-stats is set)."""
+        return self._relationship_stats_history
+
+    def _write_sidecar_snapshot(self, world: "WorldState") -> None:
+        """M53: Write validation sidecar data at sample points (every 10 turns)."""
+        turn = world.turn
+
+        # Graph + memory snapshot
+        try:
+            rel_batch = self._sim.get_all_relationships()
+            edges = []
+            inner = rel_batch.to_pydict()
+            if inner and inner.get("agent_id"):
+                for i in range(len(inner["agent_id"])):
+                    edges.append((
+                        inner["agent_id"][i],
+                        inner["target_id"][i],
+                        inner["bond_type"][i],
+                        inner["sentiment"][i],
+                    ))
+        except Exception:
+            edges = []
+
+        try:
+            mem_batch = self._sim.get_all_memories()
+            mem_sigs: dict = {}
+            inner = mem_batch.to_pydict()
+            if inner and inner.get("agent_id"):
+                for i in range(len(inner["agent_id"])):
+                    aid = inner["agent_id"][i]
+                    if aid not in mem_sigs:
+                        mem_sigs[aid] = []
+                    valence = -1 if inner["intensity"][i] < 0 else 1
+                    mem_sigs[aid].append((
+                        inner["event_type"][i],
+                        inner["turn"][i],
+                        valence,
+                    ))
+        except Exception:
+            mem_sigs = {}
+
+        self._sidecar.write_graph_snapshot(turn=turn, edges=edges, memory_signatures=mem_sigs)
+
+        # Needs snapshot
+        try:
+            needs_batch = self._sim.get_all_needs()
+            self._sidecar.write_needs_snapshot(turn=turn, needs_batch=needs_batch)
+        except Exception:
+            pass
+
+        # Agent aggregate: per-civ satisfaction mean/std from snapshot
+        try:
+            snap = self._sim.get_snapshot()
+            snap_dict = snap.to_pydict()
+            agg: dict = {}
+            if snap_dict and "civ_affinity" in snap_dict and snap_dict["civ_affinity"]:
+                from collections import defaultdict
+                civ_data: dict = defaultdict(lambda: {"sats": []})
+                sat_list = snap_dict.get("satisfaction", [])
+                civ_list = snap_dict["civ_affinity"]
+                for i in range(len(civ_list)):
+                    civ = civ_list[i]
+                    sat = sat_list[i] if i < len(sat_list) else 0.5
+                    civ_data[civ]["sats"].append(sat)
+                for civ, cd in civ_data.items():
+                    sats = cd["sats"]
+                    n = len(sats)
+                    mean_sat = sum(sats) / n if n > 0 else 0.0
+                    std_sat = (sum((s - mean_sat) ** 2 for s in sats) / n) ** 0.5 if n > 1 else 0.0
+                    agg[f"civ_{civ}"] = {
+                        "satisfaction_mean": round(mean_sat, 4),
+                        "satisfaction_std": round(std_sat, 4),
+                        "agent_count": n,
+                    }
+            self._sidecar.write_agent_aggregate(turn=turn, aggregates=agg)
+        except Exception:
+            pass
 
     def _convert_events(self, batch, turn):
         """Convert Arrow events RecordBatch to AgentEventRecord list."""
