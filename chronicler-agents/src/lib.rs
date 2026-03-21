@@ -25,6 +25,8 @@ pub mod formation;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
+pub use ffi::AgentSimulator;
+#[doc(hidden)]
 pub use agent::Occupation;
 #[doc(hidden)]
 pub use agent::BELIEF_NONE;

@@ -179,7 +179,7 @@ pub fn civ_signals_schema() -> Schema {
 /// `RegionState`s; exchanges data with Python via Arrow PyCapsules.
 #[pyclass]
 pub struct AgentSimulator {
-    pool: AgentPool,
+    pub pool: AgentPool,
     regions: Vec<RegionState>,
     contested_regions: Vec<bool>,
     master_seed: [u8; 32],
@@ -1175,6 +1175,81 @@ impl AgentSimulator {
                 Arc::new(sentiment_col.finish()) as _,
                 Arc::new(bond_type_col.finish()) as _,
                 Arc::new(formed_turn_col.finish()) as _,
+            ],
+        )
+        .map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
+
+    /// M53: Return ALL agent memories as an Arrow RecordBatch.
+    /// Schema: [agent_id: u32, slot: u8, event_type: u8, turn: u16, intensity: i8,
+    ///          is_legacy: u8, civ_affinity: u16, region: u16, occupation: u8]
+    /// One row per occupied memory slot across all alive agents.
+    #[pyo3(name = "get_all_memories")]
+    pub fn get_all_memories(&self) -> PyResult<PyRecordBatch> {
+        // Pre-count total memory rows for capacity hint
+        let mut total_memories: usize = 0;
+        for slot in 0..self.pool.capacity() {
+            if self.pool.alive[slot] {
+                total_memories += self.pool.memory_count[slot] as usize;
+            }
+        }
+
+        let mut agent_id_col = UInt32Builder::with_capacity(total_memories);
+        let mut slot_col = UInt8Builder::with_capacity(total_memories);
+        let mut event_type_col = UInt8Builder::with_capacity(total_memories);
+        let mut turn_col = UInt16Builder::with_capacity(total_memories);
+        let mut intensity_col = Int8Builder::with_capacity(total_memories);
+        let mut is_legacy_col = UInt8Builder::with_capacity(total_memories);
+        let mut civ_affinity_col = UInt16Builder::with_capacity(total_memories);
+        let mut region_col = UInt16Builder::with_capacity(total_memories);
+        let mut occupation_col = UInt8Builder::with_capacity(total_memories);
+
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.alive[slot] { continue; }
+            let agent_id = self.pool.ids[slot];
+            let mem_count = self.pool.memory_count[slot] as usize;
+            let civ_affinity = self.pool.civ_affinities[slot] as u16;
+            let region = self.pool.regions[slot];
+            let occupation = self.pool.occupations[slot];
+            let legacy_mask = self.pool.memory_is_legacy[slot];
+            for i in 0..mem_count {
+                agent_id_col.append_value(agent_id);
+                slot_col.append_value(i as u8);
+                event_type_col.append_value(self.pool.memory_event_types[slot][i]);
+                turn_col.append_value(self.pool.memory_turns[slot][i]);
+                intensity_col.append_value(self.pool.memory_intensities[slot][i]);
+                is_legacy_col.append_value((legacy_mask >> i) & 1);
+                civ_affinity_col.append_value(civ_affinity);
+                region_col.append_value(region);
+                occupation_col.append_value(occupation);
+            }
+        }
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("agent_id", DataType::UInt32, false),
+            Field::new("slot", DataType::UInt8, false),
+            Field::new("event_type", DataType::UInt8, false),
+            Field::new("turn", DataType::UInt16, false),
+            Field::new("intensity", DataType::Int8, false),
+            Field::new("is_legacy", DataType::UInt8, false),
+            Field::new("civ_affinity", DataType::UInt16, false),
+            Field::new("region", DataType::UInt16, false),
+            Field::new("occupation", DataType::UInt8, false),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(agent_id_col.finish()) as _,
+                Arc::new(slot_col.finish()) as _,
+                Arc::new(event_type_col.finish()) as _,
+                Arc::new(turn_col.finish()) as _,
+                Arc::new(intensity_col.finish()) as _,
+                Arc::new(is_legacy_col.finish()) as _,
+                Arc::new(civ_affinity_col.finish()) as _,
+                Arc::new(region_col.finish()) as _,
+                Arc::new(occupation_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;
