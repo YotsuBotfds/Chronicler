@@ -120,3 +120,16 @@ def test_cohort_distinctiveness_detects_anchoring():
     )
     assert result["community_event_rate"] < result["control_event_rate"]
     assert result["communities_analyzed"] == 1
+
+
+def test_artifact_oracle_checks_creation_rate():
+    """Artifact oracle validates creation rate per civ per 100 turns."""
+    from chronicler.validate import check_artifact_lifecycle
+    bundles = [{"world_state": {"artifacts": [
+        {"artifact_type": "relic", "status": "active", "owner_civ": "Aram", "mule_origin": False, "prestige_value": 3},
+        {"artifact_type": "artwork", "status": "active", "owner_civ": "Aram", "mule_origin": True, "prestige_value": 2},
+        {"artifact_type": "weapon", "status": "destroyed", "owner_civ": "Aram", "mule_origin": False, "prestige_value": 2},
+    ]}, "metadata": {"total_turns": 500, "seed": 42}}]
+    result = check_artifact_lifecycle(bundles, num_civs=4)
+    assert "creation_rate_per_civ_per_100" in result
+    assert "type_diversity_ok" in result

@@ -488,6 +488,93 @@ def compute_cohort_distinctiveness(
     }
 
 
+def check_artifact_lifecycle(
+    bundles: list[dict],
+    num_civs: int = 4,
+) -> dict:
+    """Oracle 5: Validate artifact lifecycle rates and diversity.
+
+    Sub-check A (bundle-only):
+    - Creation rate per civ per 100 turns should be in 1-3 range.
+    - No single artifact_type should exceed 50% of total.
+    - Destruction rate (destroyed / total) should be 10-30%.
+
+    Parameters
+    ----------
+    bundles:
+        List of bundle dicts, each containing world_state.artifacts and
+        metadata.total_turns.
+    num_civs:
+        Number of civilizations (used as denominator for creation rate).
+
+    Returns
+    -------
+    dict with keys:
+        creation_rate_per_civ_per_100  – float
+        creation_rate_ok               – bool (rate in [1, 3])
+        type_diversity_ok              – bool (no single type > 50%)
+        destruction_rate               – float
+        destruction_rate_ok            – bool (rate in [0.10, 0.30])
+        mule_artifact_count            – int
+        total_artifacts                – int
+    """
+    total_artifacts = 0
+    destroyed_count = 0
+    mule_artifact_count = 0
+    total_turns_sum = 0
+    type_counts: dict[str, int] = {}
+
+    for bundle in bundles:
+        artifacts = bundle.get("world_state", {}).get("artifacts", [])
+        total_turns = bundle.get("metadata", {}).get("total_turns", 0)
+        total_turns_sum += total_turns
+
+        for art in artifacts:
+            total_artifacts += 1
+            artifact_type = art.get("artifact_type", "unknown")
+            type_counts[artifact_type] = type_counts.get(artifact_type, 0) + 1
+
+            status = art.get("status", "active")
+            if status == "destroyed":
+                destroyed_count += 1
+
+            if art.get("mule_origin", False):
+                mule_artifact_count += 1
+
+    # Creation rate: artifacts per civ per 100 turns
+    if num_civs > 0 and total_turns_sum > 0:
+        creation_rate = total_artifacts / (num_civs * total_turns_sum / 100.0)
+    else:
+        creation_rate = 0.0
+
+    creation_rate_ok = 1.0 <= creation_rate <= 3.0
+
+    # Type diversity: no single type > 50% of total
+    if total_artifacts > 0:
+        max_type_fraction = max(type_counts.values()) / total_artifacts
+        type_diversity_ok = max_type_fraction <= 0.5
+    else:
+        type_diversity_ok = True
+
+    # Destruction rate: destroyed / total
+    if total_artifacts > 0:
+        destruction_rate = destroyed_count / total_artifacts
+    else:
+        destruction_rate = 0.0
+
+    destruction_rate_ok = 0.10 <= destruction_rate <= 0.30
+
+    return {
+        "creation_rate_per_civ_per_100": creation_rate,
+        "creation_rate_ok": creation_rate_ok,
+        "type_diversity_ok": type_diversity_ok,
+        "destruction_rate": destruction_rate,
+        "destruction_rate_ok": destruction_rate_ok,
+        "mule_artifact_count": mule_artifact_count,
+        "total_artifacts": total_artifacts,
+    }
+
+
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Implementation: load two bundles with same seed, compare
