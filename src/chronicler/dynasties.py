@@ -124,3 +124,47 @@ class DynastyRegistry:
             if d.dynasty_id == dynasty_id:
                 return d
         raise ValueError(f"Dynasty {dynasty_id} not found")
+
+
+# ---------------------------------------------------------------------------
+# Succession legitimacy scoring
+# ---------------------------------------------------------------------------
+
+LEGITIMACY_DIRECT_HEIR = 0.15   # [CALIBRATE M53]
+LEGITIMACY_SAME_DYNASTY = 0.08  # [CALIBRATE M53]
+
+
+def compute_dynasty_legitimacy(candidate: dict, civ) -> float:
+    """Compute additive legitimacy bonus for a succession candidate.
+
+    Scoped to the incumbent ruling line — only the current ruler's lineage
+    matters, not any living dynasty.
+    """
+    ruler = civ.leader
+    if ruler is None:
+        return 0.0
+
+    ruler_agent_id = getattr(ruler, "agent_id", None)
+    ruler_dynasty_id = getattr(ruler, "dynasty_id", None)
+
+    cand_parent_id = candidate.get("parent_id", 0)
+    cand_dynasty_id = candidate.get("dynasty_id")
+
+    # Direct heir: candidate's parent is the current ruler
+    if (
+        ruler_agent_id is not None
+        and ruler_agent_id != 0
+        and cand_parent_id != 0
+        and cand_parent_id == ruler_agent_id
+    ):
+        return LEGITIMACY_DIRECT_HEIR
+
+    # Same dynasty
+    if (
+        ruler_dynasty_id is not None
+        and cand_dynasty_id is not None
+        and ruler_dynasty_id == cand_dynasty_id
+    ):
+        return LEGITIMACY_SAME_DYNASTY
+
+    return 0.0

@@ -7,6 +7,7 @@ from chronicler.models import Civilization, Event, GreatPerson, Leader, NamedEve
 from chronicler.models import Disposition
 from chronicler.utils import civ_index
 from chronicler.emergence import get_severity_multiplier
+from chronicler.leaders import strip_title, _compose_regnal_name, TITLES
 
 
 # Disposition ordering used for host-selection in exile logic.
@@ -295,18 +296,29 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                 gp.fate = "ascended"
                 civ.great_persons.remove(gp)
                 world.retired_persons.append(gp)
+
+                # M51: Use gp.base_name as throne_name for regnal naming
+                throne_name = getattr(gp, "base_name", None) or strip_title(gp.name)
+                count = origin.regnal_name_counts.get(throne_name, 0)
+                ordinal = count + 1 if count > 0 else 0  # 0, 2, 3, 4, ...
+                origin.regnal_name_counts[throne_name] = count + 1
+                title = rng.choice(TITLES)
+                display_name = _compose_regnal_name(title, throne_name, ordinal)
+
                 origin.leader = Leader(
-                    name=gp.name,
+                    name=display_name,
                     trait=gp.trait,
                     reign_start=world.turn,
                     succession_type="restoration",
+                    throne_name=throne_name,
+                    regnal_ordinal=ordinal,
                 )
                 origin.stability = min(origin.stability + 15, 100)
                 events.append(Event(
                     turn=world.turn,
                     event_type="restoration",
-                    actors=[origin.name, gp.name],
-                    description=f"{gp.name} restored to power in {origin.name}.",
+                    actors=[origin.name, display_name],
+                    description=f"{display_name} restored to power in {origin.name}.",
                     importance=9,
                 ))
     return events

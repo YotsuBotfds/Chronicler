@@ -34,6 +34,7 @@ from chronicler.tuning import (
 from chronicler.utils import civ_index, clamp, STAT_FLOOR, sync_civ_population, drain_region_pop
 from chronicler.intelligence import get_perceived_stat
 from chronicler.emergence import get_severity_multiplier
+from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
 
 if TYPE_CHECKING:
     pass
@@ -209,17 +210,6 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         available_traits = [t for t in _TRAIT_POOL if t != parent_trait]
         new_trait = rng.choice(available_traits) if available_traits else parent_trait
 
-        name_pool = civ.leader_name_pool or ["Leader"]
-        used = set(world.used_leader_names)
-        leader_name = None
-        for n in name_pool:
-            if n not in used:
-                leader_name = n
-                break
-        if leader_name is None:
-            leader_name = f"{breakaway_name} Leader"
-        world.used_leader_names.append(leader_name)
-
         new_values = list(civ.values)
         if new_values:
             _VALUE_POOL = [
@@ -238,8 +228,9 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             )
         breakaway_capital = min(breakaway_regions, key=_min_dist_to_parent)
 
-        new_leader = Leader(
-            name=leader_name,
+        # M51: Create breakaway civ with placeholder leader, then apply regnal naming
+        placeholder_leader = Leader(
+            name="Placeholder",
             trait=new_trait,
             reign_start=world.turn,
             succession_type="secession",
@@ -254,7 +245,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             stability=40,
             treasury=split_tre,
             tech_era=civ.tech_era,
-            leader=new_leader,
+            leader=placeholder_leader,
             regions=breakaway_regions,
             capital_region=breakaway_capital,
             domains=list(civ.domains),
@@ -262,6 +253,14 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             asabiya=0.7,
             leader_name_pool=list(civ.leader_name_pool or []),
         )
+
+        # Apply regnal naming to the breakaway leader now that breakaway_civ exists
+        regnal_rng = random.Random(world.seed + world.turn + hash(breakaway_name) + 0x51)
+        title, throne_name, ordinal = _pick_regnal_name(breakaway_civ, world, regnal_rng)
+        leader_name = _compose_regnal_name(title, throne_name, ordinal)
+        breakaway_civ.leader.name = leader_name
+        breakaway_civ.leader.throne_name = throne_name
+        breakaway_civ.leader.regnal_ordinal = ordinal
 
         breakaway_civ.founded_turn = world.turn
 
@@ -988,19 +987,27 @@ def check_restoration(world: WorldState) -> list[Event]:
         absorber_idx = era_order.index(absorber.tech_era)
         restored_era = era_order[max(0, absorber_idx - 1)]
 
-        leader_name = f"{exile.original_civ_name} Restorer"
         rng_trait = random.Random(world.seed + world.turn)
         new_trait = rng_trait.choice(_TRAIT_POOL)
 
         region_map[target_region].population = 30
+        # M51: Create restored civ with placeholder leader, then apply regnal naming
         restored_civ = Civilization(
             name=exile.original_civ_name,
             population=30, military=20, economy=20,
             culture=30, stability=50, treasury=0,
             tech_era=restored_era, asabiya=0.8,
-            leader=Leader(name=leader_name, trait=new_trait, reign_start=world.turn),
+            leader=Leader(name="Placeholder", trait=new_trait, reign_start=world.turn),
             regions=[target_region], capital_region=target_region,
         )
+        # Apply regnal naming now that restored_civ exists
+        regnal_rng = random.Random(world.seed + world.turn + hash(exile.original_civ_name) + 0x51)
+        title, throne_name, ordinal = _pick_regnal_name(restored_civ, world, regnal_rng)
+        leader_name = _compose_regnal_name(title, throne_name, ordinal)
+        restored_civ.leader.name = leader_name
+        restored_civ.leader.throne_name = throne_name
+        restored_civ.leader.regnal_ordinal = ordinal
+
         world.civilizations.append(restored_civ)
 
         if target_region in absorber.regions:

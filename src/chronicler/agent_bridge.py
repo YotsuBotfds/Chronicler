@@ -1,5 +1,6 @@
 """Bridge between Python WorldState and Rust AgentSimulator."""
 from __future__ import annotations
+from dataclasses import dataclass
 import logging
 from collections import Counter, deque
 from pathlib import Path
@@ -9,7 +10,7 @@ import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.great_persons import _append_deed
-from chronicler.leaders import _pick_name, ALL_TRAITS
+from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
@@ -81,6 +82,16 @@ DOMAIN_PERSONALITY_MAP = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class AgentMemoryRecord:
+    event_type: int
+    source_civ: int
+    turn: int
+    intensity: int
+    decay_factor: int
+    is_legacy: bool = False
+
+
 def compute_gini(wealth_array: np.ndarray) -> float:
     """Gini coefficient from a 1D array of non-negative values."""
     sorted_w = np.sort(wealth_array)
@@ -115,6 +126,33 @@ def _get_yield(region, slot: int) -> float:
     if ry is not None:
         return ry[slot]
     return 0.0
+
+
+def _decode_agent_memory_row(row) -> AgentMemoryRecord:
+    if len(row) == 5:
+        return AgentMemoryRecord(
+            event_type=row[0],
+            source_civ=row[1],
+            turn=row[2],
+            intensity=row[3],
+            decay_factor=row[4],
+            is_legacy=False,
+        )
+    if len(row) == 6:
+        return AgentMemoryRecord(
+            event_type=row[0],
+            source_civ=row[1],
+            turn=row[2],
+            intensity=row[3],
+            decay_factor=row[4],
+            is_legacy=bool(row[5]),
+        )
+    raise ValueError(f"Unexpected agent memory row shape: {row}")
+
+
+def _get_agent_memory_records(sim, agent_id: int) -> list[AgentMemoryRecord]:
+    raw = sim.get_agent_memories(agent_id) or []
+    return [_decode_agent_memory_row(row) for row in raw]
 
 
 def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
@@ -518,11 +556,17 @@ class AgentBridge:
             for civ_obj in world.civilizations:
                 for gp in civ_obj.great_persons:
                     if gp.active and gp.agent_id is not None:
-                        raw_memories = self._sim.get_agent_memories(gp.agent_id)
+                        memory_records = _get_agent_memory_records(self._sim, gp.agent_id)
                         gp.memories = [
-                            {"event_type": m[0], "source_civ": m[1], "turn": m[2],
-                             "intensity": m[3], "decay_factor": m[4]}
-                            for m in raw_memories
+                            {
+                                "event_type": m.event_type,
+                                "source_civ": m.source_civ,
+                                "turn": m.turn,
+                                "intensity": m.intensity,
+                                "decay_factor": m.decay_factor,
+                                "is_legacy": m.is_legacy,
+                            }
+                            for m in memory_records
                         ]
                         # M49: Sync needs for active named characters
                         raw_needs = self._sim.get_agent_needs(gp.agent_id)
@@ -641,6 +685,7 @@ class AgentBridge:
                 agent_id=agent_id,
                 parent_id=parent_id,
             )
+            gp.base_name = strip_title(gp.name)
             # M40: Set origin_region from promotions batch
             if origin_region < len(world.regions):
                 gp.origin_region = world.regions[origin_region].name
@@ -662,10 +707,10 @@ class AgentBridge:
             if gp.agent_id is not None:
                 mule_rng = random.Random(world.seed + world.turn * 7919 + gp.agent_id)
                 if mule_rng.random() < MULE_PROMOTION_PROBABILITY:
-                    memories = self._sim.get_agent_memories(gp.agent_id)
+                    memories = _get_agent_memory_records(self._sim, gp.agent_id)
                     if memories:
-                        strongest = max(memories, key=lambda m: abs(m[3]))  # m[3] = intensity
-                        event_type = strongest[0]
+                        strongest = max(memories, key=lambda m: abs(m.intensity))
+                        event_type = strongest.event_type
                         if event_type in MULE_MAPPING:
                             gp.mule = True
                             gp.mule_memory_event_type = event_type

@@ -45,6 +45,7 @@ pub use memory::{
     decay_memories, write_single_memory, write_all_memories,
     clear_memory_gates, compute_memory_satisfaction_score,
     compute_memory_utility_modifiers, agents_share_memory, agents_share_memory_with_valence,
+    extract_legacy_memories,
     GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
 };
 #[doc(hidden)]
@@ -57,6 +58,8 @@ pub use signals::{CivSignals, TickSignals};
 pub use formation::{formation_scan, FormationStats, death_cleanup_sweep, belief_divergence_cleanup};
 #[doc(hidden)]
 pub use agent::{FORMATION_CADENCE, MAX_NEW_BONDS_PER_PASS, MAX_NEW_BONDS_PER_REGION, LIFE_EVENT_DISSOLUTION};
+#[doc(hidden)]
+pub use agent::{LEGACY_HALF_LIFE, LEGACY_MIN_INTENSITY, LEGACY_MAX_MEMORIES};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

@@ -6,6 +6,7 @@ from chronicler.models import (
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
     update_rivalries, get_archetype_for_domains, CULTURAL_NAME_POOLS, SUCCESSION_WEIGHTS,
+    strip_title, to_roman, _compose_regnal_name, _pick_regnal_name,
 )
 
 
@@ -64,7 +65,10 @@ class TestSuccession:
         assert new.succession_type == "heir"
         assert new.predecessor_name == "Vaelith"
         assert new.name != "Vaelith"
-        assert new.name in leader_world.used_leader_names
+        # M51: regnal naming metadata
+        assert new.throne_name is not None
+        assert new.regnal_ordinal >= 0
+        assert new.throne_name in leader_civ.regnal_name_counts
 
     def test_general_succession_effects(self, leader_civ, leader_world):
         old_s, old_m = leader_civ.stability, leader_civ.military
@@ -233,6 +237,69 @@ class TestTraitEvolution:
         leader_civ.leader.secondary_trait = "warlike"
         leader_civ.action_counts = {"develop": 10}
         assert check_trait_evolution(leader_civ, leader_world) is None
+
+
+class TestRegnalHelpers:
+    def test_strip_title_handles_multi_word_title(self):
+        assert strip_title("High Priestess Nerissa") == "Nerissa"
+
+    def test_strip_title_leaves_plain_name(self):
+        assert strip_title("Nerissa") == "Nerissa"
+
+    def test_strip_title_single_word_title(self):
+        assert strip_title("Emperor Thalor") == "Thalor"
+
+    def test_to_roman_small_values(self):
+        assert to_roman(1) == "I"
+        assert to_roman(2) == "II"
+        assert to_roman(3) == "III"
+        assert to_roman(4) == "IV"
+        assert to_roman(5) == "V"
+        assert to_roman(9) == "IX"
+        assert to_roman(10) == "X"
+        assert to_roman(14) == "XIV"
+        assert to_roman(20) == "XX"
+
+    def test_to_roman_zero_returns_empty(self):
+        assert to_roman(0) == ""
+        assert to_roman(-1) == ""
+
+    def test_compose_regnal_name_without_ordinal(self):
+        assert _compose_regnal_name("Emperor", "Kiran", 0) == "Emperor Kiran"
+
+    def test_compose_regnal_name_with_ordinal(self):
+        # ordinal=2 means 2nd holder -> display "II", ordinal=4 means 4th holder -> display "IV"
+        assert _compose_regnal_name("King", "Thalor", 2) == "King Thalor II"
+        assert _compose_regnal_name("Queen", "Nerissa", 4) == "Queen Nerissa IV"
+
+
+class TestRegnalNameSelection:
+    def test_pick_regnal_name_first_ordinal_is_zero(self, leader_civ, leader_world):
+        import random
+        rng = random.Random(42)
+        leader_civ.regnal_name_counts = {}
+        title, throne_name, ordinal = _pick_regnal_name(leader_civ, leader_world, rng)
+        assert ordinal == 0
+        assert throne_name in leader_civ.regnal_name_counts
+        assert leader_civ.regnal_name_counts[throne_name] == 1
+
+    def test_pick_regnal_name_reuse_increments(self, leader_civ, leader_world):
+        import random
+        leader_civ.regnal_name_counts = {"Thalor": 1}
+        rng = random.Random(42)
+        # Force the pool to only have "Thalor" available
+        leader_civ.leader_name_pool = ["Thalor"]
+        title, throne_name, ordinal = _pick_regnal_name(leader_civ, leader_world, rng)
+        assert throne_name == "Thalor"
+        assert ordinal == 2  # second holder → display ordinal "II"
+        assert leader_civ.regnal_name_counts["Thalor"] == 2
+
+    def test_pick_regnal_name_does_not_append_to_used_leader_names(self, leader_civ, leader_world):
+        import random
+        rng = random.Random(42)
+        count_before = len(leader_world.used_leader_names)
+        _pick_regnal_name(leader_civ, leader_world, rng)
+        assert len(leader_world.used_leader_names) == count_before
 
 
 class TestCustomNamePool:

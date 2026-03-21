@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import re
 
 from chronicler.models import (
     ActiveCondition, Civilization, Event, Leader, NamedEvent, TechEra, WorldState,
@@ -151,7 +152,63 @@ def get_archetype_for_domains(domains: list[str]) -> str:
     return "default"
 
 
-def _pick_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
+def strip_title(display_name: str) -> str:
+    """Extract base name from a display name by stripping known title prefixes
+    and trailing crude Roman numeral sequences."""
+    for title in sorted(TITLES, key=len, reverse=True):  # longest first
+        prefix = title + " "
+        if display_name.startswith(prefix):
+            display_name = display_name[len(prefix):]
+            break
+    # Strip trailing crude 'I' sequences (old numbering fallback)
+    display_name = re.sub(r'\s+I{2,}$', '', display_name)
+    # Strip trailing proper Roman numerals
+    display_name = re.sub(r'\s+(?:XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)$', '', display_name)
+    return display_name.strip()
+
+
+def to_roman(n: int) -> str:
+    if n <= 0:
+        return ""
+    vals = [
+        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+    ]
+    result = ""
+    for value, numeral in vals:
+        while n >= value:
+            result += numeral
+            n -= value
+    return result
+
+
+def _roman_to_int(s: str) -> int:
+    """Convert Roman numeral string (I-XX) to integer."""
+    roman_vals = {"I": 1, "V": 5, "X": 10}
+    total = 0
+    prev = 0
+    for ch in reversed(s):
+        val = roman_vals.get(ch, 0)
+        if val < prev:
+            total -= val
+        else:
+            total += val
+        prev = val
+    return total
+
+
+def _compose_regnal_name(title: str, throne_name: str, ordinal: int) -> str:
+    """Compose a display name from regnal components.
+
+    ordinal=0 means first holder (no numeral). ordinal>=2 means display
+    that Roman numeral (e.g. ordinal=2 -> "II", ordinal=3 -> "III").
+    Value 1 is never stored.
+    """
+    if ordinal <= 0:
+        return f"{title} {throne_name}"
+    return f"{title} {throne_name} {to_roman(ordinal)}"
+
+
+def _pick_base_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
     archetype = get_archetype_for_domains(civ.domains)
     pool = CULTURAL_NAME_POOLS[archetype]
     used_bases = set()
@@ -163,27 +220,72 @@ def _pick_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
     if civ.leader_name_pool:
         custom_available = [n for n in civ.leader_name_pool if n not in used_bases]
         if custom_available:
-            title = rng.choice(TITLES)
-            base_name = rng.choice(custom_available)
-            full_name = f"{title} {base_name}"
-            world.used_leader_names.append(full_name)
-            return full_name
-
-    # Existing cultural pool logic (unchanged)
+            return rng.choice(custom_available)
+    # Existing cultural pool logic
     available = [n for n in pool if n not in used_bases]
     if not available:
         available = [n for n in CULTURAL_NAME_POOLS["default"] if n not in used_bases]
     if not available:
         base = rng.choice(pool)
         count = sum(1 for n in world.used_leader_names if base in n)
-        name = f"{base} {'I' * (count + 2)}"
-        world.used_leader_names.append(name)
-        return name
+        return f"{base} {'I' * (count + 2)}"
+    return rng.choice(available)
+
+
+def _pick_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
+    base_name = _pick_base_name(civ, world, rng)
     title = rng.choice(TITLES)
-    base_name = rng.choice(available)
     full_name = f"{title} {base_name}"
     world.used_leader_names.append(full_name)
     return full_name
+
+
+def _pick_regnal_name(civ: Civilization, world: WorldState, rng: random.Random) -> tuple[str, str, int]:
+    """Pick a regnal name for a new leader.
+
+    Uses per-civ regnal_name_counts for ordinal tracking.
+    Independent of _pick_name() and world.used_leader_names — regnal and
+    character namespaces are separate. Only filters against current rulers'
+    throne names to avoid cross-civ collision.
+
+    Returns:
+        (title, throne_name, ordinal) where ordinal=0 means first holder,
+        ordinal>=2 is the displayed Roman numeral (II, III, ...). Value 1
+        is never stored.
+    """
+    archetype = get_archetype_for_domains(civ.domains)
+    pool = CULTURAL_NAME_POOLS[archetype]
+
+    # Only avoid names currently held by another civ's ruler
+    current_throne_names = set()
+    for other in world.civilizations:
+        if other.name != civ.name and other.leader and other.leader.throne_name:
+            current_throne_names.add(other.leader.throne_name)
+
+    # Custom name pool (scenario-provided) takes priority
+    if civ.leader_name_pool:
+        custom_available = [n for n in civ.leader_name_pool if n not in current_throne_names]
+        if custom_available:
+            title = rng.choice(TITLES)
+            throne_name = rng.choice(custom_available)
+            count = civ.regnal_name_counts.get(throne_name, 0)
+            ordinal = count + 1 if count > 0 else 0
+            civ.regnal_name_counts[throne_name] = count + 1
+            return (title, throne_name, ordinal)
+
+    available = [n for n in pool if n not in current_throne_names]
+    if not available:
+        available = [n for n in CULTURAL_NAME_POOLS["default"] if n not in current_throne_names]
+    if not available:
+        available = list(pool)  # allow collision as last resort
+
+    title = rng.choice(TITLES)
+    throne_name = rng.choice(available)
+
+    count = civ.regnal_name_counts.get(throne_name, 0)
+    ordinal = count + 1 if count > 0 else 0  # 0, 2, 3, 4, ...
+    civ.regnal_name_counts[throne_name] = count + 1
+    return (title, throne_name, ordinal)
 
 
 def generate_successor(civ: Civilization, world: WorldState, seed: int, force_type: str | None = None, acc=None) -> Leader:
@@ -208,8 +310,10 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         trait = rng.choice(bias)
     else:
         trait = rng.choice(ALL_TRAITS)
-    name = _pick_name(civ, world, rng)
-    new_leader = Leader(name=name, trait=trait, reign_start=world.turn, succession_type=stype, predecessor_name=old_leader.name)
+    title, throne_name, ordinal = _pick_regnal_name(civ, world, rng)
+    name = _compose_regnal_name(title, throne_name, ordinal)
+    new_leader = Leader(name=name, trait=trait, reign_start=world.turn, succession_type=stype, predecessor_name=old_leader.name,
+                        throne_name=throne_name, regnal_ordinal=ordinal)
     if stype == "heir" and old_leader.rival_leader:
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ

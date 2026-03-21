@@ -441,6 +441,25 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
 # Succession integration — candidates, resolution, grudge inheritance
 # ---------------------------------------------------------------------------
 
+def _build_gp_successor_candidate(gp, civ, dominant):
+    gp_faction = GP_ROLE_TO_FACTION[gp.role]
+    weight = civ.factions.influence.get(gp_faction, 0)
+    if gp_faction == dominant:
+        weight += 0.10
+    return {
+        "faction": gp_faction.value,
+        "type": GP_SUCCESSION_TYPE[gp.role],
+        "source": "great_person",
+        "gp_name": gp.name,
+        "gp_trait": gp.trait,
+        "gp_base_name": getattr(gp, "base_name", None),
+        "agent_id": gp.agent_id,
+        "parent_id": gp.parent_id,
+        "dynasty_id": gp.dynasty_id,
+        "weight": weight,
+    }
+
+
 def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[dict]:
     """Create faction-weighted succession candidates.
 
@@ -475,24 +494,16 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
             })
 
     # GP candidates from active general/merchant/prophet
+    from chronicler.dynasties import compute_dynasty_legitimacy
     dominant = get_dominant_faction(civ.factions)
     for gp in civ.great_persons:
         if not gp.active or not gp.alive:
             continue
         if gp.role not in GP_ROLE_TO_FACTION:
             continue
-        gp_faction = GP_ROLE_TO_FACTION[gp.role]
-        weight = civ.factions.influence.get(gp_faction, 0)
-        if gp_faction == dominant:
-            weight += 0.10
-        candidates.append({
-            "faction": gp_faction.value,
-            "type": GP_SUCCESSION_TYPE[gp.role],
-            "source": "great_person",
-            "gp_name": gp.name,
-            "gp_trait": gp.trait,
-            "weight": weight,
-        })
+        candidates.append(_build_gp_successor_candidate(gp, civ, dominant))
+        legitimacy = compute_dynasty_legitimacy(candidates[-1], civ)
+        candidates[-1]["weight"] += legitimacy
 
     return candidates
 
@@ -534,6 +545,105 @@ def total_effective_capacity(civ: Civilization, world) -> int:
     )
 
 
+def _select_succession_winner(candidates: list[dict], rng) -> dict | None:
+    if not candidates:
+        return None
+    if rng.random() < 0.10:
+        return rng.choice(candidates)
+    weights = [c["weight"] for c in candidates]
+    return rng.choices(candidates, weights=weights, k=1)[0]
+
+
+def _winner_force_type(winner: dict | None) -> str | None:
+    if winner is None:
+        return None
+    candidate_type = winner.get("type", "")
+    if candidate_type in ("general", "elected", "heir", "clergy"):
+        return candidate_type
+    if candidate_type == "military":
+        return "general"
+    if candidate_type == "usurper":
+        return "usurper"
+    return None
+
+
+def _apply_gp_successor_winner(civ, new_leader, winner: dict) -> None:
+    from chronicler.leaders import strip_title, TITLES, _compose_regnal_name
+    import random as _random
+
+    gp_name = winner.get("gp_name")
+    gp_trait = winner.get("gp_trait")
+
+    if gp_name:
+        # Undo the phantom regnal counter increment from generate_successor,
+        # which already called _pick_regnal_name and incremented for a name
+        # that won't be used (GP name replaces it).
+        if new_leader.throne_name and new_leader.throne_name in civ.regnal_name_counts:
+            civ.regnal_name_counts[new_leader.throne_name] -= 1
+            if civ.regnal_name_counts[new_leader.throne_name] <= 0:
+                del civ.regnal_name_counts[new_leader.throne_name]
+
+        # Use structured base_name from GP (set at promotion time),
+        # not reverse-parsed from display name.
+        throne_name = winner.get("gp_base_name") or strip_title(gp_name)
+
+        # Seed RNG for title selection
+        _rng = _random.Random(hash(civ.name) + hash(gp_name))
+        title = _rng.choice(TITLES)
+
+        count = civ.regnal_name_counts.get(throne_name, 0)
+        ordinal = count + 1 if count > 0 else 0  # 0, 2, 3, 4, ...
+        civ.regnal_name_counts[throne_name] = count + 1
+
+        # Compose display name using the same function as other sites
+        new_leader.name = _compose_regnal_name(title, throne_name, ordinal)
+        new_leader.throne_name = throne_name
+        new_leader.regnal_ordinal = ordinal
+
+    if gp_trait:
+        new_leader.trait = gp_trait
+
+    # Lineage bridge
+    new_leader.agent_id = winner.get("agent_id")
+    new_leader.dynasty_id = winner.get("dynasty_id")
+
+    # Mark the GP dead — use agent_id for stable matching when available,
+    # fall back to name match for aggregate-mode GPs (no agent_id).
+    winner_agent_id = winner.get("agent_id")
+    for gp in civ.great_persons:
+        if not gp.active:
+            continue
+        matched = (
+            (winner_agent_id is not None and gp.agent_id == winner_agent_id)
+            or (winner_agent_id is None and gp.name == gp_name)
+        )
+        if matched:
+            gp.active = False
+            gp.alive = False
+            gp.fate = "ascended_to_leadership"
+            break
+
+
+def _apply_external_backer_effects(civ, world, winner: dict) -> None:
+    from chronicler.culture import upgrade_disposition
+    backer_name = winner.get("backer_civ")
+    if not backer_name:
+        return
+    rel = world.relationships.get(civ.name, {}).get(backer_name)
+    if rel:
+        rel.disposition = upgrade_disposition(rel.disposition)
+    rev_rel = world.relationships.get(backer_name, {}).get(civ.name)
+    if rev_rel:
+        rev_rel.disposition = upgrade_disposition(rev_rel.disposition)
+
+
+def _build_succession_resolution_description(civ, old_leader, new_leader, legitimacy_phrase: str = "") -> str:
+    return (
+        f"The succession crisis in {civ.name} ends: "
+        f"{new_leader.name}{legitimacy_phrase} rises to power after the fall of {old_leader.name}."
+    )
+
+
 def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[Event]:
     """End the crisis using faction-weighted candidate selection.
 
@@ -542,7 +652,6 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     """
     from chronicler.leaders import generate_successor, apply_leader_legacy
     from chronicler.succession import create_exiled_leader
-    from chronicler.culture import upgrade_disposition
 
     events: list[Event] = []
     rng = random.Random(world.seed + world.turn + hash(civ.name))
@@ -551,24 +660,16 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
     candidates = civ.succession_candidates
 
     # 1. Select winner from candidates
-    winner = None
-    if candidates:
-        if rng.random() < 0.10:
-            winner = rng.choice(candidates)
-        else:
-            weights = [c["weight"] for c in candidates]
-            winner = rng.choices(candidates, weights=weights, k=1)[0]
+    winner = _select_succession_winner(candidates, rng)
 
     # Determine force_type from winner
-    force_type: str | None = None
-    if winner:
-        candidate_type = winner.get("type", "")
-        if candidate_type in ("general", "elected", "heir", "clergy"):
-            force_type = candidate_type
-        elif candidate_type == "military":
-            force_type = "general"
-        elif candidate_type == "usurper":
-            force_type = "usurper"
+    force_type = _winner_force_type(winner)
+
+    # M51: Capture legitimacy BEFORE leader swap (civ.leader changes at step 6)
+    winner_legitimacy = 0.0
+    if winner and winner.get("source") == "great_person":
+        from chronicler.dynasties import compute_dynasty_legitimacy
+        winner_legitimacy = compute_dynasty_legitimacy(winner, civ)
 
     # 2. Mark old leader dead
     old_leader.alive = False
@@ -594,44 +695,27 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
 
     # 8. Handle GP winner (transfer name/trait, mark gp dead)
     if winner and winner.get("source") == "great_person":
-        gp_name = winner.get("gp_name")
-        gp_trait = winner.get("gp_trait")
-        if gp_name:
-            new_leader.name = gp_name
-        if gp_trait:
-            new_leader.trait = gp_trait
-        # Mark the GP dead
-        for gp in civ.great_persons:
-            if gp.name == gp_name and gp.active:
-                gp.active = False
-                gp.alive = False
-                gp.fate = "ascended_to_leadership"
-                break
+        _apply_gp_successor_winner(civ, new_leader, winner)
 
     # 9. Handle external backer (upgrade disposition)
     if winner and winner.get("backer_civ"):
-        backer_name = winner.get("backer_civ")
-        if backer_name:
-            rel = world.relationships.get(civ.name, {}).get(backer_name)
-            if rel:
-                rel.disposition = upgrade_disposition(rel.disposition)
-            # Upgrade the reverse direction too
-            rev_rel = world.relationships.get(backer_name, {}).get(civ.name)
-            if rev_rel:
-                rev_rel.disposition = upgrade_disposition(rev_rel.disposition)
+        _apply_external_backer_effects(civ, world, winner)
 
     # 10. Create exiled leader (call for side effects)
     create_exiled_leader(old_leader, civ, world)
 
     # 11. Emit event
+    # M51: Legitimacy phrasing (computed before leader swap above)
+    legitimacy_phrase = ""
+    if winner_legitimacy >= 0.15:
+        legitimacy_phrase = ", by right of blood,"
+    elif winner_legitimacy >= 0.08:
+        legitimacy_phrase = ", of the ruling house,"
     events.append(Event(
         turn=world.turn,
         event_type="succession_crisis_resolved",
         actors=[civ.name],
-        description=(
-            f"The succession crisis in {civ.name} ends: "
-            f"{new_leader.name} rises to power after the fall of {old_leader.name}."
-        ),
+        description=_build_succession_resolution_description(civ, old_leader, new_leader, legitimacy_phrase),
         importance=8,
     ))
 

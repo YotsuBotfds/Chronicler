@@ -195,6 +195,8 @@ pub const DEATHOFKIN_HALF_LIFE: f32 = 35.0;
 pub const CONVERSION_HALF_LIFE: f32 = 20.0;
 pub const SECESSION_HALF_LIFE: f32 = 20.0;
 pub const LEGACY_HALF_LIFE: f32 = 100.0;
+pub const LEGACY_MIN_INTENSITY: i8 = 10;   // [CALIBRATE M53] post-halving threshold
+pub const LEGACY_MAX_MEMORIES: usize = 2;  // [CALIBRATE M53] top-N extracted on death
 
 // M48: Memory behavioral constants [CALIBRATE M53]
 pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.12;

@@ -57,6 +57,8 @@ pub struct AgentPool {
     pub memory_decay_factors: Vec<[u8; 8]>,
     pub memory_gates: Vec<u8>,
     pub memory_count: Vec<u8>,
+    // M51: Per-agent bitmask — bit N = slot N is a legacy (inherited) memory
+    pub memory_is_legacy: Vec<u8>,
     // M49: Needs system (6 × f32 per agent)
     pub need_safety: Vec<f32>,
     pub need_material: Vec<f32>,
@@ -115,6 +117,7 @@ impl AgentPool {
             memory_decay_factors: Vec::with_capacity(capacity),
             memory_gates: Vec::with_capacity(capacity),
             memory_count: Vec::with_capacity(capacity),
+            memory_is_legacy: Vec::with_capacity(capacity),
             need_safety: Vec::with_capacity(capacity),
             need_material: Vec::with_capacity(capacity),
             need_social: Vec::with_capacity(capacity),
@@ -186,6 +189,7 @@ impl AgentPool {
             self.memory_decay_factors[slot] = [0; 8];
             self.memory_gates[slot] = 0;
             self.memory_count[slot] = 0;
+            self.memory_is_legacy[slot] = 0;
             self.need_safety[slot] = crate::agent::STARTING_NEED;
             self.need_material[slot] = crate::agent::STARTING_NEED;
             self.need_social[slot] = crate::agent::STARTING_NEED;
@@ -235,6 +239,7 @@ impl AgentPool {
             self.memory_decay_factors.push([0; 8]);
             self.memory_gates.push(0);
             self.memory_count.push(0);
+            self.memory_is_legacy.push(0);
             self.need_safety.push(crate::agent::STARTING_NEED);
             self.need_material.push(crate::agent::STARTING_NEED);
             self.need_social.push(crate::agent::STARTING_NEED);

@@ -135,6 +135,8 @@ fn test_memory_decay_basic() {
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &intent, 1);
 
@@ -219,6 +221,8 @@ fn test_memory_eviction_min_intensity() {
             event_type: i as u8,
             source_civ: 0,
             intensity,
+            is_legacy: false,
+            decay_factor_override: None,
         };
         write_single_memory(&mut pool, &intent, i as u16);
     }
@@ -230,6 +234,8 @@ fn test_memory_eviction_min_intensity() {
         event_type: MemoryEventType::Victory as u8,
         source_civ: 1,
         intensity: 90,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &new_intent, 100);
 
@@ -254,6 +260,8 @@ fn test_memory_eviction_tiebreak() {
             event_type: MemoryEventType::Battle as u8,
             source_civ: 0,
             intensity: -50,
+            is_legacy: false,
+            decay_factor_override: None,
         };
         write_single_memory(&mut pool, &intent, i as u16);
     }
@@ -265,6 +273,8 @@ fn test_memory_eviction_tiebreak() {
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 2,
         intensity: 80,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &new_intent, 200);
 
@@ -294,6 +304,8 @@ fn test_memory_count_lifecycle() {
             event_type: (i % 12) as u8,
             source_civ: 0,
             intensity: -50,
+            is_legacy: false,
+            decay_factor_override: None,
         };
         write_single_memory(&mut pool, &intent, i as u16);
     }
@@ -306,6 +318,8 @@ fn test_memory_count_lifecycle() {
             event_type: MemoryEventType::Victory as u8,
             source_civ: 0,
             intensity: 90,
+            is_legacy: false,
+            decay_factor_override: None,
         };
         write_single_memory(&mut pool, &intent, (100 + i) as u16);
         assert_eq!(pool.memory_count[slot], 8);
@@ -334,6 +348,8 @@ fn test_memory_satisfaction_score_positive() {
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 0,
         intensity: 50,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &intent, 1);
 
@@ -354,6 +370,8 @@ fn test_memory_satisfaction_score_negative() {
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &intent, 1);
 
@@ -372,12 +390,16 @@ fn test_memory_satisfaction_score_mixed() {
         event_type: MemoryEventType::Victory as u8,
         source_civ: 0,
         intensity: 60,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     let negative = MemoryIntent {
         agent_slot: slot,
         event_type: MemoryEventType::Battle as u8,
         source_civ: 0,
         intensity: -60,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &positive, 1);
     write_single_memory(&mut pool, &negative, 2);
@@ -407,24 +429,32 @@ fn test_consolidated_write_ordering() {
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Battle as u8,
             source_civ: 1,
             intensity: -60,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Prosperity as u8,
             source_civ: 0,
             intensity: 50,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Migration as u8,
             source_civ: 2,
             intensity: -30,
+            is_legacy: false,
+            decay_factor_override: None,
         },
     ];
 
@@ -468,18 +498,24 @@ fn test_consolidated_write_multiple_agents() {
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot_b,
             event_type: MemoryEventType::Battle as u8,
             source_civ: 1,
             intensity: -60,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot_a,
             event_type: MemoryEventType::Victory as u8,
             source_civ: 0,
             intensity: 60,
+            is_legacy: false,
+            decay_factor_override: None,
         },
     ];
 
@@ -505,12 +541,16 @@ fn test_gate_blocks_duplicate_write() {
             event_type: MemoryEventType::Battle as u8,
             source_civ: 0,
             intensity: -60,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Battle as u8,
             source_civ: 1,
             intensity: -50, // different intensity to distinguish
+            is_legacy: false,
+            decay_factor_override: None,
         },
     ];
 
@@ -537,12 +577,16 @@ fn test_gate_blocks_famine_duplicate() {
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -70,
+            is_legacy: false,
+            decay_factor_override: None,
         },
     ];
 
@@ -565,12 +609,16 @@ fn test_non_gated_types_allow_duplicates() {
             event_type: MemoryEventType::Migration as u8,
             source_civ: 0,
             intensity: -30,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Migration as u8,
             source_civ: 1,
             intensity: -25,
+            is_legacy: false,
+            decay_factor_override: None,
         },
     ];
 
@@ -809,12 +857,16 @@ fn test_write_all_memories_respects_pre_existing_gate() {
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
+            is_legacy: false,
+            decay_factor_override: None,
         },
         MemoryIntent {
             agent_slot: slot,
             event_type: MemoryEventType::Victory as u8,
             source_civ: 0,
             intensity: 60,
+            is_legacy: false,
+            decay_factor_override: None,
         },
     ];
 
@@ -840,6 +892,8 @@ fn test_memory_gate_battle() {
         event_type: MemoryEventType::Battle as u8,
         source_civ: 0,
         intensity: -60,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent1], 1);
 
@@ -852,6 +906,8 @@ fn test_memory_gate_battle() {
         event_type: MemoryEventType::Battle as u8,
         source_civ: 1,
         intensity: -50,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent2], 2);
 
@@ -871,6 +927,8 @@ fn test_memory_gate_famine() {
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent1], 1);
 
@@ -883,6 +941,8 @@ fn test_memory_gate_famine() {
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -70,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent2], 2);
 
@@ -901,6 +961,8 @@ fn test_memory_gate_prosperity() {
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 0,
         intensity: 50,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent1], 1);
 
@@ -913,6 +975,8 @@ fn test_memory_gate_prosperity() {
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 0,
         intensity: 40,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent2], 2);
 
@@ -931,6 +995,8 @@ fn test_memory_gate_persecution() {
         event_type: MemoryEventType::Persecution as u8,
         source_civ: 0,
         intensity: -90,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent1], 1);
 
@@ -943,6 +1009,8 @@ fn test_memory_gate_persecution() {
         event_type: MemoryEventType::Persecution as u8,
         source_civ: 1,
         intensity: -85,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_all_memories(&mut pool, &[intent2], 2);
 
@@ -1129,6 +1197,8 @@ fn test_utility_modifier_famine() {
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &intent, 1);
 
@@ -1152,6 +1222,8 @@ fn test_utility_modifier_conquest_sides() {
         event_type: MemoryEventType::Conquest as u8,
         source_civ: 0, // same as agent's civ
         intensity: -70,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &intent_conqueror, 1);
 
@@ -1169,6 +1241,8 @@ fn test_utility_modifier_conquest_sides() {
         event_type: MemoryEventType::Conquest as u8,
         source_civ: 0, // different from agent's civ 1
         intensity: -70,
+        is_legacy: false,
+        decay_factor_override: None,
     };
     write_single_memory(&mut pool, &intent_conquered, 1);
 

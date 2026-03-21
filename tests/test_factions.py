@@ -11,7 +11,12 @@ from chronicler.factions import (
     FOCUS_FACTION_MAP,
 )
 from chronicler.factions import count_faction_wins, _event_is_win
-from chronicler.factions import generate_faction_candidates, inherit_grudges_with_factions, FACTION_CANDIDATE_TYPE, GP_ROLE_TO_FACTION
+from chronicler.factions import (
+    generate_faction_candidates, inherit_grudges_with_factions,
+    FACTION_CANDIDATE_TYPE, GP_ROLE_TO_FACTION,
+    _build_gp_successor_candidate, _select_succession_winner,
+    _apply_gp_successor_winner, _build_succession_resolution_description,
+)
 
 
 class TestFactionDataModel:
@@ -372,6 +377,102 @@ class TestGrudgeInheritance:
         fs = FactionState()
         inherit_grudges_with_factions(old, new, fs)
         assert len(new.grudges) == 0
+
+
+class TestGPSuccessorCandidate:
+    def test_build_gp_successor_candidate_includes_lineage_fields(self):
+        from chronicler.models import GreatPerson
+        gp = GreatPerson(
+            name="General Kiran", role="general", trait="bold",
+            civilization="TestCiv", origin_civilization="TestCiv",
+            born_turn=5, source="agent", agent_id=100, parent_id=50,
+            dynasty_id=7,
+        )
+        civ = _make_civ()
+        dominant = FactionType.MILITARY
+        candidate = _build_gp_successor_candidate(gp, civ, dominant)
+        assert candidate["agent_id"] == 100
+        assert candidate["parent_id"] == 50
+        assert candidate["dynasty_id"] == 7
+        assert candidate["gp_base_name"] is None  # base_name not set
+        assert candidate["source"] == "great_person"
+        assert candidate["gp_name"] == "General Kiran"
+        assert candidate["gp_trait"] == "bold"
+
+    def test_build_gp_successor_candidate_adds_dominant_bonus(self):
+        from chronicler.models import GreatPerson
+        gp = GreatPerson(
+            name="General Kiran", role="general", trait="bold",
+            civilization="TestCiv", origin_civilization="TestCiv",
+            born_turn=5, source="agent",
+        )
+        civ = _make_civ()
+        civ.factions.influence[FactionType.MILITARY] = 0.40
+        # When dominant matches GP faction
+        candidate = _build_gp_successor_candidate(gp, civ, FactionType.MILITARY)
+        assert candidate["weight"] == pytest.approx(0.50)
+        # When dominant doesn't match
+        candidate2 = _build_gp_successor_candidate(gp, civ, FactionType.MERCHANT)
+        assert candidate2["weight"] == pytest.approx(0.40)
+
+
+class TestSuccessionHelpers:
+    def test_select_succession_winner_empty_returns_none(self):
+        import random
+        rng = random.Random(42)
+        assert _select_succession_winner([], rng) is None
+
+    def test_apply_gp_successor_winner_copies_name_and_trait(self):
+        from chronicler.models import GreatPerson
+        civ = _make_civ()
+        gp = GreatPerson(
+            name="High Priestess Zara", role="prophet", trait="zealous",
+            civilization="TestCiv", origin_civilization="TestCiv",
+            born_turn=5, source="agent",
+        )
+        gp.base_name = "Zara"
+        civ.great_persons.append(gp)
+        new_leader = Leader(name="Placeholder", trait="cautious", reign_start=10,
+                            throne_name=None)
+        winner = {
+            "gp_name": "High Priestess Zara", "gp_trait": "zealous",
+            "gp_base_name": "Zara", "source": "great_person",
+        }
+        _apply_gp_successor_winner(civ, new_leader, winner)
+        # Throne name is stripped base name
+        assert new_leader.throne_name == "Zara"
+        assert new_leader.trait == "zealous"
+        # Display name should be a composed regnal name containing the throne name
+        assert "Zara" in new_leader.name
+        assert new_leader.regnal_ordinal == 0
+        assert civ.regnal_name_counts.get("Zara", 0) == 1
+
+    def test_apply_gp_successor_winner_marks_gp_ascended(self):
+        from chronicler.models import GreatPerson
+        civ = _make_civ()
+        gp = GreatPerson(
+            name="Warchief Kiran", role="general", trait="bold",
+            civilization="TestCiv", origin_civilization="TestCiv",
+            born_turn=5, source="agent",
+        )
+        gp.agent_id = 99
+        civ.great_persons.append(gp)
+        new_leader = Leader(name="Temp", trait="bold", reign_start=10, throne_name=None)
+        winner = {"gp_name": "Warchief Kiran", "gp_trait": "bold",
+                  "gp_base_name": "Kiran", "agent_id": 99}
+        _apply_gp_successor_winner(civ, new_leader, winner)
+        assert gp.active is False
+        assert gp.alive is False
+        assert gp.fate == "ascended_to_leadership"
+
+    def test_build_succession_resolution_description_matches_existing_text(self):
+        civ = _make_civ()
+        old_leader = Leader(name="OldKing", trait="bold", reign_start=0)
+        new_leader = Leader(name="NewKing", trait="cautious", reign_start=10)
+        desc = _build_succession_resolution_description(civ, old_leader, new_leader)
+        assert "The succession crisis in TestCiv ends:" in desc
+        assert "NewKing rises to power" in desc
+        assert "fall of OldKing" in desc
 
 
 class TestPowerStruggleEffectiveness:
