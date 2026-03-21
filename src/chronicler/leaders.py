@@ -182,9 +182,14 @@ def to_roman(n: int) -> str:
 
 
 def _compose_regnal_name(title: str, throne_name: str, ordinal: int) -> str:
+    """Compose a display name from regnal components.
+
+    ordinal=0 means first holder (no numeral). ordinal=N (N>=1) means
+    (N+1)th holder, displayed as Roman numeral N+1 (e.g. ordinal=1 -> "II").
+    """
     if ordinal <= 0:
         return f"{title} {throne_name}"
-    return f"{title} {throne_name} {to_roman(ordinal)}"
+    return f"{title} {throne_name} {to_roman(ordinal + 1)}"
 
 
 def _pick_base_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
@@ -258,8 +263,10 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         trait = rng.choice(bias)
     else:
         trait = rng.choice(ALL_TRAITS)
-    name = _pick_name(civ, world, rng)
-    new_leader = Leader(name=name, trait=trait, reign_start=world.turn, succession_type=stype, predecessor_name=old_leader.name)
+    title, throne_name, ordinal = _pick_regnal_name(civ, world, rng)
+    name = _compose_regnal_name(title, throne_name, ordinal)
+    new_leader = Leader(name=name, trait=trait, reign_start=world.turn, succession_type=stype, predecessor_name=old_leader.name,
+                        throne_name=throne_name, regnal_ordinal=ordinal)
     if stype == "heir" and old_leader.rival_leader:
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ

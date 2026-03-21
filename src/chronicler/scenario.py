@@ -14,6 +14,7 @@ from chronicler.models import (
 )
 from chronicler.utils import sync_civ_population
 from chronicler.world_gen import DEFAULT_EVENT_PROBABILITIES, REGION_TEMPLATES
+from chronicler.leaders import strip_title
 
 
 # Valid event types for probability overrides (M7 cascade types are NOT valid targets —
@@ -537,6 +538,17 @@ def _apply_civ_override(
                 world.used_leader_names[leader_idx] = override.leader.name
             else:
                 world.used_leader_names.append(override.leader.name)
+            # M51: Seed regnal_name_counts for the overridden leader's throne_name
+            throne_name = strip_title(override.leader.name)
+            civ.leader.throne_name = throne_name
+            # Remove old leader's throne_name from counts if it was tracked
+            old_throne = strip_title(old_leader_name)
+            if old_throne in civ.regnal_name_counts:
+                civ.regnal_name_counts[old_throne] = max(0, civ.regnal_name_counts[old_throne] - 1)
+                if civ.regnal_name_counts[old_throne] == 0:
+                    del civ.regnal_name_counts[old_throne]
+            # Seed the new throne_name count
+            civ.regnal_name_counts[throne_name] = civ.regnal_name_counts.get(throne_name, 0) + 1
         if override.leader.trait is not None:
             civ.leader.trait = override.leader.trait
 

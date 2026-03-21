@@ -20,6 +20,7 @@ from chronicler.models import (
     WorldState,
 )
 from chronicler.ecology import effective_capacity, TERRAIN_ECOLOGY_DEFAULTS
+from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
 
 # --- Name and trait pools ---
 
@@ -128,7 +129,10 @@ def assign_civilizations(
             if region.name in assigned:
                 region.controller = t["name"]
 
-        leader_name = f"{titles_pool[i % len(titles_pool)]} {names_pool[i % len(names_pool)]}"
+        # Use pools for placeholder leader name (consumed from main RNG to preserve sequence)
+        _placeholder_title = titles_pool[i % len(titles_pool)]
+        _placeholder_name = names_pool[i % len(names_pool)]
+        leader_name = f"{_placeholder_title} {_placeholder_name}"
         total_pop = rng.randint(30, 70)
         civs.append(
             Civilization(
@@ -148,6 +152,18 @@ def assign_civilizations(
                 asabiya=round(rng.uniform(0.4, 0.8), 2),
             ),
         )
+
+        # M51: Apply regnal naming to founding leader
+        # Use the pre-selected pool name as throne_name and title directly.
+        # Seed regnal_name_counts for the founding leader.
+        civ = civs[-1]
+        throne_name = _placeholder_name
+        civ.regnal_name_counts[throne_name] = 1
+        ordinal = 0  # First holder
+        regnal_display = _compose_regnal_name(_placeholder_title, throne_name, ordinal)
+        civ.leader.name = regnal_display
+        civ.leader.throne_name = throne_name
+        civ.leader.regnal_ordinal = ordinal
 
         # P4: distribute initial population across starting regions
         assigned_regions = [r for r in regions if r.name in assigned]
