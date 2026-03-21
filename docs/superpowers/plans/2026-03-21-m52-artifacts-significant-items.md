@@ -165,12 +165,12 @@ class TestArtifactIntent:
 
 class TestWorldStateArtifactFields:
     def test_world_state_has_artifacts_field(self):
-        world = WorldState(seed=42)
+        world = WorldState(name="TestWorld", seed=42)
         assert hasattr(world, 'artifacts')
         assert world.artifacts == []
 
     def test_world_state_has_transient_intent_lists(self):
-        world = WorldState(seed=42)
+        world = WorldState(name="TestWorld", seed=42)
         assert hasattr(world, '_artifact_intents')
         assert world._artifact_intents == []
         assert hasattr(world, '_artifact_lifecycle_intents')
@@ -179,7 +179,7 @@ class TestWorldStateArtifactFields:
         assert world._artifact_prestige_by_civ == {}
 
     def test_transient_fields_not_serialized(self):
-        world = WorldState(seed=42)
+        world = WorldState(name="TestWorld", seed=42)
         world._artifact_intents.append("test")
         data = world.model_dump()
         assert '_artifact_intents' not in data
@@ -545,7 +545,7 @@ from chronicler.artifacts import tick_artifacts, PRESTIGE_BY_TYPE
 def _make_world_with_civ(civ_name="TestCiv", region_name="Region1", values=None):
     """Helper: build a minimal WorldState with one civ and one region."""
     from chronicler.models import WorldState, Civilization, Region, Leader
-    region = Region(name=region_name, terrain="plains", resources=["wheat"],
+    region = Region(name=region_name, terrain="plains", resources="fertile",
                     adjacencies=[], carrying_capacity=100)
     leader = Leader(name="TestLeader", trait="brave", reign_start=0)
     civ = Civilization(
@@ -1218,11 +1218,20 @@ Add the helper functions:
 
 ```python
 def _find_gp(world, name: str, born_turn: int | None):
-    """Find a GreatPerson by (name, born_turn) across all civs."""
+    """Find a GreatPerson by (name, born_turn) across all civs and retired list.
+
+    Dead/retired GPs are removed from civ.great_persons and moved to
+    world.retired_persons (great_persons.py:113, :283). Must search both
+    to find inactive holders for reversion logic.
+    """
     for civ in world.civilizations:
         for gp in civ.great_persons:
             if gp.name == name and gp.born_turn == born_turn:
                 return gp
+    # Search retired/dead GPs (removed from civ lists)
+    for gp in world.retired_persons:
+        if gp.name == name and gp.born_turn == born_turn:
+            return gp
     return None
 
 
@@ -2229,11 +2238,15 @@ In `src/chronicler/narrative.py`, in `_prepare_narration_prompts()` (near line 1
 
 Then add `{artifact_context_text}` to the prompt string after `{agent_context_text}`.
 
-**Important plumbing:** `NarrativeEngine` does not currently store a `world` reference. You must either:
-- (a) Thread `world` through `narrate_batch()` → `_prepare_narration_prompts()` as a new parameter, or
-- (b) Store `world` on the engine instance (e.g., `self._world = world`) in `narrate_batch()` before calling `_prepare_narration_prompts()`.
+**Important plumbing — `world` is not available in `narrate_batch()` today.** The signature (line 905 of `narrative.py`) takes `moments`, `history`, `gap_summaries`, plus optional agent context params — but not `world`. Both call sites in `main.py` (lines 476 and 830) also omit it.
 
-Option (b) is simpler. Read `narrative.py` line ~843 (`NarrativeEngine` class) and line ~1087 (`narrate_batch` or `_narrate_batch_api`) to find where `world` is available and can be stored.
+You must:
+1. Add `world=None` parameter to `narrate_batch()` signature (after `economy_result`, before existing kwargs).
+2. Store it on the instance: `self._world = world` at the top of `narrate_batch()`.
+3. Update both call sites in `main.py` (lines 476 and 830) to pass `world=world`.
+4. In `_prepare_narration_prompts()`, access `self._world` for artifact context.
+
+This is 4 lines of change across 2 files, but all 4 are required — the plan's earlier suggestion that "`world` is available" in `narrate_batch()` was wrong.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -2262,15 +2275,27 @@ git commit -m "feat(m52): artifact narrative context — relevance selection + p
 class TestArtifactAnalytics:
     def test_extract_artifacts_basic(self):
         from chronicler.analytics import extract_artifacts
-        world = _make_world_with_civ()
-        _make_active_artifact(world, ArtifactType.RELIC, owner_civ="TestCiv")
-        _make_active_artifact(world, ArtifactType.WEAPON, owner_civ="TestCiv")
-        _make_active_artifact(world, ArtifactType.MONUMENT, owner_civ="TestCiv")
-        result = extract_artifacts(world)
+        # Analytics extractors consume bundle dicts, not live WorldState.
+        # Build a minimal bundle with artifact data in the world_state key.
+        bundle = {
+            "world_state": {
+                "artifacts": [
+                    {"artifact_type": "relic", "status": "active", "owner_civ": "TestCiv",
+                     "prestige_value": 3, "mule_origin": False, "origin_turn": 5},
+                    {"artifact_type": "weapon", "status": "active", "owner_civ": "TestCiv",
+                     "prestige_value": 2, "mule_origin": False, "origin_turn": 10},
+                    {"artifact_type": "monument", "status": "lost", "owner_civ": None,
+                     "prestige_value": 4, "mule_origin": True, "origin_turn": 20},
+                ],
+            },
+            "metadata": {"seed": 42, "total_turns": 100},
+        }
+        result = extract_artifacts([bundle])
         assert result["total_artifacts"] == 3
-        assert result["active_artifacts"] == 3
-        assert "TestCiv" in result["artifacts_by_civ"]
-        assert result["artifacts_by_civ"]["TestCiv"] == 3
+        assert result["active_artifacts"] == 2
+        assert result["lost_artifacts"] == 1
+        assert result["artifacts_by_civ"]["TestCiv"] == 2
+        assert result["mule_artifacts"] == 1
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -2281,35 +2306,61 @@ Expected: FAIL
 - [ ] **Step 3: Add `extract_artifacts()` to `analytics.py`**
 
 ```python
-def extract_artifacts(world) -> dict:
-    """Extract artifact metrics from world state."""
-    from chronicler.models import ArtifactStatus
-    result = {
-        "total_artifacts": len(world.artifacts),
-        "active_artifacts": 0,
-        "lost_artifacts": 0,
-        "destroyed_artifacts": 0,
-        "artifacts_by_civ": {},
-        "artifacts_by_type": {},
-        "total_prestige_contribution": 0,
-        "mule_artifacts": 0,
+def extract_artifacts(bundles: list[dict]) -> dict:
+    """Extract artifact metrics from bundle dicts.
+
+    Follows the existing analytics pattern: takes list[dict] bundles,
+    iterates world_state.artifacts, aggregates across seeds.
+    Wired into generate_report() alongside other extractors.
+    """
+    total = 0
+    active = 0
+    lost = 0
+    destroyed = 0
+    by_civ: dict[str, int] = {}
+    by_type: dict[str, int] = {}
+    prestige = 0
+    mule = 0
+
+    for bundle in bundles:
+        artifacts = bundle.get("world_state", {}).get("artifacts", [])
+        total += len(artifacts)
+        for a in artifacts:
+            status = a.get("status", "active")
+            if status == "active":
+                active += 1
+                owner = a.get("owner_civ")
+                if owner:
+                    by_civ[owner] = by_civ.get(owner, 0) + 1
+                    prestige += a.get("prestige_value", 0)
+            elif status == "lost":
+                lost += 1
+            elif status == "destroyed":
+                destroyed += 1
+            atype = a.get("artifact_type", "unknown")
+            by_type[atype] = by_type.get(atype, 0) + 1
+            if a.get("mule_origin"):
+                mule += 1
+
+    return {
+        "total_artifacts": total,
+        "active_artifacts": active,
+        "lost_artifacts": lost,
+        "destroyed_artifacts": destroyed,
+        "artifacts_by_civ": dict(by_civ),
+        "artifacts_by_type": dict(by_type),
+        "total_prestige_contribution": prestige,
+        "mule_artifacts": mule,
     }
-    for a in world.artifacts:
-        if a.status == ArtifactStatus.ACTIVE:
-            result["active_artifacts"] += 1
-            if a.owner_civ:
-                result["artifacts_by_civ"][a.owner_civ] = result["artifacts_by_civ"].get(a.owner_civ, 0) + 1
-                result["total_prestige_contribution"] += a.prestige_value
-        elif a.status == ArtifactStatus.LOST:
-            result["lost_artifacts"] += 1
-        elif a.status == ArtifactStatus.DESTROYED:
-            result["destroyed_artifacts"] += 1
-        type_name = a.artifact_type.value
-        result["artifacts_by_type"][type_name] = result["artifacts_by_type"].get(type_name, 0) + 1
-        if a.mule_origin:
-            result["mule_artifacts"] += 1
-    return result
 ```
+
+Also wire `extract_artifacts` into `generate_report()` in `analytics.py` (near line 1204, after the other extractor calls):
+
+```python
+    artifacts = extract_artifacts(bundles)
+```
+
+And include it in the returned report dict.
 
 - [ ] **Step 4: Run test to verify it passes**
 
