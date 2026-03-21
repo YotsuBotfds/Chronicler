@@ -148,6 +148,138 @@ def detect_communities(
     return result
 
 
+def compute_needs_diversity(
+    needs_data: dict,
+    events_data: list[dict],
+    need_name: str,
+    event_type: int = 1,
+    need_divergence: float = 0.2,
+    personality_tolerance: float = 0.1,
+) -> dict:
+    """Oracle 2: Validate that need levels influence agent behavioral event rates.
+
+    Uses a matched-cohort approach: pairs agents that are identical on
+    civ_affinity, region, occupation, and personality traits, but diverge on
+    the specified need. Compares event rates between low-need and high-need
+    halves of each pair.
+
+    Parameters
+    ----------
+    needs_data:
+        Dict of column lists from bulk FFI snapshot. Required keys:
+        agent_id, <need_name>, civ_affinity, region, occupation,
+        boldness, ambition, loyalty_trait.
+    events_data:
+        List of dicts with keys: agent_id, event_type, turn.
+    need_name:
+        The need column to test (e.g. "safety").
+    event_type:
+        Event type code to count (default 1 = migration).
+    need_divergence:
+        Minimum absolute difference in need value to qualify a pair
+        (default 0.2).
+    personality_tolerance:
+        Maximum allowed difference in boldness, ambition, loyalty_trait
+        for a pair to be considered matched (default 0.1).
+
+    Returns
+    -------
+    dict with keys:
+        pairs_found         – number of matched pairs
+        low_need_event_rate – events per agent in low-need group
+        high_need_event_rate – events per agent in high-need group
+        rate_difference     – low - high (positive = low-need has more events)
+    """
+    # --- Build per-agent records -------------------------------------------
+    ids = needs_data["agent_id"]
+    need_vals = needs_data[need_name]
+    civ_aff = needs_data["civ_affinity"]
+    regions = needs_data["region"]
+    occupations = needs_data["occupation"]
+    boldness = needs_data["boldness"]
+    ambition = needs_data["ambition"]
+    loyalty = needs_data["loyalty_trait"]
+
+    agents = []
+    for i, aid in enumerate(ids):
+        agents.append({
+            "id": aid,
+            "need": need_vals[i],
+            "civ_affinity": civ_aff[i],
+            "region": regions[i],
+            "occupation": occupations[i],
+            "boldness": boldness[i],
+            "ambition": ambition[i],
+            "loyalty": loyalty[i],
+        })
+
+    # --- Count events per agent --------------------------------------------
+    event_counts: dict[int, int] = {}
+    for ev in events_data:
+        if ev["event_type"] == event_type:
+            aid = ev["agent_id"]
+            event_counts[aid] = event_counts.get(aid, 0) + 1
+
+    # --- Find matched pairs ------------------------------------------------
+    low_ids: list[int] = []
+    high_ids: list[int] = []
+    pairs_found = 0
+
+    used: set[int] = set()
+    for i, a in enumerate(agents):
+        if a["id"] in used:
+            continue
+        for j in range(i + 1, len(agents)):
+            b = agents[j]
+            if b["id"] in used:
+                continue
+            # Must match on categorical context
+            if (
+                a["civ_affinity"] != b["civ_affinity"]
+                or a["region"] != b["region"]
+                or a["occupation"] != b["occupation"]
+            ):
+                continue
+            # Must match on personality within tolerance
+            if (
+                abs(a["boldness"] - b["boldness"]) > personality_tolerance
+                or abs(a["ambition"] - b["ambition"]) > personality_tolerance
+                or abs(a["loyalty"] - b["loyalty"]) > personality_tolerance
+            ):
+                continue
+            # Must diverge sufficiently on the target need
+            if abs(a["need"] - b["need"]) <= need_divergence:
+                continue
+            # Pair qualifies
+            pairs_found += 1
+            used.add(a["id"])
+            used.add(b["id"])
+            if a["need"] < b["need"]:
+                low_ids.append(a["id"])
+                high_ids.append(b["id"])
+            else:
+                high_ids.append(a["id"])
+                low_ids.append(b["id"])
+            break  # each agent used in at most one pair
+
+    # --- Compute event rates -----------------------------------------------
+    def _rate(id_list: list[int]) -> float:
+        if not id_list:
+            return 0.0
+        total = sum(event_counts.get(aid, 0) for aid in id_list)
+        return total / len(id_list)
+
+    low_rate = _rate(low_ids)
+    high_rate = _rate(high_ids)
+
+    return {
+        "pairs_found": pairs_found,
+        "low_need_event_rate": low_rate,
+        "high_need_event_rate": high_rate,
+        "rate_difference": low_rate - high_rate,
+    }
+
+
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Implementation: load two bundles with same seed, compare

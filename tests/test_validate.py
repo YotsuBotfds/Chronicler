@@ -31,3 +31,44 @@ def test_community_excludes_kin_only():
     from chronicler.validate import detect_communities
     communities = detect_communities(edges, mem_sigs)
     assert len(communities) == 0  # excluded: kin-only
+
+
+def test_needs_diversity_detects_behavioral_difference():
+    """Agents with divergent needs show different behavioral event rates."""
+    # Synthetic: two groups of agents matched on traits, divergent on safety need
+    # Group A (low safety): agent_ids 0-4, safety=0.1 → expect higher migration
+    # Group B (high safety): agent_ids 5-9, safety=0.9 → expect lower migration
+    needs_data = {
+        "agent_id": list(range(10)),
+        "safety": [0.1]*5 + [0.9]*5,
+        "autonomy": [0.5]*10,
+        "social": [0.5]*10,
+        "spiritual": [0.5]*10,
+        "material": [0.5]*10,
+        "purpose": [0.5]*10,
+        "civ_affinity": [0]*10,
+        "region": [0]*10,
+        "occupation": [1]*10,  # all soldiers
+        "satisfaction": [0.5]*10,
+        "boldness": [0.5]*10,
+        "ambition": [0.5]*10,
+        "loyalty_trait": [0.5]*10,
+    }
+    # Events: low-safety agents migrate more
+    events_data = [
+        {"agent_id": 0, "event_type": 1, "turn": 5},  # migration
+        {"agent_id": 1, "event_type": 1, "turn": 7},
+        {"agent_id": 2, "event_type": 1, "turn": 9},
+        {"agent_id": 3, "event_type": 1, "turn": 11},
+        # high-safety agents: only 1 migrates
+        {"agent_id": 5, "event_type": 1, "turn": 15},
+    ]
+    from chronicler.validate import compute_needs_diversity
+    result = compute_needs_diversity(
+        needs_data=needs_data,
+        events_data=events_data,
+        need_name="safety",
+        need_divergence=0.2,
+    )
+    assert result["pairs_found"] > 0
+    assert result["low_need_event_rate"] > result["high_need_event_rate"]
