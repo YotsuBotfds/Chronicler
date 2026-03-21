@@ -35,7 +35,7 @@ pub use pool::AgentPool;
 #[doc(hidden)]
 pub use region::RegionState;
 #[doc(hidden)]
-pub use tick::{tick_agents, AgentEvent};
+pub use tick::{tick_agents, AgentEvent, DemographicDebug};
 #[doc(hidden)]
 pub use named_characters::{CharacterRole, NamedCharacterRegistry};
 #[doc(hidden)]

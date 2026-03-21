@@ -200,6 +200,8 @@ pub struct AgentSimulator {
     pub last_tick_births: u32,
     #[pyo3(get)]
     pub last_tick_alive: u32,
+    // M53: expanded demographic debug (collected during tick)
+    demographic_debug: crate::tick::DemographicDebug,
 }
 
 #[pymethods]
@@ -228,6 +230,7 @@ impl AgentSimulator {
             last_tick_deaths: 0,
             last_tick_births: 0,
             last_tick_alive: 0,
+            demographic_debug: crate::tick::DemographicDebug::default(),
         }
     }
 
@@ -636,7 +639,7 @@ impl AgentSimulator {
             self.wealth_percentiles.resize(self.pool.capacity(), 0.0);
         }
 
-        let (events, kin_failures, formation_stats) = crate::tick::tick_agents(
+        let (events, kin_failures, formation_stats, demo_debug) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
@@ -647,11 +650,12 @@ impl AgentSimulator {
         self.prev_kin_bond_failures = self.kin_bond_failures;
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
         self.formation_stats = formation_stats;
+        self.demographic_debug = demo_debug;
 
         // M53: demographic debug counters
-        // event_type 0 = death, 3 = birth (from tick.rs AgentEvent)
+        // event_type 0 = death, 5 = birth (from tick.rs AgentEvent)
         self.last_tick_deaths = events.iter().filter(|e| e.event_type == 0).count() as u32;
-        self.last_tick_births = events.iter().filter(|e| e.event_type == 3).count() as u32;
+        self.last_tick_births = events.iter().filter(|e| e.event_type == 5).count() as u32;
         self.last_tick_alive = self.pool.alive.iter().filter(|&&a| a).count() as u32;
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;
@@ -1076,6 +1080,61 @@ impl AgentSimulator {
             result.push(crate::relationships::read_rel(&self.pool, slot, i));
         }
         Some(result)
+    }
+
+    /// M53: Return expanded demographic debug counters from the last tick.
+    #[pyo3(name = "get_demographic_debug")]
+    pub fn get_demographic_debug(&self) -> std::collections::HashMap<String, f64> {
+        let d = &self.demographic_debug;
+        let mut m = std::collections::HashMap::new();
+        m.insert("deaths_young".into(), d.deaths_young as f64);
+        m.insert("deaths_adult".into(), d.deaths_adult as f64);
+        m.insert("deaths_elder".into(), d.deaths_elder as f64);
+        m.insert("deaths_with_disease".into(), d.deaths_with_disease as f64);
+        m.insert("deaths_soldier_at_war".into(), d.deaths_soldier_at_war as f64);
+        m.insert("deaths_eco_stress_gt1".into(), d.deaths_eco_stress_gt1 as f64);
+        m.insert("mean_endemic".into(), d.mean_endemic as f64);
+        m.insert("max_endemic".into(), d.max_endemic as f64);
+        m.insert("fertile_farmer".into(), d.fertile_by_occ[0] as f64);
+        m.insert("fertile_soldier".into(), d.fertile_by_occ[1] as f64);
+        m.insert("fertile_merchant".into(), d.fertile_by_occ[2] as f64);
+        m.insert("fertile_scholar".into(), d.fertile_by_occ[3] as f64);
+        m.insert("fertile_priest".into(), d.fertile_by_occ[4] as f64);
+        m.insert("fertile_age_total".into(), d.fertile_age_total as f64);
+        m.insert("expected_deaths".into(), d.expected_deaths as f64);
+        m.insert("expected_births".into(), d.expected_births as f64);
+        m.insert("sat_near_threshold".into(), d.sat_near_threshold as f64);
+        m
+    }
+
+    /// M53: Return age distribution of alive agents.
+    #[pyo3(name = "get_age_histogram")]
+    pub fn get_age_histogram(&self) -> std::collections::HashMap<String, u32> {
+        let mut m = std::collections::HashMap::new();
+        let mut young: u32 = 0;
+        let mut adult: u32 = 0;
+        let mut elder: u32 = 0;
+        let mut fertile_range: u32 = 0;
+        let mut total: u32 = 0;
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.is_alive(slot) { continue; }
+            total += 1;
+            let age = self.pool.ages[slot];
+            match age {
+                0..crate::agent::AGE_ADULT => young += 1,
+                crate::agent::AGE_ADULT..crate::agent::AGE_ELDER => adult += 1,
+                _ => elder += 1,
+            }
+            if age >= crate::agent::FERTILITY_AGE_MIN && age <= crate::agent::FERTILITY_AGE_MAX {
+                fertile_range += 1;
+            }
+        }
+        m.insert("young_0_19".into(), young);
+        m.insert("adult_20_59".into(), adult);
+        m.insert("elder_60_plus".into(), elder);
+        m.insert("fertile_range_16_45".into(), fertile_range);
+        m.insert("total_alive".into(), total);
+        m
     }
 
     /// M50b: Return formation stats + distribution metrics as a flat HashMap.

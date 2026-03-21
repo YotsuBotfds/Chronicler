@@ -6,6 +6,8 @@ use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
 use crate::agent::{
+    AGE_ADULT, AGE_ELDER, FERTILITY_AGE_MIN, FERTILITY_AGE_MAX,
+    FERTILITY_SATISFACTION_THRESHOLD,
     DECISION_STREAM_OFFSET, PERSONALITY_STREAM_OFFSET,
     LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
     LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL,
@@ -46,7 +48,7 @@ pub fn tick_agents(
     master_seed: [u8; 32],
     turn: u32,
     wealth_percentiles: &mut [f32],
-) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats) {
+) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -345,7 +347,7 @@ pub fn tick_agents(
     // Re-partition after migrations may have moved agents.
     let region_groups = pool.partition_by_region(num_regions as u16);
 
-    let demo_results: Vec<DemographicsPending> = {
+    let demo_results: Vec<(DemographicsPending, RegionDemoDebug)> = {
         let pool_ref = &*pool;
         region_groups
             .par_iter()
@@ -369,6 +371,31 @@ pub fn tick_agents(
             })
             .collect()
     };
+
+    // Merge per-region demographic debug data
+    let mut demo_debug = DemographicDebug::default();
+    for (_, rd) in &demo_results {
+        demo_debug.deaths_young += rd.deaths_young;
+        demo_debug.deaths_adult += rd.deaths_adult;
+        demo_debug.deaths_elder += rd.deaths_elder;
+        demo_debug.deaths_with_disease += rd.deaths_with_disease;
+        demo_debug.deaths_soldier_at_war += rd.deaths_soldier_at_war;
+        demo_debug.deaths_eco_stress_gt1 += rd.deaths_eco_stress_gt1;
+        for i in 0..5 { demo_debug.fertile_by_occ[i] += rd.fertile_by_occ[i]; }
+        demo_debug.fertile_age_total += rd.fertile_age_total;
+        demo_debug.expected_deaths += rd.expected_deaths;
+        demo_debug.expected_births += rd.expected_births;
+        demo_debug.sat_near_threshold += rd.sat_near_threshold;
+    }
+    // Endemic stats from region state
+    let mut endemic_sum = 0.0f32;
+    let mut endemic_max = 0.0f32;
+    for r in regions.iter() {
+        endemic_sum += r.endemic_severity;
+        if r.endemic_severity > endemic_max { endemic_max = r.endemic_severity; }
+    }
+    demo_debug.mean_endemic = if regions.is_empty() { 0.0 } else { endemic_sum / regions.len() as f32 };
+    demo_debug.max_endemic = endemic_max;
 
     // -----------------------------------------------------------------------
     // M48: Build agent_id → slot reverse index for DeathOfKin lookups.
@@ -396,7 +423,7 @@ pub fn tick_agents(
 
     // Sequential apply: deaths, age increments, births
     let mut kin_bond_failures: u32 = 0;
-    for dr in &demo_results {
+    for (dr, _) in &demo_results {
         // Deaths
         for &(slot, region) in &dr.deaths {
             events.push(AgentEvent {
@@ -679,7 +706,7 @@ pub fn tick_agents(
     );
     formation_stats.bonds_dissolved_death = death_dissolved_count;
 
-    (events, kin_bond_failures, formation_stats)
+    (events, kin_bond_failures, formation_stats, demo_debug)
 }
 
 // ---------------------------------------------------------------------------
@@ -921,6 +948,39 @@ struct DemographicsPending {
     births: Vec<BirthInfo>,
 }
 
+/// Per-region demographic debug counters collected during the parallel tick.
+struct RegionDemoDebug {
+    deaths_young: u32,
+    deaths_adult: u32,
+    deaths_elder: u32,
+    deaths_with_disease: u32,
+    deaths_soldier_at_war: u32,
+    deaths_eco_stress_gt1: u32,
+    fertile_by_occ: [u32; 5],
+    fertile_age_total: u32,
+    expected_deaths: f32,
+    expected_births: f32,
+    sat_near_threshold: u32,
+}
+
+/// Aggregated demographic debug counters for the entire tick.
+#[derive(Default)]
+pub struct DemographicDebug {
+    pub deaths_young: u32,
+    pub deaths_adult: u32,
+    pub deaths_elder: u32,
+    pub deaths_with_disease: u32,
+    pub deaths_soldier_at_war: u32,
+    pub deaths_eco_stress_gt1: u32,
+    pub mean_endemic: f32,
+    pub max_endemic: f32,
+    pub fertile_by_occ: [u32; 5],
+    pub fertile_age_total: u32,
+    pub expected_deaths: f32,
+    pub expected_births: f32,
+    pub sat_near_threshold: u32,
+}
+
 fn tick_region_demographics(
     pool: &AgentPool,
     slots: &[usize],
@@ -930,14 +990,23 @@ fn tick_region_demographics(
     rng: &mut ChaCha8Rng,
     master_seed: [u8; 32],
     turn: u32,
-) -> DemographicsPending {
+) -> (DemographicsPending, RegionDemoDebug) {
     let mut pending = DemographicsPending {
         deaths: Vec::new(),
         aged: Vec::new(),
         births: Vec::new(),
     };
+    let mut debug = RegionDemoDebug {
+        deaths_young: 0, deaths_adult: 0, deaths_elder: 0,
+        deaths_with_disease: 0, deaths_soldier_at_war: 0,
+        deaths_eco_stress_gt1: 0,
+        fertile_by_occ: [0; 5], fertile_age_total: 0,
+        expected_deaths: 0.0, expected_births: 0.0,
+        sat_near_threshold: 0,
+    };
 
     let eco_stress = demographics::ecological_stress(region);
+    let has_disease = region.endemic_severity > 0.0;
 
     // Dedicated personality RNG (offset 700) decoupled from demographics RNG.
     // Prevents adding/removing mortality checks from changing personality assignments.
@@ -961,14 +1030,41 @@ fn tick_region_demographics(
         let is_soldier_at_war = occ == 1 && civ_at_war;
 
         let mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);
+        debug.expected_deaths += mort_rate;
+
+        // Satisfaction near fertility threshold (0.25 to 0.35 band)
+        if sat > 0.25 && sat <= 0.35 {
+            debug.sat_near_threshold += 1;
+        }
 
         if rng.gen::<f32>() < mort_rate {
             pending.deaths.push((slot, region_id as u16));
+            // Categorize death
+            match age {
+                0..AGE_ADULT => debug.deaths_young += 1,
+                AGE_ADULT..AGE_ELDER => debug.deaths_adult += 1,
+                _ => debug.deaths_elder += 1,
+            }
+            if has_disease { debug.deaths_with_disease += 1; }
+            if is_soldier_at_war { debug.deaths_soldier_at_war += 1; }
+            if eco_stress > 1.0 { debug.deaths_eco_stress_gt1 += 1; }
         } else {
             pending.aged.push(slot);
 
+            // Track fertility eligibility
+            if age >= FERTILITY_AGE_MIN && age <= FERTILITY_AGE_MAX {
+                debug.fertile_age_total += 1;
+                if sat > FERTILITY_SATISFACTION_THRESHOLD {
+                    let occ_idx = occ as usize;
+                    if occ_idx < 5 {
+                        debug.fertile_by_occ[occ_idx] += 1;
+                    }
+                }
+            }
+
             // Fertility check (only for survivors)
             let fert_rate = demographics::fertility_rate(age, sat, occ, region.soil);
+            debug.expected_births += fert_rate;
             if fert_rate > 0.0 && rng.gen::<f32>() < fert_rate {
                 let civ_id = pool.civ_affinity(slot);
                 // M39: inherit personality from parent (tighter noise than civ-mean assignment)
@@ -997,7 +1093,7 @@ fn tick_region_demographics(
         }
     }
 
-    pending
+    (pending, debug)
 }
 
 // ---------------------------------------------------------------------------
@@ -1097,7 +1193,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1169,8 +1265,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
-            let (eb, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
+            let (ea, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
+            let (eb, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1204,7 +1300,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
