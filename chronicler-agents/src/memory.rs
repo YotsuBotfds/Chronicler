@@ -159,13 +159,22 @@ pub fn write_single_memory(pool: &mut AgentPool, intent: &MemoryIntent, turn: u1
                 min_idx = i;
             }
         }
+        // Clear legacy bit for evicted slot before overwriting.
+        pool.memory_is_legacy[slot] &= !(1 << min_idx);
         min_idx
     };
     pool.memory_event_types[slot][write_idx] = intent.event_type;
     pool.memory_source_civs[slot][write_idx] = intent.source_civ;
     pool.memory_turns[slot][write_idx] = turn;
     pool.memory_intensities[slot][write_idx] = intent.intensity;
-    pool.memory_decay_factors[slot][write_idx] = default_decay_factor(intent.event_type);
+    pool.memory_decay_factors[slot][write_idx] = intent
+        .decay_factor_override
+        .unwrap_or_else(|| default_decay_factor(intent.event_type));
+    if intent.is_legacy {
+        pool.memory_is_legacy[slot] |= 1 << write_idx;
+    } else {
+        pool.memory_is_legacy[slot] &= !(1 << write_idx);
+    }
 }
 
 /// Process all collected memory intents in a single pass.
