@@ -239,7 +239,7 @@ pub const SAFETY_DECAY: f32 = 0.015;     // [CALIBRATE M53]
 pub const MATERIAL_DECAY: f32 = 0.012;   // [CALIBRATE M53]
 pub const SOCIAL_DECAY: f32 = 0.008;     // [CALIBRATE M53]
 pub const SPIRITUAL_DECAY: f32 = 0.010;  // [CALIBRATE M53]
-pub const AUTONOMY_DECAY: f32 = 0.015;   // [CALIBRATE M53]
+pub const AUTONOMY_DECAY: f32 = 0.010;   // [CALIBRATE M53]
 pub const PURPOSE_DECAY: f32 = 0.012;    // [CALIBRATE M53]
 
 // M49: Need behavioral thresholds [CALIBRATE M53]
@@ -272,7 +272,7 @@ pub const SOCIAL_PRIEST_MULT: f32 = 1.3;              // [CALIBRATE M53]
 pub const SPIRITUAL_RESTORE_TEMPLE: f32 = 0.020;      // [CALIBRATE M53]
 pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [CALIBRATE M53]
 pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.020;     // [CALIBRATE M53]
-pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.010;     // [CALIBRATE M53]
+pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.020;     // [CALIBRATE M53]
 pub const PURPOSE_RESTORE_SKILL: f32 = 0.020;         // [CALIBRATE M53]
 pub const PURPOSE_RESTORE_WAR: f32 = 0.015;           // [CALIBRATE M53]
 
@@ -341,8 +341,8 @@ pub const MAX_NEW_BONDS_PER_PASS: u8 = 2;       // [CALIBRATE M53]
 pub const MAX_NEW_BONDS_PER_REGION: u32 = 50;   // [CALIBRATE M53]
 
 // Social-need blend
-pub const SOCIAL_BLEND_ALPHA: f32 = 0.0;     // [CALIBRATE M53]
-pub const SOCIAL_RESTORE_BOND: f32 = 0.010;  // [CALIBRATE M53]
+pub const SOCIAL_BLEND_ALPHA: f32 = 0.3;     // [CALIBRATE M53]
+pub const SOCIAL_RESTORE_BOND: f32 = 0.030;  // [CALIBRATE M53]
 pub const SOCIAL_BOND_TARGET: f32 = 4.0;     // [CALIBRATE M53]
 
 // Synthesis budget

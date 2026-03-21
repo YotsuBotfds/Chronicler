@@ -138,7 +138,7 @@ fn test_decay_all_six_needs() {
     assert!((pool.need_material[slot] - (0.5 - 0.012)).abs() < 0.001);
     assert!((pool.need_social[slot] - (0.5 - 0.008)).abs() < 0.001);
     assert!((pool.need_spiritual[slot] - (0.5 - 0.010)).abs() < 0.001);
-    assert!((pool.need_autonomy[slot] - (0.5 - 0.015)).abs() < 0.001);
+    assert!((pool.need_autonomy[slot] - (0.5 - 0.010)).abs() < 0.001);
     assert!((pool.need_purpose[slot] - (0.5 - 0.012)).abs() < 0.001);
 }
 

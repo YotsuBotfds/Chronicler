@@ -516,8 +516,8 @@ mod tests {
     }
 
     #[test]
-    fn test_social_restoration_alpha_zero_unchanged() {
-        // At alpha=0.0, result should be identical whether agent has bonds or not
+    fn test_social_restoration_blend_bonds_improve() {
+        // At alpha=0.3, bonds should increase restoration vs no-bonds
         use crate::relationships::BondType;
 
         let mut pool = AgentPool::new(8);
@@ -538,18 +538,18 @@ mod tests {
         pool.rel_sentiments[slot][2] = 30;
         pool.rel_count[slot] = 3;
 
-        // Compute with bonds (alpha is 0.0, so should be identical)
+        // Compute with bonds — should be higher due to bond restoration
         let result_with_bonds = social_restoration(&pool, slot, &region);
 
         assert!(
-            (result_no_bonds - result_with_bonds).abs() < f32::EPSILON,
-            "At alpha=0.0, bonds should not affect result: no_bonds={}, with_bonds={}",
+            result_with_bonds > result_no_bonds,
+            "Bonds should increase restoration: no_bonds={}, with_bonds={}",
             result_no_bonds, result_with_bonds
         );
-        // Sanity: result should be positive (pop ratio 30/60 = 0.5, above threshold 0.3)
+        // Both should be positive
         assert!(
             result_no_bonds > 0.0,
-            "Expected positive restoration, got {}",
+            "Expected positive restoration without bonds, got {}",
             result_no_bonds
         );
     }
