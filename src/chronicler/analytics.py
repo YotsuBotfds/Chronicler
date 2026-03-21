@@ -1224,6 +1224,10 @@ def generate_report(
     action_persistence = extract_action_persistence(bundles)
     new_event_types = extract_new_event_types(bundles)
     artifacts = extract_artifacts(bundles)
+    # M53 extractors
+    bond_health = extract_bond_health(bundles)
+    era_signals = extract_era_signals(bundles)
+    legacy_chains = extract_legacy_chain_metrics(bundles)
 
     report = {
         "metadata": metadata,
@@ -1249,6 +1253,10 @@ def generate_report(
         "action_persistence": action_persistence,
         "new_event_types": new_event_types,
         "artifacts": artifacts,
+        # M53 sections
+        "bond_health": bond_health,
+        "era_signals": era_signals,
+        "legacy_chains": legacy_chains,
     }
 
     report["anomalies"] = detect_anomalies(report)
@@ -1694,25 +1702,104 @@ def extract_artifacts(bundles: list[dict]) -> dict:
     }
 
 
-def extract_relationship_metrics(bundles: list[dict], checkpoints=None) -> dict:
-    """Extract per-turn relationship formation/dissolution metrics."""
-    metrics: dict[str, list] = {
-        "bonds_formed_per_turn": [],
-        "bonds_dissolved_per_turn": [],
-        "mean_rel_count_per_turn": [],
-    }
+def extract_bond_health(bundles: list[dict]) -> dict:
+    """Extract per-turn bond formation/dissolution metrics from relationship_stats metadata.
+
+    Consumes ``metadata.relationship_stats`` (list of per-turn dicts produced by
+    ``get_relationship_stats()``).  Returns time-series lists and aggregated bond-type
+    counts across all bundles.
+    """
+    bonds_formed: list[int] = []
+    bonds_dissolved: list[int] = []
+    mean_rel_count: list[float] = []
+    cross_civ_fraction: list[float] = []
+    bond_type_counts: dict[int, int] = {}
+
     for bundle in bundles:
-        metadata = bundle.get("metadata", {})
-        rel_stats = metadata.get("relationship_stats", [])
+        rel_stats = bundle.get("metadata", {}).get("relationship_stats", [])
         for turn_stats in rel_stats:
-            metrics["bonds_formed_per_turn"].append(
-                turn_stats.get("bonds_formed", 0)
-            )
-            metrics["bonds_dissolved_per_turn"].append(
+            bonds_formed.append(turn_stats.get("bonds_formed", 0))
+            bonds_dissolved.append(
                 turn_stats.get("bonds_dissolved_death", 0)
                 + turn_stats.get("bonds_dissolved_structural", 0)
             )
-            metrics["mean_rel_count_per_turn"].append(
-                turn_stats.get("mean_rel_count", 0)
-            )
-    return metrics
+            mean_rel_count.append(turn_stats.get("mean_rel_count", 0.0))
+            cross_civ_fraction.append(turn_stats.get("cross_civ_bond_fraction", 0.0))
+            # Aggregate bond_type_count_N fields (up to 8 bond types)
+            for type_idx in range(8):
+                key = f"bond_type_count_{type_idx}"
+                count = turn_stats.get(key, 0)
+                if count:
+                    bond_type_counts[type_idx] = bond_type_counts.get(type_idx, 0) + count
+
+    return {
+        "bonds_formed_per_turn": bonds_formed,
+        "bonds_dissolved_per_turn": bonds_dissolved,
+        "mean_rel_count_per_turn": mean_rel_count,
+        "cross_civ_bond_fraction_per_turn": cross_civ_fraction,
+        "bond_type_counts": bond_type_counts,
+    }
+
+
+def extract_era_signals(bundles: list[dict]) -> dict:
+    """Extract per-civ time series of key signals from the history list.
+
+    Returns ``{civ_name: {signal: [value, ...]}}`` where signals are:
+    population, territory (len of regions list), prestige, treasury, stability, gini.
+    Multiple bundles are concatenated in order (turns are not deduplicated).
+    """
+    civ_series: dict[str, dict[str, list]] = {}
+
+    for bundle in bundles:
+        for turn_entry in bundle.get("history", []):
+            civ_stats = turn_entry.get("civ_stats", {})
+            for civ_name, stats in civ_stats.items():
+                if civ_name not in civ_series:
+                    civ_series[civ_name] = {
+                        "population": [],
+                        "territory": [],
+                        "prestige": [],
+                        "treasury": [],
+                        "stability": [],
+                        "gini": [],
+                    }
+                s = civ_series[civ_name]
+                s["population"].append(stats.get("population", 0))
+                regions = stats.get("regions", [])
+                s["territory"].append(len(regions) if isinstance(regions, list) else regions)
+                s["prestige"].append(stats.get("prestige", 0))
+                s["treasury"].append(stats.get("treasury", 0))
+                s["stability"].append(stats.get("stability", 0))
+                s["gini"].append(stats.get("gini", 0.0))
+
+    return civ_series
+
+
+def extract_legacy_chain_metrics(bundles: list[dict]) -> dict:
+    """Extract dynasty chain lengths from great_persons in bundle metadata.
+
+    Groups GreatPersons by ``dynasty_id`` and counts how many belong to each
+    dynasty.  Returns:
+    - ``dynasty_chain_lengths``: ``{dynasty_id: count}``
+    - ``mean_chain_length``: float average over all dynasties
+    """
+    chain_lengths: dict[int, int] = {}
+
+    for bundle in bundles:
+        great_persons = bundle.get("metadata", {}).get("great_persons", [])
+        for gp in great_persons:
+            dynasty_id = gp.get("dynasty_id")
+            if dynasty_id is None:
+                continue
+            chain_lengths[dynasty_id] = chain_lengths.get(dynasty_id, 0) + 1
+
+    mean_length = (
+        sum(chain_lengths.values()) / len(chain_lengths)
+        if chain_lengths
+        else 0.0
+    )
+
+    return {
+        "dynasty_chain_lengths": chain_lengths,
+        "mean_chain_length": mean_length,
+    }
