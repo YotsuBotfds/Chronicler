@@ -575,6 +575,101 @@ def check_artifact_lifecycle(
     }
 
 
+def classify_civ_arc(trajectory: dict) -> str:
+    """Oracle 6: Classify a civilization's trajectory into one of six emotional arc families.
+
+    Based on Kurt Vonnegut's story shapes. Uses a thirds-based analysis of a
+    smoothed population series to determine the dominant arc pattern.
+
+    Parameters
+    ----------
+    trajectory:
+        Dict with at least a "population" key containing a list of numeric values.
+
+    Returns
+    -------
+    One of: "rags_to_riches", "riches_to_rags", "icarus", "oedipus",
+    "cinderella", "man_in_a_hole", "stable".
+    """
+    pop = trajectory["population"]
+    n = len(pop)
+    if n == 0:
+        return "stable"
+
+    # Step 1: Smooth the population series with rolling mean
+    window = max(10, n // 10)
+    smoothed: list[float] = []
+    for i in range(n):
+        start = max(0, i - window + 1)
+        chunk = pop[start: i + 1]
+        smoothed.append(sum(chunk) / len(chunk))
+
+    # Step 2: Split into thirds and compute mean for each third
+    third = max(1, n // 3)
+    first_mean = sum(smoothed[:third]) / third
+    # Middle third: avoid overlap at boundaries for small series
+    mid_start = third
+    mid_end = 2 * third
+    mid_chunk = smoothed[mid_start:mid_end] if mid_end > mid_start else [smoothed[mid_start]]
+    middle_mean = sum(mid_chunk) / len(mid_chunk)
+    last_chunk = smoothed[2 * third:] if smoothed[2 * third:] else [smoothed[-1]]
+    last_mean = sum(last_chunk) / len(last_chunk)
+
+    # Step 3: Stable check — all thirds within 20% of each other
+    overall_mean = (first_mean + middle_mean + last_mean) / 3.0
+    if overall_mean != 0.0:
+        max_dev = max(
+            abs(first_mean - overall_mean),
+            abs(middle_mean - overall_mean),
+            abs(last_mean - overall_mean),
+        )
+        if max_dev / abs(overall_mean) <= 0.20:
+            return "stable"
+    else:
+        # All values are zero — treat as stable
+        return "stable"
+
+    # Step 4: Classify by pattern of thirds
+    # rags_to_riches: monotone up
+    if first_mean < middle_mean < last_mean:
+        return "rags_to_riches"
+
+    # riches_to_rags: monotone down
+    if first_mean > middle_mean > last_mean:
+        return "riches_to_rags"
+
+    # icarus: up then down (middle is the peak)
+    if middle_mean > first_mean and middle_mean > last_mean:
+        return "icarus"
+
+    # For the down-then-up family, distinguish by final level vs start
+    if first_mean > middle_mean and last_mean > middle_mean:
+        # cinderella: recovers to at least starting level
+        if last_mean >= first_mean:
+            return "cinderella"
+        # man_in_a_hole: partial recovery but doesn't reach start
+        # oedipus: down-up-down — requires last < first, use oedipus when
+        # last < first (same condition as man_in_a_hole without further info)
+        # Per spec: oedipus = middle < first AND middle < last AND last < first
+        # man_in_a_hole = first > middle AND last > middle AND last < first
+        # Both conditions are identical from thirds analysis — use oedipus as
+        # the canonical name here for partial recovery with final < start.
+        # Spec says oedipus: last < first; man_in_a_hole: last < first too.
+        # Differentiate: oedipus ends lower (last < middle average baseline),
+        # man_in_a_hole ends in middle recovery range.
+        # Simple heuristic: if last is closer to first or above midpoint,
+        # it's man_in_a_hole; if last is near the trough, it's oedipus.
+        # Use midpoint of (first, middle) as divider:
+        midpoint = (first_mean + middle_mean) / 2.0
+        if last_mean >= midpoint:
+            return "man_in_a_hole"
+        else:
+            return "oedipus"
+
+    # Fallback
+    return "stable"
+
+
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Implementation: load two bundles with same seed, compare

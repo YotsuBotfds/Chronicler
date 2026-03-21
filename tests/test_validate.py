@@ -133,3 +133,20 @@ def test_artifact_oracle_checks_creation_rate():
     result = check_artifact_lifecycle(bundles, num_civs=4)
     assert "creation_rate_per_civ_per_100" in result
     assert "type_diversity_ok" in result
+
+
+def test_arc_classifier_rags_to_riches():
+    """Rising trajectory classified as Rags to Riches."""
+    from chronicler.validate import classify_civ_arc
+    trajectory = {"population": list(range(50, 150))}
+    arc = classify_civ_arc(trajectory)
+    assert arc == "rags_to_riches"
+
+
+def test_arc_classifier_icarus():
+    """Rise then fall classified as Icarus."""
+    from chronicler.validate import classify_civ_arc
+    pop = list(range(50, 100)) + list(range(100, 50, -1))
+    trajectory = {"population": pop}
+    arc = classify_civ_arc(trajectory)
+    assert arc == "icarus"
