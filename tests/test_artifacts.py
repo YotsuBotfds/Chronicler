@@ -862,3 +862,45 @@ class TestConquestLifecycleIntentEmission:
         events = tick_artifacts(world)
         assert world.artifacts[0].status == ArtifactStatus.LOST
         assert any(e.event_type == "artifact_lost" for e in events)
+
+
+class TestRelicConversionBonus:
+    def test_relic_boosts_conversion_in_controlled_region(self):
+        from chronicler.artifacts import get_relic_conversion_modifier
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.controller = "TestCiv"
+        _make_active_artifact(
+            world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1",
+        )
+        modifier = get_relic_conversion_modifier(world, region)
+        assert modifier > 1.0
+
+    def test_no_relic_no_bonus(self):
+        from chronicler.artifacts import get_relic_conversion_modifier
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        modifier = get_relic_conversion_modifier(world, region)
+        assert modifier == 1.0
+
+    def test_conquered_relic_no_bonus(self):
+        from chronicler.artifacts import get_relic_conversion_modifier
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.controller = "Conqueror"
+        _make_active_artifact(
+            world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1",
+        )
+        modifier = get_relic_conversion_modifier(world, region)
+        assert modifier == 1.0
+
+    def test_non_stacking_multiple_relics(self):
+        from chronicler.artifacts import get_relic_conversion_modifier
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.controller = "TestCiv"
+        _make_active_artifact(world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1")
+        _make_active_artifact(world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1")
+        modifier = get_relic_conversion_modifier(world, region)
+        expected = 1.0 + 0.15
+        assert abs(modifier - expected) < 0.01

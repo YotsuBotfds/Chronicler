@@ -358,6 +358,12 @@ def compute_conversion_signals(
         conversion_rate += region.martyrdom_boost
         rate = conversion_rate
 
+        # M52: Relic conversion bonus
+        if world is not None:
+            from chronicler.artifacts import get_relic_conversion_modifier
+            relic_mod = get_relic_conversion_modifier(world, region)
+            rate *= relic_mod
+
         # Conquest boost
         boost = region.conquest_conversion_boost
         if boost > 0:

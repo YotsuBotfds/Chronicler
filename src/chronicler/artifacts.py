@@ -514,6 +514,22 @@ def select_cultural_artifact_type(civ, seed: int) -> ArtifactType:
     return rng.choices(types, weights=w, k=1)[0]
 
 
+def get_relic_conversion_modifier(world, region) -> float:
+    """Return conversion rate multiplier from temple-bound relics in this region.
+
+    Non-stacking: one relic bonus per region max.
+    Only applies when owner_civ matches region controller.
+    """
+    for a in world.artifacts:
+        if (a.artifact_type == ArtifactType.RELIC
+                and a.anchored
+                and a.anchor_region == region.name
+                and a.status == ArtifactStatus.ACTIVE
+                and a.owner_civ == region.controller):
+            return 1.0 + RELIC_CONVERSION_BONUS
+    return 1.0
+
+
 def _roman(n: int) -> str:
     """Simple roman numeral for small collision suffixes."""
     numerals = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
