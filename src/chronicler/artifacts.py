@@ -158,6 +158,99 @@ def _add_history(artifact: Artifact, entry: str) -> None:
         artifact.history = [artifact.history[0]] + artifact.history[-(HISTORY_CAP - 1):]
 
 
+def _find_gp(world, name: str, born_turn: int | None):
+    """Find a GreatPerson by (name, born_turn) across all civs and retired list."""
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            if gp.name == name and gp.born_turn == born_turn:
+                return gp
+    for gp in getattr(world, 'retired_persons', []):
+        if gp.name == name and gp.born_turn == born_turn:
+            return gp
+    return None
+
+
+def _process_conquest(world, intent: ArtifactLifecycleIntent, events: list) -> None:
+    """Handle artifact transfers on conquest or twilight absorption."""
+    for a in world.artifacts:
+        if a.status != ArtifactStatus.ACTIVE:
+            continue
+        if a.holder_name is not None:
+            continue
+        if a.anchored and a.anchor_region == intent.region:
+            if intent.is_destructive:
+                a.status = ArtifactStatus.DESTROYED
+                a.owner_civ = None
+                _add_history(a, f"Destroyed during the sack of {intent.region}, turn {world.turn}")
+                events.append(Event(
+                    turn=world.turn, event_type="artifact_destroyed",
+                    actors=[intent.gaining_civ or "unknown", a.name],
+                    description=f"{a.name} destroyed in {intent.region}",
+                    importance=7,
+                ))
+            else:
+                a.owner_civ = intent.gaining_civ
+                _add_history(a, f"Claimed by {intent.gaining_civ} after the fall of {intent.region}, turn {world.turn}")
+            continue
+        if not a.anchored and a.owner_civ == intent.losing_civ:
+            if intent.is_capital or intent.is_full_absorption:
+                a.owner_civ = intent.gaining_civ
+                _add_history(a, f"Captured by {intent.gaining_civ} during the fall of {intent.region}, turn {world.turn}")
+                events.append(Event(
+                    turn=world.turn, event_type="artifact_captured",
+                    actors=[intent.gaining_civ, intent.losing_civ, a.name],
+                    description=f"{a.name} captured by {intent.gaining_civ}",
+                    importance=7,
+                ))
+
+
+def _process_civ_destruction(world, intent: ArtifactLifecycleIntent, events: list) -> None:
+    """Handle artifacts when a civ is destroyed without absorber."""
+    for a in world.artifacts:
+        if a.status != ArtifactStatus.ACTIVE or a.owner_civ != intent.losing_civ:
+            continue
+        if a.holder_name is not None:
+            gp = _find_gp(world, a.holder_name, a.holder_born_turn)
+            if gp and gp.active:
+                continue
+        a.status = ArtifactStatus.LOST
+        a.owner_civ = None
+        a.holder_name = None
+        a.holder_born_turn = None
+        _add_history(a, f"Lost when {intent.losing_civ} fell, turn {world.turn}")
+        events.append(Event(
+            turn=world.turn, event_type="artifact_lost",
+            actors=[intent.losing_civ, a.name],
+            description=f"{a.name} lost when {intent.losing_civ} fell",
+            importance=6,
+        ))
+
+
+def _process_holder_lifecycle(world, events: list) -> None:
+    """Check character-held artifacts for inactive holders."""
+    for a in world.artifacts:
+        if a.status != ArtifactStatus.ACTIVE or a.holder_name is None:
+            continue
+        gp = _find_gp(world, a.holder_name, a.holder_born_turn)
+        if gp is None or not gp.active:
+            revert_civ = gp.civilization if gp else a.owner_civ
+            fate = gp.fate if gp else "unknown fate"
+            holder_name = a.holder_name
+
+            if a.mule_origin:
+                events.append(Event(
+                    turn=world.turn, event_type="mule_artifact_relinquished",
+                    actors=[holder_name, revert_civ or "", a.name],
+                    description=f"{a.name} relinquished after {holder_name}'s {fate}",
+                    importance=7,
+                ))
+
+            _add_history(a, f"Returned to {revert_civ} after {holder_name}'s {fate}, turn {world.turn}")
+            a.holder_name = None
+            a.holder_born_turn = None
+            a.owner_civ = revert_civ
+
+
 def tick_artifacts(world) -> list[Event]:
     """Phase 10: Process artifact intents, lifecycle, and prestige."""
     events: list[Event] = []
@@ -225,9 +318,17 @@ def tick_artifacts(world) -> list[Event]:
             importance=6,
         ))
 
-    # 2. Process lifecycle intents (Task 5)
+    # 2. Process lifecycle intents
+    for intent in world._artifact_lifecycle_intents:
+        if intent.action == "conquest_transfer":
+            _process_conquest(world, intent, events)
+        elif intent.action == "twilight_absorption":
+            _process_conquest(world, intent, events)  # same rules
+        elif intent.action == "civ_destruction":
+            _process_civ_destruction(world, intent, events)
 
-    # 3. Holder lifecycle (Task 5)
+    # 3. Holder lifecycle — check for inactive holders
+    _process_holder_lifecycle(world, events)
 
     # 4. Compute ephemeral prestige
     world._artifact_prestige_by_civ = {}
