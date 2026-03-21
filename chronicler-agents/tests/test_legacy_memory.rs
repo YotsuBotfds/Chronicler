@@ -1,5 +1,5 @@
 use chronicler_agents::memory::{MemoryIntent, compute_memory_utility_modifiers, compute_memory_satisfaction_score, agents_share_memory};
-use chronicler_agents::{AgentPool, Occupation, BELIEF_NONE, factor_from_half_life, write_single_memory, extract_legacy_memories, LEGACY_HALF_LIFE};
+use chronicler_agents::{AgentPool, Occupation, BELIEF_NONE, factor_from_half_life, write_single_memory, write_all_memories, extract_legacy_memories, LEGACY_HALF_LIFE};
 
 #[test]
 fn test_memory_intent_legacy_fields() {
@@ -324,6 +324,152 @@ fn test_legacy_satisfaction_preservation() {
 
     let score = compute_memory_satisfaction_score(&pool, slot);
     assert!(score > 0.0, "positive legacy memory should yield positive satisfaction score: got {}", score);
+}
+
+// ── M51 Task 13: Multi-generational integration tests ─────────────────────────
+
+#[test]
+fn test_multi_generational_legacy_decay() {
+    let mut pool = AgentPool::new(32);
+    let legacy_factor = factor_from_half_life(LEGACY_HALF_LIFE);
+
+    // Gen 1: parent with Persecution at -90
+    let parent = spawn_test_agent(&mut pool);
+    let orig = MemoryIntent {
+        agent_slot: parent,
+        event_type: 3, // Persecution
+        source_civ: 1,
+        intensity: -90,
+        is_legacy: false,
+        decay_factor_override: None,
+    };
+    write_single_memory(&mut pool, &orig, 10);
+    assert_eq!(pool.memory_intensities[parent][0], -90);
+
+    // Gen 2: child inherits -90 / 2 = -45
+    let child = spawn_test_agent(&mut pool);
+    let legacies = extract_legacy_memories(&pool, parent);
+    assert_eq!(legacies.len(), 1, "parent should yield 1 legacy memory");
+    assert_eq!(legacies[0].2, -45, "Gen2 intensity should be -45 (-90/2)");
+    let intent2 = MemoryIntent {
+        agent_slot: child,
+        event_type: legacies[0].0,
+        source_civ: legacies[0].1,
+        intensity: legacies[0].2,
+        is_legacy: true,
+        decay_factor_override: Some(legacy_factor),
+    };
+    write_single_memory(&mut pool, &intent2, 50);
+    assert_eq!(pool.memory_intensities[child][0], -45);
+
+    // Gen 3: grandchild inherits -45 / 2 = -22
+    let grandchild = spawn_test_agent(&mut pool);
+    let legacies2 = extract_legacy_memories(&pool, child);
+    assert_eq!(legacies2.len(), 1, "child should yield 1 legacy memory");
+    assert_eq!(legacies2[0].2, -22, "Gen3 intensity should be -22 (-45/2 truncated)");
+    let intent3 = MemoryIntent {
+        agent_slot: grandchild,
+        event_type: legacies2[0].0,
+        source_civ: legacies2[0].1,
+        intensity: legacies2[0].2,
+        is_legacy: true,
+        decay_factor_override: Some(legacy_factor),
+    };
+    write_single_memory(&mut pool, &intent3, 100);
+    assert_eq!(pool.memory_intensities[grandchild][0], -22);
+
+    // Gen 4: great-grandchild inherits -22 / 2 = -11
+    let great = spawn_test_agent(&mut pool);
+    let legacies3 = extract_legacy_memories(&pool, grandchild);
+    assert_eq!(legacies3.len(), 1, "grandchild should yield 1 legacy memory");
+    assert_eq!(legacies3[0].2, -11, "Gen4 intensity should be -11 (-22/2 truncated)");
+    let intent4 = MemoryIntent {
+        agent_slot: great,
+        event_type: legacies3[0].0,
+        source_civ: legacies3[0].1,
+        intensity: legacies3[0].2,
+        is_legacy: true,
+        decay_factor_override: Some(legacy_factor),
+    };
+    write_single_memory(&mut pool, &intent4, 150);
+    assert_eq!(pool.memory_intensities[great][0], -11);
+
+    // Gen 5: -11 / 2 = -5, below LEGACY_MIN_INTENSITY (10) → filtered out
+    let legacies4 = extract_legacy_memories(&pool, great);
+    assert!(legacies4.is_empty(), "-11/2 = -5, below threshold (10), should be filtered");
+}
+
+#[test]
+fn test_death_of_kin_and_legacy_same_consolidated_write() {
+    let mut pool = AgentPool::new(32);
+    let legacy_factor = factor_from_half_life(LEGACY_HALF_LIFE);
+
+    // Parent with a strong Battle memory (-60)
+    let parent = spawn_test_agent(&mut pool);
+    let battle = MemoryIntent {
+        agent_slot: parent,
+        event_type: 1, // Battle
+        source_civ: 1,
+        intensity: -60,
+        is_legacy: false,
+        decay_factor_override: None,
+    };
+    write_single_memory(&mut pool, &battle, 10);
+    assert_eq!(pool.memory_intensities[parent][0], -60);
+
+    // Child starts empty
+    let child = spawn_test_agent(&mut pool);
+    assert_eq!(pool.memory_count[child], 0);
+
+    // Collect both DeathOfKin and legacy Battle intents for same tick
+    let mut intents = Vec::new();
+
+    // DeathOfKin intent (event_type=9, not gated)
+    intents.push(MemoryIntent {
+        agent_slot: child,
+        event_type: 9, // DeathOfKin
+        source_civ: pool.civ_affinities[parent],
+        intensity: -80,
+        is_legacy: false,
+        decay_factor_override: None,
+    });
+
+    // Legacy Battle intent from parent (Battle = event_type 1, -60/2 = -30)
+    let legacies = extract_legacy_memories(&pool, parent);
+    assert_eq!(legacies.len(), 1, "parent should yield 1 legacy memory");
+    assert_eq!(legacies[0].2, -30, "Battle legacy intensity should be -30 (-60/2)");
+    for (et, sc, halved) in &legacies {
+        intents.push(MemoryIntent {
+            agent_slot: child,
+            event_type: *et,
+            source_civ: *sc,
+            intensity: *halved,
+            is_legacy: true,
+            decay_factor_override: Some(legacy_factor),
+        });
+    }
+
+    // Consolidated write — both intents should land
+    // DeathOfKin (9) is not gated; Battle (1) gate is clear at start
+    write_all_memories(&mut pool, &intents, 50);
+
+    // Child should have exactly 2 memories: DeathOfKin + legacy Battle
+    assert_eq!(pool.memory_count[child], 2, "child should have 2 memories after consolidated write");
+    // At least one slot should be marked legacy (bitmask non-zero)
+    assert_ne!(
+        pool.memory_is_legacy[child], 0,
+        "at least one memory should be marked as legacy"
+    );
+    // DeathOfKin slot should not be legacy; Battle slot should be legacy
+    // Slot 0 = DeathOfKin (first written), Slot 1 = Battle legacy (second written)
+    assert_eq!(
+        (pool.memory_is_legacy[child] >> 0) & 1, 0,
+        "slot 0 (DeathOfKin) should not be legacy"
+    );
+    assert_eq!(
+        (pool.memory_is_legacy[child] >> 1) & 1, 1,
+        "slot 1 (Battle legacy) should be legacy"
+    );
 }
 
 // ── M51 Task 4: FFI 6-tuple tests ─────────────────────────────────────────────

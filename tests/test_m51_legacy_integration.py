@@ -50,3 +50,60 @@ def test_memory_sync_non_legacy_flag():
         "is_legacy": raw[0][5],
     }
     assert mem["is_legacy"] is False
+
+
+def test_legacy_determinism():
+    """Same inputs produce identical legacy memory results across two runs."""
+    # The legacy system is purely deterministic: extract_legacy_memories and
+    # write_single_memory have no RNG. We verify that calling the same sequence
+    # twice on two separate pools yields bit-identical memory state.
+    try:
+        from chronicler_agents import (
+            AgentPool, Occupation, BELIEF_NONE,
+            factor_from_half_life, write_single_memory, extract_legacy_memories,
+            LEGACY_HALF_LIFE,
+            MemoryIntent,
+        )
+    except ImportError:
+        import pytest
+        pytest.skip("chronicler_agents Rust extension not built")
+
+    def run_sequence():
+        pool = AgentPool(32)
+        legacy_factor = factor_from_half_life(LEGACY_HALF_LIFE)
+
+        parent = pool.spawn(0, 0, Occupation.Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE)
+        write_single_memory(pool, MemoryIntent(
+            agent_slot=parent,
+            event_type=3,   # Persecution
+            source_civ=1,
+            intensity=-90,
+            is_legacy=False,
+            decay_factor_override=None,
+        ), 10)
+
+        child = pool.spawn(0, 0, Occupation.Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE)
+        legacies = extract_legacy_memories(pool, parent)
+        for (et, sc, halved) in legacies:
+            write_single_memory(pool, MemoryIntent(
+                agent_slot=child,
+                event_type=et,
+                source_civ=sc,
+                intensity=halved,
+                is_legacy=True,
+                decay_factor_override=legacy_factor,
+            ), 50)
+
+        # Return the child's memory state as a snapshot
+        count = pool.memory_count(child)
+        intensities = [pool.memory_intensity(child, i) for i in range(count)]
+        event_types = [pool.memory_event_type(child, i) for i in range(count)]
+        is_legacy_bits = pool.memory_is_legacy_bits(child)
+        return (count, intensities, event_types, is_legacy_bits)
+
+    run1 = run_sequence()
+    run2 = run_sequence()
+
+    assert run1 == run2, (
+        f"Legacy memory system is non-deterministic: run1={run1}, run2={run2}"
+    )
