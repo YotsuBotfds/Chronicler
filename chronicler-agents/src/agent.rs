@@ -168,102 +168,102 @@ pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
 pub const PROMOTION_DURATION_TURNS: u8 = 20;
 
 // M48: Memory event default intensities [CALIBRATE M53]
-pub const FAMINE_DEFAULT_INTENSITY: i8 = -80;
-pub const BATTLE_DEFAULT_INTENSITY: i8 = -60;
-pub const CONQUEST_DEFAULT_INTENSITY: i8 = -70;
-pub const PERSECUTION_DEFAULT_INTENSITY: i8 = -90;
-pub const MIGRATION_DEFAULT_INTENSITY: i8 = -30;
-pub const PROSPERITY_DEFAULT_INTENSITY: i8 = 50;
-pub const VICTORY_DEFAULT_INTENSITY: i8 = 60;
-pub const PROMOTION_DEFAULT_INTENSITY: i8 = 70;
-pub const BIRTHOFKIN_DEFAULT_INTENSITY: i8 = 40;
-pub const DEATHOFKIN_DEFAULT_INTENSITY: i8 = -80;
-pub const CONVERSION_DEFAULT_INTENSITY: i8 = 50;
-pub const SECESSION_DEFAULT_INTENSITY: i8 = -60;
+pub const FAMINE_DEFAULT_INTENSITY: i8 = -80;        // [CALIBRATE M53]
+pub const BATTLE_DEFAULT_INTENSITY: i8 = -60;         // [CALIBRATE M53]
+pub const CONQUEST_DEFAULT_INTENSITY: i8 = -70;       // [CALIBRATE M53]
+pub const PERSECUTION_DEFAULT_INTENSITY: i8 = -90;    // [CALIBRATE M53]
+pub const MIGRATION_DEFAULT_INTENSITY: i8 = -30;      // [CALIBRATE M53]
+pub const PROSPERITY_DEFAULT_INTENSITY: i8 = 50;      // [CALIBRATE M53]
+pub const VICTORY_DEFAULT_INTENSITY: i8 = 60;         // [CALIBRATE M53]
+pub const PROMOTION_DEFAULT_INTENSITY: i8 = 70;       // [CALIBRATE M53]
+pub const BIRTHOFKIN_DEFAULT_INTENSITY: i8 = 40;      // [CALIBRATE M53]
+pub const DEATHOFKIN_DEFAULT_INTENSITY: i8 = -80;     // [CALIBRATE M53]
+pub const CONVERSION_DEFAULT_INTENSITY: i8 = 50;      // [CALIBRATE M53]
+pub const SECESSION_DEFAULT_INTENSITY: i8 = -60;      // [CALIBRATE M53]
 
 // M48: Memory event default half-lives in turns [CALIBRATE M53]
-pub const FAMINE_HALF_LIFE: f32 = 40.0;
-pub const BATTLE_HALF_LIFE: f32 = 25.0;
-pub const CONQUEST_HALF_LIFE: f32 = 30.0;
-pub const PERSECUTION_HALF_LIFE: f32 = 50.0;
-pub const MIGRATION_HALF_LIFE: f32 = 15.0;
-pub const PROSPERITY_HALF_LIFE: f32 = 20.0;
-pub const VICTORY_HALF_LIFE: f32 = 20.0;
-pub const PROMOTION_HALF_LIFE: f32 = 30.0;
-pub const BIRTHOFKIN_HALF_LIFE: f32 = 25.0;
-pub const DEATHOFKIN_HALF_LIFE: f32 = 35.0;
-pub const CONVERSION_HALF_LIFE: f32 = 20.0;
-pub const SECESSION_HALF_LIFE: f32 = 20.0;
-pub const LEGACY_HALF_LIFE: f32 = 100.0;
+pub const FAMINE_HALF_LIFE: f32 = 40.0;              // [CALIBRATE M53]
+pub const BATTLE_HALF_LIFE: f32 = 25.0;              // [CALIBRATE M53]
+pub const CONQUEST_HALF_LIFE: f32 = 30.0;            // [CALIBRATE M53]
+pub const PERSECUTION_HALF_LIFE: f32 = 50.0;         // [CALIBRATE M53]
+pub const MIGRATION_HALF_LIFE: f32 = 15.0;           // [CALIBRATE M53]
+pub const PROSPERITY_HALF_LIFE: f32 = 20.0;          // [CALIBRATE M53]
+pub const VICTORY_HALF_LIFE: f32 = 20.0;             // [CALIBRATE M53]
+pub const PROMOTION_HALF_LIFE: f32 = 30.0;           // [CALIBRATE M53]
+pub const BIRTHOFKIN_HALF_LIFE: f32 = 25.0;          // [CALIBRATE M53]
+pub const DEATHOFKIN_HALF_LIFE: f32 = 35.0;          // [CALIBRATE M53]
+pub const CONVERSION_HALF_LIFE: f32 = 20.0;          // [CALIBRATE M53]
+pub const SECESSION_HALF_LIFE: f32 = 20.0;           // [CALIBRATE M53]
+pub const LEGACY_HALF_LIFE: f32 = 100.0;             // [CALIBRATE M53]
 pub const LEGACY_MIN_INTENSITY: i8 = 10;   // [CALIBRATE M53] post-halving threshold
 pub const LEGACY_MAX_MEMORIES: usize = 2;  // [CALIBRATE M53] top-N extracted on death
 
 // M48: Memory behavioral constants [CALIBRATE M53]
-pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.12;
-pub const FAMINE_MEMORY_THRESHOLD: f32 = 0.6;
-pub const PROSPERITY_THRESHOLD: f32 = 3.0;
+pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.12;    // [CALIBRATE M53]
+pub const FAMINE_MEMORY_THRESHOLD: f32 = 0.6;        // [CALIBRATE M53]
+pub const PROSPERITY_THRESHOLD: f32 = 3.0;           // [CALIBRATE M53]
 
 // M48: Memory utility modifier magnitudes [CALIBRATE M53]
-pub const FAMINE_MIGRATE_BOOST: f32 = 0.2;
-pub const BATTLE_BOLD_STAY_BOOST: f32 = 0.1;
-pub const BATTLE_CAUTIOUS_MIGRATE_BOOST: f32 = 0.15;
-pub const CONQUEST_CONQUERED_MIGRATE_BOOST: f32 = 0.3;
-pub const CONQUEST_CONQUEROR_STAY_BOOST: f32 = 0.1;
-pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.15;
-pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.2;
-pub const PROSPERITY_MIGRATE_PENALTY: f32 = 0.2;
-pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;
-pub const VICTORY_STAY_BOOST: f32 = 0.1;
-pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;
+pub const FAMINE_MIGRATE_BOOST: f32 = 0.2;                    // [CALIBRATE M53]
+pub const BATTLE_BOLD_STAY_BOOST: f32 = 0.1;                  // [CALIBRATE M53]
+pub const BATTLE_CAUTIOUS_MIGRATE_BOOST: f32 = 0.15;          // [CALIBRATE M53]
+pub const CONQUEST_CONQUERED_MIGRATE_BOOST: f32 = 0.3;        // [CALIBRATE M53]
+pub const CONQUEST_CONQUEROR_STAY_BOOST: f32 = 0.1;           // [CALIBRATE M53]
+pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.15;         // [CALIBRATE M53]
+pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.2;        // [CALIBRATE M53]
+pub const PROSPERITY_MIGRATE_PENALTY: f32 = 0.2;              // [CALIBRATE M53]
+pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;               // [CALIBRATE M53]
+pub const VICTORY_STAY_BOOST: f32 = 0.1;                      // [CALIBRATE M53]
+pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;             // [CALIBRATE M53]
 
 // M49: Needs system — starting value
-pub const STARTING_NEED: f32 = 0.5;
+pub const STARTING_NEED: f32 = 0.5;  // [CALIBRATE M53]
 
 // M49: Need decay rates [CALIBRATE M53]
-pub const SAFETY_DECAY: f32 = 0.015;
-pub const MATERIAL_DECAY: f32 = 0.012;
-pub const SOCIAL_DECAY: f32 = 0.008;
-pub const SPIRITUAL_DECAY: f32 = 0.010;
-pub const AUTONOMY_DECAY: f32 = 0.015;
-pub const PURPOSE_DECAY: f32 = 0.012;
+pub const SAFETY_DECAY: f32 = 0.015;     // [CALIBRATE M53]
+pub const MATERIAL_DECAY: f32 = 0.012;   // [CALIBRATE M53]
+pub const SOCIAL_DECAY: f32 = 0.008;     // [CALIBRATE M53]
+pub const SPIRITUAL_DECAY: f32 = 0.010;  // [CALIBRATE M53]
+pub const AUTONOMY_DECAY: f32 = 0.015;   // [CALIBRATE M53]
+pub const PURPOSE_DECAY: f32 = 0.012;    // [CALIBRATE M53]
 
 // M49: Need behavioral thresholds [CALIBRATE M53]
-pub const SAFETY_THRESHOLD: f32 = 0.3;
-pub const MATERIAL_THRESHOLD: f32 = 0.3;
-pub const SOCIAL_THRESHOLD: f32 = 0.25;
-pub const SPIRITUAL_THRESHOLD: f32 = 0.3;
-pub const AUTONOMY_THRESHOLD: f32 = 0.3;
-pub const PURPOSE_THRESHOLD: f32 = 0.35;
+pub const SAFETY_THRESHOLD: f32 = 0.3;    // [CALIBRATE M53]
+pub const MATERIAL_THRESHOLD: f32 = 0.3;  // [CALIBRATE M53]
+pub const SOCIAL_THRESHOLD: f32 = 0.25;   // [CALIBRATE M53]
+pub const SPIRITUAL_THRESHOLD: f32 = 0.3; // [CALIBRATE M53]
+pub const AUTONOMY_THRESHOLD: f32 = 0.3;  // [CALIBRATE M53]
+pub const PURPOSE_THRESHOLD: f32 = 0.35;  // [CALIBRATE M53]
 
 // M49: Need behavioral weights [CALIBRATE M53]
-pub const SAFETY_WEIGHT: f32 = 0.7;
-pub const MATERIAL_WEIGHT: f32 = 0.5;
-pub const SOCIAL_WEIGHT: f32 = 0.5;
-pub const SPIRITUAL_WEIGHT: f32 = 0.4;
-pub const AUTONOMY_WEIGHT: f32 = 0.8;
-pub const PURPOSE_WEIGHT: f32 = 0.4;
+pub const SAFETY_WEIGHT: f32 = 0.7;     // [CALIBRATE M53]
+pub const MATERIAL_WEIGHT: f32 = 0.5;   // [CALIBRATE M53]
+pub const SOCIAL_WEIGHT: f32 = 0.5;     // [CALIBRATE M53]
+pub const SPIRITUAL_WEIGHT: f32 = 0.4;  // [CALIBRATE M53]
+pub const AUTONOMY_WEIGHT: f32 = 0.8;   // [CALIBRATE M53]
+pub const PURPOSE_WEIGHT: f32 = 0.4;    // [CALIBRATE M53]
 
 // M49: Restoration rates [CALIBRATE M53]
-pub const SAFETY_RESTORE_PEACE: f32 = 0.020;
-pub const SAFETY_RESTORE_HEALTH: f32 = 0.010;
-pub const SAFETY_RESTORE_FOOD: f32 = 0.008;
-pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;
-pub const MATERIAL_RESTORE_FOOD: f32 = 0.012;
-pub const MATERIAL_RESTORE_WEALTH: f32 = 0.015;
-pub const SOCIAL_RESTORE_POP: f32 = 0.010;
-pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;
-pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;
-pub const SOCIAL_PRIEST_MULT: f32 = 1.3;
-pub const SPIRITUAL_RESTORE_TEMPLE: f32 = 0.020;
-pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;
-pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.020;
-pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.010;
-pub const PURPOSE_RESTORE_SKILL: f32 = 0.020;
-pub const PURPOSE_RESTORE_WAR: f32 = 0.015;
+pub const SAFETY_RESTORE_PEACE: f32 = 0.020;          // [CALIBRATE M53]
+pub const SAFETY_RESTORE_HEALTH: f32 = 0.010;         // [CALIBRATE M53]
+pub const SAFETY_RESTORE_FOOD: f32 = 0.008;           // [CALIBRATE M53]
+pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;      // [CALIBRATE M53]
+pub const MATERIAL_RESTORE_FOOD: f32 = 0.012;         // [CALIBRATE M53]
+pub const MATERIAL_RESTORE_WEALTH: f32 = 0.015;       // [CALIBRATE M53]
+pub const SOCIAL_RESTORE_POP: f32 = 0.010;            // [CALIBRATE M53]
+pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;    // [CALIBRATE M53]
+pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;            // [CALIBRATE M53]
+pub const SOCIAL_PRIEST_MULT: f32 = 1.3;              // [CALIBRATE M53]
+pub const SPIRITUAL_RESTORE_TEMPLE: f32 = 0.020;      // [CALIBRATE M53]
+pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [CALIBRATE M53]
+pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.020;     // [CALIBRATE M53]
+pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.010;     // [CALIBRATE M53]
+pub const PURPOSE_RESTORE_SKILL: f32 = 0.020;         // [CALIBRATE M53]
+pub const PURPOSE_RESTORE_WAR: f32 = 0.015;           // [CALIBRATE M53]
 
 // M49: Infrastructure constants [CALIBRATE M53]
-pub const NEEDS_MODIFIER_CAP: f32 = 0.30;
-pub const AUTONOMY_DRIFT_WEIGHT: f32 = 2.0;
+pub const NEEDS_MODIFIER_CAP: f32 = 0.30;    // [CALIBRATE M53]
+pub const AUTONOMY_DRIFT_WEIGHT: f32 = 2.0;  // [CALIBRATE M53]
 
 // ── M50a: Relationship Substrate ──────────────────────────────────────────────
 // Kin auto-formation initial sentiments
@@ -281,60 +281,60 @@ pub const POSITIVE_SEPARATION_DECAY: i16 = 1;      // [CALIBRATE M53] per-tick p
 pub const NEGATIVE_DECAY_CADENCE: u16 = 4;         // [CALIBRATE M53] ticks between negative decay steps
 
 // M50b: Formation constants [CALIBRATE M53]
-pub const FORMATION_CADENCE: u32 = 6;
+pub const FORMATION_CADENCE: u32 = 6;  // [CALIBRATE M53]
 
 // Similarity weights
-pub const W_CULTURE: f32 = 0.35;
-pub const W_BELIEF: f32 = 0.35;
-pub const W_OCCUPATION: f32 = 0.15;
-pub const W_AFFINITY: f32 = 0.15;
+pub const W_CULTURE: f32 = 0.35;     // [CALIBRATE M53]
+pub const W_BELIEF: f32 = 0.35;      // [CALIBRATE M53]
+pub const W_OCCUPATION: f32 = 0.15;  // [CALIBRATE M53]
+pub const W_AFFINITY: f32 = 0.15;    // [CALIBRATE M53]
 
 // Rank crossing
-pub const SAME_RANK_WEIGHT: f32 = 1.0;
-pub const CROSS_RANK_WEIGHT: f32 = 0.5;
+pub const SAME_RANK_WEIGHT: f32 = 1.0;  // [CALIBRATE M53]
+pub const CROSS_RANK_WEIGHT: f32 = 0.5; // [CALIBRATE M53]
 
 // Friend bond
-pub const FRIEND_THRESHOLD: f32 = 0.50;
-pub const FRIEND_INITIAL_SENTIMENT: i8 = 30;
+pub const FRIEND_THRESHOLD: f32 = 0.50;        // [CALIBRATE M53]
+pub const FRIEND_INITIAL_SENTIMENT: i8 = 30;   // [CALIBRATE M53]
 
 // Minority coreligionist bond
-pub const MINORITY_THRESHOLD: f32 = 0.40;
-pub const CORELIGIONIST_INITIAL_SENTIMENT: i8 = 25;
+pub const MINORITY_THRESHOLD: f32 = 0.40;              // [CALIBRATE M53]
+pub const CORELIGIONIST_INITIAL_SENTIMENT: i8 = 25;    // [CALIBRATE M53]
 
 // Rival bond
-pub const RIVAL_WEALTH_PROXIMITY: f32 = 50.0;
-pub const RIVAL_SIMILARITY_FLOOR: f32 = 0.30;
-pub const RIVAL_MIN_AMBITION: f32 = 0.50;
-pub const RIVAL_INITIAL_SENTIMENT: i8 = -20;
+pub const RIVAL_WEALTH_PROXIMITY: f32 = 50.0;  // [CALIBRATE M53]
+pub const RIVAL_SIMILARITY_FLOOR: f32 = 0.30;  // [CALIBRATE M53]
+pub const RIVAL_MIN_AMBITION: f32 = 0.50;      // [CALIBRATE M53]
+pub const RIVAL_INITIAL_SENTIMENT: i8 = -20;   // [CALIBRATE M53]
 
 // Mentor bond
-pub const MENTOR_AGE_GAP: u16 = 15;
-pub const MENTOR_INITIAL_SENTIMENT: i8 = 35;
+pub const MENTOR_AGE_GAP: u16 = 15;            // [CALIBRATE M53]
+pub const MENTOR_INITIAL_SENTIMENT: i8 = 35;   // [CALIBRATE M53]
 
 // Grudge bond
-pub const GRUDGE_INITIAL_SENTIMENT: i8 = -30;
+pub const GRUDGE_INITIAL_SENTIMENT: i8 = -30;  // [CALIBRATE M53]
 
 // Exile solidarity bond
-pub const EXILE_INITIAL_SENTIMENT: i8 = 35;
+pub const EXILE_INITIAL_SENTIMENT: i8 = 35;    // [CALIBRATE M53]
 
 // Triadic closure
-pub const TRIADIC_MIN_SENTIMENT: i8 = 40;
-pub const TRIADIC_THRESHOLD_REDUCTION: f32 = 0.15;
+pub const TRIADIC_MIN_SENTIMENT: i8 = 40;              // [CALIBRATE M53]
+pub const TRIADIC_THRESHOLD_REDUCTION: f32 = 0.15;    // [CALIBRATE M53]
 
 // Formation scan limits
-pub const MAX_NEW_BONDS_PER_PASS: u8 = 2;
-pub const MAX_NEW_BONDS_PER_REGION: u32 = 50;
+pub const MAX_NEW_BONDS_PER_PASS: u8 = 2;       // [CALIBRATE M53]
+pub const MAX_NEW_BONDS_PER_REGION: u32 = 50;   // [CALIBRATE M53]
 
 // Social-need blend
-pub const SOCIAL_BLEND_ALPHA: f32 = 0.0;
-pub const SOCIAL_RESTORE_BOND: f32 = 0.010;
-pub const SOCIAL_BOND_TARGET: f32 = 4.0;
+pub const SOCIAL_BLEND_ALPHA: f32 = 0.0;     // [CALIBRATE M53]
+pub const SOCIAL_RESTORE_BOND: f32 = 0.010;  // [CALIBRATE M53]
+pub const SOCIAL_BOND_TARGET: f32 = 4.0;     // [CALIBRATE M53]
 
 // Synthesis budget
-pub const SYNTHESIS_BUDGET_MAX: u8 = 100;
+pub const SYNTHESIS_BUDGET_MAX: u8 = 100;  // [CALIBRATE M53]
 
 // Life-event dissolution cadence
-pub const LIFE_EVENT_DISSOLUTION: u8 = 6;
+pub const LIFE_EVENT_DISSOLUTION: u8 = 6;  // [CALIBRATE M53]
 
 #[cfg(test)]
 mod tests {
