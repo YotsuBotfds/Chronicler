@@ -13,6 +13,12 @@ pub fn ecological_stress(region: &RegionState) -> f32 {
 /// War casualty multiplier applies to all soldier age brackets — intentional
 /// divergence from roadmap draft which restricted to 20–60. Soldiers of any
 /// age on an active front face elevated mortality.
+///
+/// Disease is multiplicative (M53 fix): `base * eco * war * (1 + disease * SCALE)`.
+/// Previous formula was additive (`base * eco * war + disease`), which caused
+/// disease_severity at cap (0.15) to dominate mortality at 16%/turn, dwarfing
+/// base rates and all fertility. Multiplicative keeps disease as an amplifier:
+/// at cap (0.15), mortality is 2.5x base; at baseline (0.01), 1.1x.
 pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, disease_severity: f32) -> f32 {
     let base = match age {
         0..AGE_ADULT => MORTALITY_YOUNG,
@@ -20,7 +26,8 @@ pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, diseas
         _ => MORTALITY_ELDER,
     };
     let war_mult = 1.0 + (WAR_CASUALTY_MULTIPLIER - 1.0) * is_soldier_at_war as i32 as f32;
-    base * eco_stress * war_mult + disease_severity
+    let disease_mult = 1.0 + disease_severity * DISEASE_MORTALITY_SCALE;
+    base * eco_stress * war_mult * disease_mult
 }
 
 pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) -> f32 {
@@ -139,15 +146,17 @@ mod tests {
 
     #[test]
     fn test_mortality_with_disease() {
+        // M53: disease is multiplicative — (1 + 0.05 * DISEASE_MORTALITY_SCALE)
         let rate = mortality_rate(30, 1.0, false, 0.05);
-        let expected = MORTALITY_ADULT + 0.05;
+        let expected = MORTALITY_ADULT * (1.0 + 0.05 * DISEASE_MORTALITY_SCALE);
         assert!((rate - expected).abs() < 0.001);
     }
 
     #[test]
     fn test_mortality_disease_plus_war() {
+        // M53: disease multiplicative with war
         let rate = mortality_rate(30, 1.0, true, 0.10);
-        let expected = MORTALITY_ADULT * WAR_CASUALTY_MULTIPLIER + 0.10;
+        let expected = MORTALITY_ADULT * WAR_CASUALTY_MULTIPLIER * (1.0 + 0.10 * DISEASE_MORTALITY_SCALE);
         assert!((rate - expected).abs() < 0.001);
     }
 
@@ -155,6 +164,18 @@ mod tests {
     fn test_mortality_no_disease() {
         let rate = mortality_rate(30, 1.0, false, 0.0);
         assert!((rate - MORTALITY_ADULT).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_mortality_disease_at_cap() {
+        // M53: at disease cap (0.15), mortality should be 2.5x base, not 16x
+        let rate = mortality_rate(30, 1.0, false, 0.15);
+        let expected = MORTALITY_ADULT * (1.0 + 0.15 * DISEASE_MORTALITY_SCALE);
+        assert!((rate - expected).abs() < 0.001);
+        // Verify the multiplier is 2.5x (at SCALE=10)
+        assert!((rate / MORTALITY_ADULT - 2.5).abs() < 0.01);
+        // And crucially, the rate is 0.025, not 0.16
+        assert!(rate < 0.03, "disease at cap should give ~2.5%, got {}", rate);
     }
 
     #[test]
