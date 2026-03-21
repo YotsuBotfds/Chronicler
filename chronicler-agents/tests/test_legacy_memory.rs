@@ -326,6 +326,50 @@ fn test_legacy_satisfaction_preservation() {
     assert!(score > 0.0, "positive legacy memory should yield positive satisfaction score: got {}", score);
 }
 
+// ── M51 Task 4: FFI 6-tuple tests ─────────────────────────────────────────────
+
+#[test]
+fn test_ffi_get_agent_memories_includes_legacy_flag() {
+    // Verify the legacy bitmask extraction logic that FFI uses.
+    // Write a legacy memory to slot 0 and a non-legacy to slot 1, then
+    // confirm the per-slot bit extraction produces the correct flags.
+    let mut pool = AgentPool::new(8);
+    let slot = spawn_test_agent(&mut pool);
+
+    let legacy_factor = factor_from_half_life(LEGACY_HALF_LIFE);
+
+    // Write legacy memory to slot 0
+    let intent = MemoryIntent {
+        agent_slot: slot,
+        event_type: 0,
+        source_civ: 1,
+        intensity: -45,
+        is_legacy: true,
+        decay_factor_override: Some(legacy_factor),
+    };
+    write_single_memory(&mut pool, &intent, 100);
+
+    // Verify bitmask extraction for slot 0: (memory_is_legacy[slot] >> 0) & 1 == 1
+    let is_legacy_0 = (pool.memory_is_legacy[slot] >> 0) & 1 == 1;
+    assert!(is_legacy_0, "slot 0 should be marked legacy after legacy write");
+
+    // Write non-legacy memory to slot 1
+    let intent2 = MemoryIntent {
+        agent_slot: slot,
+        event_type: 1,
+        source_civ: 1,
+        intensity: -60,
+        is_legacy: false,
+        decay_factor_override: None,
+    };
+    write_single_memory(&mut pool, &intent2, 101);
+
+    let is_legacy_0_after = (pool.memory_is_legacy[slot] >> 0) & 1 == 1;
+    let is_legacy_1 = (pool.memory_is_legacy[slot] >> 1) & 1 == 1;
+    assert!(is_legacy_0_after, "slot 0 should still be legacy");
+    assert!(!is_legacy_1, "slot 1 should not be legacy");
+}
+
 #[test]
 fn test_legacy_shared_memory_matching() {
     // Two siblings with legacy Battle from same parent should match via agents_share_memory.

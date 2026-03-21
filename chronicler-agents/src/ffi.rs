@@ -781,9 +781,9 @@ impl AgentSimulator {
     }
 
     /// M48: Return memory slots for a specific agent.
-    /// Returns Vec<(event_type, source_civ, turn, intensity, decay_factor)>.
+    /// Returns Vec<(event_type, source_civ, turn, intensity, decay_factor, is_legacy)>.
     /// Empty vec if agent not found or dead.
-    fn get_agent_memories(&self, agent_id: u32) -> Vec<(u8, u8, u16, i8, u8)> {
+    fn get_agent_memories(&self, agent_id: u32) -> Vec<(u8, u8, u16, i8, u8, bool)> {
         // O(N) scan for agent_id — acceptable for ~50 named character queries
         let pool = &self.pool;
         for slot in 0..pool.ids.len() {
@@ -797,6 +797,7 @@ impl AgentSimulator {
                         pool.memory_turns[slot][i],
                         pool.memory_intensities[slot][i],
                         pool.memory_decay_factors[slot][i],
+                        (pool.memory_is_legacy[slot] >> i) & 1 == 1,  // NEW: legacy flag
                     ));
                 }
                 return result;
