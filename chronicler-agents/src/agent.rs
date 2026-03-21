@@ -28,8 +28,8 @@ impl Occupation {
 pub const AGE_ADULT: u16 = 20;
 pub const AGE_ELDER: u16 = 60;
 pub const MORTALITY_YOUNG: f32 = 0.005;
-pub const MORTALITY_ADULT: f32 = 0.01;
-pub const MORTALITY_ELDER: f32 = 0.05;
+pub const MORTALITY_ADULT: f32 = 0.005;  // M53: was 0.01 (B+C combined fix)
+pub const MORTALITY_ELDER: f32 = 0.03;  // M53: was 0.05 (B+C+D combined fix)
 pub const OCCUPATION_COUNT: usize = 5;
 
 pub const MAX_CIVS: usize = 255;
@@ -38,8 +38,8 @@ const _: () = assert!(MAX_CIVS <= u8::MAX as usize);
 // Fertility
 pub const FERTILITY_AGE_MIN: u16 = 16;
 pub const FERTILITY_AGE_MAX: u16 = 45;
-pub const FERTILITY_BASE_FARMER: f32 = 0.03;
-pub const FERTILITY_BASE_OTHER: f32 = 0.015;
+pub const FERTILITY_BASE_FARMER: f32 = 0.05;   // M53: was 0.03 (B+C combined fix)
+pub const FERTILITY_BASE_OTHER: f32 = 0.03;    // M53: was 0.015 (B+C combined fix)
 pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.3;  // [CALIBRATE] M47c: 0.4→0.3 (wars pushing satisfaction below threshold killed all births)
 
 // Decision thresholds

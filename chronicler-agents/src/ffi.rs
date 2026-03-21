@@ -513,21 +513,23 @@ impl AgentSimulator {
                     crate::agent::BELIEF_NONE
                 };
 
-                // Fertility-heavy age distribution:
-                //   30% ages 0-15 (young)
-                //   50% ages 16-40 (prime fertile/working)
-                //   15% ages 41-55 (older adult)
-                //    5% ages 56-65 (elder)
-                let mut assign_age = |rng: &mut ChaCha8Rng| -> u16 {
+                // M53: younger-fertile skew for population mass retention.
+                // Previous mix lost too many agents to elder mortality before
+                // equilibrium. This skew keeps fertile base deeper into T80-150.
+                //   20% ages 0-15 (young)
+                //   55% ages 16-30 (prime fertile)
+                //   20% ages 31-45 (late fertile/working)
+                //    5% ages 46-60 (near-elder, no 60+ at spawn)
+                let assign_age = |rng: &mut ChaCha8Rng| -> u16 {
                     let roll: f32 = rng.gen();
-                    if roll < 0.30 {
-                        (roll / 0.30 * 16.0) as u16
-                    } else if roll < 0.80 {
-                        16 + ((roll - 0.30) / 0.50 * 25.0) as u16
+                    if roll < 0.20 {
+                        (roll / 0.20 * 16.0) as u16
+                    } else if roll < 0.75 {
+                        16 + ((roll - 0.20) / 0.55 * 15.0) as u16
                     } else if roll < 0.95 {
-                        41 + ((roll - 0.80) / 0.15 * 15.0) as u16
+                        31 + ((roll - 0.75) / 0.20 * 15.0) as u16
                     } else {
-                        56 + ((roll - 0.95) / 0.05 * 10.0) as u16
+                        46 + ((roll - 0.95) / 0.05 * 15.0) as u16
                     }
                 };
 

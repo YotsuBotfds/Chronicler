@@ -212,21 +212,24 @@ def main():
     parser.add_argument("--probe", choices=["baseline", "A", "B", "C"], default="baseline",
                         help="Probe type: baseline, A (no disease), B (lower mortality), C (higher fertility)")
     parser.add_argument("--seeds", type=int, default=5)
+    parser.add_argument("--seed-start", type=int, default=0, help="First seed number")
     parser.add_argument("--turns", type=int, default=100)
     parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--skip-confirm", action="store_true", help="Skip constant-change confirmation for B/C")
     args = parser.parse_args()
 
     if args.probe in ("B", "C"):
         print(f"Probe {args.probe} requires Rust constant changes + rebuild.")
-        print("  B: MORTALITY_ADULT 0.01 → 0.005 in agent.rs:31")
-        print("  C: FERTILITY_BASE_FARMER 0.03 → 0.05, FERTILITY_BASE_OTHER 0.015 → 0.03 in agent.rs:41-42")
+        print("  B: MORTALITY_ADULT 0.01 -> 0.005 in agent.rs")
+        print("  C: FERTILITY_BASE_FARMER 0.03 -> 0.05, FERTILITY_BASE_OTHER 0.015 -> 0.03 in agent.rs")
         print("Rebuild with: cargo build --release, then deploy DLL.")
-        response = input("Constants already changed? (y/n): ").strip().lower()
-        if response != "y":
-            print("Aborting. Change constants first, rebuild, then re-run.")
-            sys.exit(1)
+        if not args.skip_confirm:
+            response = input("Constants already changed? (y/n): ").strip().lower()
+            if response != "y":
+                print("Aborting. Change constants first, rebuild, then re-run.")
+                sys.exit(1)
 
-    seeds = list(range(args.seeds))
+    seeds = list(range(args.seed_start, args.seed_start + args.seeds))
     all_results = []
     all_histograms = []
 
