@@ -268,9 +268,9 @@ class TestRegnalHelpers:
         assert _compose_regnal_name("Emperor", "Kiran", 0) == "Emperor Kiran"
 
     def test_compose_regnal_name_with_ordinal(self):
-        # ordinal=1 means 2nd holder -> display "II", ordinal=3 means 4th holder -> display "IV"
-        assert _compose_regnal_name("King", "Thalor", 1) == "King Thalor II"
-        assert _compose_regnal_name("Queen", "Nerissa", 3) == "Queen Nerissa IV"
+        # ordinal=2 means 2nd holder -> display "II", ordinal=4 means 4th holder -> display "IV"
+        assert _compose_regnal_name("King", "Thalor", 2) == "King Thalor II"
+        assert _compose_regnal_name("Queen", "Nerissa", 4) == "Queen Nerissa IV"
 
 
 class TestRegnalNameSelection:
@@ -291,7 +291,7 @@ class TestRegnalNameSelection:
         leader_civ.leader_name_pool = ["Thalor"]
         title, throne_name, ordinal = _pick_regnal_name(leader_civ, leader_world, rng)
         assert throne_name == "Thalor"
-        assert ordinal == 1  # second holder
+        assert ordinal == 2  # second holder → display ordinal "II"
         assert leader_civ.regnal_name_counts["Thalor"] == 2
 
     def test_pick_regnal_name_does_not_append_to_used_leader_names(self, leader_civ, leader_world):

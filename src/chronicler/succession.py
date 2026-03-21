@@ -300,7 +300,7 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                 # M51: Use gp.base_name as throne_name for regnal naming
                 throne_name = getattr(gp, "base_name", None) or strip_title(gp.name)
                 count = origin.regnal_name_counts.get(throne_name, 0)
-                ordinal = count
+                ordinal = count + 1 if count > 0 else 0  # 0, 2, 3, 4, ...
                 origin.regnal_name_counts[throne_name] = count + 1
                 title = rng.choice(TITLES)
                 display_name = _compose_regnal_name(title, throne_name, ordinal)

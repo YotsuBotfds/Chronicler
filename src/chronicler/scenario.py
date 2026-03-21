@@ -541,14 +541,28 @@ def _apply_civ_override(
             # M51: Seed regnal_name_counts for the overridden leader's throne_name
             throne_name = strip_title(override.leader.name)
             civ.leader.throne_name = throne_name
+            # Parse numeral from override name to set correct ordinal
+            import re as _re
+            numeral_match = _re.search(
+                r'\s+(XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)$',
+                override.leader.name,
+            )
+            if numeral_match:
+                from chronicler.leaders import _roman_to_int
+                civ.leader.regnal_ordinal = _roman_to_int(numeral_match.group(1))
+            else:
+                civ.leader.regnal_ordinal = 0  # first holder
             # Remove old leader's throne_name from counts if it was tracked
             old_throne = strip_title(old_leader_name)
             if old_throne in civ.regnal_name_counts:
                 civ.regnal_name_counts[old_throne] = max(0, civ.regnal_name_counts[old_throne] - 1)
                 if civ.regnal_name_counts[old_throne] == 0:
                     del civ.regnal_name_counts[old_throne]
-            # Seed the new throne_name count
-            civ.regnal_name_counts[throne_name] = civ.regnal_name_counts.get(throne_name, 0) + 1
+            # Seed count to match the ordinal (ordinal N means N holders so far)
+            parsed_count = max(civ.leader.regnal_ordinal, 1)  # at least 1 holder
+            civ.regnal_name_counts[throne_name] = max(
+                civ.regnal_name_counts.get(throne_name, 0), parsed_count
+            )
         if override.leader.trait is not None:
             civ.leader.trait = override.leader.trait
 

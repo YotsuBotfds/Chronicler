@@ -181,15 +181,31 @@ def to_roman(n: int) -> str:
     return result
 
 
+def _roman_to_int(s: str) -> int:
+    """Convert Roman numeral string (I-XX) to integer."""
+    roman_vals = {"I": 1, "V": 5, "X": 10}
+    total = 0
+    prev = 0
+    for ch in reversed(s):
+        val = roman_vals.get(ch, 0)
+        if val < prev:
+            total -= val
+        else:
+            total += val
+        prev = val
+    return total
+
+
 def _compose_regnal_name(title: str, throne_name: str, ordinal: int) -> str:
     """Compose a display name from regnal components.
 
-    ordinal=0 means first holder (no numeral). ordinal=N (N>=1) means
-    (N+1)th holder, displayed as Roman numeral N+1 (e.g. ordinal=1 -> "II").
+    ordinal=0 means first holder (no numeral). ordinal>=2 means display
+    that Roman numeral (e.g. ordinal=2 -> "II", ordinal=3 -> "III").
+    Value 1 is never stored.
     """
     if ordinal <= 0:
         return f"{title} {throne_name}"
-    return f"{title} {throne_name} {to_roman(ordinal + 1)}"
+    return f"{title} {throne_name} {to_roman(ordinal)}"
 
 
 def _pick_base_name(civ: Civilization, world: WorldState, rng: random.Random) -> str:
@@ -228,15 +244,46 @@ def _pick_regnal_name(civ: Civilization, world: WorldState, rng: random.Random) 
     """Pick a regnal name for a new leader.
 
     Uses per-civ regnal_name_counts for ordinal tracking.
-    Does NOT append to world.used_leader_names (separation from GP naming).
+    Independent of _pick_name() and world.used_leader_names — regnal and
+    character namespaces are separate. Only filters against current rulers'
+    throne names to avoid cross-civ collision.
 
     Returns:
-        (title, throne_name, ordinal) where ordinal=0 means first holder.
+        (title, throne_name, ordinal) where ordinal=0 means first holder,
+        ordinal>=2 is the displayed Roman numeral (II, III, ...). Value 1
+        is never stored.
     """
-    throne_name = _pick_base_name(civ, world, rng)
+    archetype = get_archetype_for_domains(civ.domains)
+    pool = CULTURAL_NAME_POOLS[archetype]
+
+    # Only avoid names currently held by another civ's ruler
+    current_throne_names = set()
+    for other in world.civilizations:
+        if other.name != civ.name and other.leader and other.leader.throne_name:
+            current_throne_names.add(other.leader.throne_name)
+
+    # Custom name pool (scenario-provided) takes priority
+    if civ.leader_name_pool:
+        custom_available = [n for n in civ.leader_name_pool if n not in current_throne_names]
+        if custom_available:
+            title = rng.choice(TITLES)
+            throne_name = rng.choice(custom_available)
+            count = civ.regnal_name_counts.get(throne_name, 0)
+            ordinal = count + 1 if count > 0 else 0
+            civ.regnal_name_counts[throne_name] = count + 1
+            return (title, throne_name, ordinal)
+
+    available = [n for n in pool if n not in current_throne_names]
+    if not available:
+        available = [n for n in CULTURAL_NAME_POOLS["default"] if n not in current_throne_names]
+    if not available:
+        available = list(pool)  # allow collision as last resort
+
     title = rng.choice(TITLES)
+    throne_name = rng.choice(available)
+
     count = civ.regnal_name_counts.get(throne_name, 0)
-    ordinal = count  # 0 = first holder, 1 = second holder (gets "II"), etc.
+    ordinal = count + 1 if count > 0 else 0  # 0, 2, 3, 4, ...
     civ.regnal_name_counts[throne_name] = count + 1
     return (title, throne_name, ordinal)
 

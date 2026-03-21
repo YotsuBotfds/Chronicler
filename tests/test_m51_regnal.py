@@ -4,7 +4,7 @@ import random
 from chronicler.models import (
     Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
-from chronicler.leaders import to_roman, strip_title, generate_successor, _compose_regnal_name
+from chronicler.leaders import to_roman, strip_title, generate_successor, _compose_regnal_name, _pick_regnal_name
 
 
 def test_leader_has_regnal_fields():
@@ -107,7 +107,7 @@ class TestGenerateSuccessorRegnal:
         assert leader.name == expected
 
     def test_generate_successor_increments_regnal_count(self):
-        """Two successors with the same throne_name should get ordinals 0 then 1."""
+        """Two successors with the same throne_name should get ordinals 0 then 2."""
         world = _make_test_world()
         civ = world.civilizations[0]
         # Force a specific name pool so both pick the same name
@@ -122,10 +122,28 @@ class TestGenerateSuccessorRegnal:
         world.turn += 1
         leader2 = generate_successor(civ, world, seed=99)
         assert leader2.throne_name == "TestKing"
-        assert leader2.regnal_ordinal == 1
+        assert leader2.regnal_ordinal == 2  # display ordinal, not 0-based count
         assert civ.regnal_name_counts["TestKing"] == 2
-        # Second holder gets Roman numeral II (ordinal=1 means 2nd holder)
+        # Second holder gets Roman numeral II
         assert " II" in leader2.name
+
+    def test_founder_name_can_be_reused_as_throne_name(self):
+        """P1 fix: _pick_regnal_name does NOT filter against used_leader_names,
+        so a founder's name can return as throne name II, III, etc."""
+        world = _make_test_world()
+        civ = world.civilizations[0]
+        # Seed the founder's name into used_leader_names (as world_gen does)
+        founder_name = "Thalor"
+        world.used_leader_names.append(f"Emperor {founder_name}")
+        # Force pool to only have "Thalor"
+        civ.leader_name_pool = [founder_name]
+        import random
+        rng = random.Random(42)
+        title, throne_name, ordinal = _pick_regnal_name(civ, world, rng)
+        assert throne_name == founder_name, (
+            f"Expected throne_name='{founder_name}' but got '{throne_name}' — "
+            "_pick_regnal_name should not filter against used_leader_names"
+        )
 
 
 class TestWorldGenFoundingRegnal:

@@ -592,7 +592,7 @@ def _apply_gp_successor_winner(civ, new_leader, winner: dict) -> None:
         title = _rng.choice(TITLES)
 
         count = civ.regnal_name_counts.get(throne_name, 0)
-        ordinal = count  # 0 = first holder, >=1 gets Roman numeral
+        ordinal = count + 1 if count > 0 else 0  # 0, 2, 3, 4, ...
         civ.regnal_name_counts[throne_name] = count + 1
 
         # Compose display name using the same function as other sites
