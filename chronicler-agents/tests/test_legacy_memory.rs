@@ -1,5 +1,5 @@
-use chronicler_agents::memory::MemoryIntent;
-use chronicler_agents::{AgentPool, Occupation, BELIEF_NONE, factor_from_half_life, write_single_memory};
+use chronicler_agents::memory::{MemoryIntent, compute_memory_utility_modifiers, compute_memory_satisfaction_score, agents_share_memory};
+use chronicler_agents::{AgentPool, Occupation, BELIEF_NONE, factor_from_half_life, write_single_memory, extract_legacy_memories, LEGACY_HALF_LIFE};
 
 #[test]
 fn test_memory_intent_legacy_fields() {
@@ -204,4 +204,160 @@ fn test_legacy_bit_uses_slot_index() {
         1 << 2,
         "only bit 2 should be set when legacy written to slot 2"
     );
+}
+
+// ── M51: extract_legacy_memories tests ────────────────────────────────────────
+
+#[test]
+fn test_extract_legacy_memories_top_2() {
+    // Create agent with 4 memories of varying intensities
+    // extract_legacy_memories should return top 2 by |intensity|
+    // Intensities: [-30, -90, 50, -10] → sorted by |.|: 90, 50, 30, 10
+    // Top 2: (-90→-45, 50→25) — both pass LEGACY_MIN_INTENSITY (10)
+    let mut pool = AgentPool::new(8);
+    let slot = spawn_test_agent(&mut pool);
+
+    let intensities: &[(u8, u8, i8)] = &[
+        (0, 1, -30),  // Famine, civ 1, intensity -30
+        (1, 2, -90),  // Battle, civ 2, intensity -90
+        (5, 1, 50),   // Prosperity, civ 1, intensity +50
+        (3, 0, -10),  // Persecution, civ 0, intensity -10
+    ];
+    for (turn, &(event_type, source_civ, intensity)) in intensities.iter().enumerate() {
+        write_single_memory(&mut pool, &MemoryIntent {
+            agent_slot: slot,
+            event_type,
+            source_civ,
+            intensity,
+            is_legacy: false,
+            decay_factor_override: None,
+        }, turn as u16);
+    }
+
+    let result = extract_legacy_memories(&pool, slot);
+    assert_eq!(result.len(), 2, "should extract top 2 memories");
+
+    // Strongest by |intensity|: -90→halved to -45, 50→halved to 25
+    // Order: strongest first
+    let event_types_in_result: Vec<u8> = result.iter().map(|&(et, _, _)| et).collect();
+    assert!(event_types_in_result.contains(&1), "Battle (intensity=-90) should be in result");
+    assert!(event_types_in_result.contains(&5), "Prosperity (intensity=50) should be in result");
+
+    // Verify halved intensities
+    for &(event_type, _source_civ, halved_intensity) in &result {
+        if event_type == 1 {
+            assert_eq!(halved_intensity, -45, "Battle intensity should be halved: -90/2 = -45");
+        }
+        if event_type == 5 {
+            assert_eq!(halved_intensity, 25, "Prosperity intensity should be halved: 50/2 = 25");
+        }
+    }
+}
+
+#[test]
+fn test_extract_legacy_memories_filters_below_threshold() {
+    // Memory with intensity 15 → halved to 7 → below LEGACY_MIN_INTENSITY (10)
+    // Should return empty
+    let mut pool = AgentPool::new(8);
+    let slot = spawn_test_agent(&mut pool);
+
+    write_single_memory(&mut pool, &MemoryIntent {
+        agent_slot: slot,
+        event_type: 0, // Famine
+        source_civ: 1,
+        intensity: 15, // halved = 7 < 10 threshold
+        is_legacy: false,
+        decay_factor_override: None,
+    }, 10);
+
+    let result = extract_legacy_memories(&pool, slot);
+    assert!(result.is_empty(), "memories below threshold after halving should be filtered out");
+}
+
+#[test]
+fn test_extract_legacy_memories_empty_buffer() {
+    // Agent with no memories → empty result
+    let mut pool = AgentPool::new(8);
+    let slot = spawn_test_agent(&mut pool);
+
+    let result = extract_legacy_memories(&pool, slot);
+    assert!(result.is_empty(), "agent with no memories should return empty");
+}
+
+#[test]
+fn test_legacy_utility_preservation() {
+    // Legacy Famine memory should produce same utility modifiers as direct Famine (at lower intensity)
+    // Setup: agent with a direct Famine memory at -80
+    // Compare: same event_type Famine at lower intensity -40 → should still push migrate
+    let mut pool = AgentPool::new(8);
+    let slot = spawn_test_agent(&mut pool);
+
+    write_single_memory(&mut pool, &MemoryIntent {
+        agent_slot: slot,
+        event_type: 0, // Famine
+        source_civ: 0,
+        intensity: -40,
+        is_legacy: true,
+        decay_factor_override: Some(factor_from_half_life(LEGACY_HALF_LIFE)),
+    }, 10);
+
+    let mods = compute_memory_utility_modifiers(&pool, slot);
+    // Famine memory should produce a positive migrate boost
+    assert!(mods.migrate > 0.0, "legacy famine memory should push migrate utility up: got {}", mods.migrate);
+}
+
+#[test]
+fn test_legacy_satisfaction_preservation() {
+    // Legacy memory contributes to satisfaction score at inherited intensity
+    let mut pool = AgentPool::new(8);
+    let slot = spawn_test_agent(&mut pool);
+
+    // Write a positive legacy memory
+    write_single_memory(&mut pool, &MemoryIntent {
+        agent_slot: slot,
+        event_type: 5, // Prosperity
+        source_civ: 0,
+        intensity: 50,
+        is_legacy: true,
+        decay_factor_override: Some(factor_from_half_life(LEGACY_HALF_LIFE)),
+    }, 10);
+
+    let score = compute_memory_satisfaction_score(&pool, slot);
+    assert!(score > 0.0, "positive legacy memory should yield positive satisfaction score: got {}", score);
+}
+
+#[test]
+fn test_legacy_shared_memory_matching() {
+    // Two siblings with legacy Battle from same parent should match via agents_share_memory.
+    // Siblings receive Battle legacy at same turn — should share via agents_share_memory.
+    let mut pool = AgentPool::new(8);
+    let sibling_a = spawn_test_agent(&mut pool);
+    let sibling_b = spawn_test_agent(&mut pool);
+
+    let legacy_factor = factor_from_half_life(LEGACY_HALF_LIFE);
+    let battle_type = 1u8; // Battle
+
+    // Both siblings receive the same legacy Battle memory at turn 42
+    write_single_memory(&mut pool, &MemoryIntent {
+        agent_slot: sibling_a,
+        event_type: battle_type,
+        source_civ: 2,
+        intensity: -45,
+        is_legacy: true,
+        decay_factor_override: Some(legacy_factor),
+    }, 42);
+    write_single_memory(&mut pool, &MemoryIntent {
+        agent_slot: sibling_b,
+        event_type: battle_type,
+        source_civ: 2,
+        intensity: -45,
+        is_legacy: true,
+        decay_factor_override: Some(legacy_factor),
+    }, 42);
+
+    let shared = agents_share_memory(&pool, sibling_a, sibling_b);
+    assert!(shared.is_some(), "siblings with legacy Battle from same parent should share memory");
+    let (event_type, turn) = shared.unwrap();
+    assert_eq!(event_type, battle_type, "shared event type should be Battle");
+    assert_eq!(turn, 42, "shared turn should be 42");
 }

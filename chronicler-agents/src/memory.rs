@@ -318,6 +318,51 @@ pub fn compute_memory_satisfaction_score(pool: &AgentPool, slot: usize) -> f32 {
     (sum as f32 / 1024.0) * agent::MEMORY_SATISFACTION_WEIGHT
 }
 
+/// Extract top LEGACY_MAX_MEMORIES memories by |intensity| for legacy transfer.
+/// Returns Vec of (event_type, source_civ, halved_intensity) tuples.
+/// Filters out memories where |halved_intensity| < LEGACY_MIN_INTENSITY.
+/// Tiebreak: lowest slot index wins.
+pub fn extract_legacy_memories(
+    pool: &AgentPool,
+    slot: usize,
+) -> Vec<(u8, u8, i8)> {
+    use crate::agent::{LEGACY_MAX_MEMORIES, LEGACY_MIN_INTENSITY};
+
+    let count = pool.memory_count[slot] as usize;
+    if count == 0 {
+        return Vec::new();
+    }
+
+    // Collect (|intensity|, slot_index) pairs, sort descending by |intensity|, tiebreak ascending by index
+    let mut ranked: Vec<(i8, usize)> = (0..count)
+        .map(|i| (pool.memory_intensities[slot][i], i))
+        .collect();
+    ranked.sort_by(|a, b| {
+        let abs_cmp = (b.0 as i16).unsigned_abs().cmp(&(a.0 as i16).unsigned_abs());
+        if abs_cmp == std::cmp::Ordering::Equal {
+            a.1.cmp(&b.1) // lower index wins tie
+        } else {
+            abs_cmp
+        }
+    });
+
+    ranked
+        .into_iter()
+        .take(LEGACY_MAX_MEMORIES)
+        .filter_map(|(intensity, idx)| {
+            let halved = intensity / 2; // integer division truncating toward zero
+            if (halved as i16).unsigned_abs() < LEGACY_MIN_INTENSITY as u16 {
+                return None;
+            }
+            Some((
+                pool.memory_event_types[slot][idx],
+                pool.memory_source_civs[slot][idx],
+                halved,
+            ))
+        })
+        .collect()
+}
+
 /// M50 interface: Check if two agents share a memory (same event_type, turn within +/-1).
 /// Returns (event_type, turn) of the strongest shared match, or None.
 pub fn agents_share_memory(pool: &AgentPool, a: usize, b: usize) -> Option<(u8, u16)> {

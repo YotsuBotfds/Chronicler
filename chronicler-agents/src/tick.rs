@@ -427,6 +427,28 @@ pub fn tick_agents(
                 }
             }
 
+            // M51: Legacy memory transfer — extract top memories from dying agent
+            let legacy_memories = crate::memory::extract_legacy_memories(pool, slot);
+            if !legacy_memories.is_empty() {
+                let legacy_decay = crate::memory::factor_from_half_life(crate::agent::LEGACY_HALF_LIFE);
+                if let Some(children) = parent_to_children.get(&dying_agent_id) {
+                    for &child_slot in children {
+                        if pool.is_alive(child_slot) && pool.ids[child_slot] != 0 {
+                            for &(event_type, source_civ, halved_intensity) in &legacy_memories {
+                                memory_intents.push(crate::memory::MemoryIntent {
+                                    agent_slot: child_slot,
+                                    event_type,
+                                    source_civ,
+                                    intensity: halved_intensity,
+                                    is_legacy: true,
+                                    decay_factor_override: Some(legacy_decay),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
             pool.kill(slot);
         }
 
