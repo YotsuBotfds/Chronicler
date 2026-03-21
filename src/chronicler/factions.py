@@ -494,6 +494,7 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
             })
 
     # GP candidates from active general/merchant/prophet
+    from chronicler.dynasties import compute_dynasty_legitimacy
     dominant = get_dominant_faction(civ.factions)
     for gp in civ.great_persons:
         if not gp.active or not gp.alive:
@@ -501,6 +502,8 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
         if gp.role not in GP_ROLE_TO_FACTION:
             continue
         candidates.append(_build_gp_successor_candidate(gp, civ, dominant))
+        legitimacy = compute_dynasty_legitimacy(candidates[-1], civ)
+        candidates[-1]["weight"] += legitimacy
 
     return candidates
 
