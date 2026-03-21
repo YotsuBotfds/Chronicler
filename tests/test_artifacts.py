@@ -689,3 +689,40 @@ class TestCulturalProductionIntents:
                 found = True
                 break
         assert found, "No artifact intent emitted after 100 seeds"
+
+
+class TestTempleRelicIntent:
+    def test_temple_completion_emits_relic_intent(self):
+        from chronicler.models import PendingBuild, InfrastructureType
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.pending_build = PendingBuild(
+            type=InfrastructureType.TEMPLES, turns_remaining=1,
+            builder_civ="TestCiv", started_turn=9,
+        )
+        world.turn = 10
+        world._artifact_intents = []
+
+        from chronicler.infrastructure import tick_infrastructure
+        tick_infrastructure(world)
+
+        relic_intents = [i for i in world._artifact_intents if i.trigger == "temple_construction"]
+        assert len(relic_intents) == 1
+        assert relic_intents[0].artifact_type == ArtifactType.RELIC
+        assert relic_intents[0].anchored is True
+
+    def test_non_temple_completion_no_intent(self):
+        from chronicler.models import PendingBuild, InfrastructureType
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.pending_build = PendingBuild(
+            type=InfrastructureType.ROADS, turns_remaining=1,
+            builder_civ="TestCiv", started_turn=9,
+        )
+        world.turn = 10
+        world._artifact_intents = []
+
+        from chronicler.infrastructure import tick_infrastructure
+        tick_infrastructure(world)
+
+        assert len(world._artifact_intents) == 0

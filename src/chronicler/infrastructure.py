@@ -113,6 +113,21 @@ def tick_infrastructure(world: WorldState) -> list:
                     description=f"{region.pending_build.type.value} completed in {region.name}",
                     importance=4,
                 ))
+                # M52: Temple relic creation (only for temples, not other infrastructure)
+                if completed.type == IType.TEMPLES:
+                    from chronicler.models import ArtifactIntent, ArtifactType as _AT
+                    world._artifact_intents.append(ArtifactIntent(
+                        artifact_type=_AT.RELIC,
+                        trigger="temple_construction",
+                        creator_name=None,
+                        creator_born_turn=None,
+                        holder_name=None,
+                        holder_born_turn=None,
+                        civ_name=region.pending_build.builder_civ,
+                        region_name=region.name,
+                        anchored=True,
+                        context=f"Sacred relic consecrated in the temple of {region.name}",
+                    ))
                 region.pending_build = None
 
     return events
