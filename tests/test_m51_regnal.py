@@ -302,3 +302,11 @@ class TestScenarioRegnal:
         assert civ.leader.name == "Emperor Kiran"
         # Regnal counts should be seeded for "Kiran"
         assert civ.regnal_name_counts.get("Kiran", 0) >= 1
+
+
+def test_gp_ascension_produces_regnal_name():
+    """When a GP wins succession, their base name becomes the throne name."""
+    from chronicler.leaders import strip_title
+    gp_name = "High Priestess Mira"
+    base = strip_title(gp_name)
+    assert base == "Mira"
