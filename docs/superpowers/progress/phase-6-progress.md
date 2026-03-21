@@ -228,64 +228,90 @@
 
 ## In Progress
 
-### M53: Depth Tuning Pass — infrastructure complete, demographic substrate partially stabilized
+### M53: Depth Tuning Pass — Pass 1 social+autonomy landed, Pass 1d-1f next
 
-- **Branch:** `feat/m53-depth-tuning` (22 commits, not merged to main)
+- **Branch:** `feat/m53-depth-tuning` (30 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-21-m53-depth-tuning-validation.md` (23 tasks)
 - **Commits — infrastructure (prior session):**
   - `4729484`..`f075c74` — 16 commits: tag normalization, FFI exports, sidecar, analytics, validate scaffold, 6 oracles, baseline sweep, mixed age seeding
-- **Commits — demographic fix (this session):**
+- **Commits — demographic fix (prior sessions):**
   - `5135522` — fix(determinism): replace hash()-based seeds with stable SHA256 helper
   - `b6972aa` — feat(m53): demographic debug infrastructure + disease probe
   - `9e36df1` — fix(demographics): disease mortality additive → multiplicative
   - `ebec710` — fix(demographics): B+C+D constants + younger-fertile age mix
-- **Tests:** 393 Rust tests (1 new disease-at-cap test), 16 Python tests. All passing.
-- **New files this session:** `scripts/m53_demographics_probe.py` (probe harness with per-turn diagnostic output)
-- **Key changes this session:**
-  - `DemographicDebug` struct in tick.rs — 13 per-tick counters (deaths by age band, disease/war/eco attribution, fertile-eligible by occupation, expected rates, sat-near-threshold)
-  - `get_demographic_debug()` + `get_age_histogram()` FFI methods on AgentSimulator
+  - `f05b857` — docs(m53): session handoff — demographic probes, 7/20 extinction rate
+  - `ce3a3e4` — fix(demographics): fertility taper replaces hard cutoff (3-4/20 ext)
+  - `84775f8` — fix(satisfaction): cap overcrowding penalty at 0.30 (Pass 0 substrate fix)
+- **Commits — Pass 1 tuning (this session):**
+  - `ff63fbb` — tune(m53): Pass 1 — social bond restoration + autonomy rebalance
+- **Tests:** 397 Rust tests, 16 Python tests. All passing.
+- **New files:** `scripts/m53_demographics_probe.py` (demographics), `scripts/m53_social_probe.py` (needs/bonds/satisfaction)
+- **Key demographic changes (cumulative):**
+  - `DemographicDebug` struct in tick.rs — 13 per-tick counters
+  - `get_demographic_debug()` + `get_age_histogram()` FFI methods
   - Birth counter bug fix: ffi.rs was counting event_type==3 (occ_switch) not 5 (birth)
   - Disease mortality formula: additive → multiplicative (`base*eco*war*(1+disease*SCALE)`)
   - `DISEASE_MORTALITY_SCALE=10.0` [CALIBRATE M53] — at cap 0.15: 2.5x mortality (was 16x additive)
   - `MORTALITY_ADULT` 0.01→0.005, `MORTALITY_ELDER` 0.05→0.03
   - `FERTILITY_BASE_FARMER` 0.03→0.05, `FERTILITY_BASE_OTHER` 0.015→0.03
-  - Age mix: 20/55/20/5% at 0-15/16-30/31-45/46-60 (was 30/50/15/5%, no elders at spawn)
+  - Age mix: 20/55/20/5% at 0-15/16-30/31-45/46-60 (was 30/50/15/5%)
+  - Fertility taper: `FERTILITY_FULL_AGE_MAX=50`, `FERTILITY_TAPER_AGE_MAX=60` (replaces hard cutoff `FERTILITY_AGE_MAX=45`)
+  - Overcrowding penalty cap: `OVERCROWDING_PENALTY_CAP=0.30` — uncapped formula zeroed satisfaction at 3-7x capacity, blocking all fertility and making depth systems inert
 
-#### Session Handoff — Demographics Partially Stabilized, Generational Gap Remaining
+#### Session Handoff — Pass 1 Core Systems Done, Pass 1d-1f Next
 
-**Current state:** 7/20 seeds extinct by T200 (was 20/20 pre-fix). Population survives to T100+ in most seeds. The remaining extinction mode is **generational handoff failure** — the initial cohort ages out of fertility before enough second-generation agents mature, population drops below ~20, stochastic die-off follows.
+**Pass 1 results (20 seeds × 200 turns, seeds 10-29):**
 
-**Probe results summary (all 20 seeds × 200 turns, seeds 10-29):**
+| Metric (T50) | Baseline v2 | Post-Pass 1 | Delta |
+|---|---|---|---|
+| social_below_025 | ~30% est | **3.3%** | bond restoration works |
+| social_below_035 | ~71% | **33%** | diagnostic threshold |
+| autonomy_below_030 | ~77% | **46%** | improving to 18% by T100 |
+| autonomy_mean | 0.15 | **0.31** | viable equilibrium |
+| satisfaction_mean | 0.33 | 0.30 | slight dip (within noise) |
+| extinctions | 4/20 | 5/20 | stable |
+| mem_slots/agent | — | 7.05 (of 8) | healthy |
+| mem_intensity | — | 43.3 | moderate |
 
-| Configuration | Extinctions | Alive T50 | Alive T100 | B/D T20-40 |
-|---------------|-------------|-----------|------------|------------|
-| Pre-fix (additive disease) | ~20/20 | 8 | 1 | 0.13 |
-| Mult disease only | — | 82 | 17 | 0.15 |
-| B+C (mort+fert) | — | 133 | 38 | 0.14 |
-| B+C+D (+ elder) | 6/10 | 172 | 39 | 0.20 |
-| B+C+D+age-mix (current) | **7/20** | **188** | **27** | **0.17** |
-| Disease cap 0.10 | 11/20 | 204 | 26 | 0.16 |
-| War casualty 1.5 | 11/20 | 176 | 20 | 0.13 |
-| FERTILITY_AGE_MIN 14 | 9/20 | 178 | 27 | 0.13 |
-| FERTILITY_AGE_MAX 50 | **6/20** | 187 | **36** | **0.18** |
+**Constants changed (provisional lock):**
+- `SOCIAL_BLEND_ALPHA`: 0.0 → **0.3** (HARD freeze candidate)
+- `SOCIAL_RESTORE_BOND`: 0.010 → **0.030** (bonds must outpace 0.008 decay via proxy)
+- `AUTONOMY_DECAY`: 0.015 → **0.010** (was fastest-decaying need; aligns with spiritual)
+- `AUTONOMY_RESTORE_NO_PERSC`: 0.010 → **0.020** (foreign-controlled agents get viable eq at 0.50)
 
 **Key findings:**
-1. **Disease was the primary killer.** Additive `+disease_severity` in mortality formula gave 16%/turn adult mortality at cap. Multiplicative fix alone gave 10x survival improvement.
-2. **Disease and war are population stabilizers, not just killers.** Reducing disease cap (0.15→0.10) or war casualty (2.0→1.5) both caused MORE extinctions via overshoot-collapse.
-3. **FERTILITY_AGE_MAX=50 is the most promising next lever** (6/20 extinct, best T100 count) — extends generational overlap so first-gen agents produce births longer while second-gen matures. Not yet committed.
-4. **FERTILITY_AGE_MIN=14 doesn't help** — too few agents in that band.
-5. **Birth counter was wrong** — old code counted occ_switches as births. Real birth counts were much lower than reported.
-6. **Determinism fix landed** — Python hash()-based seeds replaced with SHA256. All prior probes used non-deterministic seeds; results validated on new seed ranges post-fix.
+1. **Alpha alone did nothing.** Both `SOCIAL_RESTORE_BOND` (0.010) and `SOCIAL_RESTORE_POP` (0.010) are the same base rate — blend just interpolates between equal values. Bond rate needed to be 3x to outpace decay through the multiplier chain.
+2. **Social need was structurally underpowered vs other needs.** Safety has 3 restoration sources summing to ~0.038. Social had 1 source at ~0.006 effective. Decay (0.008) always won. Other needs (safety, material) were fine because they stack multiple sources.
+3. **Autonomy decay was too fast for foreign-controlled agents.** Only `NO_PERSC` (0.010) was available; 0.015 decay made equilibrium negative. Doubling restoration + reducing decay gives foreign-controlled equilibrium at 0.50, own-rule at 0.75.
+4. **Memory is healthy.** 7/8 slots filled, intensity ~43 at T50 (decaying normally). No trapping signal. No constant changes needed.
 
-**What Needs to Happen Next:**
-1. **Probe FERTILITY_AGE_MAX=50** combined with current baseline — commit if it gets <=3-4/20 extinctions.
-2. If still >3-4/20, consider **carrying capacity feedback on fertility** or **age-dependent fertility curve** (structural change, not constant tweak).
-3. If <=3-4/20 achieved, formalize as the demographic substrate baseline and resume M53 depth tuning (Tasks 14-23).
-4. **Do NOT touch disease cap or war casualty** — they're functioning as beneficial population regulators.
+**Next session starts at:** Task 18 (Pass 1d — Mule), Task 19 (Pass 1e — Legacy), Task 20 (Pass 1f — Artifacts). Memory (Task 15) and Needs (Task 16) are done. Relationships (Task 17) is done.
 
-**M53 Tasks Complete (infrastructure):** 1-13
-**M53 Tasks Blocked (tuning):** 14-23 — require <=2-3/20 extinction rate before proceeding
+**Probe results summary (20 seeds × 200 turns each):**
+
+| Configuration | Seeds | Extinctions | Alive T50 | Alive T100 | B/D T20-40 |
+|---------------|-------|-------------|-----------|------------|------------|
+| Pre-fix (additive disease) | 10-29 | ~20/20 | 8 | 1 | 0.13 |
+| B+C+D+age-mix (hard cutoff 45) | 10-29 | 7/20 | 188 | 27 | 0.17 |
+| Hard cutoff 50 | 10-29 | 6/20 | 187 | 36 | 0.18 |
+| Taper full=40 end=55 | 10-29 | 10/20 | 179 | 20 | 0.16 |
+| Taper full=45 end=60 | 10-29 | 7/20 | 188 | 41 | 0.19 |
+| **Taper full=50 end=60** | **10-29** | **4/20** | **192** | **50** | **0.22** |
+| **Taper full=50 end=60 (confirm)** | **50-69** | **3/20** | **215** | **61** | **0.31** |
+| **+ overcrowding cap 0.30** | **10-29** | **4/20** | **309** | **96** | **0.65** |
+| **+ overcrowding cap (confirm)** | **50-69** | **4/20** | **316** | **105** | **0.65** |
+
+**Key findings (cumulative):**
+1. **Disease was the primary killer.** Additive formula gave 16%/turn at cap. Multiplicative fix alone gave 10x survival improvement.
+2. **Disease and war are population stabilizers.** Reducing either causes overshoot-collapse (more extinctions, not fewer).
+3. **Fertility taper resolved the generational handoff gap.** Hard cutoff caused entire cohorts to drop out simultaneously. Taper smooths the transition.
+4. **Full-rate window must extend to 50.** Taper starting at 40 or 45 reduced net fertility too much. Full=50 + taper to 60 is the sweet spot.
+5. **Overcrowding penalty was zeroing satisfaction.** Uncapped `(pop/cap - 1.0) * 0.3` at 5x capacity gave 1.2 penalty, forcing satisfaction to 0 and blocking all fertility. Cap at 0.30 preserves pressure up to 2x while preventing runaway zeroing. Overcrowding already punished via ecology, disease, and demography.
+6. **This is a provisional baseline**, not the final word. M53 tuning may reveal remaining edge cases that require further demographic adjustment.
+
+**M53 Tasks Complete:** 1-14 (infrastructure + baseline v2), 15-17 (Pass 1a memory sanity, 1b autonomy, 1c social)
+**M53 Tasks Next:** 18-20 (Pass 1d-f: Mule, Legacy, Artifacts), then 21-23 (integration + oracles)
 
 #### Other Fixes This Session
 
@@ -320,9 +346,9 @@
 ## Ready for Implementation
 
 **Next steps:**
-- **PRIORITY: Finish demographic stabilization** — probe FERTILITY_AGE_MAX=50 next, then decide if structural fertility changes needed. Target: <=2-3/20 extinctions at 200 turns. See M53 session handoff.
+- **PRIORITY: M53 Pass 1d-1f (Tasks 18-20)** — Mule, Legacy, Artifacts. Core needs systems are done.
+- **Then:** Tasks 21-23 (integration pass + oracles + freeze)
 - M51 implementation (spec + plan ready, 14 tasks) — can proceed in parallel on separate branch
-- M53 depth system tuning (Tasks 14-23) — blocked on demographic gate
 - ERA_REGISTER A/B experiment (manual, deferred from M44)
 
 ---
@@ -376,15 +402,19 @@
 - **M48: `default_decay_factor()` recomputes `factor_from_half_life()` per write.** Cold-path (thousands/turn, not millions). Could be lazy-static lookup table if memory write volume increases.
 - **M48: `build_agent_context_for_moment()` new params not wired in batch path.** `civ_names`/`world_turn` params default to None/0 for backward compatibility. Memory/Mule context populated when callers pass those params. `_prepare_narration_prompts` does not wire them yet.
 - **M49: Persecution triple-stacking.** M38b direct boost (0.30) + M48 memory boost (~0.10) + M49 Autonomy need boost (up to 0.24) all push rebel/migrate. Total can reach ~0.64 additive on rebel. M53 priority calibration target.
+- **Need restoration structural asymmetry (found in M53 Pass 1).** Safety has 3 additive restoration sources summing to ~0.038 effective rate. Social had 1 source at ~0.006. Blend formula interpolates (doesn't stack), so bond_factor needed to be 3x proxy to outpace decay. Key takeaway for future needs: any need with only one restoration source needs rate >> decay, or needs a second source.
+- **T10 satisfaction transient.** Satisfaction dips to 0.16 mean at T10 across all seeds (overcrowding + shock + war penalties stack at game start), then recovers to 0.43-0.45 by T20. Not structural — 79% above fertility threshold by T50. May resolve naturally as Pass 1 calibrates penalties. Do not chase this — it's startup dynamics, not a broken formula.
+- **Great persons not promoting.** Baseline v2 shows 0.0 GP mean at 200 turns. `PROMOTION_SKILL_THRESHOLD=0.9` and `PROMOTION_DURATION_TURNS=20` may be too strict for populations that peak at ~400. Check in Pass 1a or consider lowering threshold for 200-turn runs. May also need 500-turn runs to see promotions.
 - **M49: `_NEED_THRESHOLDS` in narrative.py must stay synced with agent.rs constants.** Both files define threshold values (0.3, 0.25, 0.35). No compile-time enforcement. If thresholds change in M53 calibration, update both.
-- **~~M49: Social need pre-M50 proxy.~~** Resolved in M50b. `social_restoration()` now has blend formula `(1-α)*proxy + α*bond_factor`. Alpha=0.0 at ship; M53 ramps.
+- **~~M49: Social need pre-M50 proxy.~~** Resolved in M50b + M53. `social_restoration()` blend formula `(1-α)*proxy + α*bond_factor`. Alpha ramped to 0.3, bond rate to 0.030. Social_below_025 = 3.3% at T50.
 - **M50b: Dissolution events lack dead target's agent_id.** `AgentEvent.target_region` is repurposed for bond_type; dead agent's ID is not carried. Python stores `(agent_id, 0, bond_type, turn)` with 0 as placeholder. Narration can say "a bond was severed" but not "between X and Y." Fix requires adding `target_agent_id: u32` field to AgentEvent. Deferred — not blocking until M53b needs dissolution trace data.
 - **M50b: `--relationship-stats` flag parsed but not wired.** CLI flag exists, FFI `get_relationship_stats()` exists, analytics extractor expects `metadata["relationship_stats"]`. No Python-side call site invokes the FFI method or stores the metadata. Distribution metrics are always computed (cheap at current agent counts). Wire when approaching 200K+ agents or for M53 calibration.
 - **M50b: `id_to_slot` HashMap rebuilt per-region.** Spec says build pool-wide map once per cadence tick. Implementation rebuilds from `alive_slots` inside the region loop. Correct behavior, minor perf waste (~100K unnecessary hash insertions per tick with 50K agents). Hoist above region loop if formation scan shows in profiles.
 - **M50b: `check_friend` evaluates compatibility before shared memory.** Spec cascade puts expensive checks last. At current memory slot counts (5 max), cost difference is negligible. Low priority.
 - **M49: Phase 7 roadmap estimates ~24 M49 constants.** Actual count is 37. Update roadmap when next editing it.
 - **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Verify numerically in M53 Tier 3 calibration.
-- **Demographics: generational handoff gap.** Population declines through T80-150 as initial cohort ages out of fertility before second generation matures. 7/20 seeds extinct at T200 with current constants. Disease and war are stabilizers (reducing them causes overshoot-collapse). Next lever: FERTILITY_AGE_MAX=50 (6/20 in isolated probe). Do NOT touch disease cap or war casualty.
+- **Demographics: provisional baseline (4/20 extinction, healthy trajectories).** Fertility taper + overcrowding cap. T100 alive mean ~100, B/D ratio ~0.65. Remaining 4/20 extinctions are late (mean T170+). Disease and war are stabilizers — do NOT reduce them.
+- **Overcrowding penalty capped (M53 Pass 0).** `OVERCROWDING_PENALTY_CAP=0.30` in satisfaction.rs. Without this, population growth beyond carrying capacity zeroed satisfaction, blocking fertility, and making all M48-M51 depth systems inert. Cap is a `[CALIBRATE M53]` constant.
 - **Disease mortality is multiplicative (M53 fix).** Formula changed from `base*eco*war + disease` to `base*eco*war*(1+disease*SCALE)`. DISEASE_MORTALITY_SCALE=10.0 [CALIBRATE M53]. At cap 0.15: 2.5x mortality. Old additive formula gave 16%/turn at cap — primary cause of original population collapse.
 - **Disease/war volatility reduction causes overshoot-collapse.** Lowering DISEASE_SEVERITY_CAP (0.15→0.10) or WAR_CASUALTY_MULTIPLIER (2.0→1.5) both increased extinctions from 7/20 to 11/20. These pressure sources prevent population overshoot that leads to harder crashes. Counterintuitive but confirmed across 20-seed probes.
 - **Birth counter was wrong prior to `b6972aa`.** ffi.rs `last_tick_births` filtered event_type==3 (occ_switch) not 5 (birth). All prior birth count reports from `last_tick_births` were measuring occupation switches. Fixed.
