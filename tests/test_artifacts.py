@@ -5,6 +5,27 @@ from chronicler.models import (
     ArtifactIntent, ArtifactLifecycleIntent, WorldState,
     GreatPerson,
 )
+from chronicler.artifacts import tick_artifacts, PRESTIGE_BY_TYPE
+
+
+def _make_world_with_civ(civ_name="TestCiv", region_name="Region1", values=None):
+    """Helper: build a minimal WorldState with one civ and one region."""
+    from chronicler.models import WorldState, Civilization, Region, Leader
+    region = Region(name=region_name, terrain="plains", resources="fertile",
+                    adjacencies=[], carrying_capacity=100)
+    leader = Leader(name="TestLeader", trait="brave", reign_start=0)
+    civ = Civilization(
+        name=civ_name,
+        values=values or ["Honor"],
+        leader=leader,
+        regions=[region_name],
+        capital_region=region_name,
+    )
+    world = WorldState(name="TestWorld", seed=42)
+    world.civilizations = [civ]
+    world.regions = [region]
+    region.controller = civ_name
+    return world
 
 
 class TestArtifactModel:
@@ -211,3 +232,144 @@ class TestArtifactNaming:
         for atype in ArtifactType:
             name = generate_artifact_name(atype, "Creator", "Place", ["Honor"], seed=42)
             assert isinstance(name, str) and len(name) > 0
+
+
+class TestTickArtifactsCreation:
+    def test_creation_from_intent(self):
+        world = _make_world_with_civ()
+        world._artifact_intents.append(ArtifactIntent(
+            artifact_type=ArtifactType.RELIC,
+            trigger="temple_construction",
+            creator_name=None,
+            creator_born_turn=None,
+            holder_name=None,
+            holder_born_turn=None,
+            civ_name="TestCiv",
+            region_name="Region1",
+            anchored=True,
+            context="Sacred relic forged in the temple",
+        ))
+        world.turn = 10
+        events = tick_artifacts(world)
+        assert len(world.artifacts) == 1
+        a = world.artifacts[0]
+        assert a.artifact_type == ArtifactType.RELIC
+        assert a.anchored is True
+        assert a.owner_civ == "TestCiv"
+        assert a.origin_region == "Region1"
+        assert a.status == ArtifactStatus.ACTIVE
+        assert a.prestige_value == PRESTIGE_BY_TYPE[ArtifactType.RELIC]
+
+    def test_creation_emits_event(self):
+        world = _make_world_with_civ()
+        world._artifact_intents.append(ArtifactIntent(
+            artifact_type=ArtifactType.WEAPON,
+            trigger="gp_promotion",
+            creator_name="Kiran",
+            creator_born_turn=8,
+            holder_name="Kiran",
+            holder_born_turn=8,
+            civ_name="TestCiv",
+            region_name="Region1",
+            anchored=False,
+            context="Forged at promotion",
+        ))
+        world.turn = 10
+        events = tick_artifacts(world)
+        assert any(e.event_type == "artifact_created" for e in events)
+
+    def test_intents_cleared_after_tick(self):
+        world = _make_world_with_civ()
+        world._artifact_intents.append(ArtifactIntent(
+            artifact_type=ArtifactType.ARTWORK,
+            trigger="cultural_work",
+            creator_name=None,
+            creator_born_turn=None,
+            holder_name=None,
+            holder_born_turn=None,
+            civ_name="TestCiv",
+            region_name="Region1",
+            anchored=False,
+            context="Cultural masterwork",
+        ))
+        world.turn = 10
+        tick_artifacts(world)
+        assert world._artifact_intents == []
+        assert world._artifact_lifecycle_intents == []
+
+    def test_artifact_id_increments(self):
+        world = _make_world_with_civ()
+        for i in range(3):
+            world._artifact_intents.append(ArtifactIntent(
+                artifact_type=ArtifactType.TREATISE,
+                trigger="cultural_work",
+                creator_name=None,
+                creator_born_turn=None,
+                holder_name=None,
+                holder_born_turn=None,
+                civ_name="TestCiv",
+                region_name="Region1",
+                anchored=False,
+                context=f"Work {i}",
+            ))
+        world.turn = 10
+        tick_artifacts(world)
+        ids = [a.artifact_id for a in world.artifacts]
+        assert ids == [1, 2, 3]
+
+    def test_name_collision_reroll(self):
+        world = _make_world_with_civ()
+        for _ in range(2):
+            world._artifact_intents.append(ArtifactIntent(
+                artifact_type=ArtifactType.RELIC,
+                trigger="temple_construction",
+                creator_name=None,
+                creator_born_turn=None,
+                holder_name=None,
+                holder_born_turn=None,
+                civ_name="TestCiv",
+                region_name="Region1",
+                anchored=True,
+                context="Temple relic",
+            ))
+        world.turn = 10
+        tick_artifacts(world)
+        names = [a.name for a in world.artifacts]
+        assert len(set(names)) == 2  # No duplicates
+
+    def test_prestige_by_civ_computed(self):
+        world = _make_world_with_civ()
+        world._artifact_intents.append(ArtifactIntent(
+            artifact_type=ArtifactType.MONUMENT,
+            trigger="cultural_work",
+            creator_name=None,
+            creator_born_turn=None,
+            holder_name=None,
+            holder_born_turn=None,
+            civ_name="TestCiv",
+            region_name="Region1",
+            anchored=True,
+            context="Monument",
+        ))
+        world.turn = 10
+        tick_artifacts(world)
+        assert world._artifact_prestige_by_civ.get("TestCiv") == PRESTIGE_BY_TYPE[ArtifactType.MONUMENT]
+
+    def test_history_entry_on_creation(self):
+        world = _make_world_with_civ()
+        world._artifact_intents.append(ArtifactIntent(
+            artifact_type=ArtifactType.RELIC,
+            trigger="temple_construction",
+            creator_name=None,
+            creator_born_turn=None,
+            holder_name=None,
+            holder_born_turn=None,
+            civ_name="TestCiv",
+            region_name="Region1",
+            anchored=True,
+            context="Sacred relic forged in the temple",
+        ))
+        world.turn = 10
+        tick_artifacts(world)
+        assert len(world.artifacts[0].history) == 1
+        assert "turn 10" in world.artifacts[0].history[0]

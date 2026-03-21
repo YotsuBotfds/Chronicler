@@ -131,3 +131,121 @@ def generate_artifact_name(
         creator_poss=creator_poss, place=place,
     )
     return name
+
+
+def _next_artifact_id(world) -> int:
+    if not world.artifacts:
+        return 1
+    return max(a.artifact_id for a in world.artifacts) + 1
+
+
+def _default_anchored(artifact_type: ArtifactType) -> bool:
+    """Return default portability for a type."""
+    if artifact_type == ArtifactType.MONUMENT:
+        return True
+    if artifact_type in (ArtifactType.WEAPON, ArtifactType.TRADE_GOOD,
+                         ArtifactType.TREATISE, ArtifactType.MANIFESTO):
+        return False
+    if artifact_type == ArtifactType.RELIC:
+        return True
+    return False
+
+
+def _add_history(artifact: Artifact, entry: str) -> None:
+    """Append a history entry, capping at HISTORY_CAP."""
+    artifact.history.append(entry)
+    if len(artifact.history) > HISTORY_CAP:
+        artifact.history = [artifact.history[0]] + artifact.history[-(HISTORY_CAP - 1):]
+
+
+def tick_artifacts(world) -> list[Event]:
+    """Phase 10: Process artifact intents, lifecycle, and prestige."""
+    events: list[Event] = []
+    existing_names = {a.name for a in world.artifacts}
+
+    # 1. Process creation intents
+    for intent in world._artifact_intents:
+        anchored = intent.anchored if intent.anchored is not None else _default_anchored(intent.artifact_type)
+        if intent.holder_name is not None:
+            anchored = False
+
+        civ = None
+        for c in world.civilizations:
+            if c.name == intent.civ_name:
+                civ = c
+                break
+        civ_values = civ.values if civ else []
+        base_seed = world.seed + world.turn + _next_artifact_id(world)
+
+        name = generate_artifact_name(
+            intent.artifact_type, intent.creator_name,
+            intent.region_name, civ_values, seed=base_seed,
+        )
+        for salt in range(1, 3):
+            if name not in existing_names:
+                break
+            name = generate_artifact_name(
+                intent.artifact_type, intent.creator_name,
+                intent.region_name, civ_values, seed=base_seed + salt * 7919,
+            )
+        if name in existing_names:
+            suffix = 2
+            while f"{name} {_roman(suffix)}" in existing_names:
+                suffix += 1
+            name = f"{name} {_roman(suffix)}"
+        existing_names.add(name)
+
+        artifact = Artifact(
+            artifact_id=_next_artifact_id(world),
+            name=name,
+            artifact_type=intent.artifact_type,
+            anchored=anchored,
+            origin_turn=world.turn,
+            origin_event=intent.context,
+            origin_region=intent.region_name,
+            creator_name=intent.creator_name,
+            creator_civ=intent.civ_name,
+            owner_civ=intent.civ_name,
+            holder_name=intent.holder_name,
+            holder_born_turn=intent.holder_born_turn,
+            anchor_region=intent.region_name if anchored else None,
+            prestige_value=PRESTIGE_BY_TYPE.get(intent.artifact_type, 1),
+            status=ArtifactStatus.ACTIVE,
+            history=[f"{intent.context}, turn {world.turn}"],
+            mule_origin=intent.mule_origin,
+        )
+        world.artifacts.append(artifact)
+
+        actors = [intent.creator_name or intent.civ_name, name]
+        events.append(Event(
+            turn=world.turn,
+            event_type="artifact_created",
+            actors=actors,
+            description=f"{name} created by {intent.civ_name}",
+            importance=6,
+        ))
+
+    # 2. Process lifecycle intents (Task 5)
+
+    # 3. Holder lifecycle (Task 5)
+
+    # 4. Compute ephemeral prestige
+    world._artifact_prestige_by_civ = {}
+    for a in world.artifacts:
+        if a.status == ArtifactStatus.ACTIVE and a.owner_civ:
+            world._artifact_prestige_by_civ[a.owner_civ] = (
+                world._artifact_prestige_by_civ.get(a.owner_civ, 0) + a.prestige_value
+            )
+
+    # 5. Clear intents
+    world._artifact_intents = []
+    world._artifact_lifecycle_intents = []
+
+    return events
+
+
+def _roman(n: int) -> str:
+    """Simple roman numeral for small collision suffixes."""
+    numerals = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
+                6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X"}
+    return numerals.get(n, str(n))
