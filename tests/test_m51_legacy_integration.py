@@ -83,8 +83,8 @@ def test_legacy_determinism():
         ), 10)
 
         child = pool.spawn(0, 0, Occupation.Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, BELIEF_NONE)
-        legacies = extract_legacy_memories(pool, parent)
-        for (et, sc, halved) in legacies:
+        parent_legacies = extract_legacy_memories(pool, parent)
+        for (et, sc, halved) in parent_legacies:
             write_single_memory(pool, MemoryIntent(
                 agent_slot=child,
                 event_type=et,
@@ -94,12 +94,9 @@ def test_legacy_determinism():
                 decay_factor_override=legacy_factor,
             ), 50)
 
-        # Return the child's memory state as a snapshot
-        count = pool.memory_count(child)
-        intensities = [pool.memory_intensity(child, i) for i in range(count)]
-        event_types = [pool.memory_event_type(child, i) for i in range(count)]
-        is_legacy_bits = pool.memory_is_legacy_bits(child)
-        return (count, intensities, event_types, is_legacy_bits)
+        # Verify via extract_legacy_memories on child (reads back state)
+        child_legacies = extract_legacy_memories(pool, child)
+        return (parent_legacies, child_legacies)
 
     run1 = run_sequence()
     run2 = run_sequence()
