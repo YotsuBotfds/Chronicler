@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 
 # --- Enums ---
@@ -236,6 +236,37 @@ class Region(BaseModel):
     schism_convert_to: int = 0xFF              # 255 = no schism this turn
     last_conquered_turn: int = -1              # -1 = never conquered; set by WAR resolution
 
+    @field_validator("resource_suspensions", mode="before")
+    @classmethod
+    def _normalize_resource_suspensions(cls, value):
+        """Accept legacy enum-string keys and normalize them to integer ids."""
+        if value is None or not isinstance(value, dict):
+            return value
+
+        normalized: dict[int, int] = {}
+        for key, turns in value.items():
+            if isinstance(key, ResourceType):
+                normalized[int(key)] = turns
+                continue
+            if isinstance(key, int):
+                normalized[key] = turns
+                continue
+            if isinstance(key, str):
+                if key.isdigit():
+                    normalized[int(key)] = turns
+                    continue
+
+                enum_name = key.removeprefix("ResourceType.")
+                try:
+                    normalized[int(ResourceType[enum_name])] = turns
+                    continue
+                except KeyError:
+                    pass
+
+            normalized[key] = turns
+
+        return normalized
+
 
 class Leader(BaseModel):
     name: str
@@ -248,6 +279,10 @@ class Leader(BaseModel):
     rival_civ: str | None = None
     secondary_trait: str | None = None
     grudges: list[dict] = Field(default_factory=list)
+    agent_id: int | None = None
+    dynasty_id: int | None = None
+    throne_name: str | None = None
+    regnal_ordinal: int = 0
 
 
 class Civilization(BaseModel):
@@ -301,6 +336,7 @@ class Civilization(BaseModel):
     # M47d: War frequency calibration
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
+    regnal_name_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class Relationship(BaseModel):
@@ -571,14 +607,14 @@ class WorldState(BaseModel):
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.model_dump_json(indent=2))
+        path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path) -> WorldState:
         """Load world state from a JSON file."""
         if not path.exists():
             raise FileNotFoundError(f"No state file at {path}")
-        return cls.model_validate_json(path.read_text())
+        return cls.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 # --- Snapshot models (for viewer bundle — never persisted to state.json) ---
