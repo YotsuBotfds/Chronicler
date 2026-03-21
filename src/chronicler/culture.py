@@ -403,7 +403,16 @@ def tick_prestige(world: WorldState, acc=None) -> None:
             civ.prestige = max(0, civ.prestige - prestige_decay)
         trade_bonus = civ.prestige // prestige_divisor
         # M52: Add ephemeral artifact prestige to trade bonus
+        # Rehydrate cache if empty (e.g. first turn after save/load)
         if hasattr(world, '_artifact_prestige_by_civ'):
+            if not world._artifact_prestige_by_civ and world.artifacts:
+                from chronicler.artifacts import ArtifactStatus
+                for a in world.artifacts:
+                    if a.status == ArtifactStatus.ACTIVE and a.owner_civ:
+                        world._artifact_prestige_by_civ[a.owner_civ] = (
+                            world._artifact_prestige_by_civ.get(a.owner_civ, 0)
+                            + a.prestige_value
+                        )
             trade_bonus += world._artifact_prestige_by_civ.get(civ.name, 0)
         if trade_bonus > 0:
             if acc is not None:

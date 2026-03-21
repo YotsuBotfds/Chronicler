@@ -519,8 +519,15 @@ def get_relic_conversion_modifier(world, region) -> float:
     """Return conversion rate multiplier from temple-bound relics in this region.
 
     Non-stacking: one relic bonus per region max.
-    Only applies when owner_civ matches region controller.
+    Only applies when owner_civ matches region controller AND an active temple exists.
     """
+    from chronicler.models import InfrastructureType
+    has_active_temple = any(
+        i.type == InfrastructureType.TEMPLES and i.active
+        for i in region.infrastructure
+    )
+    if not has_active_temple:
+        return 1.0
     for a in world.artifacts:
         if (a.artifact_type == ArtifactType.RELIC
                 and a.anchored
@@ -567,8 +574,13 @@ def _get_relevant_artifacts(world, moment, max_count: int = 3) -> list:
         if hasattr(ne, 'region') and ne.region:
             moment_regions.add(ne.region)
 
+    # Filter by turn range to avoid referencing artifacts that don't exist yet
+    turn_end = moment.turn_range[1] if hasattr(moment, 'turn_range') and moment.turn_range else None
+
     for a in world.artifacts:
         if a.status != ArtifactStatus.ACTIVE or a.artifact_id in seen:
+            continue
+        if turn_end is not None and a.origin_turn > turn_end:
             continue
         if a.holder_name and a.holder_name in actor_names:
             relevant.append(a)
@@ -591,8 +603,13 @@ def render_artifact_context(artifacts: list) -> str:
         return ""
     lines = ["ARTIFACTS:"]
     for a in artifacts:
-        holder_info = f"held by {a.holder_name}" if a.holder_name else (
-            f"temple-bound in {a.anchor_region}" if a.anchored else f"owned by {a.owner_civ}"
-        )
+        if a.holder_name:
+            holder_info = f"held by {a.holder_name}"
+        elif a.anchored:
+            holder_info = (f"temple-bound in {a.anchor_region}"
+                           if a.artifact_type == ArtifactType.RELIC
+                           else f"situated in {a.anchor_region}")
+        else:
+            holder_info = f"owned by {a.owner_civ}"
         lines.append(f"- {a.name} ({a.artifact_type.value}, {holder_info}) — {a.origin_event}")
     return "\n".join(lines)

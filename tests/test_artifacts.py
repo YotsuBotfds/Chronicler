@@ -864,12 +864,21 @@ class TestConquestLifecycleIntentEmission:
         assert any(e.event_type == "artifact_lost" for e in events)
 
 
+def _add_active_temple(region):
+    """Helper: add an active temple to a region."""
+    from chronicler.models import Infrastructure, InfrastructureType
+    region.infrastructure.append(Infrastructure(
+        type=InfrastructureType.TEMPLES, builder_civ="TestCiv", built_turn=1, active=True,
+    ))
+
+
 class TestRelicConversionBonus:
     def test_relic_boosts_conversion_in_controlled_region(self):
         from chronicler.artifacts import get_relic_conversion_modifier
         world = _make_world_with_civ()
         region = world.regions[0]
         region.controller = "TestCiv"
+        _add_active_temple(region)
         _make_active_artifact(
             world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1",
         )
@@ -888,6 +897,7 @@ class TestRelicConversionBonus:
         world = _make_world_with_civ()
         region = world.regions[0]
         region.controller = "Conqueror"
+        _add_active_temple(region)
         _make_active_artifact(
             world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1",
         )
@@ -899,11 +909,41 @@ class TestRelicConversionBonus:
         world = _make_world_with_civ()
         region = world.regions[0]
         region.controller = "TestCiv"
+        _add_active_temple(region)
         _make_active_artifact(world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1")
         _make_active_artifact(world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1")
         modifier = get_relic_conversion_modifier(world, region)
         expected = 1.0 + 0.15
         assert abs(modifier - expected) < 0.01
+
+    def test_destroyed_temple_no_bonus(self):
+        """P1 fix: relic bonus requires active temple in region."""
+        from chronicler.artifacts import get_relic_conversion_modifier
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.controller = "TestCiv"
+        _make_active_artifact(
+            world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1",
+        )
+        # No temple — relic should NOT grant bonus
+        modifier = get_relic_conversion_modifier(world, region)
+        assert modifier == 1.0
+
+    def test_inactive_temple_no_bonus(self):
+        """P1 fix: inactive (destroyed) temple should not grant relic bonus."""
+        from chronicler.artifacts import get_relic_conversion_modifier
+        from chronicler.models import Infrastructure, InfrastructureType
+        world = _make_world_with_civ()
+        region = world.regions[0]
+        region.controller = "TestCiv"
+        region.infrastructure.append(Infrastructure(
+            type=InfrastructureType.TEMPLES, builder_civ="TestCiv", built_turn=1, active=False,
+        ))
+        _make_active_artifact(
+            world, ArtifactType.RELIC, anchored=True, owner_civ="TestCiv", region="Region1",
+        )
+        modifier = get_relic_conversion_modifier(world, region)
+        assert modifier == 1.0
 
 
 class TestArtifactNarrativeContext:
@@ -1044,3 +1084,76 @@ class TestTransientSignalReset:
         world.turn = 2
         tick_artifacts(world)
         assert world._artifact_prestige_by_civ.get("TestCiv", 0) == 0
+
+
+class TestReviewBugFixes:
+    """Tests for bugs found in code review."""
+
+    def test_prestige_cache_rehydrated_on_resume(self):
+        """P1: Artifact trade bonus should not disappear after save/load."""
+        from chronicler.culture import tick_prestige
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = 0
+        civ.treasury = 100
+        # Simulate save/load: artifacts exist but cache is empty (PrivateAttr default)
+        _make_active_artifact(world, ArtifactType.MONUMENT, owner_civ="TestCiv")
+        assert world._artifact_prestige_by_civ == {}  # empty cache, like after load
+        tick_prestige(world)
+        # Cache should have been rehydrated — treasury should include artifact bonus
+        assert civ.treasury > 100
+
+    def test_future_artifact_excluded_from_narration(self):
+        """P2: Artifacts created after the moment's turn range should not appear."""
+        from chronicler.artifacts import _get_relevant_artifacts
+        from chronicler.models import NarrativeMoment, NarrativeRole, Event
+        world = _make_world_with_civ()
+        # Artifact created at turn 50
+        a = _make_active_artifact(
+            world, ArtifactType.WEAPON, anchored=False, owner_civ="TestCiv",
+            holder_name="Kiran", holder_born_turn=8,
+        )
+        world.artifacts[0].origin_turn = 50
+        # Moment at turn 5
+        moment = NarrativeMoment(
+            anchor_turn=5, turn_range=(4, 6),
+            events=[Event(turn=5, event_type="war", actors=["Kiran", "TestCiv"],
+                         description="Battle", importance=8)],
+            named_events=[], score=10.0, causal_links=[],
+            narrative_role=NarrativeRole.CLIMAX, bonus_applied=0,
+        )
+        relevant = _get_relevant_artifacts(world, moment)
+        assert len(relevant) == 0  # turn-50 artifact should NOT appear for turn-5 moment
+
+    def test_monument_not_labeled_temple_bound(self):
+        """P2: Anchored monuments should say 'situated in', not 'temple-bound'."""
+        from chronicler.artifacts import render_artifact_context
+        a = Artifact(
+            artifact_id=1, name="The Great Pillar of Ashara",
+            artifact_type=ArtifactType.MONUMENT, anchored=True,
+            origin_turn=5, origin_event="Erected during renaissance",
+            origin_region="Ashara", creator_name=None,
+            creator_civ="TestCiv", owner_civ="TestCiv",
+            holder_name=None, holder_born_turn=None,
+            anchor_region="Ashara", prestige_value=4,
+            status=ArtifactStatus.ACTIVE, history=["created"],
+        )
+        text = render_artifact_context([a])
+        assert "temple-bound" not in text
+        assert "situated in Ashara" in text
+
+    def test_relic_still_labeled_temple_bound(self):
+        """Relics should still say 'temple-bound'."""
+        from chronicler.artifacts import render_artifact_context
+        a = Artifact(
+            artifact_id=1, name="Sacred Chalice",
+            artifact_type=ArtifactType.RELIC, anchored=True,
+            origin_turn=5, origin_event="Temple consecration",
+            origin_region="Ashara", creator_name=None,
+            creator_civ="TestCiv", owner_civ="TestCiv",
+            holder_name=None, holder_born_turn=None,
+            anchor_region="Ashara", prestige_value=3,
+            status=ArtifactStatus.ACTIVE, history=["created"],
+        )
+        text = render_artifact_context([a])
+        assert "temple-bound in Ashara" in text
