@@ -230,7 +230,7 @@
 
 ### M53: Depth Tuning Pass — tuning complete, validation gaps remain
 
-- **Branch:** `feat/m53-depth-tuning` (30 commits, not merged to main)
+- **Branch:** `feat/m53-depth-tuning` (35 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-21-m53-depth-tuning-validation.md` (23 tasks)
 - **Commits — infrastructure (prior session):**
@@ -243,9 +243,15 @@
   - `f05b857` — docs(m53): session handoff — demographic probes, 7/20 extinction rate
   - `ce3a3e4` — fix(demographics): fertility taper replaces hard cutoff (3-4/20 ext)
   - `84775f8` — fix(satisfaction): cap overcrowding penalty at 0.30 (Pass 0 substrate fix)
-- **Commits — Pass 1 tuning (this session):**
+- **Commits — Pass 1 tuning (prior session):**
   - `ff63fbb` — tune(m53): Pass 1 — social bond restoration + autonomy rebalance
-- **Tests:** 397 Rust tests, 16 Python tests. All passing.
+- **Commits — M53b validation cleanup (2026-03-21 session):**
+  - `42a199d` — fix(m53b): Oracle 5 counts LOST + DESTROYED artifacts in loss rate
+  - `d77b25c` — fix(m53b): Oracle 6 enforces 40% arc dominance cap
+  - `1d00894` — fix(m53b): wire world.agent_events_raw into Oracles 2 and 4
+  - `7a3bddd` — docs(m53a): frozen constant snapshot with substrate + pass changes + M49 flags
+  - `96680fb` — docs(m53b): narrow Oracle 5 scope, update progress with partial cleanup status
+- **Tests:** 397 Rust tests, 16 Python validate tests. All passing.
 - **New files:** `scripts/m53_demographics_probe.py` (demographics), `scripts/m53_social_probe.py` (needs/bonds/satisfaction)
 - **Key demographic changes (cumulative):**
   - `DemographicDebug` struct in tick.rs — 13 per-tick counters
@@ -327,7 +333,7 @@
 - Oracle 3 (Era Inflection): SOFT FAIL (60%, likely passes at 500t)
 - Oracle 5 (Artifacts): PARTIAL (creation OK, destruction target needs recalibration)
 - Oracle 6 (Six Arcs): PASS (6/6 families) — but `riches_to_rags` 53% exceeds spec limit
-- Oracles 2, 4: Deferred (need per-agent event instrumentation)
+- Oracles 2, 4: Now wired (events from `world.agent_events_raw`) — need re-run to get results
 
 #### Integration Pass Results (Task 21, 20 seeds × 200 turns)
 
@@ -407,8 +413,14 @@
 ## Ready for Implementation
 
 **Next steps:**
-- **PRIORITY: Close M53 validation gaps** — wire `chronicler.validate` oracle runner, generate `tuning/m53a_frozen.yaml`, fix oracle probe contracts (needs diversity, cohort distinctiveness, riches_to_rags threshold, artifact loss/relic/narration checks)
-- **Then:** Decide scope — run full 200-seed gate per spec, or amend spec to accept 20-seed results and merge
+- **M53b remaining work** (for full spec-complete closure):
+  - Build sidecar export pipeline (graph/memory snapshots + per-turn agent events to files)
+  - Wire `chronicler.validate` as post-processing consumer of exported sidecar data
+  - Run 200-seed structural gate + 500-turn oracle runs
+  - Refresh validation report from canonical `python -m chronicler.validate` path
+  - See `docs/superpowers/plans/2026-03-21-m53b-validation-closure.md` "Remaining Work" section
+- **Alternative:** Merge M53 tuning to main with M53b marked partial, pursue full validation pipeline as a separate milestone
+- **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
 
 ---
 
