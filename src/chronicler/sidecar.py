@@ -6,8 +6,13 @@ Writes diagnostic data alongside simulation bundles:
 - Agent aggregates (per-civ summary statistics)
 - Community summaries (region-level cluster summaries)
 
-All formats are JSON for simplicity — this is a diagnostic tool,
-not a production pipeline.
+Per-turn JSON snapshots remain for debugging, but the writer also emits
+canonical consolidated artifacts for the validator:
+- validation_relationships.arrow
+- validation_memory_signatures.arrow
+- validation_needs.arrow
+- validation_summary.json
+- validation_community_summary.json
 
 Directory layout::
 
@@ -25,6 +30,13 @@ import json
 import pathlib
 from typing import Any
 
+try:
+    import pyarrow as pa
+    import pyarrow.ipc as ipc
+    HAS_ARROW = True
+except ImportError:
+    HAS_ARROW = False
+
 
 def _turn_str(turn: int) -> str:
     """Zero-pad turn number to 3 digits for consistent filename sorting."""
@@ -35,8 +47,14 @@ class SidecarWriter:
     """Writes validation sidecar files for a single simulation run."""
 
     def __init__(self, base_dir: pathlib.Path) -> None:
+        self._base_dir = base_dir
         self._dir = base_dir / "validation_summary"
         self._dir.mkdir(parents=True, exist_ok=True)
+        self._relationship_rows: list[dict[str, Any]] = []
+        self._memory_rows: list[dict[str, Any]] = []
+        self._needs_rows: list[dict[str, Any]] = []
+        self._aggregate_by_turn: dict[str, dict[str, dict[str, Any]]] = {}
+        self._community_by_turn: dict[str, dict[str, dict[str, Any]]] = {}
 
     # ------------------------------------------------------------------
     # Graph snapshot
@@ -67,6 +85,23 @@ class SidecarWriter:
         }
         path = self._dir / f"graph_turn_{_turn_str(turn)}.json"
         path.write_text(json.dumps(payload, separators=(",", ":")))
+        for agent_id, target_id, bond_type, sentiment in edges:
+            self._relationship_rows.append({
+                "turn": turn,
+                "agent_id": agent_id,
+                "target_id": target_id,
+                "bond_type": bond_type,
+                "sentiment": sentiment,
+            })
+        for agent_id, signatures in memory_signatures.items():
+            for event_type, memory_turn, valence_sign in signatures:
+                self._memory_rows.append({
+                    "turn": turn,
+                    "agent_id": agent_id,
+                    "event_type": event_type,
+                    "memory_turn": memory_turn,
+                    "valence_sign": valence_sign,
+                })
 
     # ------------------------------------------------------------------
     # Needs snapshot
@@ -102,6 +137,12 @@ class SidecarWriter:
         payload = {"turn": turn, "columns": data}
         path = self._dir / f"needs_turn_{_turn_str(turn)}.json"
         path.write_text(json.dumps(payload, separators=(",", ":")))
+        row_count = len(next(iter(data.values()), []))
+        for idx in range(row_count):
+            row = {"turn": turn}
+            for name, values in data.items():
+                row[name] = values[idx]
+            self._needs_rows.append(row)
 
     # ------------------------------------------------------------------
     # Agent aggregate
@@ -122,6 +163,7 @@ class SidecarWriter:
         payload = {"turn": turn, "aggregates": aggregates}
         path = self._dir / f"aggregate_turn_{_turn_str(turn)}.json"
         path.write_text(json.dumps(payload, separators=(",", ":")))
+        self._aggregate_by_turn[str(turn)] = aggregates
 
     # ------------------------------------------------------------------
     # Community summary
@@ -142,6 +184,7 @@ class SidecarWriter:
         payload = {"turn": turn, "summary": summary}
         path = self._dir / f"community_turn_{_turn_str(turn)}.json"
         path.write_text(json.dumps(payload, separators=(",", ":")))
+        self._community_by_turn[str(turn)] = summary
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -150,6 +193,79 @@ class SidecarWriter:
     def close(self) -> None:
         """Flush and finalise.  All writes are synchronous, so this is a no-op
         kept for API symmetry and future buffering support."""
+        self._write_canonical_artifacts()
+
+    def _write_canonical_artifacts(self) -> None:
+        self._write_arrow_file(
+            self._base_dir / "validation_relationships.arrow",
+            self._relationship_rows,
+            {
+                "turn": pa.uint32() if HAS_ARROW else None,
+                "agent_id": pa.uint32() if HAS_ARROW else None,
+                "target_id": pa.uint32() if HAS_ARROW else None,
+                "bond_type": pa.uint8() if HAS_ARROW else None,
+                "sentiment": pa.int16() if HAS_ARROW else None,
+            },
+        )
+        self._write_arrow_file(
+            self._base_dir / "validation_memory_signatures.arrow",
+            self._memory_rows,
+            {
+                "turn": pa.uint32() if HAS_ARROW else None,
+                "agent_id": pa.uint32() if HAS_ARROW else None,
+                "event_type": pa.uint8() if HAS_ARROW else None,
+                "memory_turn": pa.uint16() if HAS_ARROW else None,
+                "valence_sign": pa.int8() if HAS_ARROW else None,
+            },
+        )
+        self._write_arrow_file(
+            self._base_dir / "validation_needs.arrow",
+            self._needs_rows,
+            None,
+        )
+        validation_summary = {
+            "turns": sorted(int(turn) for turn in self._aggregate_by_turn.keys()),
+            "agent_aggregates_by_turn": self._aggregate_by_turn,
+        }
+        (self._base_dir / "validation_summary.json").write_text(
+            json.dumps(validation_summary, separators=(",", ":"))
+        )
+        validation_community_summary = {
+            "turns": sorted(int(turn) for turn in self._community_by_turn.keys()),
+            "community_summary_by_turn": self._community_by_turn,
+        }
+        (self._base_dir / "validation_community_summary.json").write_text(
+            json.dumps(validation_community_summary, separators=(",", ":"))
+        )
+
+    def _write_arrow_file(
+        self,
+        path: pathlib.Path,
+        rows: list[dict[str, Any]],
+        schema_map: dict[str, Any] | None,
+    ) -> None:
+        if not HAS_ARROW:
+            return
+        if rows:
+            columns = {name: [row.get(name) for row in rows] for name in rows[0].keys()}
+            arrays = {}
+            for name, values in columns.items():
+                pa_type = schema_map.get(name) if schema_map else None
+                arrays[name] = pa.array(values, type=pa_type) if pa_type else pa.array(values)
+            batch = pa.record_batch(arrays)
+        else:
+            arrays = []
+            names = []
+            for name, pa_type in (schema_map or {}).items():
+                if pa_type is None:
+                    continue
+                names.append(name)
+                arrays.append(pa.array([], type=pa_type))
+            batch = pa.record_batch(arrays, names=names)
+        with pa.OSFile(str(path), "wb") as handle:
+            writer = ipc.new_file(handle, batch.schema)
+            writer.write_batch(batch)
+            writer.close()
 
 
 # ---------------------------------------------------------------------------

@@ -1,3 +1,6 @@
+import json
+
+
 def test_determinism_scrubbed_comparison():
     """Scrubbed comparison ignores generated_at timestamp."""
     bundle_a = {"metadata": {"generated_at": "2026-03-21T10:00:00Z", "seed": 42},
@@ -10,6 +13,75 @@ def test_determinism_scrubbed_comparison():
     bundle_c = dict(bundle_b)
     bundle_c["world_state"] = {"turn": 101}
     assert not scrubbed_equal(bundle_a, bundle_c)
+
+
+def test_run_determinism_gate_passes_with_duplicate_seed_bundles(tmp_path):
+    from chronicler.validate import run_determinism_gate
+
+    seed_a = tmp_path / "seed_42_a"
+    seed_b = tmp_path / "seed_42_b"
+    seed_a.mkdir()
+    seed_b.mkdir()
+
+    bundle_a = {
+        "metadata": {"generated_at": "2026-03-21T10:00:00Z", "seed": 42},
+        "world_state": {"turn": 100, "population": 50},
+    }
+    bundle_b = {
+        "metadata": {"generated_at": "2026-03-21T10:05:00Z", "seed": 42},
+        "world_state": {"turn": 100, "population": 50},
+    }
+    (seed_a / "chronicle_bundle.json").write_text(json.dumps(bundle_a), encoding="utf-8")
+    (seed_b / "chronicle_bundle.json").write_text(json.dumps(bundle_b), encoding="utf-8")
+
+    result = run_determinism_gate(tmp_path)
+    assert result["status"] == "PASS"
+    assert result["pairs_checked"] == 1
+    assert result["duplicate_seeds"] == [42]
+    assert result["mismatches"] == []
+
+
+def test_run_determinism_gate_fails_on_scrubbed_difference(tmp_path):
+    from chronicler.validate import run_determinism_gate
+
+    seed_a = tmp_path / "seed_42_a"
+    seed_b = tmp_path / "seed_42_b"
+    seed_a.mkdir()
+    seed_b.mkdir()
+
+    bundle_a = {
+        "metadata": {"generated_at": "2026-03-21T10:00:00Z", "seed": 42},
+        "world_state": {"turn": 100, "population": 50},
+    }
+    bundle_b = {
+        "metadata": {"generated_at": "2026-03-21T10:05:00Z", "seed": 42},
+        "world_state": {"turn": 101, "population": 50},
+    }
+    (seed_a / "chronicle_bundle.json").write_text(json.dumps(bundle_a), encoding="utf-8")
+    (seed_b / "chronicle_bundle.json").write_text(json.dumps(bundle_b), encoding="utf-8")
+
+    result = run_determinism_gate(tmp_path)
+    assert result["status"] == "FAIL"
+    assert result["pairs_checked"] == 1
+    assert len(result["mismatches"]) == 1
+    assert result["mismatches"][0]["seed"] == 42
+
+
+def test_run_determinism_gate_skips_without_duplicate_seed_pairs(tmp_path):
+    from chronicler.validate import run_determinism_gate
+
+    seed_dir = tmp_path / "seed_42"
+    seed_dir.mkdir()
+    bundle = {
+        "metadata": {"generated_at": "2026-03-21T10:00:00Z", "seed": 42},
+        "world_state": {"turn": 100},
+    }
+    (seed_dir / "chronicle_bundle.json").write_text(json.dumps(bundle), encoding="utf-8")
+
+    result = run_determinism_gate(tmp_path)
+    assert result["status"] == "SKIP"
+    assert result["reason"] == "no_duplicate_seed_pairs"
+    assert result["pairs_checked"] == 0
 
 
 def test_community_detection_finds_clusters():

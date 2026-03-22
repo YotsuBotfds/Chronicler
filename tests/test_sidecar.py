@@ -1,5 +1,12 @@
 from chronicler.sidecar import SidecarWriter, SidecarReader
 import tempfile, pathlib
+import json
+
+try:
+    import pyarrow.ipc as ipc
+    HAS_ARROW = True
+except ImportError:
+    HAS_ARROW = False
 
 
 def test_graph_snapshot_round_trip():
@@ -53,3 +60,64 @@ def test_condensed_community_summary():
         reader = SidecarReader(pathlib.Path(tmpdir))
         result = reader.read_community_summary(turn=100)
         assert result["region_0"]["cluster_count"] == 3
+
+
+def test_sidecar_writer_emits_canonical_artifacts():
+    """Close writes consolidated canonical Arrow/JSON artifacts."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = pathlib.Path(tmpdir)
+        writer = SidecarWriter(base)
+        edges = [(1, 2, 3, 50)]
+        mem_sigs = {1: [(0, 10, -1)]}
+        needs = {
+            "agent_id": [1],
+            "civ_affinity": [0],
+            "region": [2],
+            "occupation": [3],
+            "satisfaction": [0.55],
+            "boldness": [0.4],
+            "ambition": [0.5],
+            "loyalty_trait": [0.6],
+            "safety": [0.4],
+            "autonomy": [0.5],
+            "social": [0.6],
+            "spiritual": [0.7],
+            "material": [0.8],
+            "purpose": [0.9],
+        }
+        aggregates = {"civ_0": {"satisfaction_mean": 0.55, "agent_count": 1}}
+        writer.write_graph_snapshot(turn=10, edges=edges, memory_signatures=mem_sigs)
+        writer.write_needs_snapshot(turn=10, needs_batch=needs)
+        writer.write_agent_aggregate(turn=10, aggregates=aggregates)
+        writer.write_community_summary(turn=10, summary={"region_0": {"cluster_count": 1}})
+        writer.close()
+
+        assert (base / "validation_summary.json").exists()
+        assert (base / "validation_community_summary.json").exists()
+
+        summary = json.loads((base / "validation_summary.json").read_text())
+        assert summary["turns"] == [10]
+        assert summary["agent_aggregates_by_turn"]["10"]["civ_0"]["agent_count"] == 1
+
+        community_summary = json.loads((base / "validation_community_summary.json").read_text())
+        assert community_summary["turns"] == [10]
+        assert community_summary["community_summary_by_turn"]["10"]["region_0"]["cluster_count"] == 1
+
+        if HAS_ARROW:
+            rel_table = ipc.open_file(str(base / "validation_relationships.arrow")).read_all()
+            rel_cols = rel_table.to_pydict()
+            assert rel_cols["turn"] == [10]
+            assert rel_cols["agent_id"] == [1]
+            assert rel_cols["target_id"] == [2]
+
+            mem_table = ipc.open_file(str(base / "validation_memory_signatures.arrow")).read_all()
+            mem_cols = mem_table.to_pydict()
+            assert mem_cols["turn"] == [10]
+            assert mem_cols["event_type"] == [0]
+            assert mem_cols["valence_sign"] == [-1]
+
+            needs_table = ipc.open_file(str(base / "validation_needs.arrow")).read_all()
+            needs_cols = needs_table.to_pydict()
+            assert needs_cols["turn"] == [10]
+            assert needs_cols["agent_id"] == [1]
+            assert needs_cols["purpose"] == [0.9]

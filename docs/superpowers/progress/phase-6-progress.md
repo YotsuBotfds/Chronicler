@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-21 (M53 infrastructure on feat/m53-depth-tuning)
+> **Last updated:** 2026-03-21 (M53 canonical validation concluded on `feat/m53-depth-tuning`)
 
 ---
 
@@ -228,7 +228,7 @@
 
 ## In Progress
 
-### M53: Depth Tuning Pass — tuning complete, validation gaps remain
+### M53: Depth Tuning Pass — concluded, canonical gate failed
 
 - **Branch:** `feat/m53-depth-tuning` (35 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
@@ -316,24 +316,40 @@
 5. **Overcrowding penalty was zeroing satisfaction.** Uncapped `(pop/cap - 1.0) * 0.3` at 5x capacity gave 1.2 penalty, forcing satisfaction to 0 and blocking all fertility. Cap at 0.30 preserves pressure up to 2x while preventing runaway zeroing. Overcrowding already punished via ecology, disease, and demography.
 6. **This is a provisional baseline**, not the final word. M53 tuning may reveal remaining edge cases that require further demographic adjustment.
 
-**M53 tuning tasks complete:** All 6 system passes done, constants frozen, integration pass clean at 20 seeds × 200 turns.
+**M53 tuning tasks complete:** All 6 system passes done, constants frozen, integration pass clean at 20 seeds x 200 turns. Freeze snapshot present at `tuning/m53a_frozen.yaml`.
 
-**M53 validation gaps (Phoebe review 2026-03-21, partial cleanup applied):**
-1. **[FIXED] Oracle 5 loss counting.** `check_artifact_lifecycle()` now counts both LOST and DESTROYED.
-2. **[FIXED] Oracle 6 dominance cap.** Probe now enforces 40% cap on all arcs including stable.
-3. **[FIXED] Oracle probe event collection.** Oracles 2 and 4 now receive real events from `world.agent_events_raw`.
-4. **[FIXED] Freeze snapshot missing.** `tuning/m53a_frozen.yaml` generated with all 13 changed constants + M49 flags.
-5. **[OPEN] Spec gate not met.** Spec requires 200-seed structural gate and 500-turn oracle runs. Current results are 20-seed × 200-turn only.
-6. **[OPEN] `chronicler.validate` runner is a stub.** Spec requires a post-processing consumer that reads exported sidecar data. Sidecar export pipeline does not exist yet.
+**Canonical M53b infrastructure complete (2026-03-21):**
+1. `python -m chronicler.validate` now consumes exported bundles, `agent_events.arrow`, canonical validation sidecars, and `validation_summary.json`.
+2. Validation runs write `validation_relationships.arrow`, `validation_memory_signatures.arrow`, `validation_needs.arrow`, `validation_summary.json`, and `validation_community_summary.json`.
+3. Determinism smoke gates now pass on the canonical exported-data path for both `--agents=off` and `--agents=hybrid`.
 
-**M53 Status:** Tuning complete. Validation partially cleaned up. NOT spec-complete — merge blocked on items 5-6 above. See "Remaining Work" in `docs/superpowers/plans/2026-03-21-m53b-validation-closure.md`.
+**Canonical gate results:**
+- **Determinism smoke:** PASS (`agents=off` and `agents=hybrid`)
+- **Oracle subset (`20` seeds x `200` turns, seeds `42-61`):**
+  - Community: FAIL (`12/20`, target `15/20`)
+  - Needs diversity: FAIL (`6/20` expected-sign seeds, median effect `0.0`)
+  - Era inflection: FAIL (`20/20` inflection seeds, but `6` silent collapses)
+  - Cohort distinctiveness: FAIL (`7/12` analyzed seeds with expected direction, median effect `0.2394`)
+  - Artifacts: PARTIAL (creation `0.975/civ/100t`, diversity fail, loss/destruction `0.2115` OK)
+  - Six arcs: FAIL (`3/6` families; `riches_to_rags` dominates at `63.4%`)
+  - Regression summary: FAIL
+- **Full gate (`200` seeds x `500` turns, seeds `1-200`):**
+  - Community: FAIL (`13/200`, target `150/200`)
+  - Needs diversity: FAIL (`10/200` expected-sign seeds, median effect `0.0`)
+  - Era inflection: FAIL (`200/200` inflection seeds, but `36` silent collapses)
+  - Cohort distinctiveness: FAIL (`4/13` analyzed seeds with expected direction, median effect `0.0`)
+  - Artifacts: FAIL (creation `0.6248/civ/100t`, diversity fail, loss/destruction `0.3994`)
+  - Six arcs: FAIL (`6/6` families, but `stable` dominates at `74.1%`)
+  - Regression summary: FAIL
 
-**Oracle results (20-seed, ad-hoc probe — not from spec-required runner):**
-- Oracle 1 (Community): PASS (15/20)
-- Oracle 3 (Era Inflection): SOFT FAIL (60%, likely passes at 500t)
-- Oracle 5 (Artifacts): PARTIAL (creation OK, destruction target needs recalibration)
-- Oracle 6 (Six Arcs): PASS (6/6 families) — but `riches_to_rags` 53% exceeds spec limit
-- Oracles 2, 4: Now wired (events from `world.agent_events_raw`) — need re-run to get results
+**M53 Status:** `M53a` complete and frozen. Canonical `M53b` executed and failed. `M53` is concluded, but it did **not** unlock the scale track.
+
+**Artifacts / reports:**
+- Canonical report: `docs/superpowers/analytics/m53b-validation-report.md`
+- Determinism outputs: `output/m53/canonical/determinism_off/batch_42` and `output/m53/canonical/determinism_hybrid/batch_42`
+- Oracle subset output: `output/m53/canonical/oracle_subset/batch_42`
+- Full gate output: `output/m53/canonical/full_gate/batch_1`
+- Runner/pipeline implementation notes: `docs/superpowers/plans/2026-03-21-m53b-validation-pipeline.md`
 
 #### Integration Pass Results (Task 21, 20 seeds × 200 turns)
 
@@ -413,13 +429,13 @@
 ## Ready for Implementation
 
 **Next steps:**
-- **M53b remaining work** (for full spec-complete closure):
-  - Build sidecar export pipeline (graph/memory snapshots + per-turn agent events to files)
-  - Wire `chronicler.validate` as post-processing consumer of exported sidecar data
-  - Run 200-seed structural gate + 500-turn oracle runs
-  - Refresh validation report from canonical `python -m chronicler.validate` path
-  - See `docs/superpowers/plans/2026-03-21-m53b-validation-closure.md` "Remaining Work" section
-- **Alternative:** Merge M53 tuning to main with M53b marked partial, pursue full validation pipeline as a separate milestone
+- **M53 follow-on work (if reopened):**
+  - Retune or redesign community emergence / cohort distinctiveness
+  - Improve needs-diversity matching and downstream behavioral separation
+  - Rebalance artifact diversity + lifecycle loss
+  - Reduce arc dominance skew and regression drift (migration, Gini, occupation structure)
+  - Re-run canonical M53 gates only under a new post-M53 effort
+- **Scale-track note:** M54a+ remain blocked until a follow-on effort produces a passing replacement for the failed M53 canonical gate
 - **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
 
 ---

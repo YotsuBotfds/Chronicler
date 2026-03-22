@@ -360,6 +360,8 @@ If cohorts don't emerge at the 5+ threshold, investigate: memory decay too fast 
 
 **Gate:** M53 must pass before scale track begins. If depth systems create unstable dynamics at 50K agents, they'll be worse at 500K.
 
+> **Implementation note (2026-03-21):** M53a tuning/freeze completed and the canonical M53b subset/full gates were run. Determinism passed, but the canonical gate failed: community emergence stayed well below threshold, needs/cohort oracles failed, artifact diversity/lifecycle remained out of range, arc dominance stayed skewed, and regression checks failed. M54a and the rest of the scale track therefore remain blocked pending a follow-on retune / redesign effort.
+
 > **Enrichment (not in estimate, from abm-ccid research):** **Fermi function for agent decisions.** Replace hard thresholds in `behavior.rs` decision model with `P(switch) = 1 / (1 + exp(-beta * (utility_dest - utility_current)))`. Beta controls sharpness: low beta = exploratory (agents try suboptimal options), high beta = exploitative (agents reliably pick the best option). This applies to migration, occupation switching, and rebellion decisions. Combined with a **two-gate architecture**: hard threshold first (satisfaction below `CONSIDERATION_THRESHOLD` → even consider switching?), then Fermi comparison of alternatives. Prevents agent churning when conditions are adequate while making decisions near the threshold probabilistic rather than deterministic cliff-edges. The beta parameter is a single `[CALIBRATE]` constant per decision type (~3 constants). Source: sandeepdhakal/abm-ccid, Fermi imitation rule from evolutionary game theory.
 
 ---
@@ -856,6 +858,21 @@ Current `STREAM_OFFSETS` in `agent.rs` uses ranges 0-800 (7 entries). Phase 7 ad
 | 1700 | Merchant route selection | M58 |
 | 1800 | Information propagation noise | M59 |
 | 1900 | Military rally / desertion rolls | M60 |
+
+---
+
+## Determinism Guardrails
+
+Determinism is a Phase 7 merge gate, not just an M61 validation topic. Any milestone that changes simulation state must preserve cross-process determinism. Any milestone that adds parallel execution must additionally preserve identical output across 1/4/8/16 threads.
+
+- Never use Python `hash(...)`, Rust randomized hash iteration, or raw container iteration order to seed RNG, break ties, or order outputs. Derive stable keys from explicit simulation identifiers and canonical field ordering.
+- Never use module-global RNGs or ad hoc randomness on the simulation path. All new randomness must flow through the registered per-phase/per-feature RNG streams.
+- Every RNG-consuming feature must reserve a `STREAM_OFFSETS` entry before implementation. Reusing an existing offset is a bug unless intentional and documented in the milestone spec.
+- All sorts, reducers, and parallel writes must have explicit stable secondary keys. Equal region or Morton keys must not fall back to arena/allocation order.
+- Canonicalize unordered collections before decisions, tie-breaks, FFI boundaries, or serialization. `HashMap`/`HashSet`, Python `set`, and any equivalent structures must be sorted by stable IDs or explicit keys before they influence simulation state or exported ordering.
+- Add determinism coverage with the feature: cross-process seed replay for new state-changing systems, cross-thread replay for parallel phases, and comparison helpers that scrub metadata-only fields unless artifact-level determinism is the explicit goal.
+
+These rules apply to Phase 7 core milestones and the Phase 7.5 export/stable-ID follow-on work. Stable IDs must never depend on allocation order, randomized hashes, or transient container layout.
 
 ---
 

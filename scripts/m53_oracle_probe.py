@@ -1,4 +1,4 @@
-"""M53 Oracle Probe — run validation oracles against live simulation data.
+"""M53 Oracle Probe â€” run validation oracles against live simulation data.
 
 Collects edge, memory, needs, event, and artifact data from live sims
 and feeds it to validate.py oracle functions.
@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import math
 import sys
 from pathlib import Path
 
@@ -24,6 +26,14 @@ from chronicler.validate import (
     detect_inflection_points, compute_cohort_distinctiveness,
     check_artifact_lifecycle, classify_civ_arc,
 )
+
+
+
+def required_seed_count(total_seeds: int, fraction: float) -> int:
+    """Return the minimum passing seed count for a fractional threshold."""
+    if total_seeds <= 0:
+        return 0
+    return max(1, math.ceil(total_seeds * fraction))
 
 
 def null_narrator(world, events):
@@ -148,6 +158,10 @@ def main():
     parser.add_argument("--seed-start", type=int, default=42)
     args = parser.parse_args()
 
+    # Keep probe output readable: overcrowding warnings from AgentBridge are
+    # useful during tuning, but they drown oracle summaries during batch probes.
+    logging.getLogger("chronicler.agent_bridge").setLevel(logging.ERROR)
+
     all_results = []
     for i in range(args.seeds):
         seed = args.seed_start + i
@@ -160,14 +174,15 @@ def main():
     # --- Oracle 1: Community Detection ---
     print("\n=== ORACLE 1: Community Detection ===")
     seeds_with_communities = 0
-    for i, r in enumerate(all_results):
+    for r in all_results:
         communities = detect_communities(r["edges"], r["mem_sigs"])
         qualifying = [c for c in communities if len(c) >= 3]
         if qualifying:
             seeds_with_communities += 1
+    o1_required = required_seed_count(args.seeds, 0.75)
     print(f"  Seeds with qualifying communities (>=3 agents): "
-          f"{seeds_with_communities}/{args.seeds} — target >=15/{args.seeds}")
-    o1_pass = seeds_with_communities >= int(args.seeds * 0.75)
+          f"{seeds_with_communities}/{args.seeds} - target >={o1_required}/{args.seeds}")
+    o1_pass = seeds_with_communities >= o1_required
     print(f"  {'PASS' if o1_pass else 'FAIL'}")
 
     # --- Oracle 2: Needs Diversity ---
@@ -184,10 +199,11 @@ def main():
         if result.get("rate_difference", 0) > 0:
             seeds_with_sign += 1
     mean_rate_diff = total_rate_diff / args.seeds if args.seeds > 0 else 0
+    o2_required = required_seed_count(args.seeds, 0.60)
     print(f"  Matched pairs (safety): {total_pairs} across {args.seeds} seeds")
     print(f"  Mean rate difference (low-high): {mean_rate_diff:.4f}")
-    print(f"  Seeds with expected sign: {seeds_with_sign}/{args.seeds} — target >=60%")
-    o2_pass = seeds_with_sign >= int(args.seeds * 0.60)
+    print(f"  Seeds with expected sign: {seeds_with_sign}/{args.seeds} - target >={o2_required}/{args.seeds}")
+    o2_pass = seeds_with_sign >= o2_required
     print(f"  {'PASS' if o2_pass else 'FAIL'}")
 
     # --- Oracle 3: Era Inflection ---
@@ -200,10 +216,11 @@ def main():
             seeds_with_inflections += 1
         total_inflections += len(inflections)
     pct = seeds_with_inflections / args.seeds * 100
+    o3_required = required_seed_count(args.seeds, 0.80)
     print(f"  Seeds with >=2 inflection points: "
-          f"{seeds_with_inflections}/{args.seeds} ({pct:.0f}%) — target >=80%")
+          f"{seeds_with_inflections}/{args.seeds} ({pct:.0f}%) - target >={o3_required}/{args.seeds}")
     print(f"  Total inflections: {total_inflections} ({total_inflections/args.seeds:.1f}/seed)")
-    o3_pass = pct >= 80
+    o3_pass = seeds_with_inflections >= o3_required
     print(f"  {'PASS' if o3_pass else 'FAIL'}")
 
     # --- Oracle 4: Cohort Distinctiveness ---
@@ -219,10 +236,11 @@ def main():
             )
             if result["effect_direction"] == "community_lower":
                 seeds_expected_direction += 1
+    o4_required = required_seed_count(args.seeds, 0.60)
     print(f"  Seeds analyzed: {seeds_analyzed}/{args.seeds}")
     print(f"  Seeds with community_lower migration: "
-          f"{seeds_expected_direction}/{args.seeds} — target >=60%")
-    o4_pass = seeds_expected_direction >= int(args.seeds * 0.60)
+          f"{seeds_expected_direction}/{args.seeds} - target >={o4_required}/{args.seeds}")
+    o4_pass = seeds_expected_direction >= o4_required
     print(f"  {'PASS' if o4_pass else 'FAIL'}")
 
     # --- Oracle 5: Artifact Lifecycle ---
@@ -234,9 +252,9 @@ def main():
             "metadata": {"total_turns": r["turns"]},
         })
     art_result = check_artifact_lifecycle(bundles)
-    print(f"  Creation rate: {art_result['creation_rate_per_civ_per_100']:.2f}/civ/100t — target [1, 3]")
+    print(f"  Creation rate: {art_result['creation_rate_per_civ_per_100']:.2f}/civ/100t - target [1, 3]")
     print(f"  Type diversity OK: {art_result['type_diversity_ok']}")
-    print(f"  Loss/destruction rate: {art_result['loss_destruction_rate']:.2f} — target [0.10, 0.30]")
+    print(f"  Loss/destruction rate: {art_result['loss_destruction_rate']:.2f} - target [0.10, 0.30]")
     print(f"  Mule artifacts: {art_result['mule_artifact_count']}")
     print(f"  Total: {art_result['total_artifacts']}")
 
@@ -247,7 +265,6 @@ def main():
     for r in all_results:
         for civ_name, traj in r["civ_trajectories"].items():
             try:
-                # Skip very short trajectories
                 if len(traj.get("population", [])) < 10:
                     continue
                 arc = classify_civ_arc(traj)
@@ -257,8 +274,7 @@ def main():
             except Exception:
                 continue
     print(f"  Arc families found: {sorted(arc_families)} ({len(arc_families)}/6)")
-    print(f"  Arc distribution: { {k: v for k, v in sorted(arc_counts.items())} }")
-    # Dominance cap: no arc > 40% of all civs (including stable)
+    print(f"  Arc distribution: {{ {' , '.join(f"{repr(k)}: {v}" for k, v in sorted(arc_counts.items()))} }}")
     total_civs = sum(arc_counts.values())
     dominance_ok = True
     if total_civs > 0:

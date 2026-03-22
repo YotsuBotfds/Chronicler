@@ -638,6 +638,9 @@ class AgentBridge:
     def _write_sidecar_snapshot(self, world: "WorldState") -> None:
         """M53: Write validation sidecar data at sample points (every 10 turns)."""
         turn = world.turn
+        agg: dict = {}
+        snap = None
+        needs_data = None
 
         # Graph + memory snapshot
         try:
@@ -676,31 +679,150 @@ class AgentBridge:
         try:
             needs_batch = self._sim.get_all_needs()
             self._sidecar.write_needs_snapshot(turn=turn, needs_batch=needs_batch)
+            if hasattr(needs_batch, "to_pydict"):
+                needs_data = needs_batch.to_pydict()
+            elif hasattr(needs_batch, "column_names"):
+                needs_data = {
+                    name: needs_batch.column(name).to_pylist()
+                    for name in needs_batch.column_names
+                }
         except Exception:
-            pass
+            needs_data = None
 
-        # Agent aggregate: per-civ satisfaction mean/std from snapshot
+        # Agent aggregate: per-civ satisfaction, occupations, mean needs, memory occupancy
         try:
             snap = self._sim.get_snapshot()
-            agg: dict = {}
             if snap.num_rows > 0:
-                from collections import defaultdict
-                civ_data: dict = defaultdict(lambda: {"sats": []})
+                from collections import Counter, defaultdict
+
+                civ_data: dict = defaultdict(
+                    lambda: {
+                        "sats": [],
+                        "occupations": Counter(),
+                        "regions": Counter(),
+                        "agent_ids": [],
+                    }
+                )
+                id_list = snap.column("id").to_pylist()
                 civ_list = snap.column("civ_affinity").to_pylist()
                 sat_list = snap.column("satisfaction").to_pylist()
+                occ_list = snap.column("occupation").to_pylist()
+                region_list = snap.column("region").to_pylist()
                 for i in range(len(civ_list)):
-                    civ_data[civ_list[i]]["sats"].append(sat_list[i])
+                    civ_bucket = civ_data[civ_list[i]]
+                    civ_bucket["sats"].append(sat_list[i])
+                    civ_bucket["occupations"][int(occ_list[i])] += 1
+                    civ_bucket["regions"][int(region_list[i])] += 1
+                    civ_bucket["agent_ids"].append(int(id_list[i]))
+
+                mem_slots_by_agent = Counter()
+                for agent_id, signatures in mem_sigs.items():
+                    mem_slots_by_agent[int(agent_id)] = len(signatures)
+
+                need_keys = ("safety", "autonomy", "social", "spiritual", "material", "purpose")
+                need_sums_by_civ: dict[int, dict[str, float]] = defaultdict(lambda: {key: 0.0 for key in need_keys})
+                need_counts_by_civ: Counter = Counter()
+                if needs_data is not None and needs_data.get("civ_affinity"):
+                    for idx, civ in enumerate(needs_data["civ_affinity"]):
+                        civ = int(civ)
+                        need_counts_by_civ[civ] += 1
+                        for need_key in need_keys:
+                            need_sums_by_civ[civ][need_key] += float(needs_data[need_key][idx])
+
+                def _quartiles(values: list[float]) -> tuple[float, float, float]:
+                    if not values:
+                        return (0.0, 0.0, 0.0)
+                    ordered = sorted(values)
+                    n = len(ordered)
+                    return (
+                        ordered[int((n - 1) * 0.25)],
+                        ordered[int((n - 1) * 0.50)],
+                        ordered[int((n - 1) * 0.75)],
+                    )
+
                 for civ, cd in civ_data.items():
                     sats = cd["sats"]
                     n = len(sats)
                     mean_sat = sum(sats) / n if n > 0 else 0.0
                     std_sat = (sum((s - mean_sat) ** 2 for s in sats) / n) ** 0.5 if n > 1 else 0.0
+                    q25, q50, q75 = _quartiles(sats)
+                    need_means = {}
+                    if need_counts_by_civ[civ] > 0:
+                        for need_key in need_keys:
+                            need_means[need_key] = round(
+                                need_sums_by_civ[civ][need_key] / need_counts_by_civ[civ], 4
+                            )
+                    memory_slot_mean = 0.0
+                    if cd["agent_ids"]:
+                        memory_slot_mean = sum(mem_slots_by_agent.get(agent_id, 0) for agent_id in cd["agent_ids"]) / len(cd["agent_ids"])
                     agg[f"civ_{civ}"] = {
                         "satisfaction_mean": round(mean_sat, 4),
                         "satisfaction_std": round(std_sat, 4),
+                        "satisfaction_q25": round(q25, 4),
+                        "satisfaction_q50": round(q50, 4),
+                        "satisfaction_q75": round(q75, 4),
                         "agent_count": n,
+                        "occupation_counts": dict(cd["occupations"]),
+                        "need_means": need_means,
+                        "memory_slot_occupancy_mean": round(memory_slot_mean, 4),
                     }
             self._sidecar.write_agent_aggregate(turn=turn, aggregates=agg)
+        except Exception:
+            pass
+
+        # Condensed community summary for full-gate structural checks
+        try:
+            if snap is not None and getattr(snap, "num_rows", 0) > 0:
+                from collections import Counter, defaultdict
+                from chronicler.validate import detect_communities
+
+                id_list = snap.column("id").to_pylist()
+                region_list = snap.column("region").to_pylist()
+                id_to_region = {
+                    int(id_list[idx]): int(region_list[idx])
+                    for idx in range(len(id_list))
+                }
+
+                communities = detect_communities(edges, mem_sigs)
+                region_summary: dict = defaultdict(
+                    lambda: {
+                        "cluster_count": 0,
+                        "sizes": [],
+                        "dominant_memory_type": None,
+                        "max_cluster_fraction": 0.0,
+                    }
+                )
+                region_population = Counter(id_to_region.values())
+
+                for community in communities:
+                    region_counts = Counter(
+                        id_to_region.get(int(agent_id))
+                        for agent_id in community
+                        if int(agent_id) in id_to_region
+                    )
+                    if not region_counts:
+                        continue
+                    dominant_region, dominant_region_size = region_counts.most_common(1)[0]
+                    if dominant_region is None:
+                        continue
+                    memory_type_counts = Counter()
+                    for agent_id in community:
+                        for event_type, _memory_turn, _valence in mem_sigs.get(int(agent_id), []):
+                            memory_type_counts[int(event_type)] += 1
+
+                    summary = region_summary[f"region_{dominant_region}"]
+                    summary["cluster_count"] += 1
+                    summary["sizes"].append(len(community))
+                    if memory_type_counts:
+                        summary["dominant_memory_type"] = memory_type_counts.most_common(1)[0][0]
+                    population = region_population.get(dominant_region, 0)
+                    if population > 0:
+                        summary["max_cluster_fraction"] = max(
+                            summary["max_cluster_fraction"],
+                            round(dominant_region_size / population, 4),
+                        )
+
+                self._sidecar.write_community_summary(turn=turn, summary=dict(region_summary))
         except Exception:
             pass
 
@@ -1284,6 +1406,8 @@ class AgentBridge:
     def close(self) -> None:
         if self._shadow_logger:
             self._shadow_logger.close()
+        if self._sidecar:
+            self._sidecar.close()
 
     def get_snapshot(self): return self._sim.get_snapshot()
     def get_aggregates(self): return self._sim.get_aggregates()

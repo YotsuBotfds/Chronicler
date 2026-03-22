@@ -1,73 +1,96 @@
-# M53b Validation Report
+# M53b Canonical Validation Report
 
-> 20 seeds (42-61), 200 turns, hybrid mode. Mid-game snapshot at T100 for social/needs data.
+> Generated on 2026-03-21 from the canonical exported-data runner: `python -m chronicler.validate`.
+>
+> M53a tuning is complete and frozen. This report captures the official M53b outcome.
 
-## Oracle Results
+## Run Profiles
 
-### Oracle 1: Community Detection — PASS
+- **Determinism smoke (`agents=off`)**
+  - Batch: `output/m53/canonical/determinism_off/batch_42`
+  - Profile: duplicate-seed smoke, 100 turns, `PYTHONHASHSEED=0`
+- **Determinism smoke (`agents=hybrid`)**
+  - Batch: `output/m53/canonical/determinism_hybrid/batch_42`
+  - Profile: duplicate-seed smoke, 100 turns, `PYTHONHASHSEED=0`
+- **Oracle subset**
+  - Batch: `output/m53/canonical/oracle_subset/batch_42`
+  - Seeds: `42-61` (20 seeds)
+  - Turns: `200`
+  - Inputs: exported bundles, `agent_events.arrow`, raw validation sidecars
+- **Full gate**
+  - Batch: `output/m53/canonical/full_gate/batch_1`
+  - Seeds: `1-200` (200 seeds)
+  - Turns: `500`
+  - Inputs: exported bundles, `agent_events.arrow`, validation sidecars, `validation_summary.json`
 
-Emergent social communities (>=3 agents connected by positive bonds with shared memories) detected in 15/20 seeds. Target: >= 15/20.
+## Determinism
 
-Communities form through Rust-native formation (M50b) with kin, friend, co-religionist, and mentor bonds. Label propagation detects clusters.
+| Profile | Result | Notes |
+|---------|--------|-------|
+| `agents=off` | **PASS** | `1` duplicate-seed pair checked, bundles match after metadata scrubbing |
+| `agents=hybrid` | **PASS** | `1` duplicate-seed pair checked, bundles match after metadata scrubbing |
 
-### Oracle 2: Needs Diversity — DEFERRED
+Determinism is no longer the blocker. The remaining failures are behavioral and structural.
 
-0 matched pairs found across 20 seeds. The matched-cohort approach requires personality-identical agent pairs that diverge on a specific need. With personality traits stored as f32 and tolerance at 0.1, no exact matches qualify.
+## Oracle Subset Result (20 Seeds, 200 Turns)
 
-Per-agent event collection (rebellion/migration per agent_id per turn) is needed for event-rate comparison. This requires additional probe infrastructure.
+| Oracle | Result | Key Metric |
+|--------|--------|------------|
+| 1. Community | **FAIL** | `12/20` qualifying seeds vs required `15/20` |
+| 2. Needs Diversity | **FAIL** | `6/20` expected-sign seeds, `36` matched pairs, median effect `0.0` |
+| 3. Era Inflection | **FAIL** | `20/20` inflection seeds, but `6` silent-collapse seeds |
+| 4. Cohort Distinctiveness | **FAIL** | `7/12` analyzed seeds with expected direction, median effect `0.2394` |
+| 5. Artifact Lifecycle | **PARTIAL** | creation `0.975/civ/100t`, diversity fail, loss/destruction `0.2115` OK |
+| 6. Six Arcs | **FAIL** | `3/6` arc families; `riches_to_rags` dominates at `63.4%` |
+| Regression Summary | **FAIL** | satisfaction `0.3366 +/- 0.08`, migration `0.3633`, rebellion `0.0390`, Gini-in-range `0.0207`, occupation mix fail |
 
-**Structural finding:** Needs are divergent (confirmed by integration probe — social_below_025 = 2%, autonomy_below_030 = 45% at T50). The question of whether need divergence *causes* behavioral divergence requires event-level instrumentation.
+### Notes
 
-### Oracle 3: Era Inflection Points — SOFT FAIL
+- Community formation is real but too sparse to meet the M53 threshold.
+- Needs-diversity pairing now runs on canonical exported data, but the current cohort matching still produces weak or null effects.
+- Era detection finds plenty of inflection points, yet the silent-collapse check fails often enough to keep the oracle red.
+- Artifact creation is close to the floor, but the type mix is too narrow and only the loss/destruction subcheck passes.
+- Arc coverage is incomplete at the 20-seed subset and is heavily skewed toward `riches_to_rags`.
 
-12/20 seeds (60%) have >= 2 inflection points. Target: >= 80%.
+## Full Gate Result (200 Seeds, 500 Turns)
 
-Mean inflections per seed: 1.9. Population series at 200 turns may not have enough dynamic range for the 3-sigma detector. 500-turn runs would likely improve this.
+| Oracle | Result | Key Metric |
+|--------|--------|------------|
+| 1. Community | **FAIL** | `13/200` qualifying seeds vs required `150/200` |
+| 2. Needs Diversity | **FAIL** | `10/200` expected-sign seeds, `59` matched pairs, median effect `0.0` |
+| 3. Era Inflection | **FAIL** | `200/200` inflection seeds, but `36` silent-collapse seeds |
+| 4. Cohort Distinctiveness | **FAIL** | `4/13` analyzed seeds with expected direction, median effect `0.0` |
+| 5. Artifact Lifecycle | **FAIL** | creation `0.6248/civ/100t`, diversity fail, loss/destruction `0.3994` fail |
+| 6. Six Arcs | **FAIL** | `6/6` arc families, but `stable` dominates at `74.1%` and only `34` seeds show `3+` types |
+| Regression Summary | **FAIL** | satisfaction `0.3964 +/- 0.0256`, migration `0.3504`, rebellion `0.0463`, Gini-in-range `0.0014`, occupation mix fail |
 
-Not a calibration issue — inflections exist (1.9/seed mean), just below the per-seed threshold in some runs.
+### Notes
 
-### Oracle 4: Cohort Distinctiveness — DEFERRED
+- The full gate confirms that the subset failures were not just small-sample noise.
+- Community emergence remains far below threshold even at the full sample size.
+- Artifact outcomes worsen over the longer horizon: creation falls below range and loss/destruction rises above range.
+- Arc coverage broadens to all six families, but the distribution is still structurally dominated by `stable`.
+- Regression remains red, especially on migration rate, Gini range, and occupation balance.
 
-15/20 seeds have both community and agent data. Event-rate comparison between community members and matched controls requires per-agent event collection (same gap as Oracle 2).
+## Final Outcome
 
-### Oracle 5: Artifact Lifecycle — PARTIAL
+`M53a` is complete and frozen, but `M53b` **fails** on the canonical runner.
 
-| Sub-check | Value | Target | Status |
-|-----------|-------|--------|--------|
-| Creation rate | 1.14/civ/100t | [1, 3] | OK |
-| Type diversity | > 50% one type | No type > 50% | FAIL |
-| Destruction rate | 0.02 | [0.10, 0.30] | FAIL |
-| Mule artifacts | 6 | — | Present |
-| Total artifacts | 182 | — | — |
+That means:
 
-**Destruction vs Loss:** The oracle only counts `status == "destroyed"` (combat sacking). Separate analysis shows 50% total loss rate when including `status == "lost"` (civ extinction). Artifacts LOST when civs fall are still narrative content ("the lost Crown of Kethani"). The destruction target was calibrated for combat destruction alone and needs recalibration.
+- the official validator path now exists and works
+- the official M53 gates have been executed
+- `M53` is **concluded**, but it did **not** pass the scale-unlock gate
+- `M54a` and the rest of the scale track remain blocked unless a follow-on retune / redesign effort revisits these failures
 
-**Type diversity:** Dominated by one type. May need cultural_production to weight types more evenly.
+## Follow-On Work
 
-### Oracle 6: Civilization Arcs — PASS
+If the project chooses to revisit this area later, the next work should be a **new post-M53 effort**, not more M53 bookkeeping. Highest-signal failure clusters from the canonical run:
 
-All 6 arc families present across 20 seeds: rags_to_riches (18), riches_to_rags (143), icarus (11), oedipus (6), cinderella (4), man_in_a_hole (1), stable (86).
+1. community formation and cohort distinctiveness
+2. needs-diversity matching / measurable downstream behavior
+3. arc distribution skew
+4. artifact diversity and lifecycle balance
+5. regression drift in migration, inequality, and occupation structure
 
-Target: 5 of 6 families. Exceeded — all 6 present.
-
-Riches_to_rags dominance (53% of classified) is expected: most civs peak early then decline. Stable (32%) represents civs with flat trajectories.
-
-## Summary
-
-| Oracle | Status | Notes |
-|--------|--------|-------|
-| 1: Community | **PASS** | 15/20 seeds |
-| 2: Needs Diversity | DEFERRED | Probe needs per-agent event instrumentation |
-| 3: Era Inflection | SOFT FAIL | 60% (200t), likely passes at 500t |
-| 4: Cohort | DEFERRED | Same as Oracle 2 |
-| 5: Artifacts | PARTIAL | Creation OK, type/destruction targets need recalibration |
-| 6: Six Arcs | **PASS** | 6/6 families found |
-
-**Blocking criteria met:** Oracle 1 (most important — emergent social structure). Oracle 6 (narrative arc diversity).
-
-**Non-blocking findings:**
-- Oracle 3 is a run-length issue, not a calibration issue.
-- Oracle 5 targets need recalibration (LOST vs DESTROYED distinction, type diversity weighting).
-- Oracles 2 and 4 need per-agent event collection infrastructure for proper evaluation.
-
-**Recommendation:** Proceed with M53 closure. Oracles 2/4 event instrumentation and Oracle 5 target recalibration are deferred to future milestone (M55 or similar).
+Implementation details for the canonical runner and artifact contract remain documented in `docs/superpowers/plans/2026-03-21-m53b-validation-pipeline.md`, but M53 itself is no longer waiting on more paperwork.
