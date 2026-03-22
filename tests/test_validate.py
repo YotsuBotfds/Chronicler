@@ -199,3 +199,21 @@ def test_artifact_lifecycle_type_diversity():
     }]
     result = check_artifact_lifecycle(bundles)
     assert result["type_diversity_ok"] is False  # relic = 75%
+
+
+def test_classify_civ_arc_monotone_down():
+    from chronicler.validate import classify_civ_arc
+    traj = {"population": [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]}
+    assert classify_civ_arc(traj) == "riches_to_rags"
+
+
+def test_classify_civ_arc_monotone_up():
+    from chronicler.validate import classify_civ_arc
+    traj = {"population": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+    assert classify_civ_arc(traj) == "rags_to_riches"
+
+
+def test_classify_civ_arc_stable():
+    from chronicler.validate import classify_civ_arc
+    traj = {"population": [50] * 30}
+    assert classify_civ_arc(traj) == "stable"

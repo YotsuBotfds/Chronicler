@@ -246,7 +246,19 @@ def main():
                 continue
     print(f"  Arc families found: {sorted(arc_families)} ({len(arc_families)}/6)")
     print(f"  Arc distribution: { {k: v for k, v in sorted(arc_counts.items())} }")
-    print(f"  Target: 5 of 6 families across all seeds")
+    # Dominance cap: no arc > 40% of all civs (including stable)
+    total_civs = sum(arc_counts.values())
+    dominance_ok = True
+    if total_civs > 0:
+        for arc, count in arc_counts.items():
+            if count / total_civs > 0.40:
+                print(f"  WARNING: {arc} dominates at {count/total_civs:.0%} (>40% cap)")
+                dominance_ok = False
+    o6_families_ok = len(arc_families) >= 5
+    o6_pass = o6_families_ok and dominance_ok
+    print(f"  Families: {'PASS' if o6_families_ok else 'FAIL'} ({len(arc_families)}/6, target >=5)")
+    print(f"  Dominance cap: {'PASS' if dominance_ok else 'FAIL'} (no arc >40%)")
+    print(f"  Overall: {'PASS' if o6_pass else 'FAIL'}")
 
 
 if __name__ == "__main__":
