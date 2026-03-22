@@ -1,8 +1,8 @@
 # M54a: Rust Ecology Migration — Design Spec
 
-> **Status:** Design-ahead. M53 is the gate before implementation begins.
+> **Status:** Design-ahead while M53 gate remains blocked. Implementation cannot begin until M53 merges to main.
 > **Branch:** TBD (will branch from main after M53 merges)
-> **Depends on:** M53 (depth tuning pass)
+> **Depends on:** M53 (depth tuning pass) — M53 tuning complete but validation gate failed; M54a blocked pending follow-on closure effort
 > **Estimated days:** 8-11
 > **Roadmap ref:** `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md` — Scale Track
 
@@ -39,10 +39,11 @@ At current region counts (10-30), the parallelism benefit is minimal. This miles
 - `famine_cooldown` management (skip-on-cooldown, set-to-5, decrement-each-turn)
 - `apply_soil_floor()` (traditions)
 - Terrain succession counters (`low_forest_turns`, `forest_regrowth_turns`) and `_update_ecology_counters()`
+- `tick_terrain_succession()` — checks counters and applies terrain transitions. Mutates `terrain`, `carrying_capacity`, `soil`, `forest_cover` on affected regions. These mutations flow back to Rust via `apply_region_postpass_patch()`.
 - `sync_all_populations()`
 - Event materialization: Rust returns typed triggers, Python builds `Event` objects with names/descriptions/actors
 
-### What gets deleted after consumers are switched
+### What gets deleted after all consumers are switched (including `--agents=off` mode)
 
 - `_tick_soil()`, `_tick_water()`, `_tick_forest()`, `_apply_cross_effects()`, `_clamp_ecology()`
 - `compute_disease_severity()`
@@ -50,14 +51,26 @@ At current region counts (10-30), the parallelism benefit is minimal. This miles
 - `_last_region_yields` module-level cache
 - River cascade loop in `tick_ecology()`
 
+Deletion is gated on both hybrid-mode and off-mode being wired through Rust ecology. See `--agents=off` mode section below.
+
 ### What `tick_ecology()` becomes
 
 A thin Python orchestration function:
 1. Call Rust `tick_ecology()`
 2. Write returned region state back onto Python `Region` objects
 3. Materialize ecology trigger events into `Event` objects
-4. Run Python post-pass: famine → soil floor → terrain counters → population sync
+4. Run Python post-pass: famine → soil floor → terrain counters → terrain succession → population sync
 5. (Agent tick sees post-ecology yields via `RegionState.resource_yields` without extra plumbing)
+
+### `--agents=off` mode
+
+Today, `--agents=off` does not instantiate `AgentBridge` or `AgentSimulator`, but Phase 9 ecology still runs in every mode via Python `tick_ecology()`. Since M54a places ecology computation on `AgentSimulator`, the design must handle off-mode explicitly.
+
+**Approach:** In `--agents=off` mode, Python instantiates a lightweight `AgentSimulator` (or a new `EcologySimulator` wrapper) solely for ecology computation — no agent pool, no agent tick. The same `set_region_state()` → `tick_ecology()` → write-back → post-pass → patch path executes. The agent `tick()` call (step 6) is skipped. This preserves the repo invariant that `--agents=off` produces valid Phase 9 output.
+
+**Alternative:** Keep the old Python ecology code alive as the off-mode path. This is simpler but means maintaining two ecology implementations indefinitely and makes the "delete Python ecology functions" step conditional rather than clean. Not recommended.
+
+**Implication for deletion:** The "delete Python ecology functions" step can only happen after the off-mode path is wired through Rust. Until then, Python ecology code must remain as the off-mode fallback. The implementation plan should sequence this: wire off-mode through Rust early (after step 11), verify with existing off-mode tests, then delete.
 
 ### What M54a does NOT include
 
@@ -125,8 +138,11 @@ The ownership rule: **if Phase 9 Rust mutates it, Rust owns and returns it. If a
      army_arrived_mask)                  — per-region army passage flag
        → (region_batch, event_batch)     — returns ecology state + trigger events
 3. Python write-back                     — mirrors returned state onto Region
-4. Python post-pass                      — famine, soil floor, terrain counters
-5. apply_region_postpass_patch(batch)    — sends population/soil/terrain changes
+4. Python post-pass                      — famine, soil floor, terrain counters,
+                                            terrain succession (mutates terrain,
+                                            carrying_capacity, soil, forest_cover)
+5. apply_region_postpass_patch(batch)    — sends population/soil/terrain/ecology
+                                            changes from post-pass back to Rust
 6. tick(turn, civ_signals)               — agent tick sees post-ecology state
 ```
 
@@ -526,3 +542,9 @@ These reduce migration pain but are not hard blockers. M54a can proceed without 
 - **[NOTED] O4:** `season_id` reads from existing `RegionState.season_id` field.
 - **[NOTED] O5:** RegionState growth to ~45+ fields acknowledged; Wave 2 refactors recommended.
 - **[NOTED] F1:** Parity suite epsilon management feasibility documented with budget guidance.
+
+**User review (2026-03-21):** 2 P1 issues, 1 P2. All resolved in-spec:
+
+- **[FIXED] P1:** Terrain succession omitted from post-pass — `tick_terrain_succession()` mutates `terrain`, `carrying_capacity`, `soil`, `forest_cover` after ecology. Added to post-pass sequence, "What stays in Python" section, and call sequence. Patch batch already includes these fields.
+- **[FIXED] P1:** `--agents=off` mode not addressed — spec was AgentSimulator-centric but off-mode doesn't instantiate it. Added explicit `--agents=off` mode section with lightweight simulator approach. Deletion of Python ecology gated on off-mode being wired.
+- **[FIXED] P2:** Status header misstated readiness — updated to "design-ahead while M53 gate remains blocked" with explicit note about failed validation gate.
