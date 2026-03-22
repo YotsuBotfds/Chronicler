@@ -30,21 +30,6 @@ def null_narrator(world, events):
     return ""
 
 
-def collect_agent_events(sim) -> list[dict]:
-    """Get agent events from Rust tick as dicts."""
-    events = []
-    try:
-        raw = sim.get_last_tick_events()
-        batch = pa.record_batch(raw)
-        agent_ids = batch.column("agent_id").to_pylist()
-        event_types = batch.column("event_type").to_pylist()
-        turns = batch.column("turn").to_pylist() if "turn" in batch.schema.names else [0] * len(agent_ids)
-        for i in range(len(agent_ids)):
-            events.append({"agent_id": agent_ids[i], "event_type": event_types[i], "turn": turns[i]})
-    except Exception:
-        pass
-    return events
-
 
 def run_seed(seed: int, turns: int) -> dict:
     world = generate_world(seed=seed)
@@ -118,6 +103,15 @@ def run_seed(seed: int, turns: int) -> dict:
             except Exception:
                 pass
 
+    # Convert AgentEventRecord objects to oracle-compatible dicts
+    EVENT_TYPE_MAP = {"death": 0, "migration": 1, "rebellion": 2, "occupation_switch": 3,
+                      "loyalty_flip": 4, "birth": 5, "dissolution": 6}
+    all_events = []
+    for e in world.agent_events_raw:
+        et_int = EVENT_TYPE_MAP.get(e.event_type, -1)
+        if et_int >= 0:
+            all_events.append({"agent_id": e.agent_id, "event_type": et_int, "turn": e.turn})
+
     # Civ trajectories for arc classification (time series)
     civ_trajectories = {}
     for civ_name, pops in civ_pop_series.items():
@@ -142,6 +136,7 @@ def run_seed(seed: int, turns: int) -> dict:
         "agent_data": agent_data,
         "artifacts": artifacts_list,
         "civ_trajectories": civ_trajectories,
+        "events": all_events,
         "turns": turns,
     }
 
@@ -178,14 +173,22 @@ def main():
     # --- Oracle 2: Needs Diversity ---
     print("\n=== ORACLE 2: Needs Diversity ===")
     total_pairs = 0
+    total_rate_diff = 0
+    seeds_with_sign = 0
     for r in all_results:
         if not r["needs_data"] or "safety" not in r["needs_data"]:
             continue
-        result = compute_needs_diversity(r["needs_data"], [], "safety", 1)
+        result = compute_needs_diversity(r["needs_data"], r["events"], "safety", 1)
         total_pairs += result.get("pairs_found", 0)
+        total_rate_diff += result.get("rate_difference", 0)
+        if result.get("rate_difference", 0) > 0:
+            seeds_with_sign += 1
+    mean_rate_diff = total_rate_diff / args.seeds if args.seeds > 0 else 0
     print(f"  Matched pairs (safety): {total_pairs} across {args.seeds} seeds")
-    print(f"  NOTE: Event-rate comparison needs per-agent event collection (not in probe)")
-    print(f"  Pair existence confirms need divergence is real; event correlation deferred")
+    print(f"  Mean rate difference (low-high): {mean_rate_diff:.4f}")
+    print(f"  Seeds with expected sign: {seeds_with_sign}/{args.seeds} — target >=60%")
+    o2_pass = seeds_with_sign >= int(args.seeds * 0.60)
+    print(f"  {'PASS' if o2_pass else 'FAIL'}")
 
     # --- Oracle 3: Era Inflection ---
     print("\n=== ORACLE 3: Era Inflection Points ===")
@@ -205,13 +208,22 @@ def main():
 
     # --- Oracle 4: Cohort Distinctiveness ---
     print("\n=== ORACLE 4: Cohort Distinctiveness ===")
-    seeds_with_communities_4 = 0
+    seeds_expected_direction = 0
+    seeds_analyzed = 0
     for r in all_results:
         communities = detect_communities(r["edges"], r["mem_sigs"])
-        if communities and r["agent_data"]:
-            seeds_with_communities_4 += 1
-    print(f"  Seeds with community + agent data: {seeds_with_communities_4}/{args.seeds}")
-    print(f"  NOTE: Event-rate comparison needs per-agent event collection (not in probe)")
+        if communities and r["agent_data"] and r["events"]:
+            seeds_analyzed += 1
+            result = compute_cohort_distinctiveness(
+                communities, r["events"], r["agent_data"], event_type=1
+            )
+            if result["effect_direction"] == "community_lower":
+                seeds_expected_direction += 1
+    print(f"  Seeds analyzed: {seeds_analyzed}/{args.seeds}")
+    print(f"  Seeds with community_lower migration: "
+          f"{seeds_expected_direction}/{args.seeds} — target >=60%")
+    o4_pass = seeds_expected_direction >= int(args.seeds * 0.60)
+    print(f"  {'PASS' if o4_pass else 'FAIL'}")
 
     # --- Oracle 5: Artifact Lifecycle ---
     print("\n=== ORACLE 5: Artifact Lifecycle ===")
