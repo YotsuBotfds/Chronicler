@@ -238,7 +238,7 @@ Phase D — sequential, per-civ (fiscal + diagnostics):
 
 ## 7. Conservation Strategy
 
-**Production path:** Rust computes inline conservation totals and returns a small summary (5 floats). Cheap — the data is already in hand during the economy pass.
+**Production path:** Rust computes inline conservation totals and returns a small summary (6 floats: production, transit_loss, consumption, storage_loss, cap_overflow, clamp_floor_loss). Cheap — the data is already in hand during the economy pass.
 
 **Validation path:** Python independently verifies conservation from a richer debug/sidecar export or shadow recompute. This is the genuinely independent check that catches translation bugs.
 
