@@ -230,7 +230,7 @@
 
 ### M53: Depth Tuning Pass — concluded, canonical gate passed
 
-- **Branch:** `feat/m53-depth-tuning` (35 commits, not merged to main)
+- **Merge baseline:** landed on `main` at `aff1b18` after passing on `feat/m53-depth-tuning`
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-21-m53-depth-tuning-validation.md` (23 tasks)
 - **Commits — infrastructure (prior session):**
