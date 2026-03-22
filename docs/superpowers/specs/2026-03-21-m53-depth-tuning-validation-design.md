@@ -69,6 +69,20 @@ Additions to `analytics.py`, run on every batch:
 
 Heavier exports, gated by a `--validation-sidecar` flag (or equivalent). Not run on production/narration batches.
 
+#### 4.2.1 On-Disk Validation Artifact Contract
+
+Validation runs write the following files next to each seed bundle:
+
+- `chronicle_bundle.json` - canonical bundle payload
+- `agent_events.arrow` - exported per-agent event stream
+- `validation_relationships.arrow` - sampled graph edges with `turn`, `agent_id`, `target_id`, `bond_type`, `sentiment`
+- `validation_memory_signatures.arrow` - sampled memory signatures with `turn`, `agent_id`, `event_type`, `memory_turn`, `valence_sign`
+- `validation_needs.arrow` - sampled need snapshots with `turn`, join columns, and the 6 need values
+- `validation_summary.json` - per-turn aggregate metrics used by regression and gate reports
+- `validation_community_summary.json` - condensed community rollups for gate-scale runs
+
+Per-turn JSON snapshots under `validation_summary/` may still be written for debugging and transitional compatibility, but the files above are the canonical validator inputs.
+
 **Bulk memory export — `get_all_memories()`**
 - New Arrow FFI method on `AgentSimulator`, parallel to existing `get_all_relationships()`
 - Returns RecordBatch: `agent_id: u32`, `slot: u8`, `event_type: u8`, `turn: u16`, `intensity: i8`, `is_legacy: u8`
@@ -92,7 +106,7 @@ Heavier exports, gated by a `--validation-sidecar` flag (or equivalent). Not run
 **Condensed community summary**
 - Computed in-run from sidecar snapshots at each sample point
 - Per-region: cluster count, size distribution, dominant shared memory type
-- Written to a `validation_summary` sidecar file (not bundle `metadata` — keeps bundle lightweight)
+- Written to `validation_community_summary.json` (not bundle `metadata` — keeps bundle lightweight)
 - Used for full 200-seed gate runs instead of raw sidecar
 
 **Sidecar budget policy:**
@@ -111,6 +125,13 @@ CivSnapshot lacks satisfaction distribution and occupation breakdown. Add a per-
 - Per civ per turn: satisfaction mean/std/quartiles, occupation counts (5 types), agent count (alive denominator), mean need levels (6 floats), memory slot occupancy mean
 - Source: computed from agent snapshot during Phase 10, written only during validation runs
 - This provides the denominators for "% of agent-turns" regression metrics and the satisfaction distribution baseline
+
+`validation_summary.json` is the canonical per-seed aggregate file. Minimum keys:
+
+- `turns`: sampled turns included in the summary
+- `agent_aggregates_by_turn`: per-turn per-civ aggregates keyed by turn string
+- `agent_count_by_turn`: alive denominator series if also emitted in flattened form
+- enough satisfaction / occupation / event totals to support the regression suite and oracle reporting
 
 ### 4.4 Existing Substrate Reuse
 

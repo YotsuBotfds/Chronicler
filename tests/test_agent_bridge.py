@@ -3,6 +3,7 @@ import pyarrow as pa
 import pytest
 from chronicler_agents import AgentSimulator
 from chronicler.agent_bridge import build_region_batch, TERRAIN_MAP, AgentBridge
+from chronicler.models import GreatPerson
 
 
 def _make_dummy_signals(num_civs=3):
@@ -18,16 +19,21 @@ def _make_dummy_signals(num_civs=3):
     })
 
 
-def _make_region_batch(num_regions=3, capacity=60):
-    return pa.record_batch({
+def _make_region_batch(num_regions=3, capacity=60, populations=None, controllers=None):
+    if populations is None:
+        populations = [capacity] * num_regions
+    columns = {
         "region_id": pa.array(range(num_regions), type=pa.uint16()),
         "terrain": pa.array([0] * num_regions, type=pa.uint8()),
         "carrying_capacity": pa.array([capacity] * num_regions, type=pa.uint16()),
-        "population": pa.array([capacity] * num_regions, type=pa.uint16()),
+        "population": pa.array(populations, type=pa.uint16()),
         "soil": pa.array([0.8] * num_regions, type=pa.float32()),
         "water": pa.array([0.6] * num_regions, type=pa.float32()),
         "forest_cover": pa.array([0.3] * num_regions, type=pa.float32()),
-    })
+    }
+    if controllers is not None:
+        columns["controller_civ"] = pa.array(controllers, type=pa.uint8())
+    return pa.record_batch(columns)
 
 
 class TestPythonRoundTrip:
@@ -42,6 +48,13 @@ class TestPythonRoundTrip:
         sim.set_region_state(_make_region_batch(num_regions=3, capacity=60))
         snap = sim.get_snapshot()
         assert snap.num_rows == 180  # 60 × 3
+
+    def test_set_region_state_honors_population_column(self):
+        sim = AgentSimulator(num_regions=2, seed=42)
+        sim.set_region_state(_make_region_batch(num_regions=2, capacity=60, populations=[12, 0]))
+        snap = sim.get_snapshot()
+        assert snap.num_rows == 12
+        assert set(snap.column("region").to_pylist()) == {0}
 
     def test_snapshot_schema(self):
         sim = AgentSimulator(num_regions=2, seed=42)
@@ -64,6 +77,27 @@ class TestPythonRoundTrip:
             values = agg.column(col_name).to_pylist()
             assert all(0 <= v <= 100 for v in values)
 
+    def test_aggregates_group_controlled_population_under_controller(self):
+        sim = AgentSimulator(num_regions=2, seed=42)
+        sim.set_region_state(
+            _make_region_batch(
+                num_regions=2,
+                capacity=12,
+                populations=[12, 12],
+                controllers=[0, 1],
+            )
+        )
+        snap = sim.get_snapshot()
+        for agent_id, region_id in zip(snap.column("id").to_pylist(), snap.column("region").to_pylist()):
+            if region_id == 0:
+                sim.set_agent_civ(agent_id, 1)
+
+        agg = sim.get_aggregates()
+        civ_ids = agg.column("civ_id").to_pylist()
+        populations = agg.column("population").to_pylist()
+
+        assert dict(zip(civ_ids, populations)) == {0: 12, 1: 12}
+
     def test_tick_before_set_region_state_errors(self):
         sim = AgentSimulator(num_regions=2, seed=42)
         with pytest.raises((RuntimeError, ValueError), match="set_region_state"):
@@ -80,19 +114,36 @@ class TestTickBehavior:
         region_batch = _make_region_batch(num_regions=3, capacity=60)
         for turn in range(10):
             sim.set_region_state(region_batch)
-            events = sim.tick(turn, _make_dummy_signals())
-        # M26: events RecordBatch is populated (deaths, births, etc.) — just check pop decreased
-        assert sim.get_snapshot().num_rows < initial_count
+            sim.tick(turn, _make_dummy_signals())
+        final_count = sim.get_snapshot().num_rows
+        # M26 includes both births and deaths; population should evolve, but not
+        # explode immediately under a steady repeated region state.
+        assert final_count != initial_count
+        assert 0 < final_count < initial_count * 2
 
     def test_ages_increment(self):
         sim = AgentSimulator(num_regions=1, seed=42)
         sim.set_region_state(_make_region_batch(num_regions=1, capacity=20))
+        initial = sim.get_snapshot()
+        initial_ids = initial.column("id").to_pylist()
+        initial_ages = initial.column("age").to_pylist()
+        initial_age_by_id = {
+            agent_id: age for agent_id, age in zip(initial_ids, initial_ages)
+        }
         region_batch = _make_region_batch(num_regions=1, capacity=20)
         for turn in range(5):
             sim.set_region_state(region_batch)
             sim.tick(turn, _make_dummy_signals(num_civs=1))
-        ages = sim.get_snapshot().column("age").to_pylist()
-        assert all(a == 5 for a in ages)
+        final = sim.get_snapshot()
+        final_ids = final.column("id").to_pylist()
+        final_ages = final.column("age").to_pylist()
+        survivors_checked = 0
+        for agent_id, age in zip(final_ids, final_ages):
+            if agent_id not in initial_age_by_id:
+                continue
+            survivors_checked += 1
+            assert age == initial_age_by_id[agent_id] + 5
+        assert survivors_checked > 0
 
     def test_region_populations_matches_snapshot(self):
         sim = AgentSimulator(num_regions=3, seed=42)
@@ -130,6 +181,310 @@ class TestDemographicsOnlyIntegration:
         # M26 has fertility, so population may not strictly decrease.
         # Just verify it stayed bounded (carrying_capacity * 1.2 check above) and didn't explode.
         assert sum(final_pops.values()) < sum(initial_pops.values()) * 2
+
+    def test_write_final_sidecar_snapshot_uses_post_loop_turn(self, sample_world):
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        recorded_turns = []
+        bridge._sidecar = object()
+        bridge._write_sidecar_snapshot = lambda world: recorded_turns.append(world.turn)
+
+        sample_world.turn = 500
+        bridge.write_final_sidecar_snapshot(sample_world)
+
+        assert recorded_turns == [500]
+
+    def test_write_back_resyncs_regions_and_population_from_controller_truth(self, sample_world):
+        class _FakeSim:
+            def get_aggregates(self):
+                return pa.record_batch({
+                    "civ_id": pa.array([0], type=pa.uint16()),
+                    "population": pa.array([18], type=pa.uint32()),
+                    "military": pa.array([12], type=pa.uint32()),
+                    "economy": pa.array([23], type=pa.uint32()),
+                    "culture": pa.array([34], type=pa.uint32()),
+                    "stability": pa.array([45], type=pa.uint32()),
+                })
+
+            def get_region_populations(self):
+                return pa.record_batch({
+                    "region_id": pa.array([0, 1, 2], type=pa.uint16()),
+                    "alive_count": pa.array([7, 11, 0], type=pa.uint32()),
+                })
+
+        primary = sample_world.civilizations[0]
+        other = sample_world.civilizations[1]
+        sample_world.regions[0].controller = primary.name
+        sample_world.regions[1].controller = primary.name
+        sample_world.regions[2].controller = other.name
+        primary.regions = [sample_world.regions[0].name]
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        bridge._sim = _FakeSim()
+        bridge._write_back(sample_world)
+
+        assert sample_world.regions[0].population == 7
+        assert sample_world.regions[1].population == 11
+        assert primary.population == 18
+        assert set(primary.regions) == {
+            sample_world.regions[0].name,
+            sample_world.regions[1].name,
+        }
+        assert primary.military == 12
+        assert primary.economy == 23
+        assert primary.culture == 34
+        assert primary.stability == 45
+
+
+class TestSecessionTransitions:
+    def test_realign_region_agents_to_civ_moves_only_matching_region_agents(self, sample_world):
+        class _Column:
+            def __init__(self, values):
+                self._values = values
+
+            def to_pylist(self):
+                return list(self._values)
+
+        class _Snapshot:
+            def __init__(self, columns):
+                self._columns = columns
+                self.num_rows = len(columns["id"])
+
+            def column(self, name):
+                return _Column(self._columns[name])
+
+        class _FakeSim:
+            def __init__(self, columns):
+                self._snapshot = _Snapshot(columns)
+                self.calls = []
+
+            def get_snapshot(self):
+                return self._snapshot
+
+            def set_agent_civ(self, agent_id, new_civ_id):
+                self.calls.append((agent_id, new_civ_id))
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        fake_sim = _FakeSim({
+            "id": [101, 102, 103, 104],
+            "region": [0, 0, 1, 0],
+            "civ_affinity": [0, 1, 0, 0],
+        })
+        bridge._sim = fake_sim
+
+        moved = bridge.realign_region_agents_to_civ(
+            world=sample_world,
+            region_names={sample_world.regions[0].name},
+            old_civ_id=0,
+            new_civ_id=7,
+        )
+
+        assert moved == {101, 104}
+        assert sorted(fake_sim.calls) == [(101, 7), (104, 7)]
+
+    def test_apply_secession_transitions_moves_region_agents_to_new_civ(self, sample_world):
+        class _Column:
+            def __init__(self, values):
+                self._values = values
+
+            def to_pylist(self):
+                return list(self._values)
+
+        class _Snapshot:
+            def __init__(self, columns):
+                self._columns = columns
+                self.num_rows = len(columns["id"])
+
+            def column(self, name):
+                return _Column(self._columns[name])
+
+        class _FakeSim:
+            def __init__(self, columns):
+                self._snapshot = _Snapshot(columns)
+                self.calls = []
+
+            def get_snapshot(self):
+                return self._snapshot
+
+            def set_agent_civ(self, agent_id, new_civ_id):
+                self.calls.append((agent_id, new_civ_id))
+
+        old_civ = sample_world.civilizations[0]
+        breakaway = sample_world.civilizations[1].model_copy(deep=True)
+        breakaway.name = "Breakaway Realm"
+        breakaway.great_persons = []
+
+        seceding_region = sample_world.regions[0].name
+        gp = GreatPerson(
+            name="Asha",
+            role="merchant",
+            trait="cunning",
+            civilization=old_civ.name,
+            origin_civilization=old_civ.name,
+            born_turn=0,
+            region=seceding_region,
+            source="agent",
+            agent_id=101,
+        )
+        old_civ.great_persons = [gp]
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        fake_sim = _FakeSim({
+            "id": [101, 102, 103],
+            "region": [0, 0, 1],
+            "civ_affinity": [0, 0, 0],
+        })
+        bridge._sim = fake_sim
+
+        events = bridge.apply_secession_transitions(
+            old_civ,
+            breakaway,
+            [seceding_region],
+            new_civ_id=7,
+            turn=12,
+            world=sample_world,
+            old_civ_id=0,
+        )
+
+        assert sorted(fake_sim.calls) == [(101, 7), (102, 7)]
+        assert gp not in old_civ.great_persons
+        assert gp in breakaway.great_persons
+        assert gp.civilization == breakaway.name
+        assert events[0].event_type == "secession_defection"
+
+
+class TestPoliticalTransitions:
+    def test_apply_restoration_transitions_moves_region_agents_to_restored_civ(self, sample_world):
+        class _Column:
+            def __init__(self, values):
+                self._values = values
+
+            def to_pylist(self):
+                return list(self._values)
+
+        class _Snapshot:
+            def __init__(self, columns):
+                self._columns = columns
+                self.num_rows = len(columns["id"])
+
+            def column(self, name):
+                return _Column(self._columns[name])
+
+        class _FakeSim:
+            def __init__(self, columns):
+                self._snapshot = _Snapshot(columns)
+                self.calls = []
+
+            def get_snapshot(self):
+                return self._snapshot
+
+            def set_agent_civ(self, agent_id, new_civ_id):
+                self.calls.append((agent_id, new_civ_id))
+
+        absorber = sample_world.civilizations[0]
+        restored = sample_world.civilizations[1].model_copy(deep=True)
+        restored.name = "Restored Realm"
+        restored.great_persons = []
+
+        restored_region = sample_world.regions[0].name
+        gp = GreatPerson(
+            name="Nara",
+            role="prophet",
+            trait="zealous",
+            civilization=absorber.name,
+            origin_civilization=absorber.name,
+            born_turn=0,
+            region=restored_region,
+            source="agent",
+            agent_id=201,
+        )
+        absorber.great_persons = [gp]
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        fake_sim = _FakeSim({
+            "id": [201, 202, 203],
+            "region": [0, 0, 1],
+            "civ_affinity": [0, 0, 0],
+        })
+        bridge._sim = fake_sim
+
+        bridge.apply_restoration_transitions(
+            absorber,
+            restored,
+            [restored_region],
+            absorber_civ_id=0,
+            restored_civ_id=7,
+            world=sample_world,
+        )
+
+        assert sorted(fake_sim.calls) == [(201, 7), (202, 7)]
+        assert gp not in absorber.great_persons
+        assert gp in restored.great_persons
+        assert gp.civilization == restored.name
+
+    def test_apply_absorption_transitions_moves_region_agents_to_absorber_civ(self, sample_world):
+        class _Column:
+            def __init__(self, values):
+                self._values = values
+
+            def to_pylist(self):
+                return list(self._values)
+
+        class _Snapshot:
+            def __init__(self, columns):
+                self._columns = columns
+                self.num_rows = len(columns["id"])
+
+            def column(self, name):
+                return _Column(self._columns[name])
+
+        class _FakeSim:
+            def __init__(self, columns):
+                self._snapshot = _Snapshot(columns)
+                self.calls = []
+
+            def get_snapshot(self):
+                return self._snapshot
+
+            def set_agent_civ(self, agent_id, new_civ_id):
+                self.calls.append((agent_id, new_civ_id))
+
+        losing_civ = sample_world.civilizations[0]
+        absorber = sample_world.civilizations[1]
+        absorbed_region = sample_world.regions[0].name
+        gp = GreatPerson(
+            name="Suri",
+            role="scientist",
+            trait="visionary",
+            civilization=losing_civ.name,
+            origin_civilization=losing_civ.name,
+            born_turn=0,
+            region=absorbed_region,
+            source="agent",
+            agent_id=301,
+        )
+        losing_civ.great_persons = [gp]
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        fake_sim = _FakeSim({
+            "id": [301, 302, 303],
+            "region": [0, 0, 1],
+            "civ_affinity": [0, 0, 0],
+        })
+        bridge._sim = fake_sim
+
+        bridge.apply_absorption_transitions(
+            losing_civ,
+            absorber,
+            [absorbed_region],
+            losing_civ_id=0,
+            absorber_civ_id=1,
+            world=sample_world,
+        )
+
+        assert sorted(fake_sim.calls) == [(301, 1), (302, 1)]
+        assert gp not in losing_civ.great_persons
+        assert gp in absorber.great_persons
+        assert gp.civilization == absorber.name
 
 
 class TestRegionBatchResourceColumns:

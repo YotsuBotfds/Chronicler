@@ -659,6 +659,8 @@ class WorldState(BaseModel):
     artifacts: list[Artifact] = Field(default_factory=list)
     # M47: Cached region lookup
     _region_map: dict[str, "Region"] | None = PrivateAttr(default=None)
+    # Hybrid-mode bridge hook for transient agent/civ synchronization.
+    _agent_bridge: object | None = PrivateAttr(default=None)
     # M52: Transient artifact pipeline signals (not serialized)
     _artifact_intents: list = PrivateAttr(default_factory=list)
     _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)

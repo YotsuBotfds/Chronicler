@@ -224,6 +224,48 @@ def test_arc_classifier_icarus():
     assert arc == "icarus"
 
 
+def test_arc_classifier_terminal_collapse_prefers_riches_to_rags():
+    from chronicler.validate import classify_civ_arc
+
+    # Brief early rise, then sustained terminal decline to extinction.
+    # The local derivative pattern starts up then down, but the coarse thirds
+    # summary is dominated by decline.
+    trajectory = {"population": [20, 30, 50, 40, 30, 20, 10, 0, 0, 0, 0, 0, 0, 0, 0]}
+
+    assert classify_civ_arc(trajectory) == "riches_to_rags"
+
+
+def test_arc_classifier_long_horizon_modest_peak_extinction_prefers_riches_to_rags():
+    from chronicler.validate import classify_civ_arc
+
+    population = [40] * 60 + [55] * 60 + [90] * 40 + [45] * 40 + [0] * 300
+    trajectory = {"population": population}
+
+    assert len(population) >= 400
+    assert classify_civ_arc(trajectory) == "riches_to_rags"
+
+
+def test_arc_classifier_man_in_a_hole():
+    from chronicler.validate import classify_civ_arc
+    pop = list(range(100, 50, -1)) + list(range(50, 110))
+    trajectory = {"population": pop}
+    assert classify_civ_arc(trajectory) == "man_in_a_hole"
+
+
+def test_arc_classifier_cinderella():
+    from chronicler.validate import classify_civ_arc
+    pop = list(range(50, 90)) + list(range(90, 60, -1)) + list(range(60, 110))
+    trajectory = {"population": pop}
+    assert classify_civ_arc(trajectory) == "cinderella"
+
+
+def test_arc_classifier_oedipus():
+    from chronicler.validate import classify_civ_arc
+    pop = list(range(100, 60, -1)) + list(range(60, 110)) + list(range(110, 50, -1))
+    trajectory = {"population": pop}
+    assert classify_civ_arc(trajectory) == "oedipus"
+
+
 def test_artifact_lifecycle_counts_lost_and_destroyed():
     """Oracle 5 loss rate should include both LOST and DESTROYED artifacts."""
     from chronicler.validate import check_artifact_lifecycle
@@ -289,3 +331,432 @@ def test_classify_civ_arc_stable():
     from chronicler.validate import classify_civ_arc
     traj = {"population": [50] * 30}
     assert classify_civ_arc(traj) == "stable"
+
+
+def test_run_community_oracle_uses_best_sampled_turn():
+    from chronicler.validate import run_community_oracle
+
+    clique_edges = [(i, j, 2, 50) for i in range(5) for j in range(i + 1, 5)]
+    relationship_columns = {
+        "turn": [100] * len(clique_edges),
+        "agent_id": [a for a, _b, _bt, _sent in clique_edges],
+        "target_id": [b for _a, b, _bt, _sent in clique_edges],
+        "bond_type": [bt for _a, _b, bt, _sent in clique_edges],
+        "sentiment": [sent for _a, _b, _bt, sent in clique_edges],
+    }
+    memory_columns = {
+        "turn": [100] * 5 + [110],
+        "agent_id": [0, 1, 2, 3, 4, 99],
+        "event_type": [0, 0, 0, 0, 0, 1],
+        "memory_turn": [95, 95, 95, 95, 95, 110],
+        "valence_sign": [-1, -1, -1, -1, -1, 1],
+    }
+
+    result = run_community_oracle([{
+        "seed": 42,
+        "relationship_columns": relationship_columns,
+        "memory_columns": memory_columns,
+    }])
+
+    assert result["status"] == "PASS"
+    assert result["qualifying_seed_count"] == 1
+    assert result["per_seed"][0]["snapshot_turn"] == 100
+    assert result["per_seed"][0]["qualifying_communities"] == 1
+
+
+def test_run_needs_oracle_uses_all_sampled_turns():
+    from chronicler.validate import run_needs_oracle
+
+    turn_10 = {
+        "agent_id": list(range(10)),
+        "safety": [0.1] * 5 + [0.9] * 5,
+        "autonomy": [0.5] * 10,
+        "social": [0.5] * 10,
+        "spiritual": [0.5] * 10,
+        "material": [0.5] * 10,
+        "purpose": [0.5] * 10,
+        "civ_affinity": [0] * 10,
+        "region": [0] * 10,
+        "occupation": [1] * 10,
+        "satisfaction": [0.5] * 10,
+        "boldness": [0.5] * 10,
+        "ambition": [0.5] * 10,
+        "loyalty_trait": [0.5] * 10,
+    }
+    turn_100 = {
+        "agent_id": list(range(10)),
+        "safety": [0.5] * 10,
+        "autonomy": [0.5] * 10,
+        "social": [0.5] * 10,
+        "spiritual": [0.5] * 10,
+        "material": [0.5] * 10,
+        "purpose": [0.5] * 10,
+        "civ_affinity": [0] * 10,
+        "region": [0] * 10,
+        "occupation": [1] * 10,
+        "satisfaction": [0.5] * 10,
+        "boldness": [0.5] * 10,
+        "ambition": [0.5] * 10,
+        "loyalty_trait": [0.5] * 10,
+    }
+    needs_columns = {"turn": [10] * 10 + [100] * 10}
+    for key in turn_10:
+        needs_columns[key] = turn_10[key] + turn_100[key]
+
+    events = [
+        {"agent_id": 0, "event_type": 1, "turn": 12},
+        {"agent_id": 1, "event_type": 1, "turn": 14},
+        {"agent_id": 2, "event_type": 1, "turn": 16},
+        {"agent_id": 3, "event_type": 1, "turn": 18},
+        {"agent_id": 5, "event_type": 1, "turn": 19},
+    ]
+
+    result = run_needs_oracle([{
+        "seed": 7,
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": needs_columns,
+        "events": events,
+    }])
+
+    assert result["status"] == "PASS"
+    assert result["seeds_with_expected_sign"] == 1
+    assert result["per_seed"][0]["snapshot_turn"] == 10
+    assert result["per_seed"][0]["need_name"] == "safety"
+
+
+def test_needs_candidate_priority_prefers_expected_sign():
+    from chronicler.validate import _needs_candidate_priority
+
+    negative = {
+        "pairs_found": 5,
+        "rate_difference": -2.0,
+        "effect_size": 2.5,
+    }
+    positive = {
+        "pairs_found": 2,
+        "rate_difference": 0.5,
+        "effect_size": 0.5,
+    }
+
+    assert _needs_candidate_priority(positive, 100) > _needs_candidate_priority(negative, 50)
+
+
+def test_run_cohort_oracle_uses_all_sampled_turns():
+    from chronicler.validate import run_cohort_oracle
+
+    clique_edges = [(i, j, 2, 50) for i in range(5) for j in range(i + 1, 5)]
+    relationship_columns = {
+        "turn": [10] * len(clique_edges),
+        "agent_id": [a for a, _b, _bt, _sent in clique_edges],
+        "target_id": [b for _a, b, _bt, _sent in clique_edges],
+        "bond_type": [bt for _a, _b, bt, _sent in clique_edges],
+        "sentiment": [sent for _a, _b, _bt, sent in clique_edges],
+    }
+    memory_columns = {
+        "turn": [10] * 5 + [100],
+        "agent_id": [0, 1, 2, 3, 4, 99],
+        "event_type": [0, 0, 0, 0, 0, 1],
+        "memory_turn": [10, 10, 10, 10, 10, 100],
+        "valence_sign": [-1, -1, -1, -1, -1, 1],
+    }
+
+    turn_10 = {
+        "agent_id": list(range(10)),
+        "civ_affinity": [0] * 10,
+        "region": [0] * 10,
+        "occupation": [1] * 10,
+        "satisfaction": [0.5] * 10,
+        "boldness": [0.5] * 10,
+        "ambition": [0.5] * 10,
+        "loyalty_trait": [0.5] * 10,
+    }
+    turn_100 = {
+        "agent_id": list(range(10)),
+        "civ_affinity": [0] * 10,
+        "region": [0] * 10,
+        "occupation": [1] * 10,
+        "satisfaction": [0.5] * 10,
+        "boldness": [0.5] * 10,
+        "ambition": [0.5] * 10,
+        "loyalty_trait": [0.5] * 10,
+    }
+    needs_columns = {"turn": [10] * 10 + [100] * 10}
+    for key in turn_10:
+        needs_columns[key] = turn_10[key] + turn_100[key]
+
+    events = [
+        {"agent_id": 0, "event_type": 1, "turn": 10},
+        {"agent_id": 5, "event_type": 1, "turn": 12},
+        {"agent_id": 6, "event_type": 1, "turn": 14},
+        {"agent_id": 7, "event_type": 1, "turn": 16},
+        {"agent_id": 8, "event_type": 1, "turn": 18},
+    ]
+
+    result = run_cohort_oracle([{
+        "seed": 9,
+        "bundle": {"metadata": {"total_turns": 140}},
+        "relationship_columns": relationship_columns,
+        "memory_columns": memory_columns,
+        "needs_columns": needs_columns,
+        "events": events,
+    }])
+
+    assert result["status"] == "PASS"
+    assert result["seeds_with_expected_direction"] == 1
+    assert result["per_seed"][0]["snapshot_turn"] == 10
+    assert result["per_seed"][0]["migration_effect_direction"] == "community_lower"
+
+
+def test_cohort_candidate_priority_prefers_expected_direction():
+    from chronicler.validate import _cohort_candidate_priority
+
+    unexpected_migration = {
+        "effect_direction": "community_higher",
+        "effect_size": -2.0,
+    }
+    unexpected_rebellion = {
+        "effect_direction": "community_lower",
+        "effect_size": 1.0,
+    }
+    expected_migration = {
+        "effect_direction": "community_lower",
+        "effect_size": 0.3,
+    }
+    expected_rebellion = {
+        "effect_direction": "equal",
+        "effect_size": 0.0,
+    }
+
+    assert _cohort_candidate_priority(expected_migration, expected_rebellion, 100) > _cohort_candidate_priority(
+        unexpected_migration,
+        unexpected_rebellion,
+        50,
+    )
+
+
+def test_run_arc_oracle_uses_full_trajectory_signals():
+    from chronicler.validate import run_arc_oracle
+
+    trajectory = {
+        "population": [100] * 30,
+        "treasury": list(range(10, 40)),
+        "stability": list(range(50, 80)),
+        "territory": [2] * 30,
+        "prestige": list(range(5, 35)),
+    }
+
+    result = run_arc_oracle([{"seed": 1, "civ_trajectories": [trajectory]}])
+
+    assert result["per_seed"][0]["arc_types"] == ["rags_to_riches"]
+
+
+def test_run_regression_summary_counts_alive_by_regions():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{
+                "civ_stats": {
+                    "Alive Realm": {
+                        "regions": ["R1"],
+                        "gini": 0.5,
+                        "treasury": 10,
+                        "alive": False,
+                    },
+                    "Dead Realm": {
+                        "regions": [],
+                        "gini": 0.0,
+                        "treasury": 0,
+                        "alive": True,
+                    },
+                },
+            }],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "civ_0": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 5, "1": 5},
+                        "gini": 0.5,
+                    }
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["civ_survival_counts"] == [1]
+    assert result["gini_in_range_fraction"] == 1.0
+
+
+def test_run_regression_summary_prefers_validation_summary_gini():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{
+                "civ_stats": {
+                    "Alive Realm": {
+                        "regions": ["R1"],
+                        "gini": 0.0,
+                        "treasury": 10,
+                    },
+                },
+            }],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "civ_0": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 5, "1": 5},
+                        "gini": 0.5,
+                    }
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["gini_in_range_fraction"] == 1.0
+
+
+def test_run_regression_summary_weights_satisfaction_by_agent_count():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "civ_0": {
+                        "satisfaction_mean": 0.2,
+                        "satisfaction_std": 0.05,
+                        "agent_count": 1,
+                        "occupation_counts": {"0": 1},
+                        "gini": 0.4,
+                    },
+                    "civ_1": {
+                        "satisfaction_mean": 0.6,
+                        "satisfaction_std": 0.2,
+                        "agent_count": 9,
+                        "occupation_counts": {"0": 3, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["satisfaction_mean"] == 0.56
+    assert result["satisfaction_std"] == 0.185
+
+
+def test_run_regression_summary_ignores_tiny_civs_for_occupation_distribution():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "tiny_tail": {
+                        "satisfaction_mean": 0.2,
+                        "satisfaction_std": 0.05,
+                        "agent_count": 1,
+                        "occupation_counts": {"0": 1},
+                        "gini": 0.4,
+                    },
+                    "healthy_civ": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_ok"] is True
+
+
+def test_run_regression_summary_skips_bundle_gini_when_final_sidecar_is_empty():
+    from chronicler.validate import run_regression_summary
+
+    run_with_gini = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{
+                "civ_stats": {
+                    "Alive Realm": {
+                        "regions": ["R1"],
+                        "gini": 0.0,
+                        "treasury": 10,
+                    },
+                },
+            }],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "civ_0": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 5, "1": 5},
+                        "gini": 0.5,
+                    }
+                }
+            }
+        },
+        "events": [],
+    }
+    run_without_measurable_gini = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{
+                "civ_stats": {
+                    "Tail Realm": {
+                        "regions": ["R2"],
+                        "gini": 0.0,
+                        "treasury": 10,
+                    },
+                },
+            }],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {}
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run_with_gini, run_without_measurable_gini])
+
+    assert result["gini_in_range_fraction"] == 1.0

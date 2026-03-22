@@ -556,7 +556,10 @@ impl AgentPool {
             }
         }
 
-        // Second pass: accumulate per-civ stats from alive agents.
+        // Second pass: accumulate per-polity stats from alive agents.
+        // Controlled regions contribute to their current controller, while
+        // uncontrolled regions fall back to the agent's own affinity so we
+        // still expose stable rows in diagnostics/tests.
         struct CivAccum {
             population: u32,
             soldier_skill_sum: f64,
@@ -572,7 +575,16 @@ impl AgentPool {
             if !self.is_alive(slot) {
                 continue;
             }
-            let civ = self.civ_affinities[slot];
+            let civ = regions
+                .get(self.regions[slot] as usize)
+                .and_then(|region| {
+                    if region.controller_civ != 255 {
+                        Some(region.controller_civ)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(self.civ_affinities[slot]);
             let a = accums.entry(civ).or_insert(CivAccum {
                 population: 0,
                 soldier_skill_sum: 0.0,
@@ -583,10 +595,15 @@ impl AgentPool {
                 loyalty_sum: 0.0,
             });
             a.population += 1;
-            a.soldier_skill_sum += self.skills[slot * 5 + 1] as f64;
-            a.merchant_skill_sum += self.skills[slot * 5 + 2] as f64;
-            a.scholar_skill_sum += self.skills[slot * 5 + 3] as f64;
-            a.priest_skill_sum += self.skills[slot * 5 + 4] as f64;
+            let occ = self.occupations[slot] as usize;
+            let active_skill = self.skills[slot * 5 + occ] as f64;
+            match occ {
+                1 => a.soldier_skill_sum += active_skill,
+                2 => a.merchant_skill_sum += active_skill,
+                3 => a.scholar_skill_sum += active_skill,
+                4 => a.priest_skill_sum += active_skill,
+                _ => {}
+            }
             a.satisfaction_sum += self.satisfactions[slot] as f64;
             a.loyalty_sum += self.loyalties[slot] as f64;
         }
@@ -947,6 +964,49 @@ mod tests {
         // mean_sat = 0.8, mean_loy = 0.6 -> 0.8 * 0.6 * 100 = 48
         let stability = batch.column(5).as_any().downcast_ref::<UInt32Array>().unwrap();
         assert_eq!(stability.value(0), 48);
+    }
+
+    #[test]
+    fn test_compute_aggregates_groups_controlled_regions_under_controller() {
+        use arrow::array::{UInt16Array, UInt32Array};
+        use crate::region::RegionState;
+
+        let mut pool = AgentPool::new(8);
+
+        pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.spawn(0, 1, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.spawn(1, 1, Occupation::Merchant, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.spawn(1, 1, Occupation::Scholar, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.spawn(1, 1, Occupation::Priest, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+
+        let mut region_0 = RegionState::new(0);
+        region_0.carrying_capacity = 60;
+        region_0.controller_civ = 0;
+
+        let mut region_1 = RegionState::new(1);
+        region_1.carrying_capacity = 60;
+        region_1.controller_civ = 1;
+
+        let batch = pool
+            .compute_aggregates(&[region_0, region_1])
+            .expect("compute_aggregates failed");
+
+        let civ_ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        let populations = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+
+        assert_eq!(batch.num_rows(), 2);
+        assert_eq!(civ_ids.value(0), 0);
+        assert_eq!(populations.value(0), 2);
+        assert_eq!(civ_ids.value(1), 1);
+        assert_eq!(populations.value(1), 3);
     }
 
     #[test]

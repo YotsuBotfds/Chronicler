@@ -516,7 +516,7 @@ def phase_production(world: WorldState, acc=None) -> None:
             )
             recovery = base_recovery // 2 if has_severe_condition else base_recovery
             if acc is not None:
-                acc.add(civ_idx, civ, "stability", recovery, "guard")
+                acc.add(civ_idx, civ, "stability", recovery, "keep")
             else:
                 civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
 
@@ -1151,6 +1151,8 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
     from chronicler.named_events import generate_cultural_work
     events = []
     for civ_idx, civ in enumerate(world.civilizations):
+        if len(civ.regions) == 0:
+            continue
         for threshold in [80, 100]:
             marker = f"culture_{threshold}"
             if civ.culture >= threshold and marker not in civ.cultural_milestones:
@@ -1175,29 +1177,26 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
                     turn=world.turn, event_type="cultural_work", actors=[civ.name],
                     description=ne.description, importance=6,
                 ))
-                # M52: Cultural artifact production
-                from chronicler.artifacts import (
-                    _prosperity_gate, select_cultural_artifact_type,
-                    CULTURAL_PRODUCTION_CHANCE,
-                )
+                # A named cultural masterwork should always materialize as an artifact.
+                from chronicler.artifacts import select_cultural_artifact_type
                 from chronicler.models import ArtifactIntent
-                import random as _rng_mod
-                _art_rng = _rng_mod.Random(world.seed + world.turn + civ_idx + 9999)
-                if _prosperity_gate(civ, world) and _art_rng.random() < CULTURAL_PRODUCTION_CHANCE:
-                    _art_type = select_cultural_artifact_type(civ, seed=world.seed + world.turn + civ_idx)
-                    _art_region = civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
-                    world._artifact_intents.append(ArtifactIntent(
-                        artifact_type=_art_type,
-                        trigger="cultural_work",
-                        creator_name=None,
-                        creator_born_turn=None,
-                        holder_name=None,
-                        holder_born_turn=None,
-                        civ_name=civ.name,
-                        region_name=_art_region,
-                        anchored=True if _art_type.value == "monument" else None,
-                        context=f"Produced during a cultural milestone of {civ.name}",
-                    ))
+                _art_type = select_cultural_artifact_type(
+                    civ,
+                    seed=world.seed + world.turn + civ_idx,
+                )
+                _art_region = civ.capital_region or civ.regions[0]
+                world._artifact_intents.append(ArtifactIntent(
+                    artifact_type=_art_type,
+                    trigger="cultural_work",
+                    creator_name=None,
+                    creator_born_turn=None,
+                    holder_name=None,
+                    holder_born_turn=None,
+                    civ_name=civ.name,
+                    region_name=_art_region,
+                    anchored=True if _art_type.value == "monument" else None,
+                    context=f"Produced during a cultural milestone of {civ.name}",
+                ))
     return events
 
 
@@ -1298,6 +1297,28 @@ def reset_war_frequency_on_extinction(civ: Civilization) -> None:
         civ.peace_momentum = 0.0
 
 
+def prune_inactive_wars(world: WorldState) -> None:
+    """Drop wars whose participants no longer control any regions."""
+    alive_civs = {civ.name for civ in world.civilizations if len(civ.regions) > 0}
+    if not world.active_wars:
+        return
+    filtered_wars = [
+        (attacker, defender)
+        for attacker, defender in world.active_wars
+        if attacker in alive_civs and defender in alive_civs
+    ]
+    if len(filtered_wars) == len(world.active_wars):
+        return
+    removed_keys = {
+        f"{min(attacker, defender)}:{max(attacker, defender)}"
+        for attacker, defender in world.active_wars
+        if attacker not in alive_civs or defender not in alive_civs
+    }
+    world.active_wars = filtered_wars
+    for key in removed_keys:
+        world.war_start_turns.pop(key, None)
+
+
 # --- Turn orchestrator ---
 
 def run_turn(
@@ -1319,6 +1340,8 @@ def run_turn(
         civ.regions_start_of_turn = len(civ.regions)
         civ.was_in_twilight = civ.decline_turns > 0
         civ.capital_start_of_turn = civ.capital_region
+
+    prune_inactive_wars(world)
 
     # Phase 1: Environment
     turn_events.extend(phase_environment(world, seed=seed, acc=acc))
@@ -1429,6 +1452,9 @@ def run_turn(
         if agent_bridge is not None:
             turn_events.extend(agent_bridge.tick(world, conquered=conquered_dict))
 
+    from chronicler.economy import settle_pending_stockpile_bootstraps
+    settle_pending_stockpile_bootstraps(world.regions)
+
     # M36: Stash snapshot for Phase 10 culture functions
     world._agent_snapshot = None
     if agent_bridge is not None:
@@ -1448,6 +1474,7 @@ def run_turn(
     # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
     phase10_acc = acc if world.agent_mode == "hybrid" else None
     turn_events.extend(phase_consequences(world, acc=phase10_acc))
+    prune_inactive_wars(world)
 
     # M40: Unified relationship formation and dissolution
     # One-turn latency: agent tick ran between Phase 9 and 10.

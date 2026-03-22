@@ -4,7 +4,7 @@ from chronicler.models import Civilization, Region, Relationship, Leader, TechEr
 from chronicler.models import ActiveCondition
 from chronicler.culture import (
     VALUE_OPPOSITIONS, apply_value_drift,
-    tick_cultural_assimilation, ASSIMILATION_THRESHOLD, RECONQUEST_COOLDOWN,
+    tick_cultural_assimilation, ASSIMILATION_THRESHOLD, ASSIMILATION_GUARD_TURNS, RECONQUEST_COOLDOWN,
     tick_prestige,
 )
 
@@ -132,6 +132,21 @@ def assimilation_world():
 
 
 class TestCulturalAssimilation:
+    class _FakeColumn:
+        def __init__(self, values):
+            self._values = values
+
+        def to_pylist(self):
+            return list(self._values)
+
+    class _FakeSnapshot:
+        def __init__(self, columns):
+            self._columns = columns
+            self.num_rows = len(next(iter(columns.values()))) if columns else 0
+
+        def column(self, name):
+            return TestCulturalAssimilation._FakeColumn(self._columns[name])
+
     def test_foreign_control_increments(self, assimilation_world):
         tick_cultural_assimilation(assimilation_world)
         assert assimilation_world.regions[0].foreign_control_turns == 1
@@ -175,6 +190,37 @@ class TestCulturalAssimilation:
         assimilation_world.regions[0].foreign_control_turns = 10
         tick_cultural_assimilation(assimilation_world)
         assert assimilation_world.regions[0].foreign_control_turns == 0
+
+    def test_agent_path_falls_back_to_timer_threshold(self, assimilation_world):
+        assimilation_world.regions[0].foreign_control_turns = ASSIMILATION_THRESHOLD - 1
+        snapshot = self._FakeSnapshot(
+            {
+                "region": [0, 0, 0],
+                "cultural_value_0": [0, 0, 0],
+                "cultural_value_1": [0, 0, 0],
+                "cultural_value_2": [0, 0, 0],
+            }
+        )
+
+        tick_cultural_assimilation(assimilation_world, agent_snapshot=snapshot)
+
+        assert assimilation_world.regions[0].cultural_identity == "CivB"
+        assert assimilation_world.regions[0].foreign_control_turns == 0
+
+    def test_agent_path_sets_passive_culture_pressure_after_guard_turns(self, assimilation_world):
+        assimilation_world.regions[0].foreign_control_turns = ASSIMILATION_GUARD_TURNS - 1
+        snapshot = self._FakeSnapshot(
+            {
+                "region": [0, 0, 0],
+                "cultural_value_0": [0, 0, 0],
+                "cultural_value_1": [0, 0, 0],
+                "cultural_value_2": [0, 0, 0],
+            }
+        )
+
+        tick_cultural_assimilation(assimilation_world, agent_snapshot=snapshot)
+
+        assert getattr(assimilation_world.regions[0], "_culture_investment_active", False) is True
 
     def test_reconquest_applies_restless_population(self, assimilation_world):
         assimilation_world.regions[0].cultural_identity = "CivA"

@@ -62,6 +62,10 @@ pub use formation::{formation_scan, FormationStats, death_cleanup_sweep, belief_
 pub use agent::{FORMATION_CADENCE, MAX_NEW_BONDS_PER_PASS, MAX_NEW_BONDS_PER_REGION, LIFE_EVENT_DISSOLUTION};
 #[doc(hidden)]
 pub use agent::{LEGACY_HALF_LIFE, LEGACY_MIN_INTENSITY, LEGACY_MAX_MEMORIES};
+#[doc(hidden)]
+pub use agent::{
+    SAFETY_DECAY, MATERIAL_DECAY, SOCIAL_DECAY, SPIRITUAL_DECAY, AUTONOMY_DECAY, PURPOSE_DECAY,
+};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

@@ -1,6 +1,7 @@
 """Tuning override system — key constants, YAML loading, validation."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -384,12 +385,18 @@ def load_tuning(path: Path) -> dict[str, float]:
 
 def get_override(world: "WorldState", key: str, default: float) -> float:
     """Read a tunable constant with override fallback."""
-    return world.tuning_overrides.get(key, default)
+    overrides = getattr(world, "tuning_overrides", None)
+    if isinstance(overrides, Mapping):
+        return overrides.get(key, default)
+    return default
 
 
 def get_multiplier(world: "WorldState", key: str) -> float:
     """Read a global simulation multiplier (defaults to 1.0)."""
-    return world.tuning_overrides.get(key, 1.0)
+    overrides = getattr(world, "tuning_overrides", None)
+    if isinstance(overrides, Mapping):
+        return overrides.get(key, 1.0)
+    return 1.0
 
 
 # --- Presets: compound parameter bundles ---

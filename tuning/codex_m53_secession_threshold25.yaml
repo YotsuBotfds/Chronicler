@@ -1,0 +1,11 @@
+politics:
+  secession_stability_threshold: 25
+  secession_surveillance_threshold: 12
+  twilight_decline_turns: 40
+  twilight_absorption_decline_turns: 120
+  twilight_pop_drain: 1
+  twilight_culture_drain: 1
+action:
+  war_decisive_ratio: 1.45
+multiplier:
+  aggression_bias: 0.95

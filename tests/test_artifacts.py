@@ -5,7 +5,14 @@ from chronicler.models import (
     ArtifactIntent, ArtifactLifecycleIntent, WorldState,
     GreatPerson,
 )
-from chronicler.artifacts import tick_artifacts, PRESTIGE_BY_TYPE, _prosperity_gate, select_cultural_artifact_type
+from chronicler.artifacts import (
+    PRESTIGE_BY_TYPE,
+    PROSPERITY_STABILITY_THRESHOLD,
+    PROSPERITY_TREASURY_THRESHOLD,
+    _prosperity_gate,
+    select_cultural_artifact_type,
+    tick_artifacts,
+)
 
 
 def _make_world_with_civ(civ_name="TestCiv", region_name="Region1", values=None):
@@ -389,7 +396,7 @@ class TestProsperityGate:
     def test_low_stability_fails(self):
         world = _make_world_with_civ()
         civ = world.civilizations[0]
-        civ.stability = 60
+        civ.stability = PROSPERITY_STABILITY_THRESHOLD
         civ.treasury = 50
         civ.decline_turns = 0
         civ.succession_crisis_turns_remaining = 0
@@ -430,7 +437,7 @@ class TestProsperityGate:
         world = _make_world_with_civ()
         civ = world.civilizations[0]
         civ.stability = 80
-        civ.treasury = 10
+        civ.treasury = PROSPERITY_TREASURY_THRESHOLD - 1
         civ.decline_turns = 0
         civ.succession_crisis_turns_remaining = 0
         world.active_wars = []
@@ -456,6 +463,21 @@ class TestCulturalArtifactTypeSelection:
         t1 = select_cultural_artifact_type(civ, seed=42)
         t2 = select_cultural_artifact_type(civ, seed=42)
         assert t1 == t2
+
+    def test_treatise_is_not_the_default_majority_choice(self):
+        from collections import Counter
+        from chronicler.models import Civilization, Leader
+
+        civ = Civilization(
+            name="TestCiv", values=["Knowledge"], leader=Leader(name="L", trait="t", reign_start=0),
+            regions=["R1"],
+        )
+        counts = Counter(
+            select_cultural_artifact_type(civ, seed=seed)
+            for seed in range(60)
+        )
+
+        assert counts[ArtifactType.TREATISE] < 30
 
 
 def _make_active_artifact(world, artifact_type=ArtifactType.RELIC, anchored=True,
@@ -639,32 +661,28 @@ class TestArtifactPrestigeIntegration:
 
 
 class TestCulturalProductionIntents:
-    def test_cultural_work_emits_intent_when_prosperous(self):
-        """phase_cultural_milestones should emit artifact intent when prosperity gate passes."""
+    def test_cultural_work_emits_intent_for_masterwork(self):
+        """A named cultural masterwork should always create a cultural artifact intent."""
         world = _make_world_with_civ()
         civ = world.civilizations[0]
-        civ.stability = 80
-        civ.treasury = 50
-        civ.decline_turns = 0
-        civ.succession_crisis_turns_remaining = 0
         civ.culture = 80
         civ.cultural_milestones = []
         civ.capital_region = "Region1"
-        world.active_wars = []
         world.turn = 10
         world.seed = 1
 
         from chronicler.simulation import phase_cultural_milestones
-        found = False
-        for s in range(100):
-            world.seed = s
-            civ.cultural_milestones = []
-            world._artifact_intents = []
-            phase_cultural_milestones(world)
-            if world._artifact_intents:
-                found = True
-                break
-        assert found, "No artifact intent emitted after 100 seeds"
+        world._artifact_intents = []
+        phase_cultural_milestones(world)
+
+        assert len(world._artifact_intents) == 1
+        intent = world._artifact_intents[0]
+        assert intent.trigger == "cultural_work"
+        assert intent.artifact_type in (
+            ArtifactType.ARTWORK,
+            ArtifactType.TREATISE,
+            ArtifactType.MONUMENT,
+        )
 
     def test_cultural_renaissance_emits_intent(self):
         """_apply_event_effects for cultural_renaissance should emit artifact intent."""

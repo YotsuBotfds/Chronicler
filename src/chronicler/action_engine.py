@@ -160,6 +160,12 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
         target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
+        if target.resource_types[0] != 255:
+            from chronicler.economy import bootstrap_region_stockpile
+            if target.population > 0:
+                bootstrap_region_stockpile(target)
+            else:
+                target._stockpile_bootstrap_pending = True
         expand_mil_cost = int(get_override(world, K_EXPAND_MILITARY_COST, 10))
         if acc is not None:
             acc.add(civ_idx, civ, "military", -expand_mil_cost, "guard-action")
@@ -519,6 +525,19 @@ def resolve_war(
             if len(defender.regions) == 0:
                 from chronicler.simulation import reset_war_frequency_on_extinction
                 reset_war_frequency_on_extinction(defender)
+            bridge = getattr(world, "_agent_bridge", None)
+            if bridge is not None:
+                try:
+                    attacker_idx = world.civilizations.index(attacker)
+                    defender_idx = world.civilizations.index(defender)
+                    bridge.realign_region_agents_to_civ(
+                        world=world,
+                        region_names={contested.name},
+                        old_civ_id=defender_idx,
+                        new_civ_id=attacker_idx,
+                    )
+                except Exception:
+                    pass
             if not hasattr(world, '_conquered_this_turn'):
                 world._conquered_this_turn = set()
             world._conquered_this_turn.add(world.civilizations.index(attacker))

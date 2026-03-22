@@ -269,17 +269,10 @@ def generate_world(
         region.resource_effective_yields = list(region.resource_base_yields)
 
     # M43a: Initialize stockpile for controlled regions with valid resources
-    from chronicler.economy import map_resource_to_good, INITIAL_BUFFER, FOOD_GOODS
+    from chronicler.economy import bootstrap_region_stockpile
     for region in world.regions:
-        if region.controller is not None and region.resource_types[0] != 255:
-            good = map_resource_to_good(region.resource_types[0])
-            region.stockpile.goods[good] = INITIAL_BUFFER * region.population
-            # M47c: Seed baseline food for non-food regions — a civilization that
-            # exists at turn 0 obviously had food. Without this, non-food regions
-            # start with food_sufficiency=0.0, imposing a 0.30 satisfaction penalty
-            # that cascades into a stability death spiral via the Rust agent tick.
-            if good not in FOOD_GOODS:
-                region.stockpile.goods["grain"] = INITIAL_BUFFER * region.population
+        if region.controller is not None:
+            bootstrap_region_stockpile(region)
 
     # M37: Generate one faith per civ
     if world.civilizations:

@@ -10,7 +10,7 @@ use crate::agent::{
     FERTILITY_SATISFACTION_THRESHOLD,
     DECISION_STREAM_OFFSET, PERSONALITY_STREAM_OFFSET,
     LIFE_EVENT_LOYALTY_FLIP, LIFE_EVENT_MIGRATION, LIFE_EVENT_OCC_SWITCH,
-    LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL,
+    LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL, LOYALTY_FLIP_THRESHOLD,
     OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
 };
 use crate::behavior::{compute_region_stats, evaluate_region_decisions};
@@ -152,6 +152,7 @@ pub fn tick_agents(
                 evaluate_region_decisions(
                     pool_ref,
                     slots,
+                    regions,
                     &regions[region_id],
                     stats_ref,
                     region_id,
@@ -167,6 +168,10 @@ pub fn tick_agents(
     for pd in &pending_decisions {
         // Rebellions
         for &(slot, region) in &pd.rebellions {
+            // Rebellion should create a temporary state change, not just an
+            // endlessly repeatable event on every unhappy tick.
+            pool.set_loyalty(slot, pool.loyalty(slot).max(LOYALTY_FLIP_THRESHOLD + 0.10));
+            pool.need_autonomy[slot] = (pool.need_autonomy[slot] + 0.10).min(1.0);
             pool.life_events[slot] |= LIFE_EVENT_REBELLION;
             events.push(AgentEvent {
                 agent_id: pool.id(slot),
@@ -182,7 +187,7 @@ pub fn tick_agents(
         // Migrations
         for &(slot, from, to) in &pd.migrations {
             pool.set_region(slot, to);
-            pool.set_displacement_turns(slot, 3);
+            pool.set_displacement_turns(slot, 5);
             pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
             events.push(AgentEvent {
                 agent_id: pool.id(slot),
@@ -1006,8 +1011,8 @@ fn tick_region_demographics(
     };
 
     let eco_stress = demographics::ecological_stress(region);
+    let pop_over_capacity = demographics::population_pressure(region);
     let has_disease = region.endemic_severity > 0.0;
-
     // Dedicated personality RNG (offset 700) decoupled from demographics RNG.
     // Prevents adding/removing mortality checks from changing personality assignments.
     let mut personality_rng = ChaCha8Rng::from_seed(master_seed);
@@ -1063,7 +1068,13 @@ fn tick_region_demographics(
             }
 
             // Fertility check (only for survivors)
-            let fert_rate = demographics::fertility_rate(age, sat, occ, region.soil);
+            let fert_rate = demographics::fertility_rate_with_pressure(
+                age,
+                sat,
+                occ,
+                region.soil,
+                pop_over_capacity,
+            );
             debug.expected_births += fert_rate;
             if fert_rate > 0.0 && rng.gen::<f32>() < fert_rate {
                 let civ_id = pool.civ_affinity(slot);
@@ -1185,10 +1196,9 @@ mod tests {
         let mut pool = AgentPool::new(0);
         let regions = vec![make_healthy_region(0)];
         let signals = make_default_signals(1, 1);
-        // Spawn at elder age (60+) so MORTALITY_ELDER (0.05) * eco_stress (1.0)
-        // = 0.05 per agent per tick -- guarantees deaths in 500 agents.
+        // Spawn well past the fertility window so births cannot mask deaths.
         for _ in 0..500 {
-            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.spawn(0, 0, Occupation::Farmer, 90, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
         let mut seed = [0u8; 32];
         seed[0] = 42;
@@ -1288,13 +1298,13 @@ mod tests {
 
     #[test]
     fn test_full_tick_produces_death_events() {
-        // 500 elder agents -> tick produces death events (event_type=0)
+        // 500 post-fertility elders -> tick produces death events (event_type=0)
         let mut pool = AgentPool::new(0);
         let regions = vec![make_healthy_region(0)];
         let signals = make_default_signals(1, 1);
 
         for _ in 0..500 {
-            pool.spawn(0, 0, Occupation::Farmer, 65, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.spawn(0, 0, Occupation::Farmer, 90, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         }
 
         let mut seed = [0u8; 32];

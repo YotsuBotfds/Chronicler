@@ -25,7 +25,7 @@ CHECKPOINTS = [50, 100, 150, 200]
 # Needs thresholds — behavioral (from agent.rs) and diagnostic (higher, for sensitivity)
 SOCIAL_THRESHOLD_BEHAVIORAL = 0.25
 SOCIAL_THRESHOLD_DIAGNOSTIC = 0.35
-AUTONOMY_THRESHOLD = 0.30
+AUTONOMY_THRESHOLD = 0.25
 SAFETY_THRESHOLD = 0.25
 
 

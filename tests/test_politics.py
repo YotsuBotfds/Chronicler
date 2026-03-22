@@ -732,6 +732,58 @@ def test_exile_removed_when_expired():
     assert len(world.exile_modifiers) == 0
 
 
+def test_restoration_hybrid_calls_bridge_transition():
+    from chronicler.tuning import K_RESTORATION_BASE_PROB
+
+    class _FakeBridge:
+        def __init__(self):
+            self.calls = []
+
+        def apply_restoration_transitions(self, absorber, restored, regions, **kwargs):
+            self.calls.append((absorber.name, restored.name, tuple(regions), kwargs))
+
+    world = _make_world_with_regions(["A", "B"], civ_name="Empire", capital="A",
+                                     adjacencies={"A": ["B"], "B": ["A"]})
+    world.agent_mode = "hybrid"
+    world.relationships = {"Empire": {}}
+    dead_restored = Civilization(
+        name="Fallen",
+        population=0,
+        military=0,
+        economy=0,
+        culture=0,
+        stability=0,
+        leader=Leader(name="Old Crown", trait="bold", reign_start=0),
+        regions=[],
+    )
+    world.civilizations.append(dead_restored)
+    world.exile_modifiers = [
+        ExileModifier(
+            original_civ_name="Fallen",
+            absorber_civ="Empire",
+            conquered_regions=["B"],
+            turns_remaining=5,
+        )
+    ]
+    world.civilizations[0].stability = 0
+    world._agent_bridge = _FakeBridge()
+    world.tuning_overrides[K_RESTORATION_BASE_PROB] = 1.0
+
+    events = check_restoration(world)
+
+    assert any(event.event_type == "restoration" for event in events)
+    assert world._agent_bridge.calls
+    absorber_name, restored_name, regions, kwargs = world._agent_bridge.calls[0]
+    assert absorber_name == "Empire"
+    assert restored_name == "Fallen"
+    assert regions == ("B",)
+    assert kwargs["absorber_civ_id"] == 0
+    assert kwargs["world"] is world
+    assert [c.name for c in world.civilizations].count("Fallen") == 1
+    restored = next(c for c in world.civilizations if c.name == "Fallen")
+    assert restored.founded_turn == world.turn
+
+
 # --- Task 22: M14d tracking fields ---
 
 def test_civ_has_m14d_tracking_fields():
@@ -952,3 +1004,44 @@ def test_twilight_absorption_keeps_dead_civ_in_list():
 
     # Civ must still be in the list regardless of whether absorption happened
     assert len(world.civilizations) == initial_count
+
+
+def test_twilight_absorption_hybrid_calls_bridge_transition():
+    from chronicler.politics import check_twilight_absorption
+
+    class _FakeBridge:
+        def __init__(self):
+            self.calls = []
+
+        def apply_absorption_transitions(self, losing_civ, absorber_civ, regions, **kwargs):
+            self.calls.append((losing_civ.name, absorber_civ.name, tuple(regions), kwargs))
+
+    world = generate_world(seed=42, num_civs=3, num_regions=6)
+    absorber = world.civilizations[0]
+    target = world.civilizations[1]
+    target_region = world.regions[1]
+    target.regions = [target_region.name]
+    target.capital_region = target_region.name
+    target.decline_turns = 50
+    target.culture = 10
+    absorber.culture = 90
+    target_region.controller = target.name
+    absorber_region = world.regions[0]
+    absorber_region.controller = absorber.name
+    absorber.regions = [absorber_region.name]
+    target_region.adjacencies = [absorber_region.name]
+    absorber_region.adjacencies = [target_region.name]
+    world.agent_mode = "hybrid"
+    world._agent_bridge = _FakeBridge()
+
+    events = check_twilight_absorption(world)
+
+    assert any(event.event_type == "twilight_absorption" for event in events)
+    assert world._agent_bridge.calls
+    losing_name, absorber_name, regions, kwargs = world._agent_bridge.calls[0]
+    assert losing_name == target.name
+    assert absorber_name == absorber.name
+    assert regions == (target_region.name,)
+    assert kwargs["absorber_civ_id"] == 0
+    assert kwargs["losing_civ_id"] == 1
+    assert kwargs["world"] is world

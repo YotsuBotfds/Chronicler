@@ -1,13 +1,45 @@
-//! Demographics: age-dependent mortality with M26 ecological stress + satisfaction-gated fertility.
+//! Demographics: age-dependent mortality with ecology/crowding stress and
+//! satisfaction-gated fertility.
 
 use crate::agent::*;
 use crate::region::RegionState;
 
-/// M26 per-variable ecological stress. Range: 1.0 (healthy) to 2.0 (collapsed).
+const CROWDING_STRESS_WEIGHT: f32 = 0.30;
+const CROWDING_STRESS_CAP: f32 = 0.60;
+const FERTILITY_CROWDING_SOFT_START: f32 = 1.10;
+const FERTILITY_CROWDING_ZERO: f32 = 2.50;
+
+#[inline]
+pub fn population_pressure(region: &RegionState) -> f32 {
+    if region.carrying_capacity == 0 {
+        1.0
+    } else {
+        region.population as f32 / region.carrying_capacity as f32
+    }
+}
+
+#[inline]
+fn crowding_fertility_modifier(pop_over_capacity: f32) -> f32 {
+    if pop_over_capacity <= FERTILITY_CROWDING_SOFT_START {
+        1.0
+    } else {
+        (
+            (FERTILITY_CROWDING_ZERO - pop_over_capacity)
+                / (FERTILITY_CROWDING_ZERO - FERTILITY_CROWDING_SOFT_START)
+        )
+        .clamp(0.0, 1.0)
+    }
+}
+
+/// M26 per-variable ecological stress. Healthy terrain starts at 1.0; severe
+/// crowding adds extra pressure on top of soil/water stress.
 pub fn ecological_stress(region: &RegionState) -> f32 {
+    let pop_pressure = population_pressure(region);
     let soil_stress = (0.5 - region.soil) * ((0.5 - region.soil) > 0.0) as i32 as f32;
     let water_stress = (0.5 - region.water) * ((0.5 - region.water) > 0.0) as i32 as f32;
-    1.0 + soil_stress + water_stress
+    let crowding_stress =
+        ((pop_pressure - 1.0) * CROWDING_STRESS_WEIGHT).clamp(0.0, CROWDING_STRESS_CAP);
+    1.0 + soil_stress + water_stress + crowding_stress
 }
 
 /// War casualty multiplier applies to all soldier age brackets — intentional
@@ -30,10 +62,21 @@ pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, diseas
     base * eco_stress * war_mult * disease_mult
 }
 
-/// Fertility with age taper (M53): full rate 16-40, linear decline 41-55, zero after 55.
+/// Fertility with age taper: full rate through midlife, then a gradual decline.
 /// Replaces hard cutoff at FERTILITY_AGE_MAX which caused entire cohorts to drop out
 /// of the breeding pool simultaneously, creating generational handoff failures.
 pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) -> f32 {
+    fertility_rate_with_pressure(age, satisfaction, occupation, soil, 1.0)
+}
+
+/// Fertility rate adjusted for carrying-capacity pressure in the current region.
+pub fn fertility_rate_with_pressure(
+    age: u16,
+    satisfaction: f32,
+    occupation: u8,
+    soil: f32,
+    pop_over_capacity: f32,
+) -> f32 {
     let age_mult = if age < FERTILITY_AGE_MIN {
         0.0
     } else if age <= FERTILITY_FULL_AGE_MAX {
@@ -47,7 +90,8 @@ pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) ->
     let sat_gate = (satisfaction > FERTILITY_SATISFACTION_THRESHOLD) as i32 as f32;
     let base = if occupation == 0 { FERTILITY_BASE_FARMER } else { FERTILITY_BASE_OTHER };
     let ecology_mod = 0.5 + soil * 0.5;
-    base * ecology_mod * age_mult * sat_gate
+    let crowding_mod = crowding_fertility_modifier(pop_over_capacity);
+    base * ecology_mod * age_mult * sat_gate * crowding_mod
 }
 
 use rand::prelude::*;
@@ -131,6 +175,23 @@ mod tests {
     }
 
     #[test]
+    fn test_population_pressure_over_capacity() {
+        let mut r = region(0.8, 0.7);
+        r.carrying_capacity = 60;
+        r.population = 150;
+        assert!((population_pressure(&r) - 2.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_eco_stress_includes_crowding() {
+        let mut r = region(0.8, 0.7);
+        r.carrying_capacity = 60;
+        r.population = 150;
+        let expected = 1.0 + ((2.5 - 1.0) * CROWDING_STRESS_WEIGHT).min(CROWDING_STRESS_CAP);
+        assert!((ecological_stress(&r) - expected).abs() < 0.01);
+    }
+
+    #[test]
     fn test_mortality_young_peaceful() {
         let rate = mortality_rate(10, 1.0, false, 0.0);
         assert!((rate - MORTALITY_YOUNG).abs() < 0.001);
@@ -179,14 +240,15 @@ mod tests {
 
     #[test]
     fn test_mortality_disease_at_cap() {
-        // M53: at disease cap (0.15), mortality should be 2.5x base, not 16x
+        // At disease cap (0.15), mortality should rise meaningfully without
+        // dominating the demographic loop.
         let rate = mortality_rate(30, 1.0, false, 0.15);
         let expected = MORTALITY_ADULT * (1.0 + 0.15 * DISEASE_MORTALITY_SCALE);
         assert!((rate - expected).abs() < 0.001);
-        // Verify the multiplier is 2.5x (at SCALE=10)
-        assert!((rate / MORTALITY_ADULT - 2.5).abs() < 0.01);
-        // And crucially, the rate is 0.025, not 0.16
-        assert!(rate < 0.03, "disease at cap should give ~2.5%, got {}", rate);
+        // Verify the multiplier stays close to 1.9x at SCALE=6.
+        assert!((rate / MORTALITY_ADULT - 1.9).abs() < 0.01);
+        // And crucially, the rate remains well below the old additive blow-up regime.
+        assert!(rate < 0.02, "disease at cap should stay near 1.9x base, got {}", rate);
     }
 
     #[test]
@@ -210,14 +272,15 @@ mod tests {
 
     #[test]
     fn test_fertility_too_old() {
-        assert!(fertility_rate(61, 0.8, 0, 0.8) == 0.0);  // past FERTILITY_TAPER_AGE_MAX (60)
+        assert!(fertility_rate(81, 0.8, 0, 0.8) == 0.0);  // past FERTILITY_TAPER_AGE_MAX (80)
     }
 
     #[test]
     fn test_fertility_low_satisfaction() {
-        // M47c: threshold lowered to 0.3 — 0.3 is now below threshold, 0.4 is above
-        assert!(fertility_rate(25, 0.3, 0, 0.8) == 0.0);
-        assert!(fertility_rate(25, 0.31, 0, 0.8) > 0.0);
+        // Follow-on retune: low-satisfaction societies should need to recover above 0.20
+        // before births resume, so scarcity does not compound indefinitely.
+        assert!(fertility_rate(25, 0.20, 0, 0.8) == 0.0);
+        assert!(fertility_rate(25, 0.21, 0, 0.8) > 0.0);
     }
 
     #[test]
@@ -228,22 +291,57 @@ mod tests {
     }
 
     #[test]
+    fn test_fertility_crowding_soft_start_preserves_baseline() {
+        let crowded = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 1.05);
+        let baseline = fertility_rate(25, 0.6, 0, 0.8);
+        assert!((crowded - baseline).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fertility_crowding_strongly_suppresses_births() {
+        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 2.0);
+        let full = FERTILITY_BASE_FARMER * 0.9;
+        let crowding_mult = (FERTILITY_CROWDING_ZERO - 2.0)
+            / (FERTILITY_CROWDING_ZERO - FERTILITY_CROWDING_SOFT_START);
+        assert!((rate - full * crowding_mult).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fertility_crowding_zeroes_extreme_overflow() {
+        assert!(fertility_rate_with_pressure(
+            25,
+            0.6,
+            0,
+            0.8,
+            FERTILITY_CROWDING_ZERO,
+        ) == 0.0);
+    }
+
+    #[test]
     fn test_fertility_boundary_age_min() {
         assert!(fertility_rate(16, 0.6, 0, 0.8) > 0.0);
     }
 
     #[test]
-    fn test_fertility_full_at_50() {
-        // Age 50 = last full-rate year
-        let rate = fertility_rate(50, 0.6, 0, 0.8);
+    fn test_fertility_full_at_55() {
+        // Age 55 remains inside the full-rate fertility window.
+        let rate = fertility_rate(55, 0.6, 0, 0.8);
         let expected = FERTILITY_BASE_FARMER * 0.9;
         assert!((rate - expected).abs() < 0.001);
     }
 
     #[test]
-    fn test_fertility_taper_at_51() {
-        // Age 51 = first taper year: 1.0 - 1/10 = 9/10
-        let rate = fertility_rate(51, 0.6, 0, 0.8);
+    fn test_fertility_full_at_60() {
+        // Age 60 = last full-rate year after the handoff retune.
+        let rate = fertility_rate(60, 0.6, 0, 0.8);
+        let expected = FERTILITY_BASE_FARMER * 0.9;
+        assert!((rate - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_fertility_taper_at_61() {
+        // Age 61 = first taper year: 1.0 - 1/20
+        let rate = fertility_rate(61, 0.6, 0, 0.8);
         let full = FERTILITY_BASE_FARMER * 0.9;
         let taper = 1.0 - 1.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
         assert!((rate - full * taper).abs() < 0.001);
@@ -251,23 +349,23 @@ mod tests {
 
     #[test]
     fn test_fertility_taper_midpoint() {
-        // Age 55 = midpoint of taper (50..60): 1.0 - 5/10
-        let rate = fertility_rate(55, 0.6, 0, 0.8);
+        // Age 70 sits midway through the taper (60..80): 1.0 - 10/20
+        let rate = fertility_rate(70, 0.6, 0, 0.8);
         let full = FERTILITY_BASE_FARMER * 0.9;
-        let taper = 1.0 - 5.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
+        let taper = 1.0 - 10.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
         assert!((rate - full * taper).abs() < 0.001);
     }
 
     #[test]
-    fn test_fertility_taper_at_60() {
-        // Age 60 = end of taper: 1.0 - 15/15 = 0.0
-        assert!(fertility_rate(60, 0.6, 0, 0.8) == 0.0);
+    fn test_fertility_taper_at_80() {
+        // Age 80 = end of taper: 1.0 - 20/20 = 0.0
+        assert!(fertility_rate(80, 0.6, 0, 0.8) == 0.0);
     }
 
     #[test]
     fn test_fertility_past_taper() {
-        // Age 61 = past taper range
-        assert!(fertility_rate(61, 0.6, 0, 0.8) == 0.0);
+        // Age 81 = past taper range
+        assert!(fertility_rate(81, 0.6, 0, 0.8) == 0.0);
     }
 
     #[test]

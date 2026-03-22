@@ -6,8 +6,9 @@ use crate::signals::CivShock;
 
 const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 const PEAK_YIELD: f32 = 1.0;
-const FOOD_SHORTAGE_WEIGHT: f32 = 0.15;  // [CALIBRATE] M42: max food penalty at zero supply (was 0.3, halved in M47c)
+const FOOD_SHORTAGE_WEIGHT: f32 = 0.10;  // [CALIBRATE] severe shortages still hurt, but they should not zero out recovering survivor cohorts on their own.
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
+const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.10;
 
 /// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7
 fn is_food(rtype: u8) -> bool {
@@ -230,7 +231,13 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
 /// Target occupation ratios for a region based on terrain and ecology.
 /// Returns [farmer, soldier, merchant, scholar, priest] ratios summing to ~1.0.
 /// Cold path — called once per region per tick, not per agent.
-pub fn target_occupation_ratio(terrain: u8, soil: f32, _water: f32, demand_shifts: [f32; 5]) -> [f32; 5] {
+pub fn target_occupation_ratio(
+    terrain: u8,
+    soil: f32,
+    _water: f32,
+    food_sufficiency: f32,
+    demand_shifts: [f32; 5],
+) -> [f32; 5] {
     let mut r = [0.60f32, 0.15, 0.10, 0.10, 0.05];
 
     match terrain {
@@ -245,6 +252,18 @@ pub fn target_occupation_ratio(terrain: u8, soil: f32, _water: f32, demand_shift
         r[0] -= 0.10;
         r[1] += 0.05;
         r[4] += 0.05;
+    }
+
+    // Food scarcity should pull labor back toward farming before regions fall
+    // into a multi-turn zero-stockpile trap.
+    let food_pressure = (0.85 - food_sufficiency).max(0.0) / 0.85;
+    if food_pressure > 0.0 {
+        let farmer_bonus = FOOD_SCARCITY_FARMER_BONUS * food_pressure;
+        r[0] += farmer_bonus;
+        r[1] -= farmer_bonus * 0.30;
+        r[2] -= farmer_bonus * 0.30;
+        r[3] -= farmer_bonus * 0.20;
+        r[4] -= farmer_bonus * 0.20;
     }
 
     // Apply demand shifts with 1% floor — never zero demand
@@ -508,22 +527,30 @@ mod tests {
 
     #[test]
     fn test_target_occupation_ratio_plains() {
-        let ratios = target_occupation_ratio(0, 0.8, 0.6, [0.0; 5]);
+        let ratios = target_occupation_ratio(0, 0.8, 0.6, 1.0, [0.0; 5]);
         assert!((ratios.iter().sum::<f32>() - 1.0).abs() < 0.01);
         assert!(ratios[0] > 0.5);
     }
 
     #[test]
     fn test_target_occupation_ratio_coast() {
-        let ratios = target_occupation_ratio(2, 0.5, 0.5, [0.0; 5]);
+        let ratios = target_occupation_ratio(2, 0.5, 0.5, 1.0, [0.0; 5]);
         assert!(ratios[2] > 0.10);
     }
 
     #[test]
     fn test_target_occupation_ratio_desert_bad_soil() {
-        let ratios = target_occupation_ratio(4, 0.2, 0.3, [0.0; 5]);
+        let ratios = target_occupation_ratio(4, 0.2, 0.3, 1.0, [0.0; 5]);
         assert!(ratios[0] < 0.45);
         assert!((ratios.iter().sum::<f32>() - 1.0).abs() < 0.02);
+    }
+
+    #[test]
+    fn test_target_occupation_ratio_food_shortage_boosts_farmers() {
+        let base = target_occupation_ratio(0, 0.5, 0.5, 1.0, [0.0; 5]);
+        let starving = target_occupation_ratio(0, 0.5, 0.5, 0.2, [0.0; 5]);
+        assert!(starving[0] > base[0]);
+        assert!((starving.iter().sum::<f32>() - 1.0).abs() < 0.001);
     }
 
     // --- M27 shock penalty tests ---
@@ -558,8 +585,8 @@ mod tests {
 
     #[test]
     fn test_demand_shift_increases_soldier() {
-        let base = target_occupation_ratio(0, 0.5, 0.5, [0.0; 5]);
-        let shifted = target_occupation_ratio(0, 0.5, 0.5, [0.0, 0.17, 0.0, 0.0, 0.0]);
+        let base = target_occupation_ratio(0, 0.5, 0.5, 1.0, [0.0; 5]);
+        let shifted = target_occupation_ratio(0, 0.5, 0.5, 1.0, [0.0, 0.17, 0.0, 0.0, 0.0]);
         assert!(shifted[1] > base[1], "Soldier ratio should increase with demand shift");
         let sum: f32 = shifted.iter().sum();
         assert!((sum - 1.0).abs() < 0.001, "Ratios must sum to 1.0");
@@ -568,8 +595,8 @@ mod tests {
 
     #[test]
     fn test_demand_shift_zero_is_noop() {
-        let base = target_occupation_ratio(0, 0.5, 0.5, [0.0; 5]);
-        let same = target_occupation_ratio(0, 0.5, 0.5, [0.0; 5]);
+        let base = target_occupation_ratio(0, 0.5, 0.5, 1.0, [0.0; 5]);
+        let same = target_occupation_ratio(0, 0.5, 0.5, 1.0, [0.0; 5]);
         for i in 0..5 {
             assert!((base[i] - same[i]).abs() < 0.001);
         }

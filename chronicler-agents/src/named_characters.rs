@@ -134,7 +134,7 @@ impl NamedCharacterRegistry {
 
         // Bypasses 2-4 (long displacement, serial migrant, occupation versatility)
         // are deferred to Python which can count from event history.
-        // displacement_turns is a 3-tick decrement counter, not an accumulator,
+        // displacement_turns is a short decrementing cooldown, not an accumulator,
         // so checking it here would be dead code.
 
         None

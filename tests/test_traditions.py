@@ -119,7 +119,7 @@ def test_food_stockpiling_fertility_floor(make_world):
     region = next(r for r in world.regions if r.name in civ.regions)
     region.ecology.soil = 0.1
     apply_soil_floor(world)
-    assert region.ecology.soil == 0.2
+    assert region.ecology.soil == 0.25
 
 
 def test_max_traditions_cap(make_world):

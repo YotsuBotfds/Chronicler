@@ -446,6 +446,7 @@ class AgentBridge:
                  relationship_stats: bool = False):
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         self._mode = mode
+        world._agent_bridge = self
         self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
         self._demand_manager = DemandSignalManager()
         self._shadow_logger: ShadowLogger | None = None
@@ -475,6 +476,25 @@ class AgentBridge:
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
         self._economy_result = result
+
+    def _resolve_polity_civ_ids(
+        self,
+        world: "WorldState",
+        region_ids: list[int],
+        fallback_civ_ids: list[int],
+    ) -> list[int]:
+        """Resolve per-agent polity ids from current region control with affinity fallback."""
+        name_to_id = {civ.name: idx for idx, civ in enumerate(world.civilizations)}
+        resolved: list[int] = []
+        for region_id, fallback_civ_id in zip(region_ids, fallback_civ_ids):
+            controller_id = None
+            region_idx = int(region_id)
+            if 0 <= region_idx < len(world.regions):
+                controller_name = world.regions[region_idx].controller
+                if controller_name is not None:
+                    controller_id = name_to_id.get(controller_name)
+            resolved.append(controller_id if controller_id is not None else int(fallback_civ_id))
+        return resolved
 
     def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
         self._sim.set_region_state(build_region_batch(world, self._economy_result))
@@ -513,7 +533,14 @@ class AgentBridge:
                 # M41: compute per-civ Gini from wealth snapshot (hybrid mode only)
                 if "wealth" in snap.schema.names:
                     wealth_col = snap.column("wealth").to_numpy()
-                    civ_col = snap.column("civ_affinity").to_numpy()
+                    civ_col = np.array(
+                        self._resolve_polity_civ_ids(
+                            world,
+                            regions_col,
+                            snap.column("civ_affinity").to_pylist(),
+                        ),
+                        dtype=np.int64,
+                    )
                     new_gini: dict[int, float] = {}
                     for civ_id in np.unique(civ_col):
                         mask = civ_col == civ_id
@@ -635,6 +662,19 @@ class AgentBridge:
         """M53: Per-tick relationship stats history (populated when --relationship-stats is set)."""
         return self._relationship_stats_history
 
+    def write_final_sidecar_snapshot(self, world: "WorldState") -> None:
+        """Capture the true post-loop state for validation sidecars.
+
+        Regular sidecar sampling happens inside the turn loop before the main
+        runner increments `world.turn`, so a 500-turn run would otherwise end
+        with the last aggregate snapshot at turn 490. Writing one final sample
+        after the loop keeps the validator aligned with the actual final bundle
+        state.
+        """
+        if not self._sidecar:
+            return
+        self._write_sidecar_snapshot(world)
+
     def _write_sidecar_snapshot(self, world: "WorldState") -> None:
         """M53: Write validation sidecar data at sample points (every 10 turns)."""
         turn = world.turn
@@ -708,8 +748,9 @@ class AgentBridge:
                 sat_list = snap.column("satisfaction").to_pylist()
                 occ_list = snap.column("occupation").to_pylist()
                 region_list = snap.column("region").to_pylist()
+                polity_civ_ids = self._resolve_polity_civ_ids(world, region_list, civ_list)
                 for i in range(len(civ_list)):
-                    civ_bucket = civ_data[civ_list[i]]
+                    civ_bucket = civ_data[polity_civ_ids[i]]
                     civ_bucket["sats"].append(sat_list[i])
                     civ_bucket["occupations"][int(occ_list[i])] += 1
                     civ_bucket["regions"][int(region_list[i])] += 1
@@ -722,9 +763,13 @@ class AgentBridge:
                 need_keys = ("safety", "autonomy", "social", "spiritual", "material", "purpose")
                 need_sums_by_civ: dict[int, dict[str, float]] = defaultdict(lambda: {key: 0.0 for key in need_keys})
                 need_counts_by_civ: Counter = Counter()
-                if needs_data is not None and needs_data.get("civ_affinity"):
-                    for idx, civ in enumerate(needs_data["civ_affinity"]):
-                        civ = int(civ)
+                if needs_data is not None and needs_data.get("region") and needs_data.get("civ_affinity"):
+                    need_polity_ids = self._resolve_polity_civ_ids(
+                        world,
+                        needs_data["region"],
+                        needs_data["civ_affinity"],
+                    )
+                    for idx, civ in enumerate(need_polity_ids):
                         need_counts_by_civ[civ] += 1
                         for need_key in need_keys:
                             need_sums_by_civ[civ][need_key] += float(needs_data[need_key][idx])
@@ -765,6 +810,7 @@ class AgentBridge:
                         "occupation_counts": dict(cd["occupations"]),
                         "need_means": need_means,
                         "memory_slot_occupancy_mean": round(memory_slot_mean, 4),
+                        "gini": round(self._gini_by_civ.get(int(civ), 0.0), 4),
                     }
             self._sidecar.write_agent_aggregate(turn=turn, aggregates=agg)
         except Exception:
@@ -1113,12 +1159,24 @@ class AgentBridge:
     def apply_secession_transitions(self, old_civ, new_civ,
                                     seceding_regions: list[str],
                                     new_civ_id: int,
-                                    turn: int = 0) -> list:
+                                    turn: int = 0,
+                                    *,
+                                    world: "WorldState | None" = None,
+                                    old_civ_id: int | None = None) -> list:
         """Transition agent-source named characters on secession."""
         from chronicler.models import Event
 
         events = []
         seceding_set = set(seceding_regions)
+        transferred_agent_ids: set[int] = set()
+
+        if world is not None and old_civ_id is not None:
+            transferred_agent_ids = self._transfer_region_agents_to_civ(
+                world=world,
+                region_names=seceding_set,
+                old_civ_id=old_civ_id,
+                new_civ_id=new_civ_id,
+            )
 
         for gp in list(old_civ.great_persons):
             if gp.source != "agent" or gp.agent_id is None:
@@ -1132,10 +1190,11 @@ class AgentBridge:
             new_civ.great_persons.append(gp)
             _append_deed(gp, f"Defected to {new_civ.name} during secession")
 
-            try:
-                self._sim.set_agent_civ(gp.agent_id, new_civ_id)
-            except Exception:
-                pass
+            if gp.agent_id not in transferred_agent_ids:
+                try:
+                    self._sim.set_agent_civ(gp.agent_id, new_civ_id)
+                except Exception:
+                    pass
 
             events.append(Event(
                 turn=turn,
@@ -1146,6 +1205,149 @@ class AgentBridge:
             ))
 
         return events
+
+    def apply_restoration_transitions(
+        self,
+        absorber_civ,
+        restored_civ,
+        restored_regions: list[str],
+        absorber_civ_id: int,
+        restored_civ_id: int,
+        *,
+        world: "WorldState | None" = None,
+    ) -> None:
+        """Realign agent-source affiliation when an exiled civ is restored."""
+        restored_set = set(restored_regions)
+        transferred_agent_ids: set[int] = set()
+
+        if world is not None:
+            transferred_agent_ids = self._transfer_region_agents_to_civ(
+                world=world,
+                region_names=restored_set,
+                old_civ_id=absorber_civ_id,
+                new_civ_id=restored_civ_id,
+            )
+
+        for gp in list(absorber_civ.great_persons):
+            if gp.source != "agent" or gp.agent_id is None:
+                continue
+            if gp.region not in restored_set:
+                continue
+
+            gp.civilization = restored_civ.name
+            absorber_civ.great_persons.remove(gp)
+            restored_civ.great_persons.append(gp)
+            _append_deed(gp, f"Returned to {restored_civ.name} during restoration")
+
+            if gp.agent_id not in transferred_agent_ids:
+                try:
+                    self._sim.set_agent_civ(gp.agent_id, restored_civ_id)
+                except Exception:
+                    pass
+
+    def apply_absorption_transitions(
+        self,
+        losing_civ,
+        absorber_civ,
+        absorbed_regions: list[str],
+        losing_civ_id: int,
+        absorber_civ_id: int,
+        *,
+        world: "WorldState | None" = None,
+    ) -> None:
+        """Realign agent-source affiliation when a civ is peacefully absorbed."""
+        absorbed_set = set(absorbed_regions)
+        transferred_agent_ids: set[int] = set()
+
+        if world is not None:
+            transferred_agent_ids = self._transfer_region_agents_to_civ(
+                world=world,
+                region_names=absorbed_set,
+                old_civ_id=losing_civ_id,
+                new_civ_id=absorber_civ_id,
+            )
+
+        for gp in list(losing_civ.great_persons):
+            if gp.source != "agent" or gp.agent_id is None:
+                continue
+            if gp.region not in absorbed_set:
+                continue
+
+            gp.civilization = absorber_civ.name
+            losing_civ.great_persons.remove(gp)
+            absorber_civ.great_persons.append(gp)
+            _append_deed(gp, f"Absorbed into {absorber_civ.name} during twilight absorption")
+
+            if gp.agent_id not in transferred_agent_ids:
+                try:
+                    self._sim.set_agent_civ(gp.agent_id, absorber_civ_id)
+                except Exception:
+                    pass
+
+    def realign_region_agents_to_civ(
+        self,
+        *,
+        world: "WorldState",
+        region_names: set[str],
+        old_civ_id: int,
+        new_civ_id: int,
+    ) -> set[int]:
+        """Move ordinary agents in the specified regions from one polity to another."""
+        return self._transfer_region_agents_to_civ(
+            world=world,
+            region_names=region_names,
+            old_civ_id=old_civ_id,
+            new_civ_id=new_civ_id,
+        )
+
+    def _transfer_region_agents_to_civ(
+        self,
+        *,
+        world: "WorldState",
+        region_names: set[str],
+        old_civ_id: int,
+        new_civ_id: int,
+    ) -> set[int]:
+        """Move agents in the specified regions from one civ slot to another."""
+        if not region_names:
+            return set()
+
+        try:
+            snapshot = self._sim.get_snapshot()
+        except Exception:
+            return set()
+
+        if snapshot is None or getattr(snapshot, "num_rows", 0) == 0:
+            return set()
+
+        region_name_to_id = {
+            region.name: region_idx for region_idx, region in enumerate(world.regions)
+        }
+        target_region_ids = {
+            region_name_to_id[name]
+            for name in region_names
+            if name in region_name_to_id
+        }
+        if not target_region_ids:
+            return set()
+
+        agent_ids = snapshot.column("id").to_pylist()
+        region_ids = snapshot.column("region").to_pylist()
+        civ_ids = snapshot.column("civ_affinity").to_pylist()
+
+        transferred: set[int] = set()
+        for idx, agent_id in enumerate(agent_ids):
+            if int(region_ids[idx]) not in target_region_ids:
+                continue
+            if int(civ_ids[idx]) != int(old_civ_id):
+                continue
+            try:
+                self._sim.set_agent_civ(int(agent_id), int(new_civ_id))
+                transferred.add(int(agent_id))
+            except Exception:
+                continue
+
+        return transferred
 
     def _aggregate_events(self, world, named_agents=None):
         """Check thresholds and emit summary Events."""
@@ -1357,23 +1559,31 @@ class AgentBridge:
                 )
             region.population = agent_pop
 
-        # Build region-name lookup for civ population sums
-        region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+        controlled_regions_by_civ: dict[str, list[str]] = {
+            civ.name: [] for civ in world.civilizations
+        }
+        controlled_population_by_civ: Counter = Counter()
+        for region in world.regions:
+            if region.controller is None:
+                continue
+            if region.controller not in controlled_regions_by_civ:
+                continue
+            controlled_regions_by_civ[region.controller].append(region.name)
+            controlled_population_by_civ[region.controller] += region.population
 
         # Civ stats from aggregates
         civ_ids = aggs.column("civ_id").to_pylist()
+        for civ in world.civilizations:
+            civ.regions = controlled_regions_by_civ.get(civ.name, [])
         for row_idx, civ_id in enumerate(civ_ids):
             if civ_id >= len(world.civilizations):
                 continue
             civ = world.civilizations[civ_id]
             if len(civ.regions) == 0:
-                continue  # Skip dead civs whose agents haven't loyalty-flipped
-            # Sum population across regions owned by this civ (regions is list[str])
-            civ.population = sum(
-                world.regions[region_name_to_idx[rname]].population
-                for rname in civ.regions
-                if rname in region_name_to_idx
-            )
+                continue
+            civ.population = int(controlled_population_by_civ.get(civ.name, 0))
+            if civ.population < 1:
+                civ.population = 1
             civ.military = aggs.column("military")[row_idx].as_py()
             civ.economy = aggs.column("economy")[row_idx].as_py()
             civ.culture = aggs.column("culture")[row_idx].as_py()

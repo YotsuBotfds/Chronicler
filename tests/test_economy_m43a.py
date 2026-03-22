@@ -19,6 +19,8 @@ from chronicler.economy import (
     PER_GOOD_CAP_FACTOR,
     INITIAL_BUFFER,
     map_resource_to_good,
+    bootstrap_region_stockpile,
+    settle_pending_stockpile_bootstraps,
     compute_transport_cost,
     build_river_route_set,
     allocate_trade_flow,
@@ -357,6 +359,63 @@ def test_stockpile_initialization():
                 f"Region {region.name}: expected {good}={expected}, "
                 f"got {region.stockpile.goods}"
             )
+
+
+def test_bootstrap_region_stockpile_seeds_primary_good_and_food():
+    region = Region(
+        name="Hills",
+        terrain="mountains",
+        carrying_capacity=50,
+        population=24,
+        resources="mineral",
+    )
+    region.resource_types[0] = 5  # ore
+
+    bootstrapped = bootstrap_region_stockpile(region)
+
+    assert bootstrapped is True
+    assert region.stockpile.goods["ore"] == INITIAL_BUFFER * 24
+    assert region.stockpile.goods["grain"] == INITIAL_BUFFER * 24
+
+
+def test_bootstrap_region_stockpile_preserves_existing_primary_and_adds_missing_food():
+    region = Region(
+        name="Hills",
+        terrain="mountains",
+        carrying_capacity=50,
+        population=18,
+        resources="mineral",
+    )
+    region.resource_types[0] = 5  # ore
+    region.stockpile.goods["ore"] = 7.0
+
+    bootstrapped = bootstrap_region_stockpile(region)
+
+    assert bootstrapped is True
+    assert region.stockpile.goods["ore"] == 7.0
+    assert region.stockpile.goods["grain"] == INITIAL_BUFFER * 18
+
+
+def test_settle_pending_stockpile_bootstraps_waits_for_population():
+    region = Region(
+        name="Frontier",
+        terrain="coast",
+        carrying_capacity=60,
+        population=0,
+        resources="maritime",
+        controller="Civ A",
+    )
+    region.resource_types[0] = 3  # fish
+    region._stockpile_bootstrap_pending = True
+
+    assert settle_pending_stockpile_bootstraps([region]) == 0
+    assert getattr(region, "_stockpile_bootstrap_pending", False) is True
+    assert region.stockpile.goods == {}
+
+    region.population = 22
+    assert settle_pending_stockpile_bootstraps([region]) == 1
+    assert getattr(region, "_stockpile_bootstrap_pending", False) is False
+    assert region.stockpile.goods["fish"] == INITIAL_BUFFER * 22
 
 
 # --- Task 11: Conquest Stockpile Destruction ---

@@ -2,7 +2,7 @@ import pytest
 from chronicler.models import (
     ActionType, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
-from chronicler.action_engine import ActionEngine
+from chronicler.action_engine import ActionEngine, resolve_action, resolve_war
 from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR
 
 
@@ -67,6 +67,17 @@ class TestEligibility:
 
     def test_diplomacy_always_eligible(self, engine_world):
         assert ActionType.DIPLOMACY in ActionEngine(engine_world).get_eligible_actions(engine_world.civilizations[0])
+
+    def test_expand_marks_empty_region_for_stockpile_bootstrap(self, engine_world):
+        civ = engine_world.civilizations[0]
+        frontier = next(r for r in engine_world.regions if r.name == "Region D")
+        frontier.population = 0
+        frontier.resource_types[0] = 3  # fish
+
+        resolve_action(civ, ActionType.EXPAND, engine_world)
+
+        assert frontier.controller == civ.name
+        assert getattr(frontier, "_stockpile_bootstrap_pending", False) is True
 
 
 class TestPersonalityWeights:
@@ -222,6 +233,35 @@ class TestWarDamper:
         engine = ActionEngine(engine_world)
         weights = engine.compute_weights(civ)
         assert weights[ActionType.DIPLOMACY] > weights[ActionType.DEVELOP]
+
+
+class TestWarResolution:
+    def test_hybrid_conquest_realigns_conquered_region_agents(self, engine_world):
+        class _FakeBridge:
+            def __init__(self):
+                self.calls = []
+
+            def realign_region_agents_to_civ(self, **kwargs):
+                self.calls.append(kwargs)
+                return {101}
+
+        attacker = engine_world.civilizations[0]
+        defender = engine_world.civilizations[1]
+        attacker.military = 100
+        defender.military = 10
+        engine_world.agent_mode = "hybrid"
+        bridge = _FakeBridge()
+        engine_world._agent_bridge = bridge
+
+        result = resolve_war(attacker, defender, engine_world, seed=0)
+
+        assert result.outcome == "attacker_wins"
+        assert bridge.calls == [{
+            "world": engine_world,
+            "region_names": {"Region C"},
+            "old_civ_id": 1,
+            "new_civ_id": 0,
+        }]
 
 
 class TestWarWeariness:

@@ -3,6 +3,7 @@ use chronicler_agents::{
     CivSignals, TickSignals,
     decay_needs, restore_needs, clamp_needs, update_needs,
     compute_need_utility_modifiers,
+    SAFETY_DECAY, MATERIAL_DECAY, SOCIAL_DECAY, SPIRITUAL_DECAY, AUTONOMY_DECAY, PURPOSE_DECAY,
 };
 
 // ---------------------------------------------------------------------------
@@ -103,8 +104,7 @@ fn test_decay_basic() {
 
     decay_needs(&mut pool, &[slot]);
 
-    // SAFETY_DECAY = 0.015
-    let expected = 0.5 - 0.015;
+    let expected = 0.5 - SAFETY_DECAY;
     assert!(
         (pool.need_safety[slot] - expected).abs() < 0.001,
         "Expected safety {} after one decay, got {}",
@@ -134,12 +134,12 @@ fn test_decay_all_six_needs() {
 
     decay_needs(&mut pool, &[slot]);
 
-    assert!((pool.need_safety[slot] - (0.5 - 0.015)).abs() < 0.001);
-    assert!((pool.need_material[slot] - (0.5 - 0.012)).abs() < 0.001);
-    assert!((pool.need_social[slot] - (0.5 - 0.008)).abs() < 0.001);
-    assert!((pool.need_spiritual[slot] - (0.5 - 0.010)).abs() < 0.001);
-    assert!((pool.need_autonomy[slot] - (0.5 - 0.010)).abs() < 0.001);
-    assert!((pool.need_purpose[slot] - (0.5 - 0.012)).abs() < 0.001);
+    assert!((pool.need_safety[slot] - (0.5 - SAFETY_DECAY)).abs() < 0.001);
+    assert!((pool.need_material[slot] - (0.5 - MATERIAL_DECAY)).abs() < 0.001);
+    assert!((pool.need_social[slot] - (0.5 - SOCIAL_DECAY)).abs() < 0.001);
+    assert!((pool.need_spiritual[slot] - (0.5 - SPIRITUAL_DECAY)).abs() < 0.001);
+    assert!((pool.need_autonomy[slot] - (0.5 - AUTONOMY_DECAY)).abs() < 0.001);
+    assert!((pool.need_purpose[slot] - (0.5 - PURPOSE_DECAY)).abs() < 0.001);
 }
 
 // ===========================================================================
@@ -456,9 +456,9 @@ fn test_autonomy_rebel_independently() {
     let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
     pool.need_autonomy[slot] = 0.0;
     let mods = compute_need_utility_modifiers(&pool, slot);
-    // deficit = 0.3 * 0.8 = 0.24
-    assert!((mods.rebel - 0.24).abs() < 0.01,
-        "Expected rebel ~0.24, got {}", mods.rebel);
+    let expected = 0.25 * 0.45;
+    assert!((mods.rebel - expected).abs() < 0.01,
+        "Expected rebel ~{}, got {}", expected, mods.rebel);
 }
 
 #[test]

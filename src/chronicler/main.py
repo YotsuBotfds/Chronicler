@@ -496,8 +496,8 @@ def execute_run(
             print(f"API narration: {_narr.call_count} calls, "
                   f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
 
-    # M28: Close agent bridge
     if agent_bridge is not None:
+        agent_bridge.write_final_sidecar_snapshot(world)
         agent_bridge.close()
 
     # Compile final chronicle

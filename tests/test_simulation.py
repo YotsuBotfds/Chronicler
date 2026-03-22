@@ -6,6 +6,7 @@ from chronicler.simulation import (
     phase_action,
     phase_random_events,
     phase_consequences,
+    prune_inactive_wars,
     run_turn,
     apply_asabiya_dynamics,
     update_war_frequency_accumulators,
@@ -62,6 +63,22 @@ class TestPhaseProduction:
         sample_world.civilizations[0].population = 100
         phase_production(sample_world)
         assert sample_world.civilizations[0].population <= 100
+
+
+class TestAutomaticEffects:
+    def test_low_stability_recovery_survives_hybrid_keep_routing(self, sample_world):
+        """Hybrid runs should still apply the baseline low-stability recovery."""
+        from chronicler.accumulator import StatAccumulator
+
+        civ = sample_world.civilizations[0]
+        civ.stability = 10
+        sample_world.active_conditions = []
+
+        acc = StatAccumulator()
+        phase_production(sample_world, acc=acc)
+        acc.apply_keep(sample_world)
+
+        assert civ.stability == 30
 
 
 class TestPhaseAction:
@@ -192,6 +209,35 @@ class TestRunTurn:
         run_turn(sample_world, stub_selector, capturing_narrator, seed=42)
         collapse = [e for e in narrator_events if e.event_type == "collapse"]
         assert len(collapse) >= 1, "Narrator should receive collapse events"
+
+    def test_run_turn_prunes_stale_wars_for_extinct_civs(self, sample_world):
+        """Extinct participants should not keep survivor civs in stale wars."""
+        alive = sample_world.civilizations[0]
+        extinct = sample_world.civilizations[1]
+        extinct.regions = []
+        sample_world.active_wars = [(alive.name, extinct.name)]
+        sample_world.war_start_turns = {
+            f"{min(alive.name, extinct.name)}:{max(alive.name, extinct.name)}": 0
+        }
+
+        run_turn(sample_world, lambda *_: ActionType.DEVELOP, lambda *_: "", seed=42)
+
+        assert sample_world.active_wars == []
+        assert sample_world.war_start_turns == {}
+
+
+def test_prune_inactive_wars_removes_missing_participants(sample_world):
+    alive = sample_world.civilizations[0]
+    extinct = sample_world.civilizations[1]
+    extinct.regions = []
+    key = f"{min(alive.name, extinct.name)}:{max(alive.name, extinct.name)}"
+    sample_world.active_wars = [(alive.name, extinct.name)]
+    sample_world.war_start_turns = {key: 7}
+
+    prune_inactive_wars(sample_world)
+
+    assert sample_world.active_wars == []
+    assert sample_world.war_start_turns == {}
 
 
 class TestFiveTurnValidation:

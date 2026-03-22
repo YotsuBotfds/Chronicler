@@ -47,6 +47,9 @@ if TYPE_CHECKING:
     pass
 
 
+SECESSION_GRACE_TURNS = 50
+
+
 def war_key(a: str, b: str) -> str:
     """Canonical key for a war between two civs (alphabetically sorted)."""
     return ":".join(sorted([a, b]))
@@ -139,6 +142,8 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
     new_civs: list[Civilization] = []
 
     for civ in list(world.civilizations):
+        if civ.founded_turn > 0 and (world.turn - civ.founded_turn) < SECESSION_GRACE_TURNS:
+            continue
         if civ.active_focus == "surveillance":
             secession_threshold = int(get_override(world, K_SECESSION_SURVEILLANCE_THRESHOLD, 5))  # M47c: 10→5 (proportional to base threshold change)
             world.events_timeline.append(Event(
@@ -279,6 +284,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         breakaway_civ.traditions = list(civ.traditions)
 
         civ_idx = civ_index(world, civ.name)
+        new_civ_id = len(world.civilizations) + len(new_civs)
         mult = get_severity_multiplier(civ, world)
         secession_stab_loss = int(get_override(world, K_SECESSION_STABILITY_LOSS, 10))
         if world.agent_mode == "hybrid":
@@ -287,6 +293,19 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
                 economy_shock=normalize_shock(split_eco, civ.economy),
                 stability_shock=normalize_shock(int(secession_stab_loss * mult), civ.stability)))
             civ.treasury -= split_tre  # treasury stays Python-side
+            bridge = getattr(world, "_agent_bridge", None)
+            if bridge is not None:
+                events.extend(
+                    bridge.apply_secession_transitions(
+                        civ,
+                        breakaway_civ,
+                        breakaway_regions,
+                        new_civ_id,
+                        turn=world.turn,
+                        world=world,
+                        old_civ_id=civ_idx,
+                    )
+                )
         elif acc is not None:
             acc.add(civ_idx, civ, "military", -split_mil, "guard")
             acc.add(civ_idx, civ, "economy", -split_eco, "guard")
@@ -1020,16 +1039,45 @@ def check_restoration(world: WorldState) -> list[Event]:
         rng_trait = random.Random(world.seed + world.turn)
         new_trait = rng_trait.choice(_TRAIT_POOL)
 
-        region_map[target_region].population = 30
-        # M51: Create restored civ with placeholder leader, then apply regnal naming
-        restored_civ = Civilization(
-            name=exile.original_civ_name,
-            population=30, military=20, economy=20,
-            culture=30, stability=50, treasury=0,
-            tech_era=restored_era, asabiya=0.8,
-            leader=Leader(name="Placeholder", trait=new_trait, reign_start=world.turn),
-            regions=[target_region], capital_region=target_region,
+        restored_population = 30
+        if world.agent_mode == "hybrid":
+            restored_population = region_map[target_region].population
+        else:
+            region_map[target_region].population = 30
+        restored_leader = Leader(name="Placeholder", trait=new_trait, reign_start=world.turn)
+        restored_civ = next(
+            (
+                civ for civ in world.civilizations
+                if civ.name == exile.original_civ_name and len(civ.regions) == 0
+            ),
+            None,
         )
+        if restored_civ is None:
+            restored_civ = Civilization(
+                name=exile.original_civ_name,
+                population=restored_population, military=20, economy=20,
+                culture=30, stability=50, treasury=0,
+                tech_era=restored_era, asabiya=0.8,
+                leader=restored_leader,
+                regions=[target_region], capital_region=target_region,
+                founded_turn=world.turn,
+            )
+            world.civilizations.append(restored_civ)
+        else:
+            restored_civ.population = restored_population
+            restored_civ.military = 20
+            restored_civ.economy = 20
+            restored_civ.culture = 30
+            restored_civ.stability = 50
+            restored_civ.treasury = 0
+            restored_civ.tech_era = restored_era
+            restored_civ.asabiya = 0.8
+            restored_civ.leader = restored_leader
+            restored_civ.regions = [target_region]
+            restored_civ.capital_region = target_region
+            restored_civ.founded_turn = world.turn
+            restored_civ.decline_turns = 0
+            restored_civ.stats_sum_history = []
         # Apply regnal naming now that restored_civ exists
         regnal_rng = random.Random(
             stable_hash_int(
@@ -1045,7 +1093,15 @@ def check_restoration(world: WorldState) -> list[Event]:
         restored_civ.leader.throne_name = throne_name
         restored_civ.leader.regnal_ordinal = ordinal
 
-        world.civilizations.append(restored_civ)
+        restored_civ_id = len(world.civilizations) - 1
+        restored_civ_id = next(
+            i for i, existing_civ in enumerate(world.civilizations)
+            if existing_civ is restored_civ
+        )
+        absorber_civ_id = next(
+            i for i, existing_civ in enumerate(world.civilizations)
+            if existing_civ is absorber
+        )
 
         if target_region in absorber.regions:
             absorber.regions.remove(target_region)
@@ -1053,7 +1109,19 @@ def check_restoration(world: WorldState) -> list[Event]:
             from chronicler.simulation import reset_war_frequency_on_extinction
             reset_war_frequency_on_extinction(absorber)
         region_map[target_region].controller = exile.original_civ_name
+        if world.agent_mode == "hybrid":
+            bridge = getattr(world, "_agent_bridge", None)
+            if bridge is not None:
+                bridge.apply_restoration_transitions(
+                    absorber,
+                    restored_civ,
+                    [target_region],
+                    absorber_civ_id=absorber_civ_id,
+                    restored_civ_id=restored_civ_id,
+                    world=world,
+                )
         sync_civ_population(absorber, world)
+        sync_civ_population(restored_civ, world)
 
         world.relationships[exile.original_civ_name] = {}
         for c in world.civilizations:
@@ -1234,6 +1302,14 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                             best_absorber_u = absorber
             if best_absorber_u is not None:
                 absorbed_regions = list(civ.regions)
+                civ_id = next(
+                    i for i, existing_civ in enumerate(world.civilizations)
+                    if existing_civ is civ
+                )
+                absorber_id = next(
+                    i for i, existing_civ in enumerate(world.civilizations)
+                    if existing_civ is best_absorber_u
+                )
                 for rn in absorbed_regions:
                     best_absorber_u.regions.append(rn)
                     if rn in region_map_u:
@@ -1251,6 +1327,19 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                         is_destructive=False,
                         action="twilight_absorption",
                     )
+                if world.agent_mode == "hybrid":
+                    bridge = getattr(world, "_agent_bridge", None)
+                    if bridge is not None:
+                        bridge.apply_absorption_transitions(
+                            civ,
+                            best_absorber_u,
+                            absorbed_regions,
+                            losing_civ_id=civ_id,
+                            absorber_civ_id=absorber_id,
+                            world=world,
+                        )
+                sync_civ_population(best_absorber_u, world)
+                sync_civ_population(civ, world)
                 to_remove.append(civ)
                 world.exile_modifiers.append(ExileModifier(
                     original_civ_name=civ.name,
@@ -1288,6 +1377,14 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
             continue
 
         absorbed_regions_tw = list(civ.regions)
+        civ_id = next(
+            i for i, existing_civ in enumerate(world.civilizations)
+            if existing_civ is civ
+        )
+        absorber_id = next(
+            i for i, existing_civ in enumerate(world.civilizations)
+            if existing_civ is best_absorber
+        )
         for rn in civ.regions:
             best_absorber.regions.append(rn)
             if rn in region_map:
@@ -1305,6 +1402,19 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                 is_destructive=False,
                 action="twilight_absorption",
             )
+        if world.agent_mode == "hybrid":
+            bridge = getattr(world, "_agent_bridge", None)
+            if bridge is not None:
+                bridge.apply_absorption_transitions(
+                    civ,
+                    best_absorber,
+                    absorbed_regions_tw,
+                    losing_civ_id=civ_id,
+                    absorber_civ_id=absorber_id,
+                    world=world,
+                )
+        sync_civ_population(best_absorber, world)
+        sync_civ_population(civ, world)
         to_remove.append(civ)
 
         world.exile_modifiers.append(ExileModifier(

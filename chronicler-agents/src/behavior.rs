@@ -28,6 +28,20 @@ use rand_chacha::ChaCha8Rng;
 
 /// M35a: Migration attractiveness bonus for river-connected neighbors. [CALIBRATE]
 const RIVER_MIGRATION_BONUS: f32 = 0.1;
+/// Spare capacity makes a destination more attractive; overcrowding makes it worse.
+const MIGRATION_HEADROOM_BONUS: f32 = 0.20;
+const MIGRATION_OVERCROWDING_PENALTY: f32 = 0.80;
+/// Do not flee into regions that are already meaningfully more crowded.
+const MIGRATION_RELATIVE_CROWDING_GUARD: f32 = 0.05;
+/// If a source region is already over capacity, only move when the destination
+/// offers a meaningful crowding improvement instead of a sideways shuffle.
+const MIGRATION_OVERCROWD_EXIT_DELTA: f32 = 0.20;
+/// Agents in stable regions should not voluntarily pile into already-overfull targets.
+const MIGRATION_TARGET_SOFT_CAP: f32 = 1.10;
+/// Chronic food shortages should materially reduce a destination's attractiveness.
+const MIGRATION_FOOD_SIGNAL_WEIGHT: f32 = 0.25;
+/// Neutral by default; left as an explicit hook for future migration retuning.
+const MIGRATION_SELF_RULE_BONUS: f32 = 0.0;
 
 // ---------------------------------------------------------------------------
 // Helpers — smoothstep, gumbel_argmax
@@ -83,6 +97,91 @@ fn migrate_utility(satisfaction: f32, migration_opportunity: f32) -> f32 {
     let raw = W_MIGRATE_SAT * (MIGRATE_SATISFACTION_THRESHOLD - satisfaction).max(0.0)
         + W_MIGRATE_OPP * (migration_opportunity - MIGRATE_HYSTERESIS).max(0.0);
     raw.min(MIGRATE_CAP)
+}
+
+fn migration_region_score(region: &RegionState, mean_satisfaction: f32, pop_count: usize) -> f32 {
+    let cap = region.carrying_capacity.max(1) as f32;
+    let pop_ratio = pop_count as f32 / cap;
+    let headroom_bonus = (1.0 - pop_ratio).clamp(-1.0, 1.0) * MIGRATION_HEADROOM_BONUS;
+    let overcrowding_penalty = (pop_ratio - 1.0).max(0.0) * MIGRATION_OVERCROWDING_PENALTY;
+    let food_signal = (region.food_sufficiency - 1.0).clamp(-1.0, 0.5) * MIGRATION_FOOD_SIGNAL_WEIGHT;
+    mean_satisfaction + headroom_bonus - overcrowding_penalty + food_signal
+}
+
+#[inline]
+fn polity_alignment_score(
+    source_region: &RegionState,
+    destination_region: &RegionState,
+    civ: u8,
+) -> f32 {
+    if source_region.controller_civ != civ && destination_region.controller_civ == civ {
+        MIGRATION_SELF_RULE_BONUS
+    } else {
+        0.0
+    }
+}
+
+fn region_population_count(stats: &RegionStats, region_id: usize) -> usize {
+    stats.occupation_supply[region_id].iter().sum()
+}
+
+fn best_migration_target_for_agent(
+    pool: &AgentPool,
+    regions: &[RegionState],
+    stats: &RegionStats,
+    region_id: usize,
+    slot: usize,
+) -> (u16, f32) {
+    let civ = pool.civ_affinity(slot);
+    let own_pop = region_population_count(stats, region_id);
+    let own_cap = regions[region_id].carrying_capacity.max(1) as f32;
+    let own_pop_ratio = own_pop as f32 / own_cap;
+    let own_mean = stats.mean_satisfaction[region_id];
+    let own_score = migration_region_score(&regions[region_id], own_mean, own_pop)
+        + polity_alignment_score(&regions[region_id], &regions[region_id], civ);
+
+    let mut best_adj_score = own_score;
+    let mut best_adj_id = region_id as u16;
+    for bit in 0..32u32 {
+        if regions[region_id].adjacency_mask & (1 << bit) == 0 {
+            continue;
+        }
+        let adj = bit as usize;
+        if adj >= regions.len() {
+            continue;
+        }
+
+        let adj_pop = region_population_count(stats, adj);
+        let adj_cap = regions[adj].carrying_capacity.max(1) as f32;
+        let adj_pop_ratio = adj_pop as f32 / adj_cap;
+        if own_pop_ratio <= 1.0 && adj_pop_ratio > MIGRATION_TARGET_SOFT_CAP {
+            continue;
+        }
+        if own_pop_ratio > 1.0
+            && adj_pop_ratio > 1.0
+            && adj_pop_ratio > own_pop_ratio - MIGRATION_OVERCROWD_EXIT_DELTA
+        {
+            continue;
+        }
+        if adj_pop_ratio > own_pop_ratio + MIGRATION_RELATIVE_CROWDING_GUARD
+            && adj_pop_ratio > 1.0
+        {
+            continue;
+        }
+
+        let adj_mean = stats.mean_satisfaction[adj];
+        let mut adj_score = migration_region_score(&regions[adj], adj_mean, adj_pop)
+            + polity_alignment_score(&regions[region_id], &regions[adj], civ);
+        if regions[region_id].river_mask & regions[adj].river_mask != 0 {
+            adj_score += RIVER_MIGRATION_BONUS;
+        }
+        if adj_score > best_adj_score {
+            best_adj_score = adj_score;
+            best_adj_id = adj as u16;
+        }
+    }
+
+    (best_adj_id, (best_adj_score - own_score).max(0.0))
 }
 
 fn switch_utility(
@@ -144,7 +243,6 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
     let mut sat_sum = vec![0.0f32; n];
     let mut pop_count = vec![0usize; n];
     let mut occupation_supply = vec![[0usize; OCCUPATION_COUNT]; n];
-
     // Per-region civ data: HashMap<civ_id, (count, satisfaction_sum)>
     let mut civ_data: Vec<HashMap<u8, (usize, f32)>> =
         (0..n).map(|_| HashMap::new()).collect();
@@ -202,7 +300,13 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
             } else {
                 [0.0; 5]
             };
-            let ratios = target_occupation_ratio(regions[r].terrain, regions[r].soil, regions[r].water, demand_shifts);
+            let ratios = target_occupation_ratio(
+                regions[r].terrain,
+                regions[r].soil,
+                regions[r].water,
+                regions[r].food_sufficiency,
+                demand_shifts,
+            );
             let pop = pop_count[r] as f32;
             let mut demand = [0.0f32; OCCUPATION_COUNT];
             for i in 0..OCCUPATION_COUNT {
@@ -239,25 +343,47 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
     let mut best_migration_target = vec![0u16; n];
     for r in 0..n {
         let own_mean = mean_satisfaction[r];
-        let mut best_adj_mean = own_mean;
+        let own_cap = regions[r].carrying_capacity.max(1) as f32;
+        let own_pop_ratio = pop_count[r] as f32 / own_cap;
+        let own_score = migration_region_score(&regions[r], own_mean, pop_count[r]);
+        let mut best_adj_score = own_score;
         let mut best_adj_id: u16 = r as u16;
         for bit in 0..32u32 {
             if regions[r].adjacency_mask & (1 << bit) != 0 {
                 let adj = bit as usize;
                 if adj < n {
-                    let mut adj_score = mean_satisfaction[adj];
+                    let adj_cap = regions[adj].carrying_capacity.max(1) as f32;
+                    let adj_pop_ratio = pop_count[adj] as f32 / adj_cap;
+                    if own_pop_ratio <= 1.0 && adj_pop_ratio > MIGRATION_TARGET_SOFT_CAP {
+                        continue;
+                    }
+                    if own_pop_ratio > 1.0
+                        && adj_pop_ratio > 1.0
+                        && adj_pop_ratio > own_pop_ratio - MIGRATION_OVERCROWD_EXIT_DELTA
+                    {
+                        continue;
+                    }
+                    if adj_pop_ratio > own_pop_ratio + MIGRATION_RELATIVE_CROWDING_GUARD
+                        && adj_pop_ratio > 1.0
+                    {
+                        continue;
+                    }
+
+                    let adj_mean = mean_satisfaction[adj];
+                    let mut adj_score =
+                        migration_region_score(&regions[adj], adj_mean, pop_count[adj]);
                     // M35a: River-connected neighbors get a bonus
                     if regions[r].river_mask & regions[adj].river_mask != 0 {
                         adj_score += RIVER_MIGRATION_BONUS;
                     }
-                    if adj_score > best_adj_mean {
-                        best_adj_mean = adj_score;
+                    if adj_score > best_adj_score {
+                        best_adj_score = adj_score;
                         best_adj_id = adj as u16;
                     }
                 }
             }
         }
-        migration_opportunity[r] = (best_adj_mean - own_mean).max(0.0);
+        migration_opportunity[r] = (best_adj_score - own_score).max(0.0);
         best_migration_target[r] = best_adj_id;
     }
 
@@ -315,6 +441,7 @@ impl PendingDecisions {
 pub fn evaluate_region_decisions(
     pool: &AgentPool,
     slots: &[usize],
+    regions: &[RegionState],
     region_state: &RegionState,
     stats: &RegionStats,
     region_id: usize,
@@ -335,33 +462,55 @@ pub fn evaluate_region_decisions(
         let bold = pool.boldness(slot);
         let ambi = pool.ambition(slot);
         let ltrait = pool.loyalty_trait(slot);
+        let is_displaced = pool.displacement_turns(slot) > 0;
+        let (best_migration_target, migration_opportunity) = if is_displaced {
+            (region_id as u16, 0.0)
+        } else {
+            best_migration_target_for_agent(pool, regions, stats, region_id, slot)
+        };
 
         // Compute utilities: utility fn -> personality modifier -> NEG_INFINITY gate
         // Modifier MUST be applied BEFORE the gate. 0.0 * modifier = 0.0 -> gated to NEG_INFINITY.
         // If placed after, NEG_INFINITY * modifier produces garbage.
         let mut rebel_util = rebel_utility(loy, sat, stats.rebel_eligible[region_id])
             * personality_modifier(bold, BOLD_REBEL_WEIGHT);
-        let mut migrate_util = migrate_utility(sat, stats.migration_opportunity[region_id])
-            * personality_modifier(bold, BOLD_MIGRATE_WEIGHT);
+        // Recently displaced agents must settle before moving again, or migration
+        // devolves into high-frequency sloshing between adjacent regions.
+        let mut migrate_util = if is_displaced {
+            0.0
+        } else {
+            migrate_utility(sat, migration_opportunity)
+                * personality_modifier(bold, BOLD_MIGRATE_WEIGHT)
+        };
 
         // M38b: Persecution boosts for agents whose belief differs from the majority
         if pool.beliefs[slot] != region_state.majority_belief {
             rebel_util += PERSECUTION_REBEL_BOOST * region_state.persecution_intensity;
-            migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
+            if !is_displaced {
+                migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
+            }
         }
 
         // M48: Memory-driven utility modifiers — additive, applied before NEG_INFINITY gate
         let mem_mods = crate::memory::compute_memory_utility_modifiers(pool, slot);
         rebel_util += mem_mods.rebel;
-        migrate_util += mem_mods.migrate;
+        if !is_displaced {
+            migrate_util += mem_mods.migrate;
+        }
 
         // M49: Need-driven utility modifiers — additive, applied after memory, before gate
         let need_mods = crate::needs::compute_need_utility_modifiers(pool, slot);
         rebel_util += need_mods.rebel;
-        migrate_util += need_mods.migrate;
+        if !is_displaced {
+            migrate_util += need_mods.migrate;
+        }
 
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
-        let u_migrate = if migrate_util > 0.0 { migrate_util } else { f32::NEG_INFINITY };
+        let u_migrate = if !is_displaced && migrate_util > 0.0 {
+            migrate_util
+        } else {
+            f32::NEG_INFINITY
+        };
 
         let (u_switch_base, switch_target) = switch_utility(
             occ,
@@ -386,10 +535,10 @@ pub fn evaluate_region_decisions(
                 pending.rebellions.push((slot, region_id as u16));
             }
             1 => {
-                // Migrate — use pre-computed best target
-                let target = stats.best_migration_target[region_id];
-                if target != region_id as u16 {
-                    pending.migrations.push((slot, region_id as u16, target));
+                if best_migration_target != region_id as u16 {
+                    pending
+                        .migrations
+                        .push((slot, region_id as u16, best_migration_target));
                 }
             }
             2 => {
@@ -636,21 +785,44 @@ mod tests {
         }
     }
 
+    fn eval_region_decisions(
+        pool: &AgentPool,
+        slots: &[usize],
+        regions: &[RegionState],
+        stats: &RegionStats,
+        region_id: usize,
+        rng: &mut rand_chacha::ChaCha8Rng,
+    ) -> PendingDecisions {
+        super::evaluate_region_decisions(
+            pool,
+            slots,
+            regions,
+            &regions[region_id],
+            stats,
+            region_id,
+            rng,
+        )
+    }
+
     #[test]
     fn test_rebel_fires_with_cohort() {
         use rand::SeedableRng;
         use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
-        let regions = vec![make_region(0)];
+        let mut region = make_region(0);
+        region.majority_belief = 2;
+        region.persecution_intensity = 1.0;
+        let regions = vec![region];
         for _ in 0..6 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.8, 0.0, 0.0, 0, 1, 2, 1);
             pool.set_loyalty(slot, 0.01);
             pool.set_satisfaction(slot, 0.01);
+            pool.need_autonomy[slot] = 0.0;
         }
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..6).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert!(pending.rebellions.len() >= 3,
             "expected most agents to rebel, got {}", pending.rebellions.len());
     }
@@ -669,7 +841,7 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..3).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert_eq!(pending.rebellions.len(), 0);
     }
 
@@ -693,13 +865,40 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..5).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert!(pending.migrations.len() >= 3,
             "expected most agents to migrate, got {}", pending.migrations.len());
         for &(_, from, to) in &pending.migrations {
             assert_eq!(from, 0);
             assert_eq!(to, 1);
         }
+    }
+
+    #[test]
+    fn test_displaced_agents_do_not_chain_migrate() {
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+        let mut pool = AgentPool::new(16);
+        let mut regions = vec![make_region(0), make_region(1)];
+        regions[0].adjacency_mask = 0b10;
+        for _ in 0..6 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.05);
+            pool.set_displacement_turns(slot, 2);
+        }
+        for _ in 0..6 {
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.80);
+        }
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let slots: Vec<usize> = (0..6).collect();
+        let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
+        assert!(
+            pending.migrations.is_empty(),
+            "displaced agents should settle before migrating again, got {} migrations",
+            pending.migrations.len(),
+        );
     }
 
     #[test]
@@ -716,7 +915,7 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..20).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert!(pending.occupation_switches.len() > 0);
         for &(_, new_occ) in &pending.occupation_switches {
             assert_eq!(new_occ, Occupation::Farmer as u8);
@@ -742,7 +941,7 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..3).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert_eq!(pending.loyalty_flips.len(), 0);
         assert_eq!(pending.loyalty_drifts.len(), 3);
         for &(_, delta) in &pending.loyalty_drifts {
@@ -758,7 +957,7 @@ mod tests {
         let regions = vec![make_region(0)];
         for _ in 0..3 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
-            pool.set_loyalty(slot, 0.25);
+            pool.set_loyalty(slot, 0.228);
             pool.set_satisfaction(slot, 0.5);
         }
         for _ in 0..3 {
@@ -769,7 +968,7 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..3).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert_eq!(pending.loyalty_flips.len(), 3);
         for &(_, new_civ) in &pending.loyalty_flips {
             assert_eq!(new_civ, 1);
@@ -777,7 +976,6 @@ mod tests {
         assert_eq!(pending.loyalty_drifts.len(), 0);
     }
 
-    #[test]
     fn test_rebel_priority_over_migrate() {
         use rand::SeedableRng;
         use rand_chacha::ChaCha8Rng;
@@ -796,7 +994,7 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..6).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         let total_actions = pending.rebellions.len() + pending.migrations.len();
         assert!(total_actions >= 4,
             "expected most agents to rebel or migrate, got {} rebels + {} migrants",
@@ -898,6 +1096,195 @@ mod tests {
     }
 
     #[test]
+    fn test_migration_avoids_food_starved_target() {
+        let mut pool = AgentPool::new(128);
+        let mut regions = vec![make_region(0), make_region(1), make_region(2)];
+        regions[0].adjacency_mask = 0b110;
+        regions[1].adjacency_mask = 0b001;
+        regions[2].adjacency_mask = 0b001;
+        regions[1].food_sufficiency = 0.0;
+        regions[2].food_sufficiency = 1.2;
+
+        for _ in 0..10 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.20);
+        }
+        for _ in 0..10 {
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.80);
+        }
+        for _ in 0..10 {
+            let slot = pool.spawn(2, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.70);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert_eq!(stats.best_migration_target[0], 2);
+    }
+
+    #[test]
+    fn test_agent_specific_migration_uses_region_score_without_alignment_bias() {
+        let mut pool = AgentPool::new(64);
+        let mut regions = vec![make_region(0), make_region(1), make_region(2)];
+        regions[0].adjacency_mask = 0b110;
+        regions[1].adjacency_mask = 0b001;
+        regions[2].adjacency_mask = 0b001;
+        regions[0].controller_civ = 0;
+        regions[1].controller_civ = 0;
+        regions[2].controller_civ = 1;
+
+        for _ in 0..8 {
+            let slot = pool.spawn(
+                0,
+                1,
+                Occupation::Farmer,
+                25,
+                1.0,
+                0.0,
+                0.0,
+                0,
+                1,
+                2,
+                crate::agent::BELIEF_NONE,
+            );
+            pool.set_satisfaction(slot, 0.10);
+            pool.set_loyalty(slot, 0.60);
+        }
+        for _ in 0..8 {
+            let slot = pool.spawn(
+                1,
+                0,
+                Occupation::Farmer,
+                25,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                1,
+                2,
+                crate::agent::BELIEF_NONE,
+            );
+            pool.set_satisfaction(slot, 0.75);
+            pool.set_loyalty(slot, 0.60);
+        }
+        for _ in 0..8 {
+            let slot = pool.spawn(
+                2,
+                1,
+                Occupation::Farmer,
+                25,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                1,
+                2,
+                crate::agent::BELIEF_NONE,
+            );
+            pool.set_satisfaction(slot, 0.68);
+            pool.set_loyalty(slot, 0.60);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert_eq!(
+            stats.best_migration_target[0],
+            1,
+            "region-level targeting should still favor the slightly happier foreign-ruled region",
+        );
+
+        let (target, opportunity) =
+            best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
+        assert_eq!(
+            target, 1,
+            "without an alignment bonus, agent-specific targeting should match the region-level score",
+        );
+        assert!(opportunity > 0.0);
+    }
+
+    #[test]
+    fn test_migration_prefers_under_capacity_target() {
+        let mut pool = AgentPool::new(128);
+        let mut regions = vec![make_region(0), make_region(1), make_region(2)];
+        regions[0].adjacency_mask = 0b110;
+        regions[1].adjacency_mask = 0b001;
+        regions[2].adjacency_mask = 0b001;
+        regions[0].carrying_capacity = 60;
+        regions[1].carrying_capacity = 20;
+        regions[2].carrying_capacity = 60;
+
+        for _ in 0..10 {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.10);
+        }
+        for _ in 0..60 {
+            let slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.60);
+        }
+        for _ in 0..20 {
+            let slot = pool.spawn(2, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.50);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert_eq!(
+            stats.best_migration_target[0],
+            2,
+            "overcrowded targets should lose to under-capacity alternatives",
+        );
+        assert!(stats.migration_opportunity[0] > 0.0);
+    }
+
+    #[test]
+    fn test_migration_rejects_sideways_overcrowding() {
+        let mut pool = AgentPool::new(128);
+        let mut regions = vec![make_region(0), make_region(1)];
+        regions[0].adjacency_mask = 0b10;
+        regions[0].carrying_capacity = 50;
+        regions[1].carrying_capacity = 50;
+
+        for _ in 0..100 {
+            let slot = pool.spawn(
+                0,
+                0,
+                Occupation::Farmer,
+                25,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                1,
+                2,
+                crate::agent::BELIEF_NONE,
+            );
+            pool.set_satisfaction(slot, 0.20);
+        }
+        for _ in 0..95 {
+            let slot = pool.spawn(
+                1,
+                0,
+                Occupation::Farmer,
+                25,
+                0.0,
+                0.0,
+                0.0,
+                0,
+                1,
+                2,
+                crate::agent::BELIEF_NONE,
+            );
+            pool.set_satisfaction(slot, 0.85);
+        }
+
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        assert_eq!(
+            stats.best_migration_target[0],
+            0,
+            "slightly less crowded but still-overfull targets should not trigger migration",
+        );
+        assert_eq!(stats.migration_opportunity[0], 0.0);
+    }
+
+    #[test]
     fn test_migration_opportunity_no_adjacent() {
         let mut pool = AgentPool::new(16);
         let regions = vec![make_region(0)];
@@ -919,25 +1306,25 @@ mod tests {
     fn test_rebel_utility_partial_one_dimension() {
         let u = super::rebel_utility(0.1, 0.5, 10);
         assert!(u > 0.0);
-        let expected = 0.375_f32; // W_REBEL * (0.2 - 0.1) * smoothstep(10,3,8)=1.0
+        let expected = crate::agent::W_REBEL * (crate::agent::REBEL_LOYALTY_THRESHOLD - 0.1);
         assert!((u - expected).abs() < 0.01, "expected ~{}, got {}", expected, u);
     }
 
     #[test]
     fn test_rebel_utility_saturates_at_cap() {
         use crate::agent::REBEL_CAP;
-        let u = super::rebel_utility(0.0, 0.0, 10);
+        let u = super::rebel_utility(-1.0, -1.0, 10);
         assert!((u - REBEL_CAP).abs() < 0.01);
     }
 
     #[test]
     fn test_rebel_utility_smoothstep_cohort_gate() {
         use crate::agent::REBEL_CAP;
-        let u_zero = super::rebel_utility(0.0, 0.0, 3);
+        let u_zero = super::rebel_utility(-1.0, -1.0, 3);
         assert_eq!(u_zero, 0.0);
-        let u_full = super::rebel_utility(0.0, 0.0, 8);
+        let u_full = super::rebel_utility(-1.0, -1.0, 8);
         assert!((u_full - REBEL_CAP).abs() < 0.01);
-        let u_mid = super::rebel_utility(0.0, 0.0, 5);
+        let u_mid = super::rebel_utility(-1.0, -1.0, 5);
         assert!(u_mid > 0.0 && u_mid < REBEL_CAP);
     }
 
@@ -950,7 +1337,9 @@ mod tests {
     #[test]
     fn test_migrate_utility_satisfaction_below_threshold() {
         let u = super::migrate_utility(0.1, 0.0);
-        assert!((u - 0.334).abs() < 0.01, "expected ~0.334, got {}", u);
+        let expected = crate::agent::W_MIGRATE_SAT
+            * (crate::agent::MIGRATE_SATISFACTION_THRESHOLD - 0.1);
+        assert!((u - expected).abs() < 0.01, "expected ~{}, got {}", expected, u);
     }
 
     #[test]
@@ -1002,6 +1391,17 @@ mod tests {
     }
 
     #[test]
+    fn test_switch_utility_all_farmer_region_has_recovery_path() {
+        // When births temporarily push a civ into an all-farmer state, switch
+        // utility must stay positive so labor diversity can recover.
+        let supply = [20, 0, 0, 0, 0];
+        let demand = [12.0, 3.0, 2.0, 2.0, 1.0];
+        let (u, best_alt) = super::switch_utility(0, &supply, &demand);
+        assert!(u > 0.0, "all-farmer collapse should produce positive switch utility");
+        assert_eq!(best_alt, 1, "largest unmet demand should pull farmers toward soldiers first");
+    }
+
+    #[test]
     fn test_loyalty_recovery_when_own_civ_happier() {
         use rand::SeedableRng;
         use rand_chacha::ChaCha8Rng;
@@ -1020,48 +1420,44 @@ mod tests {
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..3).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pending = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pending = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
         assert_eq!(pending.loyalty_drifts.len(), 3);
         for &(_, delta) in &pending.loyalty_drifts {
             assert!((delta - LOYALTY_RECOVERY_RATE).abs() < 0.001);
         }
     }
 
-    /// Structural regression: verify utility model with extreme conditions matches
-    /// Phase 5 short-circuit for a deeply-below-threshold rebel scenario.
-    /// Uses 10 agents at loyalty=0.0, sat=0.0 so rebel_utility = 1.5 (cap)
-    /// with smoothstep(10, 3, 8) = 1.0. Gap of 1.0 over STAY_BASE makes
-    /// Gumbel noise at T=0.3 negligible (~0.04% flip probability per agent).
+    /// Extreme regression: even under the softened calibration, a cohort with
+    /// maximal grievance should still decisively prefer rebellion over staying.
     #[test]
-    fn test_structural_regression_rebel_v1_vs_v2() {
+    fn test_extreme_rebel_conditions_overwhelm_stay_utility() {
         use rand::SeedableRng;
         use rand_chacha::ChaCha8Rng;
 
         let mut pool = AgentPool::new(16);
-        let regions = vec![make_region(0)];
+        let mut region = make_region(0);
+        region.majority_belief = 2;
+        region.persecution_intensity = 1.0;
+        let regions = vec![region];
 
-        // 10 agents at absolute minimum (maximizes rebel utility to cap)
         for _ in 0..10 {
-            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
-            pool.set_loyalty(slot, 0.0);
-            pool.set_satisfaction(slot, 0.0);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.8, 0.0, 0.0, 0, 1, 2, 1);
+            pool.set_loyalty(slot, -1.0);
+            pool.set_satisfaction(slot, -1.0);
+            pool.need_autonomy[slot] = 0.0;
         }
 
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let slots: Vec<usize> = (0..10).collect();
-
-        // V1: Phase 5 short-circuit — all 10 rebel
-        let pd_v1 = evaluate_region_decisions_v1(&pool, &slots, &regions[0], &stats, 0);
-        assert_eq!(pd_v1.rebellions.len(), 10);
-
-        // V2: utility model — rebel_utility = 1.5, STAY_BASE = 0.5
-        // Gap of 1.0 with T=0.3 makes noise flip astronomically unlikely
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pd_v2 = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+        let pd = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
 
-        assert_eq!(pd_v2.rebellions.len(), pd_v1.rebellions.len(),
-            "structural regression: v2 rebels={} vs v1 rebels={}",
-            pd_v2.rebellions.len(), pd_v1.rebellions.len());
+        assert_eq!(
+            pd.rebellions.len(),
+            10,
+            "extreme grievance cohort should unanimously rebel, got {} rebels",
+            pd.rebellions.len()
+        );
     }
 
     // --- personality_modifier unit tests (M33) ---
@@ -1122,8 +1518,8 @@ mod tests {
 
         let mut rng_a = ChaCha8Rng::from_seed([42u8; 32]);
         let mut rng_b = ChaCha8Rng::from_seed([42u8; 32]);
-        let pd_a = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng_a);
-        let pd_b = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng_b);
+        let pd_a = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng_a);
+        let pd_b = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng_b);
 
         assert_eq!(pd_a.rebellions.len(), pd_b.rebellions.len());
         assert_eq!(pd_a.migrations.len(), pd_b.migrations.len());
@@ -1136,7 +1532,10 @@ mod tests {
         use rand::SeedableRng;
         use rand_chacha::ChaCha8Rng;
 
-        let regions = vec![make_region(0)];
+        let mut region = make_region(0);
+        region.majority_belief = 2;
+        region.persecution_intensity = 1.0;
+        let regions = vec![region];
         let mut bold_rebels = 0u32;
         let mut cautious_rebels = 0u32;
 
@@ -1146,26 +1545,28 @@ mod tests {
 
             let mut pool = AgentPool::new(16);
             for _ in 0..6 {
-                let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.8, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
-                pool.set_loyalty(slot, 0.15);
-                pool.set_satisfaction(slot, 0.15);
+                let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.8, 0.0, 0.0, 0, 1, 2, 1);
+                pool.set_loyalty(slot, 0.05);
+                pool.set_satisfaction(slot, 0.05);
+                pool.need_autonomy[slot] = 0.0;
             }
             let stats = compute_region_stats(&pool, &regions, &default_signals(1));
             let slots: Vec<usize> = (0..6).collect();
             let mut rng = ChaCha8Rng::from_seed(seed);
-            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            let pd = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
             bold_rebels += pd.rebellions.len() as u32;
 
             let mut pool = AgentPool::new(16);
             for _ in 0..6 {
-                let slot = pool.spawn(0, 0, Occupation::Farmer, 25, -0.8, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
-                pool.set_loyalty(slot, 0.15);
-                pool.set_satisfaction(slot, 0.15);
+                let slot = pool.spawn(0, 0, Occupation::Farmer, 25, -0.8, 0.0, 0.0, 0, 1, 2, 1);
+                pool.set_loyalty(slot, 0.05);
+                pool.set_satisfaction(slot, 0.05);
+                pool.need_autonomy[slot] = 0.0;
             }
             let stats = compute_region_stats(&pool, &regions, &default_signals(1));
             let slots: Vec<usize> = (0..6).collect();
             let mut rng = ChaCha8Rng::from_seed(seed);
-            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            let pd = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
             cautious_rebels += pd.rebellions.len() as u32;
         }
 
@@ -1199,7 +1600,7 @@ mod tests {
             let stats = compute_region_stats(&pool, &regions, &default_signals(1));
             let slots: Vec<usize> = (0..20).collect();
             let mut rng = ChaCha8Rng::from_seed(seed);
-            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            let pd = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
             ambitious_switches += pd.occupation_switches.len() as u32;
 
             // Content cohort: same setup with ambition=-0.8
@@ -1212,7 +1613,7 @@ mod tests {
             let stats = compute_region_stats(&pool, &regions, &default_signals(1));
             let slots: Vec<usize> = (0..20).collect();
             let mut rng = ChaCha8Rng::from_seed(seed);
-            let pd = evaluate_region_decisions(&pool, &slots, &regions[0], &stats, 0, &mut rng);
+            let pd = eval_region_decisions(&pool, &slots, &regions, &stats, 0, &mut rng);
             content_switches += pd.occupation_switches.len() as u32;
         }
 
@@ -1247,9 +1648,7 @@ mod tests {
         let stats = compute_region_stats(&pool_steadfast, &regions, &default_signals(1));
         let slots: Vec<usize> = (0..3).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pd_steadfast = evaluate_region_decisions(
-            &pool_steadfast, &slots, &regions[0], &stats, 0, &mut rng,
-        );
+        let pd_steadfast = eval_region_decisions(&pool_steadfast, &slots, &regions, &stats, 0, &mut rng);
 
         let mut pool_mercenary = AgentPool::new(16);
         for _ in 0..3 {
@@ -1266,9 +1665,7 @@ mod tests {
         let stats = compute_region_stats(&pool_mercenary, &regions, &default_signals(1));
         let slots: Vec<usize> = (0..3).collect();
         let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-        let pd_mercenary = evaluate_region_decisions(
-            &pool_mercenary, &slots, &regions[0], &stats, 0, &mut rng,
-        );
+        let pd_mercenary = eval_region_decisions(&pool_mercenary, &slots, &regions, &stats, 0, &mut rng);
 
         // Both should have drifts (multi-civ region, other civ happier)
         assert!(!pd_steadfast.loyalty_drifts.is_empty(), "steadfast should still drift");
@@ -1287,7 +1684,6 @@ mod tests {
             steadfast_mag, mercenary_mag);
 
         // Verify exact values for one drift
-        let expected_steadfast = LOYALTY_DRIFT_RATE * (1.0 + 0.8 * 0.3); // ltrait negated: -(-0.8) = 0.8... wait
         // loyalty_trait = +0.8 (steadfast), modifier = (1.0 + (-0.8) * 0.3) = 0.76
         let expected_steadfast_drift = LOYALTY_DRIFT_RATE * 0.76;
         let expected_mercenary_drift = LOYALTY_DRIFT_RATE * 1.24;
@@ -1359,3 +1755,4 @@ mod river_tests {
             "River-connected region should be preferred migration target");
     }
 }
+

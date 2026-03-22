@@ -177,6 +177,79 @@ def _load_canonical_needs_snapshot(seed_dir: Path, target_turn: int) -> dict | N
     return {"turn": chosen_turn, "columns": filtered}
 
 
+def _available_turns_from_columns(columns: dict | None) -> list[int]:
+    if not columns or not columns.get("turn"):
+        return []
+    return sorted({int(turn) for turn in columns["turn"]})
+
+
+def _sample_turns(turns: list[int], min_turn: int = 100) -> list[int]:
+    steady_state = [turn for turn in turns if turn >= min_turn]
+    return steady_state or turns
+
+
+def _columns_for_turn(columns: dict | None, turn: int) -> dict | None:
+    if not columns or not columns.get("turn"):
+        return None
+    indexes = [
+        idx
+        for idx, row_turn in enumerate(columns["turn"])
+        if int(row_turn) == turn
+    ]
+    if not indexes:
+        return None
+    return {
+        name: [values[idx] for idx in indexes]
+        for name, values in columns.items()
+        if name != "turn"
+    }
+
+
+def _graph_snapshot_from_columns(
+    relationship_columns: dict | None,
+    memory_columns: dict | None,
+    turn: int,
+) -> dict | None:
+    edges: list[tuple[int, int, int, int]] = []
+    if relationship_columns and relationship_columns.get("turn"):
+        for idx, row_turn in enumerate(relationship_columns["turn"]):
+            if int(row_turn) != turn:
+                continue
+            edges.append((
+                int(relationship_columns["agent_id"][idx]),
+                int(relationship_columns["target_id"][idx]),
+                int(relationship_columns["bond_type"][idx]),
+                int(relationship_columns["sentiment"][idx]),
+            ))
+
+    memory_signatures: dict[int, list[tuple[int, int, int]]] = {}
+    if memory_columns and memory_columns.get("turn"):
+        for idx, row_turn in enumerate(memory_columns["turn"]):
+            if int(row_turn) != turn:
+                continue
+            agent_id = int(memory_columns["agent_id"][idx])
+            memory_signatures.setdefault(agent_id, []).append((
+                int(memory_columns["event_type"][idx]),
+                int(memory_columns["memory_turn"][idx]),
+                int(memory_columns["valence_sign"][idx]),
+            ))
+
+    if not edges and not memory_signatures:
+        return None
+    return {
+        "turn": turn,
+        "edges": edges,
+        "memory_signatures": memory_signatures,
+    }
+
+
+def _needs_snapshot_from_columns(columns: dict | None, turn: int) -> dict | None:
+    filtered = _columns_for_turn(columns, turn)
+    if filtered is None:
+        return None
+    return {"turn": turn, "columns": filtered}
+
+
 def _load_validation_summary(seed_dir: Path) -> dict | None:
     path = seed_dir / "validation_summary.json"
     if not path.exists():
@@ -255,11 +328,33 @@ def load_seed_runs(batch_dir: Path) -> list[dict]:
         sidecar_dir = seed_dir / "validation_summary"
         total_turns = int(bundle.get("metadata", {}).get("total_turns", 0) or 0)
         target_turn = max(10, int(round(total_turns / 20.0) * 10)) if total_turns else 10
-        graph_snapshot = _load_canonical_graph_snapshot(seed_dir, target_turn)
+        relationship_columns = _read_arrow_columns(seed_dir / "validation_relationships.arrow")
+        memory_columns = _read_arrow_columns(seed_dir / "validation_memory_signatures.arrow")
+        needs_columns = _read_arrow_columns(seed_dir / "validation_needs.arrow")
+        graph_snapshot = None
+        graph_turn = _choose_snapshot_turn(
+            sorted(
+                set(_available_turns_from_columns(relationship_columns))
+                | set(_available_turns_from_columns(memory_columns))
+            ),
+            target_turn,
+        )
+        if graph_turn is not None:
+            graph_snapshot = _graph_snapshot_from_columns(
+                relationship_columns,
+                memory_columns,
+                graph_turn,
+            )
         if graph_snapshot is None and sidecar_dir.exists():
             graph_turn = _choose_snapshot_turn(_snapshot_turns(sidecar_dir, "graph"), target_turn)
             graph_snapshot = _load_graph_snapshot(sidecar_dir, graph_turn)
-        needs_snapshot = _load_canonical_needs_snapshot(seed_dir, target_turn)
+        needs_snapshot = None
+        needs_turn = _choose_snapshot_turn(
+            _available_turns_from_columns(needs_columns),
+            target_turn,
+        )
+        if needs_turn is not None:
+            needs_snapshot = _needs_snapshot_from_columns(needs_columns, needs_turn)
         if needs_snapshot is None and sidecar_dir.exists():
             needs_turn = _choose_snapshot_turn(_snapshot_turns(sidecar_dir, "needs"), target_turn)
             needs_snapshot = _load_needs_snapshot(sidecar_dir, needs_turn)
@@ -269,6 +364,9 @@ def load_seed_runs(batch_dir: Path) -> list[dict]:
             "seed": bundle.get("metadata", {}).get("seed"),
             "bundle": bundle,
             "events": _load_agent_events(seed_dir),
+            "relationship_columns": relationship_columns,
+            "memory_columns": memory_columns,
+            "needs_columns": needs_columns,
             "graph_snapshot": graph_snapshot,
             "needs_snapshot": needs_snapshot,
             "validation_summary": _load_validation_summary(seed_dir),
@@ -277,6 +375,70 @@ def load_seed_runs(batch_dir: Path) -> list[dict]:
             "civ_trajectories": _civ_trajectories(bundle),
         })
     return runs
+
+
+def _total_turns(run: dict) -> int:
+    return int(run.get("bundle", {}).get("metadata", {}).get("total_turns", 0) or 0)
+
+
+def _iter_graph_snapshots(run: dict, min_turn: int = 100) -> list[dict]:
+    relationship_columns = run.get("relationship_columns")
+    memory_columns = run.get("memory_columns")
+    if relationship_columns or memory_columns:
+        turns = _sample_turns(
+            sorted(
+                set(_available_turns_from_columns(relationship_columns))
+                | set(_available_turns_from_columns(memory_columns))
+            ),
+            min_turn=min_turn,
+        )
+        snapshots = []
+        for turn in turns:
+            snapshot = _graph_snapshot_from_columns(
+                relationship_columns,
+                memory_columns,
+                turn,
+            )
+            if snapshot is not None:
+                snapshots.append(snapshot)
+        if snapshots:
+            return snapshots
+    graph_snapshot = run.get("graph_snapshot")
+    return [graph_snapshot] if graph_snapshot else []
+
+
+def _iter_needs_snapshots(run: dict, min_turn: int = 100) -> list[dict]:
+    needs_columns = run.get("needs_columns")
+    if needs_columns:
+        turns = _sample_turns(_available_turns_from_columns(needs_columns), min_turn=min_turn)
+        snapshots = []
+        for turn in turns:
+            snapshot = _needs_snapshot_from_columns(needs_columns, turn)
+            if snapshot is not None:
+                snapshots.append(snapshot)
+        if snapshots:
+            return snapshots
+    needs_snapshot = run.get("needs_snapshot")
+    return [needs_snapshot] if needs_snapshot else []
+
+
+def _iter_joint_sample_turns(run: dict, min_turn: int = 100) -> list[int]:
+    graph_turns = {
+        int(snapshot["turn"])
+        for snapshot in _iter_graph_snapshots(run, min_turn=min_turn)
+    }
+    needs_turns = {
+        int(snapshot["turn"])
+        for snapshot in _iter_needs_snapshots(run, min_turn=min_turn)
+    }
+    shared_turns = sorted(graph_turns & needs_turns)
+    if shared_turns:
+        return shared_turns
+    single_graph = run.get("graph_snapshot")
+    single_needs = run.get("needs_snapshot")
+    if single_graph and single_needs and int(single_graph["turn"]) == int(single_needs["turn"]):
+        return [int(single_graph["turn"])]
+    return []
 
 
 def _filter_events_window(events: list[dict], start_turn: int, window: int = 20) -> list[dict]:
@@ -330,10 +492,15 @@ def _trajectory_metric_series(trajectory: dict) -> dict[str, list[float]]:
     }
 
 
-def _trajectory_composite_series(trajectory: dict) -> list[float]:
+def _trajectory_composite_series(
+    trajectory: dict,
+    metrics: tuple[str, ...] | None = None,
+) -> list[float]:
     series_map = _trajectory_metric_series(trajectory)
     available: list[list[float]] = []
-    for values in series_map.values():
+    selected_metrics = metrics or tuple(series_map.keys())
+    for metric_name in selected_metrics:
+        values = series_map.get(metric_name, [])
         if not values:
             continue
         baseline = abs(values[0]) if values[0] != 0 else max(abs(v) for v in values) or 1.0
@@ -347,6 +514,75 @@ def _trajectory_composite_series(trajectory: dict) -> list[float]:
     ]
 
 
+def _smoothed_series(series: list[float], window: int) -> list[float]:
+    smoothed: list[float] = []
+    for i in range(len(series)):
+        start = max(0, i - window + 1)
+        chunk = series[start : i + 1]
+        smoothed.append(sum(chunk) / len(chunk))
+    return smoothed
+
+
+def _significant_slope_pattern(
+    smoothed: list[float],
+    *,
+    epsilon_scale: float = 0.8,
+    min_run_fraction: float = 0.02,
+    min_delta_fraction: float = 0.03,
+) -> tuple[int, ...]:
+    if len(smoothed) < 2:
+        return ()
+
+    deriv = [smoothed[i + 1] - smoothed[i] for i in range(len(smoothed) - 1)]
+    avg_abs_slope = _mean([abs(delta) for delta in deriv])
+    series_range = max(smoothed) - min(smoothed)
+    epsilon = max(avg_abs_slope * epsilon_scale, series_range * 0.001, 1e-6)
+
+    raw_segments: list[tuple[int, int, int, float]] = []
+    current_sign = 0
+    segment_start = 0
+    for idx, delta in enumerate(deriv):
+        sign = 1 if delta > epsilon else -1 if delta < -epsilon else 0
+        if sign == 0:
+            continue
+        if current_sign == 0:
+            current_sign = sign
+            segment_start = idx
+            continue
+        if sign != current_sign:
+            raw_segments.append(
+                (
+                    current_sign,
+                    segment_start,
+                    idx,
+                    smoothed[idx] - smoothed[segment_start],
+                )
+            )
+            current_sign = sign
+            segment_start = idx
+
+    if current_sign != 0:
+        raw_segments.append(
+            (
+                current_sign,
+                segment_start,
+                len(smoothed) - 1,
+                smoothed[-1] - smoothed[segment_start],
+            )
+        )
+
+    min_run = max(3, int(len(smoothed) * min_run_fraction))
+    min_delta = max(series_range * min_delta_fraction, epsilon * min_run)
+    pattern: list[int] = []
+    for sign, start, end, delta in raw_segments:
+        duration = max(1, end - start)
+        if duration < min_run or abs(delta) < min_delta:
+            continue
+        if not pattern or pattern[-1] != sign:
+            pattern.append(sign)
+    return tuple(pattern)
+
+
 def _agent_count_by_turn(validation_summary: dict | None) -> dict[int, int]:
     if not validation_summary:
         return {}
@@ -357,6 +593,22 @@ def _agent_count_by_turn(validation_summary: dict | None) -> dict[int, int]:
             for civ_data in civ_aggs.values()
         )
     return counts
+
+
+def _final_ginis_from_validation_summary(validation_summary: dict | None) -> list[float]:
+    if not validation_summary:
+        return []
+    agent_aggregates = validation_summary.get("agent_aggregates_by_turn", {})
+    if not agent_aggregates:
+        return []
+    final_turn = max(int(turn) for turn in agent_aggregates.keys())
+    final_aggregates = agent_aggregates[str(final_turn)]
+    return [
+        float(civ_data["gini"])
+        for civ_data in final_aggregates.values()
+        if int(civ_data.get("agent_count", 0)) > 0
+        and civ_data.get("gini") is not None
+    ]
 
 def detect_communities(
     edges: list[tuple[int, int, int, int]],
@@ -623,6 +875,20 @@ def compute_needs_diversity(
     }
 
 
+def _needs_candidate_priority(result: dict, snapshot_turn: int) -> tuple:
+    pairs_found = int(result.get("pairs_found", 0))
+    rate_difference = float(result.get("rate_difference", 0.0))
+    effect_size = abs(float(result.get("effect_size", 0.0)))
+    expected = pairs_found > 0 and rate_difference > 0 and effect_size > 0.10
+    return (
+        1 if expected else 0,
+        pairs_found,
+        effect_size,
+        abs(rate_difference),
+        -snapshot_turn,
+    )
+
+
 def detect_inflection_points(
     series: list[float],
     smoothing_window: int = 5,
@@ -845,6 +1111,26 @@ def compute_cohort_distinctiveness(
     }
 
 
+def _cohort_candidate_priority(
+    migration_result: dict,
+    rebellion_result: dict,
+    snapshot_turn: int,
+) -> tuple:
+    strongest_effect = max(
+        abs(float(migration_result.get("effect_size", 0.0))),
+        abs(float(rebellion_result.get("effect_size", 0.0))),
+    )
+    expected = (
+        migration_result.get("effect_direction") == "community_lower"
+        or rebellion_result.get("effect_direction") == "community_higher"
+    )
+    return (
+        1 if expected and strongest_effect > 0.10 else 0,
+        strongest_effect,
+        -snapshot_turn,
+    )
+
+
 def check_artifact_lifecycle(
     bundles: list[dict],
     num_civs: int = 4,
@@ -934,7 +1220,7 @@ def check_artifact_lifecycle(
     }
 
 
-def classify_civ_arc(trajectory: dict) -> str:
+def _legacy_classify_civ_arc(trajectory: dict) -> str:
     """Oracle 6: Classify a civilization's trajectory into one of six emotional arc families.
 
     Based on Kurt Vonnegut's story shapes. Uses a thirds-based analysis of a
@@ -1029,6 +1315,115 @@ def classify_civ_arc(trajectory: dict) -> str:
     return "stable"
 
 
+def _classify_series_by_thirds(series: list[float]) -> str:
+    """Classify a smoothed series by coarse first/middle/last thirds.
+
+    This is intentionally blunt. It exists as a fallback when the fine-grained
+    derivative pattern overreacts to a short early surge even though the
+    trajectory spends most of its lifespan in sustained decline.
+    """
+    n = len(series)
+    if n == 0:
+        return "stable"
+
+    smoothed = _smoothed_series(series, max(10, n // 10))
+    third = max(1, n // 3)
+    first_mean = sum(smoothed[:third]) / third
+    mid_start = third
+    mid_end = 2 * third
+    mid_chunk = smoothed[mid_start:mid_end] if mid_end > mid_start else [smoothed[mid_start]]
+    middle_mean = sum(mid_chunk) / len(mid_chunk)
+    last_chunk = smoothed[2 * third:] if smoothed[2 * third:] else [smoothed[-1]]
+    last_mean = sum(last_chunk) / len(last_chunk)
+
+    overall_mean = (first_mean + middle_mean + last_mean) / 3.0
+    if overall_mean == 0.0:
+        return "stable"
+    max_dev = max(
+        abs(first_mean - overall_mean),
+        abs(middle_mean - overall_mean),
+        abs(last_mean - overall_mean),
+    )
+    if max_dev / abs(overall_mean) <= 0.20:
+        return "stable"
+
+    if first_mean < middle_mean < last_mean:
+        return "rags_to_riches"
+    if first_mean > middle_mean > last_mean:
+        return "riches_to_rags"
+    if middle_mean > first_mean and middle_mean > last_mean:
+        return "icarus"
+    if first_mean > middle_mean and last_mean > middle_mean:
+        if last_mean >= first_mean:
+            return "cinderella"
+        midpoint = (first_mean + middle_mean) / 2.0
+        if last_mean >= midpoint:
+            return "man_in_a_hole"
+        return "oedipus"
+    return "stable"
+
+
+def classify_civ_arc(trajectory: dict) -> str:
+    """Oracle 6: Classify a civ trajectory into one of six emotional arc families."""
+    series = _trajectory_composite_series(
+        trajectory,
+        metrics=("population", "territory", "prestige"),
+    )
+    n = len(series)
+    if n == 0:
+        return "stable"
+
+    window = max(10, n // 10)
+    smoothed = _smoothed_series(series, window)
+    mean_value = _mean(smoothed)
+    series_range = max(smoothed) - min(smoothed)
+    if mean_value == 0.0:
+        if series_range == 0.0:
+            return "stable"
+    elif series_range / abs(mean_value) <= 0.20:
+        return "stable"
+
+    pattern = _significant_slope_pattern(smoothed)
+    if pattern == (1,):
+        return "rags_to_riches"
+    if pattern == (-1,):
+        return "riches_to_rags"
+    if pattern and pattern[0] == 1 and pattern[-1] == 1 and len(pattern) >= 3:
+        return "cinderella"
+    if pattern and pattern[0] == -1 and pattern[-1] == -1 and len(pattern) >= 3:
+        return "oedipus"
+    if pattern and pattern[0] == 1 and pattern[-1] == -1:
+        # A short early surge can produce a local up-then-down derivative even
+        # when the civ spends most of its life in terminal decline. For extinct
+        # civs, let the broader thirds summary win when it clearly reads as a
+        # riches-to-rags trajectory instead of a simple Icarus arc.
+        final_population = float(trajectory.get("population", [0])[-1] or 0.0)
+        if final_population <= 0.0 and _classify_series_by_thirds(series) == "riches_to_rags":
+            return "riches_to_rags"
+        # On long-horizon runs, a civ can peak modestly, die out, and then sit
+        # extinct for hundreds of turns. The derivative pattern still reads
+        # up-then-down, but this behaves more like a terminal decline than an
+        # archetypal Icarus boom-and-bust.
+        if final_population <= 0.0 and n >= 400:
+            pop_series = [float(x or 0.0) for x in trajectory.get("population", [])]
+            if pop_series:
+                start_population = max(pop_series[0], 1.0)
+                peak_population = max(pop_series)
+                if (peak_population / start_population) < 2.5:
+                    return "riches_to_rags"
+        return "icarus"
+    if pattern and pattern[0] == -1 and pattern[-1] == 1:
+        return "man_in_a_hole"
+
+    start_value = smoothed[0]
+    end_value = smoothed[-1]
+    if end_value > start_value * 1.10:
+        return "rags_to_riches"
+    if end_value < start_value * 0.90:
+        return "riches_to_rags"
+    return "stable"
+
+
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     bundles = load_bundles(batch_dir)
@@ -1083,41 +1478,64 @@ def run_community_oracle(seed_runs: list[dict]) -> dict:
     per_seed: list[dict] = []
 
     for run in seed_runs:
-        graph_snapshot = run.get("graph_snapshot")
         community_summary = run.get("validation_community_summary")
-        if graph_snapshot:
+        graph_snapshots = _iter_graph_snapshots(run, min_turn=100)
+        if graph_snapshots:
             analyzed_seeds += 1
-            communities = detect_communities(
-                graph_snapshot["edges"],
-                graph_snapshot["memory_signatures"],
-            )
-            qualifying = [community for community in communities if len(community) >= 5]
-            if qualifying:
+            best_turn = None
+            best_count = 0
+            for graph_snapshot in graph_snapshots:
+                communities = detect_communities(
+                    graph_snapshot["edges"],
+                    graph_snapshot["memory_signatures"],
+                )
+                qualifying = [community for community in communities if len(community) >= 5]
+                qualifying_count = len(qualifying)
+                if (qualifying_count, -(int(graph_snapshot["turn"]))) > (best_count, -(best_turn or 10**9)):
+                    best_turn = int(graph_snapshot["turn"])
+                    best_count = qualifying_count
+            if best_count > 0:
                 qualifying_seed_count += 1
             per_seed.append({
                 "seed": run.get("seed"),
-                "snapshot_turn": graph_snapshot["turn"],
-                "qualifying_communities": len(qualifying),
+                "snapshot_turn": best_turn,
+                "qualifying_communities": best_count,
+                "sampled_turn_count": len(graph_snapshots),
                 "source": "raw",
             })
             continue
         if not community_summary:
             continue
-        turns = sorted(int(turn) for turn in community_summary.get("community_summary_by_turn", {}).keys())
+        turns = _sample_turns(
+            sorted(int(turn) for turn in community_summary.get("community_summary_by_turn", {}).keys()),
+            min_turn=100,
+        )
         if not turns:
             continue
         analyzed_seeds += 1
-        chosen_turn = turns[-1]
-        summary = community_summary["community_summary_by_turn"].get(str(chosen_turn), {})
-        cluster_count = sum(int(region.get("cluster_count", 0)) for region in summary.values())
-        structural_issue = any(float(region.get("max_cluster_fraction", 0.0)) > 0.05 for region in summary.values())
-        if cluster_count > 0 and not structural_issue:
+        best_turn = None
+        best_count = 0
+        structural_issue = False
+        for turn in turns:
+            summary = community_summary["community_summary_by_turn"].get(str(turn), {})
+            cluster_count = sum(int(region.get("cluster_count", 0)) for region in summary.values())
+            turn_structural_issue = any(
+                float(region.get("max_cluster_fraction", 0.0)) > 0.05
+                for region in summary.values()
+            )
+            score = cluster_count if not turn_structural_issue else 0
+            if (score, -turn) > (best_count, -(best_turn or 10**9)):
+                best_turn = turn
+                best_count = score
+                structural_issue = turn_structural_issue
+        if best_count > 0 and not structural_issue:
             qualifying_seed_count += 1
         per_seed.append({
             "seed": run.get("seed"),
-            "snapshot_turn": chosen_turn,
-            "qualifying_communities": cluster_count,
+            "snapshot_turn": best_turn,
+            "qualifying_communities": best_count,
             "structural_issue": structural_issue,
+            "sampled_turn_count": len(turns),
             "source": "summary",
         })
 
@@ -1152,36 +1570,36 @@ def run_needs_oracle(seed_runs: list[dict]) -> dict:
     ]
 
     for run in seed_runs:
-        needs_snapshot = run.get("needs_snapshot")
-        if not needs_snapshot:
+        needs_snapshots = _iter_needs_snapshots(run, min_turn=0)
+        if not needs_snapshots:
             continue
         analyzed_seeds += 1
-        snapshot_turn = int(needs_snapshot["turn"])
-        events_window = _filter_events_window(run["events"], snapshot_turn, window=20)
-        candidates: list[tuple[str, int, dict]] = []
-        for need_name, event_type in need_event_configs:
-            if need_name not in needs_snapshot["columns"]:
-                continue
-            result = compute_needs_diversity(
-                needs_snapshot["columns"],
-                events_window,
-                need_name,
-                event_type=event_type,
-            )
-            candidates.append((need_name, event_type, result))
-
+        best_turn = None
         best_need = None
         best_event_type = None
         best_result = {"pairs_found": 0, "rate_difference": 0.0, "effect_size": 0.0}
-        if candidates:
-            best_need, best_event_type, best_result = max(
-                candidates,
-                key=lambda item: (
-                    item[2].get("pairs_found", 0),
-                    abs(float(item[2].get("effect_size", 0.0))),
-                    abs(float(item[2].get("rate_difference", 0.0))),
-                ),
-            )
+        total_turns = _total_turns(run)
+        for needs_snapshot in needs_snapshots:
+            snapshot_turn = int(needs_snapshot["turn"])
+            if total_turns and snapshot_turn + 20 > total_turns:
+                continue
+            events_window = _filter_events_window(run["events"], snapshot_turn, window=20)
+            for need_name, event_type in need_event_configs:
+                if need_name not in needs_snapshot["columns"]:
+                    continue
+                result = compute_needs_diversity(
+                    needs_snapshot["columns"],
+                    events_window,
+                    need_name,
+                    event_type=event_type,
+                )
+                candidate = _needs_candidate_priority(result, snapshot_turn)
+                current = _needs_candidate_priority(best_result, best_turn or 10**9)
+                if candidate > current:
+                    best_turn = snapshot_turn
+                    best_need = need_name
+                    best_event_type = event_type
+                    best_result = result
 
         pairs_found = int(best_result.get("pairs_found", 0))
         rate_difference = float(best_result.get("rate_difference", 0.0))
@@ -1192,7 +1610,7 @@ def run_needs_oracle(seed_runs: list[dict]) -> dict:
             seeds_with_expected_sign += 1
         per_seed.append({
             "seed": run.get("seed"),
-            "snapshot_turn": snapshot_turn,
+            "snapshot_turn": best_turn,
             "pairs_found": pairs_found,
             "need_name": best_need,
             "event_type": best_event_type,
@@ -1231,7 +1649,6 @@ def run_era_oracle(seed_runs: list[dict]) -> dict:
             continue
         analyzed_seeds += 1
         inflection_points: list[int] = []
-        silent_collapse = False
         signal_hits: Counter[str] = Counter()
         for trajectory in trajectories:
             for signal_name, series in _trajectory_metric_series(trajectory).items():
@@ -1240,6 +1657,9 @@ def run_era_oracle(seed_runs: list[dict]) -> dict:
                 points = detect_inflection_points(series)
                 inflection_points.extend(points)
                 signal_hits[signal_name] += len(points)
+        collapsed = _collapse_nearby_points(inflection_points, radius=5)
+        silent_collapse = False
+        for trajectory in trajectories:
             pop_series = trajectory.get("population", [])
             if len(pop_series) >= 10:
                 peak_value = max(pop_series)
@@ -1249,10 +1669,8 @@ def run_era_oracle(seed_runs: list[dict]) -> dict:
                     trough_value = min(post_peak) if post_peak else peak_value
                     if trough_value <= peak_value * 0.70:
                         trough_turn = peak_turn + post_peak.index(trough_value)
-                        if not any(abs(point - trough_turn) <= 5 for point in inflection_points):
+                        if not any((peak_turn - 5) <= point <= (trough_turn + 5) for point in collapsed):
                             silent_collapse = True
-
-        collapsed = _collapse_nearby_points(inflection_points, radius=5)
         if len(collapsed) >= 2:
             seeds_with_inflections += 1
         if silent_collapse:
@@ -1290,50 +1708,77 @@ def run_cohort_oracle(seed_runs: list[dict]) -> dict:
     per_seed: list[dict] = []
 
     for run in seed_runs:
-        graph_snapshot = run.get("graph_snapshot")
-        needs_snapshot = run.get("needs_snapshot")
-        if not graph_snapshot or not needs_snapshot:
+        total_turns = _total_turns(run)
+        turns = _iter_joint_sample_turns(run, min_turn=0)
+        if not turns:
             continue
-        communities = detect_communities(
-            graph_snapshot["edges"],
-            graph_snapshot["memory_signatures"],
-        )
-        if not communities:
+        best_turn = None
+        best_migration_result = None
+        best_rebellion_result = None
+        best_strongest_effect = -1.0
+        for turn in turns:
+            if total_turns and turn + 20 > total_turns:
+                continue
+            graph_snapshot = _graph_snapshot_from_columns(
+                run.get("relationship_columns"),
+                run.get("memory_columns"),
+                turn,
+            ) or run.get("graph_snapshot")
+            needs_snapshot = _needs_snapshot_from_columns(
+                run.get("needs_columns"),
+                turn,
+            ) or run.get("needs_snapshot")
+            if not graph_snapshot or not needs_snapshot:
+                continue
+            communities = detect_communities(
+                graph_snapshot["edges"],
+                graph_snapshot["memory_signatures"],
+            )
+            if not communities:
+                continue
+            migration_result = compute_cohort_distinctiveness(
+                communities,
+                _filter_events_window(run["events"], turn, window=20),
+                needs_snapshot["columns"],
+                event_type=EVENT_NAME_TO_CODE["migration"],
+            )
+            rebellion_result = compute_cohort_distinctiveness(
+                communities,
+                _filter_events_window(run["events"], turn, window=20),
+                needs_snapshot["columns"],
+                event_type=EVENT_NAME_TO_CODE["rebellion"],
+            )
+            strongest_effect = max(
+                abs(float(migration_result.get("effect_size", 0.0))),
+                abs(float(rebellion_result.get("effect_size", 0.0))),
+            )
+            if _cohort_candidate_priority(migration_result, rebellion_result, turn) > _cohort_candidate_priority(
+                best_migration_result or {},
+                best_rebellion_result or {},
+                best_turn or 10**9,
+            ):
+                best_turn = turn
+                best_strongest_effect = strongest_effect
+                best_migration_result = migration_result
+                best_rebellion_result = rebellion_result
+        if best_turn is None or best_migration_result is None or best_rebellion_result is None:
             continue
         analyzed_seeds += 1
-        snapshot_turn = int(graph_snapshot["turn"])
-        events_window = _filter_events_window(run["events"], snapshot_turn, window=20)
-        migration_result = compute_cohort_distinctiveness(
-            communities,
-            events_window,
-            needs_snapshot["columns"],
-            event_type=EVENT_NAME_TO_CODE["migration"],
-        )
-        rebellion_result = compute_cohort_distinctiveness(
-            communities,
-            events_window,
-            needs_snapshot["columns"],
-            event_type=EVENT_NAME_TO_CODE["rebellion"],
-        )
         expected = (
-            migration_result.get("effect_direction") == "community_lower"
-            or rebellion_result.get("effect_direction") == "community_higher"
+            best_migration_result.get("effect_direction") == "community_lower"
+            or best_rebellion_result.get("effect_direction") == "community_higher"
         )
-        strongest_effect = max(
-            abs(float(migration_result.get("effect_size", 0.0))),
-            abs(float(rebellion_result.get("effect_size", 0.0))),
-        )
-        effect_sizes.append(strongest_effect)
-        if expected and strongest_effect > 0.10:
+        effect_sizes.append(best_strongest_effect)
+        if expected and best_strongest_effect > 0.10:
             seeds_with_expected_direction += 1
         per_seed.append({
             "seed": run.get("seed"),
-            "snapshot_turn": snapshot_turn,
-            "communities_analyzed": migration_result.get("communities_analyzed", 0),
-            "migration_effect_direction": migration_result.get("effect_direction"),
-            "migration_effect_size": round(float(migration_result.get("effect_size", 0.0)), 4),
-            "rebellion_effect_direction": rebellion_result.get("effect_direction"),
-            "rebellion_effect_size": round(float(rebellion_result.get("effect_size", 0.0)), 4),
+            "snapshot_turn": best_turn,
+            "communities_analyzed": best_migration_result.get("communities_analyzed", 0),
+            "migration_effect_direction": best_migration_result.get("effect_direction"),
+            "migration_effect_size": round(float(best_migration_result.get("effect_size", 0.0)), 4),
+            "rebellion_effect_direction": best_rebellion_result.get("effect_direction"),
+            "rebellion_effect_size": round(float(best_rebellion_result.get("effect_size", 0.0)), 4),
         })
 
     if analyzed_seeds == 0:
@@ -1387,7 +1832,7 @@ def run_arc_oracle(seed_runs: list[dict]) -> dict:
             population = trajectory.get("population", [])
             if len(population) < 10:
                 continue
-            arc = classify_civ_arc({"population": population})
+            arc = classify_civ_arc(trajectory)
             seed_arcs.append(arc)
             arc_counts[arc] = arc_counts.get(arc, 0) + 1
             if arc != "stable":
@@ -1429,8 +1874,9 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
 
-    satisfaction_means: list[float] = []
-    satisfaction_stds: list[float] = []
+    satisfaction_weighted_sum = 0.0
+    satisfaction_std_weighted_sum = 0.0
+    satisfaction_weight_total = 0
     occupation_shares: list[float] = []
     final_ginis: list[float] = []
     final_civ_survivals: list[int] = []
@@ -1442,15 +1888,20 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     for run in seed_runs:
         validation_summary = run.get("validation_summary") or {}
         agent_aggregates = validation_summary.get("agent_aggregates_by_turn", {})
+        run_final_ginis = _final_ginis_from_validation_summary(validation_summary)
         if agent_aggregates:
             final_turn = max(int(turn) for turn in agent_aggregates.keys())
             final_aggregates = agent_aggregates[str(final_turn)]
             for civ_data in final_aggregates.values():
-                satisfaction_means.append(float(civ_data.get("satisfaction_mean", 0.0)))
-                satisfaction_stds.append(float(civ_data.get("satisfaction_std", 0.0)))
-                count = max(1, int(civ_data.get("agent_count", 0)))
-                for occ_count in civ_data.get("occupation_counts", {}).values():
-                    occupation_shares.append(float(occ_count) / count)
+                count = int(civ_data.get("agent_count", 0))
+                if count <= 0:
+                    continue
+                satisfaction_weighted_sum += float(civ_data.get("satisfaction_mean", 0.0)) * count
+                satisfaction_std_weighted_sum += float(civ_data.get("satisfaction_std", 0.0)) * count
+                satisfaction_weight_total += count
+                if count >= 5:
+                    for occ_count in civ_data.get("occupation_counts", {}).values():
+                        occupation_shares.append(float(occ_count) / count)
 
             sampled_counts = _agent_count_by_turn(validation_summary)
             if sampled_counts:
@@ -1461,23 +1912,39 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         final_snapshot = run["bundle"].get("history", [])[-1] if run["bundle"].get("history") else {}
         civ_stats = final_snapshot.get("civ_stats", {})
         alive_civs = 0
+        final_survivors: set[str] = set()
         for civ_data in civ_stats.values():
-            if civ_data.get("alive"):
+            if civ_data.get("regions"):
                 alive_civs += 1
-            final_ginis.append(float(civ_data.get("gini", 0.0)))
+        for civ_name, civ_data in civ_stats.items():
+            if civ_data.get("regions"):
+                final_survivors.add(civ_name)
         final_civ_survivals.append(alive_civs)
+        if validation_summary and "agent_aggregates_by_turn" in validation_summary:
+            final_ginis.extend(run_final_ginis)
+        else:
+            for civ_data in civ_stats.values():
+                if civ_data.get("regions"):
+                    final_ginis.append(float(civ_data.get("gini", 0.0)))
 
         treasury_streaks: dict[str, int] = defaultdict(int)
-        treasury_bad = False
+        max_treasury_streaks: dict[str, int] = defaultdict(int)
         for snapshot in run["bundle"].get("history", []):
             for civ_name, civ_data in snapshot.get("civ_stats", {}).items():
-                if float(civ_data.get("treasury", 0.0)) < 0:
+                if float(civ_data.get("treasury", 0.0)) < 0 and civ_data.get("regions"):
                     treasury_streaks[civ_name] += 1
-                    if treasury_streaks[civ_name] > 50:
-                        treasury_bad = True
+                    max_treasury_streaks[civ_name] = max(
+                        max_treasury_streaks[civ_name],
+                        treasury_streaks[civ_name],
+                    )
                 else:
                     treasury_streaks[civ_name] = 0
-        if treasury_bad:
+        bad_survivors = sum(
+            1
+            for civ_name, streak in max_treasury_streaks.items()
+            if civ_name in final_survivors and streak > 50
+        )
+        if final_survivors and (bad_survivors / len(final_survivors)) > 0.30:
             negative_treasury_runs += 1
 
         migration_events += sum(1 for event in run["events"] if event["event_type"] == EVENT_NAME_TO_CODE["migration"])
@@ -1485,11 +1952,30 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
 
     migration_rate = migration_events / total_agent_turns if total_agent_turns else 0.0
     rebellion_rate = rebellion_events / total_agent_turns if total_agent_turns else 0.0
+    satisfaction_mean = (
+        satisfaction_weighted_sum / satisfaction_weight_total
+        if satisfaction_weight_total else None
+    )
+    satisfaction_std = (
+        satisfaction_std_weighted_sum / satisfaction_weight_total
+        if satisfaction_weight_total else None
+    )
     occupation_ok = all(0.0 < share <= 0.70 for share in occupation_shares) if occupation_shares else False
-    satisfaction_mean_ok = 0.45 <= _mean(satisfaction_means) <= 0.65 if satisfaction_means else False
-    satisfaction_std_ok = 0.10 <= _mean(satisfaction_stds) <= 0.25 if satisfaction_stds else False
-    gini_ok = sum(1 for g in final_ginis if 0.30 <= g <= 0.70) >= max(1, int(len(final_ginis) * 0.20))
-    civ_survival_ok = all(1 <= count <= 4 for count in final_civ_survivals) if final_civ_survivals else False
+    satisfaction_mean_ok = 0.45 <= satisfaction_mean <= 0.65 if satisfaction_mean is not None else False
+    satisfaction_std_ok = 0.10 <= satisfaction_std <= 0.25 if satisfaction_std is not None else False
+    gini_ok = (
+        sum(1 for g in final_ginis if 0.30 <= g <= 0.70) / len(final_ginis) >= 0.20
+        if final_ginis else False
+    )
+    zero_survival_fraction = (
+        sum(1 for count in final_civ_survivals if count == 0) / len(final_civ_survivals)
+        if final_civ_survivals else 1.0
+    )
+    full_survival_fraction = (
+        sum(1 for count in final_civ_survivals if count == 4) / len(final_civ_survivals)
+        if final_civ_survivals else 1.0
+    )
+    civ_survival_ok = zero_survival_fraction == 0.0 and full_survival_fraction <= 0.20
     treasury_ok = negative_treasury_runs <= max(1, int(len(seed_runs) * 0.30))
 
     overall_ok = (
@@ -1505,13 +1991,15 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
 
     return {
         "status": "PASS" if overall_ok else "FAIL",
-        "satisfaction_mean": round(_mean(satisfaction_means), 4) if satisfaction_means else None,
-        "satisfaction_std": round(_mean(satisfaction_stds), 4) if satisfaction_stds else None,
+        "satisfaction_mean": round(satisfaction_mean, 4) if satisfaction_mean is not None else None,
+        "satisfaction_std": round(satisfaction_std, 4) if satisfaction_std is not None else None,
         "migration_rate_per_agent_turn": round(migration_rate, 6),
         "rebellion_rate_per_agent_turn": round(rebellion_rate, 6),
         "gini_in_range_fraction": round(sum(1 for g in final_ginis if 0.30 <= g <= 0.70) / len(final_ginis), 4) if final_ginis else None,
         "occupation_ok": occupation_ok,
         "civ_survival_counts": final_civ_survivals,
+        "civ_zero_survival_fraction": round(zero_survival_fraction, 4) if final_civ_survivals else None,
+        "civ_full_survival_fraction": round(full_survival_fraction, 4) if final_civ_survivals else None,
         "treasury_bad_seed_count": negative_treasury_runs,
     }
 

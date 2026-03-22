@@ -27,9 +27,9 @@ impl Occupation {
 
 pub const AGE_ADULT: u16 = 20;
 pub const AGE_ELDER: u16 = 60;
-pub const MORTALITY_YOUNG: f32 = 0.005;
-pub const MORTALITY_ADULT: f32 = 0.005;  // M53: was 0.01 (B+C combined fix)
-pub const MORTALITY_ELDER: f32 = 0.03;  // M53: was 0.05 (B+C+D combined fix)
+pub const MORTALITY_YOUNG: f32 = 0.0035;
+pub const MORTALITY_ADULT: f32 = 0.0025;  // Follow-on retune: the T80-T160 replacement cohort was still dying slightly faster than it could regenerate.
+pub const MORTALITY_ELDER: f32 = 0.016;  // Follow-on retune paired with longer fertility taper so founders do not vanish before successor cohorts stabilize.
 pub const OCCUPATION_COUNT: usize = 5;
 
 pub const MAX_CIVS: usize = 255;
@@ -37,22 +37,25 @@ const _: () = assert!(MAX_CIVS <= u8::MAX as usize);
 
 // Fertility
 pub const FERTILITY_AGE_MIN: u16 = 16;
-pub const FERTILITY_FULL_AGE_MAX: u16 = 50;   // M53: full fertility up to this age
-pub const FERTILITY_TAPER_AGE_MAX: u16 = 60;  // M53: linear taper to zero by this age
-pub const FERTILITY_BASE_FARMER: f32 = 0.05;   // M53: was 0.03 (B+C combined fix)
-pub const FERTILITY_BASE_OTHER: f32 = 0.03;    // M53: was 0.015 (B+C combined fix)
-pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.3;  // [CALIBRATE] M47c: 0.4→0.3 (wars pushing satisfaction below threshold killed all births)
+pub const FERTILITY_FULL_AGE_MAX: u16 = 60;   // Follow-on retune: the replacement cohort needs a slightly longer prime window to bridge the T80-T180 handoff.
+pub const FERTILITY_TAPER_AGE_MAX: u16 = 80;  // Follow-on retune: preserve viable late-run fertility without reverting to the old hard cutoff cliff.
+pub const FERTILITY_BASE_FARMER: f32 = 0.060;   // [CALIBRATE] ease late-game population pressure while preserving replacement in recovering agrarian civs.
+pub const FERTILITY_BASE_OTHER: f32 = 0.042;    // [CALIBRATE] trim non-farm growth in the same proportion so diversified civs do not outrun food recovery.
+pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.20;  // [CALIBRATE] unhappy societies should stop compounding scarcity sooner, without returning to the pre-M53 collapse regime.
 
 // Decision thresholds
 pub const REBEL_LOYALTY_THRESHOLD: f32 = 0.2;
-pub const REBEL_SATISFACTION_THRESHOLD: f32 = 0.2;
+pub const REBEL_SATISFACTION_THRESHOLD: f32 = 0.08;
 pub const REBEL_MIN_COHORT: usize = 5;
-pub const MIGRATE_SATISFACTION_THRESHOLD: f32 = 0.3;
+pub const MIGRATE_SATISFACTION_THRESHOLD: f32 = 0.25;
 pub const OCCUPATION_SWITCH_UNDERSUPPLY: f32 = 1.5;
-pub const OCCUPATION_SWITCH_OVERSUPPLY: f32 = 0.5;
-pub const LOYALTY_DRIFT_RATE: f32 = 0.02;
-pub const LOYALTY_RECOVERY_RATE: f32 = 0.01;
-pub const LOYALTY_FLIP_THRESHOLD: f32 = 0.3;
+// M53 follow-on retune: 0.5 made the derived 2.0x oversupply threshold
+// unreachable for farmer-majority regions, so long-run births collapsed civs
+// into all-farmer populations with no recovery path.
+pub const OCCUPATION_SWITCH_OVERSUPPLY: f32 = 1.0;
+pub const LOYALTY_DRIFT_RATE: f32 = 0.009;
+pub const LOYALTY_RECOVERY_RATE: f32 = 0.018;
+pub const LOYALTY_FLIP_THRESHOLD: f32 = 0.22;
 
 // Utility-based decision model (M32) [CALIBRATE: M47]
 // Three-tier calibration: 1) CAP ratios  2) DECISION_TEMPERATURE  3) Weights
@@ -61,11 +64,14 @@ pub const REBEL_CAP: f32 = 1.5;
 pub const MIGRATE_CAP: f32 = 1.0;
 pub const SWITCH_CAP: f32 = 0.6;
 pub const DECISION_TEMPERATURE: f32 = 0.3;
-pub const W_REBEL: f32 = 3.75;
-pub const W_MIGRATE_SAT: f32 = 1.67;
-pub const W_MIGRATE_OPP: f32 = 1.67;
-pub const W_SWITCH: f32 = 0.03;
-pub const MIGRATE_HYSTERESIS: f32 = 0.05;
+pub const W_REBEL: f32 = 3.40;
+pub const W_MIGRATE_SAT: f32 = 1.10;
+pub const W_MIGRATE_OPP: f32 = 1.10;
+// M53 follow-on retune: make occupation switching a real alternative once a
+// civ drifts badly off its regional labor mix, especially after farmer-heavy
+// demographic booms.
+pub const W_SWITCH: f32 = 0.45;
+pub const MIGRATE_HYSTERESIS: f32 = 0.18;
 // Derived from Phase 5 constants for use in utility functions:
 pub const SWITCH_OVERSUPPLY_THRESH: f32 = 1.0 / OCCUPATION_SWITCH_OVERSUPPLY; // 2.0
 pub const SWITCH_UNDERSUPPLY_FACTOR: f32 = OCCUPATION_SWITCH_UNDERSUPPLY; // 1.5
@@ -111,7 +117,7 @@ pub const WAR_CASUALTY_MULTIPLIER: f32 = 2.0;
 
 // Disease — multiplicative scale: mortality *= (1 + endemic_severity * SCALE)
 // At baseline (0.01): 1.1x. At cap (0.15): 2.5x.
-pub const DISEASE_MORTALITY_SCALE: f32 = 10.0;  // [FROZEN M53 SOFT]
+pub const DISEASE_MORTALITY_SCALE: f32 = 6.0;  // [CALIBRATE] keep disease meaningful without reintroducing the late-run collapse seen at 8.0.
 
 // Overcrowding — satisfaction penalty for pop > carrying capacity
 // Uncapped, this zeroes satisfaction at 3-7x capacity, blocking all fertility
@@ -158,9 +164,9 @@ pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
 pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability
 
 // M38b: Persecution
-pub const PERSECUTION_SAT_WEIGHT: f32 = 0.15;
-pub const PERSECUTION_REBEL_BOOST: f32 = 0.30;
-pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.20;
+pub const PERSECUTION_SAT_WEIGHT: f32 = 0.12;
+pub const PERSECUTION_REBEL_BOOST: f32 = 0.24;
+pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.16;
 
 // M39: Parentage
 pub const PARENT_NONE: u32 = 0;                 // sentinel for no parent
@@ -197,10 +203,10 @@ pub const CONVERSION_DEFAULT_INTENSITY: i8 = 50;      // [FROZEN M53 SOFT]
 pub const SECESSION_DEFAULT_INTENSITY: i8 = -60;      // [FROZEN M53 SOFT]
 
 // M48: Memory event default half-lives in turns [FROZEN M53 SOFT]
-pub const FAMINE_HALF_LIFE: f32 = 40.0;              // [FROZEN M53 SOFT]
+pub const FAMINE_HALF_LIFE: f32 = 20.0;              // [CALIBRATE] let survivor societies recover from famine trauma before it dominates the late game.
 pub const BATTLE_HALF_LIFE: f32 = 25.0;              // [FROZEN M53 SOFT]
 pub const CONQUEST_HALF_LIFE: f32 = 30.0;            // [FROZEN M53 SOFT]
-pub const PERSECUTION_HALF_LIFE: f32 = 50.0;         // [FROZEN M53 SOFT]
+pub const PERSECUTION_HALF_LIFE: f32 = 25.0;         // [CALIBRATE] keep minority pressure salient without pinning end-state societies in permanent grievance.
 pub const MIGRATION_HALF_LIFE: f32 = 15.0;           // [FROZEN M53 SOFT]
 pub const PROSPERITY_HALF_LIFE: f32 = 20.0;          // [FROZEN M53 SOFT]
 pub const VICTORY_HALF_LIFE: f32 = 20.0;             // [FROZEN M53 SOFT]
@@ -214,8 +220,8 @@ pub const LEGACY_MIN_INTENSITY: i8 = 10;   // [FROZEN M53 SOFT] post-halving thr
 pub const LEGACY_MAX_MEMORIES: usize = 2;  // [FROZEN M53 SOFT] top-N extracted on death
 
 // M48: Memory behavioral constants [FROZEN M53 SOFT]
-pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.12;    // [FROZEN M53 SOFT]
-pub const FAMINE_MEMORY_THRESHOLD: f32 = 0.6;        // [FROZEN M53 SOFT]
+pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.04;    // [CALIBRATE] keep memory texture visible while reducing long-tail satisfaction drag on survivor societies.
+pub const FAMINE_MEMORY_THRESHOLD: f32 = 0.6;        // [CALIBRATE] only pronounced shortages should crystallize into long-lived famine trauma.
 pub const PROSPERITY_THRESHOLD: f32 = 3.0;           // [FROZEN M53 SOFT]
 
 // M48: Memory utility modifier magnitudes [FROZEN M53 SOFT]
@@ -224,8 +230,8 @@ pub const BATTLE_BOLD_STAY_BOOST: f32 = 0.1;                  // [FROZEN M53 SOF
 pub const BATTLE_CAUTIOUS_MIGRATE_BOOST: f32 = 0.15;          // [FROZEN M53 SOFT]
 pub const CONQUEST_CONQUERED_MIGRATE_BOOST: f32 = 0.3;        // [FROZEN M53 SOFT]
 pub const CONQUEST_CONQUEROR_STAY_BOOST: f32 = 0.1;           // [FROZEN M53 SOFT]
-pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.15;         // [FROZEN M53 SOFT]
-pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.2;        // [FROZEN M53 SOFT]
+pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.10;         // [CALIBRATE] retain persecution salience without letting stale grievance dominate late decisions.
+pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.15;       // [CALIBRATE] retain flight pressure while reducing perpetual migration churn.
 pub const PROSPERITY_MIGRATE_PENALTY: f32 = 0.2;              // [FROZEN M53 SOFT]
 pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;               // [FROZEN M53 SOFT]
 pub const VICTORY_STAY_BOOST: f32 = 0.1;                      // [FROZEN M53 SOFT]
@@ -235,11 +241,11 @@ pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;             // [FROZEN M53 SOF
 pub const STARTING_NEED: f32 = 0.5;  // [FROZEN M53 SOFT]
 
 // M49: Need decay rates [FROZEN M53 SOFT]
-pub const SAFETY_DECAY: f32 = 0.015;     // [FROZEN M53 SOFT]
-pub const MATERIAL_DECAY: f32 = 0.012;   // [FROZEN M53 SOFT]
+pub const SAFETY_DECAY: f32 = 0.013;     // [CALIBRATE M53] soften recovery less aggressively so peacetime safety rises without overshooting the equilibrium guardrail.
+pub const MATERIAL_DECAY: f32 = 0.010;   // [CALIBRATE M53] material stress remains elevated even in peacetime economies.
 pub const SOCIAL_DECAY: f32 = 0.008;     // [FROZEN M53 SOFT]
 pub const SPIRITUAL_DECAY: f32 = 0.010;  // [FROZEN M53 SOFT]
-pub const AUTONOMY_DECAY: f32 = 0.010;   // [FROZEN M53 HARD] was 0.015
+pub const AUTONOMY_DECAY: f32 = 0.008;   // [FROZEN M53 HARD] softened again after scout probes showed displaced populations never rebuilding autonomy in time.
 pub const PURPOSE_DECAY: f32 = 0.012;    // [FROZEN M53 SOFT]
 
 // M49: Need behavioral thresholds [FROZEN M53 SOFT]
@@ -247,7 +253,7 @@ pub const SAFETY_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const MATERIAL_THRESHOLD: f32 = 0.3;  // [FROZEN M53 SOFT]
 pub const SOCIAL_THRESHOLD: f32 = 0.25;   // [FROZEN M53 SOFT]
 pub const SPIRITUAL_THRESHOLD: f32 = 0.3; // [FROZEN M53 SOFT]
-pub const AUTONOMY_THRESHOLD: f32 = 0.3;  // [FROZEN M53 SOFT]
+pub const AUTONOMY_THRESHOLD: f32 = 0.25;  // [FROZEN M53 SOFT]
 pub const PURPOSE_THRESHOLD: f32 = 0.35;  // [FROZEN M53 SOFT]
 
 // M49: Need behavioral weights [FROZEN M53 SOFT]
@@ -255,30 +261,30 @@ pub const SAFETY_WEIGHT: f32 = 0.7;     // [FROZEN M53 SOFT]
 pub const MATERIAL_WEIGHT: f32 = 0.5;   // [FROZEN M53 SOFT]
 pub const SOCIAL_WEIGHT: f32 = 0.5;     // [FROZEN M53 SOFT]
 pub const SPIRITUAL_WEIGHT: f32 = 0.4;  // [FROZEN M53 SOFT]
-pub const AUTONOMY_WEIGHT: f32 = 0.8;   // [FROZEN M53 SOFT]
+pub const AUTONOMY_WEIGHT: f32 = 0.45;   // [FROZEN M53 SOFT]
 pub const PURPOSE_WEIGHT: f32 = 0.4;    // [FROZEN M53 SOFT]
 
 // M49: Restoration rates [FROZEN M53 SOFT]
-pub const SAFETY_RESTORE_PEACE: f32 = 0.020;          // [FROZEN M53 SOFT]
-pub const SAFETY_RESTORE_HEALTH: f32 = 0.010;         // [FROZEN M53 SOFT]
-pub const SAFETY_RESTORE_FOOD: f32 = 0.008;           // [FROZEN M53 SOFT]
+pub const SAFETY_RESTORE_PEACE: f32 = 0.021;          // [CALIBRATE M53] keep a modest peacetime lift without pushing the long-run safety equilibrium above the tested band.
+pub const SAFETY_RESTORE_HEALTH: f32 = 0.010;         // [CALIBRATE M53] preserve the original disease-light signal while safety tuning remains under validation.
+pub const SAFETY_RESTORE_FOOD: f32 = 0.008;           // [CALIBRATE M53] preserve harvest-driven recovery without stacking too many unconditional boosts.
 pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;      // [FROZEN M53 SOFT]
-pub const MATERIAL_RESTORE_FOOD: f32 = 0.012;         // [FROZEN M53 SOFT]
-pub const MATERIAL_RESTORE_WEALTH: f32 = 0.015;       // [FROZEN M53 SOFT]
+pub const MATERIAL_RESTORE_FOOD: f32 = 0.018;         // [CALIBRATE M53] food availability should lift material need more decisively.
+pub const MATERIAL_RESTORE_WEALTH: f32 = 0.022;       // [CALIBRATE M53] wealth percentile signal was too weak to break low-material traps.
 pub const SOCIAL_RESTORE_POP: f32 = 0.010;            // [FROZEN M53 SOFT]
 pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;            // [FROZEN M53 SOFT]
 pub const SOCIAL_PRIEST_MULT: f32 = 1.3;              // [FROZEN M53 SOFT]
 pub const SPIRITUAL_RESTORE_TEMPLE: f32 = 0.020;      // [FROZEN M53 SOFT]
 pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [FROZEN M53 SOFT]
-pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.020;     // [FROZEN M53 SOFT]
-pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.020;     // [FROZEN M53 HARD] was 0.010
+pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.030;     // [FROZEN M53 SOFT]
+pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.030;     // [FROZEN M53 HARD] partial displaced restoration now relies on this being slightly stronger.
 pub const PURPOSE_RESTORE_SKILL: f32 = 0.020;         // [FROZEN M53 SOFT]
 pub const PURPOSE_RESTORE_WAR: f32 = 0.015;           // [FROZEN M53 SOFT]
 
 // M49: Infrastructure constants [FROZEN M53 SOFT]
 pub const NEEDS_MODIFIER_CAP: f32 = 0.30;    // [FROZEN M53 SOFT]
-pub const AUTONOMY_DRIFT_WEIGHT: f32 = 2.0;  // [FROZEN M53 SOFT]
+pub const AUTONOMY_DRIFT_WEIGHT: f32 = 0.6;  // [FROZEN M53 SOFT]
 
 // ── M50a: Relationship Substrate ──────────────────────────────────────────────
 // Kin auto-formation initial sentiments

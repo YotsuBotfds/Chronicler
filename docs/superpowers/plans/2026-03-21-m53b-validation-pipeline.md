@@ -2,7 +2,7 @@
 
 > **For agentic workers:** This plan is the follow-on after `docs/superpowers/plans/2026-03-21-m53b-validation-closure.md` and `docs/superpowers/plans/2026-03-21-m53-post-cleanup-closeout.md`. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **Execution note (2026-03-21):** The canonical pipeline was implemented and the official gates were run. Determinism passed, but the oracle subset and full gate both failed, so M53b did not pass. This plan now serves as the implementation record for that result rather than an open closure checklist.
+> **Execution note (2026-03-22):** The canonical pipeline was implemented on 2026-03-21 and initially recorded failed subset/full gates. A follow-on rerun on 2026-03-22 using `tuning/codex_m53_secession_threshold25.yaml` produced a passing full canonical gate at `output/m53/codex_m53_secession_threshold25_full/batch_1`. This plan now serves as the implementation record for both the pipeline and the final passing rerun.
 
 **Goal:** Build the missing exported-data validation pipeline so M53b can be evaluated through the spec-required `python -m chronicler.validate` post-processing path instead of ad-hoc live-sim probes.
 
@@ -396,10 +396,10 @@ Allowed classifications:
 Do not auto-declare M53b complete if any blocking gate still fails.
 
 Result:
-- Determinism: PASS for `agents=off` and `agents=hybrid`
-- Oracle subset (`20x200`): FAIL
-- Full gate (`200x500`): FAIL
-- Classification: tuning / balance failures, not a validator-path blocker
+- Determinism smoke: PASS for dedicated `agents=off` and `agents=hybrid` duplicate-seed exported-data runs
+- Initial oracle subset / full gate run (2026-03-21): FAIL
+- Final full gate rerun (2026-03-22, `tuning/codex_m53_secession_threshold25.yaml`): PASS
+- Classification: the initial failure exposed real tuning / hybrid-parity issues, not a validator-path blocker
 
 ---
 
@@ -442,13 +442,13 @@ git commit -m "docs(m53b): regenerate canonical validation report from exported-
 - Modify: `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
 - Optional: `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md`
 
-- [ ] **Step 1: If all canonical gates pass, mark M53b complete**
+- [x] **Step 1: If all canonical gates pass, mark M53b complete**
 
 Update status language carefully:
 - `M53a` complete/frozen
 - `M53b` complete only if spec gates are actually met
 
-- [x] **Step 2: If gates do not pass, leave M53b open with explicit blockers**
+- [x] **Step 2: If gates do not pass, leave M53b open with explicit blockers until a passing rerun exists**
 
 Do not soften failures into “likely passes” in the status docs.
 
@@ -474,9 +474,10 @@ This plan is complete when:
 7. Project docs honestly reflect whether M53b is complete or still blocked
 
 Current outcome:
-- Criteria 1-6 are met at the implementation level.
-- Criterion 7 is met with `M53b` explicitly marked blocked / failed rather than complete.
-- The pipeline work is therefore complete enough to evaluate M53, and the milestone outcome is now a canonical failure rather than an open infrastructure gap.
+- Criteria 1-7 are met.
+- The 2026-03-21 canonical failure exposed real behavioral issues on the exported-data path.
+- The 2026-03-22 rerun cleared all blocking oracles on that same canonical path.
+- The pipeline work and M53b closeout are complete.
 
 ---
 

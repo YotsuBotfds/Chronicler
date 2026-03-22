@@ -187,7 +187,13 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
 
         if agent_snapshot is not None:
             # --- Agent-driven path ---
-            if region.foreign_control_turns >= int(get_override(world, K_ASSIMILATION_GUARD_TURNS, 5)):
+            guard_turns = int(get_override(world, K_ASSIMILATION_GUARD_TURNS, 5))
+            if region.foreign_control_turns >= guard_turns:
+                # Feed the existing one-turn culture-investment signal into the
+                # Rust drift tick while a region is still under foreign rule, so
+                # controller values can gradually become the local majority
+                # instead of waiting on environmental drift alone.
+                region._culture_investment_active = True
                 controller_civ = next(
                     (c for c in world.civilizations if c.name == region.controller), None
                 )
@@ -209,6 +215,12 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                                     holders += 1
                         if total > 0 and (holders / total) >= get_override(world, K_ASSIMILATION_AGENT_THRESHOLD, 0.60):
                             assimilated = True
+            # Hybrid mode still needs a long-stop timer fallback. Otherwise a
+            # region that never quite crosses the agent-value threshold can sit
+            # under foreign control indefinitely and bleed controller stability
+            # every turn.
+            if not assimilated and region.foreign_control_turns >= int(get_override(world, K_ASSIMILATION_THRESHOLD, 15)):
+                assimilated = True
         else:
             # --- M16 timer-based fallback ---
             if region.foreign_control_turns >= int(get_override(world, K_ASSIMILATION_THRESHOLD, 15)):

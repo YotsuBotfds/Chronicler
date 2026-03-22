@@ -136,7 +136,7 @@ def apply_soil_floor(world: WorldState) -> None:
             (civ for civ in world.civilizations if region.name in civ.regions), None
         )
         if controller and "food_stockpiling" in controller.traditions:
-            region.ecology.soil = max(region.ecology.soil, 0.2)
+            region.ecology.soil = max(region.ecology.soil, 0.25)
 
 
 # --- Task 21: Folk heroes ---

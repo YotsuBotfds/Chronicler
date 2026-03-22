@@ -107,6 +107,54 @@ def map_resource_to_good(resource_type: int) -> str:
     return _GOOD_MAP[resource_type]
 
 
+def bootstrap_region_stockpile(region, population: int | None = None) -> bool:
+    """Seed a newly settled region with a minimal starting stockpile.
+
+    The bootstrap mirrors turn-0 world generation: seed the primary good for the
+    region's current population, and also seed grain when the primary good is
+    not itself food. Existing goods are preserved.
+    """
+    if region.resource_types[0] == 255:
+        return False
+
+    target_population = region.population if population is None else population
+    if target_population <= 0:
+        return False
+
+    good = map_resource_to_good(region.resource_types[0])
+    amount = INITIAL_BUFFER * target_population
+    seeded = False
+
+    if region.stockpile.goods.get(good, 0.0) <= 0.0:
+        region.stockpile.goods[good] = amount
+        seeded = True
+
+    if good not in FOOD_GOODS:
+        food_total = sum(region.stockpile.goods.get(food, 0.0) for food in FOOD_GOODS)
+        if food_total <= 0.0:
+            region.stockpile.goods["grain"] = amount
+            seeded = True
+
+    return seeded
+
+
+def settle_pending_stockpile_bootstraps(regions: list) -> int:
+    """Fulfill one-shot region bootstrap requests once settlers are present."""
+    settled = 0
+    for region in regions:
+        if not getattr(region, "_stockpile_bootstrap_pending", False):
+            continue
+        if region.controller is None or region.resource_types[0] == 255:
+            region._stockpile_bootstrap_pending = False
+            continue
+        if region.population <= 0:
+            continue
+        bootstrap_region_stockpile(region)
+        region._stockpile_bootstrap_pending = False
+        settled += 1
+    return settled
+
+
 # ---------------------------------------------------------------------------
 # M43b: EconomyTracker — persistent analytics state across turns
 # ---------------------------------------------------------------------------

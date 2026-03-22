@@ -348,13 +348,6 @@ mod tests {
         r
     }
 
-    fn default_signals() -> TickSignals {
-        TickSignals {
-            civs: vec![],
-            contested_regions: vec![false],
-        }
-    }
-
     fn peacetime_signals() -> TickSignals {
         use crate::signals::CivSignals;
         TickSignals {
@@ -615,7 +608,6 @@ mod tests {
         let wealth_pct = vec![0.5_f32];
         let alive_slots = vec![slot];
 
-        let mut prev = pool.need_safety[slot];
         for _ in 0..200 {
             decay_needs(&mut pool, &alive_slots);
             restore_needs(&mut pool, &alive_slots, &regions, &signals, &wealth_pct);

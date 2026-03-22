@@ -12,11 +12,11 @@ from chronicler.models import (
 
 # --- Calibration constants [FROZEN M53 SOFT] ---
 
-CULTURAL_PRODUCTION_CHANCE = 0.15
-GP_PRESTIGE_THRESHOLD = 50
+CULTURAL_PRODUCTION_CHANCE = 0.45
+GP_PRESTIGE_THRESHOLD = 25
 RELIC_CONVERSION_BONUS = 0.15
-PROSPERITY_STABILITY_THRESHOLD = 70
-PROSPERITY_TREASURY_THRESHOLD = 20
+PROSPERITY_STABILITY_THRESHOLD = 55
+PROSPERITY_TREASURY_THRESHOLD = 5
 HISTORY_CAP = 10
 
 PRESTIGE_BY_TYPE = {
@@ -492,7 +492,7 @@ def select_cultural_artifact_type(civ, seed: int) -> ArtifactType:
 
     weights = {
         ArtifactType.ARTWORK: 1.0,
-        ArtifactType.TREATISE: 1.0,
+        ArtifactType.TREATISE: 0.6,
         ArtifactType.MONUMENT: 1.0,
     }
 
@@ -502,11 +502,14 @@ def select_cultural_artifact_type(civ, seed: int) -> ArtifactType:
             dominant = get_dominant_faction(civ.factions).value
             if dominant == "cultural":
                 weights[ArtifactType.ARTWORK] = 2.0
-                weights[ArtifactType.TREATISE] = 1.5
+                weights[ArtifactType.TREATISE] = 0.8
             elif dominant == "military":
                 weights[ArtifactType.MONUMENT] = 2.0
+                weights[ArtifactType.TREATISE] = 0.4
             elif dominant == "merchant":
                 weights[ArtifactType.ARTWORK] = 1.5
+                weights[ArtifactType.MONUMENT] = 1.25
+                weights[ArtifactType.TREATISE] = 0.4
         except (ValueError, AttributeError):
             pass
 

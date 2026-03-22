@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-21 (M53 canonical validation concluded on `feat/m53-depth-tuning`)
+> **Last updated:** 2026-03-22 (M53 canonical validation passed on `feat/m53-depth-tuning`)
 
 ---
 
@@ -226,9 +226,9 @@
 
 ---
 
-## In Progress
+## Current Status
 
-### M53: Depth Tuning Pass — concluded, canonical gate failed
+### M53: Depth Tuning Pass — concluded, canonical gate passed
 
 - **Branch:** `feat/m53-depth-tuning` (35 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
@@ -251,7 +251,7 @@
   - `1d00894` — fix(m53b): wire world.agent_events_raw into Oracles 2 and 4
   - `7a3bddd` — docs(m53a): frozen constant snapshot with substrate + pass changes + M49 flags
   - `96680fb` — docs(m53b): narrow Oracle 5 scope, update progress with partial cleanup status
-- **Tests:** 397 Rust tests, 16 Python validate tests. All passing.
+- **Tests:** latest focused verification run is `pytest tests/test_sidecar.py tests/test_validate.py tests/test_artifacts.py tests/test_culture.py tests/test_simulation.py -q` -> `229 passed`.
 - **New files:** `scripts/m53_demographics_probe.py` (demographics), `scripts/m53_social_probe.py` (needs/bonds/satisfaction)
 - **Key demographic changes (cumulative):**
   - `DemographicDebug` struct in tick.rs — 13 per-tick counters
@@ -265,7 +265,7 @@
   - Fertility taper: `FERTILITY_FULL_AGE_MAX=50`, `FERTILITY_TAPER_AGE_MAX=60` (replaces hard cutoff `FERTILITY_AGE_MAX=45`)
   - Overcrowding penalty cap: `OVERCROWDING_PENALTY_CAP=0.30` — uncapped formula zeroed satisfaction at 3-7x capacity, blocking all fertility and making depth systems inert
 
-#### Session Handoff — Pass 1 Core Systems Done, Pass 1d-1f Next
+#### Historical Pass 1 Notes
 
 **Pass 1 results (20 seeds × 200 turns, seeds 10-29):**
 
@@ -292,7 +292,7 @@
 3. **Autonomy decay was too fast for foreign-controlled agents.** Only `NO_PERSC` (0.010) was available; 0.015 decay made equilibrium negative. Doubling restoration + reducing decay gives foreign-controlled equilibrium at 0.50, own-rule at 0.75.
 4. **Memory is healthy.** 7/8 slots filled, intensity ~43 at T50 (decaying normally). No trapping signal. No constant changes needed.
 
-**Next session starts at:** Task 18 (Pass 1d — Mule), Task 19 (Pass 1e — Legacy), Task 20 (Pass 1f — Artifacts). Memory (Task 15) and Needs (Task 16) are done. Relationships (Task 17) is done.
+**Historical note:** This block records the pre-pass handoff state that led into the final successful M53 rerun.
 
 **Probe results summary (20 seeds × 200 turns each):**
 
@@ -318,37 +318,34 @@
 
 **M53 tuning tasks complete:** All 6 system passes done, constants frozen, integration pass clean at 20 seeds x 200 turns. Freeze snapshot present at `tuning/m53a_frozen.yaml`.
 
-**Canonical M53b infrastructure complete (2026-03-21):**
-1. `python -m chronicler.validate` now consumes exported bundles, `agent_events.arrow`, canonical validation sidecars, and `validation_summary.json`.
+**Canonical M53b infrastructure complete (2026-03-22):**
+1. `python -m chronicler.validate` consumes exported bundles, `agent_events.arrow`, canonical validation sidecars, and `validation_summary.json`.
 2. Validation runs write `validation_relationships.arrow`, `validation_memory_signatures.arrow`, `validation_needs.arrow`, `validation_summary.json`, and `validation_community_summary.json`.
-3. Determinism smoke gates now pass on the canonical exported-data path for both `--agents=off` and `--agents=hybrid`.
+3. Dedicated duplicate-seed determinism smoke gates remain PASS on the canonical exported-data path for both `--agents=off` and `--agents=hybrid`.
 
-**Canonical gate results:**
-- **Determinism smoke:** PASS (`agents=off` and `agents=hybrid`)
-- **Oracle subset (`20` seeds x `200` turns, seeds `42-61`):**
-  - Community: FAIL (`12/20`, target `15/20`)
-  - Needs diversity: FAIL (`6/20` expected-sign seeds, median effect `0.0`)
-  - Era inflection: FAIL (`20/20` inflection seeds, but `6` silent collapses)
-  - Cohort distinctiveness: FAIL (`7/12` analyzed seeds with expected direction, median effect `0.2394`)
-  - Artifacts: PARTIAL (creation `0.975/civ/100t`, diversity fail, loss/destruction `0.2115` OK)
-  - Six arcs: FAIL (`3/6` families; `riches_to_rags` dominates at `63.4%`)
-  - Regression summary: FAIL
-- **Full gate (`200` seeds x `500` turns, seeds `1-200`):**
-  - Community: FAIL (`13/200`, target `150/200`)
-  - Needs diversity: FAIL (`10/200` expected-sign seeds, median effect `0.0`)
-  - Era inflection: FAIL (`200/200` inflection seeds, but `36` silent collapses)
-  - Cohort distinctiveness: FAIL (`4/13` analyzed seeds with expected direction, median effect `0.0`)
-  - Artifacts: FAIL (creation `0.6248/civ/100t`, diversity fail, loss/destruction `0.3994`)
-  - Six arcs: FAIL (`6/6` families, but `stable` dominates at `74.1%`)
-  - Regression summary: FAIL
+**Structural fixes carried by the passing rerun:**
+- Hybrid passive stability recovery now routes through `keep` in agent mode instead of being guard-dropped.
+- Stale wars against dead civilizations are pruned before they keep applying phantom dissatisfaction.
+- Hybrid assimilation fallback / controller-pressure parity is restored so foreign-control bleed can resolve.
+- Artifact mix and arc-classifier edge cases were corrected without weakening the validator assertions.
 
-**M53 Status:** `M53a` complete and frozen. Canonical `M53b` executed and failed. `M53` is concluded, but it did **not** unlock the scale track.
+**Canonical gate results (`200` seeds x `500` turns, seeds `1-200`):**
+- Community: PASS (`200/200`, target `150/200`)
+- Needs diversity: PASS (`199/200` expected-sign seeds, `822` matched pairs, median effect `1.0063`)
+- Era inflection: PASS (`200/200` inflection seeds, `0` silent collapses)
+- Cohort distinctiveness: PASS (`200/200` expected-direction seeds, median effect `1.5021`)
+- Artifacts: PASS (creation `1.8723/civ/100t`, diversity OK, loss/destruction `0.2705`)
+- Six arcs: PASS (`6/6` families, `199` seeds with `3+` types, no dominance violation)
+- Regression summary: PASS (satisfaction `0.4577 +/- 0.1131`, migration `0.06465`, rebellion `0.06281`, Gini-in-range `0.9554`, occupation mix OK)
+- Determinism in the full gate report: SKIP (`1-200` batch contains no duplicate-seed pairs)
+
+**M53 Status:** `M53a` remains complete and frozen. Canonical `M53b` now passes on the current branch state, so `M53` is concluded and **does** unlock the scale track.
 
 **Artifacts / reports:**
 - Canonical report: `docs/superpowers/analytics/m53b-validation-report.md`
+- Passing full gate output: `output/m53/codex_m53_secession_threshold25_full/batch_1`
+- Persisted machine report: `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json`
 - Determinism outputs: `output/m53/canonical/determinism_off/batch_42` and `output/m53/canonical/determinism_hybrid/batch_42`
-- Oracle subset output: `output/m53/canonical/oracle_subset/batch_42`
-- Full gate output: `output/m53/canonical/full_gate/batch_1`
 - Runner/pipeline implementation notes: `docs/superpowers/plans/2026-03-21-m53b-validation-pipeline.md`
 
 #### Integration Pass Results (Task 21, 20 seeds × 200 turns)
@@ -429,13 +426,9 @@
 ## Ready for Implementation
 
 **Next steps:**
-- **M53 follow-on work (if reopened):**
-  - Retune or redesign community emergence / cohort distinctiveness
-  - Improve needs-diversity matching and downstream behavioral separation
-  - Rebalance artifact diversity + lifecycle loss
-  - Reduce arc dominance skew and regression drift (migration, Gini, occupation structure)
-  - Re-run canonical M53 gates only under a new post-M53 effort
-- **Scale-track note:** M54a+ remain blocked until a follow-on effort produces a passing replacement for the failed M53 canonical gate
+- **M54a:** Rust ecology migration is unblocked and can begin from the M53 passing baseline.
+- **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
+- **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
 - **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
 
 ---
@@ -444,8 +437,8 @@
 
 - **Transient signal rule (CLAUDE.md):** Clear BEFORE return in builder functions. 2+ turn integration test required for every new transient signal.
 - **~~M51 implementation gotchas~~** — All resolved during M51 implementation (`412d238`). Legacy bitmask, regnal naming, phantom counter, legitimacy scoring all landed.
-- **M51: Legitimacy activation rate unmeasured.** If most successions produce abstract/external candidates, dynasty scoring is inert. M53 should measure — if < 20%, system is decorative.
-- **M51: Legacy + persecution stacking.** Legacy persecution memories add to M38b + M48 + M49 triple-stacking concern. Monitor total rebel modifier budget in M53.
+- **M51: Legitimacy activation rate still unmeasured.** M53 passed without a dedicated legitimacy gate, but if most successions produce abstract/external candidates the dynasty scoring remains largely decorative. Measure before any dynasty-focused retune.
+- **M51: Legacy + persecution stacking.** Legacy persecution memories still add to the M38b + M48 + M49 pressure stack. M53 passed, but this remains a watchpoint if rebellion tuning is revisited.
 - **M34 farmer-as-miner:** Resolved. M41 added `is_extractive()` dispatch; M42 replaced it with market-derived `farmer_income_modifier`.
 - **M44 (API narration):** Merged. 20-seed quality comparison still pending (manual evaluation task).
 - **~~Viewer extensions (M46)~~ — Dropped 2026-03-17.** Phase 7 redesigns the viewer from scratch (M62). All Phase 3-6 viewer requirements preserved as inventory in Phase 7 roadmap.
@@ -485,26 +478,25 @@
 - **M48: Victory memories not civ-filtered.** `war_won_this_turn` is a bare boolean on RegionState. ALL soldiers in the region get Victory memories, including losing side. Fix requires `war_winning_civ: u8` field on RegionState + civ filtering in tick.rs intent collection.
 - **M48: `default_decay_factor()` recomputes `factor_from_half_life()` per write.** Cold-path (thousands/turn, not millions). Could be lazy-static lookup table if memory write volume increases.
 - **M48: `build_agent_context_for_moment()` new params not wired in batch path.** `civ_names`/`world_turn` params default to None/0 for backward compatibility. Memory/Mule context populated when callers pass those params. `_prepare_narration_prompts` does not wire them yet.
-- **M49: Persecution triple-stacking.** M38b direct boost (0.30) + M48 memory boost (~0.10) + M49 Autonomy need boost (up to 0.24) all push rebel/migrate. Total can reach ~0.64 additive on rebel. M53 priority calibration target.
+- **M49: Persecution triple-stacking.** M38b direct boost (0.30) + M48 memory boost (~0.10) + M49 Autonomy need boost (up to 0.24) all push rebel/migrate. Total can reach ~0.64 additive on rebel. M53 passed, but this remains a future retune watchpoint.
 - **Need restoration structural asymmetry (found in M53 Pass 1).** Safety has 3 additive restoration sources summing to ~0.038 effective rate. Social had 1 source at ~0.006. Blend formula interpolates (doesn't stack), so bond_factor needed to be 3x proxy to outpace decay. Key takeaway for future needs: any need with only one restoration source needs rate >> decay, or needs a second source.
 - **T10 satisfaction transient.** Satisfaction dips to 0.16 mean at T10 across all seeds (overcrowding + shock + war penalties stack at game start), then recovers to 0.43-0.45 by T20. Not structural — 79% above fertility threshold by T50. May resolve naturally as Pass 1 calibrates penalties. Do not chase this — it's startup dynamics, not a broken formula.
-- **Great persons not promoting.** Baseline v2 shows 0.0 GP mean at 200 turns. `PROMOTION_SKILL_THRESHOLD=0.9` and `PROMOTION_DURATION_TURNS=20` may be too strict for populations that peak at ~400. Check in Pass 1a or consider lowering threshold for 200-turn runs. May also need 500-turn runs to see promotions.
-- **M49: `_NEED_THRESHOLDS` in narrative.py must stay synced with agent.rs constants.** Both files define threshold values (0.3, 0.25, 0.35). No compile-time enforcement. If thresholds change in M53 calibration, update both.
+- **Great person promotions are no longer the blocker.** Demographic stabilization restored regular GP promotions during M53. If promotion volume drifts again in future tuning, re-check `PROMOTION_SKILL_THRESHOLD` and `PROMOTION_DURATION_TURNS`.
+- **M49: `_NEED_THRESHOLDS` in narrative.py must stay synced with agent.rs constants.** Both files define threshold values (0.3, 0.25, 0.35). No compile-time enforcement. If thresholds change in future tuning, update both.
 - **~~M49: Social need pre-M50 proxy.~~** Resolved in M50b + M53. `social_restoration()` blend formula `(1-α)*proxy + α*bond_factor`. Alpha ramped to 0.3, bond rate to 0.030. Social_below_025 = 3.3% at T50.
 - **M50b: Dissolution events lack dead target's agent_id.** `AgentEvent.target_region` is repurposed for bond_type; dead agent's ID is not carried. Python stores `(agent_id, 0, bond_type, turn)` with 0 as placeholder. Narration can say "a bond was severed" but not "between X and Y." Fix requires adding `target_agent_id: u32` field to AgentEvent. Deferred — not blocking until M53b needs dissolution trace data.
-- **M50b: `--relationship-stats` flag parsed but not wired.** CLI flag exists, FFI `get_relationship_stats()` exists, analytics extractor expects `metadata["relationship_stats"]`. No Python-side call site invokes the FFI method or stores the metadata. Distribution metrics are always computed (cheap at current agent counts). Wire when approaching 200K+ agents or for M53 calibration.
+- **~~M50b: `--relationship-stats` flag parsed but not wired.~~** Wired in M53 (`fcb0700`). `AgentBridge` now calls `get_relationship_stats()` per tick when the flag is set and stores the history in bundle metadata.
 - **M50b: `id_to_slot` HashMap rebuilt per-region.** Spec says build pool-wide map once per cadence tick. Implementation rebuilds from `alive_slots` inside the region loop. Correct behavior, minor perf waste (~100K unnecessary hash insertions per tick with 50K agents). Hoist above region loop if formation scan shows in profiles.
 - **M50b: `check_friend` evaluates compatibility before shared memory.** Spec cascade puts expensive checks last. At current memory slot counts (5 max), cost difference is negligible. Low priority.
 - **M49: Phase 7 roadmap estimates ~24 M49 constants.** Actual count is 37. Update roadmap when next editing it.
-- **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Verify numerically in M53 Tier 3 calibration.
+- **M49: Material equilibrium sensitive to wealth percentile assumptions.** Spec equilibrium table assumes "median wealth" restoration rate that may be optimistic. Re-verify numerically if wealth restoration is retuned in the future.
 - **Demographics: provisional baseline (4/20 extinction, healthy trajectories).** Fertility taper + overcrowding cap. T100 alive mean ~100, B/D ratio ~0.65. Remaining 4/20 extinctions are late (mean T170+). Disease and war are stabilizers — do NOT reduce them.
-- **Overcrowding penalty capped (M53 Pass 0).** `OVERCROWDING_PENALTY_CAP=0.30` in satisfaction.rs. Without this, population growth beyond carrying capacity zeroed satisfaction, blocking fertility, and making all M48-M51 depth systems inert. Cap is a `[CALIBRATE M53]` constant.
-- **Disease mortality is multiplicative (M53 fix).** Formula changed from `base*eco*war + disease` to `base*eco*war*(1+disease*SCALE)`. DISEASE_MORTALITY_SCALE=10.0 [CALIBRATE M53]. At cap 0.15: 2.5x mortality. Old additive formula gave 16%/turn at cap — primary cause of original population collapse.
+- **Overcrowding penalty capped (M53 Pass 0).** `OVERCROWDING_PENALTY_CAP=0.30` in satisfaction.rs remains part of the passing M53 baseline. Without it, population growth beyond carrying capacity zeroes satisfaction and makes the depth systems inert.
+- **Disease mortality is multiplicative (M53 fix).** Formula changed from `base*eco*war + disease` to `base*eco*war*(1+disease*SCALE)`. This remains part of the passing M53 baseline. The additive formula was the original demographic collapse bug.
 - **Disease/war volatility reduction causes overshoot-collapse.** Lowering DISEASE_SEVERITY_CAP (0.15→0.10) or WAR_CASUALTY_MULTIPLIER (2.0→1.5) both increased extinctions from 7/20 to 11/20. These pressure sources prevent population overshoot that leads to harder crashes. Counterintuitive but confirmed across 20-seed probes.
 - **Birth counter was wrong prior to `b6972aa`.** ffi.rs `last_tick_births` filtered event_type==3 (occ_switch) not 5 (birth). All prior birth count reports from `last_tick_births` were measuring occupation switches. Fixed.
 - **Determinism: Python hash() seeds were non-deterministic.** Fixed in `5135522` with SHA256-based `stable_seed()` in utils.py. All prior M53 cross-process comparisons were invalid. Bundle timestamps remain non-deterministic metadata (acceptable).
 - **M52: `self.world` bug in `_process_promotions()`.** Fixed in `6339077`. `emit_gp_artifact_intent` was called with `self.world` but AgentBridge doesn't store world as instance attribute.
-- **~~M50b: `--relationship-stats` flag not wired.~~** Wired in M53 (`fcb0700`). `AgentBridge` now calls `get_relationship_stats()` per tick when flag is set, accumulates in `_relationship_stats_history`, injected into bundle metadata.
 - **arro3 vs pyarrow API.** pyo3-arrow 0.17 returns `arro3.core.RecordBatch`, not pyarrow. Use `batch.column(name).to_pylist()` for column access. `to_pydict()` does NOT exist on arro3. Convert to pyarrow via `pa.record_batch(batch)` if needed.
 - **Windows Rust test DLL fix.** Python 3.14 DLL (`python314.dll`) lives in `pythoncore-3.14-64/` dir which isn't in PATH. Pre-commit hook must use `export PATH=...` not inline `PATH=... command` — the latter doesn't propagate to cargo's child processes on Windows. Fixed in `.claude/settings.json` hooks.
 - **Module deployment.** After `cargo build --release`, copy `target/release/chronicler_agents.dll` to `<python-site-packages>/chronicler_agents/chronicler_agents.cp314-win_amd64.pyd`. Rename-then-copy pattern needed if the file is locked (old → `.old`, then copy new).

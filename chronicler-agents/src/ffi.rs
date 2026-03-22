@@ -236,9 +236,9 @@ impl AgentSimulator {
 
     /// Ingest region state from Python as an Arrow RecordBatch.
     ///
-    /// First call initialises the regions and spawns agents proportional to
-    /// carrying capacity (60% farmer, 15% soldier, 10% merchant, 10%
-    /// scholar, ~5% priest).  Subsequent calls update ecology fields only.
+    /// First call initialises the regions and spawns agents from the supplied
+    /// population column (60% farmer, 15% soldier, 10% merchant, 10%
+    /// scholar, ~5% priest). Subsequent calls update ecology fields only.
     pub fn set_region_state(&mut self, batch: PyRecordBatch) -> PyResult<()> {
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
@@ -475,10 +475,10 @@ impl AgentSimulator {
                 })
                 .collect();
 
-            // Spawn agents proportional to carrying capacity.
+            // Spawn agents from the incoming population column.
             // Distribution: 60% farmer, 15% soldier, 10% merchant, 10% scholar, ~5% priest
             for i in 0..n {
-                let cap = capacities.value(i) as usize;
+                let pop = populations.value(i) as usize;
                 let region_id = region_ids.value(i);
                 let civ = if self.regions[i].controller_civ != 255 {
                     self.regions[i].controller_civ
@@ -486,12 +486,12 @@ impl AgentSimulator {
                     (region_id % 256) as u8  // fallback for uncontrolled
                 };
 
-                let n_farmer = (cap * 60 + 50) / 100;
-                let n_soldier = (cap * 15 + 50) / 100;
-                let n_merchant = (cap * 10 + 50) / 100;
-                let n_scholar = (cap * 10 + 50) / 100;
+                let n_farmer = (pop * 60 + 50) / 100;
+                let n_soldier = (pop * 15 + 50) / 100;
+                let n_merchant = (pop * 10 + 50) / 100;
+                let n_scholar = (pop * 10 + 50) / 100;
                 let spawned = n_farmer + n_soldier + n_merchant + n_scholar;
-                let n_priest = if cap > spawned { cap - spawned } else { 0 };
+                let n_priest = if pop > spawned { pop - spawned } else { 0 };
 
                 // M33: personality assignment at initial spawn
                 let mut personality_rng = ChaCha8Rng::from_seed(self.master_seed);
