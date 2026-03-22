@@ -360,6 +360,15 @@ These must all pass before the scale track begins.
 3. No Mule artifacts → Mule action success rate too low (check Pass 1d)
 4. No narrative visibility → `_get_relevant_artifacts()` or `render_artifact_context()` filtering too strict
 
+**M53 scope narrowing (2026-03-21):** For M53, Oracle 5 covers: creation rate,
+type diversity, loss/destruction rate. Deferred to future milestones:
+- **Relic conversion impact** (requires religion instrumentation) — candidate for M55
+- **Narration visibility** (requires API narration runs) — candidate for M62
+- **Mule-origin rate** (requires GP count cross-referencing) — candidate for M55
+
+These deferrals are explicit and dated. The checks remain in the spec as
+requirements for the full Oracle 5 contract; they are not removed.
+
 #### Oracle 6: Six Emotional Arcs
 
 **What it measures:** Do civ-level trajectories span the standard arc families?

@@ -117,7 +117,7 @@
 - Pre-existing test mock fixed: `test_complete_calls_anthropic_api` now includes `usage` fields (prevents MagicMock `__radd__` corruption of accumulators).
 - **Phoebe implementation review passed.** NB-1 (batch token bleed across seeds — low urgency edge case), NB-2 (usage mock — fixed in `a559c2b`).
 - **No Rust changes.** Entirely Python-side. No simulation determinism impact.
-- **M44 deliverables still pending:** ERA_REGISTER A/B experiment (pre-implementation, 4 conditions), 20-seed quality comparison (post-implementation, controlled pipeline). Both are manual evaluation tasks.
+- **M44 deliverables still pending:** 20-seed quality comparison (post-implementation, controlled pipeline). Manual evaluation task.
 
 ### M45: Character Arc Tracking — merged (`6c997f3`)
 
@@ -228,7 +228,7 @@
 
 ## In Progress
 
-### M53: Depth Tuning Pass — complete, frozen, oracles run
+### M53: Depth Tuning Pass — tuning complete, validation gaps remain
 
 - **Branch:** `feat/m53-depth-tuning` (30 commits, not merged to main)
 - **Spec:** `docs/superpowers/specs/2026-03-21-m53-depth-tuning-validation-design.md`
@@ -310,14 +310,23 @@
 5. **Overcrowding penalty was zeroing satisfaction.** Uncapped `(pop/cap - 1.0) * 0.3` at 5x capacity gave 1.2 penalty, forcing satisfaction to 0 and blocking all fertility. Cap at 0.30 preserves pressure up to 2x while preventing runaway zeroing. Overcrowding already punished via ecology, disease, and demography.
 6. **This is a provisional baseline**, not the final word. M53 tuning may reveal remaining edge cases that require further demographic adjustment.
 
-**M53 Tasks Complete:** 1-23 (all). Infrastructure, baseline, 6 system passes, integration, freeze, oracles, final gate.
-**M53 Status:** Ready to merge. See `docs/superpowers/analytics/m53b-validation-report.md` for oracle results.
+**M53 tuning tasks complete:** All 6 system passes done, constants frozen, integration pass clean at 20 seeds × 200 turns.
 
-**Oracle results summary:**
+**M53 validation gaps (Phoebe review 2026-03-21, partial cleanup applied):**
+1. **[FIXED] Oracle 5 loss counting.** `check_artifact_lifecycle()` now counts both LOST and DESTROYED.
+2. **[FIXED] Oracle 6 dominance cap.** Probe now enforces 40% cap on all arcs including stable.
+3. **[FIXED] Oracle probe event collection.** Oracles 2 and 4 now receive real events from `world.agent_events_raw`.
+4. **[FIXED] Freeze snapshot missing.** `tuning/m53a_frozen.yaml` generated with all 13 changed constants + M49 flags.
+5. **[OPEN] Spec gate not met.** Spec requires 200-seed structural gate and 500-turn oracle runs. Current results are 20-seed × 200-turn only.
+6. **[OPEN] `chronicler.validate` runner is a stub.** Spec requires a post-processing consumer that reads exported sidecar data. Sidecar export pipeline does not exist yet.
+
+**M53 Status:** Tuning complete. Validation partially cleaned up. NOT spec-complete — merge blocked on items 5-6 above. See "Remaining Work" in `docs/superpowers/plans/2026-03-21-m53b-validation-closure.md`.
+
+**Oracle results (20-seed, ad-hoc probe — not from spec-required runner):**
 - Oracle 1 (Community): PASS (15/20)
 - Oracle 3 (Era Inflection): SOFT FAIL (60%, likely passes at 500t)
 - Oracle 5 (Artifacts): PARTIAL (creation OK, destruction target needs recalibration)
-- Oracle 6 (Six Arcs): PASS (6/6 families)
+- Oracle 6 (Six Arcs): PASS (6/6 families) — but `riches_to_rags` 53% exceeds spec limit
 - Oracles 2, 4: Deferred (need per-agent event instrumentation)
 
 #### Integration Pass Results (Task 21, 20 seeds × 200 turns)
@@ -398,9 +407,8 @@
 ## Ready for Implementation
 
 **Next steps:**
-- **PRIORITY: M53 Pass 1d-1f (Tasks 18-20)** — Mule, Legacy, Artifacts. Core needs systems are done.
-- **Then:** Tasks 21-23 (integration pass + oracles + freeze)
-- ERA_REGISTER A/B experiment (manual, deferred from M44)
+- **PRIORITY: Close M53 validation gaps** — wire `chronicler.validate` oracle runner, generate `tuning/m53a_frozen.yaml`, fix oracle probe contracts (needs diversity, cohort distinctiveness, riches_to_rags threshold, artifact loss/relic/narration checks)
+- **Then:** Decide scope — run full 200-seed gate per spec, or amend spec to accept 20-seed results and merge
 
 ---
 
@@ -411,7 +419,7 @@
 - **M51: Legitimacy activation rate unmeasured.** If most successions produce abstract/external candidates, dynasty scoring is inert. M53 should measure — if < 20%, system is decorative.
 - **M51: Legacy + persecution stacking.** Legacy persecution memories add to M38b + M48 + M49 triple-stacking concern. Monitor total rebel modifier budget in M53.
 - **M34 farmer-as-miner:** Resolved. M41 added `is_extractive()` dispatch; M42 replaced it with market-derived `farmer_income_modifier`.
-- **M44 (API narration):** Merged. ERA_REGISTER A/B experiment and 20-seed quality comparison still pending (manual evaluation tasks, not implementation).
+- **M44 (API narration):** Merged. 20-seed quality comparison still pending (manual evaluation task).
 - **~~Viewer extensions (M46)~~ — Dropped 2026-03-17.** Phase 7 redesigns the viewer from scratch (M62). All Phase 3-6 viewer requirements preserved as inventory in Phase 7 roadmap.
 - **M44: Sequential batch token accumulation bleeds across seeds.** `--batch N --narrator api` shares one `AnthropicClient` across seeds; seed 2's bundle metadata shows seed 1+2 cumulative tokens. Low urgency — edge case, tokens for operator awareness not billing. Fix: reset accumulators per `execute_run()`, or snapshot deltas. Phoebe NB-1.
 - **M44: `_run_narrate()` agent context still limited.** Pre-existing gap — `narrate_batch()` call in `_run_narrate()` doesn't thread `great_persons`, `social_edges`, `gini_by_civ`, `economy_result`. API and local narration both equally affected. Not M44 scope.
