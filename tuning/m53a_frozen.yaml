@@ -1,0 +1,296 @@
+# M53a Frozen Constant Snapshot
+# Generated: 2026-03-21
+# Branch: feat/m53-depth-tuning
+# Status: All tuning passes complete, constants frozen
+# Baseline: tuning/m53_baseline_v2.yaml
+
+# ===================================================================
+# DEMOGRAPHIC & SATISFACTION SUBSTRATE CHANGES
+# These are structural fixes, not tuning-pass adjustments. They were
+# required to make the depth systems (M48-M52) viable — without them,
+# population collapsed before any depth system could activate.
+# ===================================================================
+
+substrate_changes:
+  # --- Disease mortality formula (additive → multiplicative) ---
+  - name: DISEASE_MORTALITY_SCALE
+    file: chronicler-agents/src/agent.rs:114
+    tier: HARD
+    before: "N/A (additive formula: base*eco*war + disease)"
+    after: "10.0 (multiplicative: base*eco*war*(1+disease*SCALE))"
+    commit: 9e36df1
+    reason: >
+      Additive formula gave 16%/turn mortality at disease cap (0.15).
+      Multiplicative gives 2.5x at cap. Primary cause of original
+      population collapse across all seeds.
+
+  # --- Mortality rates ---
+  - name: MORTALITY_ADULT
+    file: chronicler-agents/src/agent.rs:31
+    tier: HARD
+    before: 0.01
+    after: 0.005
+    commit: ebec710
+    reason: >
+      Combined fix with fertility. Original rates produced B/D=0.13
+      (population unable to sustain itself). Halved adult mortality
+      as part of the B+C+D demographic rebalance.
+
+  - name: MORTALITY_ELDER
+    file: chronicler-agents/src/agent.rs:32
+    tier: HARD
+    before: 0.05
+    after: 0.03
+    commit: ebec710
+    reason: >
+      Part of B+C+D combined fix. Elder mortality was too aggressive
+      relative to fertility, preventing generational handoff.
+
+  # --- Fertility rates ---
+  - name: FERTILITY_BASE_FARMER
+    file: chronicler-agents/src/agent.rs:42
+    tier: HARD
+    before: 0.03
+    after: 0.05
+    commit: ebec710
+    reason: Part of B+C+D combined fix. Doubled farmer fertility to
+      achieve B/D >= 0.20 at equilibrium.
+
+  - name: FERTILITY_BASE_OTHER
+    file: chronicler-agents/src/agent.rs:43
+    tier: HARD
+    before: 0.015
+    after: 0.03
+    commit: ebec710
+    reason: Part of B+C+D combined fix. Doubled non-farmer fertility.
+
+  # --- Fertility taper (replaces hard cutoff) ---
+  - name: FERTILITY_FULL_AGE_MAX
+    file: chronicler-agents/src/agent.rs:40
+    tier: HARD
+    before: "N/A (hard cutoff FERTILITY_AGE_MAX=45)"
+    after: 50
+    commit: ce3a3e4
+    reason: >
+      Hard cutoff at 45 caused entire cohorts to drop out of fertility
+      simultaneously, creating generational handoff gaps. Taper from
+      50 to 60 smooths the transition. Full=50 + taper to 60 confirmed
+      across 40 seeds as the sweet spot.
+
+  - name: FERTILITY_TAPER_AGE_MAX
+    file: chronicler-agents/src/agent.rs:41
+    tier: HARD
+    before: "N/A (no taper existed)"
+    after: 60
+    commit: ce3a3e4
+    reason: Linear taper endpoint. Fertility drops to zero at age 60.
+
+  # --- Overcrowding penalty cap ---
+  - name: OVERCROWDING_PENALTY_CAP
+    file: chronicler-agents/src/agent.rs:122
+    tier: HARD
+    before: "N/A (uncapped)"
+    after: 0.30
+    commit: 84775f8
+    reason: >
+      Uncapped formula (pop/cap - 1.0) * 0.3 zeroed satisfaction at
+      3-7x carrying capacity. This blocked all fertility and made
+      M48-M52 depth systems completely inert. Cap at 0.30 preserves
+      overcrowding pressure up to 2x while preventing runaway zeroing.
+      Overcrowding is already punished via ecology, disease, and
+      demography — the satisfaction penalty is supplementary, not the
+      primary mechanism.
+
+# ===================================================================
+# PASS-TUNED CONSTANTS (6 total)
+# Changed during M53 system passes 1a-1f.
+# ===================================================================
+
+pass_tuned_constants:
+  # --- HARD freeze (cross-system, structural) ---
+  - name: SOCIAL_BLEND_ALPHA
+    file: chronicler-agents/src/agent.rs:344
+    tier: HARD
+    before: 0.0
+    after: 0.3
+    pass: 1c (Relationships)
+    commit: ff63fbb
+    reason: >
+      Bond-based social restoration needed nonzero blend weight.
+      Alpha alone did nothing because SOCIAL_RESTORE_BOND and
+      SOCIAL_RESTORE_POP were equal — blend just interpolated between
+      equal values.
+
+  - name: SOCIAL_RESTORE_BOND
+    file: chronicler-agents/src/agent.rs:345
+    tier: HARD
+    before: 0.010
+    after: 0.030
+    pass: 1c (Relationships)
+    commit: ff63fbb
+    reason: >
+      Bond restoration rate needed to be 3x to outpace 0.008 decay
+      through the multiplier chain. Safety has 3 sources summing to
+      ~0.038; social had 1 source at ~0.006 effective.
+
+  - name: AUTONOMY_DECAY
+    file: chronicler-agents/src/agent.rs:242
+    tier: HARD
+    before: 0.015
+    after: 0.010
+    pass: 1b (Needs)
+    commit: ff63fbb
+    reason: >
+      Was fastest-decaying need. Foreign-controlled agents had only
+      NO_PERSC (0.010) available; 0.015 decay made equilibrium
+      negative. Now aligns with spiritual decay rate.
+
+  - name: AUTONOMY_RESTORE_NO_PERSC
+    file: chronicler-agents/src/agent.rs:275
+    tier: HARD
+    before: 0.010
+    after: 0.020
+    pass: 1b (Needs)
+    commit: ff63fbb
+    reason: >
+      Doubling restoration + reducing decay gives foreign-controlled
+      agents viable equilibrium at 0.50, own-rule at 0.75.
+
+  # --- SOFT freeze (system-local) ---
+  - name: MULE_PROMOTION_PROBABILITY
+    file: src/chronicler/agent_bridge.py:38
+    tier: SOFT
+    before: 0.07
+    after: 0.12
+    pass: 1d (Mule)
+    commit: 6706dbe
+    reason: >
+      GP promotion is bursty — need higher hit rate to get Mules in
+      50%+ of seeds (was 35%). Mean 1.9 at T50.
+
+  - name: MULE_ACTIVE_WINDOW
+    file: src/chronicler/action_engine.py:42
+    tier: SOFT
+    before: 25
+    after: 30
+    pass: 1d (Mule)
+    commit: 6706dbe
+    reason: >
+      Extend Mule influence beyond initial GP burst. All Mules still
+      expire by T100 (structural — cohort-based promotion).
+
+# ===================================================================
+# M49 CALIBRATION FLAGS (10 flags, each addressed)
+# ===================================================================
+
+m49_calibration_flags:
+  - flag: Persecution triple-stacking
+    status: DOCUMENTED
+    pass: 1b
+    finding: >
+      M38b (0.30) + M48 memory (~0.10) + M49 Autonomy (up to 0.24)
+      total can reach ~0.64 additive on rebel. Persecution is
+      intentionally harsh — stacking reflects cumulative trauma.
+      Rebellion rate stays within acceptable range. Monitored, not
+      clamped.
+
+  - flag: Famine double-counting
+    status: PASS
+    pass: 1b
+    finding: >
+      food_sufficiency penalty is outside the 0.40 non-ecological
+      cap (material condition). Safety need restoration via
+      SAFETY_RESTORE_FOOD is additive, not multiplicative with the
+      penalty. No double-counting observed.
+
+  - flag: Needs-only rebellion rate
+    status: PASS
+    pass: 1b
+    finding: >
+      Rebellion rate from needs alone is low. Needs supplement
+      existing drivers (memory, satisfaction), not replace them.
+      NEEDS_MODIFIER_CAP=0.30 prevents needs from dominating.
+
+  - flag: Need activation fraction
+    status: PASS
+    pass: 1b
+    finding: >
+      Autonomy activation starts at 46% at T50 (many foreign-
+      controlled agents), drops to 18% by T100 as agents settle.
+      Social activation ~33% at T50. Safety near 0%. Pattern is
+      healthy — activation tracks meaningful state.
+
+  - flag: Migration sloshing
+    status: PASS
+    pass: 1b, 1c
+    finding: >
+      No region-pair oscillation observed. Migration rate of 138.5/seed
+      over 200 turns is active but not oscillatory.
+
+  - flag: Sawtooth oscillation
+    status: PASS
+    pass: 1b
+    finding: >
+      Linear decay + proportional restoration produces smooth curves,
+      not sawtooth. No need cycling within <10 turns observed.
+
+  - flag: Duty cycle per need
+    status: PASS
+    pass: 1b
+    finding: >
+      Each need spends meaningful time in both states. Safety is
+      almost always satisfied (0% below threshold). Social and
+      autonomy have real deficit periods. Spiritual and purpose
+      track temple/occupation status.
+
+  - flag: Social proxy adequacy
+    status: PASS
+    pass: 1c
+    finding: >
+      Blend formula with SOCIAL_BLEND_ALPHA=0.3 and
+      SOCIAL_RESTORE_BOND=0.030 produces social_below_025=3.3%
+      at T50. Proxy is adequate.
+
+  - flag: Negative modifier trapping
+    status: PASS
+    pass: 1a
+    finding: >
+      Memory slot occupancy at 7.05/8 mean, intensity at 43.3.
+      Memory decays normally. No permanent low-satisfaction trapping
+      from memory-driven penalties.
+
+  - flag: Autonomy assimilation loop
+    status: MITIGATED
+    pass: 1b
+    finding: >
+      Foreign-controlled agents now reach equilibrium at 0.50
+      (was negative). Rebellion still occurs but doesn't trap agents
+      in deficit->rebel->reconquered->deficit cycle. Autonomy
+      improves to 18% below threshold by T100.
+
+# ===================================================================
+# CROSS-LANGUAGE SYNC OBLIGATION
+# ===================================================================
+
+cross_language_sync:
+  - note: >
+      _NEED_THRESHOLDS in narrative.py (Python) must stay synced with
+      *_THRESHOLD constants in agent.rs (Rust). Both files define
+      threshold values (0.3, 0.25, 0.35). No compile-time enforcement.
+      If thresholds change, update both.
+    files:
+      - src/chronicler/narrative.py
+      - chronicler-agents/src/agent.rs
+
+# ===================================================================
+# UNCHANGED CONSTANTS
+# ===================================================================
+# See agent.rs lines 185-352 for full list with [FROZEN M53 SOFT] tags.
+# All memory intensities, half-lives, utility magnitudes, need
+# decay/threshold/weight/restoration rates (except AUTONOMY_DECAY and
+# AUTONOMY_RESTORE_NO_PERSC), relationship drift/formation constants,
+# and Mule mapping weights remain at original values.
+#
+# Total tagged [FROZEN M53]: 137 constants (127 Rust + 10 Python).
+# Changed: 6 pass-tuned + 7 substrate = 13 total.
+# Unchanged: 124 constants at original defaults.
