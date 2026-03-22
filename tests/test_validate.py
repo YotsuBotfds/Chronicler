@@ -150,3 +150,52 @@ def test_arc_classifier_icarus():
     trajectory = {"population": pop}
     arc = classify_civ_arc(trajectory)
     assert arc == "icarus"
+
+
+def test_artifact_lifecycle_counts_lost_and_destroyed():
+    """Oracle 5 loss rate should include both LOST and DESTROYED artifacts."""
+    from chronicler.validate import check_artifact_lifecycle
+    bundles = [{
+        "world_state": {"artifacts": [
+            {"artifact_type": "relic", "status": "active", "mule_origin": False},
+            {"artifact_type": "monument", "status": "lost", "mule_origin": False},
+            {"artifact_type": "treatise", "status": "destroyed", "mule_origin": False},
+            {"artifact_type": "epic", "status": "active", "mule_origin": True},
+        ]},
+        "metadata": {"total_turns": 100},
+    }]
+    result = check_artifact_lifecycle(bundles)
+    # 2 of 4 artifacts are lost or destroyed = 0.50
+    assert result["loss_destruction_count"] == 2
+    assert result["loss_destruction_rate"] == 0.50
+
+
+def test_artifact_lifecycle_creation_rate():
+    """Creation rate sanity check."""
+    from chronicler.validate import check_artifact_lifecycle
+    bundles = [{
+        "world_state": {"artifacts": [
+            {"artifact_type": "relic", "status": "active", "mule_origin": False},
+            {"artifact_type": "monument", "status": "active", "mule_origin": False},
+        ]},
+        "metadata": {"total_turns": 100},
+    }]
+    result = check_artifact_lifecycle(bundles, num_civs=4)
+    # 2 artifacts / (4 civs * 100/100) = 0.5
+    assert result["creation_rate_per_civ_per_100"] == 0.5
+
+
+def test_artifact_lifecycle_type_diversity():
+    """No single type > 50%."""
+    from chronicler.validate import check_artifact_lifecycle
+    bundles = [{
+        "world_state": {"artifacts": [
+            {"artifact_type": "relic", "status": "active", "mule_origin": False},
+            {"artifact_type": "relic", "status": "active", "mule_origin": False},
+            {"artifact_type": "relic", "status": "active", "mule_origin": False},
+            {"artifact_type": "epic", "status": "active", "mule_origin": False},
+        ]},
+        "metadata": {"total_turns": 100},
+    }]
+    result = check_artifact_lifecycle(bundles)
+    assert result["type_diversity_ok"] is False  # relic = 75%

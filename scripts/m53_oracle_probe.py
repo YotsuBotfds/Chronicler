@@ -224,7 +224,7 @@ def main():
     art_result = check_artifact_lifecycle(bundles)
     print(f"  Creation rate: {art_result['creation_rate_per_civ_per_100']:.2f}/civ/100t — target [1, 3]")
     print(f"  Type diversity OK: {art_result['type_diversity_ok']}")
-    print(f"  Destruction rate: {art_result['destruction_rate']:.2f} — target [0.10, 0.30]")
+    print(f"  Loss/destruction rate: {art_result['loss_destruction_rate']:.2f} — target [0.10, 0.30]")
     print(f"  Mule artifacts: {art_result['mule_artifact_count']}")
     print(f"  Total: {art_result['total_artifacts']}")
 

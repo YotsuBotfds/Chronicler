@@ -497,7 +497,7 @@ def check_artifact_lifecycle(
     Sub-check A (bundle-only):
     - Creation rate per civ per 100 turns should be in 1-3 range.
     - No single artifact_type should exceed 50% of total.
-    - Destruction rate (destroyed / total) should be 10-30%.
+    - Loss/destruction rate ((lost + destroyed) / total) should be 10-30%.
 
     Parameters
     ----------
@@ -513,13 +513,14 @@ def check_artifact_lifecycle(
         creation_rate_per_civ_per_100  – float
         creation_rate_ok               – bool (rate in [1, 3])
         type_diversity_ok              – bool (no single type > 50%)
-        destruction_rate               – float
-        destruction_rate_ok            – bool (rate in [0.10, 0.30])
+        loss_destruction_count         – int
+        loss_destruction_rate          – float
+        loss_destruction_rate_ok       – bool (rate in [0.10, 0.30])
         mule_artifact_count            – int
         total_artifacts                – int
     """
     total_artifacts = 0
-    destroyed_count = 0
+    loss_destruction_count = 0
     mule_artifact_count = 0
     total_turns_sum = 0
     type_counts: dict[str, int] = {}
@@ -535,8 +536,8 @@ def check_artifact_lifecycle(
             type_counts[artifact_type] = type_counts.get(artifact_type, 0) + 1
 
             status = art.get("status", "active")
-            if status == "destroyed":
-                destroyed_count += 1
+            if status in ("destroyed", "lost"):
+                loss_destruction_count += 1
 
             if art.get("mule_origin", False):
                 mule_artifact_count += 1
@@ -556,20 +557,21 @@ def check_artifact_lifecycle(
     else:
         type_diversity_ok = True
 
-    # Destruction rate: destroyed / total
+    # Loss/destruction rate: (lost + destroyed) / total
     if total_artifacts > 0:
-        destruction_rate = destroyed_count / total_artifacts
+        loss_destruction_rate = loss_destruction_count / total_artifacts
     else:
-        destruction_rate = 0.0
+        loss_destruction_rate = 0.0
 
-    destruction_rate_ok = 0.10 <= destruction_rate <= 0.30
+    loss_destruction_rate_ok = 0.10 <= loss_destruction_rate <= 0.30
 
     return {
         "creation_rate_per_civ_per_100": creation_rate,
         "creation_rate_ok": creation_rate_ok,
         "type_diversity_ok": type_diversity_ok,
-        "destruction_rate": destruction_rate,
-        "destruction_rate_ok": destruction_rate_ok,
+        "loss_destruction_count": loss_destruction_count,
+        "loss_destruction_rate": loss_destruction_rate,
+        "loss_destruction_rate_ok": loss_destruction_rate_ok,
         "mule_artifact_count": mule_artifact_count,
         "total_artifacts": total_artifacts,
     }
