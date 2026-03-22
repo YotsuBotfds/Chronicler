@@ -57,7 +57,7 @@ Updated stockpiles serve dual duty: they are durable world state after write-bac
 | State | Authoritative during Phase 2 | Notes |
 |-------|------------------------------|-------|
 | Region signals (`farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income`, `trade_route_count`) | Rust return batch | Feed agent tick via bridge |
-| Civ signals (`priest_tithe_share`, `treasury_tax`, `tithe_base`) | Rust return batch | Feed bridge + accumulator. Note: only `treasury_tax` is currently routed through `StatAccumulator`; `tithe_base` is returned and stored but not an accumulator effect. |
+| Civ signals (`priest_tithe_share`, `treasury_tax`, `tithe_base`) | Rust return batch | `treasury_tax` routed through `StatAccumulator` (keep category). `tithe_base` consumed by `tick_factions()` in Phase 10 to compute tithe and mutate `civ.treasury`. `priest_tithe_share` feeds agent tick via bridge. |
 | Consumer observability (`imports_by_region`, `inbound_sources`, `stockpile_levels`, `import_share`, `trade_dependent`) | Rust return batch | Feed EconomyTracker, shock detection, narration |
 | `region_goods` (per-good production/imports/exports/prices) | Unresolved | May become sidecar-only, validation-mode-only, or compact observability. Pre-spec does not promise it survives as a production return payload. |
 | `conservation` | Rust inline + Python validation | See Section 7 |
@@ -97,9 +97,10 @@ Whether these read from a cached Rust return batch or from `_economy_result` is 
 | Consumer | Reads | Phase |
 |----------|-------|-------|
 | `action_engine.py` raider modifier | Written-back `Region.stockpile.goods` + `_economy_result` as presence gate | Phase 8 |
+| `tick_factions()` | `tithe_base` from civ result (via `_economy_result`) | Phase 10 |
 | `narrative.py` context builders | `trade_dependent`, supply shocks (from Events) | Narration |
 
-Phase 8 consumes a mix of durable (stockpiles) and transient (economy result metadata) economy outputs.
+Phase 8 and Phase 10 consume a mix of durable (stockpiles) and transient (economy result metadata) economy outputs. `tithe_base` is consumed by `tick_factions()` to compute tithe and directly mutate `civ.treasury` — it is not dead data.
 
 ---
 
@@ -118,8 +119,8 @@ AgentSimulator.tick_economy(region_input_batch, trade_route_batch, economy_conte
 
 | Batch | Contents | Notes |
 |-------|----------|-------|
-| Region input | **World-state inputs:** stockpile goods (fixed slots), terrain, resource_type, resource_yield, controller_civ. **Agent-derived counts:** population, farmer_count, soldier_count, merchant_count, wealthy_count, scholar_count, priest_count, ecology state. | One row per region. Agent-derived vs world-state distinction matters for how the batch is built. |
-| Trade routes | Per-route: origin_region_id, dest_region_id, is_river, is_coastal | Stable-sorted by (origin, dest) before crossing FFI |
+| Region input | **World-state inputs:** stockpile goods (fixed slots), terrain, resource_type, resource_effective_yield_0 (ecology-mutated, not static world-gen yield), controller_civ. **Agent-derived counts:** population, farmer_count, soldier_count, merchant_count, wealthy_count, priest_count. | One row per region. Agent-derived vs world-state distinction matters for how the batch is built. `scholar_count` omitted — not consumed by any economy formula. |
+| Trade routes | Per-route: origin_region_id, dest_region_id, is_river, is_coastal | Stable-sorted by (origin, dest) before crossing FFI. Transport cost computation also needs endpoint terrain (from region input) and friction_multiplier (from economy context). Whether Python pre-computes transport costs or Rust derives them is a full-spec decision. |
 | Economy context | Current season (winter bool), friction_multiplier, tuning multipliers | Small scalar payload. Not "climate" in the Phase 1 sense. |
 
 ### Output family (Rust → Python)
@@ -129,9 +130,9 @@ Three-way split: authoritative state / consumer observability / diagnostics.
 | Batch | Contents | Notes |
 |-------|----------|-------|
 | Region result (authoritative) | Per-region: updated stockpile goods (fixed slots), farmer_income_modifier, food_sufficiency, merchant_margin, merchant_trade_income, trade_route_count | One row per region |
-| Civ result (authoritative) | Per-civ: treasury_tax, tithe_base, priest_tithe_share | One row per civ |
+| Civ result (authoritative) | Per-civ: treasury_tax, tithe_base, priest_tithe_share | One row per civ. Current Python fiscal logic extracts merchant_wealth and priest_count from agent snapshot arrays — Rust can read agent pool directly or receive pre-aggregated inputs. Full spec decides. |
 | Observability | **Fixed per-region:** imports_by_region (per-category), stockpile_levels (per-category), import_share, trade_dependent. **Variable-length:** inbound_sources (route/source mapping for upstream attribution). | Fixed observability may merge into region result; inbound_sources may need a sub-batch. Full spec decides. |
-| Conservation (diagnostic) | 5 floats: production, transit_loss, consumption, storage_loss, cap_overflow | Returned as metadata or small batch. Not a same-turn consumer dependency. |
+| Conservation (diagnostic) | 6 floats: production, transit_loss, consumption, storage_loss, cap_overflow, clamp_floor_loss | Returned as metadata or small batch. Not a same-turn consumer dependency. |
 
 ### Fixed good slots
 
@@ -145,7 +146,7 @@ Goods normalized to a fixed ordered set for all FFI crossing. Current goods: gra
 
 ```
 Phase A — parallel per-region (production + demand extraction):
-  - Production from resource_type + resource_yield + farmer_count
+  - Production from resource_type + resource_effective_yield_0 + farmer_count
   - Demand from population + soldier_count + wealthy_count
   - Merchant count carried forward for trade capacity in Phase B
 
@@ -196,13 +197,13 @@ Phase D — sequential, per-civ (fiscal + diagnostics):
 
 ### Hard invariants (must hold for merge)
 
-1. **Conservation law.** `old_stockpile + production = new_stockpile + consumption + transit_loss + storage_loss + cap_overflow`. Both Rust inline summary and Python independent validation must pass.
+1. **Conservation law.** `old_stockpile + production = new_stockpile + consumption + transit_loss + storage_loss + cap_overflow + clamp_floor_loss`. The `clamp_floor_loss` term accounts for the non-negative clamp in stockpile accumulation (`max(0.0)` when `production - exports + imports` produces a negative delta exceeding existing stockpile). This is negligible at equilibrium but can occur in edge cases. Both Rust inline summary and Python independent validation must pass.
 
 2. **Determinism (Rust-to-Rust).** Same seed + same inputs → bit-identical outputs across runs. No tolerance. Route sort order is the anchor.
 
 3. **Parity (Rust-to-Python).** Rust output matches Python `compute_economy()` output within float tolerance for shared seeds. Tolerance applies here (cross-language float differences), not to determinism.
 
-4. **`--agents=off` behavioral compatibility.** Aggregate mode produces correct economy results. Implementation path is a full-spec decision; output correctness is the gate.
+4. **`--agents=off` behavioral compatibility.** In aggregate mode, `compute_economy()` is not currently called (economy requires agent snapshot data). The invariant is that aggregate-mode simulation remains correct when economy is absent, not that it produces matching economy outputs. If M54b changes this (e.g., by enabling economy in aggregate mode), correctness is the gate. Implementation path is a full-spec decision.
 
 5. **`food_sufficiency` from pre-consumption stockpile.** Not single-turn production. Clamped [0.0, 2.0]. M43a Decision 9.
 
@@ -260,6 +261,10 @@ Phase D — sequential, per-civ (fiscal + diagnostics):
 - Stockpile ownership: Python durable, Rust per-turn (Section 2)
 - All hard invariants and merge gates (Section 6)
 - Conservation split: inline Rust + independent Python validation (Section 7)
+
+### Principles locked for the full spec
+
+- Economy tuning constants pass through an `EconomyConfig` struct (matching M54a's `EcologyConfig` pattern), not compiled as Rust module constants.
 
 ### Deferred to full spec (after M54a lands)
 
