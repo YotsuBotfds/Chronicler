@@ -51,22 +51,24 @@ Rust executes these 11 steps in strict order. The ordering is a hard invariant �
 | Step | Function | Op Families | Notes |
 |------|----------|-------------|-------|
 | 1 | `check_capital_loss` | civ ops (reassign capital) + shock/effect ops + event triggers | hybrid/acc branching |
-| 2 | `check_secession` | civ ops (create breakaway) + region ops (controller swaps, `_seceded_this_turn`) + relationship ops (HOSTILE parent-breakaway, NEUTRAL breakaway-others) + shock/effect ops + event triggers | Bridge helper call site. Most complex step. Updates `civ.event_counts`. |
+| 2 | `check_secession` | civ ops (create breakaway) + region ops (controller swaps, `_seceded_this_turn`) + relationship ops (HOSTILE parent-breakaway, NEUTRAL breakaway-others) + shock/effect ops + event triggers | Bridge helper call site. Most complex step. Updates `civ.event_counts`. Uses `graph_distance()` for secession scoring and breakaway capital selection. Reads `civ_majority_faith` and `region.majority_belief` for M38b schism secession modifier. |
 | 3 | `update_allied_turns` | relationship state deltas (increment for ALLIED, reset to 0 for HOSTILE/SUSPICIOUS/NEUTRAL) | Pure bookkeeping, no events |
-| 4 | `check_vassal_rebellion` | relationship ops (remove vassal relation, set vassal-overlord HOSTILE) + civ stat deltas + shock/effect ops + event triggers | hybrid/acc branching |
-| 5 | `check_federation_formation` | federation ops (create new or append member) + event triggers | No acc param |
+| 4 | `check_vassal_rebellion` | relationship ops (remove vassal relation, set vassal-overlord HOSTILE) + civ stat deltas + shock/effect ops + event triggers | hybrid/acc branching. Uses `get_perceived_stat()` (intelligence system) for overlord stat evaluation. Has `rebelled_overlords` intra-step accumulator: first rebellion uses base prob, subsequent against same overlord use reduced prob + require HOSTILE/SUSPICIOUS disposition. Iteration order over `world.vassal_relations` must be deterministic. |
+| 5 | `check_federation_formation` | federation ops (create new or append member) + event triggers (CREATE only, not APPEND_MEMBER) | No acc param |
 | 6 | `check_federation_dissolution` | federation ops (remove member or dissolve entirely) + shock/effect ops + event triggers | Event only on full dissolution. hybrid/acc branching |
 | 7 | `check_proxy_detection` | proxy-war state delta (`detected=True`) + relationship state delta (disposition-HOSTILE) + shock/stat ops + event triggers | hybrid/acc branching |
 | 8 | `check_restoration` | civ ops (restore exiled civ, transfer regions) + exile ops (remove modifier) + relationship ops (init full block for restored civ) + event triggers | Bridge helper call site |
 | 9 | `check_twilight_absorption` | civ ops (absorb dying civ, transfer regions, `regions=[]`) + exile ops (append new modifier) + artifact-intent ops + event triggers | Bridge helper call site. Two trigger paths: unviable (<10 capacity) and terminal twilight (40+ decline turns). Absorbed civ stays in `world.civilizations` with `regions=[]`. |
 | 10 | `update_decline_tracking` | bookkeeping deltas (`stats_sum_history` append, `decline_turns` increment/reset) | Pure bookkeeping, no events |
-| 11 | Forced collapse | civ ops (strip to first remaining region via `regions[:1]`) + region ops (nullify dropped controllers) + shock/effect ops + event triggers | Currently inline in `simulation.py:1020-1041`. No acc path: hybrid emits `pending_shocks`, non-hybrid directly halves military/economy. |
+| 11 | Forced collapse | civ ops (strip to first remaining region via `regions[:1]`) + region ops (nullify dropped controllers) + shock/effect ops + event triggers | Currently inline in `simulation.py:1020-1041`. No acc path: hybrid emits `pending_shocks`, non-hybrid directly halves military/economy via integer division (`//`), not severity multiplier. Does NOT call `sync_civ_population()`. |
 
 **Contract notes:**
 
 - Steps 1 and 2 also update `civ.event_counts` — covered by bookkeeping delta ops.
 - Step 9 does NOT update vassals or federations. It transfers regions, appends a new `ExileModifier`, emits artifact lifecycle intents, and calls the absorption bridge helper in hybrid mode.
 - Step 11 keeps `civ.regions[:1]` (first listed region), which is NOT necessarily `capital_region`. This is existing behavior, not a bug.
+- Step 11 uses integer division (`military // 2`, `economy // 2`), not the M18 severity multiplier. This is intentional existing behavior — see invariant 9 exception note.
+- Step 11 does NOT call `sync_civ_population()` after stripping regions. This is existing behavior — see invariant 10 exception note.
 
 ---
 
@@ -149,6 +151,7 @@ Scalars Rust needs to evaluate thresholds and compute deltas:
 - **Factions:** `total_effective_capacity` (precomputed by Python from `factions.py`)
 - **Population:** `population` (for population-relative checks)
 - **Founding:** `founded_turn` (for secession grace period, twilight age gate)
+- **Religion:** `civ_majority_faith` (for M38b schism secession modifier in step 2)
 
 ### Family 2: Region State (per-region row)
 
@@ -157,16 +160,17 @@ Scalars Rust needs to evaluate thresholds and compute deltas:
 - **Adjacencies:** list of adjacent region indices
 - **Carrying capacity**
 - **Population**
+- **Majority belief:** `majority_belief` (for M38b schism secession modifier in step 2)
 
 ### Family 3: Political Topology State
 
 Conceptually distinct registries, not pairwise relationship edges:
 
 - **Relationship graph:** `(civ_a, civ_b, disposition, allied_turns)` — pairwise
-- **Vassal relations:** `(vassal_civ, overlord_civ)`
+- **Vassal relations:** `(vassal_civ, overlord_civ, perceived_overlord_stability, perceived_overlord_treasury)` — perceived values precomputed by Python via `get_perceived_stat()` / `compute_accuracy()` from the intelligence system, avoiding Rust dependency on the full intelligence pipeline
 - **Federations:** `(federation_id, member_list)`
 - **Proxy wars:** `(sponsor, target_civ, target_region, detected)`
-- **Exile modifiers:** `(original_civ, absorber_civ, conquered_regions, turns_remaining)`
+- **Exile modifiers:** `(original_civ, absorber_civ, conquered_regions, turns_remaining, recognized_by)` — `recognized_by` is needed for restoration probability bonus and restored civ relationship initialization
 
 ### Family 4: Agent-Backed Live Inputs (available when present)
 
@@ -181,6 +185,19 @@ In `--agents=off`, no live pool exists. Consequence evaluation uses packed world
 - **Runtime mode:** `hybrid`, `shadow`, `demographics-only`, `off`
 - **Tuning overrides:** resolved config values (`K_SECESSION_THRESHOLD`, `K_CAPITAL_LOSS_STABILITY`, `K_TWILIGHT_ABSORPTION_DECLINE`, etc.)
 - **Severity multiplier inputs** per civ (or precomputed multipliers)
+
+### Rust Helper Functions
+
+Functions that Rust must reimplement to execute the consequence pass. Analogous to M54a's `effective_capacity` and `pressure_multiplier` callouts.
+
+- **`graph_distance(adjacency_graph, from_region, to_region) -> i32`** — BFS over region adjacencies. Used by `check_secession()` for secession scoring (distance from capital) and breakaway capital selection (min distance to remaining parent regions). Source: `src/chronicler/adjacency.py`.
+- **`stable_hash_int(...)` equivalent** — deterministic seed construction for all RNG sites. Must produce identical values to the Python implementation for off-mode parity.
+
+### Intelligence System Boundary (B1 Resolution)
+
+`check_vassal_rebellion()` (step 4) calls `get_perceived_stat()` which depends on `compute_accuracy()` in `intelligence.py`. That function reads adjacency, trade routes, federation membership, vassal relations, active wars, faction dominance, GreatPerson bonuses (merchant role, hostage status), and leader grudges.
+
+Rather than importing the entire intelligence pipeline into Rust, Python precomputes the perceived values and passes them as part of the vassal relation input in Family 3: `perceived_overlord_stability` and `perceived_overlord_treasury`. This preserves current behavior exactly without widening the Rust input surface.
 
 ---
 
@@ -381,9 +398,9 @@ For any seed, the post-political-sub-pass world state in `--agents=off` must be 
 
 8. **`--agents=off` parity.** Bit-identical post-political-sub-pass world state per Section 7 parity test definition.
 
-9. **Severity multiplier.** All negative stat changes (except treasury, ecology) go through M18 severity multiplier. Rust must replicate this.
+9. **Severity multiplier.** All negative stat changes (except treasury, ecology) go through M18 severity multiplier. Rust must replicate this. **Exception:** Step 11 (forced collapse) uses integer division (`military // 2`, `economy // 2`), not the severity multiplier. This is intentional existing behavior — do not "fix" it to match the general rule.
 
-10. **`sync_civ_population()` timing.** Called after topology mutations that change region membership — must remain step-local, not deferred.
+10. **`sync_civ_population()` timing.** Called after topology mutations that change region membership — must remain step-local, not deferred. **Exception:** Step 11 (forced collapse) does NOT call `sync_civ_population()` after stripping regions. This is existing behavior — do not add a sync call.
 
 11. **Deterministic event merge ordering.** Bridge-helper-returned events (e.g., `secession_defection`) must merge with Rust event triggers in deterministic order. No reordering across runs.
 
@@ -412,6 +429,7 @@ For any seed, the post-political-sub-pass world state in `--agents=off` must be 
 | Op encoding choice (unified stream vs per-step batches) | Should follow M54a's return pattern |
 | Off-mode wiring mechanism | M54a proves lightweight-simulator approach first |
 | CivRef / FederationRef encoding | Match M54a's ref pattern if one emerges |
+| `PoliticsConfig` struct shape | M54a establishes `EcologyConfig`, M54b establishes `EconomyConfig`. M54c's config surface is larger (~20+ tuning constants). Implementation plan should enumerate all consumed constants. |
 
 ---
 
