@@ -58,16 +58,10 @@ def _create_ecology_runtime(world):
     """
     try:
         from chronicler_agents import EcologySimulator
+        from chronicler.agent_bridge import configure_ecology_runtime
         eco_sim = EcologySimulator()
-        # Configure river topology from world state
-        if world.rivers:
-            region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
-            river_paths = []
-            for river in world.rivers:
-                path_indices = [region_name_to_idx[rn] for rn in river.path if rn in region_name_to_idx]
-                if path_indices:
-                    river_paths.append(path_indices)
-            eco_sim.set_river_topology(river_paths)
+        # Wire river topology and ecology config from tuning overrides
+        configure_ecology_runtime(eco_sim, world)
         return eco_sim
     except ImportError:
         return None
