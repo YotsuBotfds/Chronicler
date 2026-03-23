@@ -172,6 +172,254 @@ pub fn civ_signals_schema() -> Schema {
 }
 
 // ---------------------------------------------------------------------------
+// Ecology return schemas
+// ---------------------------------------------------------------------------
+
+/// Schema for the region-state batch returned by `tick_ecology()`.
+pub fn ecology_region_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("region_id", DataType::UInt16, false),
+        Field::new("soil", DataType::Float32, false),
+        Field::new("water", DataType::Float32, false),
+        Field::new("forest_cover", DataType::Float32, false),
+        Field::new("endemic_severity", DataType::Float32, false),
+        Field::new("prev_turn_water", DataType::Float32, false),
+        Field::new("soil_pressure_streak", DataType::Int32, false),
+        Field::new("overextraction_streak_0", DataType::Int32, false),
+        Field::new("overextraction_streak_1", DataType::Int32, false),
+        Field::new("overextraction_streak_2", DataType::Int32, false),
+        Field::new("resource_reserve_0", DataType::Float32, false),
+        Field::new("resource_reserve_1", DataType::Float32, false),
+        Field::new("resource_reserve_2", DataType::Float32, false),
+        Field::new("resource_effective_yield_0", DataType::Float32, false),
+        Field::new("resource_effective_yield_1", DataType::Float32, false),
+        Field::new("resource_effective_yield_2", DataType::Float32, false),
+        Field::new("current_turn_yield_0", DataType::Float32, false),
+        Field::new("current_turn_yield_1", DataType::Float32, false),
+        Field::new("current_turn_yield_2", DataType::Float32, false),
+    ])
+}
+
+/// Schema for the ecology-event batch returned by `tick_ecology()`.
+pub fn ecology_events_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("event_type", DataType::UInt8, false),
+        Field::new("region_id", DataType::UInt16, false),
+        Field::new("slot", DataType::UInt8, false),
+        Field::new("magnitude", DataType::Float32, false),
+    ])
+}
+
+// ---------------------------------------------------------------------------
+// Recompute context (shared between AgentSimulator and EcologySimulator)
+// ---------------------------------------------------------------------------
+
+/// Minimal context stored by `tick_ecology()` for use by `apply_region_postpass_patch()`.
+/// Avoids widening the patch schema with season/climate columns.
+#[derive(Clone, Debug, Default)]
+struct RecomputeContext {
+    turn: u32,
+    climate_phase: u8,
+    season_id: u8,
+    valid: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Shared ecology helpers (used by both AgentSimulator and EcologySimulator)
+// ---------------------------------------------------------------------------
+
+/// Build region-state and ecology-event Arrow RecordBatches from ecology tick results.
+fn build_ecology_batches(
+    regions: &[RegionState],
+    yields: &[[f32; 3]],
+    events: &[crate::ecology::EcologyEvent],
+) -> Result<(RecordBatch, RecordBatch), ArrowError> {
+    let n = regions.len();
+
+    // Region-state batch
+    let mut region_ids = UInt16Builder::with_capacity(n);
+    let mut soils = arrow::array::Float32Builder::with_capacity(n);
+    let mut waters = arrow::array::Float32Builder::with_capacity(n);
+    let mut forests = arrow::array::Float32Builder::with_capacity(n);
+    let mut endemic_severities = arrow::array::Float32Builder::with_capacity(n);
+    let mut prev_waters = arrow::array::Float32Builder::with_capacity(n);
+    let mut soil_streaks = arrow::array::Int32Builder::with_capacity(n);
+    let mut over_s0 = arrow::array::Int32Builder::with_capacity(n);
+    let mut over_s1 = arrow::array::Int32Builder::with_capacity(n);
+    let mut over_s2 = arrow::array::Int32Builder::with_capacity(n);
+    let mut res0 = arrow::array::Float32Builder::with_capacity(n);
+    let mut res1 = arrow::array::Float32Builder::with_capacity(n);
+    let mut res2 = arrow::array::Float32Builder::with_capacity(n);
+    let mut eff0 = arrow::array::Float32Builder::with_capacity(n);
+    let mut eff1 = arrow::array::Float32Builder::with_capacity(n);
+    let mut eff2 = arrow::array::Float32Builder::with_capacity(n);
+    let mut y0 = arrow::array::Float32Builder::with_capacity(n);
+    let mut y1 = arrow::array::Float32Builder::with_capacity(n);
+    let mut y2 = arrow::array::Float32Builder::with_capacity(n);
+
+    for i in 0..n {
+        let r = &regions[i];
+        let ys = &yields[i];
+        region_ids.append_value(r.region_id);
+        soils.append_value(r.soil);
+        waters.append_value(r.water);
+        forests.append_value(r.forest_cover);
+        endemic_severities.append_value(r.endemic_severity);
+        prev_waters.append_value(r.prev_turn_water);
+        soil_streaks.append_value(r.soil_pressure_streak);
+        over_s0.append_value(r.overextraction_streak[0]);
+        over_s1.append_value(r.overextraction_streak[1]);
+        over_s2.append_value(r.overextraction_streak[2]);
+        res0.append_value(r.resource_reserves[0]);
+        res1.append_value(r.resource_reserves[1]);
+        res2.append_value(r.resource_reserves[2]);
+        eff0.append_value(r.resource_effective_yield[0]);
+        eff1.append_value(r.resource_effective_yield[1]);
+        eff2.append_value(r.resource_effective_yield[2]);
+        y0.append_value(ys[0]);
+        y1.append_value(ys[1]);
+        y2.append_value(ys[2]);
+    }
+
+    let region_batch = RecordBatch::try_new(
+        Arc::new(ecology_region_schema()),
+        vec![
+            Arc::new(region_ids.finish()) as _,
+            Arc::new(soils.finish()) as _,
+            Arc::new(waters.finish()) as _,
+            Arc::new(forests.finish()) as _,
+            Arc::new(endemic_severities.finish()) as _,
+            Arc::new(prev_waters.finish()) as _,
+            Arc::new(soil_streaks.finish()) as _,
+            Arc::new(over_s0.finish()) as _,
+            Arc::new(over_s1.finish()) as _,
+            Arc::new(over_s2.finish()) as _,
+            Arc::new(res0.finish()) as _,
+            Arc::new(res1.finish()) as _,
+            Arc::new(res2.finish()) as _,
+            Arc::new(eff0.finish()) as _,
+            Arc::new(eff1.finish()) as _,
+            Arc::new(eff2.finish()) as _,
+            Arc::new(y0.finish()) as _,
+            Arc::new(y1.finish()) as _,
+            Arc::new(y2.finish()) as _,
+        ],
+    )?;
+
+    // Ecology-event batch (already sorted by ecology.rs)
+    let ne = events.len();
+    let mut evt_types = UInt8Builder::with_capacity(ne);
+    let mut evt_regions = UInt16Builder::with_capacity(ne);
+    let mut evt_slots = UInt8Builder::with_capacity(ne);
+    let mut evt_magnitudes = arrow::array::Float32Builder::with_capacity(ne);
+
+    for ev in events {
+        evt_types.append_value(ev.event_type);
+        evt_regions.append_value(ev.region_id);
+        evt_slots.append_value(ev.slot);
+        evt_magnitudes.append_value(ev.magnitude);
+    }
+
+    let event_batch = RecordBatch::try_new(
+        Arc::new(ecology_events_schema()),
+        vec![
+            Arc::new(evt_types.finish()) as _,
+            Arc::new(evt_regions.finish()) as _,
+            Arc::new(evt_slots.finish()) as _,
+            Arc::new(evt_magnitudes.finish()) as _,
+        ],
+    )?;
+
+    Ok((region_batch, event_batch))
+}
+
+/// Parse a post-pass patch batch and apply it to regions.
+/// Returns the set of region indices that had ecology-affecting changes.
+fn apply_patch_to_regions(
+    regions: &mut [RegionState],
+    batch: &RecordBatch,
+) -> Result<Vec<usize>, PyErr> {
+    let n = batch.num_rows();
+
+    macro_rules! patch_col {
+        ($name:expr, $ty:ty) => {
+            batch
+                .column_by_name($name)
+                .ok_or_else(|| PyValueError::new_err(format!("patch missing column {}", $name)))?
+                .as_any()
+                .downcast_ref::<$ty>()
+                .ok_or_else(|| PyValueError::new_err(format!("patch column {} wrong type", $name)))?
+        };
+    }
+
+    let region_ids = patch_col!("region_id", arrow::array::UInt16Array);
+    let populations = patch_col!("population", arrow::array::UInt16Array);
+    let soils = patch_col!("soil", arrow::array::Float32Array);
+    let waters = patch_col!("water", arrow::array::Float32Array);
+    let forest_covers = patch_col!("forest_cover", arrow::array::Float32Array);
+    let terrains = patch_col!("terrain", arrow::array::UInt8Array);
+    let capacities = patch_col!("carrying_capacity", arrow::array::UInt16Array);
+
+    let num_regions = regions.len();
+    let mut recompute_indices = Vec::new();
+
+    for i in 0..n {
+        let rid = region_ids.value(i) as usize;
+        if rid >= num_regions {
+            continue;
+        }
+        let r = &mut regions[rid];
+
+        let new_pop = populations.value(i);
+        let new_soil = soils.value(i);
+        let new_water = waters.value(i);
+        let new_forest = forest_covers.value(i);
+        let new_terrain = terrains.value(i);
+        let new_cap = capacities.value(i);
+
+        // Detect ecology-affecting changes
+        let ecology_changed = (new_soil - r.soil).abs() > f32::EPSILON
+            || (new_water - r.water).abs() > f32::EPSILON
+            || (new_forest - r.forest_cover).abs() > f32::EPSILON
+            || new_terrain != r.terrain
+            || new_cap != r.carrying_capacity;
+
+        // Apply all patch fields
+        r.population = new_pop;
+        r.soil = new_soil;
+        r.water = new_water;
+        r.forest_cover = new_forest;
+        r.terrain = new_terrain;
+        r.carrying_capacity = new_cap;
+
+        if ecology_changed {
+            recompute_indices.push(rid);
+        }
+    }
+
+    Ok(recompute_indices)
+}
+
+/// Recompute yields for specific regions using stored context.
+fn recompute_region_yields(
+    regions: &mut [RegionState],
+    indices: &[usize],
+    ctx: &RecomputeContext,
+    config: &crate::ecology::EcologyConfig,
+) {
+    for &idx in indices {
+        if idx < regions.len() {
+            crate::ecology::compute_yields(
+                &mut regions[idx],
+                config,
+                ctx.season_id,
+                ctx.climate_phase,
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AgentSimulator
 // ---------------------------------------------------------------------------
 
@@ -202,6 +450,10 @@ pub struct AgentSimulator {
     pub last_tick_alive: u32,
     // M53: expanded demographic debug (collected during tick)
     demographic_debug: crate::tick::DemographicDebug,
+    // M54a: ecology state
+    ecology_config: crate::ecology::EcologyConfig,
+    river_topology: crate::ecology::RiverTopology,
+    recompute_ctx: RecomputeContext,
 }
 
 #[pymethods]
@@ -231,6 +483,9 @@ impl AgentSimulator {
             last_tick_births: 0,
             last_tick_alive: 0,
             demographic_debug: crate::tick::DemographicDebug::default(),
+            ecology_config: crate::ecology::EcologyConfig::default(),
+            river_topology: crate::ecology::RiverTopology::default(),
+            recompute_ctx: RecomputeContext::default(),
         }
     }
 
@@ -1550,6 +1805,592 @@ impl AgentSimulator {
         )
         .map_err(arrow_err)?;
         Ok(PyRecordBatch::new(batch))
+    }
+
+    // -----------------------------------------------------------------------
+    // M54a: Ecology FFI surface
+    // -----------------------------------------------------------------------
+
+    /// Set ecology configuration from individual field arguments.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_ecology_config(
+        &mut self,
+        soil_degradation: f32,
+        soil_recovery: f32,
+        mine_soil_degradation: f32,
+        soil_recovery_pop_ratio: f32,
+        agriculture_soil_bonus: f32,
+        metallurgy_mine_reduction: f32,
+        mechanization_mine_mult: f32,
+        soil_pressure_threshold: f32,
+        soil_pressure_streak_limit: i32,
+        soil_pressure_degradation_mult: f32,
+        water_drought: f32,
+        water_recovery: f32,
+        irrigation_water_bonus: f32,
+        irrigation_drought_mult: f32,
+        cooling_water_loss: f32,
+        warming_tundra_water_gain: f32,
+        water_factor_denominator: f32,
+        forest_clearing: f32,
+        forest_regrowth: f32,
+        cooling_forest_damage: f32,
+        forest_pop_ratio: f32,
+        forest_regrowth_water_gate: f32,
+        cross_effect_forest_soil: f32,
+        cross_effect_forest_threshold: f32,
+        disease_severity_cap: f32,
+        disease_decay_rate: f32,
+        flare_overcrowding_threshold: f32,
+        flare_overcrowding_spike: f32,
+        flare_army_spike: f32,
+        flare_water_spike: f32,
+        flare_season_spike: f32,
+        depletion_rate: f32,
+        exhausted_trickle_fraction: f32,
+        reserve_ramp_threshold: f32,
+        resource_abundance_multiplier: f32,
+        overextraction_streak_limit: i32,
+        overextraction_yield_penalty: f32,
+        workers_per_yield_unit: i32,
+        deforestation_threshold: f32,
+        deforestation_water_loss: f32,
+    ) {
+        self.ecology_config = crate::ecology::EcologyConfig {
+            soil_degradation,
+            soil_recovery,
+            mine_soil_degradation,
+            soil_recovery_pop_ratio,
+            agriculture_soil_bonus,
+            metallurgy_mine_reduction,
+            mechanization_mine_mult,
+            soil_pressure_threshold,
+            soil_pressure_streak_limit,
+            soil_pressure_degradation_mult,
+            water_drought,
+            water_recovery,
+            irrigation_water_bonus,
+            irrigation_drought_mult,
+            cooling_water_loss,
+            warming_tundra_water_gain,
+            water_factor_denominator,
+            forest_clearing,
+            forest_regrowth,
+            cooling_forest_damage,
+            forest_pop_ratio,
+            forest_regrowth_water_gate,
+            cross_effect_forest_soil,
+            cross_effect_forest_threshold,
+            disease_severity_cap,
+            disease_decay_rate,
+            flare_overcrowding_threshold,
+            flare_overcrowding_spike,
+            flare_army_spike,
+            flare_water_spike,
+            flare_season_spike,
+            depletion_rate,
+            exhausted_trickle_fraction,
+            reserve_ramp_threshold,
+            resource_abundance_multiplier,
+            overextraction_streak_limit,
+            overextraction_yield_penalty,
+            workers_per_yield_unit,
+            deforestation_threshold,
+            deforestation_water_loss,
+        };
+    }
+
+    /// Set the river topology for ecology cascade computation.
+    pub fn set_river_topology(&mut self, rivers: Vec<Vec<u16>>) {
+        self.river_topology = crate::ecology::RiverTopology { rivers };
+    }
+
+    /// Run the ecology tick: mutates Rust region state, returns two Arrow batches.
+    ///
+    /// After this call, `regions[i].resource_yields` hold the post-ecology yields
+    /// so the subsequent agent tick sees the correct values.
+    pub fn tick_ecology(
+        &mut self,
+        turn: u32,
+        climate_phase: u8,
+        pandemic_mask: Vec<bool>,
+        army_arrived_mask: Vec<bool>,
+    ) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        if self.regions.is_empty() {
+            return Err(PyValueError::new_err(
+                "tick_ecology() called before set_region_state()",
+            ));
+        }
+
+        let (yields, events) = crate::ecology::tick_ecology(
+            &mut self.regions,
+            &self.ecology_config,
+            turn,
+            climate_phase,
+            &pandemic_mask,
+            &army_arrived_mask,
+            &self.river_topology,
+        );
+
+        // Write current_turn_yields into regions so the agent tick sees them.
+        for (i, ys) in yields.iter().enumerate() {
+            self.regions[i].resource_yields = *ys;
+        }
+
+        // Store recompute context for apply_region_postpass_patch.
+        self.recompute_ctx = RecomputeContext {
+            turn,
+            climate_phase,
+            season_id: crate::ecology::season_id_from_turn(turn),
+            valid: true,
+        };
+
+        let (region_batch, event_batch) =
+            build_ecology_batches(&self.regions, &yields, &events).map_err(arrow_err)?;
+
+        Ok((PyRecordBatch::new(region_batch), PyRecordBatch::new(event_batch)))
+    }
+
+    /// Apply a narrow post-pass patch back to Rust region state.
+    /// Recomputes resource_yields for regions whose ecology-affecting inputs changed.
+    pub fn apply_region_postpass_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        let recompute_indices = apply_patch_to_regions(&mut self.regions, &rb)?;
+
+        if !recompute_indices.is_empty() && self.recompute_ctx.valid {
+            recompute_region_yields(
+                &mut self.regions,
+                &recompute_indices,
+                &self.recompute_ctx,
+                &self.ecology_config,
+            );
+        }
+
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EcologySimulator — off-mode wrapper (no AgentPool)
+// ---------------------------------------------------------------------------
+
+/// Lightweight ecology-only simulator for `--agents=off` mode.
+/// Owns `Vec<RegionState>`, `EcologyConfig`, `RiverTopology`.
+/// Does NOT create or manage an AgentPool.
+/// Reuses the same ecology.rs core as AgentSimulator.
+#[pyclass]
+pub struct EcologySimulator {
+    regions: Vec<RegionState>,
+    ecology_config: crate::ecology::EcologyConfig,
+    river_topology: crate::ecology::RiverTopology,
+    recompute_ctx: RecomputeContext,
+}
+
+#[pymethods]
+impl EcologySimulator {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            regions: Vec::new(),
+            ecology_config: crate::ecology::EcologyConfig::default(),
+            river_topology: crate::ecology::RiverTopology::default(),
+            recompute_ctx: RecomputeContext::default(),
+        }
+    }
+
+    /// Ingest region state from Python as an Arrow RecordBatch.
+    /// First call initialises the regions. Subsequent calls update all fields.
+    /// Does NOT spawn agents — this is the off-mode path.
+    pub fn set_region_state(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        let n = rb.num_rows();
+
+        macro_rules! col_u16 {
+            ($name:expr) => {{
+                rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any()
+                    .downcast_ref::<arrow::array::UInt16Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt16", $name)))?
+            }};
+        }
+        macro_rules! col_u8 {
+            ($name:expr) => {{
+                rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any()
+                    .downcast_ref::<arrow::array::UInt8Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt8", $name)))?
+            }};
+        }
+        macro_rules! col_f32 {
+            ($name:expr) => {{
+                rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any()
+                    .downcast_ref::<arrow::array::Float32Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not Float32", $name)))?
+            }};
+        }
+
+        let region_ids = col_u16!("region_id");
+        let terrains = col_u8!("terrain");
+        let capacities = col_u16!("carrying_capacity");
+        let populations = col_u16!("population");
+        let soils = col_f32!("soil");
+        let waters = col_f32!("water");
+        let forest_covers = col_f32!("forest_cover");
+
+        // Optional columns with defaults
+        let controller_civs = rb
+            .column_by_name("controller_civ")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+
+        // M54a ecology columns
+        let disease_baseline_col = rb
+            .column_by_name("disease_baseline")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let capacity_modifier_col = rb
+            .column_by_name("capacity_modifier")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_type_0 = rb
+            .column_by_name("resource_type_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let resource_type_1 = rb
+            .column_by_name("resource_type_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let resource_type_2 = rb
+            .column_by_name("resource_type_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let resource_base_yield_0_col = rb
+            .column_by_name("resource_base_yield_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_base_yield_1_col = rb
+            .column_by_name("resource_base_yield_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_base_yield_2_col = rb
+            .column_by_name("resource_base_yield_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_effective_yield_0_col = rb
+            .column_by_name("resource_effective_yield_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_effective_yield_1_col = rb
+            .column_by_name("resource_effective_yield_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_effective_yield_2_col = rb
+            .column_by_name("resource_effective_yield_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_suspension_0_col = rb
+            .column_by_name("resource_suspension_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let resource_suspension_1_col = rb
+            .column_by_name("resource_suspension_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let resource_suspension_2_col = rb
+            .column_by_name("resource_suspension_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let has_irrigation_col = rb
+            .column_by_name("has_irrigation")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let has_mines_col = rb
+            .column_by_name("has_mines")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let active_focus_col = rb
+            .column_by_name("active_focus")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let prev_turn_water_col = rb
+            .column_by_name("prev_turn_water")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let soil_pressure_streak_col = rb
+            .column_by_name("soil_pressure_streak")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let overextraction_streak_0_col = rb
+            .column_by_name("overextraction_streak_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let overextraction_streak_1_col = rb
+            .column_by_name("overextraction_streak_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let overextraction_streak_2_col = rb
+            .column_by_name("overextraction_streak_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let resource_reserve_0 = rb
+            .column_by_name("resource_reserve_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_reserve_1 = rb
+            .column_by_name("resource_reserve_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_reserve_2 = rb
+            .column_by_name("resource_reserve_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_yield_0 = rb
+            .column_by_name("resource_yield_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_yield_1 = rb
+            .column_by_name("resource_yield_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_yield_2 = rb
+            .column_by_name("resource_yield_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+
+        if self.regions.is_empty() {
+            // First call: initialize regions.
+            self.regions = (0..n)
+                .map(|i| {
+                    let mut r = RegionState::new(region_ids.value(i));
+                    r.terrain = terrains.value(i);
+                    r.carrying_capacity = capacities.value(i);
+                    r.population = populations.value(i);
+                    r.soil = soils.value(i);
+                    r.water = waters.value(i);
+                    r.forest_cover = forest_covers.value(i);
+                    r.controller_civ = controller_civs.map_or(255, |arr| arr.value(i));
+                    // Ecology fields
+                    r.disease_baseline = disease_baseline_col.map_or(0.0, |arr| arr.value(i));
+                    r.capacity_modifier = capacity_modifier_col.map_or(1.0, |arr| arr.value(i));
+                    r.resource_types = [
+                        resource_type_0.map_or(255, |arr| arr.value(i)),
+                        resource_type_1.map_or(255, |arr| arr.value(i)),
+                        resource_type_2.map_or(255, |arr| arr.value(i)),
+                    ];
+                    r.resource_base_yield = [
+                        resource_base_yield_0_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_base_yield_1_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_base_yield_2_col.map_or(0.0, |arr| arr.value(i)),
+                    ];
+                    r.resource_effective_yield = [
+                        resource_effective_yield_0_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_effective_yield_1_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_effective_yield_2_col.map_or(0.0, |arr| arr.value(i)),
+                    ];
+                    r.resource_suspension = [
+                        resource_suspension_0_col.map_or(false, |arr| arr.value(i)),
+                        resource_suspension_1_col.map_or(false, |arr| arr.value(i)),
+                        resource_suspension_2_col.map_or(false, |arr| arr.value(i)),
+                    ];
+                    r.has_irrigation = has_irrigation_col.map_or(false, |arr| arr.value(i));
+                    r.has_mines = has_mines_col.map_or(false, |arr| arr.value(i));
+                    r.active_focus = active_focus_col.map_or(0, |arr| arr.value(i));
+                    r.prev_turn_water = prev_turn_water_col.map_or(0.0, |arr| arr.value(i));
+                    r.soil_pressure_streak = soil_pressure_streak_col.map_or(0, |arr| arr.value(i));
+                    r.overextraction_streak = [
+                        overextraction_streak_0_col.map_or(0, |arr| arr.value(i)),
+                        overextraction_streak_1_col.map_or(0, |arr| arr.value(i)),
+                        overextraction_streak_2_col.map_or(0, |arr| arr.value(i)),
+                    ];
+                    r.resource_reserves = [
+                        resource_reserve_0.map_or(1.0, |arr| arr.value(i)),
+                        resource_reserve_1.map_or(1.0, |arr| arr.value(i)),
+                        resource_reserve_2.map_or(1.0, |arr| arr.value(i)),
+                    ];
+                    r.resource_yields = [
+                        resource_yield_0.map_or(0.0, |arr| arr.value(i)),
+                        resource_yield_1.map_or(0.0, |arr| arr.value(i)),
+                        resource_yield_2.map_or(0.0, |arr| arr.value(i)),
+                    ];
+                    r
+                })
+                .collect();
+        } else {
+            // Subsequent calls: update all fields.
+            if self.regions.len() != n {
+                return Err(PyValueError::new_err(
+                    "set_region_state: row count changed between calls",
+                ));
+            }
+            for i in 0..n {
+                let r = &mut self.regions[i];
+                r.terrain = terrains.value(i);
+                r.carrying_capacity = capacities.value(i);
+                r.population = populations.value(i);
+                r.soil = soils.value(i);
+                r.water = waters.value(i);
+                r.forest_cover = forest_covers.value(i);
+                r.controller_civ = controller_civs.map_or(r.controller_civ, |arr| arr.value(i));
+                if let Some(arr) = disease_baseline_col { r.disease_baseline = arr.value(i); }
+                if let Some(arr) = capacity_modifier_col { r.capacity_modifier = arr.value(i); }
+                r.resource_types[0] = resource_type_0.map_or(r.resource_types[0], |arr| arr.value(i));
+                r.resource_types[1] = resource_type_1.map_or(r.resource_types[1], |arr| arr.value(i));
+                r.resource_types[2] = resource_type_2.map_or(r.resource_types[2], |arr| arr.value(i));
+                if let Some(arr) = resource_base_yield_0_col { r.resource_base_yield[0] = arr.value(i); }
+                if let Some(arr) = resource_base_yield_1_col { r.resource_base_yield[1] = arr.value(i); }
+                if let Some(arr) = resource_base_yield_2_col { r.resource_base_yield[2] = arr.value(i); }
+                if let Some(arr) = resource_effective_yield_0_col { r.resource_effective_yield[0] = arr.value(i); }
+                if let Some(arr) = resource_effective_yield_1_col { r.resource_effective_yield[1] = arr.value(i); }
+                if let Some(arr) = resource_effective_yield_2_col { r.resource_effective_yield[2] = arr.value(i); }
+                r.resource_suspension[0] = resource_suspension_0_col.map_or(false, |arr| arr.value(i));
+                r.resource_suspension[1] = resource_suspension_1_col.map_or(false, |arr| arr.value(i));
+                r.resource_suspension[2] = resource_suspension_2_col.map_or(false, |arr| arr.value(i));
+                r.has_irrigation = has_irrigation_col.map_or(false, |arr| arr.value(i));
+                r.has_mines = has_mines_col.map_or(false, |arr| arr.value(i));
+                if let Some(arr) = active_focus_col { r.active_focus = arr.value(i); }
+                if let Some(arr) = prev_turn_water_col { r.prev_turn_water = arr.value(i); }
+                if let Some(arr) = soil_pressure_streak_col { r.soil_pressure_streak = arr.value(i); }
+                if let Some(arr) = overextraction_streak_0_col { r.overextraction_streak[0] = arr.value(i); }
+                if let Some(arr) = overextraction_streak_1_col { r.overextraction_streak[1] = arr.value(i); }
+                if let Some(arr) = overextraction_streak_2_col { r.overextraction_streak[2] = arr.value(i); }
+                r.resource_reserves[0] = resource_reserve_0.map_or(r.resource_reserves[0], |arr| arr.value(i));
+                r.resource_reserves[1] = resource_reserve_1.map_or(r.resource_reserves[1], |arr| arr.value(i));
+                r.resource_reserves[2] = resource_reserve_2.map_or(r.resource_reserves[2], |arr| arr.value(i));
+                r.resource_yields[0] = resource_yield_0.map_or(r.resource_yields[0], |arr| arr.value(i));
+                r.resource_yields[1] = resource_yield_1.map_or(r.resource_yields[1], |arr| arr.value(i));
+                r.resource_yields[2] = resource_yield_2.map_or(r.resource_yields[2], |arr| arr.value(i));
+            }
+        }
+        Ok(())
+    }
+
+    /// Set ecology configuration.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_ecology_config(
+        &mut self,
+        soil_degradation: f32,
+        soil_recovery: f32,
+        mine_soil_degradation: f32,
+        soil_recovery_pop_ratio: f32,
+        agriculture_soil_bonus: f32,
+        metallurgy_mine_reduction: f32,
+        mechanization_mine_mult: f32,
+        soil_pressure_threshold: f32,
+        soil_pressure_streak_limit: i32,
+        soil_pressure_degradation_mult: f32,
+        water_drought: f32,
+        water_recovery: f32,
+        irrigation_water_bonus: f32,
+        irrigation_drought_mult: f32,
+        cooling_water_loss: f32,
+        warming_tundra_water_gain: f32,
+        water_factor_denominator: f32,
+        forest_clearing: f32,
+        forest_regrowth: f32,
+        cooling_forest_damage: f32,
+        forest_pop_ratio: f32,
+        forest_regrowth_water_gate: f32,
+        cross_effect_forest_soil: f32,
+        cross_effect_forest_threshold: f32,
+        disease_severity_cap: f32,
+        disease_decay_rate: f32,
+        flare_overcrowding_threshold: f32,
+        flare_overcrowding_spike: f32,
+        flare_army_spike: f32,
+        flare_water_spike: f32,
+        flare_season_spike: f32,
+        depletion_rate: f32,
+        exhausted_trickle_fraction: f32,
+        reserve_ramp_threshold: f32,
+        resource_abundance_multiplier: f32,
+        overextraction_streak_limit: i32,
+        overextraction_yield_penalty: f32,
+        workers_per_yield_unit: i32,
+        deforestation_threshold: f32,
+        deforestation_water_loss: f32,
+    ) {
+        self.ecology_config = crate::ecology::EcologyConfig {
+            soil_degradation,
+            soil_recovery,
+            mine_soil_degradation,
+            soil_recovery_pop_ratio,
+            agriculture_soil_bonus,
+            metallurgy_mine_reduction,
+            mechanization_mine_mult,
+            soil_pressure_threshold,
+            soil_pressure_streak_limit,
+            soil_pressure_degradation_mult,
+            water_drought,
+            water_recovery,
+            irrigation_water_bonus,
+            irrigation_drought_mult,
+            cooling_water_loss,
+            warming_tundra_water_gain,
+            water_factor_denominator,
+            forest_clearing,
+            forest_regrowth,
+            cooling_forest_damage,
+            forest_pop_ratio,
+            forest_regrowth_water_gate,
+            cross_effect_forest_soil,
+            cross_effect_forest_threshold,
+            disease_severity_cap,
+            disease_decay_rate,
+            flare_overcrowding_threshold,
+            flare_overcrowding_spike,
+            flare_army_spike,
+            flare_water_spike,
+            flare_season_spike,
+            depletion_rate,
+            exhausted_trickle_fraction,
+            reserve_ramp_threshold,
+            resource_abundance_multiplier,
+            overextraction_streak_limit,
+            overextraction_yield_penalty,
+            workers_per_yield_unit,
+            deforestation_threshold,
+            deforestation_water_loss,
+        };
+    }
+
+    /// Set the river topology.
+    pub fn set_river_topology(&mut self, rivers: Vec<Vec<u16>>) {
+        self.river_topology = crate::ecology::RiverTopology { rivers };
+    }
+
+    /// Run the ecology tick: mutates Rust region state, returns two Arrow batches.
+    pub fn tick_ecology(
+        &mut self,
+        turn: u32,
+        climate_phase: u8,
+        pandemic_mask: Vec<bool>,
+        army_arrived_mask: Vec<bool>,
+    ) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        if self.regions.is_empty() {
+            return Err(PyValueError::new_err(
+                "tick_ecology() called before set_region_state()",
+            ));
+        }
+
+        let (yields, events) = crate::ecology::tick_ecology(
+            &mut self.regions,
+            &self.ecology_config,
+            turn,
+            climate_phase,
+            &pandemic_mask,
+            &army_arrived_mask,
+            &self.river_topology,
+        );
+
+        // Write current_turn_yields into regions.
+        for (i, ys) in yields.iter().enumerate() {
+            self.regions[i].resource_yields = *ys;
+        }
+
+        // Store recompute context.
+        self.recompute_ctx = RecomputeContext {
+            turn,
+            climate_phase,
+            season_id: crate::ecology::season_id_from_turn(turn),
+            valid: true,
+        };
+
+        let (region_batch, event_batch) =
+            build_ecology_batches(&self.regions, &yields, &events).map_err(arrow_err)?;
+
+        Ok((PyRecordBatch::new(region_batch), PyRecordBatch::new(event_batch)))
+    }
+
+    /// Apply a narrow post-pass patch back to Rust region state.
+    pub fn apply_region_postpass_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        let recompute_indices = apply_patch_to_regions(&mut self.regions, &rb)?;
+
+        if !recompute_indices.is_empty() && self.recompute_ctx.valid {
+            recompute_region_yields(
+                &mut self.regions,
+                &recompute_indices,
+                &self.recompute_ctx,
+                &self.ecology_config,
+            );
+        }
+
+        Ok(())
     }
 }
 
