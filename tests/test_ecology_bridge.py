@@ -686,3 +686,292 @@ class TestEcologySimulator:
         from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         eco.set_river_topology([[0, 1, 2], [3, 4]])
+
+
+# ---------------------------------------------------------------------------
+# M54a Task 5: Write-back coverage — every returned field reaches Python Region
+# ---------------------------------------------------------------------------
+
+
+class TestWriteBackCoverage:
+    """Verify _write_back_ecology copies all Rust ecology results to Region models."""
+
+    def test_all_ecology_fields_written_back(self):
+        """Every field in the ecology region batch reaches the Python Region model."""
+        from chronicler.ecology import _write_back_ecology
+        from chronicler.models import Region, RegionEcology, WorldState
+
+        r = Region(
+            name="TestRegion", terrain="plains", carrying_capacity=60,
+            resources="fertile", population=30,
+            ecology=RegionEcology(soil=0.5, water=0.5, forest_cover=0.2),
+        )
+        r.disease_baseline = 0.01
+        r.endemic_severity = 0.01
+        r.prev_turn_water = 0.5
+        r.soil_pressure_streak = 0
+        r.overextraction_streaks = {0: 0, 1: 0, 2: 0}
+        r.resource_reserves = [1.0, 1.0, 1.0]
+        r.resource_effective_yields = [0.5, 0.3, 0.0]
+
+        w = WorldState(name="T", seed=42, regions=[r])
+
+        # Simulate a Rust ecology tick output batch
+        batch = pa.record_batch({
+            "region_id": pa.array([0], type=pa.uint16()),
+            "soil": pa.array([0.82], type=pa.float32()),
+            "water": pa.array([0.63], type=pa.float32()),
+            "forest_cover": pa.array([0.21], type=pa.float32()),
+            "endemic_severity": pa.array([0.05], type=pa.float32()),
+            "prev_turn_water": pa.array([0.63], type=pa.float32()),
+            "soil_pressure_streak": pa.array([3], type=pa.int32()),
+            "overextraction_streak_0": pa.array([1], type=pa.int32()),
+            "overextraction_streak_1": pa.array([2], type=pa.int32()),
+            "overextraction_streak_2": pa.array([0], type=pa.int32()),
+            "resource_reserve_0": pa.array([0.90], type=pa.float32()),
+            "resource_reserve_1": pa.array([0.85], type=pa.float32()),
+            "resource_reserve_2": pa.array([1.0], type=pa.float32()),
+            "resource_effective_yield_0": pa.array([0.48], type=pa.float32()),
+            "resource_effective_yield_1": pa.array([0.28], type=pa.float32()),
+            "resource_effective_yield_2": pa.array([0.0], type=pa.float32()),
+            "current_turn_yield_0": pa.array([0.35], type=pa.float32()),
+            "current_turn_yield_1": pa.array([0.20], type=pa.float32()),
+            "current_turn_yield_2": pa.array([0.0], type=pa.float32()),
+        })
+
+        region_yields = _write_back_ecology(w, batch)
+
+        # Check every field was written back
+        assert abs(r.ecology.soil - 0.82) < 0.001
+        assert abs(r.ecology.water - 0.63) < 0.001
+        assert abs(r.ecology.forest_cover - 0.21) < 0.001
+        assert abs(r.endemic_severity - 0.05) < 0.001
+        assert abs(r.prev_turn_water - 0.63) < 0.001
+        assert r.soil_pressure_streak == 3
+        assert r.overextraction_streaks == {0: 1, 1: 2, 2: 0}
+        assert abs(r.resource_reserves[0] - 0.90) < 0.001
+        assert abs(r.resource_reserves[1] - 0.85) < 0.001
+        assert abs(r.resource_effective_yields[0] - 0.48) < 0.001
+        assert abs(r.resource_effective_yields[1] - 0.28) < 0.001
+
+        # current_turn_yields returned as dict
+        assert "TestRegion" in region_yields
+        assert abs(region_yields["TestRegion"][0] - 0.35) < 0.001
+        assert abs(region_yields["TestRegion"][1] - 0.20) < 0.001
+
+
+# ---------------------------------------------------------------------------
+# M54a Task 5: Post-pass patch survives multiple turns
+# ---------------------------------------------------------------------------
+
+
+class TestPostPassPatchMultiTurn:
+    """Verify post-pass patches apply correctly across multiple ecology ticks."""
+
+    def test_patch_persists_across_ticks(self):
+        """A post-pass patch at turn N should be reflected in turn N+1 state."""
+        from chronicler_agents import EcologySimulator
+
+        eco = EcologySimulator()
+        batch = _make_ecology_region_batch(
+            num_regions=1, capacity=60, populations=[30],
+            controllers=[0],
+            resource_base_yields=[[1.0, 0.0, 0.0]],
+            resource_effective_yields=[[1.0, 0.0, 0.0]],
+        )
+        extra = {
+            "resource_type_0": pa.array([0], type=pa.uint8()),
+            "resource_type_1": pa.array([255], type=pa.uint8()),
+            "resource_type_2": pa.array([255], type=pa.uint8()),
+        }
+        columns = {name: batch.column(name) for name in batch.schema.names}
+        columns.update(extra)
+        batch_with_types = pa.record_batch(columns)
+
+        eco.set_region_state(batch_with_types)
+
+        # Turn 0: ecology tick
+        region_batch_0, _ = eco.tick_ecology(
+            turn=0, climate_phase=0,
+            pandemic_mask=[False], army_arrived_mask=[False],
+        )
+
+        soil_0 = region_batch_0.column("soil").to_pylist()[0]
+        water_0 = region_batch_0.column("water").to_pylist()[0]
+        forest_0 = region_batch_0.column("forest_cover").to_pylist()[0]
+
+        # Apply post-pass patch that changes soil
+        patch = pa.record_batch({
+            "region_id": pa.array([0], type=pa.uint16()),
+            "population": pa.array([30], type=pa.uint16()),
+            "soil": pa.array([0.30], type=pa.float32()),  # Much lower
+            "water": pa.array([water_0], type=pa.float32()),
+            "forest_cover": pa.array([forest_0], type=pa.float32()),
+            "terrain": pa.array([0], type=pa.uint8()),
+            "carrying_capacity": pa.array([60], type=pa.uint16()),
+        })
+        eco.apply_region_postpass_patch(patch)
+
+        # Turn 1: tick again — should use patched soil (0.30), not original
+        region_batch_1, _ = eco.tick_ecology(
+            turn=1, climate_phase=0,
+            pandemic_mask=[False], army_arrived_mask=[False],
+        )
+
+        soil_1 = region_batch_1.column("soil").to_pylist()[0]
+        # After patching to 0.30 and running another tick with recovery,
+        # soil should still be near 0.30 (maybe slightly recovered),
+        # NOT back at ~0.82 (what it would be without the patch).
+        assert soil_1 < 0.50, (
+            f"soil after patched tick should stay low (~0.30+recovery), got {soil_1}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# M54a Task 5: agents=off can run the same Phase 9 Rust path
+# ---------------------------------------------------------------------------
+
+
+class TestAgentsOffRustPath:
+    """Verify --agents=off exercises the Rust ecology path via EcologySimulator."""
+
+    def test_ecology_simulator_full_lifecycle(self):
+        """EcologySimulator: set_region_state -> tick -> patch -> tick works."""
+        from chronicler_agents import EcologySimulator
+
+        eco = EcologySimulator()
+        batch = _make_ecology_region_batch(
+            num_regions=2, capacity=60, populations=[30, 40],
+            controllers=[0, 1],
+            resource_base_yields=[[1.0, 0.0, 0.0], [0.8, 0.5, 0.0]],
+            resource_effective_yields=[[1.0, 0.0, 0.0], [0.8, 0.5, 0.0]],
+        )
+        extra = {
+            "resource_type_0": pa.array([0, 0], type=pa.uint8()),
+            "resource_type_1": pa.array([255, 1], type=pa.uint8()),
+            "resource_type_2": pa.array([255, 255], type=pa.uint8()),
+        }
+        columns = {name: batch.column(name) for name in batch.schema.names}
+        columns.update(extra)
+        batch_with_types = pa.record_batch(columns)
+
+        eco.set_region_state(batch_with_types)
+
+        # Run 5 turns
+        for turn in range(5):
+            region_batch, event_batch = eco.tick_ecology(
+                turn=turn, climate_phase=0,
+                pandemic_mask=[False, False],
+                army_arrived_mask=[False, False],
+            )
+
+            # Apply post-pass patch (population changes simulate famine effects)
+            soil_vals = region_batch.column("soil").to_pylist()
+            water_vals = region_batch.column("water").to_pylist()
+            forest_vals = region_batch.column("forest_cover").to_pylist()
+
+            patch = pa.record_batch({
+                "region_id": pa.array([0, 1], type=pa.uint16()),
+                "population": pa.array([28, 38], type=pa.uint16()),
+                "soil": pa.array(soil_vals, type=pa.float32()),
+                "water": pa.array(water_vals, type=pa.float32()),
+                "forest_cover": pa.array(forest_vals, type=pa.float32()),
+                "terrain": pa.array([0, 0], type=pa.uint8()),
+                "carrying_capacity": pa.array([60, 60], type=pa.uint16()),
+            })
+            eco.apply_region_postpass_patch(patch)
+
+        # After 5 turns, should have valid ecology state
+        assert region_batch.num_rows == 2
+        soil_final = region_batch.column("soil").to_pylist()
+        water_final = region_batch.column("water").to_pylist()
+        for i in range(2):
+            assert 0.0 <= soil_final[i] <= 1.0
+            assert 0.0 <= water_final[i] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# M54a Task 5: full-sync path independence from _last_region_yields
+# ---------------------------------------------------------------------------
+
+
+class TestNoLastRegionYieldsDependency:
+    """The Rust ecology path should not depend on _last_region_yields."""
+
+    def test_write_back_ecology_does_not_read_last_region_yields(self):
+        """_write_back_ecology returns yields from the Rust batch, not _last_region_yields."""
+        from chronicler.ecology import _write_back_ecology, _last_region_yields
+        from chronicler.models import Region, RegionEcology, WorldState
+
+        r = Region(
+            name="Testland", terrain="plains", carrying_capacity=60,
+            resources="fertile", population=30,
+            ecology=RegionEcology(soil=0.5, water=0.5, forest_cover=0.2),
+        )
+        w = WorldState(name="T", seed=42, regions=[r])
+
+        # Pre-populate _last_region_yields with stale data
+        _last_region_yields["Testland"] = [99.0, 99.0, 99.0]
+
+        batch = pa.record_batch({
+            "region_id": pa.array([0], type=pa.uint16()),
+            "soil": pa.array([0.82], type=pa.float32()),
+            "water": pa.array([0.63], type=pa.float32()),
+            "forest_cover": pa.array([0.21], type=pa.float32()),
+            "endemic_severity": pa.array([0.01], type=pa.float32()),
+            "prev_turn_water": pa.array([0.63], type=pa.float32()),
+            "soil_pressure_streak": pa.array([0], type=pa.int32()),
+            "overextraction_streak_0": pa.array([0], type=pa.int32()),
+            "overextraction_streak_1": pa.array([0], type=pa.int32()),
+            "overextraction_streak_2": pa.array([0], type=pa.int32()),
+            "resource_reserve_0": pa.array([1.0], type=pa.float32()),
+            "resource_reserve_1": pa.array([1.0], type=pa.float32()),
+            "resource_reserve_2": pa.array([1.0], type=pa.float32()),
+            "resource_effective_yield_0": pa.array([0.5], type=pa.float32()),
+            "resource_effective_yield_1": pa.array([0.0], type=pa.float32()),
+            "resource_effective_yield_2": pa.array([0.0], type=pa.float32()),
+            "current_turn_yield_0": pa.array([0.40], type=pa.float32()),
+            "current_turn_yield_1": pa.array([0.0], type=pa.float32()),
+            "current_turn_yield_2": pa.array([0.0], type=pa.float32()),
+        })
+
+        region_yields = _write_back_ecology(w, batch)
+
+        # Yields should come from the Rust batch, NOT from _last_region_yields
+        assert abs(region_yields["Testland"][0] - 0.40) < 0.001
+        assert region_yields["Testland"][0] != 99.0
+
+
+# ---------------------------------------------------------------------------
+# M54a Task 5: No double full-sync on ecology path
+# ---------------------------------------------------------------------------
+
+
+class TestNoDoubleFullSync:
+    """build_region_postpass_patch_batch has no side effects that trigger full-sync."""
+
+    def test_postpass_patch_is_side_effect_free(self, sample_world):
+        """build_region_postpass_patch_batch does not clear transient signals."""
+        from chronicler.agent_bridge import build_region_postpass_patch_batch
+
+        # Set a transient signal
+        sample_world.regions[0]._culture_investment_active = True
+
+        # Build postpass patch — should NOT clear the signal
+        patch = build_region_postpass_patch_batch(sample_world)
+
+        # Signal should still be set (not cleared by patch builder)
+        assert sample_world.regions[0]._culture_investment_active is True
+
+        # Verify patch has expected schema
+        assert "region_id" in patch.schema.names
+        assert "population" in patch.schema.names
+        assert "soil" in patch.schema.names
+        assert "water" in patch.schema.names
+        assert "forest_cover" in patch.schema.names
+        assert "terrain" in patch.schema.names
+        assert "carrying_capacity" in patch.schema.names
+
+        # Verify patch does NOT contain full-sync columns
+        assert "disease_baseline" not in patch.schema.names
+        assert "resource_base_yield_0" not in patch.schema.names

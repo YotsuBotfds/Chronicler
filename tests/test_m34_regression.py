@@ -62,18 +62,21 @@ class TestSeasonalBehavior:
 
     def test_grain_yield_varies_across_seasons(self):
         """Grain yield should vary across a 12-turn cycle."""
-        from chronicler.ecology import compute_resource_yields
-        from chronicler.models import Region, ClimatePhase
-        r = Region(name="TestPlains", terrain="plains", carrying_capacity=50, resources="fertile")
-        r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
-        r.resource_base_yields = [1.0, 0.0, 0.0]
-        r.resource_reserves = [1.0, 1.0, 1.0]
-        r.ecology.soil = 0.8
-        r.ecology.water = 0.7
+        # Use legacy oracle for formula-level assertion (survives production helper deletion)
+        from tests.legacy_ecology_oracle import compute_resource_yields as oracle_yields
+        from tests.legacy_ecology_oracle import EMPTY_SLOT as ORACLE_EMPTY
         yields_by_season = []
         for turn in range(12):
             season_id = (turn % 12) // 3
-            y = compute_resource_yields(r, season_id=season_id, climate_phase=ClimatePhase.TEMPERATE, worker_count=0)
+            y, _ = oracle_yields(
+                resource_types=[0, ORACLE_EMPTY, ORACLE_EMPTY],  # GRAIN=0
+                resource_base_yields=[1.0, 0.0, 0.0],
+                resource_reserves=[1.0, 1.0, 1.0],
+                resource_suspensions={},
+                soil=0.8, water=0.7, forest_cover=0.2,
+                carrying_capacity=50, capacity_modifier=1.0, population=0,
+                season_id=season_id, climate_phase="temperate", worker_count=0,
+            )
             yields_by_season.append(y[0])
         # Should have at least 3 distinct yield levels (Spring, Summer, Autumn, Winter have different mods)
         unique_yields = set(round(y, 4) for y in yields_by_season)
@@ -85,14 +88,20 @@ class TestMineralDepletion:
 
     def test_mineral_depletes_over_time(self):
         """Mineral reserves should decrease when workers are present."""
-        from chronicler.ecology import compute_resource_yields
-        from chronicler.models import Region, ClimatePhase
-        r = Region(name="Mines", terrain="mountains", carrying_capacity=60, resources="mineral")
-        r.resource_types = [ResourceType.ORE, EMPTY_SLOT, EMPTY_SLOT]
-        r.resource_base_yields = [1.0, 0.0, 0.0]
-        r.resource_reserves = [1.0, 1.0, 1.0]
+        # Use legacy oracle for formula-level assertion (survives production helper deletion)
+        from tests.legacy_ecology_oracle import compute_resource_yields as oracle_yields
+        from tests.legacy_ecology_oracle import EMPTY_SLOT as ORACLE_EMPTY
+        reserves = [1.0, 1.0, 1.0]
         for _ in range(150):
-            compute_resource_yields(r, season_id=0, climate_phase=ClimatePhase.TEMPERATE, worker_count=20)
+            _, reserves = oracle_yields(
+                resource_types=[5, ORACLE_EMPTY, ORACLE_EMPTY],  # ORE=5
+                resource_base_yields=[1.0, 0.0, 0.0],
+                resource_reserves=reserves,
+                resource_suspensions={},
+                soil=0.4, water=0.8, forest_cover=0.3,
+                carrying_capacity=60, capacity_modifier=1.0, population=100,
+                season_id=0, climate_phase="temperate", worker_count=20,
+            )
         # After 150 turns at 20 workers, reserves should be significantly depleted
-        assert r.resource_reserves[0] < 0.5, \
-            f"Expected depletion, got reserves={r.resource_reserves[0]}"
+        assert reserves[0] < 0.5, \
+            f"Expected depletion, got reserves={reserves[0]}"

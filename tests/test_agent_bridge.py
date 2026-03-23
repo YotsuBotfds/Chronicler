@@ -492,10 +492,10 @@ class TestRegionBatchResourceColumns:
 
     def test_region_batch_has_resource_columns(self, sample_world):
         from chronicler.agent_bridge import build_region_batch
-        from chronicler.ecology import _last_region_yields
         import pyarrow as pa
 
-        _last_region_yields.clear()
+        # M54a: no longer depends on _last_region_yields being cleared;
+        # the Rust path produces yields directly.
         batch = build_region_batch(sample_world)
 
         # All new column names are present

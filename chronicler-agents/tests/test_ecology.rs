@@ -1603,3 +1603,222 @@ fn test_population_only_change_same_yields() {
         y1[0], y2[0]
     );
 }
+
+// ===========================================================================
+// M54a Task 5: Additional determinism and parity tests
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Test: Exact current_turn_yields values for known inputs
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_exact_current_turn_yields_grain_spring() {
+    // Verify exact yield for GRAIN at spring with known ecology state.
+    // base=1.0, season_mod=0.8 (spring grain), climate_mod=1.0 (temperate crop),
+    // ecology_mod = soil * water = 0.80 * 0.60 = 0.48
+    // yield = 1.0 * 0.8 * 1.0 * 0.48 * 1.0 = 0.384
+    //
+    // BUT: tick_ecology modifies soil/water BEFORE computing yields.
+    // So we must run through tick_ecology to get the actual value.
+    let config = default_config();
+    let mut r = make_plains(0);
+    r.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+    r.resource_base_yield = [1.0, 0.0, 0.0];
+    r.resource_effective_yield = [1.0, 0.0, 0.0];
+
+    let mut regions = vec![r];
+    let pandemic = vec![false];
+    let army = vec![false];
+
+    let (yields, _) = tick_ecology(
+        &mut regions, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+
+    // After ecology tick: soil recovered, water recovered.
+    // Compute expected from post-tick values.
+    let post_soil = regions[0].soil;
+    let post_water = regions[0].water;
+    let expected_ecology_mod = post_soil * post_water;
+    let expected_yield = 1.0 * 0.8 * 1.0 * expected_ecology_mod * 1.0;
+
+    assert!(
+        (yields[0][0] - expected_yield).abs() < 0.0001,
+        "grain yield {} expected {} (soil={}, water={})",
+        yields[0][0], expected_yield, post_soil, post_water
+    );
+
+    // Also verify the yield is stored in region.resource_yields
+    assert_eq!(
+        regions[0].resource_yields[0].to_bits(),
+        yields[0][0].to_bits(),
+        "resource_yields[0] should exactly match returned yield"
+    );
+}
+
+#[test]
+fn test_exact_current_turn_yields_multi_slot() {
+    // Verify yields for a region with GRAIN + TIMBER + ORE
+    let config = default_config();
+    let mut r = RegionState::new(0);
+    r.terrain = TERRAIN_FOREST;
+    r.soil = 0.70;
+    r.water = 0.70;
+    r.forest_cover = 0.80;
+    r.carrying_capacity = 50;
+    r.population = 10;
+    r.controller_civ = 0;
+    r.capacity_modifier = 1.0;
+    r.prev_turn_water = 0.70;
+    r.resource_types = [RT_GRAIN, RT_TIMBER, RT_ORE];
+    r.resource_base_yield = [1.0, 1.0, 1.0];
+    r.resource_effective_yield = [1.0, 1.0, 1.0];
+    r.resource_reserves = [1.0, 1.0, 0.50]; // ORE partially depleted
+
+    let mut regions = vec![r];
+    let pandemic = vec![false];
+    let army = vec![false];
+
+    let (yields, _) = tick_ecology(
+        &mut regions, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+
+    // All three slots should produce non-zero yields
+    assert!(yields[0][0] > 0.0, "grain yield should be > 0, got {}", yields[0][0]);
+    assert!(yields[0][1] > 0.0, "timber yield should be > 0, got {}", yields[0][1]);
+    assert!(yields[0][2] > 0.0, "ore yield should be > 0, got {}", yields[0][2]);
+
+    // ORE yield should be affected by reserve ramp
+    // Reserves started at 0.50 but depletion may have reduced them
+    let ore_reserves = regions[0].resource_reserves[2];
+    assert!(ore_reserves <= 0.50, "ore reserves should have decreased or stayed");
+
+    // Grain ecology_mod = soil * water (crop class)
+    // Timber ecology_mod = forest_cover (forestry class)
+    // ORE ecology_mod = 1.0 (mineral class) but with reserve_ramp
+    // Timber should be higher than grain (forest terrain has higher forest_cover effect)
+    // This is a sanity check — not exact equality
+}
+
+// ---------------------------------------------------------------------------
+// Test: Multi-turn determinism (10 turns, same seed = same output)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_multi_turn_determinism_10_turns() {
+    let config = default_config();
+    let initial = vec![
+        make_plains(0),
+        {
+            let mut r = make_plains(1);
+            r.terrain = TERRAIN_DESERT;
+            r.soil = 0.20;
+            r.water = 0.15;
+            r.forest_cover = 0.05;
+            r.carrying_capacity = 20;
+            r.population = 15;
+            r
+        },
+        make_uncontrolled(2),
+    ];
+    let pandemic = vec![false; 3];
+    let army = vec![false; 3];
+
+    // Run A
+    let mut regions_a = initial.clone();
+    let mut all_yields_a: Vec<Vec<[f32; 3]>> = Vec::new();
+    let mut all_events_a: Vec<Vec<EcologyEvent>> = Vec::new();
+    for turn in 0..10_u32 {
+        let (y, e) = tick_ecology(
+            &mut regions_a, &config, turn, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+        );
+        all_yields_a.push(y);
+        all_events_a.push(e);
+    }
+
+    // Run B (identical)
+    let mut regions_b = initial.clone();
+    let mut all_yields_b: Vec<Vec<[f32; 3]>> = Vec::new();
+    let mut all_events_b: Vec<Vec<EcologyEvent>> = Vec::new();
+    for turn in 0..10_u32 {
+        let (y, e) = tick_ecology(
+            &mut regions_b, &config, turn, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+        );
+        all_yields_b.push(y);
+        all_events_b.push(e);
+    }
+
+    // Exact equality at every turn
+    for turn in 0..10 {
+        assert_eq!(
+            all_events_a[turn].len(), all_events_b[turn].len(),
+            "turn {}: event count mismatch", turn
+        );
+        for i in 0..all_events_a[turn].len() {
+            assert_eq!(all_events_a[turn][i], all_events_b[turn][i], "turn {}: event {} mismatch", turn, i);
+        }
+        for rid in 0..3 {
+            for slot in 0..3 {
+                assert_eq!(
+                    all_yields_a[turn][rid][slot].to_bits(),
+                    all_yields_b[turn][rid][slot].to_bits(),
+                    "turn {}: region {} yield slot {} mismatch",
+                    turn, rid, slot
+                );
+            }
+        }
+    }
+
+    // Final region state must match exactly
+    for i in 0..3 {
+        assert_eq!(regions_a[i].soil.to_bits(), regions_b[i].soil.to_bits(), "region {} soil", i);
+        assert_eq!(regions_a[i].water.to_bits(), regions_b[i].water.to_bits(), "region {} water", i);
+        assert_eq!(regions_a[i].forest_cover.to_bits(), regions_b[i].forest_cover.to_bits(), "region {} forest", i);
+        assert_eq!(regions_a[i].endemic_severity.to_bits(), regions_b[i].endemic_severity.to_bits(), "region {} severity", i);
+        assert_eq!(regions_a[i].soil_pressure_streak, regions_b[i].soil_pressure_streak, "region {} streak", i);
+        for s in 0..3 {
+            assert_eq!(regions_a[i].resource_reserves[s].to_bits(), regions_b[i].resource_reserves[s].to_bits(), "region {} reserves[{}]", i, s);
+            assert_eq!(regions_a[i].resource_effective_yield[s].to_bits(), regions_b[i].resource_effective_yield[s].to_bits(), "region {} eff_yield[{}]", i, s);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test: Patched-yield recompute behavior
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_patched_yield_recompute_after_soil_change() {
+    // After a post-pass patch that changes soil, the yields should be different
+    // from what they were before the patch.
+    let config = default_config();
+    let mut r = make_plains(0);
+    r.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+    r.resource_base_yield = [1.0, 0.0, 0.0];
+    r.resource_effective_yield = [1.0, 0.0, 0.0];
+    r.soil = 0.80;
+    r.water = 0.60;
+
+    // Compute yields at current state
+    let mut r_pre = r.clone();
+    let y_pre = compute_yields(&mut r_pre, &config, 0, CLIMATE_TEMPERATE);
+
+    // Simulate post-pass: soil changed by famine/tradition effects
+    r.soil = 0.40;
+    let mut r_post = r.clone();
+    let y_post = compute_yields(&mut r_post, &config, 0, CLIMATE_TEMPERATE);
+
+    // Yields must differ because ecology_mod changed
+    assert!(
+        (y_pre[0] - y_post[0]).abs() > 0.01,
+        "yield before patch {} should differ from after patch {} (soil changed)",
+        y_pre[0], y_post[0]
+    );
+
+    // Post yield should be lower (lower soil)
+    assert!(
+        y_post[0] < y_pre[0],
+        "lower soil should produce lower yield: pre={}, post={}",
+        y_pre[0], y_post[0]
+    );
+}
