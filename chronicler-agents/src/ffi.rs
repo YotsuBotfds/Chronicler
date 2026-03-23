@@ -211,6 +211,91 @@ pub fn ecology_events_schema() -> Schema {
 }
 
 // ---------------------------------------------------------------------------
+// M54b: Economy schema helpers
+// ---------------------------------------------------------------------------
+
+pub fn economy_region_input_schema() -> Schema {
+    let mut fields = vec![
+        Field::new("region_id", DataType::UInt16, false),
+        Field::new("terrain", DataType::UInt8, false),
+        Field::new("storage_population", DataType::UInt16, false),
+        Field::new("resource_type_0", DataType::UInt8, false),
+        Field::new("resource_effective_yield_0", DataType::Float32, false),
+    ];
+    for good in &["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"] {
+        fields.push(Field::new(format!("stockpile_{good}"), DataType::Float32, false));
+    }
+    Schema::new(fields)
+}
+
+pub fn economy_trade_route_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("origin_region_id", DataType::UInt16, false),
+        Field::new("dest_region_id", DataType::UInt16, false),
+        Field::new("is_river", DataType::Boolean, false),
+    ])
+}
+
+pub fn economy_region_result_schema() -> Schema {
+    let mut fields = vec![
+        Field::new("region_id", DataType::UInt16, false),
+    ];
+    for good in &["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"] {
+        fields.push(Field::new(format!("stockpile_{good}"), DataType::Float32, false));
+    }
+    fields.extend_from_slice(&[
+        Field::new("farmer_income_modifier", DataType::Float32, false),
+        Field::new("food_sufficiency", DataType::Float32, false),
+        Field::new("merchant_margin", DataType::Float32, false),
+        Field::new("merchant_trade_income", DataType::Float32, false),
+        Field::new("trade_route_count", DataType::UInt16, false),
+    ]);
+    Schema::new(fields)
+}
+
+pub fn economy_civ_result_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("civ_id", DataType::UInt8, false),
+        Field::new("treasury_tax", DataType::Float32, false),
+        Field::new("tithe_base", DataType::Float32, false),
+        Field::new("priest_tithe_share", DataType::Float32, false),
+    ])
+}
+
+pub fn economy_observability_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("region_id", DataType::UInt16, false),
+        Field::new("imports_food", DataType::Float32, false),
+        Field::new("imports_raw_material", DataType::Float32, false),
+        Field::new("imports_luxury", DataType::Float32, false),
+        Field::new("stockpile_food", DataType::Float32, false),
+        Field::new("stockpile_raw_material", DataType::Float32, false),
+        Field::new("stockpile_luxury", DataType::Float32, false),
+        Field::new("import_share", DataType::Float32, false),
+        Field::new("trade_dependent", DataType::Boolean, false),
+    ])
+}
+
+pub fn economy_upstream_sources_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("dest_region_id", DataType::UInt16, false),
+        Field::new("source_ordinal", DataType::UInt16, false),
+        Field::new("source_region_id", DataType::UInt16, false),
+    ])
+}
+
+pub fn economy_conservation_schema() -> Schema {
+    Schema::new(vec![
+        Field::new("production", DataType::Float64, false),
+        Field::new("transit_loss", DataType::Float64, false),
+        Field::new("consumption", DataType::Float64, false),
+        Field::new("storage_loss", DataType::Float64, false),
+        Field::new("cap_overflow", DataType::Float64, false),
+        Field::new("clamp_floor_loss", DataType::Float64, false),
+    ])
+}
+
+// ---------------------------------------------------------------------------
 // Recompute context (shared between AgentSimulator and EcologySimulator)
 // ---------------------------------------------------------------------------
 
@@ -454,6 +539,8 @@ pub struct AgentSimulator {
     ecology_config: crate::ecology::EcologyConfig,
     river_topology: crate::ecology::RiverTopology,
     recompute_ctx: RecomputeContext,
+    // M54b: economy state
+    economy_config: crate::economy::EconomyConfig,
 }
 
 #[pymethods]
@@ -486,6 +573,7 @@ impl AgentSimulator {
             ecology_config: crate::ecology::EcologyConfig::default(),
             river_topology: crate::ecology::RiverTopology::default(),
             recompute_ctx: RecomputeContext::default(),
+            economy_config: crate::economy::EconomyConfig::default(),
         }
     }
 
@@ -1967,6 +2055,382 @@ impl AgentSimulator {
         }
 
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // M54b: Economy FFI surface
+    // -----------------------------------------------------------------------
+
+    /// Set economy configuration from individual field arguments.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_economy_config(
+        &mut self,
+        base_price: f32,
+        per_capita_food: f32,
+        raw_material_per_soldier: f32,
+        luxury_per_wealthy_agent: f32,
+        luxury_demand_threshold: f32,
+        carry_per_merchant: f32,
+        farmer_income_modifier_floor: f32,
+        farmer_income_modifier_cap: f32,
+        merchant_margin_normalizer: f32,
+        tax_rate: f32,
+        trade_dependency_threshold: f32,
+        per_good_cap_factor: f32,
+        salt_preservation_factor: f32,
+        max_preservation: f32,
+        tatonnement_max_passes: u32,
+        tatonnement_damping: f32,
+        tatonnement_convergence: f32,
+        tatonnement_price_clamp_lo: f32,
+        tatonnement_price_clamp_hi: f32,
+    ) {
+        self.economy_config = crate::economy::EconomyConfig {
+            base_price,
+            per_capita_food,
+            raw_material_per_soldier,
+            luxury_per_wealthy_agent,
+            luxury_demand_threshold,
+            carry_per_merchant,
+            farmer_income_modifier_floor,
+            farmer_income_modifier_cap,
+            merchant_margin_normalizer,
+            tax_rate,
+            trade_dependency_threshold,
+            per_good_cap_factor,
+            salt_preservation_factor,
+            max_preservation,
+            tatonnement_max_passes,
+            tatonnement_damping,
+            tatonnement_convergence,
+            tatonnement_price_clamp_lo,
+            tatonnement_price_clamp_hi,
+        };
+    }
+
+    /// Run the economy tick: returns five Arrow batches.
+    ///
+    /// Python calls this with dedicated economy input batches (NOT build_region_batch).
+    /// Rust derives agent counts from the live pool.
+    pub fn tick_economy(
+        &self,
+        region_input_batch: PyRecordBatch,
+        trade_route_batch: PyRecordBatch,
+        season_id: u8,
+        is_winter: bool,
+        trade_friction: f32,
+    ) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
+        use arrow::array::{
+            Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
+            Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
+        };
+        use crate::economy::{
+            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core,
+        };
+
+        let _ = season_id; // reserved for future seasonal modifiers
+
+        let ri_rb: RecordBatch = region_input_batch.into_inner();
+        let tr_rb: RecordBatch = trade_route_batch.into_inner();
+        let n_regions = ri_rb.num_rows();
+        let n_routes = tr_rb.num_rows();
+
+        // --- Unpack region inputs ---
+        // Helper macros for column extraction
+        macro_rules! col_u8 {
+            ($rb:expr, $name:expr) => {
+                $rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any().downcast_ref::<UInt8Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt8", $name)))?
+            };
+        }
+        macro_rules! col_u16 {
+            ($rb:expr, $name:expr) => {
+                $rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any().downcast_ref::<UInt16Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt16", $name)))?
+            };
+        }
+        macro_rules! col_f32 {
+            ($rb:expr, $name:expr) => {
+                $rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any().downcast_ref::<Float32Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not Float32", $name)))?
+            };
+        }
+        macro_rules! col_bool {
+            ($rb:expr, $name:expr) => {
+                $rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
+                    .as_any().downcast_ref::<BooleanArray>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not Boolean", $name)))?
+            };
+        }
+
+        let ri_region_ids = col_u16!(&ri_rb, "region_id");
+        let ri_terrain = col_u8!(&ri_rb, "terrain");
+        let ri_storage_pop = col_u16!(&ri_rb, "storage_population");
+        let ri_rt0 = col_u8!(&ri_rb, "resource_type_0");
+        let ri_ey0 = col_f32!(&ri_rb, "resource_effective_yield_0");
+
+        // Fixed good slot columns
+        const GOOD_NAMES: [&str; 8] = ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"];
+        let mut ri_stockpile_cols: Vec<&Float32Array> = Vec::with_capacity(8);
+        for good in &GOOD_NAMES {
+            ri_stockpile_cols.push(col_f32!(&ri_rb, &format!("stockpile_{good}")));
+        }
+
+        let mut region_inputs: Vec<EconomyRegionInput> = Vec::with_capacity(n_regions);
+        for i in 0..n_regions {
+            let mut stockpile = [0.0f32; 8];
+            for (g, col) in ri_stockpile_cols.iter().enumerate() {
+                stockpile[g] = col.value(i);
+            }
+            region_inputs.push(EconomyRegionInput {
+                region_id: ri_region_ids.value(i),
+                terrain: ri_terrain.value(i),
+                storage_population: ri_storage_pop.value(i),
+                resource_type_0: ri_rt0.value(i),
+                resource_effective_yield_0: ri_ey0.value(i),
+                stockpile,
+            });
+        }
+
+        // --- Derive agent counts from live pool ---
+        // Partition by region for efficient iteration
+        let partitioned = self.pool.partition_by_region(n_regions as u16);
+        let mut agent_counts: Vec<RegionAgentCounts> = Vec::with_capacity(n_regions);
+        for rid in 0..n_regions {
+            let slots = &partitioned[rid];
+            let mut population = 0u32;
+            let mut farmer_count = 0u32;
+            let mut soldier_count = 0u32;
+            let mut merchant_count = 0u32;
+            let mut wealthy_count = 0u32;
+            for &slot in slots {
+                population += 1;
+                match Occupation::from_u8(self.pool.occupation(slot)) {
+                    Some(Occupation::Farmer) => farmer_count += 1,
+                    Some(Occupation::Soldier) => soldier_count += 1,
+                    Some(Occupation::Merchant) => merchant_count += 1,
+                    _ => {}
+                }
+                if self.pool.wealth[slot] > self.economy_config.luxury_demand_threshold {
+                    wealthy_count += 1;
+                }
+            }
+            agent_counts.push(RegionAgentCounts {
+                population,
+                farmer_count,
+                soldier_count,
+                merchant_count,
+                wealthy_count,
+            });
+        }
+
+        // --- Derive per-civ merchant wealth and priest count ---
+        // Determine number of civs
+        let n_civs = {
+            let mut max_civ: u8 = 0;
+            for slot in 0..self.pool.capacity() {
+                if self.pool.is_alive(slot) {
+                    let ca = self.pool.civ_affinity(slot);
+                    if ca != 255 && ca > max_civ {
+                        max_civ = ca;
+                    }
+                }
+            }
+            if self.pool.alive_count() == 0 { 0 } else { max_civ as usize + 1 }
+        };
+
+        let mut civ_merchant_wealth = vec![0.0f32; n_civs];
+        let mut civ_priest_count = vec![0u32; n_civs];
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.is_alive(slot) { continue; }
+            let ca = self.pool.civ_affinity(slot) as usize;
+            if ca >= n_civs { continue; }
+            match Occupation::from_u8(self.pool.occupation(slot)) {
+                Some(Occupation::Merchant) => {
+                    civ_merchant_wealth[ca] += self.pool.wealth[slot];
+                }
+                Some(Occupation::Priest) => {
+                    civ_priest_count[ca] += 1;
+                }
+                _ => {}
+            }
+        }
+
+        // --- Unpack trade routes ---
+        let mut routes: Vec<TradeRouteInput> = Vec::with_capacity(n_routes);
+        if n_routes > 0 {
+            let tr_origin = col_u16!(&tr_rb, "origin_region_id");
+            let tr_dest = col_u16!(&tr_rb, "dest_region_id");
+            let tr_river = col_bool!(&tr_rb, "is_river");
+            for i in 0..n_routes {
+                routes.push(TradeRouteInput {
+                    origin_region_id: tr_origin.value(i),
+                    dest_region_id: tr_dest.value(i),
+                    is_river: tr_river.value(i),
+                });
+            }
+        }
+
+        // --- Call the core ---
+        let output = tick_economy_core(
+            &region_inputs,
+            &agent_counts,
+            &routes,
+            &civ_merchant_wealth,
+            &civ_priest_count,
+            n_civs,
+            &self.economy_config,
+            trade_friction,
+            is_winter,
+        );
+
+        // --- Pack results into Arrow batches ---
+        // 1. Region result batch
+        let n_out = output.region_results.len();
+        let mut rr_region_id = UInt16Builder::with_capacity(n_out);
+        let mut rr_fim = Float32Builder::with_capacity(n_out);
+        let mut rr_fs = Float32Builder::with_capacity(n_out);
+        let mut rr_mm = Float32Builder::with_capacity(n_out);
+        let mut rr_mti = Float32Builder::with_capacity(n_out);
+        let mut rr_trc = UInt16Builder::with_capacity(n_out);
+        let mut rr_stockpile: Vec<Float32Builder> = (0..8).map(|_| Float32Builder::with_capacity(n_out)).collect();
+
+        for rr in &output.region_results {
+            rr_region_id.append_value(rr.region_id);
+            rr_fim.append_value(rr.farmer_income_modifier);
+            rr_fs.append_value(rr.food_sufficiency);
+            rr_mm.append_value(rr.merchant_margin);
+            rr_mti.append_value(rr.merchant_trade_income);
+            rr_trc.append_value(rr.trade_route_count);
+            for (g, builder) in rr_stockpile.iter_mut().enumerate() {
+                builder.append_value(rr.stockpile[g]);
+            }
+        }
+
+        let mut rr_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
+            Arc::new(rr_region_id.finish()),
+        ];
+        for builder in rr_stockpile.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
+        rr_columns.extend([
+            Arc::new(rr_fim.finish()) as Arc<dyn arrow::array::Array>,
+            Arc::new(rr_fs.finish()),
+            Arc::new(rr_mm.finish()),
+            Arc::new(rr_mti.finish()),
+            Arc::new(rr_trc.finish()),
+        ]);
+
+        let region_result_batch = RecordBatch::try_new(
+            Arc::new(economy_region_result_schema()),
+            rr_columns,
+        ).map_err(arrow_err)?;
+
+        // 2. Civ result batch
+        let n_civ_out = output.civ_results.len();
+        let mut cr_cid = UInt8Builder::with_capacity(n_civ_out);
+        let mut cr_tax = Float32Builder::with_capacity(n_civ_out);
+        let mut cr_tb = Float32Builder::with_capacity(n_civ_out);
+        let mut cr_pts = Float32Builder::with_capacity(n_civ_out);
+        for cr in &output.civ_results {
+            cr_cid.append_value(cr.civ_id as u8);
+            cr_tax.append_value(cr.treasury_tax);
+            cr_tb.append_value(cr.tithe_base);
+            cr_pts.append_value(cr.priest_tithe_share);
+        }
+        let civ_result_batch = RecordBatch::try_new(
+            Arc::new(economy_civ_result_schema()),
+            vec![
+                Arc::new(cr_cid.finish()),
+                Arc::new(cr_tax.finish()),
+                Arc::new(cr_tb.finish()),
+                Arc::new(cr_pts.finish()),
+            ],
+        ).map_err(arrow_err)?;
+
+        // 3. Observability batch
+        let mut obs_rid = UInt16Builder::with_capacity(n_out);
+        let mut obs_if = Float32Builder::with_capacity(n_out);
+        let mut obs_irm = Float32Builder::with_capacity(n_out);
+        let mut obs_il = Float32Builder::with_capacity(n_out);
+        let mut obs_sf = Float32Builder::with_capacity(n_out);
+        let mut obs_srm = Float32Builder::with_capacity(n_out);
+        let mut obs_sl = Float32Builder::with_capacity(n_out);
+        let mut obs_is = Float32Builder::with_capacity(n_out);
+        let mut obs_td = BooleanBuilder::with_capacity(n_out);
+        for obs in &output.observability {
+            obs_rid.append_value(obs.region_id);
+            obs_if.append_value(obs.imports_food);
+            obs_irm.append_value(obs.imports_raw_material);
+            obs_il.append_value(obs.imports_luxury);
+            obs_sf.append_value(obs.stockpile_food);
+            obs_srm.append_value(obs.stockpile_raw_material);
+            obs_sl.append_value(obs.stockpile_luxury);
+            obs_is.append_value(obs.import_share);
+            obs_td.append_value(obs.trade_dependent);
+        }
+        let observability_batch = RecordBatch::try_new(
+            Arc::new(economy_observability_schema()),
+            vec![
+                Arc::new(obs_rid.finish()),
+                Arc::new(obs_if.finish()),
+                Arc::new(obs_irm.finish()),
+                Arc::new(obs_il.finish()),
+                Arc::new(obs_sf.finish()),
+                Arc::new(obs_srm.finish()),
+                Arc::new(obs_sl.finish()),
+                Arc::new(obs_is.finish()),
+                Arc::new(obs_td.finish()),
+            ],
+        ).map_err(arrow_err)?;
+
+        // 4. Upstream sources batch
+        let n_us = output.upstream_sources.len();
+        let mut us_dest = UInt16Builder::with_capacity(n_us);
+        let mut us_ord = UInt16Builder::with_capacity(n_us);
+        let mut us_src = UInt16Builder::with_capacity(n_us);
+        for us in &output.upstream_sources {
+            us_dest.append_value(us.dest_region_id);
+            us_ord.append_value(us.source_ordinal);
+            us_src.append_value(us.source_region_id);
+        }
+        let upstream_sources_batch = RecordBatch::try_new(
+            Arc::new(economy_upstream_sources_schema()),
+            vec![
+                Arc::new(us_dest.finish()),
+                Arc::new(us_ord.finish()),
+                Arc::new(us_src.finish()),
+            ],
+        ).map_err(arrow_err)?;
+
+        // 5. Conservation batch
+        let c = &output.conservation;
+        let conservation_batch = RecordBatch::try_new(
+            Arc::new(economy_conservation_schema()),
+            vec![
+                Arc::new(Float64Array::from(vec![c.production])),
+                Arc::new(Float64Array::from(vec![c.transit_loss])),
+                Arc::new(Float64Array::from(vec![c.consumption])),
+                Arc::new(Float64Array::from(vec![c.storage_loss])),
+                Arc::new(Float64Array::from(vec![c.cap_overflow])),
+                Arc::new(Float64Array::from(vec![c.clamp_floor_loss])),
+            ],
+        ).map_err(arrow_err)?;
+
+        Ok((
+            PyRecordBatch::new(region_result_batch),
+            PyRecordBatch::new(civ_result_batch),
+            PyRecordBatch::new(observability_batch),
+            PyRecordBatch::new(upstream_sources_batch),
+            PyRecordBatch::new(conservation_batch),
+        ))
     }
 }
 

@@ -34,6 +34,12 @@ pub use ffi::EcologySimulator;
 /// Re-exported FFI schemas for integration tests.
 pub mod ffi_schemas {
     pub use crate::ffi::{ecology_region_schema, ecology_events_schema};
+    pub use crate::ffi::{
+        economy_region_input_schema, economy_trade_route_schema,
+        economy_region_result_schema, economy_civ_result_schema,
+        economy_observability_schema, economy_upstream_sources_schema,
+        economy_conservation_schema,
+    };
 }
 #[doc(hidden)]
 pub use agent::Occupation;
