@@ -1,0 +1,1311 @@
+{
+  "seed": 115,
+  "world_name": "Aetheris",
+  "turn_range": [
+    0,
+    50
+  ],
+  "regions": [
+    {
+      "name": "Ashara Desert",
+      "terrain": "desert"
+    },
+    {
+      "name": "Thornwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Iron Peaks",
+      "terrain": "mountains"
+    },
+    {
+      "name": "Mistwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Obsidian Shore",
+      "terrain": "coast"
+    },
+    {
+      "name": "Sapphire Coast",
+      "terrain": "coast"
+    },
+    {
+      "name": "Amber Valley",
+      "terrain": "forest"
+    },
+    {
+      "name": "Stormbreak Cliffs",
+      "terrain": "mountains"
+    }
+  ],
+  "checkpoints": {
+    "0": {
+      "Selurian Republic": {
+        "pop": 53,
+        "mil": 63,
+        "econ": 51,
+        "cult": 58,
+        "stab": 61,
+        "treasury": 51,
+        "era": "bronze",
+        "leader": "High Priestess Thaldric",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Dorrathi Clans": {
+        "pop": 9,
+        "mil": 34,
+        "econ": 46,
+        "cult": 46,
+        "stab": 67,
+        "treasury": 96,
+        "era": "tribal",
+        "leader": "Chancellor Vaelith",
+        "regions": [
+          "Ashara Desert"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Kethani Empire": {
+        "pop": 77,
+        "mil": 21,
+        "econ": 68,
+        "cult": 59,
+        "stab": 57,
+        "treasury": 158,
+        "era": "tribal",
+        "leader": "Archon Aelindra",
+        "regions": [
+          "Sapphire Coast",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 56,
+        "mil": 39,
+        "econ": 42,
+        "cult": 53,
+        "stab": 57,
+        "treasury": 57,
+        "era": "tribal",
+        "leader": "Sovereign Zhara",
+        "regions": [
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      }
+    },
+    "10": {
+      "Selurian Republic": {
+        "pop": 53,
+        "mil": 43,
+        "econ": 71,
+        "cult": 68,
+        "stab": 68,
+        "treasury": 232,
+        "era": "bronze",
+        "leader": "High Priestess Thaldric",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Dorrathi Clans": {
+        "pop": 44,
+        "mil": 24,
+        "econ": 66,
+        "cult": 66,
+        "stab": 73,
+        "treasury": 323,
+        "era": "tribal",
+        "leader": "Chancellor Vaelith",
+        "regions": [
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Kethani Empire": {
+        "pop": 48,
+        "mil": 10,
+        "econ": 78,
+        "cult": 79,
+        "stab": 58,
+        "treasury": 181,
+        "era": "tribal",
+        "leader": "Archon Aelindra",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.24112776765065477,
+          "merchant": 0.5104375626486707,
+          "cultural": 0.24843466970067457
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 120,
+        "mil": 19,
+        "econ": 52,
+        "cult": 53,
+        "stab": 64,
+        "treasury": 174,
+        "era": "tribal",
+        "leader": "Sovereign Zhara",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      }
+    },
+    "20": {
+      "Selurian Republic": {
+        "pop": 53,
+        "mil": 35,
+        "econ": 81,
+        "cult": 78,
+        "stab": 59,
+        "treasury": 451,
+        "era": "bronze",
+        "leader": "High Priestess Thaldric",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Dorrathi Clans": {
+        "pop": 44,
+        "mil": 4,
+        "econ": 58,
+        "cult": 66,
+        "stab": 53,
+        "treasury": 448,
+        "era": "tribal",
+        "leader": "Chancellor Vaelith",
+        "regions": [
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.2820853830398095,
+          "merchant": 0.42728119201008363,
+          "cultural": 0.2906334249501068
+        }
+      },
+      "Kethani Empire": {
+        "pop": 48,
+        "mil": 0,
+        "econ": 88,
+        "cult": 79,
+        "stab": 57,
+        "treasury": 209,
+        "era": "tribal",
+        "leader": "Queen Saltara",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.18323728589538077,
+          "merchant": 0.6279727831821058,
+          "cultural": 0.18878993092251348
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 111,
+        "mil": 0,
+        "econ": 42,
+        "cult": 63,
+        "stab": 49,
+        "treasury": 40,
+        "era": "tribal",
+        "leader": "Sovereign Zhara",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.2820853830398095,
+          "merchant": 0.42728119201008363,
+          "cultural": 0.2906334249501068
+        }
+      }
+    },
+    "30": {
+      "Selurian Republic": {
+        "pop": 53,
+        "mil": 15,
+        "econ": 91,
+        "cult": 93,
+        "stab": 31,
+        "treasury": 691,
+        "era": "bronze",
+        "leader": "Emperor Coralind",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      },
+      "Dorrathi Clans": {
+        "pop": 44,
+        "mil": 4,
+        "econ": 40,
+        "cult": 66,
+        "stab": 44,
+        "treasury": 509,
+        "era": "tribal",
+        "leader": "Chancellor Vaelith",
+        "regions": [
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.190566777331196,
+          "merchant": 0.61309169450939,
+          "cultural": 0.19634152815941402
+        }
+      },
+      "Kethani Empire": {
+        "pop": 48,
+        "mil": 0,
+        "econ": 98,
+        "cult": 100,
+        "stab": 37,
+        "treasury": 108,
+        "era": "tribal",
+        "leader": "Tribune Deepwell",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.12378854474380814,
+          "merchant": 0.7486717424898441,
+          "cultural": 0.1275397127663478
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 111,
+        "mil": 0,
+        "econ": 62,
+        "cult": 63,
+        "stab": 51,
+        "treasury": -8,
+        "era": "tribal",
+        "leader": "Sovereign Zhara",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.24520198737839632,
+          "merchant": 0.4800317719724446,
+          "cultural": 0.2747662406491591
+        }
+      }
+    },
+    "40": {
+      "Selurian Republic": {
+        "pop": 50,
+        "mil": 15,
+        "econ": 100,
+        "cult": 93,
+        "stab": 19,
+        "treasury": 963,
+        "era": "bronze",
+        "leader": "Emperor Coralind",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.2825032873109796,
+          "merchant": 0.3893956826649134,
+          "cultural": 0.32810103002410695
+        }
+      },
+      "Dorrathi Clans": {
+        "pop": 31,
+        "mil": 4,
+        "econ": 70,
+        "cult": 66,
+        "stab": 48,
+        "treasury": 840,
+        "era": "tribal",
+        "leader": "Chancellor Vaelith",
+        "regions": [
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1239719351804656,
+          "merchant": 0.7166399898479874,
+          "cultural": 0.159388074971547
+        }
+      },
+      "Kethani Empire": {
+        "pop": 48,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 25,
+        "treasury": 226,
+        "era": "tribal",
+        "leader": "Tribune Deepwell",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.8,
+          "cultural": 0.1
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 103,
+        "mil": 0,
+        "econ": 72,
+        "cult": 63,
+        "stab": 54,
+        "treasury": 64,
+        "era": "tribal",
+        "leader": "Sovereign Zhara",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.2155488342861694,
+          "merchant": 0.5341227247731882,
+          "cultural": 0.25032844094064244
+        }
+      }
+    },
+    "50": {
+      "Selurian Republic": {
+        "pop": 20,
+        "mil": 5,
+        "econ": 80,
+        "cult": 93,
+        "stab": 0,
+        "treasury": 1151,
+        "era": "bronze",
+        "leader": "Emperor Coralind",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.2511443937320242,
+          "merchant": 0.4571749853003682,
+          "cultural": 0.2916806209676076
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 94,
+        "mil": 0,
+        "econ": 78,
+        "cult": 73,
+        "stab": 66,
+        "treasury": 95,
+        "era": "tribal",
+        "leader": "Empress Granith",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.17035137474055975,
+          "merchant": 0.6318104221806697,
+          "cultural": 0.1978382030787706
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 8,
+        "mil": 0,
+        "econ": 32,
+        "cult": 100,
+        "stab": 40,
+        "treasury": 63,
+        "era": "tribal",
+        "leader": "Leader",
+        "regions": [
+          "Sapphire Coast",
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "t": 0,
+      "type": "migration",
+      "imp": 9,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Population flees Ashara Desert (59 displaced)"
+    },
+    {
+      "t": 0,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the bronze era"
+    },
+    {
+      "t": 0,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Dorrathi Clans",
+        "Kethani Empire"
+      ],
+      "desc": "Dorrathi Clans imposed a trade embargo on Kethani Empire."
+    },
+    {
+      "t": 0,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Regent Trillia."
+    },
+    {
+      "t": 1,
+      "type": "expand",
+      "imp": 6,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Dorrathi Clans expanded into Thornwood."
+    },
+    {
+      "t": 1,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "desc": "Ashkari Nomads imposed a trade embargo on Kethani Empire."
+    },
+    {
+      "t": 2,
+      "type": "expand",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Ashkari Nomads expanded into Iron Peaks."
+    },
+    {
+      "t": 3,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "desc": "Ashkari Nomads takes Queen Portwyn hostage from Kethani Empire."
+    },
+    {
+      "t": 3,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "desc": "Ashkari Nomads attacked Kethani Empire: attacker_wins."
+    },
+    {
+      "t": 9,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Iron Compact"
+    },
+    {
+      "t": 10,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Ashkari Nomads",
+        "Dorrathi Clans"
+      ],
+      "desc": "Ashkari Nomads exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 12,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 13,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads",
+        "Dorrathi Clans"
+      ],
+      "desc": "Ashkari Nomads imposed a trade embargo on Dorrathi Clans."
+    },
+    {
+      "t": 14,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Wildfire sweeps through Thornwood"
+    },
+    {
+      "t": 15,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads",
+        "Dorrathi Clans"
+      ],
+      "desc": "Ashkari Nomads attacked Dorrathi Clans: stalemate."
+    },
+    {
+      "t": 16,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Ashkari Nomads",
+        "Dorrathi Clans"
+      ],
+      "desc": "Ashkari Nomads exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 18,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads",
+        "Dorrathi Clans"
+      ],
+      "desc": "Ashkari Nomads attacked Dorrathi Clans: stalemate."
+    },
+    {
+      "t": 20,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Sovereign Leeward."
+    },
+    {
+      "t": 21,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic produces a cultural masterwork"
+    },
+    {
+      "t": 23,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire"
+      ],
+      "desc": "Kethani Empire produces a cultural masterwork"
+    },
+    {
+      "t": 25,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire"
+      ],
+      "desc": "A great scientist emerges in Kethani Empire: King Caelwen."
+    },
+    {
+      "t": 29,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Iron Compact"
+    },
+    {
+      "t": 30,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire"
+      ],
+      "desc": "Kethani Empire produces a cultural masterwork"
+    },
+    {
+      "t": 30,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Silver Compact"
+    },
+    {
+      "t": 30,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Silver Compact"
+    },
+    {
+      "t": 31,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Eastern Pact"
+    },
+    {
+      "t": 31,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Eastern Pact"
+    },
+    {
+      "t": 32,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Grand Coalition"
+    },
+    {
+      "t": 32,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Grand Coalition"
+    },
+    {
+      "t": 33,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire"
+      ],
+      "desc": "Flooding devastates Sapphire Coast"
+    },
+    {
+      "t": 33,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Silver Coalition"
+    },
+    {
+      "t": 33,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Silver Coalition"
+    },
+    {
+      "t": 34,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 34,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Southern Accord"
+    },
+    {
+      "t": 34,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Southern Accord"
+    },
+    {
+      "t": 35,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Golden Alliance"
+    },
+    {
+      "t": 35,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Golden Alliance"
+    },
+    {
+      "t": 36,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Wildfire sweeps through Mistwood"
+    },
+    {
+      "t": 36,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Silver Confederation"
+    },
+    {
+      "t": 36,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Silver Confederation"
+    },
+    {
+      "t": 37,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire",
+        "Ashkari Nomads"
+      ],
+      "desc": "Kethani Empire takes Tribune Solstara hostage from Ashkari Nomads."
+    },
+    {
+      "t": 37,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "desc": "Ashkari Nomads attacked Kethani Empire: defender_wins."
+    },
+    {
+      "t": 37,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Silver Coalition"
+    },
+    {
+      "t": 37,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Silver Coalition"
+    },
+    {
+      "t": 38,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Maritime Accord"
+    },
+    {
+      "t": 38,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Maritime Accord"
+    },
+    {
+      "t": 39,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Western Confederation"
+    },
+    {
+      "t": 39,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Western Confederation"
+    },
+    {
+      "t": 40,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Grand Compact"
+    },
+    {
+      "t": 40,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Grand Compact"
+    },
+    {
+      "t": 40,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Kethani Empire",
+        "Selurian Republic"
+      ],
+      "desc": "Kethani Empire exposed funding separatists in Mistwood"
+    },
+    {
+      "t": 40,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Archon Curtainis."
+    },
+    {
+      "t": 41,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Maritime Alliance"
+    },
+    {
+      "t": 41,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Maritime Alliance"
+    },
+    {
+      "t": 42,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 42,
+      "type": "migration",
+      "imp": 7,
+      "actors": [
+        "Kethani Empire"
+      ],
+      "desc": "Population flees Sapphire Coast (25 displaced)"
+    },
+    {
+      "t": 42,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Grand Alliance"
+    },
+    {
+      "t": 42,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Grand Alliance"
+    },
+    {
+      "t": 43,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire",
+        "Ashkari Nomads"
+      ],
+      "desc": "Kethani Empire takes Tribune Inkwell hostage from Ashkari Nomads."
+    },
+    {
+      "t": 43,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads",
+        "Kethani Empire"
+      ],
+      "desc": "Ashkari Nomads attacked Kethani Empire: defender_wins."
+    },
+    {
+      "t": 43,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Western Confederation"
+    },
+    {
+      "t": 43,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Western Confederation"
+    },
+    {
+      "t": 43,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Kethani Empire"
+      ],
+      "desc": "Selurian Republic exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 44,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 44,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Silver Pact"
+    },
+    {
+      "t": 44,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Silver Pact"
+    },
+    {
+      "t": 45,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Southern Compact"
+    },
+    {
+      "t": 45,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Southern Compact"
+    },
+    {
+      "t": 45,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire"
+      ],
+      "desc": "A great scientist emerges in Kethani Empire: King Flotsam."
+    },
+    {
+      "t": 46,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Sacred Pact"
+    },
+    {
+      "t": 46,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Sacred Pact"
+    },
+    {
+      "t": 47,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Northern Coalition"
+    },
+    {
+      "t": 47,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Northern Coalition"
+    },
+    {
+      "t": 48,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Wildfire sweeps through Thornwood"
+    },
+    {
+      "t": 48,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Sacred Compact"
+    },
+    {
+      "t": 48,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Sacred Compact"
+    },
+    {
+      "t": 48,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Kethani Empire",
+        "Ashkari Nomads"
+      ],
+      "desc": "Kethani Empire exposed funding separatists in Obsidian Shore"
+    },
+    {
+      "t": 49,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Dorrathi Clans."
+    },
+    {
+      "t": 49,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Southern Coalition"
+    },
+    {
+      "t": 49,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Southern Coalition"
+    },
+    {
+      "t": 49,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Ashkari Nomads",
+        "Dorrathi Clans"
+      ],
+      "desc": "Ashkari Nomads exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 49,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Dorrathi Clans",
+        "Kethani Empire"
+      ],
+      "desc": "The Quiet End of Dorrathi Clans"
+    },
+    {
+      "t": 50,
+      "type": "secession",
+      "imp": 9,
+      "actors": [
+        "Kethani Empire",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Secession of Northern Sapphire Coast from Kethani Empire"
+    },
+    {
+      "t": 50,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Northern Accord"
+    },
+    {
+      "t": 50,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Northern Accord"
+    },
+    {
+      "t": 50,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Quiet End of Kethani Empire"
+    }
+  ]
+}

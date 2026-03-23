@@ -1,0 +1,3075 @@
+{
+  "seed": 115,
+  "world_name": "Aetheris",
+  "turn_range": [
+    150,
+    300
+  ],
+  "regions": [
+    {
+      "name": "Ashara Desert",
+      "terrain": "desert"
+    },
+    {
+      "name": "Thornwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Iron Peaks",
+      "terrain": "mountains"
+    },
+    {
+      "name": "Mistwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Obsidian Shore",
+      "terrain": "coast"
+    },
+    {
+      "name": "Sapphire Coast",
+      "terrain": "coast"
+    },
+    {
+      "name": "Amber Valley",
+      "terrain": "forest"
+    },
+    {
+      "name": "Stormbreak Cliffs",
+      "terrain": "mountains"
+    }
+  ],
+  "checkpoints": {
+    "150": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 50,
+        "treasury": 345,
+        "era": "information",
+        "leader": "High Priestess Buttressara",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.8,
+          "cultural": 0.1
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 57,
+        "mil": 0,
+        "econ": 90,
+        "cult": 100,
+        "stab": 53,
+        "treasury": 541,
+        "era": "information",
+        "leader": "Tribune Slatewood",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.190566777331196,
+          "merchant": 0.586069127756358,
+          "cultural": 0.22336409491244608
+        }
+      }
+    },
+    "160": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 10,
+        "econ": 90,
+        "cult": 100,
+        "stab": 50,
+        "treasury": 387,
+        "era": "information",
+        "leader": "Sovereign Citadel",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7730876586887853,
+          "cultural": 0.12691234131121473
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 59,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 53,
+        "treasury": 307,
+        "era": "information",
+        "leader": "Consul Kalahari",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.18323728589538077,
+          "merchant": 0.5635280074580366,
+          "cultural": 0.25323470664658276
+        }
+      }
+    },
+    "170": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 52,
+        "treasury": 95,
+        "era": "information",
+        "leader": "Matriarch Pikemond",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7676478417059177,
+          "cultural": 0.13235215829408226
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 32,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 48,
+        "treasury": 179,
+        "era": "information",
+        "leader": "Tribune Ironpeak",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.16289727993373487,
+          "merchant": 0.5764181336215192,
+          "cultural": 0.2606845864447459
+        }
+      }
+    },
+    "180": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 45,
+        "treasury": 321,
+        "era": "information",
+        "leader": "Elder Cairnhold",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.8,
+          "cultural": 0.1
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 32,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 30,
+        "treasury": -7,
+        "era": "information",
+        "leader": "High Priestess Laurelei",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.15149712153800032,
+          "merchant": 0.5953667831867187,
+          "cultural": 0.25313609527528097
+        }
+      }
+    },
+    "190": {
+      "Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 10,
+        "econ": 60,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 39,
+        "era": "information",
+        "leader": "Archon Aquilara",
+        "regions": [
+          "Sapphire Coast",
+          "Thornwood",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.24250634448836234,
+          "merchant": 0.259870154329824,
+          "cultural": 0.4976235011818137
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 49,
+        "cult": 100,
+        "stab": 56,
+        "treasury": 33,
+        "era": "information",
+        "leader": "Lower Northern Sapphire Coast Leader",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.3094313813682266,
+          "merchant": 0.35361659773882725,
+          "cultural": 0.3369520208929462
+        }
+      }
+    },
+    "200": {
+      "Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 7,
+        "econ": 69,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 115,
+        "era": "information",
+        "leader": "Patriarch Signifera",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.21590664573394083,
+          "merchant": 0.30543995221672365,
+          "cultural": 0.47865340204933554
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 69,
+        "cult": 100,
+        "stab": 34,
+        "treasury": 160,
+        "era": "information",
+        "leader": "Tribune Gneissara",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.3094313813682266,
+          "merchant": 0.35361659773882725,
+          "cultural": 0.3369520208929462
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 30,
+        "mil": 0,
+        "econ": 39,
+        "cult": 100,
+        "stab": 48,
+        "treasury": 78,
+        "era": "information",
+        "leader": "Western Northern Sapphire Coast Leader",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      }
+    },
+    "210": {
+      "Northern Sapphire Coast": {
+        "pop": 26,
+        "mil": 0,
+        "econ": 89,
+        "cult": 100,
+        "stab": 11,
+        "treasury": 328,
+        "era": "information",
+        "leader": "Patriarch Signifera",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.1919402218703246,
+          "merchant": 0.38253864664237064,
+          "cultural": 0.4255211314873047
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 79,
+        "cult": 100,
+        "stab": 20,
+        "treasury": 271,
+        "era": "information",
+        "leader": "Tribune Gneissara",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.26489509828394375,
+          "merchant": 0.3767948356163256,
+          "cultural": 0.35831006609973065
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 13,
+        "mil": 10,
+        "econ": 39,
+        "cult": 100,
+        "stab": 9,
+        "treasury": 291,
+        "era": "information",
+        "leader": "Tribune Haboobis",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.3173076923076923,
+          "merchant": 0.3557692307692307,
+          "cultural": 0.3269230769230769
+        }
+      }
+    },
+    "220": {
+      "Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 678,
+        "era": "information",
+        "leader": "Tribune Crystalis",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.17088694967087306,
+          "merchant": 0.3761918150306007,
+          "cultural": 0.45292123529852624
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 26,
+        "mil": 0,
+        "econ": 99,
+        "cult": 100,
+        "stab": 41,
+        "treasury": 610,
+        "era": "information",
+        "leader": "Tribune Gneissara",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.2093504439685154,
+          "merchant": 0.5074719060775387,
+          "cultural": 0.2831776499539459
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 10,
+        "econ": 59,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 571,
+        "era": "information",
+        "leader": "Sovereign Proofwind",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.27163777626055735,
+          "merchant": 0.30456356732244305,
+          "cultural": 0.42379865641699965
+        }
+      }
+    },
+    "230": {
+      "Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 1018,
+        "era": "information",
+        "leader": "Consul Zephyra",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.17088694967087306,
+          "merchant": 0.3761918150306007,
+          "cultural": 0.45292123529852624
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 46,
+        "treasury": 1046,
+        "era": "information",
+        "leader": "Chieftain Registan",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1593248191757663,
+          "merchant": 0.5895521021324767,
+          "cultural": 0.25112307869175704
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 25,
+        "mil": 10,
+        "econ": 69,
+        "cult": 100,
+        "stab": 35,
+        "treasury": 806,
+        "era": "information",
+        "leader": "Sovereign Proofwind",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.26119016948130513,
+          "merchant": 0.29284958396388755,
+          "cultural": 0.4459602465548073
+        }
+      }
+    },
+    "240": {
+      "Northern Sapphire Coast": {
+        "pop": 14,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 1435,
+        "era": "information",
+        "leader": "Consul Zephyra",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.10000000000000002,
+          "merchant": 0.619434816639312,
+          "cultural": 0.2805651833606881
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 8,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 38,
+        "treasury": 1392,
+        "era": "information",
+        "leader": "Chancellor Maceborn",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1416391840931582,
+          "merchant": 0.5625712105040935,
+          "cultural": 0.2957896054027483
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 10,
+        "mil": 0,
+        "econ": 99,
+        "cult": 100,
+        "stab": 55,
+        "treasury": 1030,
+        "era": "information",
+        "leader": "Sovereign Proofwind",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.23219710958951942,
+          "merchant": 0.3343636065905634,
+          "cultural": 0.4334392838199172
+        }
+      }
+    },
+    "250": {
+      "Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 1670,
+        "era": "information",
+        "leader": "Sovereign Sylvain",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5930758882716817,
+          "cultural": 0.30692411172831835
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 21,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 38,
+        "treasury": 1947,
+        "era": "information",
+        "leader": "Chieftain Ariqboke",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6834909813829062,
+          "cultural": 0.21650901861709387
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 51,
+        "treasury": 1346,
+        "era": "information",
+        "leader": "Sovereign Proofwind",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.22326645152838404,
+          "merchant": 0.3599650063370802,
+          "cultural": 0.41676854213453574
+        }
+      }
+    },
+    "260": {
+      "Northern Sapphire Coast": {
+        "pop": 4,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 1791,
+        "era": "information",
+        "leader": "King Dunewalker",
+        "regions": [
+          "Sapphire Coast",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5930758882716817,
+          "cultural": 0.30692411172831835
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 33,
+        "treasury": 2220,
+        "era": "information",
+        "leader": "Warchief Praetoris",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6632273595746423,
+          "cultural": 0.23677264042535764
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 47,
+        "treasury": 1752,
+        "era": "information",
+        "leader": "Tribune Disquisara",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1631386092373405,
+          "merchant": 0.5031050910719181,
+          "cultural": 0.3337562996907414
+        }
+      }
+    },
+    "270": {
+      "Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 87,
+        "cult": 100,
+        "stab": 5,
+        "treasury": 1772,
+        "era": "information",
+        "leader": "King Dunewalker",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5678386164303335,
+          "cultural": 0.3321613835696665
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 95,
+        "cult": 90,
+        "stab": 52,
+        "treasury": 2517,
+        "era": "industrial",
+        "leader": "Warchief Praetoris",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6805366860988206,
+          "cultural": 0.21946331390117943
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 28,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 34,
+        "treasury": 2054,
+        "era": "information",
+        "leader": "Elder Qutula",
+        "regions": [
+          "Thornwood",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.14502962957063298,
+          "merchant": 0.5582622353208194,
+          "cultural": 0.29670813510854765
+        }
+      }
+    },
+    "280": {
+      "Northern Sapphire Coast": {
+        "pop": 25,
+        "mil": 0,
+        "econ": 55,
+        "cult": 98,
+        "stab": 23,
+        "treasury": 1796,
+        "era": "information",
+        "leader": "King Dunewalker",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6249710212876012,
+          "cultural": 0.2750289787123989
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 14,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 49,
+        "treasury": 2454,
+        "era": "industrial",
+        "leader": "Warchief Praetoris",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6805366860988206,
+          "cultural": 0.21946331390117943
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 5,
+        "mil": 0,
+        "econ": 98,
+        "cult": 100,
+        "stab": 28,
+        "treasury": 2271,
+        "era": "information",
+        "leader": "Tribune Ashenvale",
+        "regions": [
+          "Thornwood",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.12893081258768435,
+          "merchant": 0.5347546328452324,
+          "cultural": 0.33631455456708337
+        }
+      }
+    },
+    "290": {
+      "Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 0,
+        "cult": 88,
+        "stab": 0,
+        "treasury": 1601,
+        "era": "information",
+        "leader": "King Dunewalker",
+        "regions": [
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6249710212876012,
+          "cultural": 0.2750289787123989
+        }
+      },
+      "Lower Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 2444,
+        "era": "industrial",
+        "leader": "Sovereign Shalewick",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6805366860988206,
+          "cultural": 0.21946331390117943
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 37,
+        "mil": 0,
+        "econ": 78,
+        "cult": 100,
+        "stab": 52,
+        "treasury": 2726,
+        "era": "information",
+        "leader": "Empress Helmgar",
+        "regions": [
+          "Thornwood",
+          "Stormbreak Cliffs"
+        ],
+        "factions": {
+          "military": 0.09999999999999998,
+          "merchant": 0.6761891859492973,
+          "cultural": 0.22381081405070266
+        }
+      }
+    },
+    "300": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 2303,
+        "era": "industrial",
+        "leader": "Sovereign Shalewick",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6988170164554603,
+          "cultural": 0.20118298354453973
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 68,
+        "cult": 100,
+        "stab": 13,
+        "treasury": 2636,
+        "era": "information",
+        "leader": "Queen Elara",
+        "regions": [
+          "Thornwood",
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.6761891859492973,
+          "cultural": 0.22381081405070266
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "t": 160,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Chieftain Turakina."
+    },
+    {
+      "t": 161,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 161,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Famine strikes Stormbreak Cliffs, devastating Selurian Republic."
+    },
+    {
+      "t": 162,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: King Treatisa."
+    },
+    {
+      "t": 168,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic loses the knowledge of the information era, falling back to industrial"
+    },
+    {
+      "t": 169,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the information era"
+    },
+    {
+      "t": 169,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops networks specialization"
+    },
+    {
+      "t": 175,
+      "type": "succession_crisis",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A succession crisis erupts in Northern Sapphire Coast after the death of Tribune Ironpeak."
+    },
+    {
+      "t": 175,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 176,
+      "type": "succession_crisis_resolved",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The succession crisis in Northern Sapphire Coast ends: High Priestess Laurelei rises to power after the fall of Consul Ergunis."
+    },
+    {
+      "t": 180,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Flooding devastates Sapphire Coast"
+    },
+    {
+      "t": 180,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Chieftain Windlass."
+    },
+    {
+      "t": 181,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Chieftain Turakina of Selurian Republic becomes a folk hero after a dramatic disaster."
+    },
+    {
+      "t": 182,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Sovereign Riptide."
+    },
+    {
+      "t": 185,
+      "type": "secession",
+      "imp": 9,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "The Secession of Lower Northern Sapphire Coast from Northern Sapphire Coast"
+    },
+    {
+      "t": 186,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 186,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 188,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 189,
+      "type": "collapse",
+      "imp": 10,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic collapsed under internal pressure."
+    },
+    {
+      "t": 190,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 190,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Quiet End of Selurian Republic"
+    },
+    {
+      "t": 191,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Silver Compact"
+    },
+    {
+      "t": 191,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Silver Compact"
+    },
+    {
+      "t": 192,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Sacred League"
+    },
+    {
+      "t": 192,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Sacred League"
+    },
+    {
+      "t": 193,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern Pact"
+    },
+    {
+      "t": 193,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Eastern Pact"
+    },
+    {
+      "t": 194,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern League"
+    },
+    {
+      "t": 194,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern League"
+    },
+    {
+      "t": 195,
+      "type": "secession",
+      "imp": 9,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "The Secession of Western Northern Sapphire Coast from Northern Sapphire Coast"
+    },
+    {
+      "t": 195,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Sacred Accord"
+    },
+    {
+      "t": 195,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Sacred Accord"
+    },
+    {
+      "t": 196,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 196,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 196,
+      "type": "capital_loss",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast lost capital Thornwood, relocated to Sapphire Coast"
+    },
+    {
+      "t": 196,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Iron League"
+    },
+    {
+      "t": 196,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Iron League"
+    },
+    {
+      "t": 197,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern Coalition"
+    },
+    {
+      "t": 197,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Eastern Coalition"
+    },
+    {
+      "t": 198,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Grand Pact"
+    },
+    {
+      "t": 198,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Grand Pact"
+    },
+    {
+      "t": 199,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Alliance"
+    },
+    {
+      "t": 214,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Empress Subotai."
+    },
+    {
+      "t": 224,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Patriarch Hazelborn."
+    },
+    {
+      "t": 226,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 231,
+      "type": "power_struggle_started",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast: cultural and merchant factions begin a power struggle."
+    },
+    {
+      "t": 233,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 234,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 234,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Consul Harbright."
+    },
+    {
+      "t": 237,
+      "type": "power_struggle_resolved",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast: merchant faction prevails after 6 turns of infighting."
+    },
+    {
+      "t": 238,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Accord"
+    },
+    {
+      "t": 238,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Accord"
+    },
+    {
+      "t": 239,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Pact"
+    },
+    {
+      "t": 239,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Western Pact"
+    },
+    {
+      "t": 240,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern Accord"
+    },
+    {
+      "t": 240,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Eastern Accord"
+    },
+    {
+      "t": 241,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Alliance"
+    },
+    {
+      "t": 241,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern Alliance"
+    },
+    {
+      "t": 242,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern League"
+    },
+    {
+      "t": 242,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Eastern League"
+    },
+    {
+      "t": 243,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Pact"
+    },
+    {
+      "t": 243,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Western Pact"
+    },
+    {
+      "t": 244,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Compact"
+    },
+    {
+      "t": 244,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Compact"
+    },
+    {
+      "t": 244,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Sovereign Stockadis."
+    },
+    {
+      "t": 245,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western League"
+    },
+    {
+      "t": 245,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Western League"
+    },
+    {
+      "t": 246,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Grand Pact"
+    },
+    {
+      "t": 246,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Grand Pact"
+    },
+    {
+      "t": 247,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Sacred Compact"
+    },
+    {
+      "t": 247,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Sacred Compact"
+    },
+    {
+      "t": 247,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: King Scorchwind."
+    },
+    {
+      "t": 248,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern Confederation"
+    },
+    {
+      "t": 248,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Eastern Confederation"
+    },
+    {
+      "t": 249,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 249,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Accord"
+    },
+    {
+      "t": 249,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern Accord"
+    },
+    {
+      "t": 250,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 250,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Iron Coalition"
+    },
+    {
+      "t": 250,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Iron Coalition"
+    },
+    {
+      "t": 251,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Alliance"
+    },
+    {
+      "t": 251,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Alliance"
+    },
+    {
+      "t": 252,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Compact"
+    },
+    {
+      "t": 252,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern Compact"
+    },
+    {
+      "t": 253,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Compact"
+    },
+    {
+      "t": 253,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Maritime Compact"
+    },
+    {
+      "t": 254,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden Confederation"
+    },
+    {
+      "t": 254,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Golden Confederation"
+    },
+    {
+      "t": 254,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Queen Ironvar."
+    },
+    {
+      "t": 255,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Coalition"
+    },
+    {
+      "t": 255,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Coalition"
+    },
+    {
+      "t": 256,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Iron Compact"
+    },
+    {
+      "t": 256,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Iron Compact"
+    },
+    {
+      "t": 257,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Flooding devastates Sapphire Coast"
+    },
+    {
+      "t": 257,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Coalition"
+    },
+    {
+      "t": 257,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Coalition"
+    },
+    {
+      "t": 258,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Accord"
+    },
+    {
+      "t": 258,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern Accord"
+    },
+    {
+      "t": 259,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden Pact"
+    },
+    {
+      "t": 259,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Golden Pact"
+    },
+    {
+      "t": 260,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western League"
+    },
+    {
+      "t": 260,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Western League"
+    },
+    {
+      "t": 261,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Silver Alliance"
+    },
+    {
+      "t": 261,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Silver Alliance"
+    },
+    {
+      "t": 262,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Compact"
+    },
+    {
+      "t": 262,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Western Compact"
+    },
+    {
+      "t": 263,
+      "type": "scorched_earth",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast scorched Stormbreak Cliffs during retreat"
+    },
+    {
+      "t": 263,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast takes Queen Ironvar hostage from Northern Sapphire Coast."
+    },
+    {
+      "t": 263,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast attacked Northern Sapphire Coast: attacker_wins."
+    },
+    {
+      "t": 263,
+      "type": "congress_ceasefire",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Kethani Empire",
+        "Northern Sapphire Coast",
+        "Ashkari Nomads"
+      ],
+      "desc": "Partial ceasefire achieved at diplomatic congress"
+    },
+    {
+      "t": 263,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern League"
+    },
+    {
+      "t": 263,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern League"
+    },
+    {
+      "t": 264,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Pact"
+    },
+    {
+      "t": 264,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern Pact"
+    },
+    {
+      "t": 264,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Queen Toregene."
+    },
+    {
+      "t": 265,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 265,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast imposed a trade embargo on Northern Sapphire Coast."
+    },
+    {
+      "t": 265,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast imposed a trade embargo on Northern Sapphire Coast."
+    },
+    {
+      "t": 265,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern League"
+    },
+    {
+      "t": 265,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Eastern League"
+    },
+    {
+      "t": 266,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes Queen Toregene hostage from Lower Northern Sapphire Coast."
+    },
+    {
+      "t": 266,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 266,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Alliance"
+    },
+    {
+      "t": 266,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Maritime Alliance"
+    },
+    {
+      "t": 267,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern League"
+    },
+    {
+      "t": 267,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern League"
+    },
+    {
+      "t": 267,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: Regent Atacaris."
+    },
+    {
+      "t": 268,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Sacred Confederation"
+    },
+    {
+      "t": 268,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Sacred Confederation"
+    },
+    {
+      "t": 269,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Silver Accord"
+    },
+    {
+      "t": 269,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Silver Accord"
+    },
+    {
+      "t": 269,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 269,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast loses the knowledge of the information era, falling back to industrial"
+    },
+    {
+      "t": 270,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Confederation"
+    },
+    {
+      "t": 270,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Confederation"
+    },
+    {
+      "t": 270,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 271,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes King Mojavan hostage from Lower Northern Sapphire Coast."
+    },
+    {
+      "t": 271,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 271,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Grand League"
+    },
+    {
+      "t": 271,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Grand League"
+    },
+    {
+      "t": 272,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Pact"
+    },
+    {
+      "t": 272,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Maritime Pact"
+    },
+    {
+      "t": 273,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden League"
+    },
+    {
+      "t": 273,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Golden League"
+    },
+    {
+      "t": 274,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden Compact"
+    },
+    {
+      "t": 274,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Golden Compact"
+    },
+    {
+      "t": 274,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Warchief Hullbreaker."
+    },
+    {
+      "t": 275,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Grand Compact"
+    },
+    {
+      "t": 275,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Grand Compact"
+    },
+    {
+      "t": 276,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Pact"
+    },
+    {
+      "t": 276,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Maritime Pact"
+    },
+    {
+      "t": 277,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes Queen Birchwind hostage from Lower Northern Sapphire Coast."
+    },
+    {
+      "t": 277,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 277,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Grand Alliance"
+    },
+    {
+      "t": 277,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Grand Alliance"
+    },
+    {
+      "t": 278,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 278,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden League"
+    },
+    {
+      "t": 278,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Golden League"
+    },
+    {
+      "t": 279,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Pact"
+    },
+    {
+      "t": 279,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Western Pact"
+    },
+    {
+      "t": 279,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast exposed funding separatists in Stormbreak Cliffs"
+    },
+    {
+      "t": 280,
+      "type": "twilight",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Twilight of Northern Sapphire Coast"
+    },
+    {
+      "t": 280,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden League"
+    },
+    {
+      "t": 280,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Golden League"
+    },
+    {
+      "t": 281,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast takes Warchief Hullbreaker hostage from Northern Sapphire Coast."
+    },
+    {
+      "t": 281,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes Queen Toregene hostage from Lower Northern Sapphire Coast."
+    },
+    {
+      "t": 281,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes Regent Atacaris hostage from Western Northern Sapphire Coast."
+    },
+    {
+      "t": 281,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast attacked Lower Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 281,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 281,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 281,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern League"
+    },
+    {
+      "t": 281,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern League"
+    },
+    {
+      "t": 282,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Accord"
+    },
+    {
+      "t": 282,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Southern Accord"
+    },
+    {
+      "t": 283,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Silver Alliance"
+    },
+    {
+      "t": 283,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Silver Alliance"
+    },
+    {
+      "t": 283,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 284,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 284,
+      "type": "congress_ceasefire",
+      "imp": 7,
+      "actors": [
+        "Kethani Empire",
+        "Lower Northern Sapphire Coast",
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast",
+        "Ashkari Nomads"
+      ],
+      "desc": "Partial ceasefire achieved at diplomatic congress"
+    },
+    {
+      "t": 284,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Pact"
+    },
+    {
+      "t": 284,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Western Alliance"
+    },
+    {
+      "t": 284,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Collapse of The Northern Pact"
+    },
+    {
+      "t": 284,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Regent Briarvale."
+    },
+    {
+      "t": 285,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Iron Compact"
+    },
+    {
+      "t": 285,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Iron Compact"
+    },
+    {
+      "t": 286,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Accord"
+    },
+    {
+      "t": 286,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Maritime Accord"
+    },
+    {
+      "t": 287,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Accord"
+    },
+    {
+      "t": 287,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Maritime Accord"
+    },
+    {
+      "t": 287,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: King Gorath."
+    },
+    {
+      "t": 288,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Regent Atacaris of Northern Sapphire Coast becomes a folk hero after a dramatic war."
+    },
+    {
+      "t": 288,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Compact"
+    },
+    {
+      "t": 288,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Western Compact"
+    },
+    {
+      "t": 289,
+      "type": "terrain_transition",
+      "imp": 6,
+      "actors": [],
+      "desc": "Amber Valley transforms from plains to forest"
+    },
+    {
+      "t": 289,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Alliance"
+    },
+    {
+      "t": 289,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Southern Alliance"
+    },
+    {
+      "t": 289,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 290,
+      "type": "congress_collapse",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire",
+        "Lower Northern Sapphire Coast",
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast",
+        "Ashkari Nomads"
+      ],
+      "desc": "The Failed Congress"
+    },
+    {
+      "t": 290,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Northern Pact"
+    },
+    {
+      "t": 290,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Northern Pact"
+    },
+    {
+      "t": 291,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Silver Alliance"
+    },
+    {
+      "t": 291,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Silver Alliance"
+    },
+    {
+      "t": 291,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 292,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Southern Confederation"
+    },
+    {
+      "t": 292,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Southern Confederation"
+    },
+    {
+      "t": 293,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes Regent Briarvale hostage from Lower Northern Sapphire Coast."
+    },
+    {
+      "t": 293,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Queen Toregene of Northern Sapphire Coast becomes a folk hero after a dramatic war."
+    },
+    {
+      "t": 293,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 293,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime League"
+    },
+    {
+      "t": 293,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Maritime League"
+    },
+    {
+      "t": 294,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Sacred Compact"
+    },
+    {
+      "t": 294,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Sacred Compact"
+    },
+    {
+      "t": 294,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 295,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes Queen Birchwind hostage from Lower Northern Sapphire Coast."
+    },
+    {
+      "t": 295,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 295,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Eastern Coalition"
+    },
+    {
+      "t": 295,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Eastern Coalition"
+    },
+    {
+      "t": 295,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 296,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Western Accord"
+    },
+    {
+      "t": 296,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Western Accord"
+    },
+    {
+      "t": 297,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast takes King Gorath hostage from Western Northern Sapphire Coast."
+    },
+    {
+      "t": 297,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast attacked Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 297,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Iron Confederation"
+    },
+    {
+      "t": 297,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Iron Confederation"
+    },
+    {
+      "t": 298,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Maritime Pact"
+    },
+    {
+      "t": 298,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Maritime Pact"
+    },
+    {
+      "t": 299,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Warchief Hullbreaker of Northern Sapphire Coast becomes a folk hero after a dramatic war."
+    },
+    {
+      "t": 299,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Silver Confederation"
+    },
+    {
+      "t": 299,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Silver Confederation"
+    },
+    {
+      "t": 300,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Formation of The Golden Pact"
+    },
+    {
+      "t": 300,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Collapse of The Golden Pact"
+    },
+    {
+      "t": 300,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "The Quiet End of Northern Sapphire Coast"
+    }
+  ]
+}

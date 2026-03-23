@@ -1,0 +1,1649 @@
+{
+  "seed": 115,
+  "world_name": "Aetheris",
+  "turn_range": [
+    50,
+    150
+  ],
+  "regions": [
+    {
+      "name": "Ashara Desert",
+      "terrain": "desert"
+    },
+    {
+      "name": "Thornwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Iron Peaks",
+      "terrain": "mountains"
+    },
+    {
+      "name": "Mistwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Obsidian Shore",
+      "terrain": "coast"
+    },
+    {
+      "name": "Sapphire Coast",
+      "terrain": "coast"
+    },
+    {
+      "name": "Amber Valley",
+      "terrain": "forest"
+    },
+    {
+      "name": "Stormbreak Cliffs",
+      "terrain": "mountains"
+    }
+  ],
+  "checkpoints": {
+    "50": {
+      "Selurian Republic": {
+        "pop": 20,
+        "mil": 5,
+        "econ": 80,
+        "cult": 93,
+        "stab": 0,
+        "treasury": 1151,
+        "era": "bronze",
+        "leader": "Emperor Coralind",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.2511443937320242,
+          "merchant": 0.4571749853003682,
+          "cultural": 0.2916806209676076
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 94,
+        "mil": 0,
+        "econ": 78,
+        "cult": 73,
+        "stab": 66,
+        "treasury": 95,
+        "era": "tribal",
+        "leader": "Empress Granith",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.17035137474055975,
+          "merchant": 0.6318104221806697,
+          "cultural": 0.1978382030787706
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 8,
+        "mil": 0,
+        "econ": 32,
+        "cult": 100,
+        "stab": 40,
+        "treasury": 63,
+        "era": "tribal",
+        "leader": "Leader",
+        "regions": [
+          "Sapphire Coast",
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.33,
+          "merchant": 0.33,
+          "cultural": 0.34
+        }
+      }
+    },
+    "60": {
+      "Selurian Republic": {
+        "pop": 49,
+        "mil": 0,
+        "econ": 80,
+        "cult": 93,
+        "stab": 57,
+        "treasury": 1408,
+        "era": "bronze",
+        "leader": "Emperor Coralind",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1908490984827978,
+          "merchant": 0.587497601878078,
+          "cultural": 0.2216532996391243
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 75,
+        "mil": 0,
+        "econ": 78,
+        "cult": 88,
+        "stab": 45,
+        "treasury": 233,
+        "era": "tribal",
+        "leader": "Empress Granith",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.13463116593556382,
+          "merchant": 0.7090144284269333,
+          "cultural": 0.15635440563750283
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 52,
+        "cult": 100,
+        "stab": 48,
+        "treasury": 171,
+        "era": "tribal",
+        "leader": "Leader",
+        "regions": [
+          "Sapphire Coast",
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.22293617571251365,
+          "merchant": 0.5473720068867148,
+          "cultural": 0.22969181740077158
+        }
+      }
+    },
+    "70": {
+      "Selurian Republic": {
+        "pop": 29,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 52,
+        "treasury": 1615,
+        "era": "bronze",
+        "leader": "Patriarch Summitara",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.15083081475345825,
+          "merchant": 0.6739933628657253,
+          "cultural": 0.17517582238081641
+        }
+      },
+      "Ashkari Nomads": {
+        "pop": 52,
+        "mil": 0,
+        "econ": 67,
+        "cult": 88,
+        "stab": 29,
+        "treasury": 384,
+        "era": "tribal",
+        "leader": "Empress Granith",
+        "regions": [
+          "Amber Valley",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.11065700469705618,
+          "merchant": 0.7608310710482331,
+          "cultural": 0.12851192425471078
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 82,
+        "cult": 100,
+        "stab": 63,
+        "treasury": 383,
+        "era": "tribal",
+        "leader": "Leader",
+        "regions": [
+          "Sapphire Coast",
+          "Ashara Desert",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.15060769224642642,
+          "merchant": 0.6942207460451342,
+          "cultural": 0.15517156170843935
+        }
+      }
+    },
+    "80": {
+      "Selurian Republic": {
+        "pop": 10,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 69,
+        "treasury": 2009,
+        "era": "bronze",
+        "leader": "Patriarch Summitara",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.10189589400223802,
+          "merchant": 0.77976159715269,
+          "cultural": 0.11834250884507198
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 5,
+        "mil": 20,
+        "econ": 90,
+        "cult": 100,
+        "stab": 48,
+        "treasury": 178,
+        "era": "medieval",
+        "leader": "Leader",
+        "regions": [
+          "Sapphire Coast",
+          "Ashara Desert",
+          "Thornwood",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7876579850696974,
+          "cultural": 0.1123420149303026
+        }
+      },
+      "Southern Amber Valley": {
+        "pop": 56,
+        "mil": 0,
+        "econ": 35,
+        "cult": 93,
+        "stab": 51,
+        "treasury": 172,
+        "era": "tribal",
+        "leader": "Southern Amber Valley Leader",
+        "regions": [
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.2933687983614019,
+          "merchant": 0.40437243969048703,
+          "cultural": 0.3022587619481111
+        }
+      }
+    },
+    "90": {
+      "Selurian Republic": {
+        "pop": 36,
+        "mil": 29,
+        "econ": 100,
+        "cult": 100,
+        "stab": 8,
+        "treasury": 746,
+        "era": "information",
+        "leader": "Queen Kaidu",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Mistwood",
+          "Sapphire Coast",
+          "Ashara Desert",
+          "Thornwood",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7999999999999999,
+          "cultural": 0.1
+        }
+      },
+      "Southern Amber Valley": {
+        "pop": 56,
+        "mil": 0,
+        "econ": 45,
+        "cult": 96,
+        "stab": 46,
+        "treasury": 325,
+        "era": "tribal",
+        "leader": "Archon Tharada",
+        "regions": [
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.2143617074158785,
+          "merchant": 0.5647807758526104,
+          "cultural": 0.22085751673151113
+        }
+      }
+    },
+    "100": {
+      "Selurian Republic": {
+        "pop": 28,
+        "mil": 1,
+        "econ": 65,
+        "cult": 90,
+        "stab": 53,
+        "treasury": 401,
+        "era": "industrial",
+        "leader": "Matriarch Archivon",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7999999999999999,
+          "cultural": 0.1
+        }
+      },
+      "Southern Amber Valley": {
+        "pop": 20,
+        "mil": 0,
+        "econ": 85,
+        "cult": 100,
+        "stab": 36,
+        "treasury": 445,
+        "era": "tribal",
+        "leader": "Tribune Obsidara",
+        "regions": [
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.19818944842444386,
+          "merchant": 0.5976153622897656,
+          "cultural": 0.20419518928579058
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 33,
+        "mil": 0,
+        "econ": 52,
+        "cult": 100,
+        "stab": 48,
+        "treasury": 269,
+        "era": "information",
+        "leader": "Northern Sapphire Coast Leader",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.3173076923076923,
+          "merchant": 0.3557692307692307,
+          "cultural": 0.3269230769230769
+        }
+      }
+    },
+    "110": {
+      "Selurian Republic": {
+        "pop": 34,
+        "mil": 0,
+        "econ": 96,
+        "cult": 100,
+        "stab": 42,
+        "treasury": 268,
+        "era": "information",
+        "leader": "Archon Sapienth",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7999999999999999,
+          "cultural": 0.1
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 26,
+        "mil": 0,
+        "econ": 62,
+        "cult": 100,
+        "stab": 54,
+        "treasury": 460,
+        "era": "information",
+        "leader": "Sovereign Banyaris",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.2820853830398095,
+          "merchant": 0.42728119201008363,
+          "cultural": 0.2906334249501068
+        }
+      }
+    },
+    "120": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 10,
+        "econ": 96,
+        "cult": 100,
+        "stab": 35,
+        "treasury": 421,
+        "era": "information",
+        "leader": "Consul Morainia",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7955609946076228,
+          "cultural": 0.10443900539237723
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 26,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 57,
+        "treasury": 556,
+        "era": "information",
+        "leader": "Archon Doctrinis",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.2143617074158785,
+          "merchant": 0.5343840633245278,
+          "cultural": 0.2512542292595938
+        }
+      }
+    },
+    "130": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 53,
+        "treasury": 511,
+        "era": "information",
+        "leader": "Emperor Saltflat",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.10000000000000003,
+          "merchant": 0.8,
+          "cultural": 0.10000000000000003
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 26,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 41,
+        "treasury": 550,
+        "era": "information",
+        "leader": "Elder Talonpeak",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.19818944842444386,
+          "merchant": 0.5695118928666123,
+          "cultural": 0.23229865870894392
+        }
+      }
+    },
+    "140": {
+      "Selurian Republic": {
+        "pop": 34,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 41,
+        "treasury": 255,
+        "era": "information",
+        "leader": "High Priestess Deepforge",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.8,
+          "cultural": 0.1
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 20,
+        "mil": 0,
+        "econ": 90,
+        "cult": 100,
+        "stab": 44,
+        "treasury": 618,
+        "era": "information",
+        "leader": "Queen Grammaris",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.19818944842444386,
+          "merchant": 0.5695118928666123,
+          "cultural": 0.23229865870894392
+        }
+      }
+    },
+    "150": {
+      "Selurian Republic": {
+        "pop": 35,
+        "mil": 10,
+        "econ": 100,
+        "cult": 100,
+        "stab": 50,
+        "treasury": 345,
+        "era": "information",
+        "leader": "High Priestess Buttressara",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Ashara Desert",
+          "Iron Peaks",
+          "Obsidian Shore",
+          "Amber Valley"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.8,
+          "cultural": 0.1
+        }
+      },
+      "Northern Sapphire Coast": {
+        "pop": 57,
+        "mil": 0,
+        "econ": 90,
+        "cult": 100,
+        "stab": 53,
+        "treasury": 541,
+        "era": "information",
+        "leader": "Tribune Slatewood",
+        "regions": [
+          "Sapphire Coast",
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.190566777331196,
+          "merchant": 0.586069127756358,
+          "cultural": 0.22336409491244608
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "t": 50,
+      "type": "secession",
+      "imp": 9,
+      "actors": [
+        "Kethani Empire",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Secession of Northern Sapphire Coast from Kethani Empire"
+    },
+    {
+      "t": 50,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Northern Accord"
+    },
+    {
+      "t": 50,
+      "type": "federation_collapsed",
+      "imp": 7,
+      "actors": [
+        "Dorrathi Clans"
+      ],
+      "desc": "Collapse of The Northern Accord"
+    },
+    {
+      "t": 50,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Quiet End of Kethani Empire"
+    },
+    {
+      "t": 51,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 51,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 51,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Ashkari Nomads."
+    },
+    {
+      "t": 51,
+      "type": "federation_formed",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic",
+        "Dorrathi Clans"
+      ],
+      "desc": "Formation of The Eastern Coalition"
+    },
+    {
+      "t": 52,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Kethani Empire"
+      ],
+      "desc": "Northern Sapphire Coast imposed a trade embargo on Kethani Empire."
+    },
+    {
+      "t": 53,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 54,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 56,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Ashkari Nomads."
+    },
+    {
+      "t": 56,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Sapphire Coast, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 57,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Ashkari Nomads produces a cultural masterwork"
+    },
+    {
+      "t": 58,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast prepared for war but found no target."
+    },
+    {
+      "t": 58,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 59,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 60,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Queen Tidara."
+    },
+    {
+      "t": 61,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 61,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Ashkari Nomads."
+    },
+    {
+      "t": 61,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Sapphire Coast, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 63,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Flooding devastates Sapphire Coast"
+    },
+    {
+      "t": 63,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 64,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 66,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Ashkari Nomads."
+    },
+    {
+      "t": 66,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Sapphire Coast, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 68,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic produces a cultural masterwork"
+    },
+    {
+      "t": 68,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 68,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Obsidian Shore, devastating Ashkari Nomads."
+    },
+    {
+      "t": 69,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 71,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast prepared for war but found no target."
+    },
+    {
+      "t": 71,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Ashkari Nomads."
+    },
+    {
+      "t": 71,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Sapphire Coast, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 73,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 73,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Obsidian Shore, devastating Ashkari Nomads."
+    },
+    {
+      "t": 74,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 76,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Ashkari Nomads"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Ashkari Nomads."
+    },
+    {
+      "t": 76,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Sapphire Coast, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 76,
+      "type": "secession",
+      "imp": 9,
+      "actors": [
+        "Ashkari Nomads",
+        "Southern Amber Valley"
+      ],
+      "desc": "The Secession of Southern Amber Valley from Ashkari Nomads"
+    },
+    {
+      "t": 76,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Ashkari Nomads",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Quiet End of Ashkari Nomads"
+    },
+    {
+      "t": 77,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast advances to the bronze era"
+    },
+    {
+      "t": 77,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast prepared for war but found no target."
+    },
+    {
+      "t": 77,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Southern Amber Valley"
+      ],
+      "desc": "Southern Amber Valley produces a cultural masterwork"
+    },
+    {
+      "t": 77,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Matriarch Starboard."
+    },
+    {
+      "t": 78,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast advances to the iron era"
+    },
+    {
+      "t": 78,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 78,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Obsidian Shore, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 79,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Wildfire sweeps through Mistwood"
+    },
+    {
+      "t": 79,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast advances to the classical era"
+    },
+    {
+      "t": 79,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast develops agriculture specialization"
+    },
+    {
+      "t": 79,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Southern Amber Valley"
+      ],
+      "desc": "Southern Amber Valley prepared for war but found no target."
+    },
+    {
+      "t": 79,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Ashara Desert, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 79,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Famine strikes Mistwood, devastating Selurian Republic."
+    },
+    {
+      "t": 80,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast advances to the medieval era"
+    },
+    {
+      "t": 80,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast develops scholarship specialization"
+    },
+    {
+      "t": 80,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Chancellor Monographis."
+    },
+    {
+      "t": 81,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast advances to the renaissance era"
+    },
+    {
+      "t": 81,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast develops banking specialization"
+    },
+    {
+      "t": 81,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast prepared for war but found no target."
+    },
+    {
+      "t": 81,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 81,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Sapphire Coast, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 81,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Selurian Republic"
+      ],
+      "desc": "The Quiet End of Northern Sapphire Coast"
+    },
+    {
+      "t": 82,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the iron era"
+    },
+    {
+      "t": 83,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the classical era"
+    },
+    {
+      "t": 83,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops agriculture specialization"
+    },
+    {
+      "t": 83,
+      "type": "embargo",
+      "imp": 6,
+      "actors": [
+        "Southern Amber Valley",
+        "Ashkari Nomads"
+      ],
+      "desc": "Southern Amber Valley imposed a trade embargo on Ashkari Nomads."
+    },
+    {
+      "t": 84,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the medieval era"
+    },
+    {
+      "t": 84,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops commerce specialization"
+    },
+    {
+      "t": 85,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the renaissance era"
+    },
+    {
+      "t": 85,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops banking specialization"
+    },
+    {
+      "t": 86,
+      "type": "succession_crisis",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A succession crisis erupts in Selurian Republic after the death of Patriarch Summitara."
+    },
+    {
+      "t": 86,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the industrial era"
+    },
+    {
+      "t": 86,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops railways specialization"
+    },
+    {
+      "t": 86,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Southern Amber Valley"
+      ],
+      "desc": "Southern Amber Valley prepared for war but found no target."
+    },
+    {
+      "t": 87,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the information era"
+    },
+    {
+      "t": 87,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops networks specialization"
+    },
+    {
+      "t": 89,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 89,
+      "type": "war",
+      "imp": 3,
+      "actors": [
+        "Southern Amber Valley"
+      ],
+      "desc": "Southern Amber Valley prepared for war but found no target."
+    },
+    {
+      "t": 89,
+      "type": "succession_crisis_resolved",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "The succession crisis in Selurian Republic ends: Queen Kaidu rises to power after the fall of King Temuge."
+    },
+    {
+      "t": 89,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Famine strikes Stormbreak Cliffs, devastating Selurian Republic."
+    },
+    {
+      "t": 92,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 92,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Southern Amber Valley"
+      ],
+      "desc": "Southern Amber Valley produces a cultural masterwork"
+    },
+    {
+      "t": 93,
+      "type": "secession",
+      "imp": 9,
+      "actors": [
+        "Selurian Republic",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "The Secession of Northern Sapphire Coast from Selurian Republic"
+    },
+    {
+      "t": 93,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic loses the knowledge of the information era, falling back to industrial"
+    },
+    {
+      "t": 94,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 94,
+      "type": "cultural_work",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Northern Sapphire Coast produces a cultural masterwork"
+    },
+    {
+      "t": 95,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 95,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Famine strikes Iron Peaks, devastating Selurian Republic."
+    },
+    {
+      "t": 96,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Selurian Republic"
+      ],
+      "desc": "Northern Sapphire Coast exposed funding separatists in Obsidian Shore"
+    },
+    {
+      "t": 97,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic",
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Selurian Republic takes Elder Corniceus hostage from Northern Sapphire Coast."
+    },
+    {
+      "t": 97,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast",
+        "Selurian Republic"
+      ],
+      "desc": "Northern Sapphire Coast attacked Selurian Republic: defender_wins."
+    },
+    {
+      "t": 100,
+      "type": "congress_collapse",
+      "imp": 6,
+      "actors": [
+        "Kethani Empire",
+        "Northern Sapphire Coast",
+        "Ashkari Nomads",
+        "Selurian Republic"
+      ],
+      "desc": "The Failed Congress"
+    },
+    {
+      "t": 100,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Empress Onagris."
+    },
+    {
+      "t": 106,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the information era"
+    },
+    {
+      "t": 106,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops networks specialization"
+    },
+    {
+      "t": 107,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Southern Amber Valley",
+        "Selurian Republic"
+      ],
+      "desc": "The Quiet End of Southern Amber Valley"
+    },
+    {
+      "t": 108,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Wildfire sweeps through Mistwood"
+    },
+    {
+      "t": 108,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Mistwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 108,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Famine strikes Amber Valley, devastating Selurian Republic."
+    },
+    {
+      "t": 120,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: King Negeva."
+    },
+    {
+      "t": 122,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Empress Twilara."
+    },
+    {
+      "t": 136,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 136,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Famine strikes Stormbreak Cliffs, devastating Selurian Republic."
+    },
+    {
+      "t": 138,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic loses the knowledge of the information era, falling back to industrial"
+    },
+    {
+      "t": 139,
+      "type": "tech_advancement",
+      "imp": 7,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic advances to the information era"
+    },
+    {
+      "t": 139,
+      "type": "tech_focus_selected",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "Selurian Republic develops networks specialization"
+    },
+    {
+      "t": 140,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Wildfire sweeps through Mistwood"
+    },
+    {
+      "t": 140,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Mistwood, devastating Northern Sapphire Coast."
+    },
+    {
+      "t": 140,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Selurian Republic"
+      ],
+      "desc": "A great scientist emerges in Selurian Republic: Matriarch Palmyra."
+    },
+    {
+      "t": 142,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Northern Sapphire Coast: Patriarch Spruceford."
+    },
+    {
+      "t": 143,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Flooding devastates Sapphire Coast"
+    },
+    {
+      "t": 145,
+      "type": "terrain_transition",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Mistwood transforms from forest to plains"
+    },
+    {
+      "t": 146,
+      "type": "terrain_transition",
+      "imp": 6,
+      "actors": [
+        "Northern Sapphire Coast"
+      ],
+      "desc": "Thornwood transforms from forest to plains"
+    }
+  ]
+}

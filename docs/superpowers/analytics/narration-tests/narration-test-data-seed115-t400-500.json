@@ -1,0 +1,1086 @@
+{
+  "seed": 115,
+  "world_name": "Aetheris",
+  "turn_range": [
+    400,
+    499
+  ],
+  "regions": [
+    {
+      "name": "Ashara Desert",
+      "terrain": "desert"
+    },
+    {
+      "name": "Thornwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Iron Peaks",
+      "terrain": "mountains"
+    },
+    {
+      "name": "Mistwood",
+      "terrain": "plains"
+    },
+    {
+      "name": "Obsidian Shore",
+      "terrain": "coast"
+    },
+    {
+      "name": "Sapphire Coast",
+      "terrain": "coast"
+    },
+    {
+      "name": "Amber Valley",
+      "terrain": "forest"
+    },
+    {
+      "name": "Stormbreak Cliffs",
+      "terrain": "mountains"
+    }
+  ],
+  "checkpoints": {
+    "400": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 4,
+        "treasury": 1914,
+        "era": "renaissance",
+        "leader": "Consul Gillian",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7145897233423291,
+          "cultural": 0.185410276657671
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 4,
+        "mil": 0,
+        "econ": 96,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 534,
+        "era": "information",
+        "leader": "High Priestess Bastionis",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5595944093352945,
+          "cultural": 0.3404055906647055
+        }
+      },
+      "Greater Western Northern Sapphire Coast": {
+        "pop": 10,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 19,
+        "treasury": 1552,
+        "era": "information",
+        "leader": "Empress Cragmore",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.15105426781235232,
+          "merchant": 0.40021168176935223,
+          "cultural": 0.4487340504182955
+        }
+      }
+    },
+    "410": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 90,
+        "cult": 90,
+        "stab": 0,
+        "treasury": 1857,
+        "era": "medieval",
+        "leader": "Patriarch Quartzara",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7224795223490384,
+          "cultural": 0.1775204776509616
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 92,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 514,
+        "era": "information",
+        "leader": "Tribune Thornwick",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5576230260936698,
+          "cultural": 0.3423769739063303
+        }
+      },
+      "Greater Western Northern Sapphire Coast": {
+        "pop": 11,
+        "mil": 0,
+        "econ": 87,
+        "cult": 90,
+        "stab": 49,
+        "treasury": 1357,
+        "era": "industrial",
+        "leader": "Empress Cragmore",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1034504902287094,
+          "merchant": 0.2740875532608428,
+          "cultural": 0.6224619565104479
+        }
+      }
+    },
+    "420": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 8,
+        "mil": 0,
+        "econ": 100,
+        "cult": 90,
+        "stab": 0,
+        "treasury": 1785,
+        "era": "medieval",
+        "leader": "Patriarch Quartzara",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7224795223490384,
+          "cultural": 0.1775204776509616
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 67,
+        "cult": 75,
+        "stab": 0,
+        "treasury": 355,
+        "era": "industrial",
+        "leader": "High Priestess Volumen",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5163044429707075,
+          "cultural": 0.3836955570292924
+        }
+      },
+      "Greater Western Northern Sapphire Coast": {
+        "pop": 27,
+        "mil": 0,
+        "econ": 65,
+        "cult": 90,
+        "stab": 51,
+        "treasury": 1140,
+        "era": "industrial",
+        "leader": "Empress Cragmore",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.30183006342482616,
+          "cultural": 0.5981699365751739
+        }
+      }
+    },
+    "430": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 8,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 5,
+        "treasury": 1766,
+        "era": "medieval",
+        "leader": "Warchief Driftmere",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7632471478618855,
+          "cultural": 0.13675285213811458
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 14,
+        "cult": 85,
+        "stab": 5,
+        "treasury": 115,
+        "era": "industrial",
+        "leader": "Emperor Gorgemeld",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.5163044429707075,
+          "cultural": 0.3836955570292924
+        }
+      },
+      "Greater Western Northern Sapphire Coast": {
+        "pop": 35,
+        "mil": 0,
+        "econ": 11,
+        "cult": 84,
+        "stab": 0,
+        "treasury": 839,
+        "era": "industrial",
+        "leader": "Elder Bulwark",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.30183006342482616,
+          "cultural": 0.5981699365751739
+        }
+      }
+    },
+    "440": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 3,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 0,
+        "treasury": 1635,
+        "era": "medieval",
+        "leader": "Chancellor Shieldra",
+        "regions": [
+          "Mistwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7632471478618855,
+          "cultural": 0.13675285213811458
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 0,
+        "cult": 85,
+        "stab": 0,
+        "treasury": -15,
+        "era": "industrial",
+        "leader": "Emperor Gorgemeld",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.12233906792616778,
+          "merchant": 0.3738835671205895,
+          "cultural": 0.5037773649532428
+        }
+      },
+      "Greater Western Northern Sapphire Coast": {
+        "pop": 13,
+        "mil": 0,
+        "econ": 12,
+        "cult": 64,
+        "stab": 10,
+        "treasury": 483,
+        "era": "industrial",
+        "leader": "Chancellor Bouldergate",
+        "regions": [
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.32728410327908886,
+          "cultural": 0.5727158967209112
+        }
+      }
+    },
+    "450": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 10,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 5,
+        "treasury": 1635,
+        "era": "medieval",
+        "leader": "Emperor Scholara",
+        "regions": [
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7850801590721082,
+          "cultural": 0.11491984092789179
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 0,
+        "cult": 85,
+        "stab": 0,
+        "treasury": -9,
+        "era": "industrial",
+        "leader": "King Peakwind",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.3531040549402715,
+          "merchant": 0.1,
+          "cultural": 0.5468959450597286
+        }
+      }
+    },
+    "460": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 6,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 16,
+        "treasury": 1686,
+        "era": "medieval",
+        "leader": "Emperor Scholara",
+        "regions": [
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.10000000000000002,
+          "merchant": 0.7273593471142797,
+          "cultural": 0.1726406528857203
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 10,
+        "mil": 0,
+        "econ": 10,
+        "cult": 85,
+        "stab": 28,
+        "treasury": 4,
+        "era": "industrial",
+        "leader": "Chancellor Belgutei",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.3132842048011957,
+          "merchant": 0.1,
+          "cultural": 0.5867157951988043
+        }
+      }
+    },
+    "470": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 56,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 28,
+        "treasury": 1644,
+        "era": "medieval",
+        "leader": "Regent Dayir",
+        "regions": [
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7549219555049793,
+          "cultural": 0.14507804449502062
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 5,
+        "mil": 10,
+        "econ": 20,
+        "cult": 85,
+        "stab": 8,
+        "treasury": 38,
+        "era": "industrial",
+        "leader": "King Sassafras",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.3132842048011957,
+          "merchant": 0.1,
+          "cultural": 0.5867157951988043
+        }
+      }
+    },
+    "480": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 119,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 53,
+        "treasury": 1481,
+        "era": "medieval",
+        "leader": "Patriarch Erudis",
+        "regions": [
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.1,
+          "merchant": 0.7549219555049793,
+          "cultural": 0.14507804449502062
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 26,
+        "mil": 0,
+        "econ": 20,
+        "cult": 85,
+        "stab": 20,
+        "treasury": 36,
+        "era": "industrial",
+        "leader": "King Sassafras",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.3132842048011957,
+          "merchant": 0.1,
+          "cultural": 0.5867157951988043
+        }
+      }
+    },
+    "490": {
+      "Lower Northern Sapphire Coast": {
+        "pop": 78,
+        "mil": 0,
+        "econ": 100,
+        "cult": 100,
+        "stab": 48,
+        "treasury": 1325,
+        "era": "medieval",
+        "leader": "Patriarch Erudis",
+        "regions": [
+          "Mistwood",
+          "Thornwood"
+        ],
+        "factions": {
+          "military": 0.10000000000000002,
+          "merchant": 0.7227976169728526,
+          "cultural": 0.17720238302714744
+        }
+      },
+      "Western Northern Sapphire Coast": {
+        "pop": 63,
+        "mil": 0,
+        "econ": 30,
+        "cult": 85,
+        "stab": 51,
+        "treasury": 21,
+        "era": "industrial",
+        "leader": "Archon Sentinell",
+        "regions": [
+          "Stormbreak Cliffs",
+          "Sapphire Coast"
+        ],
+        "factions": {
+          "military": 0.2884163096574019,
+          "merchant": 0.13461538461538464,
+          "cultural": 0.5769683057272136
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "t": 400,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 402,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast takes Emperor Flanker hostage from Greater Western Northern Sapphire Coast."
+    },
+    {
+      "t": 402,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast attacked Western Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 403,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 404,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 404,
+      "type": "tech_accident",
+      "imp": 8,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Industrial disaster in Thornwood poisons the surrounding lands"
+    },
+    {
+      "t": 404,
+      "type": "famine",
+      "imp": 8,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Famine strikes Thornwood, devastating Greater Western Northern Sapphire Coast."
+    },
+    {
+      "t": 404,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Chieftain Stonvar."
+    },
+    {
+      "t": 404,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast loses the knowledge of the renaissance era, falling back to medieval"
+    },
+    {
+      "t": 405,
+      "type": "power_struggle_resolved",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast: cultural faction prevails after 6 turns of infighting."
+    },
+    {
+      "t": 406,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Sovereign Fernhollow of Greater Western Northern Sapphire Coast becomes a folk hero after a dramatic war."
+    },
+    {
+      "t": 408,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast exposed funding separatists in Stormbreak Cliffs"
+    },
+    {
+      "t": 408,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast loses the knowledge of the information era, falling back to industrial"
+    },
+    {
+      "t": 412,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 413,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Chieftain Kelphorn of Lower Northern Sapphire Coast becomes a folk hero after a dramatic disaster."
+    },
+    {
+      "t": 413,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: Elder Curricula."
+    },
+    {
+      "t": 414,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 414,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast loses the knowledge of the information era, falling back to industrial"
+    },
+    {
+      "t": 415,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Tribune Stonehelm of Greater Western Northern Sapphire Coast becomes a folk hero after a dramatic war."
+    },
+    {
+      "t": 415,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 418,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast takes Regent Sandara hostage from Greater Western Northern Sapphire Coast."
+    },
+    {
+      "t": 418,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast attacked Lower Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 419,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Wildfire sweeps through Amber Valley"
+    },
+    {
+      "t": 419,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 421,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 423,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 424,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: King Pinecrest."
+    },
+    {
+      "t": 425,
+      "type": "hostage_taken",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast takes Matriarch Cascadis hostage from Greater Western Northern Sapphire Coast."
+    },
+    {
+      "t": 425,
+      "type": "war",
+      "imp": 8,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast attacked Western Northern Sapphire Coast: defender_wins."
+    },
+    {
+      "t": 428,
+      "type": "twilight",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "The Twilight of Greater Western Northern Sapphire Coast"
+    },
+    {
+      "t": 430,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 431,
+      "type": "congress_peace",
+      "imp": 9,
+      "actors": [
+        "Western Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "The Congress of Mistwood"
+    },
+    {
+      "t": 433,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 433,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: High Priestess Mossgrove."
+    },
+    {
+      "t": 438,
+      "type": "power_struggle_started",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast: merchant and cultural factions begin a power struggle."
+    },
+    {
+      "t": 441,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 442,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Wildfire sweeps through Amber Valley"
+    },
+    {
+      "t": 444,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Lower Northern Sapphire Coast",
+        "Greater Western Northern Sapphire Coast"
+      ],
+      "desc": "Lower Northern Sapphire Coast exposed funding separatists in Thornwood"
+    },
+    {
+      "t": 444,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast exposed funding separatists in Sapphire Coast"
+    },
+    {
+      "t": 444,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: King Plateauris."
+    },
+    {
+      "t": 444,
+      "type": "power_struggle_resolved",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast: military faction prevails after 6 turns of infighting."
+    },
+    {
+      "t": 448,
+      "type": "proxy_detected",
+      "imp": 7,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Greater Western Northern Sapphire Coast exposed funding separatists in Mistwood"
+    },
+    {
+      "t": 448,
+      "type": "twilight_absorption",
+      "imp": 6,
+      "actors": [
+        "Greater Western Northern Sapphire Coast",
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "The Quiet End of Greater Western Northern Sapphire Coast"
+    },
+    {
+      "t": 449,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Earthquake strikes Stormbreak Cliffs"
+    },
+    {
+      "t": 453,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: Empress Qasar."
+    },
+    {
+      "t": 461,
+      "type": "earthquake",
+      "imp": 7,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Earthquake strikes Iron Peaks"
+    },
+    {
+      "t": 464,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Chancellor Flintara."
+    },
+    {
+      "t": 467,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 468,
+      "type": "terrain_transition",
+      "imp": 6,
+      "actors": [],
+      "desc": "Amber Valley transforms from forest to plains"
+    },
+    {
+      "t": 468,
+      "type": "terrain_transition",
+      "imp": 6,
+      "actors": [],
+      "desc": "Amber Valley transforms from plains to forest"
+    },
+    {
+      "t": 471,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Flooding devastates Sapphire Coast"
+    },
+    {
+      "t": 473,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: Sovereign Scribanis."
+    },
+    {
+      "t": 474,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Empress Qasar of Western Northern Sapphire Coast becomes a folk hero after a dramatic disaster."
+    },
+    {
+      "t": 474,
+      "type": "wildfire",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Wildfire sweeps through Amber Valley"
+    },
+    {
+      "t": 484,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Lower Northern Sapphire Coast: Sovereign Toghrul."
+    },
+    {
+      "t": 490,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Lower Northern Sapphire Coast"
+      ],
+      "desc": "Chancellor Flintara of Lower Northern Sapphire Coast becomes a folk hero after a dramatic disaster."
+    },
+    {
+      "t": 491,
+      "type": "flood",
+      "imp": 6,
+      "actors": [
+        "nature"
+      ],
+      "desc": "Flooding devastates Obsidian Shore"
+    },
+    {
+      "t": 493,
+      "type": "great_person_born",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "A great scientist emerges in Western Northern Sapphire Coast: Archon Anvilor."
+    },
+    {
+      "t": 494,
+      "type": "tech_regression",
+      "imp": 9,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Western Northern Sapphire Coast loses the knowledge of the industrial era, falling back to renaissance"
+    },
+    {
+      "t": 495,
+      "type": "folk_hero_created",
+      "imp": 6,
+      "actors": [
+        "Western Northern Sapphire Coast"
+      ],
+      "desc": "Sovereign Scribanis of Western Northern Sapphire Coast becomes a folk hero after a dramatic disaster."
+    }
+  ]
+}
