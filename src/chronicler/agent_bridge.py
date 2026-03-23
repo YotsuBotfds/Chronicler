@@ -581,6 +581,44 @@ def configure_ecology_runtime(simulator, world: "WorldState") -> None:
     )
 
 
+def configure_economy_runtime(simulator, world: "WorldState") -> None:
+    """Wire economy config onto a Rust AgentSimulator.
+
+    Reads tuning overrides from world.tuning_overrides; falls back to
+    EconomyConfig::default() values when no override is present.
+    """
+    from chronicler.tuning import get_override
+    from chronicler.economy import (
+        BASE_PRICE, PER_CAPITA_FOOD, RAW_MATERIAL_PER_SOLDIER,
+        LUXURY_PER_WEALTHY_AGENT, LUXURY_DEMAND_THRESHOLD,
+        CARRY_PER_MERCHANT, FARMER_INCOME_MODIFIER_FLOOR,
+        FARMER_INCOME_MODIFIER_CAP, MERCHANT_MARGIN_NORMALIZER,
+        TAX_RATE, TRADE_DEPENDENCY_THRESHOLD, PER_GOOD_CAP_FACTOR,
+        SALT_PRESERVATION_FACTOR, MAX_PRESERVATION,
+    )
+    simulator.set_economy_config(
+        base_price=get_override(world, "economy.base_price", BASE_PRICE),
+        per_capita_food=get_override(world, "economy.per_capita_food", PER_CAPITA_FOOD),
+        raw_material_per_soldier=get_override(world, "economy.raw_material_per_soldier", RAW_MATERIAL_PER_SOLDIER),
+        luxury_per_wealthy_agent=get_override(world, "economy.luxury_per_wealthy_agent", LUXURY_PER_WEALTHY_AGENT),
+        luxury_demand_threshold=get_override(world, "economy.luxury_demand_threshold", LUXURY_DEMAND_THRESHOLD),
+        carry_per_merchant=get_override(world, "economy.carry_per_merchant", CARRY_PER_MERCHANT),
+        farmer_income_modifier_floor=get_override(world, "economy.farmer_income_modifier_floor", FARMER_INCOME_MODIFIER_FLOOR),
+        farmer_income_modifier_cap=get_override(world, "economy.farmer_income_modifier_cap", FARMER_INCOME_MODIFIER_CAP),
+        merchant_margin_normalizer=get_override(world, "economy.merchant_margin_normalizer", MERCHANT_MARGIN_NORMALIZER),
+        tax_rate=get_override(world, "economy.tax_rate", TAX_RATE),
+        trade_dependency_threshold=get_override(world, "economy.trade_dependency_threshold", TRADE_DEPENDENCY_THRESHOLD),
+        per_good_cap_factor=get_override(world, "economy.per_good_cap_factor", PER_GOOD_CAP_FACTOR),
+        salt_preservation_factor=get_override(world, "economy.salt_preservation_factor", SALT_PRESERVATION_FACTOR),
+        max_preservation=get_override(world, "economy.max_preservation", MAX_PRESERVATION),
+        tatonnement_max_passes=int(get_override(world, "economy.tatonnement_max_passes", 3)),
+        tatonnement_damping=get_override(world, "economy.tatonnement_damping", 0.2),
+        tatonnement_convergence=get_override(world, "economy.tatonnement_convergence", 0.01),
+        tatonnement_price_clamp_lo=get_override(world, "economy.tatonnement_price_clamp_lo", 0.5),
+        tatonnement_price_clamp_hi=get_override(world, "economy.tatonnement_price_clamp_hi", 2.0),
+    )
+
+
 class AgentBridge:
     def __init__(self, world: WorldState, mode: str = "demographics-only",
                  shadow_output: Path | None = None,
@@ -592,6 +630,8 @@ class AgentBridge:
         world._agent_bridge = self
         # M54a: Wire river topology and ecology config from tuning overrides
         configure_ecology_runtime(self._sim, world)
+        # M54b: Wire economy config from tuning overrides
+        configure_economy_runtime(self._sim, world)
         self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
         self._demand_manager = DemandSignalManager()
         self._shadow_logger: ShadowLogger | None = None

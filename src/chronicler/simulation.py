@@ -1357,18 +1357,35 @@ def run_turn(
     env_rng = _random_m35b.Random(seed + world.turn * 1013)
     turn_events.extend(check_environmental_events(world, env_rng))
 
-    # --- M42: Goods economy (Phase 2 sub-sequence) ---
+    # --- M42/M54b: Goods economy (Phase 2 sub-sequence) ---
+    # M54b: Route through Rust economy when agent-backed snapshot exists.
+    # Python compute_economy() remains available as the parity oracle for tests.
     economy_result = None
     if agent_bridge is not None:
-        from chronicler.economy import compute_economy
         region_map = {r.name: r for r in world.regions}
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
-            from chronicler.resources import get_active_trade_routes
+            from chronicler.resources import get_active_trade_routes, get_season_id
+            from chronicler.economy import (
+                build_economy_region_input_batch,
+                build_economy_trade_route_batch,
+                reconstruct_economy_result,
+            )
+            from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             active_routes = get_active_trade_routes(world)
-            economy_result = compute_economy(
-                world, snapshot, region_map, agent_mode=True,
-                active_trade_routes=active_routes,
+            region_input = build_economy_region_input_batch(world)
+            trade_route_input = build_economy_trade_route_batch(
+                world, active_trade_routes=active_routes,
+            )
+            season_id = get_season_id(world.turn)
+            is_winter = season_id == 3
+            trade_friction = get_multiplier(world, K_TRADE_FRICTION)
+            rust_return = agent_bridge._sim.tick_economy(
+                region_input, trade_route_input,
+                season_id, is_winter, trade_friction,
+            )
+            economy_result = reconstruct_economy_result(
+                *rust_return, world,
             )
             agent_bridge.set_economy_result(economy_result)
 
