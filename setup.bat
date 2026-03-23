@@ -1,6 +1,6 @@
 @echo off
 REM Chronicler setup script for Windows — installs all dependencies and builds components.
-REM Usage: setup.bat [--no-rust] [--no-viewer] [--api] [--gemini]
+REM Usage: setup.bat [--no-rust] [--api] [--gemini]
 
 setlocal enabledelayedexpansion
 

@@ -33,7 +33,7 @@ if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
 fi
 
 PYTHON=$(command -v python3 || command -v python)
-PY_VERSION=$($PYTHON --version 2>&1 | grep -oP '\d+\.\d+')
+PY_VERSION=$($PYTHON --version 2>&1 | sed 's/[^0-9]*\([0-9]*\.[0-9]*\).*/\1/')
 echo "[1/4] Found Python $PY_VERSION"
 
 # Create virtual environment
@@ -81,8 +81,6 @@ if [ "$NO_RUST" -eq 0 ]; then
 else
     echo "[4/4] Skipping Rust agent crate (--no-rust)"
 fi
-
-echo "[4/4] Setup complete"
 
 echo ""
 echo "=== Setup Complete ==="

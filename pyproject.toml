@@ -8,6 +8,10 @@ dependencies = [
     "openai>=1.0.0",
     "pyyaml>=6.0",
     "websockets>=13.0",
+    "numpy>=2.0",
+    "scipy>=1.14",
+    "pyarrow>=17.0",
+    "arro3-core>=0.4",
 ]
 
 [project.optional-dependencies]
