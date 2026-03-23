@@ -632,6 +632,9 @@ class AgentBridge:
         configure_ecology_runtime(self._sim, world)
         # M54b: Wire economy config from tuning overrides
         configure_economy_runtime(self._sim, world)
+        # Prime the simulator once at bridge construction so the first Phase 2
+        # economy tick sees the live world population rather than an empty pool.
+        self._sim.set_region_state(build_region_batch(world))
         self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
         self._demand_manager = DemandSignalManager()
         self._shadow_logger: ShadowLogger | None = None

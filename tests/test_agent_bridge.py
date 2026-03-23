@@ -168,6 +168,18 @@ class TestTickBehavior:
 
 
 class TestDemographicsOnlyIntegration:
+    def test_bridge_primes_initial_snapshot_before_first_turn(self, sample_world):
+        for region in sample_world.regions:
+            region.population = region.carrying_capacity if region.controller is not None else 0
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        snap = bridge.get_snapshot()
+
+        expected = sum(
+            region.population for region in sample_world.regions if region.controller is not None
+        )
+        assert snap.num_rows == expected
+
     def test_demographics_only_20_turns(self, sample_world):
         # Seed region populations from carrying_capacity so the bridge has agents to tick
         for region in sample_world.regions:

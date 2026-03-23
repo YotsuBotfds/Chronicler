@@ -2232,26 +2232,32 @@ impl AgentSimulator {
         }
 
         // --- Derive per-civ merchant wealth and priest count ---
-        // Determine number of civs
-        let n_civs = {
-            let mut max_civ: u8 = 0;
-            for slot in 0..self.pool.capacity() {
-                if self.pool.is_alive(slot) {
-                    let ca = self.pool.civ_affinity(slot);
-                    if ca != 255 && ca > max_civ {
-                        max_civ = ca;
-                    }
-                }
+        // Match Python's "living civ" semantics: fiscal outputs are keyed to civs
+        // that currently control at least one region, not every affinity present
+        // in the live pool. This keeps zero-agent controller civs explicit at 0.0
+        // and prevents Phase 10 from falling back to stale trade_income values.
+        let mut active_civ_flags = [false; 256];
+        let mut active_civ_ids: Vec<u8> = Vec::new();
+        let mut max_active_civ: Option<u8> = None;
+        for region in &self.regions {
+            let civ = region.controller_civ;
+            if civ == 255 || active_civ_flags[civ as usize] {
+                continue;
             }
-            if self.pool.alive_count() == 0 { 0 } else { max_civ as usize + 1 }
-        };
+            active_civ_flags[civ as usize] = true;
+            active_civ_ids.push(civ);
+            max_active_civ = Some(max_active_civ.map_or(civ, |prev| prev.max(civ)));
+        }
+        active_civ_ids.sort_unstable();
+
+        let n_civs = max_active_civ.map_or(0, |max_civ| max_civ as usize + 1);
 
         let mut civ_merchant_wealth = vec![0.0f32; n_civs];
         let mut civ_priest_count = vec![0u32; n_civs];
         for slot in 0..self.pool.capacity() {
             if !self.pool.is_alive(slot) { continue; }
             let ca = self.pool.civ_affinity(slot) as usize;
-            if ca >= n_civs { continue; }
+            if ca >= n_civs || !active_civ_flags[ca] { continue; }
             match Occupation::from_u8(self.pool.occupation(slot)) {
                 Some(Occupation::Merchant) => {
                     civ_merchant_wealth[ca] += self.pool.wealth[slot];
@@ -2334,13 +2340,14 @@ impl AgentSimulator {
         ).map_err(arrow_err)?;
 
         // 2. Civ result batch
-        let n_civ_out = output.civ_results.len();
+        let n_civ_out = active_civ_ids.len();
         let mut cr_cid = UInt8Builder::with_capacity(n_civ_out);
         let mut cr_tax = Float32Builder::with_capacity(n_civ_out);
         let mut cr_tb = Float32Builder::with_capacity(n_civ_out);
         let mut cr_pts = Float32Builder::with_capacity(n_civ_out);
-        for cr in &output.civ_results {
-            cr_cid.append_value(cr.civ_id as u8);
+        for &civ_id in &active_civ_ids {
+            let cr = &output.civ_results[civ_id as usize];
+            cr_cid.append_value(civ_id);
             cr_tax.append_value(cr.treasury_tax);
             cr_tb.append_value(cr.tithe_base);
             cr_pts.append_value(cr.priest_tithe_share);

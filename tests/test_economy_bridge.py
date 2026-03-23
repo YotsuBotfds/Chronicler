@@ -10,7 +10,9 @@ from unittest.mock import MagicMock
 import numpy as np
 import pyarrow as pa
 import pytest
+from chronicler_agents import AgentSimulator
 
+from chronicler.agent_bridge import build_region_batch, configure_economy_runtime
 from chronicler.economy import (
     CATEGORIES,
     EconomyResult,
@@ -19,6 +21,7 @@ from chronicler.economy import (
     build_economy_trade_route_batch,
     reconstruct_economy_result,
 )
+from chronicler.factions import compute_tithe_base
 from chronicler.models import Region, RegionStockpile
 
 
@@ -337,6 +340,37 @@ def test_reconstruct_economy_result_fiscal():
     assert result.tithe_base[0] == pytest.approx(100.0)
     assert result.priest_tithe_shares[0] == pytest.approx(10.0)
     assert result.treasury_tax[1] == pytest.approx(2.0)
+
+
+def test_tick_economy_emits_zero_tithe_base_for_controlled_zero_agent_civ(sample_world):
+    """Controlled civs with zero agents must still get explicit zero fiscal rows."""
+    civ_a = sample_world.civilizations[0]
+    civ_b = sample_world.civilizations[1]
+
+    for region in sample_world.regions:
+        region.population = 0
+
+    sample_world.regions[0].controller = civ_a.name
+    sample_world.regions[0].population = 10
+    sample_world.regions[1].controller = civ_b.name
+    sample_world.regions[1].population = 0
+    civ_a.regions = [sample_world.regions[0].name]
+    civ_b.regions = [sample_world.regions[1].name]
+    civ_b.last_income = 123
+    sample_world.turn = 0
+
+    sim = AgentSimulator(num_regions=len(sample_world.regions), seed=sample_world.seed)
+    configure_economy_runtime(sim, sample_world)
+    sim.set_region_state(build_region_batch(sample_world))
+
+    region_input = build_economy_region_input_batch(sample_world)
+    trade_route_input = build_economy_trade_route_batch(sample_world, active_trade_routes=[])
+    rust_return = sim.tick_economy(region_input, trade_route_input, 0, False, 1.0)
+    result = reconstruct_economy_result(*rust_return, sample_world)
+
+    assert 1 in result.tithe_base
+    assert result.tithe_base[1] == pytest.approx(0.0)
+    assert compute_tithe_base(civ_b, economy_result=result, civ_idx=1) == pytest.approx(0.0)
 
 
 def test_reconstruct_economy_result_observability():
