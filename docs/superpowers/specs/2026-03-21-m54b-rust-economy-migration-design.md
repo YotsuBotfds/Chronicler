@@ -1,10 +1,11 @@
-# M54b: Rust Economy Migration — Pre-Spec
+# M54b: Rust Economy Migration — Design Spec
 
-> **Status:** Design-ahead (pre-spec). Locks scope, invariants, and open questions. Full implementation spec follows after M54a proves the migration contract.
+> **Status:** Implementation-ready. Runtime semantics, consumer contracts, migration boundaries, FFI shape, helper ownership, and schema surface are locked from the landed M54a pattern.
 >
 > **Date:** 2026-03-21
+> **Updated:** 2026-03-23
 >
-> **Depends on:** M54a (Rust Ecology Migration) — establishes Arrow-batch-in / Arrow-batch-out pattern, shared FFI helpers, and bridge conventions.
+> **Depends on:** M54a (Rust Ecology Migration, landed) — reuse its explicit Arrow schema helpers, direct `PyRecordBatch` FFI methods, config wiring pattern, and split-bridge discipline.
 
 ---
 
@@ -59,7 +60,7 @@ Updated stockpiles serve dual duty: they are durable world state after write-bac
 | Region signals (`farmer_income_modifier`, `food_sufficiency`, `merchant_margin`, `merchant_trade_income`, `trade_route_count`) | Rust return batch | Feed agent tick via bridge |
 | Civ signals (`priest_tithe_share`, `treasury_tax`, `tithe_base`) | Rust return batch | `treasury_tax` routed through `StatAccumulator` (keep category). `tithe_base` consumed by `tick_factions()` in Phase 10 to compute tithe and mutate `civ.treasury`. `priest_tithe_share` feeds agent tick via bridge. |
 | Consumer observability (`imports_by_region`, `inbound_sources`, `stockpile_levels`, `import_share`, `trade_dependent`) | Rust return batch | Feed EconomyTracker, shock detection, narration |
-| `region_goods` (per-good production/imports/exports/prices) | Unresolved | May become sidecar-only, validation-mode-only, or compact observability. Pre-spec does not promise it survives as a production return payload. |
+| `region_goods` (per-good production/imports/exports/prices) | Validation/debug only unless explicitly retained | No same-turn consumer depends on it today. If kept after migration, it is for parity/debugging, not the production bridge contract. |
 | `conservation` | Rust inline + Python validation | See Section 7 |
 
 ---
@@ -90,7 +91,12 @@ After `tick_economy()` returns and Python writes back stockpiles, here is who re
 | `build_region_batch()` | farmer_income_modifier, food_sufficiency, merchant_margin, merchant_trade_income, trade_route_count | Must be available before `AgentBridge.tick()` starts building batches |
 | `build_signals()` | priest_tithe_share | Must be available before `AgentBridge.tick()` starts building batches |
 
-Whether these read from a cached Rust return batch or from `_economy_result` is a full-spec decision.
+**Decision:** `_economy_result` remains the canonical Python-side transient handoff object. After `tick_economy()` returns, Python assembles a refreshed `EconomyResult`-like object, writes back stockpiles, stores that object on `world._economy_result`, and `AgentBridge` continues reading same-turn region/civ economy signals from that object when building the later agent batches.
+
+Why lock this now:
+- the current bridge already reads economy signals from `_economy_result`
+- later Python consumers already key off `_economy_result`
+- it avoids inventing a second cached-return path just for the bridge
 
 ### Later-phase Python consumers
 
@@ -104,39 +110,83 @@ Phase 8 and Phase 10 consume a mix of durable (stockpiles) and transient (econom
 
 ---
 
-## 4. FFI Contract (Conceptual)
+## 4. FFI Contract (Locked)
 
-This section locks the shape, not exact schemas — those wait for M54a.
+This section locks the payload families, method shape, return order, and helper ownership boundaries. M54a already established the conventions this milestone should mirror.
 
 ### Entry point
 
+```python
+AgentSimulator.tick_economy(
+    region_input_batch: PyRecordBatch,
+    trade_route_batch: PyRecordBatch,
+    season_id: int,
+    is_winter: bool,
+    trade_friction: float,
+) -> tuple[
+    PyRecordBatch,  # region_result_batch
+    PyRecordBatch,  # civ_result_batch
+    PyRecordBatch,  # observability_batch
+    PyRecordBatch,  # upstream_sources_batch
+    PyRecordBatch,  # conservation_batch
+]
 ```
-AgentSimulator.tick_economy(region_input_batch, trade_route_batch, economy_context)
-    -> (region_result_batch, civ_result_batch, observability_batch)
-```
+
+Lock this to the M54a FFI style:
+- batch payloads cross the boundary as explicit `PyRecordBatch` values
+- per-turn scalar context crosses as primitive method arguments, not an `economy_context` wrapper object or one-row batch
+- config is set separately through a dedicated `set_economy_config(...)` method, matching M54a's `set_ecology_config(...)`
+- Python unpacks the return tuple in the fixed order above
 
 ### Input family (Python → Rust)
 
 | Batch | Contents | Notes |
 |-------|----------|-------|
-| Region input | **World-state inputs:** stockpile goods (fixed slots), terrain, resource_type, resource_effective_yield_0 (ecology-mutated, not static world-gen yield), controller_civ. **Agent-derived counts:** population, farmer_count, soldier_count, merchant_count, wealthy_count, priest_count. | One row per region. Agent-derived vs world-state distinction matters for how the batch is built. `scholar_count` omitted — not consumed by any economy formula. |
-| Trade routes | Per-route: origin_region_id, dest_region_id, is_river, is_coastal | Stable-sorted by (origin, dest) before crossing FFI. Transport cost computation also needs endpoint terrain (from region input) and friction_multiplier (from economy context). Whether Python pre-computes transport costs or Rust derives them is a full-spec decision. |
-| Economy context | Current season (winter bool), friction_multiplier, tuning multipliers | Small scalar payload. Not "climate" in the Phase 1 sense. |
+| Region input | **World-state inputs only:** stockpile goods (fixed slots), terrain, storage_population (`Region.population`, for stockpile cap), resource_type_0, resource_effective_yield_0 (ecology-mutated, not static world-gen yield). | One row per region. Rust derives regional agent population / occupation counts and later per-civ merchant wealth / priest counts directly from the live simulator pool; Python should not round-trip those aggregates through FFI. `controller_civ` is not required by the economy kernel if Python passes decomposed region-pair routes. `M54b` intentionally preserves the current single-slot production rule (`resource_types[0]` / `resource_effective_yields[0]`) rather than broadening economy scope. |
+| Trade routes | Per decomposed boundary-pair route: origin_region_id, dest_region_id, is_river | Stable-sorted by `(origin_region_id, dest_region_id)` before crossing FFI. Python still expands civ-level `active_trade_routes` via `decompose_trade_routes()` before the FFI call; Rust does not own that expansion in M54b. Rust derives `is_coastal` from endpoint terrain and computes transport costs internally. |
+| Scalar args | `season_id`, `is_winter`, `trade_friction` | Primitive method args, not a wrapper object. Fixed tuning constants belong in `EconomyConfig`, not repeated per row. |
 
 ### Output family (Rust → Python)
 
-Three-way split: authoritative state / consumer observability / diagnostics.
+Authoritative state plus separate observability / diagnostic outputs.
+
+All five return families are dedicated Arrow batches with centralized schema functions in `ffi.rs`. Do not collapse them into a single nested object or ad hoc Python dict.
 
 | Batch | Contents | Notes |
 |-------|----------|-------|
-| Region result (authoritative) | Per-region: updated stockpile goods (fixed slots), farmer_income_modifier, food_sufficiency, merchant_margin, merchant_trade_income, trade_route_count | One row per region |
-| Civ result (authoritative) | Per-civ: treasury_tax, tithe_base, priest_tithe_share | One row per civ. Current Python fiscal logic extracts merchant_wealth and priest_count from agent snapshot arrays — Rust can read agent pool directly or receive pre-aggregated inputs. Full spec decides. |
-| Observability | **Fixed per-region:** imports_by_region (per-category), stockpile_levels (per-category), import_share, trade_dependent. **Variable-length:** inbound_sources (route/source mapping for upstream attribution). | Fixed observability may merge into region result; inbound_sources may need a sub-batch. Full spec decides. |
-| Conservation (diagnostic) | 6 floats: production, transit_loss, consumption, storage_loss, cap_overflow, clamp_floor_loss | Returned as metadata or small batch. Not a same-turn consumer dependency. |
+| Region result (authoritative) | Per-region: updated stockpile goods (fixed slots), farmer_income_modifier, food_sufficiency, merchant_margin, merchant_trade_income, trade_route_count | One row per region. `trade_route_count` mirrors decomposed boundary-pair count before flow/profitability pruning. |
+| Civ result (authoritative) | Per-civ: treasury_tax, tithe_base, priest_tithe_share | One row per civ. In agent modes, Rust computes these directly from the live agent pool / economy pass state; Python does not pre-aggregate merchant wealth or priest counts for the FFI call. |
+| Observability | **Fixed per-region:** imports_by_region (per-category), stockpile_levels (per-category), import_share, trade_dependent. **Separate flat batch:** upstream sources (`dest_region_id`, `source_ordinal`, `source_region_id`). | Observability remains a distinct output family from authoritative region/civ results. Python reconstructs `inbound_sources` from the flat source batch; `source_ordinal` preserves the final-pass insertion order expected by `classify_upstream_source()`. |
+| Conservation (diagnostic) | 6 floats: production, transit_loss, consumption, storage_loss, cap_overflow, clamp_floor_loss | Single-row diagnostic batch for parity/debugging. Not a same-turn consumer dependency. |
 
 ### Fixed good slots
 
-Goods normalized to a fixed ordered set for all FFI crossing. Current goods: grain, fish, salt, timber, ore, botanicals, precious, exotic (8 slots). Exact representation (columns-per-good vs nested array) is a full-spec decision. Principle: **no variable-length dicts cross FFI**.
+Goods normalized to a fixed ordered set for all FFI crossing. Current goods: grain, fish, salt, timber, ore, botanicals, precious, exotic (8 slots). The migration shape is explicit columns-per-good on both input and region-result batches. Principle: **no variable-length dicts cross FFI**.
+
+### Helper ownership (locked)
+
+M54b should now mirror M54a's helper layout explicitly:
+
+- `chronicler-agents/src/ffi.rs`
+  - add centralized schema helpers for each batch family:
+    - `economy_region_input_schema()`
+    - `economy_trade_route_schema()`
+    - `economy_region_result_schema()`
+    - `economy_civ_result_schema()`
+    - `economy_observability_schema()`
+    - `economy_upstream_sources_schema()`
+    - `economy_conservation_schema()`
+  - add result-batch builders adjacent to those schema helpers
+  - add `set_economy_config(...)` and `tick_economy(...)` on `AgentSimulator`
+- `src/chronicler/economy.py`
+  - add dedicated economy FFI pack/unpack helpers
+  - own reconstruction of the Python `EconomyResult` / `_economy_result`
+  - own write-back of returned stockpile goods onto `Region.stockpile.goods`
+- `src/chronicler/simulation.py`
+  - continue to orchestrate call order, tracker/shock consumers, and accumulator routing
+  - do not absorb schema packing logic
+
+Do **not** extend `build_region_batch()` / `set_region_state()` for M54b. Those are the generic agent/ecology sync surfaces, not the dedicated economy FFI contract.
 
 ---
 
@@ -147,7 +197,7 @@ Goods normalized to a fixed ordered set for all FFI crossing. Current goods: gra
 ```
 Phase A — parallel per-region (production + demand extraction):
   - Production from resource_type + resource_effective_yield_0 + farmer_count
-  - Demand from population + soldier_count + wealthy_count
+  - Demand from agent_population + soldier_count + wealthy_count
   - Merchant count carried forward for trade capacity in Phase B
 
 Phase B — sequential, stable order (trade kernel):
@@ -156,10 +206,13 @@ Phase B — sequential, stable order (trade kernel):
   - Tatonnement loop (3 passes max, damping 0.2, convergence 0.01):
       - Compute margins from current prices
       - Allocate trade flow (log-dampened, margin-weighted, pro-rata)
-      - Apply per-route per-good transit decay BEFORE destination aggregation
       - Update prices with damping, clamp [0.5, 2.0]
       - Check convergence (max price delta < threshold)
-  - Materialize decayed per-region import aggregates and trade summaries
+  - Preserve final-pass category import/export summaries for prices, shock observability, and merchant formulas
+  - Track ordered inbound sources from final-pass positive flows
+  - Decompose final-pass category flows to per-good shipments
+  - Apply per-route per-good transit decay BEFORE destination per-good aggregation
+  - Materialize delivered per-good imports for the later stockpile lifecycle
 
 Phase C — parallel per-region (stockpile lifecycle + signal derivation):
   - Accumulate stockpile (production − exports + decayed imports)
@@ -169,7 +222,7 @@ Phase C — parallel per-region (stockpile lifecycle + signal derivation):
   - Apply stockpile cap
   - Derive signals: farmer_income_modifier, merchant_margin, merchant_trade_income
   - Derive observability: trade_dependent, import_share
-  (merchant_margin / merchant_trade_income assume Phase B route summaries are stable)
+  (merchant_margin / merchant_trade_income / import_share use Phase B's final-pass pre-transit category summaries; stockpile lifecycle uses delivered per-good imports)
 
 Phase D — sequential, per-civ (fiscal + diagnostics):
   - Compute treasury_tax, tithe_base, priest_tithe_share
@@ -203,7 +256,7 @@ Phase D — sequential, per-civ (fiscal + diagnostics):
 
 3. **Parity (Rust-to-Python).** Rust output matches Python `compute_economy()` output within float tolerance for shared seeds. Tolerance applies here (cross-language float differences), not to determinism.
 
-4. **`--agents=off` behavioral compatibility.** In aggregate mode, `compute_economy()` is not currently called (economy requires agent snapshot data). The invariant is that aggregate-mode simulation remains correct when economy is absent, not that it produces matching economy outputs. If M54b changes this (e.g., by enabling economy in aggregate mode), correctness is the gate. Implementation path is a full-spec decision.
+4. **`--agents=off` compatibility / scope freeze.** M54b does **not** change the current runtime behavior: the Rust economy path runs only when an agent-backed snapshot exists, and aggregate-mode simulation remains correct with economy absent. Unit-level `agent_mode=False` economy behavior remains part of the Python oracle/test surface, but enabling same-turn economy in aggregate runs is out of scope for this migration.
 
 5. **`food_sufficiency` from pre-consumption stockpile.** Not single-turn production. Clamped [0.0, 2.0]. M43a Decision 9.
 
@@ -220,6 +273,22 @@ Phase D — sequential, per-civ (fiscal + diagnostics):
 11. **Transit decay ordering.** Per-route, per-good, before destination aggregation. Phase B responsibility, not Phase C.
 
 12. **Supply shock actor ordering.** Affected civ first, upstream civ second. Stays Python-side but depends on correct Rust-returned observability.
+
+13. **Single-slot production semantics.** Production remains keyed to `resource_types[0]` / `resource_effective_yields[0]`, matching the live Python economy path. Multi-slot production is a separate future milestone, not an M54b side effect.
+
+14. **Agent-derived counts stay Rust-side.** `tick_economy()` derives per-region agent population / occupation counts and per-civ merchant wealth / priest counts from the live Rust pool. Python does not round-trip those aggregates through FFI.
+
+15. **Trade-route decomposition stays Python-side.** M54b passes stable-sorted region-pair routes into Rust; it does not migrate civ-pair expansion or `decompose_trade_routes()` ownership into the simulator.
+
+16. **`trade_route_count` semantics.** The value equals decomposed boundary-pair count per origin region before zero-flow or profitability filtering, matching the live `boundary_pair_counts` path.
+
+17. **Import observability timing.** `imports_by_region` and `import_share` are derived from final-pass category route allocations before per-good transit decay, matching current M43b trade-dependency and shock semantics.
+
+18. **Stockpile observability timing.** `stockpile_levels` aggregate written-back per-good stockpiles by category after the full stockpile lifecycle: accumulate -> consume -> storage decay -> cap.
+
+19. **Merchant signal formulas.** `merchant_margin` is the normalized average positive post-trade price delta across outgoing routes, while `merchant_trade_income` is pre-decay route flow × post-trade margin arbitrage per merchant. Preserve the live intentional mismatch.
+
+20. **Dedicated economy builders.** M54b adds dedicated economy batch pack/unpack helpers; it does not reuse `build_region_batch()` / `set_region_state()` or overload the ecology/agent full-sync contract.
 
 ### Merge gates (200-seed validation)
 
@@ -248,50 +317,156 @@ Phase D — sequential, per-civ (fiscal + diagnostics):
 
 ---
 
-## 8. What Is Locked vs What Waits for M54a
+## 8. What Is Locked After M54a
 
-### Locked by this pre-spec
+### Locked by this spec
 
 - Scope boundary and non-goals (Section 1)
 - State classification: persistent / analytics / transient (Section 2)
 - Migration boundary: Rust economic state machine / Python analytics + consumers
 - Consumer map and call-sequence constraints (Section 3)
-- FFI contract shape: three-way output, fixed good slots (Section 4)
+- FFI contract shape: authoritative batches plus separate observability/diagnostic outputs, fixed good slots, Rust-side agent-count derivation, Python-side route decomposition (Section 4)
 - Parallelism strategy: sequential kernel, parallel region shell (Section 5)
 - Stockpile ownership: Python durable, Rust per-turn (Section 2)
 - All hard invariants and merge gates (Section 6)
 - Conservation split: inline Rust + independent Python validation (Section 7)
+- `_economy_result` remains the canonical Python transient handoff object for the bridge and later Python consumers
+- Rust derives transport costs; Python does not pre-compute them for FFI
+- Rust derives regional occupation counts / demand population directly from the live pool
+- Rust computes agent-mode fiscal outputs directly from simulator state
+- Python still owns civ-route -> region-route decomposition before FFI
+- `trade_route_count`, `imports_by_region`, `stockpile_levels`, and merchant-signal timing semantics are locked to the current Python path
+- `--agents=off` runtime behavior does not expand in M54b
+- Production remains single-slot (`resource_types[0]` / `resource_effective_yields[0]`)
+- Required batch split and assembly order in Section 9
 
 ### Principles locked for the full spec
 
 - Economy tuning constants pass through an `EconomyConfig` struct (matching M54a's `EcologyConfig` pattern), not compiled as Rust module constants.
 
-### Deferred to full spec (after M54a lands)
+### Locked by the landed M54a pattern
 
-- Exact Arrow schemas (column names, types, nesting)
-- `tick_economy()` method signature details (how `economy_context` is passed)
-- Whether observability merges into region result batch or stays separate
-- Whether conservation rides on the result tuple or a diagnostic sidecar
-- `inbound_sources` representation (flat batch, sub-batch, or variable-length payload)
-- `build_region_batch()` wiring: reads from Rust return cache or from `_economy_result`
-- Shared FFI helper patterns (`ffi.rs` batch builders, `agent_bridge.py` pack/unpack)
-- `--agents=off` execution path: Python, Rust, or switchable
-- `region_goods` fate: production payload, sidecar-only, or dropped
+- `tick_economy()` uses direct `PyRecordBatch` inputs/outputs plus primitive scalar args, not a wrapper payload object
+- `ffi.rs` owns centralized schema functions and batch builders for each economy batch family
+- simulator config follows the M54a pattern: dedicated `set_economy_config(...)` setter, not per-turn config batches
+- Python owns dedicated economy pack/unpack helpers rather than extending `build_region_batch()`
+- `simulation.py` keeps orchestration and consumer ordering but not Arrow schema details
+
+### Remaining implementation choices (not semantic open questions)
+
+- Optional debug payload shape for `region_goods`, if retained beyond parity/validation
 - Rayon introduction timing and which phases get parallel iterators first
-
-### What unlocks the full spec
-
-M54a must demonstrate:
-1. A working Arrow-batch-in / Arrow-batch-out phase migration with parity
-2. A concrete bridge pack/unpack pattern in `agent_bridge.py`
-3. Shared FFI helpers in `ffi.rs` (batch builders, schema definitions)
-4. A determinism harness shape that M54b can inherit
-
-Once these are proven in M54a, the full M54b spec inherits the conventions and resolves all deferred items.
+- Exact integer widths may still be tuned during implementation if tests or scale data show a clear need, but any deviation from Section 9 should be intentional and reflected in the spec/plan rather than improvised in code review.
 
 ---
 
-## 9. Oracle Sources
+## 9. Schema Appendix (Implementation Contract)
+
+This appendix is now the implementation contract for execution planning. If implementation deviates from it, the plan or PR should explain why and update the spec rather than inventing a parallel contract in code.
+
+### 9.1 Required batch set
+
+- `region_input_batch`: world-state inputs only, keyed by `region_id`
+- `trade_route_batch`: decomposed boundary-pair routes, stable row order
+- `region_result_batch`: authoritative per-region write-back plus same-turn bridge signals
+- `civ_result_batch`: authoritative per-civ fiscal outputs
+- `observability_batch`: fixed per-region analytics / shock fields
+- `upstream_sources_batch`: ordered flat source mapping for `inbound_sources`
+- `conservation_batch`: single-row diagnostics
+
+### 9.2 Region input columns
+
+| Column | Meaning | Notes |
+|-------|---------|-------|
+| `region_id` | Index into `world.regions` | Python maps results back to names / models after return |
+| `terrain` | Terrain enum / id | Used with route endpoints to derive transport cost |
+| `storage_population` | `Region.population` | Used only for stockpile cap; do not reuse as demand population |
+| `resource_type_0` | Primary resource slot | Single-slot production remains authoritative |
+| `resource_effective_yield_0` | Current ecology-mutated yield | Use effective, not base, yield |
+| `stockpile_grain` ... `stockpile_exotic` | Durable per-good stockpiles | Explicit columns are the migration shape |
+
+Rust should derive the following internally from the live agent pool instead of receiving them from Python: `agent_population`, `farmer_count`, `soldier_count`, `merchant_count`, `wealthy_count`, per-civ merchant wealth, and per-civ priest count.
+
+### 9.3 Trade route batch
+
+| Column | Meaning | Notes |
+|-------|---------|-------|
+| `origin_region_id` | Source region | |
+| `dest_region_id` | Destination region | |
+| `is_river` | River discount applies | `is_coastal` is derived from endpoint terrain inside Rust |
+
+Python should continue to expand civ-level `active_trade_routes` into stable-sorted boundary-pair routes before the FFI call. Batch row order should already be `(origin_region_id, dest_region_id)` sorted when Rust receives it.
+
+### 9.4 Region result batch
+
+| Column | Meaning | Notes |
+|-------|---------|-------|
+| `region_id` | Result key | |
+| `stockpile_grain` ... `stockpile_exotic` | Post-lifecycle per-good stockpiles | Python writes these back to `Region.stockpile.goods` immediately |
+| `farmer_income_modifier` | Farmer income signal | Derived from post-trade category supply vs demand |
+| `food_sufficiency` | Food sufficiency signal | Computed from pre-consumption stockpile after accumulation |
+| `merchant_margin` | Merchant satisfaction signal | Normalized average positive post-trade price delta |
+| `merchant_trade_income` | Merchant wealth signal | Pre-decay route flow × post-trade margin arbitrage per merchant |
+| `trade_route_count` | Boundary-pair route count | Count before flow / profitability pruning |
+
+### 9.5 Civ result batch
+
+| Column | Meaning | Notes |
+|-------|---------|-------|
+| `civ_id` | Civilization index | |
+| `treasury_tax` | Tax amount routed through `StatAccumulator` | Derived from merchant wealth in Rust |
+| `tithe_base` | Merchant-wealth tithe base | Consumed later by `tick_factions()` |
+| `priest_tithe_share` | Per-priest income share | Feeds same-turn bridge signals |
+
+### 9.6 Observability batch
+
+| Column | Meaning | Notes |
+|-------|---------|-------|
+| `region_id` | Result key | |
+| `imports_food` / `imports_raw_material` / `imports_luxury` | Final-pass category imports | Pre-transit-decay, matching current M43b semantics |
+| `stockpile_food` / `stockpile_raw_material` / `stockpile_luxury` | Category stockpile totals | Post-consumption / post-decay / post-cap aggregates |
+| `import_share` | `food_imports / max(food_demand, 0.1)` | Uses `imports_food` above |
+| `trade_dependent` | `import_share > 0.6` | Boolean mirror of live threshold |
+
+### 9.7 Upstream sources batch
+
+| Column | Meaning | Notes |
+|-------|---------|-------|
+| `dest_region_id` | Importing region | |
+| `source_ordinal` | Stable source order for this dest | Preserves final-pass insertion order |
+| `source_region_id` | Unique upstream source region | Emit once per positive-flow source |
+
+Python reconstructs `EconomyResult.inbound_sources[dest_name]` by grouping on `dest_region_id`, sorting by `source_ordinal`, then mapping region ids back to names. This keeps `classify_upstream_source()` behavior stable without forcing nested variable-length payloads across FFI.
+
+### 9.8 Conservation batch
+
+Single row, 6 fields:
+
+- `production`
+- `transit_loss`
+- `consumption`
+- `storage_loss`
+- `cap_overflow`
+- `clamp_floor_loss`
+
+This is diagnostic output, not same-turn gameplay state.
+
+### 9.9 Python assembly order
+
+1. Build decomposed, stable-sorted region-pair trade routes from `active_trade_routes`, including `is_river`.
+2. Pack `region_input_batch` from world-state only using dedicated economy helpers in `economy.py`. Do not precompute agent counts, regional demand population, merchant wealth, or priest counts in Python.
+3. Pack `trade_route_batch` with the dedicated economy helper; do not route this through `build_region_batch()`.
+4. Call `AgentSimulator.tick_economy(...)` with the two batches plus primitive scalar args (`season_id`, `is_winter`, `trade_friction`).
+5. Unpack the fixed return tuple in order: region result, civ result, observability, upstream sources, conservation.
+6. Immediately write returned stockpile goods back onto `Region.stockpile.goods`.
+7. Reconstruct a fresh Python `EconomyResult` / `_economy_result` from `region_result_batch`, `civ_result_batch`, `observability_batch`, and `upstream_sources_batch`.
+8. Feed `EconomyTracker`, `detect_supply_shocks()`, and later consumers from that reconstructed transient object.
+9. Route `treasury_tax` through the accumulator, stash `_economy_result`, and let `AgentBridge` continue reading same-turn signals from it.
+10. Keep `region_goods` and richer per-route debug payloads out of the production FFI surface unless parity tooling explicitly needs them.
+
+---
+
+## 10. Oracle Sources
 
 Existing test suites and specs that encode the economy decisions M54b must preserve:
 
