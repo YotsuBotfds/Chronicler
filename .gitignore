@@ -1,5 +1,7 @@
 output/
+output_off/
 .venv/
+.uv-cache/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -10,3 +12,16 @@ dist/
 .DS_Store
 # Rust build artifacts
 chronicler-agents/target/
+
+# Viewer/package manager artifacts
+viewer/node_modules/
+
+# Local tool scratch
+.claude/agents/
+.claude/commands/
+.claude/scheduled_tasks.lock
+
+# Ad hoc local run artifacts
+chronicle_bundle.json
+test/batch_*/
+test_narration*.md
