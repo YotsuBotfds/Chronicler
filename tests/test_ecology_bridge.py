@@ -896,11 +896,11 @@ class TestAgentsOffRustPath:
 
 
 class TestNoLastRegionYieldsDependency:
-    """The Rust ecology path should not depend on _last_region_yields."""
+    """The Rust ecology path writes current-turn yields onto Region.resource_current_yields."""
 
-    def test_write_back_ecology_does_not_read_last_region_yields(self):
-        """_write_back_ecology returns yields from the Rust batch, not _last_region_yields."""
-        from chronicler.ecology import _write_back_ecology, _last_region_yields
+    def test_write_back_ecology_sets_current_yields_on_region(self):
+        """_write_back_ecology sets resource_current_yields on the Region model."""
+        from chronicler.ecology import _write_back_ecology
         from chronicler.models import Region, RegionEcology, WorldState
 
         r = Region(
@@ -909,9 +909,6 @@ class TestNoLastRegionYieldsDependency:
             ecology=RegionEcology(soil=0.5, water=0.5, forest_cover=0.2),
         )
         w = WorldState(name="T", seed=42, regions=[r])
-
-        # Pre-populate _last_region_yields with stale data
-        _last_region_yields["Testland"] = [99.0, 99.0, 99.0]
 
         batch = pa.record_batch({
             "region_id": pa.array([0], type=pa.uint16()),
@@ -937,9 +934,10 @@ class TestNoLastRegionYieldsDependency:
 
         region_yields = _write_back_ecology(w, batch)
 
-        # Yields should come from the Rust batch, NOT from _last_region_yields
+        # Yields should come from the Rust batch
         assert abs(region_yields["Testland"][0] - 0.40) < 0.001
-        assert region_yields["Testland"][0] != 99.0
+        # And also be set on the Region model
+        assert abs(r.resource_current_yields[0] - 0.40) < 0.001
 
 
 # ---------------------------------------------------------------------------

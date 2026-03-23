@@ -12,12 +12,15 @@ const UNCONTROLLED: u8 = 255;
 /// Empty resource slot sentinel.
 const EMPTY_SLOT: u8 = 255;
 
-// TechFocus encoding — matches Python mapper.
+// TechFocus encoding — must match Python _get_active_focus() TECH_FOCUS_MAP in agent_bridge.py.
+// Python map: navigation=1, metallurgy=2, agriculture=3, fortification=4, commerce=5,
+//   scholarship=6, exploration=7, banking=8, printing=9, mechanization=10, railways=11,
+//   naval_power=12, networks=13, surveillance=14, media=15.
 #[allow(dead_code)]
 const FOCUS_NONE: u8 = 0;
-const FOCUS_AGRICULTURE: u8 = 1;
+const FOCUS_AGRICULTURE: u8 = 3;
 const FOCUS_METALLURGY: u8 = 2;
-const FOCUS_MECHANIZATION: u8 = 3;
+const FOCUS_MECHANIZATION: u8 = 10;
 
 // Terrain encoding — matches region::Terrain.
 const TERRAIN_PLAINS: u8 = 0;

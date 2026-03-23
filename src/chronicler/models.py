@@ -257,6 +257,7 @@ class Region(BaseModel):
     soil_pressure_streak: int = 0
     overextraction_streaks: dict[int, int] = Field(default_factory=dict)
     resource_effective_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+    resource_current_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])  # M54a: transient per-turn yields (season+climate adjusted)
     capacity_modifier: float = 1.0  # Temporary capacity multiplier (flood=0.85, drought=0.5)
     prev_turn_water: float = -1.0  # Previous turn's water level for delta tracking (-1 = unset)
     # M37: Religion

@@ -59,9 +59,6 @@ def effective_capacity(region: Region, world: "WorldState | None" = None) -> int
     return max(int(region.carrying_capacity * cap_mod * soil * water_factor), 1)
 
 
-# Module-level storage for Arrow bridge to read yields after tick_ecology.
-# Populated by _tick_ecology_rust; read by agent_bridge._get_yield.
-_last_region_yields: dict[str, list[float]] = {}
 
 
 def check_food_yield(
@@ -251,6 +248,7 @@ def _write_back_ecology(world: "WorldState", region_batch) -> dict[str, list[flo
         region.overextraction_streaks = {0: over0[i], 1: over1[i], 2: over2[i]}
         region.resource_reserves = [res0[i], res1[i], res2[i]]
         region.resource_effective_yields = [ey0[i], ey1[i], ey2[i]]
+        region.resource_current_yields = [cy0[i], cy1[i], cy2[i]]
         region_yields[region.name] = [cy0[i], cy1[i], cy2[i]]
 
     return region_yields
@@ -314,21 +312,14 @@ def _make_transient_ecology_runtime(world: "WorldState"):
 
     Used when tick_ecology is called without an explicit ecology_runtime
     (e.g., tests, simple scripts).  Creates the simulator, syncs region
-    state, and configures river topology.
+    state, and configures river topology + ecology config.
     """
     from chronicler_agents import EcologySimulator
-    from chronicler.agent_bridge import build_region_batch
+    from chronicler.agent_bridge import build_region_batch, configure_ecology_runtime
 
     eco_sim = EcologySimulator()
-    # Configure river topology
-    if world.rivers:
-        region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
-        river_paths = []
-        for river in world.rivers:
-            path_indices = [region_name_to_idx[rn] for rn in river.path if rn in region_name_to_idx]
-            if path_indices:
-                river_paths.append(path_indices)
-        eco_sim.set_river_topology(river_paths)
+    # Wire river topology and ecology config from tuning overrides
+    configure_ecology_runtime(eco_sim, world)
     # Sync region state
     eco_sim.set_region_state(build_region_batch(world))
     return eco_sim
@@ -345,10 +336,8 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
         world.turn, climate_u8, pandemic_mask, army_arrived_mask,
     )
 
-    # 2. Write-back to Python Region
+    # 2. Write-back to Python Region (also sets region.resource_current_yields)
     region_yields = _write_back_ecology(world, region_batch)
-    _last_region_yields.clear()
-    _last_region_yields.update(region_yields)
 
     # 3. Materialize Rust ecology events
     rust_events = _materialize_ecology_events(event_batch, world)

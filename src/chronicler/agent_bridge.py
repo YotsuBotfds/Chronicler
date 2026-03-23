@@ -120,11 +120,10 @@ def civ_personality_mean(
 
 
 def _get_yield(region, slot: int) -> float:
-    """Read yield from ecology module's last computation, or 0.0."""
-    from chronicler.ecology import _last_region_yields
-    ry = _last_region_yields.get(region.name)
-    if ry is not None:
-        return ry[slot]
+    """Read current-turn yield from the Region model (set by ecology write-back)."""
+    yields = getattr(region, "resource_current_yields", None)
+    if yields is not None and slot < len(yields):
+        return yields[slot]
     return 0.0
 
 
@@ -393,7 +392,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
 def build_region_postpass_patch_batch(world: WorldState) -> pa.RecordBatch:
     """Build a narrow post-pass patch batch for Rust after Python ecology post-processing.
 
-    Side-effect free. Must not clear one-turn signals or depend on _last_region_yields.
+    Side-effect free. Must not clear one-turn signals.
     Schema: region_id(u16), population(u16), soil(f32), water(f32),
             forest_cover(f32), terrain(u8), carrying_capacity(u16).
     """
@@ -515,6 +514,73 @@ def build_signals(world: WorldState, shocks: list | None = None,
     })
 
 
+def configure_ecology_runtime(simulator, world: "WorldState") -> None:
+    """Wire river topology and ecology config onto a Rust simulator.
+
+    Works for both AgentSimulator and EcologySimulator — both expose
+    set_river_topology() and set_ecology_config() with identical signatures.
+
+    Reads tuning overrides from world.tuning_overrides; falls back to
+    EcologyConfig::default() values when no override is present.
+    """
+    from chronicler.tuning import get_override
+
+    # --- River topology ---
+    if world.rivers:
+        region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+        river_paths = []
+        for river in world.rivers:
+            path_indices = [region_name_to_idx[rn] for rn in river.path if rn in region_name_to_idx]
+            if path_indices:
+                river_paths.append(path_indices)
+        simulator.set_river_topology(river_paths)
+
+    # --- Ecology config (tuning YAML → Rust EcologyConfig) ---
+    # Each field falls back to the same default as Rust EcologyConfig::default().
+    simulator.set_ecology_config(
+        soil_degradation=get_override(world, "ecology.soil_degradation_rate", 0.005),
+        soil_recovery=get_override(world, "ecology.soil_recovery_rate", 0.05),
+        mine_soil_degradation=get_override(world, "ecology.mine_soil_degradation_rate", 0.03),
+        soil_recovery_pop_ratio=get_override(world, "ecology.soil_recovery_pop_ratio", 0.75),
+        agriculture_soil_bonus=get_override(world, "ecology.agriculture_soil_bonus", 0.02),
+        metallurgy_mine_reduction=get_override(world, "ecology.metallurgy_mine_reduction", 0.5),
+        mechanization_mine_mult=get_override(world, "ecology.mechanization_mine_multiplier", 2.0),
+        soil_pressure_threshold=get_override(world, "ecology.soil_pressure_threshold", 0.7),
+        soil_pressure_streak_limit=int(get_override(world, "ecology.soil_pressure_streak_limit", 30)),
+        soil_pressure_degradation_mult=get_override(world, "ecology.soil_pressure_degradation_multiplier", 2.0),
+        water_drought=get_override(world, "ecology.water_drought_rate", 0.04),
+        water_recovery=get_override(world, "ecology.water_recovery_rate", 0.03),
+        irrigation_water_bonus=get_override(world, "ecology.irrigation_water_bonus", 0.03),
+        irrigation_drought_mult=get_override(world, "ecology.irrigation_drought_multiplier", 1.5),
+        cooling_water_loss=get_override(world, "ecology.cooling_water_loss", 0.02),
+        warming_tundra_water_gain=get_override(world, "ecology.warming_tundra_water_gain", 0.05),
+        water_factor_denominator=get_override(world, "ecology.water_factor_denominator", 0.5),
+        forest_clearing=get_override(world, "ecology.forest_clearing_rate", 0.02),
+        forest_regrowth=get_override(world, "ecology.forest_regrowth_rate", 0.01),
+        cooling_forest_damage=get_override(world, "ecology.cooling_forest_damage_rate", 0.01),
+        forest_pop_ratio=get_override(world, "ecology.forest_pop_ratio", 0.5),
+        forest_regrowth_water_gate=get_override(world, "ecology.forest_regrowth_water_gate", 0.3),
+        cross_effect_forest_soil=get_override(world, "ecology.cross_effect_forest_soil_bonus", 0.01),
+        cross_effect_forest_threshold=get_override(world, "ecology.cross_effect_forest_threshold", 0.5),
+        disease_severity_cap=get_override(world, "ecology.disease_severity_cap", 0.15),
+        disease_decay_rate=get_override(world, "ecology.disease_decay_rate", 0.25),
+        flare_overcrowding_threshold=get_override(world, "ecology.flare_overcrowding_threshold", 0.8),
+        flare_overcrowding_spike=get_override(world, "ecology.flare_overcrowding_spike", 0.04),
+        flare_army_spike=get_override(world, "ecology.flare_army_spike", 0.03),
+        flare_water_spike=get_override(world, "ecology.flare_water_spike", 0.02),
+        flare_season_spike=get_override(world, "ecology.flare_season_spike", 0.02),
+        depletion_rate=get_override(world, "ecology.depletion_rate", 0.009),
+        exhausted_trickle_fraction=get_override(world, "ecology.exhausted_trickle_fraction", 0.04),
+        reserve_ramp_threshold=get_override(world, "ecology.reserve_ramp_threshold", 0.25),
+        resource_abundance_multiplier=get_override(world, "multiplier.resource_abundance", 1.0),
+        overextraction_streak_limit=int(get_override(world, "ecology.overextraction_streak_limit", 35)),
+        overextraction_yield_penalty=get_override(world, "ecology.overextraction_yield_penalty", 0.10),
+        workers_per_yield_unit=int(get_override(world, "ecology.workers_per_yield_unit", 200)),
+        deforestation_threshold=get_override(world, "ecology.deforestation_threshold", 0.2),
+        deforestation_water_loss=get_override(world, "ecology.deforestation_water_loss", 0.05),
+    )
+
+
 class AgentBridge:
     def __init__(self, world: WorldState, mode: str = "demographics-only",
                  shadow_output: Path | None = None,
@@ -524,6 +590,8 @@ class AgentBridge:
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         self._mode = mode
         world._agent_bridge = self
+        # M54a: Wire river topology and ecology config from tuning overrides
+        configure_ecology_runtime(self._sim, world)
         self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
         self._demand_manager = DemandSignalManager()
         self._shadow_logger: ShadowLogger | None = None

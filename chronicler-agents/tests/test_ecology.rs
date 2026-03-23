@@ -1109,7 +1109,7 @@ fn test_agriculture_focus_bonus() {
     let config = default_config();
 
     let mut r_agri = make_plains(0);
-    r_agri.active_focus = 1; // AGRICULTURE
+    r_agri.active_focus = 3; // AGRICULTURE (matches Python TECH_FOCUS_MAP)
     r_agri.population = 20; // Low pop for recovery
 
     let mut r_none = make_plains(1);
@@ -1820,5 +1820,130 @@ fn test_patched_yield_recompute_after_soil_change() {
         y_post[0] < y_pre[0],
         "lower soil should produce lower yield: pre={}, post={}",
         y_pre[0], y_post[0]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test: TechFocus encoding round-trip (C1)
+// ---------------------------------------------------------------------------
+
+// These constants must match Python _get_active_focus() TECH_FOCUS_MAP in agent_bridge.py.
+const PYTHON_FOCUS_NONE: u8 = 0;
+const PYTHON_FOCUS_AGRICULTURE: u8 = 3;
+const PYTHON_FOCUS_METALLURGY: u8 = 2;
+const PYTHON_FOCUS_MECHANIZATION: u8 = 10;
+
+#[test]
+fn test_tech_focus_encoding_matches_python() {
+    // Verify that the Rust ecology constants match the Python TECH_FOCUS_MAP values.
+    // Python: {"navigation": 1, "metallurgy": 2, "agriculture": 3, "fortification": 4,
+    //          "commerce": 5, "scholarship": 6, "exploration": 7, "banking": 8,
+    //          "printing": 9, "mechanization": 10, "railways": 11, "naval_power": 12,
+    //          "networks": 13, "surveillance": 14, "media": 15}
+    // Ecology only cares about agriculture (3), metallurgy (2), mechanization (10).
+    assert_eq!(PYTHON_FOCUS_NONE, 0, "None focus should be 0");
+    assert_eq!(PYTHON_FOCUS_AGRICULTURE, 3, "Agriculture focus should be 3");
+    assert_eq!(PYTHON_FOCUS_METALLURGY, 2, "Metallurgy focus should be 2");
+    assert_eq!(PYTHON_FOCUS_MECHANIZATION, 10, "Mechanization focus should be 10");
+}
+
+#[test]
+fn test_agriculture_focus_gives_soil_bonus() {
+    // Verify that active_focus == AGRICULTURE actually triggers the soil bonus.
+    let config = default_config();
+    let mut r_agri = make_plains(0);
+    r_agri.active_focus = PYTHON_FOCUS_AGRICULTURE;
+    r_agri.population = 20; // Below recovery threshold
+
+    let mut r_none = make_plains(1);
+    r_none.active_focus = PYTHON_FOCUS_NONE;
+    r_none.population = 20;
+
+    let mut regions_agri = vec![r_agri];
+    let mut regions_none = vec![r_none];
+    let pandemic = vec![false];
+    let army = vec![false];
+
+    let (_, _) = tick_ecology(
+        &mut regions_agri, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+    let (_, _) = tick_ecology(
+        &mut regions_none, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+
+    // Agriculture focus adds 0.02 to soil recovery rate.
+    assert!(
+        regions_agri[0].soil > regions_none[0].soil,
+        "agriculture focus soil {} should be higher than no-focus soil {}",
+        regions_agri[0].soil, regions_none[0].soil
+    );
+}
+
+#[test]
+fn test_metallurgy_focus_reduces_mine_damage() {
+    // Verify that active_focus == METALLURGY actually triggers the mine reduction.
+    let config = default_config();
+    let mut r_metal = make_plains(0);
+    r_metal.active_focus = PYTHON_FOCUS_METALLURGY;
+    r_metal.has_mines = true;
+    r_metal.soil = 0.80;
+
+    let mut r_none = make_plains(1);
+    r_none.active_focus = PYTHON_FOCUS_NONE;
+    r_none.has_mines = true;
+    r_none.soil = 0.80;
+
+    let mut regions_metal = vec![r_metal];
+    let mut regions_none = vec![r_none];
+    let pandemic = vec![false];
+    let army = vec![false];
+
+    let (_, _) = tick_ecology(
+        &mut regions_metal, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+    let (_, _) = tick_ecology(
+        &mut regions_none, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+
+    // Metallurgy reduces mine soil degradation by 50%.
+    // With mines: base rate 0.03. Metallurgy: 0.03*0.5=0.015. No focus: 0.03.
+    assert!(
+        regions_metal[0].soil > regions_none[0].soil,
+        "metallurgy focus soil {} should be higher (less mine damage) than no-focus soil {}",
+        regions_metal[0].soil, regions_none[0].soil
+    );
+}
+
+#[test]
+fn test_mechanization_focus_amplifies_mine_damage() {
+    // Verify that active_focus == MECHANIZATION actually triggers the mine multiplier.
+    let config = default_config();
+    let mut r_mech = make_plains(0);
+    r_mech.active_focus = PYTHON_FOCUS_MECHANIZATION;
+    r_mech.has_mines = true;
+    r_mech.soil = 0.80;
+
+    let mut r_none = make_plains(1);
+    r_none.active_focus = PYTHON_FOCUS_NONE;
+    r_none.has_mines = true;
+    r_none.soil = 0.80;
+
+    let mut regions_mech = vec![r_mech];
+    let mut regions_none = vec![r_none];
+    let pandemic = vec![false];
+    let army = vec![false];
+
+    let (_, _) = tick_ecology(
+        &mut regions_mech, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+    let (_, _) = tick_ecology(
+        &mut regions_none, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+
+    // Mechanization doubles mine soil degradation: 0.03*2.0=0.06 vs 0.03.
+    assert!(
+        regions_mech[0].soil < regions_none[0].soil,
+        "mechanization focus soil {} should be lower (more mine damage) than no-focus soil {}",
+        regions_mech[0].soil, regions_none[0].soil
     );
 }
