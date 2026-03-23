@@ -1328,6 +1328,7 @@ def run_turn(
     seed: int = 0,
     agent_bridge: object | None = None,
     economy_tracker: object | None = None,
+    ecology_runtime: object | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     from chronicler.accumulator import StatAccumulator
@@ -1423,14 +1424,26 @@ def run_turn(
     turn_events.extend(phase_leader_dynamics(world, seed=seed))
 
     # Phase 9: Ecology (M23 — replaces phase_fertility)
+    # M54a: ecology_runtime routes to Rust when available, else pure-Python.
+    # Terrain succession is now inside tick_ecology (no separate call).
     from chronicler.ecology import tick_ecology
     from chronicler.climate import get_climate_phase
     climate_phase = get_climate_phase(world.turn, world.climate_config)
-    turn_events.extend(tick_ecology(world, climate_phase, acc=acc))
 
-    # M18: Terrain succession (uses low_forest_turns updated by tick_ecology)
-    from chronicler.emergence import tick_terrain_succession
-    turn_events.extend(tick_terrain_succession(world))
+    # Determine the ecology runtime for this turn.
+    # In agent modes, use the AgentSimulator via the split bridge.
+    # In off mode, use the dedicated EcologySimulator (if provided).
+    _eco_rt = ecology_runtime  # off-mode EcologySimulator (or None)
+    if agent_bridge is not None:
+        # Split bridge: sync regions ONCE, then ecology runs on synced state.
+        agent_bridge.sync_regions(world)
+        _eco_rt = agent_bridge.ecology_simulator
+    elif _eco_rt is not None:
+        # Off-mode: sync region state into the dedicated EcologySimulator.
+        from chronicler.agent_bridge import build_region_batch
+        _eco_rt.set_region_state(build_region_batch(world))
+
+    turn_events.extend(tick_ecology(world, climate_phase, acc=acc, ecology_runtime=_eco_rt))
 
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
@@ -1444,13 +1457,13 @@ def run_turn(
         demand_shifts = agent_bridge._demand_manager.tick()
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
-        # Run agent tick with shock and demand data
-        turn_events.extend(agent_bridge.tick(world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict))
+        # Run agent tick via split bridge (no second set_region_state)
+        turn_events.extend(agent_bridge.tick_agents(world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict))
     else:
         acc.apply(world)
-        # Existing agent_bridge.tick() call for non-hybrid modes
+        # Non-hybrid agent modes: use split bridge (no second set_region_state)
         if agent_bridge is not None:
-            turn_events.extend(agent_bridge.tick(world, conquered=conquered_dict))
+            turn_events.extend(agent_bridge.tick_agents(world, conquered=conquered_dict))
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)
