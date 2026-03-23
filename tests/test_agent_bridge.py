@@ -537,6 +537,53 @@ class TestRegionBatchResourceColumns:
         # resource yields default to 0.0 when the ecology cache is empty
         assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
 
+    def test_region_batch_has_m54a_ecology_columns(self, sample_world):
+        """M54a: Region batch includes ecology schema columns."""
+        from chronicler.agent_bridge import build_region_batch
+        import pyarrow as pa
+
+        batch = build_region_batch(sample_world)
+        n = len(sample_world.regions)
+
+        # Column presence
+        ecology_columns = [
+            "disease_baseline", "capacity_modifier",
+            "resource_base_yield_0", "resource_base_yield_1", "resource_base_yield_2",
+            "resource_effective_yield_0", "resource_effective_yield_1", "resource_effective_yield_2",
+            "resource_suspension_0", "resource_suspension_1", "resource_suspension_2",
+            "has_irrigation", "has_mines", "active_focus",
+            "prev_turn_water", "soil_pressure_streak",
+            "overextraction_streak_0", "overextraction_streak_1", "overextraction_streak_2",
+        ]
+        for col_name in ecology_columns:
+            assert col_name in batch.schema.names, f"missing column: {col_name}"
+
+        # Arrow types
+        assert batch.schema.field("disease_baseline").type == pa.float32()
+        assert batch.schema.field("capacity_modifier").type == pa.float32()
+        assert batch.schema.field("resource_base_yield_0").type == pa.float32()
+        assert batch.schema.field("resource_effective_yield_0").type == pa.float32()
+        assert batch.schema.field("resource_suspension_0").type == pa.bool_()
+        assert batch.schema.field("has_irrigation").type == pa.bool_()
+        assert batch.schema.field("has_mines").type == pa.bool_()
+        assert batch.schema.field("active_focus").type == pa.uint8()
+        assert batch.schema.field("prev_turn_water").type == pa.float32()
+        assert batch.schema.field("soil_pressure_streak").type == pa.int32()
+        assert batch.schema.field("overextraction_streak_0").type == pa.int32()
+
+        # Row count
+        assert batch.num_rows == n
+
+        # Default values: disease_baseline = 0.01 (from Region model)
+        assert all(abs(v - 0.01) < 0.001 for v in batch.column("disease_baseline").to_pylist())
+        # capacity_modifier defaults to 1.0
+        assert all(abs(v - 1.0) < 0.001 for v in batch.column("capacity_modifier").to_pylist())
+        # No irrigation/mines by default on sample regions
+        assert all(v is False for v in batch.column("has_irrigation").to_pylist())
+        assert all(v is False for v in batch.column("has_mines").to_pylist())
+        # active_focus = 0 when civs have no focus set
+        assert all(v == 0 for v in batch.column("active_focus").to_pylist())
+
 
 class TestTransientSignalCleanup:
     """M36 regression: transient one-turn signals must clear after build_region_batch."""

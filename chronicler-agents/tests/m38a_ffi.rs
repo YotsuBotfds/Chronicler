@@ -153,41 +153,14 @@ fn test_has_temple_round_trip() {
         .unwrap();
 
     let regions: Vec<RegionState> = (0..batch.num_rows())
-        .map(|i| RegionState {
-            region_id: region_ids_col.value(i),
-            terrain: 0,
-            carrying_capacity: 10,
-            population: 5,
-            soil: 0.7,
-            water: 0.5,
-            forest_cover: 0.3,
-            adjacency_mask: 0,
-            controller_civ: 255,
-            trade_route_count: 0,
-            resource_types: [255, 255, 255],
-            resource_yields: [0.0, 0.0, 0.0],
-            resource_reserves: [1.0, 1.0, 1.0],
-            season: 0,
-            season_id: 0,
-            river_mask: 0,
-            endemic_severity: 0.0,
-            culture_investment_active: false,
-            controller_values: [0xFF, 0xFF, 0xFF],
-            conversion_rate: 0.0,
-            conversion_target_belief: 0xFF,
-            conquest_conversion_active: false,
-            majority_belief: 0xFF,
-            has_temple: has_temple_col.value(i),
-            persecution_intensity: 0.0,
-            schism_convert_from: 0xFF,
-            schism_convert_to: 0xFF,
-            farmer_income_modifier: 1.0,
-            food_sufficiency: 1.0,
-            merchant_margin: 0.0,
-            merchant_trade_income: 0.0,
-            controller_changed_this_turn: false,
-            war_won_this_turn: false,
-            seceded_this_turn: false,
+        .map(|i| {
+            let mut r = RegionState::new(region_ids_col.value(i));
+            r.carrying_capacity = 10;
+            r.population = 5;
+            r.soil = 0.7;
+            r.water = 0.5;
+            r.has_temple = has_temple_col.value(i);
+            r
         })
         .collect();
 
