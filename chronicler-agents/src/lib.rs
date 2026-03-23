@@ -22,6 +22,7 @@ pub mod memory;
 pub mod needs;
 pub mod relationships;
 pub mod formation;
+pub mod ecology;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
