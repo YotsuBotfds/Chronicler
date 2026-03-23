@@ -14,7 +14,7 @@
 use chronicler_agents::RegionState;
 use chronicler_agents::ecology::{
     EcologyConfig, EcologyEvent, RiverTopology, effective_capacity, pressure_multiplier,
-    tick_ecology,
+    tick_ecology, compute_yields, season_id_from_turn,
 };
 
 // ---------------------------------------------------------------------------
@@ -1439,4 +1439,167 @@ fn test_region_ecology_fields_independent_from_legacy() {
 fn test_region_new_has_existing_endemic_severity_unchanged() {
     let r = RegionState::new(0);
     assert!((r.endemic_severity - 0.0).abs() < f32::EPSILON);
+}
+
+// ===========================================================================
+// M54a Task 3: FFI ecology surface tests
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Test: ecology_region_schema is stable
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_ecology_region_schema_columns() {
+    let schema = chronicler_agents::ffi_schemas::ecology_region_schema();
+    let names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
+    let expected = vec![
+        "region_id",
+        "soil", "water", "forest_cover",
+        "endemic_severity", "prev_turn_water",
+        "soil_pressure_streak",
+        "overextraction_streak_0", "overextraction_streak_1", "overextraction_streak_2",
+        "resource_reserve_0", "resource_reserve_1", "resource_reserve_2",
+        "resource_effective_yield_0", "resource_effective_yield_1", "resource_effective_yield_2",
+        "current_turn_yield_0", "current_turn_yield_1", "current_turn_yield_2",
+    ];
+    assert_eq!(names, expected, "ecology_region_schema column names should match spec");
+    assert_eq!(schema.fields().len(), 19, "ecology_region_schema should have 19 columns");
+}
+
+#[test]
+fn test_ecology_events_schema_columns() {
+    let schema = chronicler_agents::ffi_schemas::ecology_events_schema();
+    let names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
+    assert_eq!(names, vec!["event_type", "region_id", "slot", "magnitude"]);
+    assert_eq!(schema.fields().len(), 4);
+}
+
+// ---------------------------------------------------------------------------
+// Test: compute_yields is callable (made pub in ecology.rs)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_compute_yields_public() {
+    let config = EcologyConfig::default();
+    let mut r = RegionState::new(0);
+    r.terrain = TERRAIN_PLAINS;
+    r.soil = 0.80;
+    r.water = 0.60;
+    r.forest_cover = 0.20;
+    r.carrying_capacity = 60;
+    r.population = 30;
+    r.controller_civ = 0;
+    r.capacity_modifier = 1.0;
+    r.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+    r.resource_base_yield = [1.0, 0.0, 0.0];
+    r.resource_effective_yield = [1.0, 0.0, 0.0];
+
+    let yields = compute_yields(&mut r, &config, 0, CLIMATE_TEMPERATE);
+    assert!(yields[0] > 0.0, "grain yield should be > 0");
+    assert!((yields[1] - 0.0).abs() < f32::EPSILON, "empty slot yield should be 0");
+    assert!((yields[2] - 0.0).abs() < f32::EPSILON, "empty slot yield should be 0");
+}
+
+// ---------------------------------------------------------------------------
+// Test: season_id_from_turn is public
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_season_id_from_turn_public() {
+    assert_eq!(season_id_from_turn(0), 0);
+    assert_eq!(season_id_from_turn(3), 1);
+    assert_eq!(season_id_from_turn(6), 2);
+    assert_eq!(season_id_from_turn(9), 3);
+    assert_eq!(season_id_from_turn(12), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Test: tick_ecology writes yields into resource_yields
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_tick_ecology_writes_yields_to_resource_yields() {
+    let config = default_config();
+    let mut r = make_plains(0);
+    r.resource_types = [RT_GRAIN, RT_TIMBER, EMPTY_SLOT];
+    r.resource_base_yield = [1.0, 0.8, 0.0];
+    r.resource_effective_yield = [1.0, 0.8, 0.0];
+    r.resource_yields = [0.0, 0.0, 0.0]; // Start at zero
+
+    let mut regions = vec![r];
+    let pandemic = vec![false];
+    let army = vec![false];
+
+    let (yields, _events) = tick_ecology(
+        &mut regions, &config, 0, CLIMATE_TEMPERATE, &pandemic, &army, &empty_river(),
+    );
+
+    // tick_ecology returns yields but does NOT write them to region.resource_yields
+    // (that's the FFI layer's job). However yields should be non-zero.
+    assert!(yields[0][0] > 0.0, "grain yield should be > 0");
+    assert!(yields[0][1] > 0.0, "timber yield should be > 0");
+
+    // The ecology core writes to resource_yields in compute_yields, so they
+    // should be updated after tick.
+    assert!(regions[0].resource_yields[0] > 0.0, "region resource_yields[0] should be updated");
+    assert!(regions[0].resource_yields[1] > 0.0, "region resource_yields[1] should be updated");
+}
+
+// ---------------------------------------------------------------------------
+// Test: patch detection of ecology-affecting fields
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_patch_soil_change_detected_as_ecology_affecting() {
+    // Verify the concept: if soil changes, yield recompute is needed.
+    // Test via the ecology core: same region, different soil => different yields.
+    let config = default_config();
+
+    let mut r1 = make_plains(0);
+    r1.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+    r1.resource_base_yield = [1.0, 0.0, 0.0];
+    r1.resource_effective_yield = [1.0, 0.0, 0.0];
+    r1.soil = 0.80;
+
+    let mut r2 = r1.clone();
+    r2.soil = 0.40; // Lower soil
+
+    let y1 = compute_yields(&mut r1, &config, 0, CLIMATE_TEMPERATE);
+    let y2 = compute_yields(&mut r2, &config, 0, CLIMATE_TEMPERATE);
+
+    assert!(
+        (y1[0] - y2[0]).abs() > 0.01,
+        "different soil should produce different yields: y1={}, y2={}",
+        y1[0], y2[0]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test: population-only patch does NOT need yield recompute
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_population_only_change_same_yields() {
+    let config = default_config();
+
+    let mut r1 = make_plains(0);
+    r1.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+    r1.resource_base_yield = [1.0, 0.0, 0.0];
+    r1.resource_effective_yield = [1.0, 0.0, 0.0];
+    r1.population = 30;
+
+    let mut r2 = r1.clone();
+    r2.population = 50; // Different population, same ecology fields
+
+    let y1 = compute_yields(&mut r1, &config, 0, CLIMATE_TEMPERATE);
+    let y2 = compute_yields(&mut r2, &config, 0, CLIMATE_TEMPERATE);
+
+    // compute_yields does NOT depend on population directly (only through
+    // depletion mechanics which are separate), so yields should be identical.
+    assert!(
+        (y1[0] - y2[0]).abs() < f32::EPSILON,
+        "same ecology fields should produce same yields regardless of population: y1={}, y2={}",
+        y1[0], y2[0]
+    );
 }

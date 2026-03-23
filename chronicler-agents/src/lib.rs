@@ -28,6 +28,13 @@ pub mod ecology;
 #[doc(hidden)]
 pub use ffi::AgentSimulator;
 #[doc(hidden)]
+pub use ffi::EcologySimulator;
+
+/// Re-exported FFI schemas for integration tests.
+pub mod ffi_schemas {
+    pub use crate::ffi::{ecology_region_schema, ecology_events_schema};
+}
+#[doc(hidden)]
 pub use agent::Occupation;
 #[doc(hidden)]
 pub use agent::BELIEF_NONE;
@@ -81,5 +88,6 @@ static GLOBAL: Jemalloc = Jemalloc;
 #[pymodule]
 fn chronicler_agents(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::AgentSimulator>()?;
+    m.add_class::<ffi::EcologySimulator>()?;
     Ok(())
 }

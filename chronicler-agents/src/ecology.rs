@@ -303,7 +303,7 @@ fn clamp_ecology(region: &mut RegionState) {
 
 /// Derive season_id from turn: (turn % 12) / 3
 #[inline]
-fn season_id_from_turn(turn: u32) -> u8 {
+pub fn season_id_from_turn(turn: u32) -> u8 {
     ((turn % 12) / 3) as u8
 }
 
@@ -646,7 +646,7 @@ fn river_cascade(
 // Step 7: Resource yield computation
 // ---------------------------------------------------------------------------
 
-fn compute_yields(
+pub fn compute_yields(
     region: &mut RegionState,
     config: &EcologyConfig,
     season_id: u8,
