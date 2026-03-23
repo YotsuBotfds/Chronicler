@@ -408,6 +408,65 @@ impl AgentSimulator {
             .column_by_name("seceded_this_turn")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
 
+        // M54a: Ecology schema columns
+        let disease_baseline_col = rb
+            .column_by_name("disease_baseline")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let capacity_modifier_col = rb
+            .column_by_name("capacity_modifier")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_base_yield_0_col = rb
+            .column_by_name("resource_base_yield_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_base_yield_1_col = rb
+            .column_by_name("resource_base_yield_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_base_yield_2_col = rb
+            .column_by_name("resource_base_yield_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_effective_yield_0_col = rb
+            .column_by_name("resource_effective_yield_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_effective_yield_1_col = rb
+            .column_by_name("resource_effective_yield_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_effective_yield_2_col = rb
+            .column_by_name("resource_effective_yield_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let resource_suspension_0_col = rb
+            .column_by_name("resource_suspension_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let resource_suspension_1_col = rb
+            .column_by_name("resource_suspension_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let resource_suspension_2_col = rb
+            .column_by_name("resource_suspension_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let has_irrigation_col = rb
+            .column_by_name("has_irrigation")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let has_mines_col = rb
+            .column_by_name("has_mines")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let active_focus_col = rb
+            .column_by_name("active_focus")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let prev_turn_water_col = rb
+            .column_by_name("prev_turn_water")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let soil_pressure_streak_col = rb
+            .column_by_name("soil_pressure_streak")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let overextraction_streak_0_col = rb
+            .column_by_name("overextraction_streak_0")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let overextraction_streak_1_col = rb
+            .column_by_name("overextraction_streak_1")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+        let overextraction_streak_2_col = rb
+            .column_by_name("overextraction_streak_2")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Int32Array>());
+
         // M37: Initial belief for spawn (per-region, controller civ's faith_id)
         let initial_belief_col = rb
             .column_by_name("initial_belief")
@@ -472,6 +531,34 @@ impl AgentSimulator {
                     controller_changed_this_turn: controller_changed_col.map_or(false, |arr| arr.value(i)),
                     war_won_this_turn: war_won_col.map_or(false, |arr| arr.value(i)),
                     seceded_this_turn: seceded_col.map_or(false, |arr| arr.value(i)),
+                    // M54a ecology
+                    disease_baseline: disease_baseline_col.map_or(0.0, |arr| arr.value(i)),
+                    capacity_modifier: capacity_modifier_col.map_or(1.0, |arr| arr.value(i)),
+                    resource_base_yield: [
+                        resource_base_yield_0_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_base_yield_1_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_base_yield_2_col.map_or(0.0, |arr| arr.value(i)),
+                    ],
+                    resource_effective_yield: [
+                        resource_effective_yield_0_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_effective_yield_1_col.map_or(0.0, |arr| arr.value(i)),
+                        resource_effective_yield_2_col.map_or(0.0, |arr| arr.value(i)),
+                    ],
+                    resource_suspension: [
+                        resource_suspension_0_col.map_or(false, |arr| arr.value(i)),
+                        resource_suspension_1_col.map_or(false, |arr| arr.value(i)),
+                        resource_suspension_2_col.map_or(false, |arr| arr.value(i)),
+                    ],
+                    has_irrigation: has_irrigation_col.map_or(false, |arr| arr.value(i)),
+                    has_mines: has_mines_col.map_or(false, |arr| arr.value(i)),
+                    active_focus: active_focus_col.map_or(0, |arr| arr.value(i)),
+                    prev_turn_water: prev_turn_water_col.map_or(0.0, |arr| arr.value(i)),
+                    soil_pressure_streak: soil_pressure_streak_col.map_or(0, |arr| arr.value(i)),
+                    overextraction_streak: [
+                        overextraction_streak_0_col.map_or(0, |arr| arr.value(i)),
+                        overextraction_streak_1_col.map_or(0, |arr| arr.value(i)),
+                        overextraction_streak_2_col.map_or(0, |arr| arr.value(i)),
+                    ],
                 })
                 .collect();
 
@@ -613,6 +700,27 @@ impl AgentSimulator {
                 r.controller_changed_this_turn = controller_changed_col.map_or(false, |arr| arr.value(i));
                 r.war_won_this_turn = war_won_col.map_or(false, |arr| arr.value(i));
                 r.seceded_this_turn = seceded_col.map_or(false, |arr| arr.value(i));
+                // M54a ecology — read-only inputs
+                if let Some(arr) = disease_baseline_col { r.disease_baseline = arr.value(i); }
+                if let Some(arr) = capacity_modifier_col { r.capacity_modifier = arr.value(i); }
+                if let Some(arr) = resource_base_yield_0_col { r.resource_base_yield[0] = arr.value(i); }
+                if let Some(arr) = resource_base_yield_1_col { r.resource_base_yield[1] = arr.value(i); }
+                if let Some(arr) = resource_base_yield_2_col { r.resource_base_yield[2] = arr.value(i); }
+                if let Some(arr) = resource_effective_yield_0_col { r.resource_effective_yield[0] = arr.value(i); }
+                if let Some(arr) = resource_effective_yield_1_col { r.resource_effective_yield[1] = arr.value(i); }
+                if let Some(arr) = resource_effective_yield_2_col { r.resource_effective_yield[2] = arr.value(i); }
+                r.resource_suspension[0] = resource_suspension_0_col.map_or(false, |arr| arr.value(i));
+                r.resource_suspension[1] = resource_suspension_1_col.map_or(false, |arr| arr.value(i));
+                r.resource_suspension[2] = resource_suspension_2_col.map_or(false, |arr| arr.value(i));
+                r.has_irrigation = has_irrigation_col.map_or(false, |arr| arr.value(i));
+                r.has_mines = has_mines_col.map_or(false, |arr| arr.value(i));
+                if let Some(arr) = active_focus_col { r.active_focus = arr.value(i); }
+                // M54a ecology — persistent state (synced from Python during migration)
+                if let Some(arr) = prev_turn_water_col { r.prev_turn_water = arr.value(i); }
+                if let Some(arr) = soil_pressure_streak_col { r.soil_pressure_streak = arr.value(i); }
+                if let Some(arr) = overextraction_streak_0_col { r.overextraction_streak[0] = arr.value(i); }
+                if let Some(arr) = overextraction_streak_1_col { r.overextraction_streak[1] = arr.value(i); }
+                if let Some(arr) = overextraction_streak_2_col { r.overextraction_streak[2] = arr.value(i); }
             }
         }
         Ok(())

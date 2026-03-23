@@ -61,11 +61,71 @@ pub struct RegionState {
     pub controller_changed_this_turn: bool,
     pub war_won_this_turn: bool,
     pub seceded_this_turn: bool,
+    // M54a: Ecology schema — read-only inputs from Python
+    pub disease_baseline: f32,           // set by world_gen, immutable after init
+    pub capacity_modifier: f32,          // set by climate phase each turn
+    pub resource_base_yield: [f32; 3],   // set by world_gen
+    pub resource_effective_yield: [f32; 3], // persistent degradation track
+    pub resource_suspension: [bool; 3],  // Python pre-computes suspension per slot
+    pub has_irrigation: bool,            // from infrastructure
+    pub has_mines: bool,                 // from infrastructure
+    pub active_focus: u8,                // TechFocus enum, 0 = None
+    // M54a: Ecology schema — Rust-owned persistent state
+    pub prev_turn_water: f32,            // previous turn's water, set after ecology tick
+    pub soil_pressure_streak: i32,       // depletion counter
+    pub overextraction_streak: [i32; 3], // per-slot extraction streak
 }
 
 impl RegionState {
     pub fn new(region_id: u16) -> Self {
-        Self { region_id, terrain: Terrain::Plains as u8, carrying_capacity: 60, population: 0, soil: 0.8, water: 0.6, forest_cover: 0.3, adjacency_mask: 0, controller_civ: 255, trade_route_count: 0, resource_types: [255, 255, 255], resource_yields: [0.0, 0.0, 0.0], resource_reserves: [1.0, 1.0, 1.0], season: 0, season_id: 0, river_mask: 0, endemic_severity: 0.0, culture_investment_active: false, controller_values: [0xFF, 0xFF, 0xFF], conversion_rate: 0.0, conversion_target_belief: 0xFF, conquest_conversion_active: false, majority_belief: 0xFF, has_temple: false, persecution_intensity: 0.0, schism_convert_from: 0xFF, schism_convert_to: 0xFF, farmer_income_modifier: 1.0, food_sufficiency: 1.0, merchant_margin: 0.0, merchant_trade_income: 0.0, controller_changed_this_turn: false, war_won_this_turn: false, seceded_this_turn: false }
+        Self {
+            region_id,
+            terrain: Terrain::Plains as u8,
+            carrying_capacity: 60,
+            population: 0,
+            soil: 0.8,
+            water: 0.6,
+            forest_cover: 0.3,
+            adjacency_mask: 0,
+            controller_civ: 255,
+            trade_route_count: 0,
+            resource_types: [255, 255, 255],
+            resource_yields: [0.0, 0.0, 0.0],
+            resource_reserves: [1.0, 1.0, 1.0],
+            season: 0,
+            season_id: 0,
+            river_mask: 0,
+            endemic_severity: 0.0,
+            culture_investment_active: false,
+            controller_values: [0xFF, 0xFF, 0xFF],
+            conversion_rate: 0.0,
+            conversion_target_belief: 0xFF,
+            conquest_conversion_active: false,
+            majority_belief: 0xFF,
+            has_temple: false,
+            persecution_intensity: 0.0,
+            schism_convert_from: 0xFF,
+            schism_convert_to: 0xFF,
+            farmer_income_modifier: 1.0,
+            food_sufficiency: 1.0,
+            merchant_margin: 0.0,
+            merchant_trade_income: 0.0,
+            controller_changed_this_turn: false,
+            war_won_this_turn: false,
+            seceded_this_turn: false,
+            // M54a ecology defaults
+            disease_baseline: 0.0,
+            capacity_modifier: 1.0,
+            resource_base_yield: [0.0, 0.0, 0.0],
+            resource_effective_yield: [0.0, 0.0, 0.0],
+            resource_suspension: [false, false, false],
+            has_irrigation: false,
+            has_mines: false,
+            active_focus: 0,
+            prev_turn_water: 0.0,
+            soil_pressure_streak: 0,
+            overextraction_streak: [0, 0, 0],
+        }
     }
 }
 
@@ -100,5 +160,42 @@ mod tests {
         assert!(r.adjacency_mask & (1 << 1) != 0);
         assert!(r.adjacency_mask & (1 << 3) != 0);
         assert!(r.adjacency_mask & (1 << 2) == 0);
+    }
+
+    #[test]
+    fn test_region_new_has_m54a_ecology_defaults() {
+        let r = RegionState::new(7);
+        // Read-only ecology inputs
+        assert!((r.disease_baseline - 0.0).abs() < f32::EPSILON);
+        assert!((r.capacity_modifier - 1.0).abs() < f32::EPSILON);
+        assert_eq!(r.resource_base_yield, [0.0, 0.0, 0.0]);
+        assert_eq!(r.resource_effective_yield, [0.0, 0.0, 0.0]);
+        assert_eq!(r.resource_suspension, [false, false, false]);
+        assert!(!r.has_irrigation);
+        assert!(!r.has_mines);
+        assert_eq!(r.active_focus, 0);
+        // Rust-owned persistent state
+        assert!((r.prev_turn_water - 0.0).abs() < f32::EPSILON);
+        assert_eq!(r.soil_pressure_streak, 0);
+        assert_eq!(r.overextraction_streak, [0, 0, 0]);
+    }
+
+    #[test]
+    fn test_region_m54a_fields_mutable() {
+        let mut r = RegionState::new(0);
+        r.disease_baseline = 0.05;
+        r.capacity_modifier = 0.85;
+        r.resource_base_yield = [1.2, 0.8, 0.0];
+        r.resource_effective_yield = [1.0, 0.6, 0.0];
+        r.resource_suspension = [false, true, false];
+        r.has_irrigation = true;
+        r.has_mines = true;
+        r.active_focus = 3;
+        r.prev_turn_water = 0.55;
+        r.soil_pressure_streak = 2;
+        r.overextraction_streak = [0, 3, 0];
+        assert!((r.disease_baseline - 0.05).abs() < f32::EPSILON);
+        assert!(r.has_irrigation);
+        assert_eq!(r.overextraction_streak[1], 3);
     }
 }

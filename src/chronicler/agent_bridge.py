@@ -128,6 +128,45 @@ def _get_yield(region, slot: int) -> float:
     return 0.0
 
 
+def _has_infra(region, infra_type_name: str) -> bool:
+    """Check whether a region has an active infrastructure of the given type."""
+    from chronicler.models import InfrastructureType
+    target = getattr(InfrastructureType, infra_type_name, None)
+    if target is None:
+        return False
+    return any(i.active and i.type == target for i in region.infrastructure)
+
+
+def _get_active_focus(region, world) -> int:
+    """Return the controlling civ's tech focus as u8, 0 = None."""
+    if region.controller is None:
+        return 0
+    civ = next((c for c in world.civilizations if c.name == region.controller), None)
+    if civ is None or not civ.active_focus:
+        return 0
+    # Map TechFocus string values to sequential u8 IDs (1-indexed, 0 = None)
+    TECH_FOCUS_MAP = {
+        "navigation": 1, "metallurgy": 2, "agriculture": 3,
+        "fortification": 4, "commerce": 5, "scholarship": 6,
+        "exploration": 7, "banking": 8, "printing": 9,
+        "mechanization": 10, "railways": 11, "naval_power": 12,
+        "networks": 13, "surveillance": 14, "media": 15,
+    }
+    return TECH_FOCUS_MAP.get(civ.active_focus, 0)
+
+
+def _get_suspension_for_slot(region, slot: int) -> bool:
+    """Check whether the given resource slot is currently suspended."""
+    # resource_suspensions is dict[int, int] keyed by resource_type enum int,
+    # but we need suspension status by slot index.
+    if slot >= len(region.resource_types):
+        return False
+    rtype = region.resource_types[slot]
+    if rtype == 255:  # no resource in this slot
+        return False
+    return region.resource_suspensions.get(rtype, 0) > 0
+
+
 def _decode_agent_memory_row(row) -> AgentMemoryRecord:
     if len(row) == 5:
         return AgentMemoryRecord(
@@ -270,6 +309,26 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "resource_reserve_0": pa.array([r.resource_reserves[0] for r in world.regions], type=pa.float32()),
         "resource_reserve_1": pa.array([r.resource_reserves[1] for r in world.regions], type=pa.float32()),
         "resource_reserve_2": pa.array([r.resource_reserves[2] for r in world.regions], type=pa.float32()),
+        # M54a: Ecology schema — full-sync inputs
+        "disease_baseline": pa.array([r.disease_baseline for r in world.regions], type=pa.float32()),
+        "capacity_modifier": pa.array([r.capacity_modifier for r in world.regions], type=pa.float32()),
+        "resource_base_yield_0": pa.array([r.resource_base_yields[0] for r in world.regions], type=pa.float32()),
+        "resource_base_yield_1": pa.array([r.resource_base_yields[1] for r in world.regions], type=pa.float32()),
+        "resource_base_yield_2": pa.array([r.resource_base_yields[2] for r in world.regions], type=pa.float32()),
+        "resource_effective_yield_0": pa.array([r.resource_effective_yields[0] for r in world.regions], type=pa.float32()),
+        "resource_effective_yield_1": pa.array([r.resource_effective_yields[1] for r in world.regions], type=pa.float32()),
+        "resource_effective_yield_2": pa.array([r.resource_effective_yields[2] for r in world.regions], type=pa.float32()),
+        "resource_suspension_0": pa.array([_get_suspension_for_slot(r, 0) for r in world.regions], type=pa.bool_()),
+        "resource_suspension_1": pa.array([_get_suspension_for_slot(r, 1) for r in world.regions], type=pa.bool_()),
+        "resource_suspension_2": pa.array([_get_suspension_for_slot(r, 2) for r in world.regions], type=pa.bool_()),
+        "has_irrigation": pa.array([_has_infra(r, "IRRIGATION") for r in world.regions], type=pa.bool_()),
+        "has_mines": pa.array([_has_infra(r, "MINES") for r in world.regions], type=pa.bool_()),
+        "active_focus": pa.array([_get_active_focus(r, world) for r in world.regions], type=pa.uint8()),
+        "prev_turn_water": pa.array([r.prev_turn_water for r in world.regions], type=pa.float32()),
+        "soil_pressure_streak": pa.array([r.soil_pressure_streak for r in world.regions], type=pa.int32()),
+        "overextraction_streak_0": pa.array([r.overextraction_streaks.get(0, 0) for r in world.regions], type=pa.int32()),
+        "overextraction_streak_1": pa.array([r.overextraction_streaks.get(1, 0) for r in world.regions], type=pa.int32()),
+        "overextraction_streak_2": pa.array([r.overextraction_streaks.get(2, 0) for r in world.regions], type=pa.int32()),
         "season": pa.array([get_season_step(world.turn) for _ in world.regions], type=pa.uint8()),
         "season_id": pa.array([get_season_id(world.turn) for _ in world.regions], type=pa.uint8()),
         # M35a: River mask

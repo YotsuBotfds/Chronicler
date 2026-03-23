@@ -24,46 +24,20 @@ fn main() {
     }
 
     let agents_per_region = agents / num_regions as usize;
-    let regions: Vec<RegionState> = (0..num_regions).map(|r| RegionState {
-        region_id: r,
-        terrain: 0,
-        carrying_capacity: agents_per_region as u16,
-        population: agents_per_region as u16,
-        soil: 0.7,
-        water: 0.5,
-        forest_cover: 0.3,
-        adjacency_mask: if num_regions <= 32 {
+    let regions: Vec<RegionState> = (0..num_regions).map(|r| {
+        let mut reg = RegionState::new(r);
+        reg.carrying_capacity = agents_per_region as u16;
+        reg.population = agents_per_region as u16;
+        reg.soil = 0.7;
+        reg.water = 0.5;
+        reg.adjacency_mask = if num_regions <= 32 {
             (if r > 0 { 1u32 << (r - 1) } else { 0 })
                 | (if r < num_regions - 1 { 1u32 << (r + 1) } else { 0 })
         } else {
             0
-        },
-        controller_civ: (r % 4) as u8,
-        trade_route_count: 0,
-        resource_types: [255, 255, 255],
-        resource_yields: [0.0, 0.0, 0.0],
-        resource_reserves: [1.0, 1.0, 1.0],
-        season: 0,
-        season_id: 0,
-        river_mask: 0,
-        endemic_severity: 0.0,
-        culture_investment_active: false,
-        controller_values: [0xFF, 0xFF, 0xFF],
-        conversion_rate: 0.0,
-        conversion_target_belief: 0xFF,
-        conquest_conversion_active: false,
-        majority_belief: 0xFF,
-        has_temple: false,
-        persecution_intensity: 0.0,
-        schism_convert_from: 0xFF,
-        schism_convert_to: 0xFF,
-        farmer_income_modifier: 1.0,
-        food_sufficiency: 1.0,
-        merchant_margin: 0.0,
-        merchant_trade_income: 0.0,
-        controller_changed_this_turn: false,
-        war_won_this_turn: false,
-        seceded_this_turn: false,
+        };
+        reg.controller_civ = (r % 4) as u8;
+        reg
     }).collect();
 
     let num_civs = (num_regions.min(8)) as usize;
