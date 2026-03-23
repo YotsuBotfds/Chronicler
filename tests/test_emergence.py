@@ -358,17 +358,24 @@ class TestSeverityMultiplierWiring:
 
     def test_famine_damage_amplified_by_stress(self):
         """Famine damage should be amplified by stress."""
-        from chronicler.ecology import _check_famine_legacy
+        from chronicler.ecology import _check_famine_yield
+        from chronicler.models import ClimatePhase, ResourceType, EMPTY_SLOT
         world = _make_world()
         civ = _make_civ(name="Civ1", population=80, stability=60, civ_stress=20, regions=["R1"])
         world.civilizations = [civ]
-        # Use water below famine threshold (0.20)
         r = _make_region(name="R1", controller="Civ1", famine_cooldown=0, population=80)
-        r.ecology.water = 0.01
+        r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
         world.regions = [r]
-        _check_famine_legacy(world)
-        # Base famine: pop -5. With 1.5x stress multiplier: pop -= int(5*1.5) = 7
-        assert civ.population < 80  # At least some damage
+        events = _check_famine_yield(
+            world,
+            {"R1": [0.0, 0.0, 0.0]},
+            ClimatePhase.DROUGHT,
+            threshold=0.12,
+            subsistence_base=0.15,
+        )
+        # Base famine pop loss is 5. With 1.5x stress multiplier: pop -= int(5 * 1.5) = 7.
+        assert len(events) == 1
+        assert civ.population == 73
 
     def test_random_event_damage_amplified(self):
         """Random event damage should be amplified by stress."""
@@ -622,16 +629,21 @@ class TestPandemicIntegration:
         from chronicler.world_gen import generate_world
         from chronicler.models import ActionType
         world = generate_world(seed=42, num_regions=8, num_civs=4)
+        control = generate_world(seed=42, num_regions=8, num_civs=4)
+        infected_civ = world.civilizations[0]
+        infected_region = next(r for r in world.regions if r.controller == infected_civ.name)
+        control_infected_civ = control.civilizations[0]
         # Inject a pandemic
         world.pandemic_state = [PandemicRegion(
-            region_name=world.regions[0].name, severity=1, turns_remaining=3,
+            region_name=infected_region.name, severity=1, turns_remaining=3,
         )]
-        world.regions[0].controller = world.civilizations[0].name
-        infected_region_pop_before = world.regions[0].population
         run_turn(world, action_selector=lambda c, w: ActionType.DEVELOP,
                  narrator=lambda w, e: "", seed=1)
-        # Pandemic should have ticked (damage applied to the infected region, timer decremented)
-        assert world.regions[0].population < infected_region_pop_before
+        run_turn(control, action_selector=lambda c, w: ActionType.DEVELOP,
+                 narrator=lambda w, e: "", seed=1)
+        # Pandemic should have ticked during the turn, leaving the infected civ weaker than control.
+        assert infected_civ.population < control_infected_civ.population
+        assert infected_civ.economy < control_infected_civ.economy
         assert world.pandemic_state[0].turns_remaining == 2
 
 

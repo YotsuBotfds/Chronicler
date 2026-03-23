@@ -24,12 +24,14 @@ class TestFactionDataModel:
         assert FactionType.MILITARY.value == "military"
         assert FactionType.MERCHANT.value == "merchant"
         assert FactionType.CULTURAL.value == "cultural"
+        assert FactionType.CLERGY.value == "clergy"
 
     def test_faction_state_defaults(self):
         fs = FactionState()
-        assert fs.influence[FactionType.MILITARY] == pytest.approx(0.33)
-        assert fs.influence[FactionType.MERCHANT] == pytest.approx(0.33)
-        assert fs.influence[FactionType.CULTURAL] == pytest.approx(0.34)
+        assert fs.influence[FactionType.MILITARY] == pytest.approx(0.25)
+        assert fs.influence[FactionType.MERCHANT] == pytest.approx(0.25)
+        assert fs.influence[FactionType.CULTURAL] == pytest.approx(0.25)
+        assert fs.influence[FactionType.CLERGY] == pytest.approx(0.25)
         assert fs.power_struggle is False
         assert fs.power_struggle_turns == 0
 
@@ -84,7 +86,7 @@ class TestCoreHelpers:
     def test_shift_faction_influence(self):
         fs = FactionState()
         shift_faction_influence(fs, FactionType.MILITARY, 0.10)
-        assert fs.influence[FactionType.MILITARY] > 0.33
+        assert fs.influence[FactionType.MILITARY] > 0.25
         assert sum(fs.influence.values()) == pytest.approx(1.0)
 
     def test_get_dominant_faction(self):
@@ -214,9 +216,9 @@ class TestWeightModifier:
 
     def test_equal_influence_mild_bias(self):
         civ = _make_civ()
-        # Default: CULTURAL dominant at 0.34
+        # Default: all factions are equal; insertion order makes MILITARY dominant.
         mod = get_faction_weight_modifier(civ, ActionType.WAR)
-        assert mod == pytest.approx(0.4 ** 0.34, rel=0.01)
+        assert mod == pytest.approx(1.8 ** 0.25, rel=0.01)
 
     def test_unlisted_action_returns_one(self):
         civ = _make_civ()
@@ -236,9 +238,10 @@ from chronicler.factions import total_effective_capacity
 class TestPowerStruggle:
     def test_trigger_when_close_and_above_threshold(self):
         fs = FactionState()
-        fs.influence[FactionType.MILITARY] = 0.36
-        fs.influence[FactionType.MERCHANT] = 0.34
-        fs.influence[FactionType.CULTURAL] = 0.30
+        fs.influence[FactionType.MILITARY] = 0.44
+        fs.influence[FactionType.MERCHANT] = 0.42
+        fs.influence[FactionType.CULTURAL] = 0.08
+        fs.influence[FactionType.CLERGY] = 0.06
         result = check_power_struggle(fs)
         assert result is not None
         assert FactionType.MILITARY in result

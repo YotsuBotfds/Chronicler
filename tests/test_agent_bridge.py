@@ -492,8 +492,10 @@ class TestRegionBatchResourceColumns:
 
     def test_region_batch_has_resource_columns(self, sample_world):
         from chronicler.agent_bridge import build_region_batch
+        from chronicler.ecology import _last_region_yields
         import pyarrow as pa
 
+        _last_region_yields.clear()
         batch = build_region_batch(sample_world)
 
         # All new column names are present
@@ -532,7 +534,7 @@ class TestRegionBatchResourceColumns:
         assert batch.column("season").to_pylist() == [expected_season] * batch.num_rows
         assert batch.column("season_id").to_pylist() == [expected_season_id] * batch.num_rows
 
-        # resource_yield_0 defaults to 0.0 when ecology hasn't run
+        # resource yields default to 0.0 when the ecology cache is empty
         assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
 
 

@@ -72,6 +72,11 @@ class TestRunBatch:
         batch_dir = run_batch(batch_args, sim_client=sim, narrative_client=narr)
         assert batch_dir.exists()
         assert (batch_dir / "summary.md").exists()
+        from chronicler.models import WorldState
+        for seed in [42, 43, 44]:
+            world = WorldState.load(batch_dir / f"seed_{seed}" / "state.json")
+            assert "stability.drain.drought_immediate" in world.tuning_overrides
+            assert world.tuning_overrides["stability.drain.drought_immediate"] == pytest.approx(1.0)
 
     def test_simulate_only_skips_llm(self, batch_args, tmp_path):
         """--simulate-only batch runs don't require real LLM clients."""

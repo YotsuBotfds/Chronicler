@@ -775,7 +775,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
     """Load a simulate-only bundle, curate moments, and narrate them."""
     import json as _json
     from chronicler.curator import curate
-    from chronicler.models import Event, NamedEvent, TurnSnapshot
+    from chronicler.models import Event, NamedEvent, TurnSnapshot, WorldState
 
     bundle_path = Path(args.narrate)
     if not bundle_path.exists():
@@ -789,6 +789,9 @@ def _run_narrate(args: argparse.Namespace) -> None:
     events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]
     named_events = [NamedEvent.model_validate(ne) for ne in bundle.get("named_events", [])]
     history = [TurnSnapshot.model_validate(snap) for snap in bundle.get("history", [])]
+    world = None
+    if bundle.get("world_state") is not None:
+        world = WorldState.model_validate(bundle["world_state"])
     seed = bundle.get("metadata", {}).get("seed", 42)
     budget = args.budget
 

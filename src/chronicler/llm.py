@@ -8,9 +8,17 @@ can be re-added as an optional mode via `pip install chronicler[api]`.
 """
 from __future__ import annotations
 
+import numbers
 from typing import Protocol, runtime_checkable, Any
 
 DEFAULT_LOCAL_URL = "http://localhost:1234/v1"
+
+
+def _coerce_token_count(value: Any) -> int:
+    """Return an integer token count, treating absent/mock values as zero."""
+    if isinstance(value, numbers.Real):
+        return int(value)
+    return 0
 
 
 @runtime_checkable
@@ -172,11 +180,12 @@ class GeminiClient:
             config=config,
         )
         usage = response.usage_metadata
-        self.total_input_tokens += usage.prompt_token_count
+        prompt_tokens = _coerce_token_count(getattr(usage, "prompt_token_count", 0))
+        candidate_tokens = _coerce_token_count(getattr(usage, "candidates_token_count", 0))
+        thought_tokens = _coerce_token_count(getattr(usage, "thoughts_token_count", 0))
+        self.total_input_tokens += prompt_tokens
         # Thinking models (2.5-flash/pro) split output into candidates + thoughts
-        self.total_output_tokens += (
-            (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0)
-        )
+        self.total_output_tokens += candidate_tokens + thought_tokens
         self.call_count += 1
         return response.text.strip()
 

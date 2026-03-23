@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import pyarrow.ipc as ipc
+from scipy import stats
 from scipy.stats import ks_2samp, anderson_ksamp
 
 
@@ -72,6 +73,21 @@ def extract_at_turn(data: dict, column: str, turn: int) -> np.ndarray:
     return values[mask]
 
 
+def _anderson_pvalue(samples: list[np.ndarray]) -> tuple[float, float]:
+    """Run Anderson-Darling with the modern SciPy API when available."""
+    try:
+        result = anderson_ksamp(
+            samples,
+            variant="midrank",
+            method=stats.PermutationMethod(n_resamples=999, rng=0),
+        )
+        return float(result.statistic), float(result.pvalue)
+    except TypeError:
+        result = anderson_ksamp(samples)
+        pvalue = getattr(result, "pvalue", result.significance_level)
+        return float(result.statistic), float(pvalue)
+
+
 def compare_distributions(data: dict) -> OracleReport:
     """Compare agent vs aggregate distributions from pre-loaded columnar data.
 
@@ -91,8 +107,7 @@ def compare_distributions(data: dict) -> OracleReport:
             if len(agent_vals) < 2 or len(agg_vals) < 2:
                 continue
             ks_stat, ks_p = ks_2samp(agent_vals, agg_vals)
-            ad_result = anderson_ksamp([agent_vals, agg_vals])
-            ad_stat, ad_p = ad_result.statistic, ad_result.significance_level
+            ad_stat, ad_p = _anderson_pvalue([agent_vals, agg_vals])
             results.append(OracleResult(metric, turn, ks_stat, ks_p, ad_p, bonferroni_alpha))
 
     correlation_checks = [("military", "economy"), ("culture", "stability")]

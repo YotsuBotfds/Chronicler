@@ -245,9 +245,14 @@ class TestExecuteRun:
         narr = self._mock_llm("Story.")
         args = self._make_args(tmp_path, turns=5)
         result = execute_run(args, sim_client=sim, narrative_client=narr)
-        assert len(result.action_distribution) > 0
-        for civ_name, actions in result.action_distribution.items():
-            assert isinstance(actions, dict)
+        from chronicler.models import WorldState
+        world = WorldState.load(tmp_path / "state.json")
+        assert set(result.action_distribution) == {civ.name for civ in world.civilizations}
+        all_action_types = set()
+        for civ in world.civilizations:
+            assert result.action_distribution[civ.name] == dict(civ.action_counts)
+            all_action_types.update(civ.action_counts.keys())
+        assert result.distinct_action_count == len(all_action_types)
 
     def test_computes_max_stat_swing(self, tmp_path):
         sim = self._mock_llm("DEVELOP")
@@ -465,6 +470,8 @@ class TestAgentsWiring:
         mock_bridge.get_snapshot.return_value = None
         mock_bridge._sim.get_snapshot.return_value = None
         mock_bridge.named_agents = {}
+        mock_bridge._collect_rel_stats = False
+        mock_bridge.relationship_stats = []
         return mock_bridge
 
     def test_agents_hybrid_sets_agent_mode(self, tmp_path):
@@ -644,11 +651,16 @@ class TestApiNarrationIntegration:
         """execute_run with API narrator: curated narration, no reflections, metadata written."""
         import json
         mock_sdk = MagicMock()
-        mock_sdk.messages.create.return_value = MagicMock(
-            content=[MagicMock(text="The great empire rose from humble beginnings...")],
-            usage=MagicMock(input_tokens=500, output_tokens=200),
-        )
         api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+        def fake_batch_complete(requests, poll_interval=10.0):
+            api_client.total_input_tokens += 500
+            api_client.total_output_tokens += 200
+            api_client.call_count += len(requests)
+            return [
+                "The great empire rose from humble beginnings..."
+                for _ in requests
+            ]
+        api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
 
         args = self._make_args(str(tmp_path))
         result = execute_run(
@@ -676,7 +688,7 @@ class TestApiNarrationIntegration:
         )
 
         # API client was called for curated moments, not per-turn (20 turns)
-        call_count = mock_sdk.messages.create.call_count
+        call_count = api_client.call_count
         assert call_count < 20, (
             f"Expected curated narration (< 20 calls), got {call_count} "
             "(suggests per-turn narration was not skipped)"
@@ -691,10 +703,6 @@ class TestApiNarrationIntegration:
         from chronicler.main import _run_narrate
 
         mock_sdk = MagicMock()
-        mock_sdk.messages.create.return_value = MagicMock(
-            content=[MagicMock(text="The chronicles speak of great change...")],
-            usage=MagicMock(input_tokens=300, output_tokens=150),
-        )
 
         # First, generate a simulate-only bundle
         sim_args = argparse.Namespace(
@@ -726,6 +734,15 @@ class TestApiNarrationIntegration:
 
         # Patch create_clients to return our mocked API client
         api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+        def fake_batch_complete(requests, poll_interval=10.0):
+            api_client.total_input_tokens += 300
+            api_client.total_output_tokens += 150
+            api_client.call_count += len(requests)
+            return [
+                "The chronicles speak of great change..."
+                for _ in requests
+            ]
+        api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
         with patch("chronicler.main.create_clients",
                    return_value=(MagicMock(model="test"), api_client)):
             _run_narrate(narrate_args)

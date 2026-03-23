@@ -33,7 +33,12 @@ def test_before_summary_reports_stat_changes():
         score=5.0, causal_links=[], narrative_role=NarrativeRole.CLIMAX, bonus_applied=0,
     )
     summary = build_before_summary(history, moment, prev_moment=None)
-    assert len(summary) > 0
+    assert summary.splitlines() == [
+        "- A population fell from 100 to 80",
+        "- A military rose from 50 to 70",
+        "- A stability fell from 50 to 30",
+        "- A claimed r2",
+    ]
 
 
 def test_after_summary_looks_forward():
@@ -50,7 +55,11 @@ def test_after_summary_looks_forward():
         score=5.0, causal_links=[], narrative_role=NarrativeRole.RESOLUTION, bonus_applied=0,
     )
     summary = build_after_summary(history, moment, next_moment)
-    assert len(summary) > 0
+    assert summary.splitlines() == [
+        "- A population will fall to 50",
+        "- A military will fall to 30",
+        "- A stability will fall to 10",
+    ]
 
 
 def test_narrate_batch_produces_entries():
@@ -89,7 +98,7 @@ def test_narrate_batch_fallback_on_error():
     history = [_make_snap(i, "A", 100, 50, 50, ["r1"]) for i in range(1, 15)]
     entries = engine.narrate_batch(moments, history, [])
     assert len(entries) == 1
-    assert entries[0].narrative  # has fallback text
+    assert entries[0].narrative == "battle"
 
 
 def test_narrate_batch_progress_callback():

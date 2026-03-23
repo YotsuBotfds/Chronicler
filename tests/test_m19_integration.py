@@ -69,6 +69,11 @@ class TestM19Integration:
         assert batch_dir.exists()
         bundles = list(batch_dir.glob("*/chronicle_bundle.json"))
         assert len(bundles) == 3
+        for bundle_path in bundles:
+            bundle = json.loads(bundle_path.read_text())
+            overrides = bundle["world_state"]["tuning_overrides"]
+            assert "stability.drain.drought_immediate" in overrides
+            assert overrides["stability.drain.drought_immediate"] == pytest.approx(1.0)
 
     def test_compare_two_reports(self):
         from chronicler.analytics import format_delta_report

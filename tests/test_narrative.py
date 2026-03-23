@@ -18,13 +18,11 @@ from chronicler.models import (
 
 
 class TestDomainThreading:
-    def test_thread_domains_replaces_placeholders(self):
+    def test_thread_domains_preserves_text_with_known_domains(self):
         text = "The civilization faced a great crisis."
         civ_domains = {"TestCiv": ["maritime", "commerce"]}
         result = thread_domains(text, "TestCiv", civ_domains)
-        # Domain threading should be present in output
-        assert isinstance(result, str)
-        assert len(result) > 0
+        assert result == text
 
     def test_thread_domains_no_civ_returns_unchanged(self):
         text = "Something happened."

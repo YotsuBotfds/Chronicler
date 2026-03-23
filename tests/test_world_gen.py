@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 from unittest.mock import MagicMock
-from chronicler.world_gen import generate_world, generate_regions, assign_civilizations
+from chronicler.world_gen import (
+    DEFAULT_EVENT_PROBABILITIES,
+    assign_civilizations,
+    generate_regions,
+    generate_world,
+)
 from chronicler.models import WorldState, TechEra
 
 
@@ -87,8 +92,9 @@ class TestGenerateWorld:
 
     def test_event_probabilities_initialized(self):
         world = generate_world(seed=42, num_regions=8, num_civs=4)
-        assert len(world.event_probabilities) > 0
-        assert all(0 < p < 1 for p in world.event_probabilities.values())
+        assert world.event_probabilities == DEFAULT_EVENT_PROBABILITIES
+        world.event_probabilities["drought"] = 0.9
+        assert DEFAULT_EVENT_PROBABILITIES["drought"] == 0.05
 
     def test_used_leader_names_seeded(self):
         world = generate_world(seed=42, num_regions=8, num_civs=4)
@@ -148,7 +154,18 @@ print(json.dumps(payload, sort_keys=True))
 class TestLLMWorldGeneration:
     def test_llm_generates_goals(self):
         mock_client = MagicMock()
-        mock_client.complete.return_value = '{"goals": ["Dominate the eastern trade routes", "Unite the mountain clans", "Spread the faith to all shores", "Preserve the ancient knowledge"]}'
+        expected_goals = [
+            "Dominate the eastern trade routes",
+            "Unite the mountain clans",
+            "Spread the faith to all shores",
+            "Preserve the ancient knowledge",
+        ]
+        mock_client.complete.return_value = (
+            '{"goals": ["Dominate the eastern trade routes", '
+            '"Unite the mountain clans", '
+            '"Spread the faith to all shores", '
+            '"Preserve the ancient knowledge"]}'
+        )
         mock_client.model = "test-model"
         world = generate_world(seed=42, num_regions=8, num_civs=4)
         # Without LLM, goals are empty
@@ -156,8 +173,7 @@ class TestLLMWorldGeneration:
 
         from chronicler.world_gen import enrich_with_llm
         enrich_with_llm(world, client=mock_client)
-        # After LLM enrichment, goals should be set
-        assert any(c.goal != "" for c in world.civilizations)
+        assert [c.goal for c in world.civilizations] == expected_goals
         mock_client.complete.assert_called_once()
 
 
