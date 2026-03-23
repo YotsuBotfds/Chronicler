@@ -17,9 +17,9 @@ chronicler-agents/target/
 viewer/node_modules/
 
 # Local tool scratch
-.claude/agents/
-.claude/commands/
-.claude/scheduled_tasks.lock
+.claude/
+AGENTS.md
+CLAUDE.md
 
 # Ad hoc local run artifacts
 chronicle_bundle.json
