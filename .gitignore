@@ -18,6 +18,7 @@ viewer/node_modules/
 
 # Local tool scratch
 .claude/
+.superpowers/phoebe-review/
 AGENTS.md
 CLAUDE.md
 
