@@ -218,6 +218,13 @@ class TestTickEcology:
         tick_ecology(w, ClimatePhase.TEMPERATE)
         assert w.regions[0].famine_cooldown == 2
 
+    def test_famine_cooldown_not_decremented_for_uncontrolled_region(self):
+        w = self._make_world(pop=0)
+        w.regions[0].controller = None
+        w.regions[0].famine_cooldown = 3
+        tick_ecology(w, ClimatePhase.TEMPERATE)
+        assert w.regions[0].famine_cooldown == 3
+
 
 class TestFamineCheck:
     def _make_world(self, water=0.15, pop=50, grain_base=0.10, soil=0.10):

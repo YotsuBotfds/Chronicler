@@ -1899,9 +1899,14 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                 satisfaction_weighted_sum += float(civ_data.get("satisfaction_mean", 0.0)) * count
                 satisfaction_std_weighted_sum += float(civ_data.get("satisfaction_std", 0.0)) * count
                 satisfaction_weight_total += count
-                if count >= 5:
-                    for occ_count in civ_data.get("occupation_counts", {}).values():
-                        occupation_shares.append(float(occ_count) / count)
+                occupation_count = int(civ_data.get("controlled_agent_count", count))
+                occupation_counts = civ_data.get(
+                    "controlled_occupation_counts",
+                    civ_data.get("occupation_counts", {}),
+                )
+                if occupation_count >= 5:
+                    for occ_count in occupation_counts.values():
+                        occupation_shares.append(float(occ_count) / occupation_count)
 
             sampled_counts = _agent_count_by_turn(validation_summary)
             if sampled_counts:

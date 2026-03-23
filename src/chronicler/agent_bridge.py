@@ -914,8 +914,10 @@ class AgentBridge:
                     lambda: {
                         "sats": [],
                         "occupations": Counter(),
+                        "controlled_occupations": Counter(),
                         "regions": Counter(),
                         "agent_ids": [],
+                        "controlled_agent_count": 0,
                     }
                 )
                 id_list = snap.column("id").to_pylist()
@@ -926,10 +928,15 @@ class AgentBridge:
                 polity_civ_ids = self._resolve_polity_civ_ids(world, region_list, civ_list)
                 for i in range(len(civ_list)):
                     civ_bucket = civ_data[polity_civ_ids[i]]
+                    region_id = int(region_list[i])
+                    occupation_id = int(occ_list[i])
                     civ_bucket["sats"].append(sat_list[i])
-                    civ_bucket["occupations"][int(occ_list[i])] += 1
-                    civ_bucket["regions"][int(region_list[i])] += 1
+                    civ_bucket["occupations"][occupation_id] += 1
+                    civ_bucket["regions"][region_id] += 1
                     civ_bucket["agent_ids"].append(int(id_list[i]))
+                    if 0 <= region_id < len(world.regions) and world.regions[region_id].controller is not None:
+                        civ_bucket["controlled_occupations"][occupation_id] += 1
+                        civ_bucket["controlled_agent_count"] += 1
 
                 mem_slots_by_agent = Counter()
                 for agent_id, signatures in mem_sigs.items():
@@ -983,6 +990,8 @@ class AgentBridge:
                         "satisfaction_q75": round(q75, 4),
                         "agent_count": n,
                         "occupation_counts": dict(cd["occupations"]),
+                        "controlled_agent_count": int(cd["controlled_agent_count"]),
+                        "controlled_occupation_counts": dict(cd["controlled_occupations"]),
                         "need_means": need_means,
                         "memory_slot_occupancy_mean": round(memory_slot_mean, 4),
                         "gini": round(self._gini_by_civ.get(int(civ), 0.0), 4),

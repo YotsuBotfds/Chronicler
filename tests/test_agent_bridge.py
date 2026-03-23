@@ -1,9 +1,14 @@
 """Tests for the Rust agent bridge — round-trip, determinism, integration."""
+import json
+import pathlib
+import tempfile
+
 import pyarrow as pa
 import pytest
 from chronicler_agents import AgentSimulator
 from chronicler.agent_bridge import build_region_batch, TERRAIN_MAP, AgentBridge
 from chronicler.models import GreatPerson
+from chronicler.sidecar import SidecarWriter
 
 
 def _make_dummy_signals(num_civs=3):
@@ -192,6 +197,72 @@ class TestDemographicsOnlyIntegration:
         bridge.write_final_sidecar_snapshot(sample_world)
 
         assert recorded_turns == [500]
+
+    def test_write_sidecar_snapshot_tracks_controlled_occupation_counts(self, sample_world):
+        class _FakeSim:
+            @staticmethod
+            def get_all_relationships():
+                return pa.record_batch({
+                    "agent_id": pa.array([], type=pa.uint32()),
+                    "target_id": pa.array([], type=pa.uint32()),
+                    "bond_type": pa.array([], type=pa.uint8()),
+                    "sentiment": pa.array([], type=pa.int16()),
+                })
+
+            @staticmethod
+            def get_all_memories():
+                return pa.record_batch({
+                    "agent_id": pa.array([], type=pa.uint32()),
+                    "event_type": pa.array([], type=pa.uint8()),
+                    "turn": pa.array([], type=pa.uint16()),
+                    "intensity": pa.array([], type=pa.int16()),
+                })
+
+            @staticmethod
+            def get_all_needs():
+                return pa.record_batch({
+                    "agent_id": pa.array([], type=pa.uint32()),
+                    "civ_affinity": pa.array([], type=pa.uint16()),
+                    "region": pa.array([], type=pa.uint16()),
+                    "occupation": pa.array([], type=pa.uint8()),
+                    "satisfaction": pa.array([], type=pa.float32()),
+                    "boldness": pa.array([], type=pa.float32()),
+                    "ambition": pa.array([], type=pa.float32()),
+                    "loyalty_trait": pa.array([], type=pa.float32()),
+                    "safety": pa.array([], type=pa.float32()),
+                    "autonomy": pa.array([], type=pa.float32()),
+                    "social": pa.array([], type=pa.float32()),
+                    "spiritual": pa.array([], type=pa.float32()),
+                    "material": pa.array([], type=pa.float32()),
+                    "purpose": pa.array([], type=pa.float32()),
+                })
+
+            @staticmethod
+            def get_snapshot():
+                return pa.record_batch({
+                    "id": pa.array([101, 102], type=pa.uint32()),
+                    "civ_affinity": pa.array([0, 0], type=pa.uint16()),
+                    "satisfaction": pa.array([0.6, 0.4], type=pa.float32()),
+                    "occupation": pa.array([1, 0], type=pa.uint8()),
+                    "region": pa.array([0, 4], type=pa.uint16()),
+                })
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        bridge._sim = _FakeSim()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = pathlib.Path(tmpdir)
+            bridge._sidecar = SidecarWriter(base)
+            bridge._write_sidecar_snapshot(sample_world)
+            bridge._sidecar.close()
+
+            summary = json.loads((base / "validation_summary.json").read_text())
+            aggregate = summary["agent_aggregates_by_turn"]["0"]["civ_0"]
+
+        assert aggregate["agent_count"] == 2
+        assert aggregate["occupation_counts"] == {"1": 1, "0": 1}
+        assert aggregate["controlled_agent_count"] == 1
+        assert aggregate["controlled_occupation_counts"] == {"1": 1}
 
     def test_write_back_resyncs_regions_and_population_from_controller_truth(self, sample_world):
         class _FakeSim:

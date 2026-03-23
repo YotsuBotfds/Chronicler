@@ -349,8 +349,10 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     subsistence_base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
     famine_threshold = get_override(world, K_FAMINE_YIELD_THRESHOLD, 0.12)
 
-    # Decrement famine cooldowns
+    # Match pre-M54a semantics: abandoned regions do not cool down while uncontrolled.
     for region in world.regions:
+        if region.controller is None:
+            continue
         if region.famine_cooldown > 0:
             region.famine_cooldown -= 1
 
