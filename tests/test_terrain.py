@@ -174,22 +174,22 @@ class TestRoleStacking:
 
 
 class TestEcologyCapIntegration:
-    """Ecology capping is now handled by _clamp_ecology in ecology.py."""
+    """Ecology capping is now handled by clamp_ecology in ecology.py."""
 
     def test_desert_soil_capped(self):
-        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS, _clamp_ecology
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS, clamp_ecology
         from chronicler.models import RegionEcology
         r = Region(name="D", terrain="desert", carrying_capacity=30,
                    resources="mineral",
                    ecology=RegionEcology(soil=0.50, water=0.10, forest_cover=0.0))
-        _clamp_ecology(r)
+        clamp_ecology(r)
         assert r.ecology.soil == 0.30  # desert soil cap
 
     def test_desert_soil_at_cap_stays(self):
-        from chronicler.ecology import _clamp_ecology
+        from chronicler.ecology import clamp_ecology
         from chronicler.models import RegionEcology
         r = Region(name="D", terrain="desert", carrying_capacity=30,
                    resources="mineral",
                    ecology=RegionEcology(soil=0.30, water=0.10, forest_cover=0.0))
-        _clamp_ecology(r)
+        clamp_ecology(r)
         assert r.ecology.soil == 0.30

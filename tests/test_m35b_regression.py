@@ -11,7 +11,8 @@ def test_existing_ecology_works_with_disease_fields():
     for r in world.regions:
         assert 0.0 <= r.ecology.soil <= 1.0
         assert 0.0 <= r.ecology.water <= 1.0
-        assert r.endemic_severity >= r.disease_baseline
+        # Allow f32 precision loss: severity round-trips through Rust f32
+        assert r.endemic_severity >= r.disease_baseline - 1e-6
         assert r.endemic_severity <= 0.15
 
 

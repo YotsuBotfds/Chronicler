@@ -422,7 +422,7 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
 
     # Apply river bonuses (once per region, not per river)
     from chronicler.tuning import get_override, K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER
-    from chronicler.ecology import _clamp_ecology
+    from chronicler.ecology import clamp_ecology as _clamp_ecology
     from chronicler.resources import RESOURCE_BASE
     import random as _rng_mod
     water_bonus = get_override(world, K_RIVER_WATER_BONUS, 0.15)
