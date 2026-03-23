@@ -427,6 +427,8 @@
 
 **Next steps:**
 - **M54a:** Rust ecology migration is unblocked and can begin from the M53 passing baseline.
+- **M54a follow-up (2026-03-23):** Restored pre-M54a famine cooldown semantics so uncontrolled regions no longer decrement `famine_cooldown`, and added regression coverage for that path in `tests/test_ecology.py`.
+- **M54a wrap (2026-03-23):** Sidecar regression scoring now uses controlled-only occupation counts, so uncontrolled fallback buckets do not trip polity occupation caps. Fresh canonical `200 seeds x 500 turns` rerun at `output/m54a/codex_m53_secession_threshold25_full_500turn_controlled_occ/batch_1/validate_report.json` passes every oracle (`determinism=SKIP` remains expected because the gate has no duplicate seed pairs).
 - **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
 - **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
 - **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
