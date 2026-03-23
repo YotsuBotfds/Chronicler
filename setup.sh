@@ -32,7 +32,7 @@ if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
     exit 1
 fi
 
-PYTHON=$(command -v python3 || command -v python)
+PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null)
 PY_VERSION=$($PYTHON --version 2>&1 | sed 's/[^0-9]*\([0-9]*\.[0-9]*\).*/\1/')
 echo "[1/4] Found Python $PY_VERSION"
 
@@ -71,7 +71,7 @@ if [ "$NO_RUST" -eq 0 ]; then
         echo "[4/4] Building Rust agent crate..."
         pip install maturin --quiet
         cd chronicler-agents
-        maturin develop --release 2>&1 | tail -1
+        maturin develop --release 2>&1 | tail -n 1
         cd ..
     else
         echo "[4/4] Rust toolchain not found — skipping agent crate"
