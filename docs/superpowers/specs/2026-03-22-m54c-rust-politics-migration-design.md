@@ -152,6 +152,7 @@ Scalars Rust needs to evaluate thresholds and compute deltas:
 - **Population:** `population` (for population-relative checks)
 - **Founding:** `founded_turn` (for secession grace period, twilight age gate)
 - **Religion:** `civ_majority_faith` (for M38b schism secession modifier in step 2)
+- **Stress:** `civ_stress` (for `get_severity_multiplier()` — used at 8+ call sites across steps 1-9)
 
 ### Family 2: Region State (per-region row)
 
@@ -191,6 +192,8 @@ In `--agents=off`, no live pool exists. Consequence evaluation uses packed world
 Functions that Rust must reimplement to execute the consequence pass. Analogous to M54a's `effective_capacity` and `pressure_multiplier` callouts.
 
 - **`graph_distance(adjacency_graph, from_region, to_region) -> i32`** — BFS over region adjacencies. Used by `check_secession()` for secession scoring (distance from capital) and breakaway capital selection (min distance to remaining parent regions). Source: `src/chronicler/adjacency.py`.
+- **`effective_capacity(region) -> int`** — reads `region.ecology.soil`, `region.ecology.water`, `region.carrying_capacity`, `region.capacity_modifier`. Used by secession scoring (step 2), capital reassignment (step 1), and restoration target selection (step 8). M54a already implements this in Rust for ecology — M54c should reuse that implementation. Requires post-ecology region state to be available in Rust at Phase 10 time (guaranteed since ecology runs in Phase 9).
+- **`get_severity_multiplier(civ, world) -> float`** — reads `civ.civ_stress` and severity tuning constants (`K_SEVERITY_STRESS_DIVISOR`, `K_SEVERITY_STRESS_SCALE`, `K_SEVERITY_CAP`, `K_SEVERITY_MULTIPLIER`). Pure function, no side effects. Used at 8+ call sites across steps 1, 2, 4, 6, 7, 8, 9 (not step 11). Source: `src/chronicler/emergence.py`. Reimplementing in Rust is clean. `civ_stress` must be included in Family 1 inputs; severity constants in Family 5 / `PoliticsConfig`.
 - **`stable_hash_int(...)` equivalent** — deterministic seed construction for all RNG sites. Must produce identical values to the Python implementation for off-mode parity.
 
 ### Intelligence System Boundary (B1 Resolution)
@@ -429,7 +432,7 @@ For any seed, the post-political-sub-pass world state in `--agents=off` must be 
 | Op encoding choice (unified stream vs per-step batches) | Should follow M54a's return pattern |
 | Off-mode wiring mechanism | M54a proves lightweight-simulator approach first |
 | CivRef / FederationRef encoding | Match M54a's ref pattern if one emerges |
-| `PoliticsConfig` struct shape | M54a establishes `EcologyConfig`, M54b establishes `EconomyConfig`. M54c's config surface is larger (~20+ tuning constants). Implementation plan should enumerate all consumed constants. |
+| `PoliticsConfig` struct shape | M54a establishes `EcologyConfig`, M54b establishes `EconomyConfig`. M54c's config surface is larger (~20+ tuning constants including `SECESSION_GRACE_TURNS`, `SCHISM_SECESSION_MODIFIER`, severity constants, and both override-path and multiplier-path constants like `K_SECESSION_LIKELIHOOD`). Implementation plan should enumerate all consumed constants and distinguish compiled constants from configurable overrides. |
 
 ---
 
