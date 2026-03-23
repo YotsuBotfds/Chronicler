@@ -705,6 +705,77 @@ def test_run_regression_summary_ignores_tiny_civs_for_occupation_distribution():
     assert result["occupation_ok"] is True
 
 
+def test_run_regression_summary_ignores_uncontrolled_civ_bucket_for_occupation_distribution():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "uncontrolled_tail": {
+                        "satisfaction_mean": 0.4,
+                        "satisfaction_std": 0.05,
+                        "agent_count": 6,
+                        "controlled_agent_count": 0,
+                        "occupation_counts": {"0": 5, "3": 1},
+                        "controlled_occupation_counts": {},
+                        "gini": 0.4,
+                    },
+                    "healthy_civ": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "controlled_agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "controlled_occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_ok"] is True
+
+
+def test_run_regression_summary_uses_controlled_occupations_for_mixed_buckets():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "mixed_bucket": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 30,
+                        "controlled_agent_count": 10,
+                        "occupation_counts": {"0": 24, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "controlled_occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_ok"] is True
+
+
 def test_run_regression_summary_skips_bundle_gini_when_final_sidecar_is_empty():
     from chronicler.validate import run_regression_summary
 
