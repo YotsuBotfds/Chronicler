@@ -465,6 +465,8 @@ class TestAgentsWiring:
 
     def _mock_agent_bridge(self):
         """Create a mock AgentBridge for tests (Rust crate may not be built)."""
+        import pyarrow as pa
+
         mock_bridge = MagicMock()
         mock_bridge.close = MagicMock()
         mock_bridge.get_snapshot.return_value = None
@@ -472,6 +474,44 @@ class TestAgentsWiring:
         mock_bridge.named_agents = {}
         mock_bridge._collect_rel_stats = False
         mock_bridge.relationship_stats = []
+
+        # M54a: Mock the ecology_simulator so tick_ecology returns proper batches.
+        # The ecology_simulator property returns the underlying _sim mock.
+        def _mock_tick_ecology(turn, climate_phase, pandemic_mask, army_arrived_mask):
+            n = len(pandemic_mask)
+            region_batch = pa.record_batch({
+                "region_id": pa.array(range(n), type=pa.uint16()),
+                "soil": pa.array([0.8] * n, type=pa.float32()),
+                "water": pa.array([0.6] * n, type=pa.float32()),
+                "forest_cover": pa.array([0.3] * n, type=pa.float32()),
+                "endemic_severity": pa.array([0.0] * n, type=pa.float32()),
+                "prev_turn_water": pa.array([0.6] * n, type=pa.float32()),
+                "soil_pressure_streak": pa.array([0] * n, type=pa.int32()),
+                "overextraction_streak_0": pa.array([0] * n, type=pa.int32()),
+                "overextraction_streak_1": pa.array([0] * n, type=pa.int32()),
+                "overextraction_streak_2": pa.array([0] * n, type=pa.int32()),
+                "resource_reserve_0": pa.array([1.0] * n, type=pa.float32()),
+                "resource_reserve_1": pa.array([1.0] * n, type=pa.float32()),
+                "resource_reserve_2": pa.array([1.0] * n, type=pa.float32()),
+                "resource_effective_yield_0": pa.array([0.5] * n, type=pa.float32()),
+                "resource_effective_yield_1": pa.array([0.5] * n, type=pa.float32()),
+                "resource_effective_yield_2": pa.array([0.5] * n, type=pa.float32()),
+                "current_turn_yield_0": pa.array([0.5] * n, type=pa.float32()),
+                "current_turn_yield_1": pa.array([0.5] * n, type=pa.float32()),
+                "current_turn_yield_2": pa.array([0.5] * n, type=pa.float32()),
+            })
+            event_batch = pa.record_batch({
+                "event_type": pa.array([], type=pa.uint8()),
+                "region_id": pa.array([], type=pa.uint16()),
+                "slot": pa.array([], type=pa.uint8()),
+                "magnitude": pa.array([], type=pa.float32()),
+            })
+            return (region_batch, event_batch)
+
+        mock_bridge.ecology_simulator.tick_ecology = _mock_tick_ecology
+        mock_bridge.ecology_simulator.apply_region_postpass_patch = MagicMock()
+        # tick_agents returns a list of events (empty for mocks)
+        mock_bridge.tick_agents.return_value = []
         return mock_bridge
 
     def test_agents_hybrid_sets_agent_mode(self, tmp_path):

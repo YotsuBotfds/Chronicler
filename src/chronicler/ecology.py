@@ -497,8 +497,190 @@ def update_depletion_feedback(region: "Region", world: "WorldState | None") -> l
     return events
 
 
-def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> list[Event]:
-    """Phase 9 ecology tick. Replaces phase_fertility."""
+def _collect_pandemic_mask(world: "WorldState") -> list[bool]:
+    """Build per-region bool mask: True if region has an active pandemic."""
+    pandemic_regions: set[str] = set()
+    if hasattr(world, "pandemic_state"):
+        for p in world.pandemic_state:
+            pandemic_regions.add(p.region_name)
+    return [r.name in pandemic_regions for r in world.regions]
+
+
+def _collect_army_arrived_mask(world: "WorldState") -> list[bool]:
+    """Build per-region bool mask: True if military agents migrated in last turn."""
+    mask = [False] * len(world.regions)
+    prev_turn = world.turn - 1
+    if hasattr(world, "agent_events_raw") and world.agent_events_raw:
+        for e in world.agent_events_raw:
+            if (e.event_type == "migration"
+                    and e.occupation == 1
+                    and e.turn == prev_turn
+                    and 0 <= e.target_region < len(mask)):
+                mask[e.target_region] = True
+    return mask
+
+
+_TERRAIN_FROM_U8 = {0: "plains", 1: "mountains", 2: "coast", 3: "forest", 4: "desert", 5: "tundra"}
+
+
+def _write_back_ecology(world: "WorldState", region_batch) -> dict[str, list[float]]:
+    """Write Rust ecology tick results back onto Python Region models.
+
+    Returns {region_name: [yield0, yield1, yield2]} for famine checks.
+    """
+    region_yields: dict[str, list[float]] = {}
+    n = region_batch.num_rows
+    soils = region_batch.column("soil").to_pylist()
+    waters = region_batch.column("water").to_pylist()
+    forests = region_batch.column("forest_cover").to_pylist()
+    severities = region_batch.column("endemic_severity").to_pylist()
+    prev_waters = region_batch.column("prev_turn_water").to_pylist()
+    soil_streaks = region_batch.column("soil_pressure_streak").to_pylist()
+    over0 = region_batch.column("overextraction_streak_0").to_pylist()
+    over1 = region_batch.column("overextraction_streak_1").to_pylist()
+    over2 = region_batch.column("overextraction_streak_2").to_pylist()
+    res0 = region_batch.column("resource_reserve_0").to_pylist()
+    res1 = region_batch.column("resource_reserve_1").to_pylist()
+    res2 = region_batch.column("resource_reserve_2").to_pylist()
+    ey0 = region_batch.column("resource_effective_yield_0").to_pylist()
+    ey1 = region_batch.column("resource_effective_yield_1").to_pylist()
+    ey2 = region_batch.column("resource_effective_yield_2").to_pylist()
+    cy0 = region_batch.column("current_turn_yield_0").to_pylist()
+    cy1 = region_batch.column("current_turn_yield_1").to_pylist()
+    cy2 = region_batch.column("current_turn_yield_2").to_pylist()
+
+    for i in range(n):
+        if i >= len(world.regions):
+            break
+        region = world.regions[i]
+        region.ecology.soil = soils[i]
+        region.ecology.water = waters[i]
+        region.ecology.forest_cover = forests[i]
+        # These fields are on Region, not RegionEcology
+        region.endemic_severity = severities[i]
+        region.prev_turn_water = prev_waters[i]
+        region.soil_pressure_streak = soil_streaks[i]
+        region.overextraction_streaks = {0: over0[i], 1: over1[i], 2: over2[i]}
+        region.resource_reserves = [res0[i], res1[i], res2[i]]
+        region.resource_effective_yields = [ey0[i], ey1[i], ey2[i]]
+        region_yields[region.name] = [cy0[i], cy1[i], cy2[i]]
+
+    return region_yields
+
+
+def _materialize_ecology_events(event_batch, world: "WorldState") -> list[Event]:
+    """Convert Rust ecology event batch rows into Python Event objects."""
+    events: list[Event] = []
+    if event_batch.num_rows == 0:
+        return events
+    etypes = event_batch.column("event_type").to_pylist()
+    rids = event_batch.column("region_id").to_pylist()
+    # slots and magnitudes available but not needed for Event construction
+    for i in range(event_batch.num_rows):
+        rid = rids[i]
+        region = world.regions[rid] if rid < len(world.regions) else None
+        controller = region.controller if region else None
+        actors = [controller] if controller else []
+        rname = region.name if region else f"region_{rid}"
+        if etypes[i] == 0:
+            events.append(Event(
+                turn=world.turn,
+                event_type="soil_exhaustion",
+                actors=actors,
+                description=f"The fields of {rname} show signs of exhaustion from decades of intensive cultivation",
+                importance=6,
+            ))
+        elif etypes[i] == 1:
+            events.append(Event(
+                turn=world.turn,
+                event_type="resource_depletion",
+                actors=actors,
+                description=f"Overextraction has degraded {rname}'s resources",
+                importance=7,
+            ))
+    return events
+
+
+# ---- Climate phase to u8 mapping for FFI ----
+_CLIMATE_PHASE_TO_U8 = {"temperate": 0, "warming": 1, "drought": 2, "cooling": 3}
+
+
+def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
+                 ecology_runtime=None) -> list[Event]:
+    """Phase 9 ecology tick.
+
+    When ecology_runtime is provided (AgentSimulator or EcologySimulator),
+    delegates the core ecology math to Rust, then runs Python-only post-pass
+    (famine, refugees, soil floor, counters, terrain succession).
+
+    When ecology_runtime is None, falls back to the pure-Python implementation.
+    """
+    if ecology_runtime is not None:
+        return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime)
+    return _tick_ecology_python(world, climate_phase, acc)
+
+
+def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
+                       ecology_runtime) -> list[Event]:
+    """Rust-backed ecology tick with Python post-pass."""
+    # 1. Rust ecology tick
+    climate_u8 = _CLIMATE_PHASE_TO_U8.get(climate_phase.value, 0)
+    pandemic_mask = _collect_pandemic_mask(world)
+    army_arrived_mask = _collect_army_arrived_mask(world)
+    region_batch, event_batch = ecology_runtime.tick_ecology(
+        world.turn, climate_u8, pandemic_mask, army_arrived_mask,
+    )
+
+    # 2. Write-back to Python Region
+    region_yields = _write_back_ecology(world, region_batch)
+    _last_region_yields.clear()
+    _last_region_yields.update(region_yields)
+
+    # 3. Materialize Rust ecology events
+    rust_events = _materialize_ecology_events(event_batch, world)
+
+    # 4. Python famine / soil floor / counters / terrain succession / population sync
+    from chronicler.resources import get_season_id
+    season_id = get_season_id(world.turn)
+
+    subsistence_base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
+    famine_threshold = get_override(world, K_FAMINE_YIELD_THRESHOLD, 0.12)
+
+    # Decrement famine cooldowns
+    for region in world.regions:
+        if region.famine_cooldown > 0:
+            region.famine_cooldown -= 1
+
+    famine_events = _check_famine_yield(
+        world, region_yields, climate_phase, famine_threshold, subsistence_base, acc,
+    )
+
+    from chronicler.traditions import apply_soil_floor
+    apply_soil_floor(world)
+
+    _update_ecology_counters(world)
+
+    # Terrain succession (was previously a separate call after tick_ecology in simulation.py)
+    from chronicler.emergence import tick_terrain_succession
+    terrain_events = tick_terrain_succession(world)
+
+    from chronicler.utils import sync_all_populations
+    sync_all_populations(world)
+
+    # M35b: Store post-tick water for next turn's delta detection
+    for region in world.regions:
+        region.prev_turn_water = region.ecology.water
+
+    # 5. Narrow post-pass patch back to Rust
+    from chronicler.agent_bridge import build_region_postpass_patch_batch
+    patch = build_region_postpass_patch_batch(world)
+    ecology_runtime.apply_region_postpass_patch(patch)
+
+    return famine_events + rust_events + terrain_events
+
+
+def _tick_ecology_python(world: WorldState, climate_phase: ClimatePhase, acc) -> list[Event]:
+    """Pure-Python ecology tick (original implementation, used when no Rust runtime)."""
     from chronicler.resources import get_season_id as _get_season_id_fn
     current_season_id = _get_season_id_fn(world.turn)
     m35b_events: list[Event] = []
@@ -604,6 +786,10 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
 
     _update_ecology_counters(world)
 
+    # M54a: terrain succession now runs inside ecology orchestration
+    from chronicler.emergence import tick_terrain_succession
+    terrain_events = tick_terrain_succession(world)
+
     from chronicler.utils import sync_all_populations
     sync_all_populations(world)
 
@@ -612,4 +798,5 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None) -> li
         region.prev_turn_water = region.ecology.water
 
     events.extend(m35b_events)
+    events.extend(terrain_events)
     return events

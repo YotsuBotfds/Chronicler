@@ -390,6 +390,24 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
     })
 
 
+def build_region_postpass_patch_batch(world: WorldState) -> pa.RecordBatch:
+    """Build a narrow post-pass patch batch for Rust after Python ecology post-processing.
+
+    Side-effect free. Must not clear one-turn signals or depend on _last_region_yields.
+    Schema: region_id(u16), population(u16), soil(f32), water(f32),
+            forest_cover(f32), terrain(u8), carrying_capacity(u16).
+    """
+    return pa.record_batch({
+        "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
+        "population": pa.array([r.population for r in world.regions], type=pa.uint16()),
+        "soil": pa.array([r.ecology.soil for r in world.regions], type=pa.float32()),
+        "water": pa.array([r.ecology.water for r in world.regions], type=pa.float32()),
+        "forest_cover": pa.array([r.ecology.forest_cover for r in world.regions], type=pa.float32()),
+        "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
+        "carrying_capacity": pa.array([r.carrying_capacity for r in world.regions], type=pa.uint16()),
+    })
+
+
 def build_signals(world: WorldState, shocks: list | None = None,
                   demands: dict | None = None,
                   conquered: dict[int, bool] | None = None,
@@ -555,12 +573,42 @@ class AgentBridge:
             resolved.append(controller_id if controller_id is not None else int(fallback_civ_id))
         return resolved
 
-    def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
+    @property
+    def ecology_simulator(self):
+        """Expose the Rust simulator handle for ecology tick in agent modes."""
+        return self._sim
+
+    def sync_regions(self, world: WorldState) -> None:
+        """Phase 1 of the split bridge: full region sync to Rust.
+
+        Must be called exactly once per turn BEFORE ecology tick or agent tick.
+        """
         self._sim.set_region_state(build_region_batch(world, self._economy_result))
+
+    def tick_agents(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
+        """Phase 2 of the split bridge: send signals and run agent tick.
+
+        Assumes sync_regions() was already called this turn.
+        Does NOT call set_region_state() again.
+        """
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
+        return self._process_tick_results(agent_events, world)
 
+    def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
+        """Compatibility wrapper: full sync + agent tick in one call.
+
+        Use sync_regions() + tick_agents() separately when ecology runs between them.
+        """
+        self.sync_regions(world)
+        signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
+                                gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
+        agent_events = self._sim.tick(world.turn, signals)
+        return self._process_tick_results(agent_events, world)
+
+    def _process_tick_results(self, agent_events, world: WorldState) -> list:
+        """Shared post-tick processing for both tick() and tick_agents()."""
         # M53: relationship stats collection (all modes)
         if self._collect_rel_stats:
             try:

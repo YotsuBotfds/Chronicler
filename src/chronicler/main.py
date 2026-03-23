@@ -50,6 +50,29 @@ class _DummyClient:
         return "DEVELOP"
 
 
+def _create_ecology_runtime(world):
+    """Create a dedicated EcologySimulator for --agents=off mode.
+
+    Wraps construction so tests can mock this function without
+    requiring the compiled Rust module.
+    """
+    try:
+        from chronicler_agents import EcologySimulator
+        eco_sim = EcologySimulator()
+        # Configure river topology from world state
+        if world.rivers:
+            region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+            river_paths = []
+            for river in world.rivers:
+                path_indices = [region_name_to_idx[rn] for rn in river.path if rn in region_name_to_idx]
+                if path_indices:
+                    river_paths.append(path_indices)
+            eco_sim.set_river_topology(river_paths)
+        return eco_sim
+    except ImportError:
+        return None
+
+
 def execute_run(
     args: argparse.Namespace,
     sim_client: LLMClient | None = None,
@@ -208,6 +231,11 @@ def execute_run(
             relationship_stats=getattr(args, "relationship_stats", False),
         )
 
+    # M54a: Off-mode ecology runtime (Rust ecology without agent pool)
+    ecology_runtime = None
+    if agent_mode == "off":
+        ecology_runtime = _create_ecology_runtime(world)
+
     # M43b: Economy tracker (persists across turns for EMA-based shock detection)
     economy_tracker = None
     if agent_bridge is not None:
@@ -270,6 +298,7 @@ def execute_run(
             seed=seed + turn_num,
             agent_bridge=agent_bridge,
             economy_tracker=economy_tracker,
+            ecology_runtime=ecology_runtime,
         )
 
         # Capture per-turn snapshot for viewer bundle
