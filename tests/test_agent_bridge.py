@@ -535,6 +535,9 @@ class TestRegionBatchResourceColumns:
         assert batch.column("season_id").to_pylist() == [expected_season_id] * batch.num_rows
 
         # resource yields default to 0.0 when the ecology cache is empty
+        from chronicler.ecology import _last_region_yields
+        _last_region_yields.clear()
+        batch = build_region_batch(sample_world)
         assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
 
     def test_region_batch_has_m54a_ecology_columns(self, sample_world):

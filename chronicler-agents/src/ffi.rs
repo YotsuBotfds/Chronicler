@@ -2131,6 +2131,9 @@ impl EcologySimulator {
         let resource_yield_2 = rb
             .column_by_name("resource_yield_2")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let endemic_severity_col = rb
+            .column_by_name("endemic_severity")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
         if self.regions.is_empty() {
             // First call: initialize regions.
@@ -2187,6 +2190,7 @@ impl EcologySimulator {
                         resource_yield_1.map_or(0.0, |arr| arr.value(i)),
                         resource_yield_2.map_or(0.0, |arr| arr.value(i)),
                     ];
+                    r.endemic_severity = endemic_severity_col.map_or(0.0, |arr| arr.value(i));
                     r
                 })
                 .collect();
@@ -2234,6 +2238,7 @@ impl EcologySimulator {
                 r.resource_yields[0] = resource_yield_0.map_or(r.resource_yields[0], |arr| arr.value(i));
                 r.resource_yields[1] = resource_yield_1.map_or(r.resource_yields[1], |arr| arr.value(i));
                 r.resource_yields[2] = resource_yield_2.map_or(r.resource_yields[2], |arr| arr.value(i));
+                r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
             }
         }
         Ok(())

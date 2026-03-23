@@ -2,40 +2,26 @@
 
 Public API: tick_ecology(), effective_capacity()
 No state. All functions operate on WorldState/Region passed in.
+
+M54a: Core ecology math (soil/water/forest ticks, disease severity, resource
+yields, depletion feedback) migrated to Rust.  This module retains orchestration,
+famine checks, terrain succession helpers, and the effective_capacity formula
+used widely by other Python modules.
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from chronicler.models import ClimatePhase, Event, InfrastructureType, RegionEcology
-from chronicler.models import EMPTY_SLOT, FOOD_TYPES, MINERAL_TYPES, ResourceType
+from chronicler.models import ClimatePhase, Event, FOOD_TYPES, RegionEcology
 from chronicler.tuning import (
-    K_SOIL_DEGRADATION, K_SOIL_RECOVERY, K_MINE_SOIL_DEGRADATION,
-    K_WATER_DROUGHT, K_WATER_RECOVERY,
-    K_FOREST_CLEARING, K_FOREST_REGROWTH, K_COOLING_FOREST_DAMAGE,
-    K_IRRIGATION_WATER_BONUS, K_IRRIGATION_DROUGHT_MULT,
-    K_AGRICULTURE_SOIL_BONUS, K_MECHANIZATION_MINE_MULT,
-    K_FAMINE_WATER_THRESHOLD, K_DEPLETION_RATE,
-    K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD,
-    K_DEFORESTATION_THRESHOLD, K_DEFORESTATION_WATER_LOSS,
-    K_DISEASE_SEVERITY_CAP, K_DISEASE_DECAY_RATE,
-    K_FLARE_OVERCROWDING_THRESHOLD, K_FLARE_OVERCROWDING_SPIKE,
-    K_FLARE_ARMY_SPIKE, K_FLARE_WATER_SPIKE, K_FLARE_SEASON_SPIKE,
-    K_SOIL_PRESSURE_THRESHOLD, K_SOIL_PRESSURE_STREAK_LIMIT,
-    K_OVEREXTRACTION_STREAK_LIMIT, K_OVEREXTRACTION_YIELD_PENALTY,
-    K_WORKERS_PER_YIELD_UNIT,
-    K_COOLING_WATER_LOSS, K_WARMING_TUNDRA_WATER_GAIN,
-    K_WATER_FACTOR_DENOMINATOR, K_SOIL_RECOVERY_POP_RATIO,
-    K_FOREST_POP_RATIO, K_FOREST_REGROWTH_WATER_GATE,
-    K_CROSS_EFFECT_FOREST_SOIL, K_CROSS_EFFECT_FOREST_THRESHOLD,
-    K_EXHAUSTED_TRICKLE_FRACTION, K_RESERVE_RAMP_THRESHOLD,
-    K_METALLURGY_MINE_REDUCTION, K_SOIL_PRESSURE_DEGRADATION_MULT,
+    K_FAMINE_YIELD_THRESHOLD, K_SUBSISTENCE_BASELINE,
     K_FAMINE_POP_LOSS, K_FAMINE_REFUGEE_POP,
+    K_WATER_FACTOR_DENOMINATOR,
     get_override,
 )
 from chronicler.resources import (
-    CLIMATE_CLASS_MOD, SEASON_MOD,
-    _CLIMATE_PHASE_INDEX, resource_class_index,
+    CLIMATE_CLASS_MOD,
+    _CLIMATE_PHASE_INDEX,
 )
 from chronicler.utils import civ_index
 
@@ -73,66 +59,8 @@ def effective_capacity(region: Region, world: "WorldState | None" = None) -> int
     return max(int(region.carrying_capacity * cap_mod * soil * water_factor), 1)
 
 
-def compute_resource_yields(
-    region: "Region",
-    season_id: int,
-    climate_phase: "ClimatePhase",
-    worker_count: int,
-    world: "WorldState | None" = None,
-) -> list[float]:
-    """Compute current yield per resource slot. Mutates resource_reserves for minerals."""
-    phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
-    yields = [0.0, 0.0, 0.0]
-
-    for slot in range(3):
-        rtype = region.resource_types[slot]
-        if rtype == EMPTY_SLOT:
-            continue
-
-        # Suspension check
-        if rtype in region.resource_suspensions:
-            continue
-
-        # M35b: reads base_yields for regression safety; switch to effective_yields at M47 calibration
-        base = region.resource_base_yields[slot]
-        season_mod = SEASON_MOD[rtype][season_id]
-        class_idx = resource_class_index(rtype)
-        climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx]
-
-        # ecology_mod by class
-        if class_idx == 0:  # Crop
-            ecology_mod = region.ecology.soil * region.ecology.water
-        elif class_idx == 1:  # Forestry
-            ecology_mod = region.ecology.forest_cover
-        else:  # Marine, Mineral, Evaporite
-            ecology_mod = 1.0
-
-        # reserve_ramp (minerals only)
-        reserve_ramp = 1.0
-        if rtype in MINERAL_TYPES:
-            reserves = region.resource_reserves[slot]
-            # Depletion — only if there are workers and reserves remain
-            if reserves > 0.01 and worker_count > 0:
-                target_workers = max(1, effective_capacity(region) // 3)
-                extraction = base * (worker_count / target_workers)
-                depletion_rate = get_override(world, K_DEPLETION_RATE, 0.009) if world else 0.009
-                region.resource_reserves[slot] = max(0.0, reserves - extraction * depletion_rate)
-            reserves = region.resource_reserves[slot]
-            if reserves < 0.01:
-                trickle = get_override(world, K_EXHAUSTED_TRICKLE_FRACTION, 0.04) if world else 0.04
-                yields[slot] = base * trickle  # Exhausted trickle
-                continue
-            ramp_thresh = get_override(world, K_RESERVE_RAMP_THRESHOLD, 0.25) if world else 0.25
-            reserve_ramp = min(1.0, reserves / ramp_thresh)
-
-        from chronicler.tuning import get_multiplier, K_RESOURCE_ABUNDANCE
-        abundance = get_multiplier(world, K_RESOURCE_ABUNDANCE) if world else 1.0
-        yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
-
-    return yields
-
-
-# Module-level storage for Arrow bridge to read yields after tick_ecology
+# Module-level storage for Arrow bridge to read yields after tick_ecology.
+# Populated by _tick_ecology_rust; read by agent_bridge._get_yield.
 _last_region_yields: dict[str, list[float]] = {}
 
 
@@ -166,108 +94,6 @@ def check_food_yield(
     return food_yield < threshold
 
 
-def _pressure_multiplier(region: Region) -> float:
-    eff = effective_capacity(region)
-    if eff <= 0:
-        return 1.0
-    return max(0.1, 1.0 - region.population / eff)
-
-
-def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState, degradation_mult: float = 1.0) -> None:
-    eff = effective_capacity(region)
-
-    # Degradation: overpopulation
-    if region.population > eff:
-        rate = get_override(world, K_SOIL_DEGRADATION, 0.005) * degradation_mult
-        region.ecology.soil -= rate
-
-    # Degradation: active mines
-    has_mine = any(
-        i.type == InfrastructureType.MINES and i.active for i in region.infrastructure
-    )
-    if has_mine:
-        mine_rate = get_override(world, K_MINE_SOIL_DEGRADATION, 0.03)
-        if civ and civ.active_focus == "metallurgy":
-            mine_rate *= get_override(world, K_METALLURGY_MINE_REDUCTION, 0.5)
-            world.events_timeline.append(Event(
-                turn=world.turn, event_type="capability_metallurgy",
-                actors=[civ.name],
-                description=f"{civ.name} metallurgy reduces mine degradation",
-                importance=1,
-            ))
-        elif civ and civ.active_focus == "mechanization":
-            mine_rate *= get_override(world, K_MECHANIZATION_MINE_MULT, 2.0)
-        region.ecology.soil -= mine_rate
-
-    # Recovery: pressure-gated
-    if region.population < eff * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
-        rate = get_override(world, K_SOIL_RECOVERY, 0.05)
-        rate *= _pressure_multiplier(region)
-        if civ and civ.active_focus == "agriculture":
-            rate += get_override(world, K_AGRICULTURE_SOIL_BONUS, 0.02)
-        region.ecology.soil += rate
-
-
-def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
-    has_irrigation = any(
-        i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure
-    )
-
-    # Degradation / phase effects
-    if climate_phase == ClimatePhase.DROUGHT:
-        rate = get_override(world, K_WATER_DROUGHT, 0.04)
-        if has_irrigation:
-            rate *= get_override(world, K_IRRIGATION_DROUGHT_MULT, 1.5)
-        region.ecology.water -= rate
-    elif climate_phase == ClimatePhase.COOLING:
-        region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02)
-    elif climate_phase == ClimatePhase.WARMING:
-        if region.terrain == "tundra":
-            region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
-
-    # Recovery
-    if climate_phase == ClimatePhase.TEMPERATE:
-        rate = get_override(world, K_WATER_RECOVERY, 0.03)
-        rate *= _pressure_multiplier(region)
-        region.ecology.water += rate
-
-    # Irrigation bonus (always, not just temperate, but not during drought)
-    if has_irrigation and climate_phase != ClimatePhase.DROUGHT:
-        bonus = get_override(world, K_IRRIGATION_WATER_BONUS, 0.03)
-        bonus *= _pressure_multiplier(region)
-        region.ecology.water += bonus
-
-
-def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
-    forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
-    if region.population > region.carrying_capacity * forest_pop_ratio:
-        rate = get_override(world, K_FOREST_CLEARING, 0.02)
-        region.ecology.forest_cover -= rate
-
-    if climate_phase == ClimatePhase.COOLING:
-        region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
-
-    water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)
-    if region.population < region.carrying_capacity * forest_pop_ratio and region.ecology.water >= water_gate:
-        rate = get_override(world, K_FOREST_REGROWTH, 0.01)
-        rate *= _pressure_multiplier(region)
-        region.ecology.forest_cover += rate
-
-
-def _apply_cross_effects(region: Region, world: "WorldState | None" = None) -> None:
-    forest_thresh = get_override(world, K_CROSS_EFFECT_FOREST_THRESHOLD, 0.5) if world else 0.5
-    if region.ecology.forest_cover > forest_thresh:
-        bonus = get_override(world, K_CROSS_EFFECT_FOREST_SOIL, 0.01) if world else 0.01
-        region.ecology.soil += bonus
-
-
-def _clamp_ecology(region: Region) -> None:
-    caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
-    region.ecology.soil = max(_FLOOR_SOIL, min(caps["soil"], round(region.ecology.soil, 4)))
-    region.ecology.water = max(_FLOOR_WATER, min(caps["water"], round(region.ecology.water, 4)))
-    region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], round(region.ecology.forest_cover, 4)))
-
-
 def _check_famine_yield(
     world: WorldState,
     region_yields: dict[str, list[float]],
@@ -297,6 +123,7 @@ def _check_famine_yield(
 
         # --- Famine effects ---
         mult = get_severity_multiplier(civ, world)
+
         famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
@@ -356,145 +183,6 @@ def disease_vector_label(region: "Region") -> str:
         return "fever"
     else:
         return "plague"
-
-
-def compute_disease_severity(
-    region: "Region",
-    world: "WorldState | None",
-    pre_water: float,
-    season_id: int = 0,
-) -> None:
-    """Update region.endemic_severity based on flare triggers or decay.
-
-    Must be called at the top of the ecology tick, before water/soil updates.
-    pre_water is the region's current water value at tick start.
-    """
-    cap = get_override(world, K_DISEASE_SEVERITY_CAP, 0.15) if world else 0.15
-    decay_rate = get_override(world, K_DISEASE_DECAY_RATE, 0.25) if world else 0.25
-    overcrowding_thresh = get_override(world, K_FLARE_OVERCROWDING_THRESHOLD, 0.8) if world else 0.8
-    overcrowding_spike = get_override(world, K_FLARE_OVERCROWDING_SPIKE, 0.04) if world else 0.04
-    army_spike = get_override(world, K_FLARE_ARMY_SPIKE, 0.03) if world else 0.03
-    water_spike = get_override(world, K_FLARE_WATER_SPIKE, 0.02) if world else 0.02
-    season_spike = get_override(world, K_FLARE_SEASON_SPIKE, 0.02) if world else 0.02
-
-    baseline = region.disease_baseline
-    severity = region.endemic_severity
-    triggered = False
-
-    # --- Overcrowding ---
-    if region.carrying_capacity > 0 and region.population > overcrowding_thresh * region.carrying_capacity:
-        severity += overcrowding_spike
-        triggered = True
-
-    # --- Army passage (previous turn) ---
-    if world is not None and hasattr(world, "agent_events_raw") and world.agent_events_raw:
-        prev_turn = world.turn - 1
-        region_idx = next((i for i, r in enumerate(world.regions) if r is region), None)
-        if region_idx is not None:
-            army_arrived = any(
-                e.event_type == "migration"
-                and e.occupation == 1
-                and e.target_region == region_idx
-                for e in world.agent_events_raw
-                if e.turn == prev_turn
-            )
-            if army_arrived:
-                severity += army_spike
-                triggered = True
-
-    # --- Water quality: low water on non-desert terrain ---
-    if region.terrain != "desert" and pre_water < 0.3:
-        severity += water_spike
-        triggered = True
-
-    # --- Water quality: inter-turn water drop > 0.1 ---
-    if region.terrain != "desert" and region.prev_turn_water >= 0:
-        water_delta = region.prev_turn_water - pre_water
-        if water_delta > 0.1 and not (pre_water < 0.3):  # Don't double-count with low-water
-            severity += water_spike
-            triggered = True
-
-    # --- Seasonal peak ---
-    is_fever = region.disease_baseline >= 0.02
-    is_cholera = region.terrain == "desert"
-    if is_fever and not is_cholera and season_id == 1:  # Summer for Fever
-        severity += season_spike
-        triggered = True
-    elif not is_fever and not is_cholera and region.disease_baseline <= 0.01 and season_id == 3:  # Winter for Plague
-        severity += season_spike
-        triggered = True
-
-    # --- Pandemic skip: don't flare during active M18 pandemic ---
-    if world is not None and hasattr(world, "pandemic_state"):
-        if any(p.region_name == region.name for p in world.pandemic_state):
-            severity = region.endemic_severity  # Reset to pre-trigger value
-            triggered = False
-
-    if triggered:
-        region.endemic_severity = min(severity, cap)
-    else:
-        region.endemic_severity -= decay_rate * (region.endemic_severity - baseline)
-
-    # Floor at baseline
-    if region.endemic_severity < baseline:
-        region.endemic_severity = baseline
-
-
-def update_depletion_feedback(region: "Region", world: "WorldState | None") -> list["Event"]:
-    """Update soil pressure and overextraction streaks. Returns events."""
-    events: list[Event] = []
-    soil_thresh = get_override(world, K_SOIL_PRESSURE_THRESHOLD, 0.7) if world else 0.7
-    soil_limit = int(get_override(world, K_SOIL_PRESSURE_STREAK_LIMIT, 30)) if world else 30
-    overext_limit = int(get_override(world, K_OVEREXTRACTION_STREAK_LIMIT, 35)) if world else 35
-    overext_penalty = get_override(world, K_OVEREXTRACTION_YIELD_PENALTY, 0.10) if world else 0.10
-    workers_per_unit = get_override(world, K_WORKERS_PER_YIELD_UNIT, 200) if world else 200
-
-    # --- Soil exhaustion (population pressure) ---
-    has_crop = any(
-        rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS)
-        for rtype in region.resource_types
-        if rtype != EMPTY_SLOT
-    )
-    if has_crop and region.carrying_capacity > 0 and region.population > soil_thresh * region.carrying_capacity:
-        region.soil_pressure_streak += 1
-        if region.soil_pressure_streak >= soil_limit:
-            events.append(Event(
-                turn=world.turn if world else 0,
-                event_type="soil_exhaustion",
-                actors=[region.controller] if region.controller else [],
-                description=f"The fields of {region.name} show signs of exhaustion from decades of intensive cultivation",
-                importance=6,
-            ))
-    else:
-        region.soil_pressure_streak = 0
-
-    # --- Overextraction (per-resource) ---
-    DEPLETABLE = frozenset({ResourceType.GRAIN, ResourceType.BOTANICALS, ResourceType.FISH,
-                            ResourceType.ORE, ResourceType.PRECIOUS})
-    for slot in range(3):
-        rtype = region.resource_types[slot]
-        if rtype == EMPTY_SLOT or rtype not in DEPLETABLE:
-            continue
-        eff_yield = region.resource_effective_yields[slot]
-        sustainable = eff_yield * workers_per_unit
-        worker_count = region.population // 5 if region.population > 0 else 0
-        if sustainable > 0 and worker_count > sustainable:
-            streak = region.overextraction_streaks.get(slot, 0) + 1
-            region.overextraction_streaks[slot] = streak
-            if streak >= overext_limit:
-                region.resource_effective_yields[slot] *= (1.0 - overext_penalty)
-                region.overextraction_streaks[slot] = 0
-                events.append(Event(
-                    turn=world.turn if world else 0,
-                    event_type="resource_depletion",
-                    actors=[region.controller] if region.controller else [],
-                    description=f"Overextraction has degraded {region.name}'s resources",
-                    importance=7,
-                ))
-        else:
-            region.overextraction_streaks[slot] = 0
-
-    return events
 
 
 def _collect_pandemic_mask(world: "WorldState") -> list[bool]:
@@ -609,15 +297,41 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
                  ecology_runtime=None) -> list[Event]:
     """Phase 9 ecology tick.
 
-    When ecology_runtime is provided (AgentSimulator or EcologySimulator),
-    delegates the core ecology math to Rust, then runs Python-only post-pass
+    Delegates the core ecology math to Rust via ecology_runtime
+    (AgentSimulator or EcologySimulator), then runs Python-only post-pass
     (famine, refugees, soil floor, counters, terrain succession).
 
-    When ecology_runtime is None, falls back to the pure-Python implementation.
+    If ecology_runtime is None, creates a transient EcologySimulator
+    automatically (used by tests and simple callers).
     """
-    if ecology_runtime is not None:
-        return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime)
-    return _tick_ecology_python(world, climate_phase, acc)
+    if ecology_runtime is None:
+        ecology_runtime = _make_transient_ecology_runtime(world)
+    return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime)
+
+
+def _make_transient_ecology_runtime(world: "WorldState"):
+    """Create and initialize a one-shot EcologySimulator for this tick.
+
+    Used when tick_ecology is called without an explicit ecology_runtime
+    (e.g., tests, simple scripts).  Creates the simulator, syncs region
+    state, and configures river topology.
+    """
+    from chronicler_agents import EcologySimulator
+    from chronicler.agent_bridge import build_region_batch
+
+    eco_sim = EcologySimulator()
+    # Configure river topology
+    if world.rivers:
+        region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+        river_paths = []
+        for river in world.rivers:
+            path_indices = [region_name_to_idx[rn] for rn in river.path if rn in region_name_to_idx]
+            if path_indices:
+                river_paths.append(path_indices)
+        eco_sim.set_river_topology(river_paths)
+    # Sync region state
+    eco_sim.set_region_state(build_region_batch(world))
+    return eco_sim
 
 
 def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
@@ -679,124 +393,14 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     return famine_events + rust_events + terrain_events
 
 
-def _tick_ecology_python(world: WorldState, climate_phase: ClimatePhase, acc) -> list[Event]:
-    """Pure-Python ecology tick (original implementation, used when no Rust runtime)."""
-    from chronicler.resources import get_season_id as _get_season_id_fn
-    current_season_id = _get_season_id_fn(world.turn)
-    m35b_events: list[Event] = []
+def clamp_ecology(region: Region) -> None:
+    """Clamp ecology values to terrain-specific floors and caps.
 
-    for region in world.regions:
-        if region.controller is None:
-            continue
-        civ = next((c for c in world.civilizations if c.name == region.controller), None)
-        if civ is None:
-            continue
-
-        # M35b: Disease computation — before ecology updates
-        pre_water = region.ecology.water
-        compute_disease_severity(region, world, pre_water, season_id=current_season_id)
-
-        # M35b: Depletion feedback
-        soil_limit = int(get_override(world, K_SOIL_PRESSURE_STREAK_LIMIT, 30))
-        soil_mult = get_override(world, K_SOIL_PRESSURE_DEGRADATION_MULT, 2.0) if region.soil_pressure_streak >= soil_limit else 1.0
-        depletion_events = update_depletion_feedback(region, world)
-        m35b_events.extend(depletion_events)
-
-        _tick_soil(region, civ, climate_phase, world, degradation_mult=soil_mult)
-        _tick_water(region, civ, climate_phase, world)
-        _tick_forest(region, civ, climate_phase, world)
-        _apply_cross_effects(region, world)
-        _clamp_ecology(region)
-
-        if region.famine_cooldown > 0:
-            region.famine_cooldown -= 1
-
-    # Uncontrolled regions: natural recovery + climate effects only (no civ bonuses)
-    for region in world.regions:
-        if region.controller is not None:
-            continue
-        # M35b: Disease for uncontrolled regions
-        pre_water = region.ecology.water
-        compute_disease_severity(region, world, pre_water, season_id=current_season_id)
-        # Natural soil recovery (no civ bonuses)
-        eff = effective_capacity(region, world)
-        if region.population < eff * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
-            rate = get_override(world, K_SOIL_RECOVERY, 0.05)
-            rate *= _pressure_multiplier(region)
-            region.ecology.soil += rate
-        # Water: climate effects only
-        if climate_phase == ClimatePhase.DROUGHT:
-            region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04)
-        elif climate_phase == ClimatePhase.COOLING:
-            region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02)
-        elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
-            region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
-        elif climate_phase == ClimatePhase.TEMPERATE:
-            rate = get_override(world, K_WATER_RECOVERY, 0.03)
-            rate *= _pressure_multiplier(region)
-            region.ecology.water += rate
-        # Forest: natural regrowth (water gate applies)
-        forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
-        water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)
-        if region.population < region.carrying_capacity * forest_pop_ratio and region.ecology.water >= water_gate:
-            rate = get_override(world, K_FOREST_REGROWTH, 0.01)
-            rate *= _pressure_multiplier(region)
-            region.ecology.forest_cover += rate
-        if climate_phase == ClimatePhase.COOLING:
-            region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
-        _apply_cross_effects(region, world)
-        _clamp_ecology(region)
-
-    # --- M35a: Upstream deforestation cascade ---
-    if world.rivers:
-        deforest_thresh = get_override(world, K_DEFORESTATION_THRESHOLD, 0.2)
-        deforest_loss = get_override(world, K_DEFORESTATION_WATER_LOSS, 0.05)
-        region_map = {r.name: r for r in world.regions}
-        cascade_affected: set[str] = set()
-        seen: set[tuple[str, str]] = set()
-        for river in world.rivers:
-            for i, rname in enumerate(river.path):
-                region = region_map[rname]
-                if region.ecology.forest_cover < deforest_thresh:
-                    for downstream_name in river.path[i + 1:]:
-                        if (rname, downstream_name) not in seen:
-                            seen.add((rname, downstream_name))
-                            region_map[downstream_name].ecology.water -= deforest_loss
-                            cascade_affected.add(downstream_name)
-        # Phoebe N-1: second clamp pass for cascade-affected regions
-        for rname in cascade_affected:
-            _clamp_ecology(region_map[rname])
-
-    # --- M34: Compute resource yields for all regions ---
-    from chronicler.resources import get_season_id
-    season_id = get_season_id(world.turn)
-    _last_region_yields.clear()
-    subsistence_base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
-    famine_threshold = get_override(world, K_FAMINE_YIELD_THRESHOLD, 0.12)
-    for region in world.regions:
-        worker_count = region.population // 5 if region.population > 0 else 0
-        yields = compute_resource_yields(region, season_id, climate_phase, worker_count, world)
-        _last_region_yields[region.name] = yields
-
-    # M34: Yield-based famine check
-    events = _check_famine_yield(world, _last_region_yields, climate_phase, famine_threshold, subsistence_base, acc)
-
-    from chronicler.traditions import apply_soil_floor
-    apply_soil_floor(world)
-
-    _update_ecology_counters(world)
-
-    # M54a: terrain succession now runs inside ecology orchestration
-    from chronicler.emergence import tick_terrain_succession
-    terrain_events = tick_terrain_succession(world)
-
-    from chronicler.utils import sync_all_populations
-    sync_all_populations(world)
-
-    # M35b: Store post-tick water for next turn's delta detection
-    for region in world.regions:
-        region.prev_turn_water = region.ecology.water
-
-    events.extend(m35b_events)
-    events.extend(terrain_events)
-    return events
+    Extracted as a public helper for use by scenario.py river bonuses.
+    The core ecology tick in Rust handles clamping internally; this is
+    only needed for one-off Python mutations (e.g., scenario setup).
+    """
+    caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
+    region.ecology.soil = max(_FLOOR_SOIL, min(caps["soil"], round(region.ecology.soil, 4)))
+    region.ecology.water = max(_FLOOR_WATER, min(caps["water"], round(region.ecology.water, 4)))
+    region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], round(region.ecology.forest_cover, 4)))
