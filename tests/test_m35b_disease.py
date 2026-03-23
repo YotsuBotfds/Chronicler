@@ -47,49 +47,65 @@ def _make_region(terrain="plains", water=0.6, soil=0.8, pop=40, capacity=60, bas
 
 
 def test_disease_no_triggers_decays_toward_baseline():
-    from chronicler.ecology import compute_disease_severity
-    r = _make_region(baseline=0.01)
-    r.endemic_severity = 0.09
-    compute_disease_severity(r, world=None, pre_water=0.6)
+    from tests.legacy_ecology_oracle import compute_disease_severity as oracle_disease
+    sev = oracle_disease(
+        endemic_severity=0.09, disease_baseline=0.01,
+        population=40, carrying_capacity=60,
+        terrain="plains", pre_water=0.6, prev_turn_water=-1.0,
+    )
     # Decay: 0.09 - 0.25 * (0.09 - 0.01) = 0.07
-    assert abs(r.endemic_severity - 0.07) < 0.001
+    assert abs(sev - 0.07) < 0.001
 
 
 def test_disease_overcrowding_flare():
-    from chronicler.ecology import compute_disease_severity
-    r = _make_region(baseline=0.01, pop=50, capacity=60)  # 50/60 = 0.83 > 0.8
-    compute_disease_severity(r, world=None, pre_water=0.6)
-    assert abs(r.endemic_severity - (0.01 + 0.04)) < 0.001
+    from tests.legacy_ecology_oracle import compute_disease_severity as oracle_disease
+    sev = oracle_disease(
+        endemic_severity=0.01, disease_baseline=0.01,
+        population=50, carrying_capacity=60,
+        terrain="plains", pre_water=0.6, prev_turn_water=-1.0,
+    )
+    assert abs(sev - (0.01 + 0.04)) < 0.001
 
 
 def test_disease_severity_capped_at_015():
-    from chronicler.ecology import compute_disease_severity
-    r = _make_region(baseline=0.02, pop=50, capacity=60)
-    r.endemic_severity = 0.14
-    compute_disease_severity(r, world=None, pre_water=0.6)
-    assert r.endemic_severity <= 0.15
+    from tests.legacy_ecology_oracle import compute_disease_severity as oracle_disease
+    sev = oracle_disease(
+        endemic_severity=0.14, disease_baseline=0.02,
+        population=50, carrying_capacity=60,
+        terrain="plains", pre_water=0.6, prev_turn_water=-1.0,
+    )
+    assert sev <= 0.15
 
 
 def test_disease_water_quality_flare():
-    from chronicler.ecology import compute_disease_severity
-    r = _make_region(terrain="plains", baseline=0.01, water=0.25, pop=20, capacity=60)
-    compute_disease_severity(r, world=None, pre_water=0.25)
-    assert abs(r.endemic_severity - (0.01 + 0.02)) < 0.001
+    from tests.legacy_ecology_oracle import compute_disease_severity as oracle_disease
+    sev = oracle_disease(
+        endemic_severity=0.01, disease_baseline=0.01,
+        population=20, carrying_capacity=60,
+        terrain="plains", pre_water=0.25, prev_turn_water=-1.0,
+    )
+    assert abs(sev - (0.01 + 0.02)) < 0.001
 
 
 def test_disease_water_drop_flare():
-    from chronicler.ecology import compute_disease_severity
-    r = _make_region(terrain="plains", baseline=0.01, water=0.5, pop=20, capacity=60)
-    r.prev_turn_water = 0.65  # Previous turn had higher water
-    compute_disease_severity(r, world=None, pre_water=0.5)
-    assert abs(r.endemic_severity - (0.01 + 0.02)) < 0.001
+    from tests.legacy_ecology_oracle import compute_disease_severity as oracle_disease
+    sev = oracle_disease(
+        endemic_severity=0.01, disease_baseline=0.01,
+        population=20, carrying_capacity=60,
+        terrain="plains", pre_water=0.5, prev_turn_water=0.65,
+    )
+    assert abs(sev - (0.01 + 0.02)) < 0.001
 
 
 def test_disease_desert_no_seasonal_peak():
-    from chronicler.ecology import compute_disease_severity
-    r = _make_region(terrain="desert", baseline=0.015, pop=20, capacity=60)
-    compute_disease_severity(r, world=None, pre_water=0.1, season_id=1)  # summer
-    assert abs(r.endemic_severity - 0.015) < 0.001
+    from tests.legacy_ecology_oracle import compute_disease_severity as oracle_disease
+    sev = oracle_disease(
+        endemic_severity=0.015, disease_baseline=0.015,
+        population=20, carrying_capacity=60,
+        terrain="desert", pre_water=0.1, prev_turn_water=-1.0,
+        season_id=1,  # summer
+    )
+    assert abs(sev - 0.015) < 0.001
 
 
 from chronicler.ecology import tick_ecology
@@ -110,33 +126,40 @@ def test_tick_ecology_updates_endemic_severity():
 
 
 def test_soil_pressure_streak_increments():
-    from chronicler.ecology import update_depletion_feedback
-    from chronicler.models import ResourceType
-    r = _make_region(pop=50, capacity=60)  # 50/60 = 0.83 > 0.7
-    r.resource_types = [ResourceType.GRAIN, 255, 255]
-    update_depletion_feedback(r, world=None)
-    assert r.soil_pressure_streak == 1
+    from tests.legacy_ecology_oracle import update_depletion_feedback as oracle_depletion
+    streak, _, _, _ = oracle_depletion(
+        resource_types=[0, 255, 255],  # GRAIN=0
+        resource_effective_yields=[0.0, 0.0, 0.0],
+        population=50, carrying_capacity=60,
+        soil_pressure_streak=0,
+        overextraction_streaks={0: 0, 1: 0, 2: 0},
+    )
+    assert streak == 1
 
 
 def test_soil_pressure_streak_resets_below_threshold():
-    from chronicler.ecology import update_depletion_feedback
-    from chronicler.models import ResourceType
-    r = _make_region(pop=30, capacity=60)  # 30/60 = 0.5 < 0.7
-    r.resource_types = [ResourceType.GRAIN, 255, 255]
-    r.soil_pressure_streak = 15
-    update_depletion_feedback(r, world=None)
-    assert r.soil_pressure_streak == 0
+    from tests.legacy_ecology_oracle import update_depletion_feedback as oracle_depletion
+    streak, _, _, _ = oracle_depletion(
+        resource_types=[0, 255, 255],  # GRAIN=0
+        resource_effective_yields=[0.0, 0.0, 0.0],
+        population=30, carrying_capacity=60,
+        soil_pressure_streak=15,
+        overextraction_streaks={0: 0, 1: 0, 2: 0},
+    )
+    assert streak == 0
 
 
 def test_soil_exhaustion_no_event_before_limit():
-    from chronicler.ecology import update_depletion_feedback
-    from chronicler.models import ResourceType
-    r = _make_region(pop=50, capacity=60)
-    r.resource_types = [ResourceType.GRAIN, 255, 255]
-    r.soil_pressure_streak = 28
-    events = update_depletion_feedback(r, world=None)
-    assert r.soil_pressure_streak == 29
-    assert not any(e.event_type == "soil_exhaustion" for e in events)
+    from tests.legacy_ecology_oracle import update_depletion_feedback as oracle_depletion
+    streak, _, _, events = oracle_depletion(
+        resource_types=[0, 255, 255],  # GRAIN=0
+        resource_effective_yields=[0.0, 0.0, 0.0],
+        population=50, carrying_capacity=60,
+        soil_pressure_streak=28,
+        overextraction_streaks={0: 0, 1: 0, 2: 0},
+    )
+    assert streak == 29
+    assert "soil_exhaustion" not in events
 
 
 def test_soil_degradation_doubles_after_streak():
