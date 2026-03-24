@@ -526,8 +526,60 @@ pub fn spatial_drift_step(
     pool: &mut AgentPool,
     grids: &[SpatialGrid],
     attractors: &[RegionAttractors],
+    diag: &mut SpatialDiagnostics,
 ) {
     let cap = pool.capacity();
+
+    // Initialize diagnostics
+    let num_regions = grids.len();
+    diag.hotspot_count_by_region.clear();
+    diag.hotspot_count_by_region.resize(num_regions, 0);
+    diag.attractor_occupancy.clear();
+    diag.attractor_occupancy.resize(num_regions, [0.0; MAX_ATTRACTORS]);
+    diag.hash_max_cell_occupancy.clear();
+    diag.hash_max_cell_occupancy.resize(num_regions, 0);
+
+    // Hash max cell occupancy
+    for (r, grid) in grids.iter().enumerate() {
+        let max_occ = grid.cells.iter().map(|c| c.len() as u16).max().unwrap_or(0);
+        diag.hash_max_cell_occupancy[r] = max_occ;
+
+        // Hotspot: cells with occupancy > 2x mean
+        let total: usize = grid.cells.iter().map(|c| c.len()).sum();
+        let mean = if total > 0 { total as f32 / grid.cells.len() as f32 } else { 0.0 };
+        let threshold = mean * 2.0;
+        let hotspots = grid.cells.iter().filter(|c| c.len() as f32 > threshold).count();
+        diag.hotspot_count_by_region[r] = hotspots as u16;
+    }
+
+    // Attractor occupancy — count agents within radius 0.1 of each attractor
+    let attractor_radius = 0.1f32;
+    for (r, att) in attractors.iter().enumerate() {
+        for a_idx in 0..att.count as usize {
+            let (ax, ay) = att.positions[a_idx];
+            let mut count = 0u32;
+            let mut total_agents = 0u32;
+            // Count agents in this region near this attractor
+            if r < grids.len() {
+                for cell in &grids[r].cells {
+                    for &slot in cell {
+                        total_agents += 1;
+                        let dx = pool.x[slot as usize] - ax;
+                        let dy = pool.y[slot as usize] - ay;
+                        if dx * dx + dy * dy <= attractor_radius * attractor_radius {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            diag.attractor_occupancy[r][a_idx] = if total_agents > 0 { count as f32 / total_agents as f32 } else { 0.0 };
+        }
+    }
+
+    // Sort timing
+    let start = std::time::Instant::now();
+    let _ = crate::sort::sorted_iteration_order(pool);
+    diag.sort_time_us = start.elapsed().as_micros() as u64;
     // 1. Snapshot all (x, y) into scratch buffers
     let old_x: Vec<f32> = pool.x[..cap].to_vec();
     let old_y: Vec<f32> = pool.y[..cap].to_vec();
@@ -615,6 +667,15 @@ pub fn migration_reset_position(
     let x = (attractors.positions[best_idx].0 + jx).clamp(0.0, POS_MAX);
     let y = (attractors.positions[best_idx].1 + jy).clamp(0.0, POS_MAX);
     (x, y)
+}
+
+/// Per-tick spatial telemetry.
+#[derive(Clone, Debug, Default)]
+pub struct SpatialDiagnostics {
+    pub hotspot_count_by_region: Vec<u16>,
+    pub attractor_occupancy: Vec<[f32; MAX_ATTRACTORS]>,
+    pub hash_max_cell_occupancy: Vec<u16>,
+    pub sort_time_us: u64,
 }
 
 /// Place a newborn near its parent with deterministic jitter.

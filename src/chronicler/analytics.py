@@ -1775,6 +1775,60 @@ def extract_era_signals(bundles: list[dict]) -> dict:
     return civ_series
 
 
+def extract_spatial_diagnostics(diag_history: list[dict]) -> dict:
+    """Summarize per-turn spatial diagnostics emitted by Rust.
+
+    Each entry in ``diag_history`` is a dict returned by
+    ``AgentSimulator.get_spatial_diagnostics()``, which uses
+    ``HashMap<String, Vec<f64>>`` format:
+      - ``hotspot_count_by_region``: one value per region
+      - ``hash_max_cell_occupancy``: one value per region
+      - ``sort_time_us``: single-element list
+      - ``attractor_occupancy_flat``: flattened region x MAX_ATTRACTORS
+    """
+    if not diag_history:
+        return {
+            "hotspot_persistence": [],
+            "attractor_occupancy_mean": [],
+            "hash_max_occupancy_trend": [],
+            "sort_time_trend_us": [],
+        }
+
+    hotspot_persistence = []
+    attractor_occ_means = []
+    hash_max_trend = []
+    sort_times = []
+
+    for diag in diag_history:
+        hotspots = diag.get("hotspot_count_by_region", [])
+        hotspot_persistence.append(sum(hotspots))
+
+        # attractor_occupancy_flat is a flat list of floats
+        occ_flat = diag.get("attractor_occupancy_flat", [])
+        if occ_flat:
+            nonzero = [v for v in occ_flat if v > 0]
+            attractor_occ_means.append(
+                sum(nonzero) / len(nonzero) if nonzero else 0.0
+            )
+        else:
+            attractor_occ_means.append(0.0)
+
+        max_cells = diag.get("hash_max_cell_occupancy", [])
+        hash_max_trend.append(max(max_cells) if max_cells else 0)
+
+        sort_time_list = diag.get("sort_time_us", [])
+        sort_times.append(
+            sort_time_list[0] if sort_time_list else 0
+        )
+
+    return {
+        "hotspot_persistence": hotspot_persistence,
+        "attractor_occupancy_mean": attractor_occ_means,
+        "hash_max_occupancy_trend": hash_max_trend,
+        "sort_time_trend_us": sort_times,
+    }
+
+
 def extract_legacy_chain_metrics(bundles: list[dict]) -> dict:
     """Extract dynasty chain lengths from great_persons in bundle metadata.
 

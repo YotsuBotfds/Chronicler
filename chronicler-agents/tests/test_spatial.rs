@@ -322,7 +322,8 @@ fn test_different_seeds_different_positions() {
 
 use chronicler_agents::spatial::{
     compute_drift_for_agent, spatial_drift_step, migration_reset_position, newborn_position,
-    rebuild_spatial_grids, RegionAttractors, MAX_DRIFT_PER_TICK, MIGRATION_JITTER, BIRTH_JITTER,
+    rebuild_spatial_grids, RegionAttractors, SpatialDiagnostics, MAX_DRIFT_PER_TICK,
+    MIGRATION_JITTER, BIRTH_JITTER,
 };
 use chronicler_agents::AgentPool;
 use chronicler_agents::Occupation;
@@ -367,9 +368,10 @@ fn test_drift_convergence() {
     let initial_dy = attractor_pos.1 - agent_start.1;
     let initial_dist = (initial_dx * initial_dx + initial_dy * initial_dy).sqrt();
 
+    let mut diag = SpatialDiagnostics::default();
     for _ in 0..20 {
         rebuild_spatial_grids(&pool, &mut grids, 1);
-        spatial_drift_step(&mut pool, &grids, &attractors_list);
+        spatial_drift_step(&mut pool, &grids, &attractors_list, &mut diag);
     }
 
     let final_dx = attractor_pos.0 - pool.x[0];
@@ -400,8 +402,9 @@ fn test_repulsion_separates_colocated() {
         count: 0,
     }];
     let mut grids: Vec<SpatialGrid> = Vec::new();
+    let mut diag = SpatialDiagnostics::default();
     rebuild_spatial_grids(&pool, &mut grids, 1);
-    spatial_drift_step(&mut pool, &grids, &attractors_list);
+    spatial_drift_step(&mut pool, &grids, &attractors_list, &mut diag);
 
     let different = pool.x[0] != pool.x[1] || pool.y[0] != pool.y[1];
     assert!(

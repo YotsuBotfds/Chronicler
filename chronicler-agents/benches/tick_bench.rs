@@ -125,6 +125,7 @@ fn bench_tick_matrix(c: &mut Criterion) {
                         &mut percentiles,
                         &mut Vec::new(),
                         &[],
+                        &mut chronicler_agents::spatial::SpatialDiagnostics::default(),
                     );
                 },
                 BatchSize::SmallInput,

@@ -460,6 +460,7 @@ pub struct AgentSimulator {
     spatial_grids: Vec<crate::spatial::SpatialGrid>,
     attractors: Vec<crate::spatial::RegionAttractors>,
     spatial_initialized: bool,
+    last_spatial_diag: crate::spatial::SpatialDiagnostics,
 }
 
 #[pymethods]
@@ -495,6 +496,7 @@ impl AgentSimulator {
             spatial_grids: Vec::new(),
             attractors: Vec::new(),
             spatial_initialized: false,
+            last_spatial_diag: crate::spatial::SpatialDiagnostics::default(),
         }
     }
 
@@ -1058,6 +1060,7 @@ impl AgentSimulator {
             self.wealth_percentiles.resize(self.pool.capacity(), 0.0);
         }
 
+        let mut spatial_diag = crate::spatial::SpatialDiagnostics::default();
         let (events, kin_failures, formation_stats, demo_debug) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
@@ -1067,7 +1070,9 @@ impl AgentSimulator {
             &mut self.wealth_percentiles,
             &mut self.spatial_grids,
             &self.attractors,
+            &mut spatial_diag,
         );
+        self.last_spatial_diag = spatial_diag;
         self.prev_kin_bond_failures = self.kin_bond_failures;
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
         self.formation_stats = formation_stats;
@@ -1525,6 +1530,34 @@ impl AgentSimulator {
         m.insert("expected_deaths".into(), d.expected_deaths as f64);
         m.insert("expected_births".into(), d.expected_births as f64);
         m.insert("sat_near_threshold".into(), d.sat_near_threshold as f64);
+        m
+    }
+
+    /// M55a: Return spatial diagnostics from the last tick.
+    #[pyo3(name = "get_spatial_diagnostics")]
+    pub fn get_spatial_diagnostics(&self) -> std::collections::HashMap<String, Vec<f64>> {
+        let mut m = std::collections::HashMap::new();
+        m.insert(
+            "hotspot_count_by_region".into(),
+            self.last_spatial_diag.hotspot_count_by_region.iter().map(|&v| v as f64).collect(),
+        );
+        m.insert(
+            "hash_max_cell_occupancy".into(),
+            self.last_spatial_diag.hash_max_cell_occupancy.iter().map(|&v| v as f64).collect(),
+        );
+        m.insert(
+            "sort_time_us".into(),
+            vec![self.last_spatial_diag.sort_time_us as f64],
+        );
+        // Flatten attractor_occupancy: concatenate all regions' arrays
+        // Format: for each region, MAX_ATTRACTORS f64 values
+        let mut occ_flat: Vec<f64> = Vec::new();
+        for arr in &self.last_spatial_diag.attractor_occupancy {
+            for &v in arr {
+                occ_flat.push(v as f64);
+            }
+        }
+        m.insert("attractor_occupancy_flat".into(), occ_flat);
         m
     }
 

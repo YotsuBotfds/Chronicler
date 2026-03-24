@@ -50,6 +50,7 @@ pub fn tick_agents(
     wealth_percentiles: &mut [f32],
     spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
     attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
 ) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
@@ -287,7 +288,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     if !attractors.is_empty() {
         crate::spatial::rebuild_spatial_grids(pool, spatial_grids, num_regions as u16);
-        crate::spatial::spatial_drift_step(pool, spatial_grids, attractors);
+        crate::spatial::spatial_drift_step(pool, spatial_grids, attractors, spatial_diag);
     }
 
     // -----------------------------------------------------------------------
@@ -1235,7 +1236,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
+        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1263,8 +1264,8 @@ mod tests {
         for turn in 0..10 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[]);
-            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[]);
+            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
+            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
         }
         assert_eq!(pool_a.alive_count(), pool_b.alive_count());
     }
@@ -1307,8 +1308,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[]);
-            let (eb, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[]);
+            let (ea, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
+            let (eb, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1342,7 +1343,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
+        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
@@ -1378,7 +1379,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 1;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
 
         // After one tick, soldier skill should have grown (if agent survived)
         if pool.is_alive(slot) {
@@ -1402,7 +1403,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 3;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default());
 
         // After tick, satisfaction should differ from default 0.5
         // (healthy region with good soil/water should give decent satisfaction)
