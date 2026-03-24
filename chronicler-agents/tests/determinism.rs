@@ -58,6 +58,20 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
     pool
 }
 
+fn make_spatial_regions() -> Vec<RegionState> {
+    let mut regions = make_test_regions();
+    // Add spatial features so attractors are non-trivial
+    regions[0].river_mask = 1;
+    regions[0].resource_effective_yield = [0.5, 0.3, 0.0];
+    regions[1].is_capital = true;
+    regions[1].resource_effective_yield = [0.0, 0.4, 0.2];
+    regions[2].terrain = 2; // Coast
+    regions[2].resource_effective_yield = [0.3, 0.0, 0.0];
+    regions[3].has_temple = true;
+    regions[3].temple_prestige = 0.6;
+    regions
+}
+
 fn run_simulation(seed: [u8; 32], turns: u32) -> (usize, Vec<u16>) {
     let regions = make_test_regions();
     let signals = make_default_signals(5, 5);
@@ -114,5 +128,61 @@ fn test_determinism_across_thread_counts() {
     for i in 1..results.len() {
         assert_eq!(results[0].0, results[i].0);
         assert_eq!(results[0].1, results[i].1);
+    }
+}
+
+/// M55a: Full spatial determinism — 20-turn simulation with attractors enabled.
+/// Verifies that (x, y) positions are bit-identical across two runs with the same seed.
+#[test]
+fn test_spatial_determinism_20_turns() {
+    use chronicler_agents::spatial::{init_attractors, SpatialGrid, SpatialDiagnostics};
+
+    fn run_spatial(seed: [u8; 32], turns: u32) -> Vec<(u32, u32, u32)> {
+        let regions = make_spatial_regions();
+        let signals = make_default_signals(5, 5);
+        let attractors: Vec<_> = regions.iter()
+            .map(|r| init_attractors(seed[0] as u64, r.region_id, r))
+            .collect();
+        let mut pool = make_test_pool(&regions);
+        let mut percentiles: Vec<f32> = Vec::new();
+        let mut grids: Vec<SpatialGrid> = Vec::new();
+        let mut diag = SpatialDiagnostics::default();
+        for turn in 0..turns {
+            if percentiles.len() < pool.capacity() {
+                percentiles.resize(pool.capacity(), 0.0);
+            }
+            tick_agents(
+                &mut pool, &regions, &signals, seed, turn,
+                &mut percentiles, &mut grids, &attractors, &mut diag,
+            );
+        }
+        // Collect (id, x_bits, y_bits) sorted by id for stable comparison
+        let mut results: Vec<(u32, u32, u32)> = Vec::new();
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) {
+                results.push((
+                    pool.ids[slot],
+                    pool.x[slot].to_bits(),
+                    pool.y[slot].to_bits(),
+                ));
+            }
+        }
+        results.sort_by_key(|r| r.0);
+        results
+    }
+
+    let mut seed = [0u8; 32];
+    seed[0] = 55;
+    let run_a = run_spatial(seed, 20);
+    let run_b = run_spatial(seed, 20);
+
+    assert!(!run_a.is_empty(), "Should have alive agents after 20 turns");
+    assert_eq!(run_a.len(), run_b.len(), "Alive count mismatch");
+    for (i, (a, b)) in run_a.iter().zip(run_b.iter()).enumerate() {
+        assert_eq!(
+            a, b,
+            "Spatial mismatch at idx {}: id={} x={:#010x} y={:#010x} vs id={} x={:#010x} y={:#010x}",
+            i, a.0, a.1, a.2, b.0, b.1, b.2
+        );
     }
 }

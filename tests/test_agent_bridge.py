@@ -656,6 +656,39 @@ class TestRegionBatchResourceColumns:
         # active_focus = 0 when civs have no focus set
         assert all(v == 0 for v in batch.column("active_focus").to_pylist())
 
+    def test_region_batch_has_m55a_spatial_columns(self, sample_world):
+        """M55a: Region batch includes is_capital and temple_prestige columns."""
+        from chronicler.agent_bridge import build_region_batch
+        import pyarrow as pa
+
+        batch = build_region_batch(sample_world)
+        n = len(sample_world.regions)
+
+        # Column presence
+        assert "is_capital" in batch.schema.names, "missing column: is_capital"
+        assert "temple_prestige" in batch.schema.names, "missing column: temple_prestige"
+
+        # Arrow types
+        assert batch.schema.field("is_capital").type == pa.bool_()
+        assert batch.schema.field("temple_prestige").type == pa.float32()
+
+        # Row count
+        assert batch.num_rows == n
+
+        # Default values: no temples, so prestige should be 0.0
+        assert all(abs(v) < 1e-6 for v in batch.column("temple_prestige").to_pylist())
+
+        # is_capital: default fixture has no capital_region set, so all False
+        is_cap_vals = batch.column("is_capital").to_pylist()
+        assert all(v is False for v in is_cap_vals)
+
+        # Set a capital and verify it shows True
+        sample_world.civilizations[0].capital_region = sample_world.regions[0].name
+        batch2 = build_region_batch(sample_world)
+        is_cap_vals2 = batch2.column("is_capital").to_pylist()
+        assert is_cap_vals2[0] is True
+        assert all(v is False for v in is_cap_vals2[1:])
+
 
 class TestTransientSignalCleanup:
     """M36 regression: transient one-turn signals must clear after build_region_batch."""

@@ -499,3 +499,289 @@ fn test_newborn_near_parent() {
         x, y, parent_pos, dist, max_dist
     );
 }
+
+// ---------------------------------------------------------------------------
+// Determinism + integration gate tests (M55a Task 10)
+// ---------------------------------------------------------------------------
+
+use chronicler_agents::sort::sort_by_morton;
+
+/// Two identical pools run through the same drift steps must produce
+/// bit-identical (x, y) positions. Tests determinism of the two-pass
+/// drift + force computation.
+#[test]
+fn test_spatial_drift_determinism() {
+    // 10 agents across 2 regions, varied occupations
+    let agent_defs: [(u16, f32, f32, u8); 10] = [
+        (0, 0.10, 0.20, 0), // Farmer
+        (0, 0.30, 0.40, 1), // Soldier
+        (0, 0.50, 0.60, 2), // Merchant
+        (0, 0.70, 0.80, 3), // Scholar
+        (0, 0.90, 0.10, 4), // Priest
+        (1, 0.15, 0.25, 0),
+        (1, 0.35, 0.45, 1),
+        (1, 0.55, 0.65, 2),
+        (1, 0.75, 0.85, 3),
+        (1, 0.95, 0.05, 4),
+    ];
+
+    // Build two region states with attractors
+    let mut r0 = RegionState::new(0);
+    r0.river_mask = 1;
+    r0.resource_effective_yield = [0.5, 0.3, 0.0];
+    r0.water = 0.6;
+    let mut r1 = RegionState::new(1);
+    r1.is_capital = true;
+    r1.resource_effective_yield = [0.0, 0.4, 0.2];
+    r1.population = 30;
+    r1.carrying_capacity = 60;
+
+    let att0 = init_attractors(42, 0, &r0);
+    let att1 = init_attractors(42, 1, &r1);
+    let attractors_list = vec![att0, att1];
+
+    // Run A
+    let mut pool_a = make_pool_with_agents(&agent_defs);
+    let mut grids_a: Vec<SpatialGrid> = Vec::new();
+    let mut diag_a = SpatialDiagnostics::default();
+    for _ in 0..5 {
+        rebuild_spatial_grids(&pool_a, &mut grids_a, 2);
+        spatial_drift_step(&mut pool_a, &grids_a, &attractors_list, &mut diag_a);
+    }
+
+    // Run B — identical setup
+    let mut pool_b = make_pool_with_agents(&agent_defs);
+    let mut grids_b: Vec<SpatialGrid> = Vec::new();
+    let mut diag_b = SpatialDiagnostics::default();
+    for _ in 0..5 {
+        rebuild_spatial_grids(&pool_b, &mut grids_b, 2);
+        spatial_drift_step(&mut pool_b, &grids_b, &attractors_list, &mut diag_b);
+    }
+
+    // Bit-exact comparison
+    for slot in 0..10 {
+        assert!(
+            pool_a.x[slot].to_bits() == pool_b.x[slot].to_bits(),
+            "x mismatch at slot {}: {} vs {}",
+            slot, pool_a.x[slot], pool_b.x[slot]
+        );
+        assert!(
+            pool_a.y[slot].to_bits() == pool_b.y[slot].to_bits(),
+            "y mismatch at slot {}: {} vs {}",
+            slot, pool_a.y[slot], pool_b.y[slot]
+        );
+    }
+}
+
+/// Same seed/agent_id/region/attractors called twice must produce
+/// identical migration reset positions.
+#[test]
+fn test_migration_reset_determinism() {
+    let attractor_pos = (0.6, 0.4);
+    let attractors = make_single_resource_attractors(attractor_pos.0, attractor_pos.1);
+    let master_seed = [99u8; 32];
+
+    let (x1, y1) = migration_reset_position(7, 0, &attractors, &master_seed, 3, 15);
+    let (x2, y2) = migration_reset_position(7, 0, &attractors, &master_seed, 3, 15);
+
+    assert!(
+        x1.to_bits() == x2.to_bits() && y1.to_bits() == y2.to_bits(),
+        "migration_reset_position not deterministic: ({}, {}) vs ({}, {})",
+        x1, y1, x2, y2
+    );
+}
+
+/// Verify that if a parent dies and its slot is reused, newborn placement
+/// still works correctly because it uses a snapshot of the parent position
+/// taken before the death pass — not the live pool slot.
+#[test]
+fn test_parent_death_newborn_placement_safety() {
+    let mut pool = AgentPool::new(4);
+
+    // Spawn parent at a known position
+    let parent_slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF);
+    pool.x[parent_slot] = 0.7;
+    pool.y[parent_slot] = 0.3;
+    let parent_id = pool.ids[parent_slot];
+    let parent_pos = (pool.x[parent_slot], pool.y[parent_slot]);
+
+    // Kill parent — slot goes to free-list
+    pool.kill(parent_slot);
+
+    // Spawn a different agent that reuses the parent's slot
+    let reused_slot = pool.spawn(1, 1, Occupation::Soldier, 20, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF);
+    // Free-list reuse: reused_slot should be the old parent_slot
+    assert_eq!(reused_slot, parent_slot, "Expected slot reuse from free-list");
+    // The reused slot now has different position
+    pool.x[reused_slot] = 0.1;
+    pool.y[reused_slot] = 0.9;
+
+    // Place newborn using the SNAPSHOT of parent position (not the live slot)
+    let master_seed = [42u8; 32];
+    let child_id = parent_id + 10;
+    let (bx, by) = newborn_position(child_id, 0, parent_pos, &master_seed, 5);
+
+    // Newborn should be near the ORIGINAL parent position (0.7, 0.3),
+    // not near the reused slot's position (0.1, 0.9)
+    let dx_parent = bx - parent_pos.0;
+    let dy_parent = by - parent_pos.1;
+    let dist_to_parent = (dx_parent * dx_parent + dy_parent * dy_parent).sqrt();
+
+    let dx_reused = bx - pool.x[reused_slot];
+    let dy_reused = by - pool.y[reused_slot];
+    let dist_to_reused = (dx_reused * dx_reused + dy_reused * dy_reused).sqrt();
+
+    let max_dist = BIRTH_JITTER * 2.0_f32.sqrt() + 1e-6;
+    assert!(
+        dist_to_parent <= max_dist,
+        "Newborn at ({}, {}) should be near parent's original pos {:?}, dist={} > max={}",
+        bx, by, parent_pos, dist_to_parent, max_dist
+    );
+    // Sanity: it should be far from the reused slot's new position
+    assert!(
+        dist_to_reused > max_dist,
+        "Newborn should NOT be near the reused slot's new position ({}, {}), dist={}",
+        pool.x[reused_slot], pool.y[reused_slot], dist_to_reused
+    );
+}
+
+/// Full tick_agents with spatial data: two runs with identical inputs must
+/// produce bit-identical (x, y) for all alive agents.
+#[test]
+fn test_full_tick_with_spatial_determinism() {
+    use chronicler_agents::{tick_agents, CivSignals, TickSignals};
+
+    let mut seed = [0u8; 32];
+    seed[0] = 42;
+
+    // Set up regions with spatial features
+    let mut r0 = RegionState::new(0);
+    r0.population = 20;
+    r0.carrying_capacity = 40;
+    r0.soil = 0.6;
+    r0.water = 0.5;
+    r0.river_mask = 1;
+    r0.resource_effective_yield = [0.5, 0.2, 0.0];
+
+    let mut r1 = RegionState::new(1);
+    r1.population = 15;
+    r1.carrying_capacity = 30;
+    r1.soil = 0.5;
+    r1.water = 0.4;
+    r1.is_capital = true;
+    r1.resource_effective_yield = [0.3, 0.0, 0.1];
+
+    let regions = vec![r0, r1];
+
+    let signals = TickSignals {
+        civs: vec![CivSignals {
+            civ_id: 0,
+            stability: 50,
+            is_at_war: false,
+            dominant_faction: 0,
+            faction_military: 0.25,
+            faction_merchant: 0.35,
+            faction_cultural: 0.25,
+            shock_stability: 0.0,
+            shock_economy: 0.0,
+            shock_military: 0.0,
+            shock_culture: 0.0,
+            demand_shift_farmer: 0.0,
+            demand_shift_soldier: 0.0,
+            demand_shift_merchant: 0.0,
+            demand_shift_scholar: 0.0,
+            demand_shift_priest: 0.0,
+            mean_boldness: 0.0,
+            mean_ambition: 0.0,
+            mean_loyalty_trait: 0.0,
+            faction_clergy: 0.0,
+            gini_coefficient: 0.0,
+            conquered_this_turn: false,
+            priest_tithe_share: 0.0,
+            cultural_drift_multiplier: 1.0,
+            religion_intensity_multiplier: 1.0,
+        }],
+        contested_regions: vec![false, false],
+    };
+
+    // Build attractors for the regions
+    let att0 = init_attractors(42, 0, &regions[0]);
+    let att1 = init_attractors(42, 1, &regions[1]);
+    let attractors = vec![att0, att1];
+
+    // Helper to create a pool, run 3 ticks, return alive (x, y) pairs
+    let run = || {
+        let mut pool = AgentPool::new(0);
+        for r in &regions {
+            for _ in 0..r.population {
+                pool.spawn(
+                    r.region_id, 0, Occupation::Farmer, 20,
+                    0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF,
+                );
+            }
+        }
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        let mut grids: Vec<SpatialGrid> = Vec::new();
+        let mut diag = SpatialDiagnostics::default();
+        for turn in 0..3u32 {
+            if percentiles.len() < pool.capacity() {
+                percentiles.resize(pool.capacity(), 0.0);
+            }
+            tick_agents(
+                &mut pool, &regions, &signals, seed, turn,
+                &mut percentiles, &mut grids, &attractors, &mut diag,
+            );
+        }
+        // Collect alive agent (id, x_bits, y_bits) for deterministic comparison
+        let mut results: Vec<(u32, u32, u32)> = Vec::new();
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) {
+                results.push((
+                    pool.ids[slot],
+                    pool.x[slot].to_bits(),
+                    pool.y[slot].to_bits(),
+                ));
+            }
+        }
+        results.sort_by_key(|r| r.0);
+        results
+    };
+
+    let run_a = run();
+    let run_b = run();
+
+    assert!(!run_a.is_empty(), "Should have alive agents after 3 ticks");
+    assert_eq!(
+        run_a.len(), run_b.len(),
+        "Alive count differs: {} vs {}", run_a.len(), run_b.len()
+    );
+    for (i, (a, b)) in run_a.iter().zip(run_b.iter()).enumerate() {
+        assert_eq!(
+            a, b,
+            "Agent mismatch at index {}: id={} ({:#010x}, {:#010x}) vs id={} ({:#010x}, {:#010x})",
+            i, a.0, a.1, a.2, b.0, b.1, b.2
+        );
+    }
+}
+
+/// sort_by_morton is deterministic: two calls on the same pool produce
+/// identical ordering.
+#[test]
+fn test_sort_by_morton_determinism() {
+    let mut pool = AgentPool::new(8);
+    // Scatter agents at different positions in the same region
+    let positions = [
+        (0.9, 0.1), (0.1, 0.9), (0.5, 0.5), (0.3, 0.7),
+        (0.7, 0.3), (0.2, 0.2), (0.8, 0.8), (0.4, 0.6),
+    ];
+    for &(x, y) in &positions {
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF);
+        pool.x[slot] = x;
+        pool.y[slot] = y;
+    }
+
+    let order1 = sort_by_morton(&pool);
+    let order2 = sort_by_morton(&pool);
+    assert_eq!(order1, order2, "sort_by_morton should be deterministic");
+    assert_eq!(order1.len(), 8, "All 8 agents should appear in sort output");
+}
