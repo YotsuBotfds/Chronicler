@@ -23,6 +23,7 @@ pub mod needs;
 pub mod relationships;
 pub mod formation;
 pub mod ecology;
+pub mod spatial;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
