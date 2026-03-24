@@ -1,4 +1,9 @@
 use chronicler_agents::spatial::{SpatialGrid, GRID_SIZE};
+use chronicler_agents::spatial::{
+    init_attractors, update_attractor_weights, AttractorType, MAX_ATTRACTORS,
+    MIN_ATTRACTOR_SEPARATION, OCCUPATION_AFFINITY,
+};
+use chronicler_agents::RegionState;
 
 #[test]
 fn test_grid_insert_and_query() {
@@ -69,4 +74,244 @@ fn test_coords_at_one_clamp() {
     // x=1.0 -> (1.0 * 10) = 10 -> .min(9) = cell 9
     let neighbors = grid.query_neighbors(0.95, 0.95, 99);
     assert!(neighbors.contains(&0));
+}
+
+// ---------------------------------------------------------------------------
+// Attractor model tests
+// ---------------------------------------------------------------------------
+
+fn make_test_region_with_features() -> RegionState {
+    let mut r = RegionState::new(5);
+    r.river_mask = 1;
+    r.resource_effective_yield = [0.5, 0.3, 0.0];
+    r.has_temple = true;
+    r.is_capital = true;
+    r.temple_prestige = 0.5;
+    r
+}
+
+#[test]
+fn test_attractor_determinism() {
+    let region = make_test_region_with_features();
+    let a1 = init_attractors(42, 5, &region);
+    let a2 = init_attractors(42, 5, &region);
+    assert_eq!(a1.count, a2.count);
+    for i in 0..a1.count as usize {
+        assert_eq!(a1.positions[i], a2.positions[i]);
+        assert_eq!(a1.types[i], a2.types[i]);
+    }
+}
+
+#[test]
+fn test_attractor_separation() {
+    // Region with many features to fill attractor slots
+    let mut region = RegionState::new(0);
+    region.river_mask = 1;
+    region.terrain = 2; // Coast
+    region.resource_effective_yield = [0.5, 0.3, 0.1];
+    region.has_temple = true;
+    region.is_capital = true;
+    region.temple_prestige = 0.5;
+
+    let a = init_attractors(42, 0, &region);
+    // Should have 6 attractors: River, Coast, Resource0, Resource1, Resource2, Temple, Capital
+    assert!(a.count >= 6, "Expected at least 6 attractors, got {}", a.count);
+    // Check no two attractors closer than MIN_ATTRACTOR_SEPARATION
+    for i in 0..a.count as usize {
+        for j in (i + 1)..a.count as usize {
+            let dx = a.positions[i].0 - a.positions[j].0;
+            let dy = a.positions[i].1 - a.positions[j].1;
+            let dist = (dx * dx + dy * dy).sqrt();
+            // Allow small tolerance for separation enforcement
+            assert!(
+                dist >= MIN_ATTRACTOR_SEPARATION - 0.01,
+                "Attractors {} ({:?}) and {} ({:?}) too close: {} (positions: {:?} vs {:?})",
+                i,
+                a.types[i],
+                j,
+                a.types[j],
+                dist,
+                a.positions[i],
+                a.positions[j]
+            );
+        }
+    }
+}
+
+#[test]
+fn test_attractor_weight_dynamics() {
+    let mut region = RegionState::new(0);
+    region.resource_effective_yield = [0.8, 0.0, 0.0];
+    region.river_mask = 1;
+    region.water = 0.7;
+
+    let mut a = init_attractors(42, 0, &region);
+    update_attractor_weights(&mut a, &region);
+
+    // Find resource0 attractor and check weight
+    let res0_idx = (0..a.count as usize).find(|&i| a.types[i] == AttractorType::Resource0);
+    assert!(res0_idx.is_some(), "Resource0 attractor should exist");
+    assert!(
+        a.weights[res0_idx.unwrap()] > 0.0,
+        "Resource0 weight should be positive"
+    );
+
+    // Drop yield to 0
+    region.resource_effective_yield[0] = 0.0;
+    update_attractor_weights(&mut a, &region);
+    assert!(
+        (a.weights[res0_idx.unwrap()] - 0.0).abs() < f32::EPSILON,
+        "Resource0 weight should be 0 after yield drops"
+    );
+}
+
+#[test]
+fn test_empty_region_no_attractors() {
+    let region = RegionState::new(0); // all defaults
+    let a = init_attractors(42, 0, &region);
+    assert_eq!(a.count, 0, "Empty region should have no attractors");
+}
+
+#[test]
+fn test_attractor_types_correct() {
+    let region = make_test_region_with_features();
+    let a = init_attractors(99, 5, &region);
+    // Should have: River, Resource0, Resource1, Temple, Capital (5 active)
+    // No Coast (terrain is Plains by default in make_test_region_with_features)
+    let types: Vec<AttractorType> = (0..a.count as usize).map(|i| a.types[i]).collect();
+    assert!(types.contains(&AttractorType::River));
+    assert!(types.contains(&AttractorType::Resource0));
+    assert!(types.contains(&AttractorType::Resource1));
+    assert!(types.contains(&AttractorType::Temple));
+    assert!(types.contains(&AttractorType::Capital));
+    assert!(!types.contains(&AttractorType::Coast));
+    assert!(!types.contains(&AttractorType::Resource2)); // yield is 0.0
+    assert!(!types.contains(&AttractorType::Market)); // always inactive
+}
+
+#[test]
+fn test_attractor_positions_in_bounds() {
+    let mut region = RegionState::new(3);
+    region.river_mask = 1;
+    region.terrain = 2;
+    region.resource_effective_yield = [1.0, 1.0, 1.0];
+    region.has_temple = true;
+    region.is_capital = true;
+    region.temple_prestige = 0.8;
+
+    // Test across multiple seeds
+    for seed in [0u64, 1, 42, 999, u64::MAX] {
+        let a = init_attractors(seed, 3, &region);
+        for i in 0..a.count as usize {
+            assert!(
+                a.positions[i].0 >= 0.0 && a.positions[i].0 < 1.0,
+                "seed={} idx={} x={} out of bounds",
+                seed,
+                i,
+                a.positions[i].0
+            );
+            assert!(
+                a.positions[i].1 >= 0.0 && a.positions[i].1 < 1.0,
+                "seed={} idx={} y={} out of bounds",
+                seed,
+                i,
+                a.positions[i].1
+            );
+        }
+    }
+}
+
+#[test]
+fn test_attractor_weight_river_tracks_water() {
+    let mut region = RegionState::new(0);
+    region.river_mask = 1;
+    region.water = 0.3;
+
+    let mut a = init_attractors(42, 0, &region);
+    update_attractor_weights(&mut a, &region);
+
+    let river_idx = (0..a.count as usize)
+        .find(|&i| a.types[i] == AttractorType::River)
+        .unwrap();
+    assert!(
+        (a.weights[river_idx] - 0.3).abs() < f32::EPSILON,
+        "River weight should track water level"
+    );
+
+    region.water = 0.9;
+    update_attractor_weights(&mut a, &region);
+    assert!(
+        (a.weights[river_idx] - 0.9).abs() < f32::EPSILON,
+        "River weight should update with water"
+    );
+}
+
+#[test]
+fn test_attractor_weight_temple_fallback() {
+    let mut region = RegionState::new(0);
+    region.has_temple = true;
+    region.temple_prestige = 0.0;
+
+    let mut a = init_attractors(42, 0, &region);
+    update_attractor_weights(&mut a, &region);
+
+    let temple_idx = (0..a.count as usize)
+        .find(|&i| a.types[i] == AttractorType::Temple)
+        .unwrap();
+    // has_temple=true and prestige=0 should give weight 1.0
+    assert!(
+        (a.weights[temple_idx] - 1.0).abs() < f32::EPSILON,
+        "Temple with 0 prestige should have weight 1.0"
+    );
+}
+
+#[test]
+fn test_attractor_weight_capital_population_ratio() {
+    let mut region = RegionState::new(0);
+    region.is_capital = true;
+    region.population = 30;
+    region.carrying_capacity = 60;
+
+    let mut a = init_attractors(42, 0, &region);
+    update_attractor_weights(&mut a, &region);
+
+    let cap_idx = (0..a.count as usize)
+        .find(|&i| a.types[i] == AttractorType::Capital)
+        .unwrap();
+    assert!(
+        (a.weights[cap_idx] - 0.5).abs() < f32::EPSILON,
+        "Capital weight should be population/capacity ratio"
+    );
+}
+
+#[test]
+fn test_occupation_affinity_dimensions() {
+    assert_eq!(OCCUPATION_AFFINITY.len(), 5);
+    for row in &OCCUPATION_AFFINITY {
+        assert_eq!(row.len(), MAX_ATTRACTORS);
+    }
+    // Market column should be 0 for all occupations
+    for row in &OCCUPATION_AFFINITY {
+        assert!(
+            (row[AttractorType::Market as usize] - 0.0).abs() < f32::EPSILON,
+            "Market affinity should be 0 for all occupations"
+        );
+    }
+}
+
+#[test]
+fn test_different_seeds_different_positions() {
+    let region = make_test_region_with_features();
+    let a1 = init_attractors(42, 5, &region);
+    let a2 = init_attractors(123, 5, &region);
+    assert_eq!(a1.count, a2.count, "Same features should yield same count");
+    // At least one attractor should differ in position
+    let mut any_differ = false;
+    for i in 0..a1.count as usize {
+        if a1.positions[i] != a2.positions[i] {
+            any_differ = true;
+            break;
+        }
+    }
+    assert!(any_differ, "Different seeds should produce different positions");
 }
