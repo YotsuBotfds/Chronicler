@@ -581,7 +581,7 @@ Expected: PASS.
 
 - [ ] **Step 4: Migrate vassal rebellion (politics.py:533-542)**
 
-Replace the three-branch asabiya writes with D-policy calls. Import at top of politics.py:
+Replace the three-branch asabiya writes with D-policy calls. Use a **function-scoped import** at the mutation site to avoid hard module coupling:
 
 ```python
 from chronicler.simulation import _apply_asabiya_to_regions
@@ -590,6 +590,7 @@ from chronicler.simulation import _apply_asabiya_to_regions
 At line 533-542, change all three branches:
 
 ```python
+        from chronicler.simulation import _apply_asabiya_to_regions
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(vassal_idx,
                 stability_shock=min(1.0, 10 / max(vassal.stability, 1))))
@@ -606,6 +607,7 @@ At line 533-542, change all three branches:
 
 ```python
         asabiya_boost = get_override(world, K_FALLEN_EMPIRE_ASABIYA_BOOST, 0.05)
+        from chronicler.simulation import _apply_asabiya_to_regions
         _apply_asabiya_to_regions(world, civ.name, asabiya_boost)
 ```
 
@@ -792,33 +794,15 @@ git commit -m "feat(m55b): sync scenario asabiya overrides to regions"
 
 ```python
 def test_phase10_ordering_rebellion_before_tick():
-    """Vassal rebellion D-policy write must be captured by asabiya aggregation before collapse check."""
-    from chronicler.models import Civilization, Leader, TechEra, VassalRelation, WorldState, Region, Relationship, Disposition
-    # Civ with very low asabiya that would collapse without rebellion boost
-    r1 = _make_region("R1", controller="Vassal", adjacencies=["R2"])
-    r1.asabiya_state.asabiya = 0.04  # Below 0.1 threshold
-    r1.population = 50
-    r2 = _make_region("R2", controller="Overlord", adjacencies=["R1"])
-    r2.population = 50
-    vassal = Civilization(
-        name="Vassal", population=50, military=30, economy=40, culture=30,
-        stability=15, tech_era=TechEra.IRON, treasury=50, asabiya=0.04,
-        leader=Leader(name="V", trait="cautious", reign_start=0), regions=["R1"],
-    )
-    overlord = Civilization(
-        name="Overlord", population=50, military=30, economy=40, culture=30,
-        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
-        leader=Leader(name="O", trait="cautious", reign_start=0), regions=["R2"],
-    )
-    # After rebellion: region asabiya = 0.04 + 0.2 = 0.24
-    # After tick: civ.asabiya = ~0.24 (> 0.1 threshold)
-    # Civ should NOT collapse
-    # This test validates the ordering by checking the region state
-    world = _make_test_world([r1, r2], civs=[vassal, overlord])
-    from chronicler.simulation import _apply_asabiya_to_regions
-    _apply_asabiya_to_regions(world, "Vassal", 0.2)
-    apply_asabiya_dynamics(world)
-    assert vassal.asabiya > 0.1, f"Vassal asabiya {vassal.asabiya} should be > 0.1 after rebellion boost"
+    """Structural guard: asabiya tick must run after politics writes and before collapse read."""
+    import inspect
+    import chronicler.simulation as sim
+
+    src = inspect.getsource(sim.phase_consequences)
+    idx_vassal = src.index("check_vassal_rebellion")
+    idx_asabiya = src.index("apply_asabiya_dynamics(world)")
+    idx_collapse = src.index("if civ.asabiya < 0.1 and civ.stability <= 20")
+    assert idx_vassal < idx_asabiya < idx_collapse
 ```
 
 - [ ] **Step 2: Move call site in simulation.py**
