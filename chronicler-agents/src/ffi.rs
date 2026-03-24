@@ -663,6 +663,14 @@ impl AgentSimulator {
             .column_by_name("seceded_this_turn")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
 
+        // M55a: Spatial substrate columns
+        let is_capital_col = rb
+            .column_by_name("is_capital")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let temple_prestige_col = rb
+            .column_by_name("temple_prestige")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+
         // M54a: Ecology schema columns
         let disease_baseline_col = rb
             .column_by_name("disease_baseline")
@@ -786,6 +794,9 @@ impl AgentSimulator {
                     controller_changed_this_turn: controller_changed_col.map_or(false, |arr| arr.value(i)),
                     war_won_this_turn: war_won_col.map_or(false, |arr| arr.value(i)),
                     seceded_this_turn: seceded_col.map_or(false, |arr| arr.value(i)),
+                    // M55a
+                    is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
+                    temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
                     // M54a ecology
                     disease_baseline: disease_baseline_col.map_or(0.0, |arr| arr.value(i)),
                     capacity_modifier: capacity_modifier_col.map_or(1.0, |arr| arr.value(i)),
@@ -955,6 +966,8 @@ impl AgentSimulator {
                 r.controller_changed_this_turn = controller_changed_col.map_or(false, |arr| arr.value(i));
                 r.war_won_this_turn = war_won_col.map_or(false, |arr| arr.value(i));
                 r.seceded_this_turn = seceded_col.map_or(false, |arr| arr.value(i));
+                r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
+                r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 // M54a ecology — read-only inputs
                 if let Some(arr) = disease_baseline_col { r.disease_baseline = arr.value(i); }
                 if let Some(arr) = capacity_modifier_col { r.capacity_modifier = arr.value(i); }
@@ -2135,6 +2148,14 @@ impl EcologySimulator {
             .column_by_name("endemic_severity")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
+        // M55a (optional, ecology doesn't use but must not reject)
+        let is_capital_col = rb
+            .column_by_name("is_capital")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let temple_prestige_col = rb
+            .column_by_name("temple_prestige")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+
         if self.regions.is_empty() {
             // First call: initialize regions.
             self.regions = (0..n)
@@ -2191,6 +2212,8 @@ impl EcologySimulator {
                         resource_yield_2.map_or(0.0, |arr| arr.value(i)),
                     ];
                     r.endemic_severity = endemic_severity_col.map_or(0.0, |arr| arr.value(i));
+                    r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
+                    r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                     r
                 })
                 .collect();
@@ -2239,6 +2262,8 @@ impl EcologySimulator {
                 r.resource_yields[1] = resource_yield_1.map_or(r.resource_yields[1], |arr| arr.value(i));
                 r.resource_yields[2] = resource_yield_2.map_or(r.resource_yields[2], |arr| arr.value(i));
                 r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
+                r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
+                r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
             }
         }
         Ok(())

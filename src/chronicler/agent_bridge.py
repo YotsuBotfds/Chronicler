@@ -280,6 +280,23 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         r._war_won_this_turn = False
         r._seceded_this_turn = False
 
+    # M55a: is_capital — any alive civ has this region as capital
+    alive_civs = [c for c in world.civilizations if c.regions]
+    is_capital_flags = [
+        any(c.capital_region == r.name for c in alive_civs)
+        for r in world.regions
+    ]
+
+    # M55a: temple_prestige — max prestige of any active temple in the region
+    from chronicler.models import InfrastructureType
+    temple_prestiges = []
+    for r in world.regions:
+        max_prest = 0.0
+        for inf in r.infrastructure:
+            if inf.type == InfrastructureType.TEMPLES and inf.active:
+                max_prest = max(max_prest, float(getattr(inf, 'temple_prestige', 0) or 0))
+        temple_prestiges.append(max_prest)
+
     return pa.record_batch({
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
@@ -386,6 +403,9 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "controller_changed_this_turn": pa.array(controller_changed_vals, type=pa.bool_()),
         "war_won_this_turn": pa.array(war_won_vals, type=pa.bool_()),
         "seceded_this_turn": pa.array(seceded_vals, type=pa.bool_()),
+        # M55a: Spatial substrate signals
+        "is_capital": pa.array(is_capital_flags, type=pa.bool_()),
+        "temple_prestige": pa.array(temple_prestiges, type=pa.float32()),
     })
 
 

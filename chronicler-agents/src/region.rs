@@ -74,6 +74,9 @@ pub struct RegionState {
     pub prev_turn_water: f32,            // previous turn's water, set after ecology tick
     pub soil_pressure_streak: i32,       // depletion counter
     pub overextraction_streak: [i32; 3], // per-slot extraction streak
+    // M55a: Spatial substrate signals
+    pub is_capital: bool,
+    pub temple_prestige: f32,
 }
 
 impl RegionState {
@@ -125,6 +128,9 @@ impl RegionState {
             prev_turn_water: 0.0,
             soil_pressure_streak: 0,
             overextraction_streak: [0, 0, 0],
+            // M55a: Spatial substrate
+            is_capital: false,
+            temple_prestige: 0.0,
         }
     }
 }
