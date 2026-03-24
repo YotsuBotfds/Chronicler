@@ -146,14 +146,14 @@ fn bench_cache_efficiency(c: &mut Criterion) {
     group.bench_function("packed_10k", |b| {
         b.iter_batched(setup_packed, |(mut pool, regions, signals)| {
             let mut percentiles = vec![0.0f32; pool.capacity()];
-            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0, &mut percentiles);
+            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0, &mut percentiles, &mut Vec::new(), &[]);
         }, BatchSize::SmallInput)
     });
 
     group.bench_function("scattered_10k_in_15k", |b| {
         b.iter_batched(setup_scattered, |(mut pool, regions, signals)| {
             let mut percentiles = vec![0.0f32; pool.capacity()];
-            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0, &mut percentiles);
+            tick_agents(black_box(&mut pool), black_box(&regions), black_box(&signals), seed, 0, &mut percentiles, &mut Vec::new(), &[]);
         }, BatchSize::SmallInput)
     });
 

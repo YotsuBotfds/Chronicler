@@ -48,6 +48,8 @@ pub fn tick_agents(
     master_seed: [u8; 32],
     turn: u32,
     wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
 ) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
@@ -259,6 +261,36 @@ pub fn tick_agents(
     }
 
     // -----------------------------------------------------------------------
+    // 4.5a: Migration reset — place migrated agents near attractors
+    // -----------------------------------------------------------------------
+    if !attractors.is_empty() {
+        for pd in &pending_decisions {
+            for &(slot, _from, to) in &pd.migrations {
+                if pool.is_alive(slot) && (to as usize) < attractors.len() {
+                    let (nx, ny) = crate::spatial::migration_reset_position(
+                        pool.id(slot),
+                        pool.occupation(slot),
+                        &attractors[to as usize],
+                        &master_seed,
+                        to,
+                        turn,
+                    );
+                    pool.x[slot] = nx;
+                    pool.y[slot] = ny;
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // 4.5b+c: Rebuild spatial hash + two-pass drift
+    // -----------------------------------------------------------------------
+    if !attractors.is_empty() {
+        crate::spatial::rebuild_spatial_grids(pool, spatial_grids, num_regions as u16);
+        crate::spatial::spatial_drift_step(pool, spatial_grids, attractors);
+    }
+
+    // -----------------------------------------------------------------------
     // M48: Battle + Victory intents (soldiers in contested regions)
     // -----------------------------------------------------------------------
     {
@@ -426,6 +458,26 @@ pub fn tick_agents(
         }
     }
 
+    // -----------------------------------------------------------------------
+    // M55a: Snapshot parent positions before death pass for newborn placement
+    // -----------------------------------------------------------------------
+    let parent_pos: std::collections::HashMap<u32, (f32, f32)> = {
+        let mut pmap = std::collections::HashMap::new();
+        for (dr, _) in &demo_results {
+            for birth in &dr.births {
+                if birth.parent_id != crate::agent::PARENT_NONE {
+                    if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
+                        if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
+                            pmap.entry(birth.parent_id)
+                                .or_insert((pool.x[parent_slot], pool.y[parent_slot]));
+                        }
+                    }
+                }
+            }
+        }
+        pmap
+    };
+
     // Sequential apply: deaths, age increments, births
     let mut kin_bond_failures: u32 = 0;
     for (dr, _) in &demo_results {
@@ -517,6 +569,19 @@ pub fn tick_agents(
                         }
                     }
                 }
+            }
+            // M55a: Place newborn near parent position
+            if !attractors.is_empty() {
+                let base = parent_pos.get(&birth.parent_id).copied().unwrap_or((0.5, 0.5));
+                let (bx, by) = crate::spatial::newborn_position(
+                    pool.id(new_slot),
+                    birth.region,
+                    base,
+                    &master_seed,
+                    turn,
+                );
+                pool.x[new_slot] = bx;
+                pool.y[new_slot] = by;
             }
             // Set all 5 skill slots to SKILL_NEWBORN
             for occ in 0..OCCUPATION_COUNT {
@@ -1170,7 +1235,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1198,8 +1263,8 @@ mod tests {
         for turn in 0..10 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
-            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
+            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[]);
+            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[]);
         }
         assert_eq!(pool_a.alive_count(), pool_b.alive_count());
     }
@@ -1242,8 +1307,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa);
-            let (eb, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb);
+            let (ea, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[]);
+            let (eb, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[]);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1277,7 +1342,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
@@ -1313,7 +1378,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 1;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
 
         // After one tick, soldier skill should have grown (if agent survived)
         if pool.is_alive(slot) {
@@ -1337,7 +1402,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 3;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles);
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[]);
 
         // After tick, satisfaction should differ from default 0.5
         // (healthy region with good soil/water should give decent satisfaction)

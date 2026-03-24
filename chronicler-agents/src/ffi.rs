@@ -456,6 +456,10 @@ pub struct AgentSimulator {
     ecology_config: crate::ecology::EcologyConfig,
     river_topology: crate::ecology::RiverTopology,
     recompute_ctx: RecomputeContext,
+    // M55a: Spatial substrate state
+    spatial_grids: Vec<crate::spatial::SpatialGrid>,
+    attractors: Vec<crate::spatial::RegionAttractors>,
+    spatial_initialized: bool,
 }
 
 #[pymethods]
@@ -488,6 +492,9 @@ impl AgentSimulator {
             ecology_config: crate::ecology::EcologyConfig::default(),
             river_topology: crate::ecology::RiverTopology::default(),
             recompute_ctx: RecomputeContext::default(),
+            spatial_grids: Vec::new(),
+            attractors: Vec::new(),
+            spatial_initialized: false,
         }
     }
 
@@ -993,6 +1000,38 @@ impl AgentSimulator {
                 if let Some(arr) = overextraction_streak_2_col { r.overextraction_streak[2] = arr.value(i); }
             }
         }
+        // M55a: Spatial attractor init (once) + weight update (every call)
+        if !self.spatial_initialized && self.initialized {
+            let world_seed = u64::from_le_bytes(self.master_seed[0..8].try_into().unwrap());
+            self.attractors = (0..self.regions.len())
+                .map(|i| crate::spatial::init_attractors(world_seed, i as u16, &self.regions[i]))
+                .collect();
+            // Initialize agent positions near occupation-appropriate attractors
+            for slot in 0..self.pool.capacity() {
+                if self.pool.is_alive(slot) {
+                    let r = self.pool.regions[slot] as usize;
+                    if r < self.attractors.len() {
+                        let (x, y) = crate::spatial::migration_reset_position(
+                            self.pool.ids[slot],
+                            self.pool.occupations[slot],
+                            &self.attractors[r],
+                            &self.master_seed,
+                            r as u16,
+                            0, // turn 0 for initial placement
+                        );
+                        self.pool.x[slot] = x;
+                        self.pool.y[slot] = y;
+                    }
+                }
+            }
+            self.spatial_initialized = true;
+        }
+        // Always update attractor weights from current region state
+        for (i, region) in self.regions.iter().enumerate() {
+            if i < self.attractors.len() {
+                crate::spatial::update_attractor_weights(&mut self.attractors[i], region);
+            }
+        }
         Ok(())
     }
 
@@ -1026,6 +1065,8 @@ impl AgentSimulator {
             self.master_seed,
             turn,
             &mut self.wealth_percentiles,
+            &mut self.spatial_grids,
+            &self.attractors,
         );
         self.prev_kin_bond_failures = self.kin_bond_failures;
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);

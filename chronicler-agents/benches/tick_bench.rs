@@ -123,6 +123,8 @@ fn bench_tick_matrix(c: &mut Criterion) {
                         seed,
                         0,
                         &mut percentiles,
+                        &mut Vec::new(),
+                        &[],
                     );
                 },
                 BatchSize::SmallInput,

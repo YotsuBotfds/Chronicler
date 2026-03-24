@@ -83,7 +83,7 @@ fn run_500_turns(num_agents: usize, num_regions: u16) -> f64 {
         if percentiles.len() < pool.capacity() {
             percentiles.resize(pool.capacity(), 0.0);
         }
-        tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles);
+        tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles, &mut Vec::new(), &[]);
     }
     start.elapsed().as_secs_f64()
 }
