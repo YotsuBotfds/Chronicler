@@ -30,6 +30,8 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
                 gini_coefficient: 0.0,
                 conquered_this_turn: false,
                 priest_tithe_share: 0.0,
+                cultural_drift_multiplier: 1.0,
+                religion_intensity_multiplier: 1.0,
             })
             .collect(),
         contested_regions: (0..num_regions).map(|i| i % 5 == 0).collect(),
@@ -38,46 +40,21 @@ fn make_default_signals(num_civs: usize, num_regions: usize) -> TickSignals {
 
 fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionState>, TickSignals) {
     let agents_per_region = num_agents / num_regions as usize;
-    let regions: Vec<RegionState> = (0..num_regions).map(|i| RegionState {
-        region_id: i,
-        terrain: 0,
-        carrying_capacity: agents_per_region as u16,
-        population: agents_per_region as u16,
-        soil: 0.7,
-        water: 0.5,
-        forest_cover: 0.3,
-        adjacency_mask: if num_regions <= 32 {
+    let regions: Vec<RegionState> = (0..num_regions).map(|i| {
+        let mut region = RegionState::new(i);
+        region.carrying_capacity = agents_per_region as u16;
+        region.population = agents_per_region as u16;
+        region.soil = 0.7;
+        region.water = 0.5;
+        region.forest_cover = 0.3;
+        region.adjacency_mask = if num_regions <= 32 {
             (if i > 0 { 1u32 << (i - 1) } else { 0 })
                 | (if i < num_regions - 1 { 1u32 << (i + 1) } else { 0 })
         } else {
             0
-        },
-        controller_civ: (i % 4) as u8,
-        trade_route_count: 0,
-        resource_types: [255, 255, 255],
-        resource_yields: [0.0, 0.0, 0.0],
-        resource_reserves: [1.0, 1.0, 1.0],
-        season: 0,
-        season_id: 0,
-        river_mask: 0,
-        endemic_severity: 0.0,
-        culture_investment_active: false,
-        controller_values: [0xFF, 0xFF, 0xFF],
-        conversion_rate: 0.0,
-        conversion_target_belief: 0xFF,
-        conquest_conversion_active: false,
-        majority_belief: 0xFF,
-        has_temple: false,
-        persecution_intensity: 0.0,
-        schism_convert_from: 0xFF,
-        schism_convert_to: 0xFF,
-        farmer_income_modifier: 1.0,
-        food_sufficiency: 1.0,
-        merchant_margin: 0.0,
-        merchant_trade_income: 0.0,
-        controller_changed_this_turn: false,
-        war_won_this_turn: false,
-        seceded_this_turn: false,
+        };
+        region.controller_civ = (i % 4) as u8;
+        region
     }).collect();
     let num_civs = (num_regions.min(8)) as usize;
     let signals = make_default_signals(num_civs, num_regions as usize);
@@ -92,10 +69,6 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         }
     }
     (pool, regions, signals)
-}
-
-fn setup_6k_pool() -> (AgentPool, Vec<RegionState>, TickSignals) {
-    setup_pool(6000, 24)
 }
 
 fn bench_tick_matrix(c: &mut Criterion) {

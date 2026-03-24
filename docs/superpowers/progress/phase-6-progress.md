@@ -224,6 +224,25 @@
 - **Key design decisions:** Deterministic formation (no RNG consumed, stream offset 1100 reserved for M53 probabilistic). Multi-bond-per-pair (Friend + CoReligionist can form simultaneously). Directed bonds only need source-side capacity. Formation scan uses post-demographics alive_slots. `evaluate_pair()` returns Vec (all eligible types), not Option (first match). Dissolution events carry bond_type in `target_region` field (dead target's agent_id unavailable — O-3 deferred).
 - **Phoebe observations (non-blocking):** O-1 (`check_friend` evaluates compatibility before shared memory — negligible cost difference), O-2 (`id_to_slot` rebuilt per-region instead of hoisted — minor perf), O-3 (dissolution events lack dead target's agent_id — known plan issue #2), O-4 (`--relationship-stats` flag not wired to consumer — deferred).
 
+### M55a: Spatial Substrate — implemented on `codex/m54a-rust-ecology`
+
+- 10 commits on `codex/m54a-rust-ecology` branch. 48 Rust tests, 2 Python tests, 513 total Rust tests passing, 32 Python bridge tests passing.
+- **Spec:** `docs/superpowers/specs/2026-03-24-m55a-spatial-substrate-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-24-m55a-spatial-substrate.md`
+- **Rust (chronicler-agents):**
+  - `spatial.rs` (new): SpatialGrid (10x10 uniform hash), RegionAttractors (8-slot attractor model with occupation affinity), drift computation (attractor + density + repulsion forces), two-pass update, migration reset, newborn placement, SpatialDiagnostics.
+  - `sort.rs` (new): morton_interleave, radix_sort_u64, sort_by_region, sort_by_morton, sorted_iteration_order with SPATIAL_SORT_AGENT_THRESHOLD activation.
+  - `pool.rs`: x, y SoA fields (8 bytes/agent), init in new()/spawn(), serialized in to_record_batch().
+  - `region.rs`: is_capital (bool), temple_prestige (f32) fields.
+  - `ffi.rs`: Spatial state on AgentSimulator (grids, attractors, diag), spatial init on first set_region_state(), weight update every call, get_spatial_diagnostics() getter, new region columns parsed in both simulators.
+  - `tick.rs`: tick_agents extended with spatial_grids + attractors + diag params. Step 4.5 inserted: migration reset (4.5a), grid rebuild (4.5b), two-pass drift (4.5c). Parent position snapshot before death pass, newborn placement after spawn.
+  - `agent.rs`: INITIAL_AGE_STREAM_OFFSET moved to 2000, SPATIAL_POSITION/DRIFT offsets 1400/1401 registered.
+- **Python:**
+  - `agent_bridge.py`: is_capital and temple_prestige columns in build_region_batch().
+  - `analytics.py`: extract_spatial_diagnostics() extractor.
+- **Key design decisions:** Attractor positions static (computed once from seed), weights dynamic (recomputed from RegionState each tick). Two-pass drift (snapshot then compute then write) for determinism. Spatial code no-op when attractors empty (backward compatible). Sort threshold at 100K agents. All constants [CALIBRATE M61b].
+- **Deferred:** Market attractor (reserved, inactive until M58a). Disease proximity spreading. Formation behavior change. Bundle schema changes.
+
 ---
 
 ## Current Status
@@ -427,16 +446,22 @@
 
 **Next steps:**
 - **M54a:** Rust ecology migration is unblocked and can begin from the M53 passing baseline.
+- **M54a follow-up (2026-03-23):** Restored pre-M54a famine cooldown semantics so uncontrolled regions no longer decrement `famine_cooldown`, and added regression coverage for that path in `tests/test_ecology.py`.
+- **M54a wrap (2026-03-23):** Sidecar regression scoring now uses controlled-only occupation counts, so uncontrolled fallback buckets do not trip polity occupation caps. Fresh canonical `200 seeds x 500 turns` rerun at `output/m54a/codex_m53_secession_threshold25_full_500turn_controlled_occ/batch_1/validate_report.json` passes every oracle (`determinism=SKIP` remains expected because the gate has no duplicate seed pairs).
+- **M54b implementation handoff (2026-03-23):** `docs/superpowers/specs/2026-03-21-m54b-rust-economy-migration-design.md` now locks the post-M54a helper contract too: direct `PyRecordBatch` FFI shape, dedicated economy builders in `economy.py`, explicit `set_economy_config(...)` / `tick_economy(...)` expectations, and an explicit ban on reusing `build_region_batch()` / `set_region_state()` for Phase 2. Claude execution plan: `docs/superpowers/plans/2026-03-23-m54b-rust-economy-migration.md`.
+- **M54c pre-spec handoff (2026-03-22):** `docs/superpowers/plans/2026-03-22-m54c-pre-spec-handoff.md` captures the current politics seam, likely Phase 10 migration boundary, and the unresolved spatial-sort placement decision.
 - **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
 - **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
 - **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
+- **Phase 7.5 pre-activation prep (2026-03-24):** Added `docs/superpowers/specs/2026-03-24-m62a-bundle-v2-contract-design.md` and `docs/superpowers/plans/2026-03-24-m62a-preactivation-prep.md` to lock the Bundle v2 contract draft, test matrix, and activation checklist. Viewer-side `useBundle` now detects manifest-first Bundle v2 files and emits explicit compatibility guidance until M61b freeze fixtures are available.
 
 ---
 
 ## Known Gotchas / Deferred Items
 
 - **Transient signal rule (CLAUDE.md):** Clear BEFORE return in builder functions. 2+ turn integration test required for every new transient signal.
-- **~~M51 implementation gotchas~~** — All resolved during M51 implementation (`412d238`). Legacy bitmask, regnal naming, phantom counter, legitimacy scoring all landed.
+- **Phase 7 roadmap restructure (2026-03-23):** Approved split update landed in `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md`. Shared sort infrastructure now belongs to `M54a`, `M54c` is politics-only, `M55-M61` are split into smaller merge gates (`M55a/b`, `M56a/b`, `M57a/b`, `M58a/b`, `M59a/b`, `M60a/b`, `M61a/b`), and viewer work remains in the separate Phase 7.5 roadmap.
+- **~~M51 implementation gotchas~~** - All resolved during M51 implementation (`412d238`). Legacy bitmask, regnal naming, phantom counter, legitimacy scoring all landed.
 - **M51: Legitimacy activation rate still unmeasured.** M53 passed without a dedicated legitimacy gate, but if most successions produce abstract/external candidates the dynasty scoring remains largely decorative. Measure before any dynasty-focused retune.
 - **M51: Legacy + persecution stacking.** Legacy persecution memories still add to the M38b + M48 + M49 pressure stack. M53 passed, but this remains a watchpoint if rebellion tuning is revisited.
 - **M34 farmer-as-miner:** Resolved. M41 added `is_extractive()` dispatch; M42 replaced it with market-derived `farmer_income_modifier`.
