@@ -147,6 +147,8 @@ fn base_hash(seed: u64, region_id: u16, disc: u64) -> u64 {
 }
 
 /// Compute an edge-biased position (for River, Coast).
+/// Spec deviation: uses LCG-based hash instead of spec's `(seed XOR region_id XOR type) % 4`.
+/// Stronger mixing avoids correlated edge choices across nearby regions.
 fn edge_position(seed: u64, region_id: u16, disc: u64) -> (f32, f32) {
     let h0 = seed
         .wrapping_mul(0x517cc1b727220a95)
@@ -283,9 +285,12 @@ pub fn init_attractors(seed: u64, region_id: u16, region: &RegionState) -> Regio
         att.count += 1;
     }
 
-    // Enforce minimum separation: up to 20 iterations.
-    // Symmetric push: both attractors move apart. If one is boundary-clamped,
-    // try orthogonal displacement to escape.
+    // Enforce minimum separation: up to 20 iterations (spec says 10, raised for
+    // reliability with the symmetric push algorithm below).
+    // Spec deviation: uses symmetric push (both attractors move apart) instead of
+    // priority-based push (only lower-priority moves). Symmetric push avoids
+    // systematically displacing low-priority attractors to boundaries. If one is
+    // boundary-clamped, try orthogonal displacement to escape.
     for _iter in 0..20 {
         let mut any_moved = false;
         let n = att.count as usize;
@@ -576,10 +581,14 @@ pub fn spatial_drift_step(
         }
     }
 
-    // Sort timing
-    let start = std::time::Instant::now();
-    let _ = crate::sort::sorted_iteration_order(pool);
-    diag.sort_time_us = start.elapsed().as_micros() as u64;
+    // Sort timing — only run above threshold to avoid wasted work on small pools.
+    // The sort result is discarded in M55a (drift uses slot-index order). This timing
+    // is infrastructure for M61b profiling of cache-locality benefits.
+    if pool.alive_count() >= crate::sort::SPATIAL_SORT_AGENT_THRESHOLD {
+        let start = std::time::Instant::now();
+        let _ = crate::sort::sorted_iteration_order(pool);
+        diag.sort_time_us = start.elapsed().as_micros() as u64;
+    }
     // 1. Snapshot all (x, y) into scratch buffers
     let old_x: Vec<f32> = pool.x[..cap].to_vec();
     let old_y: Vec<f32> = pool.y[..cap].to_vec();
