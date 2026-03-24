@@ -68,6 +68,48 @@ class TestEligibility:
     def test_diplomacy_always_eligible(self, engine_world):
         assert ActionType.DIPLOMACY in ActionEngine(engine_world).get_eligible_actions(engine_world.civilizations[0])
 
+    def test_embargo_preserves_relationship_iteration_tiebreak(self):
+        civ_a = Civilization(
+            name="Civ A", population=50, military=50, economy=50, culture=50,
+            stability=50, tech_era=TechEra.IRON, treasury=150,
+            leader=Leader(name="Vaelith", trait="aggressive", reign_start=0),
+            regions=["Region A"],
+        )
+        civ_b = Civilization(
+            name="Civ B", population=50, military=50, economy=50, culture=50,
+            stability=50, tech_era=TechEra.IRON, treasury=150,
+            leader=Leader(name="Gorath", trait="cautious", reign_start=0),
+            regions=["Region B"],
+        )
+        civ_c = Civilization(
+            name="Civ C", population=50, military=50, economy=50, culture=50,
+            stability=50, tech_era=TechEra.IRON, treasury=150,
+            leader=Leader(name="Selene", trait="bold", reign_start=0),
+            regions=["Region C"],
+        )
+        world = WorldState(
+            name="TieBreak", seed=42, turn=5,
+            regions=[
+                Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile", controller="Civ A"),
+                Region(name="Region B", terrain="forest", carrying_capacity=60, resources="timber", controller="Civ B"),
+                Region(name="Region C", terrain="coast", carrying_capacity=70, resources="maritime", controller="Civ C"),
+            ],
+            civilizations=[civ_a, civ_b, civ_c],
+            relationships={
+                "Civ A": {
+                    "Civ C": Relationship(disposition=Disposition.HOSTILE),
+                    "Civ B": Relationship(disposition=Disposition.HOSTILE),
+                },
+                "Civ B": {"Civ A": Relationship(disposition=Disposition.HOSTILE)},
+                "Civ C": {"Civ A": Relationship(disposition=Disposition.HOSTILE)},
+            },
+        )
+
+        event = resolve_action(civ_a, ActionType.EMBARGO, world)
+
+        assert event.event_type == "embargo"
+        assert event.actors == ["Civ A", "Civ C"]
+
     def test_expand_marks_empty_region_for_stockpile_bootstrap(self, engine_world):
         civ = engine_world.civilizations[0]
         frontier = next(r for r in engine_world.regions if r.name == "Region D")

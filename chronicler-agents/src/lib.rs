@@ -24,12 +24,15 @@ pub mod relationships;
 pub mod formation;
 pub mod ecology;
 pub mod economy;
+pub mod politics;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
 pub use ffi::AgentSimulator;
 #[doc(hidden)]
 pub use ffi::EcologySimulator;
+#[doc(hidden)]
+pub use ffi::PoliticsSimulator;
 
 /// Re-exported FFI schemas for integration tests.
 pub mod ffi_schemas {
@@ -39,6 +42,14 @@ pub mod ffi_schemas {
         economy_region_result_schema, economy_civ_result_schema,
         economy_observability_schema, economy_upstream_sources_schema,
         economy_conservation_schema,
+    };
+    pub use crate::ffi::{
+        politics_civ_ops_schema, politics_region_ops_schema,
+        politics_relationship_ops_schema, politics_federation_ops_schema,
+        politics_vassal_ops_schema, politics_exile_ops_schema,
+        politics_proxy_war_ops_schema, politics_civ_effect_ops_schema,
+        politics_bookkeeping_schema, politics_artifact_intent_schema,
+        politics_bridge_transition_schema, politics_event_trigger_schema,
     };
 }
 #[doc(hidden)]
@@ -96,5 +107,6 @@ static GLOBAL: Jemalloc = Jemalloc;
 fn chronicler_agents(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ffi::AgentSimulator>()?;
     m.add_class::<ffi::EcologySimulator>()?;
+    m.add_class::<ffi::PoliticsSimulator>()?;
     Ok(())
 }

@@ -632,6 +632,9 @@ class AgentBridge:
         configure_ecology_runtime(self._sim, world)
         # M54b: Wire economy config from tuning overrides
         configure_economy_runtime(self._sim, world)
+        # M54c: Wire politics config from tuning overrides
+        from chronicler.politics import configure_politics_runtime
+        configure_politics_runtime(self._sim, world)
         # Prime the simulator once at bridge construction so the first Phase 2
         # economy tick sees the live world population rather than an empty pool.
         self._sim.set_region_state(build_region_batch(world))

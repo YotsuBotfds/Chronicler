@@ -372,7 +372,6 @@ def test_tick_economy_emits_zero_tithe_base_for_controlled_zero_agent_civ(sample
     assert result.tithe_base[1] == pytest.approx(0.0)
     assert compute_tithe_base(civ_b, economy_result=result, civ_idx=1) == pytest.approx(0.0)
 
-
 def test_reconstruct_economy_result_observability():
     """Reconstructed result has correct observability fields."""
     world = _make_two_region_world()
