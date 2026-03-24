@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-24 (M54c review fixes landed; canonical gate rerun + fresh M54b control both red on satisfaction floor)
+> **Last updated:** 2026-03-24 (M54c review fixes landed, clean integration branch cut, canonical gate rerun still red on satisfaction floor)
 
 ---
 
@@ -423,7 +423,7 @@
 
 ### M54c: Rust Politics Migration — implementation complete, parity green, long gate adjudication pending
 
-- **Branch:** `codex/m54c-rust-politics` cut from `main` after M54b merged.
+- **Branch:** `codex/m54c-rust-politics-clean` is the clean squash integration branch cut from `main` after M54b merged. The original `codex/m54c-rust-politics` branch is retained only as implementation history.
 - **Spec:** `docs/superpowers/specs/2026-03-22-m54c-rust-politics-migration-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-23-m54c-rust-politics-migration.md` (5 tasks)
 - **What landed:**
@@ -445,11 +445,12 @@
   - Preserved the original embargo target tie-break in `action_engine.py` and locked it with `test_embargo_preserves_relationship_iteration_tiebreak()`, so M54c does not silently change Phase 8 targeting behavior.
   - Added coverage for the remaining politics edge cases: stable existing-federation refs across dissolves, non-truncated region-list round trips, proxy-war target-region matching, hybrid shock coalescing, restored-civ decline bookkeeping, and same-turn twilight viability after restoration.
   - Focused verification after the review pass: `python -m pytest tests/test_economy_bridge.py tests/test_action_engine.py tests/test_politics_bridge.py tests/test_politics_parity.py -q` (`194 passed`) and `cargo nextest run --test test_economy --test test_politics` (`72 passed`).
+  - Cut clean squash-integration branch `codex/m54c-rust-politics-clean` at `caf263f`, which matches the reviewed M54c tree exactly while excluding the stray economy-only history detour from the original branch.
 - **Scope:** M54c stayed politics-only (no spatial sort). Spatial sort deferred to M55.
 - **Canonical 200-seed regression (2026-03-24):**
-  - Fresh M54c rerun at `output/m54c/codex_m53_secession_threshold25_full_500turn_purepolitics/batch_1/validate_report.json` passes `community`, `needs`, `era`, `cohort`, `artifacts`, and `arcs`, with `determinism=SKIP` as expected. `regression=FAIL` on `satisfaction_mean=0.4425` (other regression sub-metrics remain in range).
-  - Fresh clean-line M54b control rerun at `output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine/batch_1/validate_report.json` also fails only `regression`, with `satisfaction_mean=0.4460`.
-  - Interpretation: the current long gate is not a clean M54c-only blocker on this machine. M54c tracks the fresh M54b control closely, but both sit just below the validator's `0.45` satisfaction floor, so final milestone signoff should treat this as a gate-stability / baseline-adjudication issue rather than a proven politics-migration regression.
+  - Fresh clean-branch M54c rerun at `output/m54c/codex_m53_secession_threshold25_full_500turn_purepolitics_cleanbranch/batch_1/validate_report.json` passes `community`, `needs`, `era`, `cohort`, `artifacts`, and `arcs`, with `determinism=SKIP` as expected. `regression=FAIL` on `satisfaction_mean=0.4425` (other regression sub-metrics remain in range).
+  - The accepted M54b baseline remains `output/m54b/codex_m53_secession_threshold25_full_500turn_bootstrapfix/batch_1/validate_report.json`, which passes every oracle. An earlier same-machine M54b control rerun also landed just below the satisfaction floor (`0.4460`), but that scratch artifact was not preserved and should be treated as an investigative note rather than a canonical comparison report.
+  - Interpretation: the clean-branch M54c long gate is still red, but the miss is narrow and isolated to `satisfaction_mean`. Final milestone signoff should treat this as a baseline-adjudication question unless a preserved same-machine control rerun is required.
 - **Key decisions:**
   - RNG parity between Python and Rust is structural, not numeric (different RNG engines). Probabilistic decisions are tested via forced-outcome scenarios and structural blocking conditions.
   - Tie-breaking in capital reassignment differs (Python picks first-in-list, Rust picks last). Parity tests use distinct effective_capacity values to avoid ties.
