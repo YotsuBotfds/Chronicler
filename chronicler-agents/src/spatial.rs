@@ -390,3 +390,252 @@ pub fn update_attractor_weights(attractors: &mut RegionAttractors, region: &Regi
         attractors.weights[i] = w.max(0.0).min(1.0);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Drift computation
+// ---------------------------------------------------------------------------
+
+use rand::SeedableRng;
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+use crate::agent::SPATIAL_POSITION_STREAM_OFFSET;
+
+// Movement constants [CALIBRATE M61b]
+pub const MAX_DRIFT_PER_TICK: f32 = 0.04;
+pub const DENSITY_RADIUS: f32 = 0.15;
+pub const REPULSION_RADIUS: f32 = 0.05;
+pub const DENSITY_ATTRACTION_MAX: f32 = 0.02;
+pub const DENSITY_MIN_DIST: f32 = 0.005;
+pub const REPULSION_MIN_DIST: f32 = 0.001;
+pub const REPULSION_ZERO_DIST_FORCE: f32 = 5.0;
+pub const REPULSION_FORCE_CAP: f32 = 50.0;
+pub const ATTRACTOR_DEADZONE: f32 = 0.02;
+pub const ATTRACTOR_RANGE: f32 = 0.5;
+pub const W_ATTRACTOR: f32 = 0.6;
+pub const W_DENSITY: f32 = 0.3;
+pub const W_REPULSION: f32 = 0.5;
+pub const MIGRATION_JITTER: f32 = 0.05;
+pub const BIRTH_JITTER: f32 = 0.02;
+
+/// Compute new position for a single agent given current state.
+/// Returns (new_x, new_y).
+pub fn compute_drift_for_agent(
+    agent_x: f32,
+    agent_y: f32,
+    occupation: u8,
+    agent_id: u32,
+    attractors: &RegionAttractors,
+    neighbor_positions: &[(u32, f32, f32)], // (slot_id, x, y) — from spatial hash query using OLD positions
+) -> (f32, f32) {
+    // 1. Attractor vector — sum over active attractors
+    let mut att_x: f32 = 0.0;
+    let mut att_y: f32 = 0.0;
+    for i in 0..(attractors.count as usize) {
+        let dx = attractors.positions[i].0 - agent_x;
+        let dy = attractors.positions[i].1 - agent_y;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if dist < ATTRACTOR_DEADZONE {
+            continue;
+        }
+        let dir_x = dx / dist;
+        let dir_y = dy / dist;
+        let occ_idx = (occupation as usize).min(OCCUPATION_COUNT - 1);
+        let affinity = OCCUPATION_AFFINITY[occ_idx][attractors.types[i] as usize];
+        let pull = affinity * attractors.weights[i] * (dist.min(ATTRACTOR_RANGE) / ATTRACTOR_RANGE);
+        att_x += pull * dir_x;
+        att_y += pull * dir_y;
+    }
+
+    // 2. Density vector — mean direction to neighbors within DENSITY_RADIUS
+    let mut dens_x: f32 = 0.0;
+    let mut dens_y: f32 = 0.0;
+    let mut dens_count: u32 = 0;
+    for &(_, nx, ny) in neighbor_positions {
+        let dx = nx - agent_x;
+        let dy = ny - agent_y;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if dist > DENSITY_RADIUS || dist < DENSITY_MIN_DIST {
+            continue;
+        }
+        dens_x += dx / dist;
+        dens_y += dy / dist;
+        dens_count += 1;
+    }
+    if dens_count > 0 {
+        dens_x /= dens_count as f32;
+        dens_y /= dens_count as f32;
+    }
+    let dens_mag = (dens_x * dens_x + dens_y * dens_y).sqrt();
+    if dens_mag > DENSITY_ATTRACTION_MAX {
+        let scale = DENSITY_ATTRACTION_MAX / dens_mag;
+        dens_x *= scale;
+        dens_y *= scale;
+    }
+
+    // 3. Repulsion vector — sum from neighbors within REPULSION_RADIUS
+    let mut rep_x: f32 = 0.0;
+    let mut rep_y: f32 = 0.0;
+    for &(neighbor_id, nx, ny) in neighbor_positions {
+        let dx = agent_x - nx; // AWAY from neighbor
+        let dy = agent_y - ny;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if dist > REPULSION_RADIUS {
+            continue;
+        }
+        let (dir_x, dir_y, force);
+        if dist < REPULSION_MIN_DIST {
+            // Deterministic zero-distance fallback
+            let mut angle = ((agent_id ^ neighbor_id) % 360) as f32
+                * (std::f32::consts::PI / 180.0);
+            if agent_id < neighbor_id {
+                angle += std::f32::consts::PI; // flip for symmetry breaking
+            }
+            dir_x = angle.cos();
+            dir_y = angle.sin();
+            force = REPULSION_ZERO_DIST_FORCE;
+        } else {
+            dir_x = dx / dist;
+            dir_y = dy / dist;
+            force = (1.0 / (dist * dist)).min(REPULSION_FORCE_CAP);
+        }
+        rep_x += force * dir_x;
+        rep_y += force * dir_y;
+    }
+
+    // 4. Weighted sum
+    let mut drift_x = W_ATTRACTOR * att_x + W_DENSITY * dens_x + W_REPULSION * rep_x;
+    let mut drift_y = W_ATTRACTOR * att_y + W_DENSITY * dens_y + W_REPULSION * rep_y;
+
+    // 5. Clamp magnitude to MAX_DRIFT_PER_TICK
+    let mag = (drift_x * drift_x + drift_y * drift_y).sqrt();
+    if mag > MAX_DRIFT_PER_TICK {
+        let scale = MAX_DRIFT_PER_TICK / mag;
+        drift_x *= scale;
+        drift_y *= scale;
+    }
+
+    // 6. Apply and boundary clamp
+    let new_x = (agent_x + drift_x).clamp(0.0, POS_MAX);
+    let new_y = (agent_y + drift_y).clamp(0.0, POS_MAX);
+    (new_x, new_y)
+}
+
+/// Two-pass spatial drift for all alive agents.
+/// Reads old positions, computes new positions, writes back.
+pub fn spatial_drift_step(
+    pool: &mut AgentPool,
+    grids: &[SpatialGrid],
+    attractors: &[RegionAttractors],
+) {
+    let cap = pool.capacity();
+    // 1. Snapshot all (x, y) into scratch buffers
+    let old_x: Vec<f32> = pool.x[..cap].to_vec();
+    let old_y: Vec<f32> = pool.y[..cap].to_vec();
+
+    // 2. Compute new positions for each alive agent, storing results
+    let mut new_x = vec![0.0f32; cap];
+    let mut new_y = vec![0.0f32; cap];
+
+    for slot in 0..cap {
+        if !pool.is_alive(slot) {
+            continue;
+        }
+        let region = pool.regions[slot] as usize;
+        if region >= grids.len() || region >= attractors.len() {
+            continue;
+        }
+
+        // Query grid for neighbors using OLD positions (grid was built from old positions)
+        let neighbor_slots = grids[region].query_neighbors(old_x[slot], old_y[slot], slot as u32);
+
+        // Build neighbor_positions from the SNAPSHOT (old positions)
+        let neighbor_positions: Vec<(u32, f32, f32)> = neighbor_slots
+            .iter()
+            .map(|&ns| (ns, old_x[ns as usize], old_y[ns as usize]))
+            .collect();
+
+        let (nx, ny) = compute_drift_for_agent(
+            old_x[slot],
+            old_y[slot],
+            pool.occupations[slot],
+            pool.ids[slot],
+            &attractors[region],
+            &neighbor_positions,
+        );
+        new_x[slot] = nx;
+        new_y[slot] = ny;
+    }
+
+    // 3. Write all new positions back to pool
+    for slot in 0..cap {
+        if pool.is_alive(slot) {
+            pool.x[slot] = new_x[slot];
+            pool.y[slot] = new_y[slot];
+        }
+    }
+}
+
+/// Reset agent position after migration: place near highest-affinity attractor
+/// for the agent's occupation, with deterministic jitter.
+pub fn migration_reset_position(
+    agent_id: u32,
+    occupation: u8,
+    attractors: &RegionAttractors,
+    master_seed: &[u8; 32],
+    dest_region_id: u16,
+    turn: u32,
+) -> (f32, f32) {
+    if attractors.count == 0 {
+        return (0.5, 0.5);
+    }
+
+    // Find the highest-affinity attractor for this occupation
+    let occ_idx = (occupation as usize).min(OCCUPATION_COUNT - 1);
+    let mut best_idx = 0usize;
+    let mut best_score = f32::NEG_INFINITY;
+    for i in 0..(attractors.count as usize) {
+        let affinity = OCCUPATION_AFFINITY[occ_idx][attractors.types[i] as usize];
+        let score = affinity * attractors.weights[i];
+        if score > best_score {
+            best_score = score;
+            best_idx = i;
+        }
+    }
+
+    let mut rng = ChaCha8Rng::from_seed(*master_seed);
+    rng.set_stream(
+        agent_id as u64 * 1000
+            + dest_region_id as u64 * 100
+            + turn as u64
+            + SPATIAL_POSITION_STREAM_OFFSET,
+    );
+    let jx: f32 = rng.gen::<f32>() * 2.0 * MIGRATION_JITTER - MIGRATION_JITTER;
+    let jy: f32 = rng.gen::<f32>() * 2.0 * MIGRATION_JITTER - MIGRATION_JITTER;
+
+    let x = (attractors.positions[best_idx].0 + jx).clamp(0.0, POS_MAX);
+    let y = (attractors.positions[best_idx].1 + jy).clamp(0.0, POS_MAX);
+    (x, y)
+}
+
+/// Place a newborn near its parent with deterministic jitter.
+pub fn newborn_position(
+    child_id: u32,
+    region_id: u16,
+    parent_pos: (f32, f32),
+    master_seed: &[u8; 32],
+    turn: u32,
+) -> (f32, f32) {
+    let mut rng = ChaCha8Rng::from_seed(*master_seed);
+    rng.set_stream(
+        child_id as u64 * 1000
+            + region_id as u64 * 100
+            + turn as u64
+            + SPATIAL_POSITION_STREAM_OFFSET,
+    );
+    let jx: f32 = rng.gen::<f32>() * 2.0 * BIRTH_JITTER - BIRTH_JITTER;
+    let jy: f32 = rng.gen::<f32>() * 2.0 * BIRTH_JITTER - BIRTH_JITTER;
+
+    let x = (parent_pos.0 + jx).clamp(0.0, POS_MAX);
+    let y = (parent_pos.1 + jy).clamp(0.0, POS_MAX);
+    (x, y)
+}

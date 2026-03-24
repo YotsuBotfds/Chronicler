@@ -315,3 +315,184 @@ fn test_different_seeds_different_positions() {
     }
     assert!(any_differ, "Different seeds should produce different positions");
 }
+
+// ---------------------------------------------------------------------------
+// Drift computation tests
+// ---------------------------------------------------------------------------
+
+use chronicler_agents::spatial::{
+    compute_drift_for_agent, spatial_drift_step, migration_reset_position, newborn_position,
+    rebuild_spatial_grids, RegionAttractors, MAX_DRIFT_PER_TICK, MIGRATION_JITTER, BIRTH_JITTER,
+};
+use chronicler_agents::AgentPool;
+use chronicler_agents::Occupation;
+
+fn make_pool_with_agents(positions: &[(u16, f32, f32, u8)]) -> AgentPool {
+    let mut pool = AgentPool::new(positions.len());
+    for &(region, x, y, occ) in positions {
+        let occ_val = Occupation::from_u8(occ).unwrap_or(Occupation::Farmer);
+        let slot = pool.spawn(region, 0, occ_val, 20, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF);
+        pool.x[slot] = x;
+        pool.y[slot] = y;
+    }
+    pool
+}
+
+fn make_single_resource_attractors(x: f32, y: f32) -> RegionAttractors {
+    let mut att = RegionAttractors {
+        positions: [(0.0, 0.0); MAX_ATTRACTORS],
+        weights: [0.0; MAX_ATTRACTORS],
+        types: [AttractorType::Market; MAX_ATTRACTORS],
+        count: 1,
+    };
+    att.positions[0] = (x, y);
+    att.weights[0] = 1.0;
+    att.types[0] = AttractorType::Resource0;
+    att
+}
+
+#[test]
+fn test_drift_convergence() {
+    // Place one farmer agent far from a single Resource0 attractor, no neighbors.
+    // Run drift for 20 iterations (rebuild grid + drift step each time).
+    // Verify agent moved closer to attractor.
+    let attractor_pos = (0.8, 0.8);
+    let agent_start = (0.2, 0.2);
+
+    let mut pool = make_pool_with_agents(&[(0, agent_start.0, agent_start.1, 0)]); // Farmer
+    let attractors_list = vec![make_single_resource_attractors(attractor_pos.0, attractor_pos.1)];
+    let mut grids: Vec<SpatialGrid> = Vec::new();
+
+    let initial_dx = attractor_pos.0 - agent_start.0;
+    let initial_dy = attractor_pos.1 - agent_start.1;
+    let initial_dist = (initial_dx * initial_dx + initial_dy * initial_dy).sqrt();
+
+    for _ in 0..20 {
+        rebuild_spatial_grids(&pool, &mut grids, 1);
+        spatial_drift_step(&mut pool, &grids, &attractors_list);
+    }
+
+    let final_dx = attractor_pos.0 - pool.x[0];
+    let final_dy = attractor_pos.1 - pool.y[0];
+    let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+
+    assert!(
+        final_dist < initial_dist,
+        "Agent should move closer to attractor: initial_dist={}, final_dist={}",
+        initial_dist, final_dist
+    );
+}
+
+#[test]
+fn test_repulsion_separates_colocated() {
+    // Place two agents at identical position. Run one drift step.
+    // Verify they are now at different positions.
+    let mut pool = make_pool_with_agents(&[
+        (0, 0.5, 0.5, 0), // Farmer
+        (0, 0.5, 0.5, 0), // Farmer — same position
+    ]);
+
+    // Use an empty attractor set so only repulsion acts
+    let attractors_list = vec![RegionAttractors {
+        positions: [(0.0, 0.0); MAX_ATTRACTORS],
+        weights: [0.0; MAX_ATTRACTORS],
+        types: [AttractorType::Market; MAX_ATTRACTORS],
+        count: 0,
+    }];
+    let mut grids: Vec<SpatialGrid> = Vec::new();
+    rebuild_spatial_grids(&pool, &mut grids, 1);
+    spatial_drift_step(&mut pool, &grids, &attractors_list);
+
+    let different = pool.x[0] != pool.x[1] || pool.y[0] != pool.y[1];
+    assert!(
+        different,
+        "Colocated agents should separate after one drift step: ({}, {}) vs ({}, {})",
+        pool.x[0], pool.y[0], pool.x[1], pool.y[1]
+    );
+}
+
+#[test]
+fn test_drift_displacement_cap() {
+    // Place agent very far from a strong attractor.
+    // Verify single-step displacement <= MAX_DRIFT_PER_TICK + epsilon.
+    let attractor_pos = (0.95, 0.95);
+    let agent_start = (0.05, 0.05);
+
+    let attractors = make_single_resource_attractors(attractor_pos.0, attractor_pos.1);
+    let neighbor_positions: Vec<(u32, f32, f32)> = vec![];
+
+    let (new_x, new_y) = compute_drift_for_agent(
+        agent_start.0,
+        agent_start.1,
+        0, // Farmer
+        1, // agent_id
+        &attractors,
+        &neighbor_positions,
+    );
+
+    let dx = new_x - agent_start.0;
+    let dy = new_y - agent_start.1;
+    let displacement = (dx * dx + dy * dy).sqrt();
+
+    let epsilon = 1e-6;
+    assert!(
+        displacement <= MAX_DRIFT_PER_TICK + epsilon,
+        "Displacement {} exceeds MAX_DRIFT_PER_TICK {}",
+        displacement, MAX_DRIFT_PER_TICK
+    );
+}
+
+#[test]
+fn test_migration_reset_near_attractor() {
+    // Create attractors with a Resource0 attractor.
+    // Reset a Farmer agent -> should land near the Resource0 attractor.
+    let attractor_pos = (0.7, 0.3);
+    let attractors = make_single_resource_attractors(attractor_pos.0, attractor_pos.1);
+
+    let master_seed = [42u8; 32];
+    let (x, y) = migration_reset_position(
+        1,    // agent_id
+        0,    // Farmer occupation
+        &attractors,
+        &master_seed,
+        0,    // dest_region_id
+        10,   // turn
+    );
+
+    let dx = x - attractor_pos.0;
+    let dy = y - attractor_pos.1;
+    let dist = (dx * dx + dy * dy).sqrt();
+
+    // Should be within MIGRATION_JITTER * sqrt(2) of attractor
+    let max_dist = MIGRATION_JITTER * 2.0_f32.sqrt() + 1e-6;
+    assert!(
+        dist <= max_dist,
+        "Migration reset at ({}, {}) is too far from attractor at {:?}: dist={} > max={}",
+        x, y, attractor_pos, dist, max_dist
+    );
+}
+
+#[test]
+fn test_newborn_near_parent() {
+    // Place newborn near parent position. Verify within BIRTH_JITTER range.
+    let parent_pos = (0.5, 0.5);
+    let master_seed = [7u8; 32];
+    let (x, y) = newborn_position(
+        100,  // child_id
+        0,    // region_id
+        parent_pos,
+        &master_seed,
+        5,    // turn
+    );
+
+    let dx = x - parent_pos.0;
+    let dy = y - parent_pos.1;
+    let dist = (dx * dx + dy * dy).sqrt();
+
+    let max_dist = BIRTH_JITTER * 2.0_f32.sqrt() + 1e-6;
+    assert!(
+        dist <= max_dist,
+        "Newborn at ({}, {}) is too far from parent at {:?}: dist={} > max={}",
+        x, y, parent_pos, dist, max_dist
+    );
+}
