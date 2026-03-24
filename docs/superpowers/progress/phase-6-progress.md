@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-24 (M54c review fixes landed, clean integration branch cut, canonical gate rerun still red on satisfaction floor)
+> **Last updated:** 2026-03-24 (M54c review fixes landed, clean integration branch cut, preserved same-machine M54b control and clean-branch M54c reruns both red on satisfaction floor)
 
 ---
 
@@ -449,8 +449,9 @@
 - **Scope:** M54c stayed politics-only (no spatial sort). Spatial sort deferred to M55.
 - **Canonical 200-seed regression (2026-03-24):**
   - Fresh clean-branch M54c rerun at `output/m54c/codex_m53_secession_threshold25_full_500turn_purepolitics_cleanbranch/batch_1/validate_report.json` passes `community`, `needs`, `era`, `cohort`, `artifacts`, and `arcs`, with `determinism=SKIP` as expected. `regression=FAIL` on `satisfaction_mean=0.4425` (other regression sub-metrics remain in range).
-  - The accepted M54b baseline remains `output/m54b/codex_m53_secession_threshold25_full_500turn_bootstrapfix/batch_1/validate_report.json`, which passes every oracle. An earlier same-machine M54b control rerun also landed just below the satisfaction floor (`0.4460`), but that scratch artifact was not preserved and should be treated as an investigative note rather than a canonical comparison report.
-  - Interpretation: the clean-branch M54c long gate is still red, but the miss is narrow and isolated to `satisfaction_mean`. Final milestone signoff should treat this as a baseline-adjudication question unless a preserved same-machine control rerun is required.
+  - Preserved same-machine M54b control rerun at `output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine/batch_1/validate_report.json` also fails only `regression`, with `satisfaction_mean=0.4460`, `migration=0.073320`, `rebellion=0.073669`, `gini_in_range_fraction=0.9467`, and `occupation_ok=true`.
+  - The accepted M54b baseline remains `output/m54b/codex_m53_secession_threshold25_full_500turn_bootstrapfix/batch_1/validate_report.json`, which passes every oracle. The preserved same-machine control shows the current local environment/rerun profile sitting slightly below the validator floor even before M54c is layered on.
+  - Interpretation: the clean-branch M54c long gate is still red, but it tracks the preserved same-machine M54b control closely (delta `-0.0035` satisfaction, `+0.000407` migration, `+0.000516` rebellion, `-0.0032` Gini-in-range). This is not evidence of a clean politics-migration-specific regression; it is a baseline-adjudication issue for final milestone signoff.
 - **Key decisions:**
   - RNG parity between Python and Rust is structural, not numeric (different RNG engines). Probabilistic decisions are tested via forced-outcome scenarios and structural blocking conditions.
   - Tie-breaking in capital reassignment differs (Python picks first-in-list, Rust picks last). Parity tests use distinct effective_capacity values to avoid ties.
