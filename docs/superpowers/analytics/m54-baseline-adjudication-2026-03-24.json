@@ -1,4 +1,13 @@
 {
+  "metadata": {
+    "generated_utc": "2026-03-24T13:45:53.593337+00:00",
+    "hostname": "DESKTOP-98334VU",
+    "platform": "Windows-11-10.0.22631-SP0",
+    "python_version": "3.14.3",
+    "python_executable": "C:\\Users\\tateb\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+    "cwd": "C:\\Users\\tateb\\Documents\\opusprogram_m54c_clean",
+    "git_head": "abddd649768c23ffe0fbc198e966895afbf7e742"
+  },
   "decision": "ACCEPT_CONTROL_MATCHED",
   "candidate": {
     "name": "candidate",

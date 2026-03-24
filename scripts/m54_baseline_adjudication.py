@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
+import socket
 import statistics
+import subprocess
+import sys
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 CORE_ORACLES = ("community", "needs", "era", "cohort", "artifacts", "arcs")
@@ -98,6 +103,20 @@ def _spread(values: list[float]) -> float:
     return max(values) - min(values) if values else 0.0
 
 
+def _git_head(path: Path) -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return None
+    return proc.stdout.strip() or None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Adjudicate M54 regression reports against controls")
     parser.add_argument("--candidate-report", type=Path, required=True)
@@ -187,6 +206,15 @@ def main() -> int:
         decision = "REJECT_DIVERGENCE"
 
     output = {
+        "metadata": {
+            "generated_utc": datetime.now(timezone.utc).isoformat(),
+            "hostname": socket.gethostname(),
+            "platform": platform.platform(),
+            "python_version": sys.version.split()[0],
+            "python_executable": sys.executable,
+            "cwd": str(Path.cwd()),
+            "git_head": _git_head(Path.cwd()),
+        },
         "decision": decision,
         "candidate": asdict(candidate),
         "controls": [asdict(c) for c in controls],
