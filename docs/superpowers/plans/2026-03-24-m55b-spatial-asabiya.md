@@ -4,7 +4,7 @@
 
 **Goal:** Replace civ-level asabiya scalar with per-region frontier/interior dynamics; `civ.asabiya` becomes a population-weighted aggregate.
 
-**Architecture:** New `RegionAsabiya` sub-model on `Region` stores per-region asabiya + frontier diagnostics. A rewritten `apply_asabiya_dynamics` computes frontier fraction from adjacency graph, applies gradient growth/decay formula per region, then aggregates to `civ.asabiya`. All 5 spot mutation sites migrate from `civ.asabiya +=` to D-policy (write to all owned regions).
+**Architecture:** New `RegionAsabiya` sub-model on `Region` stores per-region asabiya + frontier diagnostics. A rewritten `apply_asabiya_dynamics` computes frontier fraction from adjacency graph, applies gradient growth/decay formula per region, then aggregates to `civ.asabiya`. All 6 spot mutation sites migrate from `civ.asabiya +=` to D-policy (write to all owned regions), with secession/restoration initialization syncing regional state.
 
 **Tech Stack:** Pure Python. No Rust changes. Pydantic models, pytest.
 
@@ -1198,7 +1198,6 @@ git commit -m "test(m55b): fill remaining spec test coverage gaps"
 - [ ] **Step 1: Write no-scalar-write guard test**
 
 ```python
-import subprocess
 import os
 
 
@@ -1207,8 +1206,8 @@ def test_no_direct_civ_asabiya_writes():
     src_dir = os.path.join(os.path.dirname(__file__), "..", "src", "chronicler")
     # Patterns that indicate direct scalar writes
     forbidden_patterns = [
-        r"\.asabiya\s*=\s*min\(",           # civ.asabiya = min(...)
-        r"\.asabiya\s*\+=",                  # civ.asabiya += ...
+        r"\.asabiya\s*=(?!=)",               # direct scalar assignment (not ==)
+        r"\.asabiya\s*\+=",                  # scalar increment
         r'acc\.add\([^)]*"asabiya"',         # acc.add(..., "asabiya", ...)
     ]
     # Files allowed to write civ.asabiya (aggregation function + world_gen + scenario)
@@ -1222,6 +1221,9 @@ def test_no_direct_civ_asabiya_writes():
             fpath = os.path.join(root, fname)
             with open(fpath) as f:
                 for lineno, line in enumerate(f, 1):
+                    # Region writes are expected in M55b (region.asabiya_state.asabiya).
+                    if ".asabiya_state.asabiya" in line:
+                        continue
                     for pat in forbidden_patterns:
                         import re
                         if re.search(pat, line):
