@@ -74,6 +74,9 @@ pub struct AgentPool {
     pub rel_count:        Vec<u8>,
     // M50b: Synthesis budget — dormant field (no decrement logic yet)
     pub synthesis_budget: Vec<u8>,
+    // M55a: Spatial position (unit square per region)
+    pub x: Vec<f32>,
+    pub y: Vec<f32>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -130,6 +133,8 @@ impl AgentPool {
             rel_formed_turns: Vec::with_capacity(capacity),
             rel_count: Vec::with_capacity(capacity),
             synthesis_budget: Vec::with_capacity(capacity),
+            x: Vec::with_capacity(capacity),
+            y: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -203,6 +208,8 @@ impl AgentPool {
             self.rel_formed_turns[slot] = [0u16; 8];
             self.rel_count[slot] = 0;
             self.synthesis_budget[slot] = crate::agent::SYNTHESIS_BUDGET_MAX;
+            self.x[slot] = 0.5;
+            self.y[slot] = 0.5;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -253,6 +260,8 @@ impl AgentPool {
             self.rel_formed_turns.push([0u16; 8]);
             self.rel_count.push(0);
             self.synthesis_budget.push(crate::agent::SYNTHESIS_BUDGET_MAX);
+            self.x.push(0.5);
+            self.y.push(0.5);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -486,6 +495,8 @@ impl AgentPool {
         let mut belief_col = UInt8Builder::with_capacity(live);
         let mut parent_id_col = UInt32Builder::with_capacity(live);
         let mut wealth_col = Float32Builder::with_capacity(live);
+        let mut x_col = Float32Builder::with_capacity(live);
+        let mut y_col = Float32Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -515,6 +526,8 @@ impl AgentPool {
             belief_col.append_value(self.beliefs[slot]);
             parent_id_col.append_value(self.parent_ids[slot]);
             wealth_col.append_value(self.wealth[slot]);
+            x_col.append_value(self.x[slot]);
+            y_col.append_value(self.y[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -540,6 +553,8 @@ impl AgentPool {
                 Arc::new(belief_col.finish()) as _,
                 Arc::new(parent_id_col.finish()) as _,
                 Arc::new(wealth_col.finish()) as _,
+                Arc::new(x_col.finish()) as _,
+                Arc::new(y_col.finish()) as _,
             ],
         )
     }

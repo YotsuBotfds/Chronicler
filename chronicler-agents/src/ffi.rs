@@ -82,6 +82,8 @@ pub fn snapshot_schema() -> Schema {
         Field::new("belief", DataType::UInt8, false),
         Field::new("parent_id", DataType::UInt32, false),
         Field::new("wealth", DataType::Float32, false),
+        Field::new("x", DataType::Float32, false),
+        Field::new("y", DataType::Float32, false),
     ])
 }
 
