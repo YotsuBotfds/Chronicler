@@ -130,7 +130,8 @@ const LCG_ADD: u64 = 1_442_695_040_888_963_407;
 /// Map a u64 hash to a float in [0, 1) using upper bits.
 #[inline]
 fn hash_to_unit(h: u64) -> f32 {
-    ((h >> 33) as f32) / (u32::MAX as f32)
+    let upper = (h >> 32) as u32;
+    (upper as f64 / (u32::MAX as f64 + 1.0)) as f32
 }
 
 /// Map a u64 hash to a float in [lo, hi].
@@ -584,6 +585,7 @@ pub fn spatial_drift_step(
     // Sort timing — only run above threshold to avoid wasted work on small pools.
     // The sort result is discarded in M55a (drift uses slot-index order). This timing
     // is infrastructure for M61b profiling of cache-locality benefits.
+    diag.sort_time_us = 0;
     if pool.alive_count() >= crate::sort::SPATIAL_SORT_AGENT_THRESHOLD {
         let start = std::time::Instant::now();
         let _ = crate::sort::sorted_iteration_order(pool);
@@ -594,8 +596,8 @@ pub fn spatial_drift_step(
     let old_y: Vec<f32> = pool.y[..cap].to_vec();
 
     // 2. Compute new positions for each alive agent, storing results
-    let mut new_x = vec![0.0f32; cap];
-    let mut new_y = vec![0.0f32; cap];
+    let mut new_x = old_x.clone();
+    let mut new_y = old_y.clone();
 
     for slot in 0..cap {
         if !pool.is_alive(slot) {

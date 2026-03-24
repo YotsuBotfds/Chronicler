@@ -222,6 +222,30 @@ fn test_attractor_positions_in_bounds() {
 }
 
 #[test]
+fn test_interior_positions_can_reach_upper_half() {
+    let mut region = RegionState::new(2);
+    region.resource_effective_yield = [1.0, 0.0, 0.0];
+
+    let mut saw_upper = false;
+    for seed in 0u64..128 {
+        let a = init_attractors(seed, 2, &region);
+        let idx = (0..a.count as usize).find(|&i| a.types[i] == AttractorType::Resource0);
+        if let Some(i) = idx {
+            let (x, y) = a.positions[i];
+            if x > 0.65 || y > 0.65 {
+                saw_upper = true;
+                break;
+            }
+        }
+    }
+
+    assert!(
+        saw_upper,
+        "Interior attractor positions should span into the upper half of [0.1, 0.9]"
+    );
+}
+
+#[test]
 fn test_attractor_weight_river_tracks_water() {
     let mut region = RegionState::new(0);
     region.river_mask = 1;

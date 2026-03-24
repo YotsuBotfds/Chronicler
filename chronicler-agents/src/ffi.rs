@@ -1008,6 +1008,13 @@ impl AgentSimulator {
             self.attractors = (0..self.regions.len())
                 .map(|i| crate::spatial::init_attractors(world_seed, i as u16, &self.regions[i]))
                 .collect();
+            // Initialize attractor weights before initial placement so spawn positions
+            // respect occupation affinities on turn 0.
+            for (i, region) in self.regions.iter().enumerate() {
+                if i < self.attractors.len() {
+                    crate::spatial::update_attractor_weights(&mut self.attractors[i], region);
+                }
+            }
             // Initialize agent positions near occupation-appropriate attractors
             for slot in 0..self.pool.capacity() {
                 if self.pool.is_alive(slot) {
