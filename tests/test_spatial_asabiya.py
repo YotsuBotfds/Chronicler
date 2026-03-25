@@ -434,3 +434,152 @@ def test_invariant_bounds_over_many_turns():
         for c in world.civilizations:
             assert 0.0 <= c.asabiya <= 1.0
             assert 0.0 <= c.asabiya_variance <= 0.25
+
+
+# --- Spec test coverage gaps ---
+
+
+def test_gradient_mixed_partial_frontier():
+    """f=0.5: growth and decay partially cancel."""
+    r = _make_region("Mixed", controller="A", adjacencies=["Friend", "Enemy"])
+    r.asabiya_state.asabiya = 0.5
+    r.population = 50
+    friend = _make_region("Friend", controller="A")
+    enemy = _make_region("Enemy", controller="B")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Mixed"],
+    )
+    world = _make_test_world([r, friend, enemy], civs=[civ])
+    apply_asabiya_dynamics(world)
+    # s_next = 0.5 + 0.05*0.5*0.5*0.5 - 0.02*0.5*0.5 = 0.5 + 0.00625 - 0.005 = 0.50125
+    assert r.asabiya_state.asabiya == pytest.approx(0.5013, abs=1e-3)
+
+
+def test_gradient_boundary_one_decays_if_not_pure_frontier():
+    """asabiya=1.0 decays when f < 1.0 (interior decay dominates at ceiling)."""
+    r = _make_region("Peak", controller="A", adjacencies=["Friend"])
+    r.asabiya_state.asabiya = 1.0
+    r.population = 50
+    friend = _make_region("Friend", controller="A")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=1.0,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Peak"],
+    )
+    world = _make_test_world([r, friend], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert r.asabiya_state.asabiya < 1.0
+
+
+def test_aggregation_weighted_by_pop():
+    """90/10 pop split -> mean skewed toward high-pop region."""
+    r1 = _make_region("Big", controller="A", adjacencies=[])
+    r1.asabiya_state.asabiya = 0.3
+    r1.population = 90
+    r2 = _make_region("Small", controller="A", adjacencies=[])
+    r2.asabiya_state.asabiya = 0.9
+    r2.population = 10
+    civ = Civilization(
+        name="A", population=100, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Big", "Small"],
+    )
+    world = _make_test_world([r1, r2], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert civ.asabiya < 0.4
+
+
+def test_aggregation_single_region_zero_variance():
+    """Single region -> variance must be 0.0."""
+    r = _make_region("Only", controller="A", adjacencies=[])
+    r.asabiya_state.asabiya = 0.6
+    r.population = 50
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.6,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Only"],
+    )
+    world = _make_test_world([r], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert civ.asabiya_variance == 0.0
+
+
+def test_folk_hero_applied_after_gradient():
+    """Folk hero bonus applied after gradient formula (ordering test)."""
+    r = _make_region("R1", controller="A", adjacencies=["Enemy"])
+    r.asabiya_state.asabiya = 0.5
+    r.population = 50
+    enemy = _make_region("Enemy", controller="B")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1"],
+        folk_heroes=[{"name": "Hero", "turn": 1}],
+    )
+    world = _make_test_world([r, enemy], civs=[civ])
+    apply_asabiya_dynamics(world)
+    asabiya_with_hero = r.asabiya_state.asabiya
+
+    r.asabiya_state.asabiya = 0.5
+    civ.folk_heroes = []
+    apply_asabiya_dynamics(world)
+    asabiya_without = r.asabiya_state.asabiya
+
+    assert asabiya_with_hero > asabiya_without
+
+
+def test_no_folk_heroes_no_bonus():
+    """No folk heroes -> no bonus term added."""
+    r = _make_region("R1", controller="A", adjacencies=["Enemy"])
+    r.asabiya_state.asabiya = 0.5
+    r.population = 50
+    enemy = _make_region("Enemy", controller="B")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1"],
+    )
+    world = _make_test_world([r, enemy], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert r.asabiya_state.asabiya == pytest.approx(0.5125, abs=1e-4)
+
+
+def test_civ_snapshot_backward_compat():
+    """CivSnapshot without asabiya_variance field loads with default 0.0."""
+    data = {
+        "population": 50, "military": 30, "economy": 40, "culture": 30,
+        "stability": 50, "treasury": 50, "asabiya": 0.5, "tech_era": "iron",
+        "trait": "cautious", "regions": ["r1"], "leader_name": "L", "alive": True,
+    }
+    snap = CivSnapshot(**data)
+    assert snap.asabiya_variance == 0.0
+
+
+def test_conquest_updates_frontier_fractions():
+    """After conquest, frontier fractions update for both sides."""
+    r1 = _make_region("R1", controller="A", adjacencies=["R2"])
+    r1.population = 50
+    r2 = _make_region("R2", controller="B", adjacencies=["R1"])
+    r2.population = 50
+    civ_a = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1"],
+    )
+    civ_b = Civilization(
+        name="B", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L2", trait="cautious", reign_start=0), regions=["R2"],
+    )
+    world = _make_test_world([r1, r2], civs=[civ_a, civ_b])
+    apply_asabiya_dynamics(world)
+    assert r1.asabiya_state.frontier_fraction == 1.0
+
+    r2.controller = "A"
+    civ_a.regions.append("R2")
+    civ_b.regions.remove("R2")
+    apply_asabiya_dynamics(world)
+    assert r1.asabiya_state.frontier_fraction == 0.0
+    assert r2.asabiya_state.frontier_fraction == 0.0
