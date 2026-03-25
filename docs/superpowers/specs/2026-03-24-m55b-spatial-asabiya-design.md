@@ -18,7 +18,7 @@
 | D4 | Phase 10 slot, moved after politics checks | Asabiya tick runs after secession/vassal rebellion/restoration (which write to regions under D-policy) but before collapse check (which reads `civ.asabiya`). Ensures same-turn mutations are captured in aggregation. |
 | D5 | Military projection deferred | `ASABIYA_POWER_DROPOFF` constant defined but inactive. Distance-decay formula (`P = A * mean(S) * exp(-d/h)`) wired in a follow-up with dedicated WAR balance tests. Keeps M55b's behavioral change surface contained. |
 | D6 | Compute+store variance, don't wire into collapse | `civ.asabiya_variance` computed each turn for observability (analytics, narration, diagnostics). Not wired into collapse predicates - that's an M61b calibration target (`ASABIYA_COLLAPSE_VARIANCE_THRESHOLD`). |
-| D7 | RNG offset 1400 collision tracked in M55a | M55b has no RNG consumption (frontier formula is deterministic). If M55a is not merged yet, keep `INITIAL_AGE_STREAM_OFFSET -> 2000` as an open M55a prerequisite before claiming 1400/1401 for spatial streams. |
+| D7 | RNG offset collision tracked in M55a | M55b has no RNG consumption (frontier formula is deterministic). Final gated M55a resolution kept `INITIAL_AGE_STREAM_OFFSET = 1400` and moved spatial position/drift streams to `2000/2001` so demographic calibration stayed aligned with the M53/M54 baseline. |
 | D8 | `RegionAsabiya` sub-model on Region | Groups asabiya value + frontier diagnostics (frontier_fraction, neighbor counts). Follows `RegionEcology`/`RegionStockpile` pattern. Keeps Region's flat namespace from growing. |
 | D9 | Clean replacement, no feature flag | Old 35-line `apply_asabiya_dynamics` body replaced entirely. No dual-path runtime flag. 200-seed regression via old-commit vs new-commit comparison provides the A/B validation. |
 | D10 | Keep `"asabiya"` in `UNBOUNDED_STATS` | Safety net during migration. If any `acc.add(..., "asabiya", ...)` survives by accident, removing it from unbounded routing would cause silent clamping to 0-100. Clean out in a later pass. |
@@ -265,7 +265,7 @@ Expect behavioral shift (spatial model is fundamentally different) but no pathol
 | Military projection `P = A * mean(S) * exp(-d/h)` | Follow-up / M61b | Constant defined inactive. Needs dedicated WAR balance tests. |
 | Collapse variance predicate | M61b | `asabiya_variance > threshold` as collapse trigger. Data available from M55b. |
 | Soft frontier factor for federation/vassal neighbors | M61b | Landlocked allies may decay to zero. `different_civ_count`/`uncontrolled_count` logged for this. |
-| RNG offset 1400 resolution | M55a prerequisite | M55b is unaffected, but M55a should move `INITIAL_AGE_STREAM_OFFSET` to 2000 before claiming 1400/1401 for spatial streams. |
+| RNG offset resolution | M55a prerequisite | M55b is unaffected, but the final M55a closeout keeps `INITIAL_AGE_STREAM_OFFSET = 1400` and claims `2000/2001` for spatial position/drift streams. |
 | Remove `"asabiya"` from `UNBOUNDED_STATS` | Post-M55b cleanup | Once all `acc.add` asabiya calls confirmed gone. |
 
 ---

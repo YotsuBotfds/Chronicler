@@ -6,7 +6,7 @@ use crate::signals::CivShock;
 
 const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 const PEAK_YIELD: f32 = 1.0;
-const FOOD_SHORTAGE_WEIGHT: f32 = 0.10;  // [CALIBRATE] severe shortages still hurt, but they should not zero out recovering survivor cohorts on their own.
+const FOOD_SHORTAGE_WEIGHT: f32 = 0.08;  // [CALIBRATE] follow-on gate recovery: keep scarcity meaningful while easing the branch-wide satisfaction dip that appeared after the M55 stack landed.
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
 const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.10;
 

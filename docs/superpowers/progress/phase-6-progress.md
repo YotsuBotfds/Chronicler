@@ -236,7 +236,7 @@
   - `region.rs`: is_capital (bool), temple_prestige (f32) fields.
   - `ffi.rs`: Spatial state on AgentSimulator (grids, attractors, diag), spatial init on first set_region_state(), weight update every call, get_spatial_diagnostics() getter, new region columns parsed in both simulators.
   - `tick.rs`: tick_agents extended with spatial_grids + attractors + diag params. Step 4.5 inserted: migration reset (4.5a), grid rebuild (4.5b), two-pass drift (4.5c). Parent position snapshot before death pass, newborn placement after spawn.
-  - `agent.rs`: INITIAL_AGE_STREAM_OFFSET moved to 2000, SPATIAL_POSITION/DRIFT offsets 1400/1401 registered.
+  - `agent.rs`: final gated calibration restored `INITIAL_AGE_STREAM_OFFSET` to 1400 and moved `SPATIAL_POSITION/DRIFT` to 2000/2001 so the M53/M54 demographic baseline stayed comparable while spatial jitter kept a dedicated range.
 - **Python:**
   - `agent_bridge.py`: is_capital and temple_prestige columns in build_region_batch().
   - `analytics.py`: extract_spatial_diagnostics() extractor.
@@ -258,6 +258,7 @@
   - Existing politics, leaders, and culture tests updated for region-backed asabiya writes.
 - **Key design decisions:** Spot mutations broadcast to all owned regions, frontier detection is purely geographic (`different controller OR uncontrolled`), military projection and collapse-variance gameplay hooks are deferred, and conquered regions keep their prior regional asabiya instead of instant assimilation.
 - **Crystallization fixes (2026-03-24):** restoration no longer writes a redundant direct `restored_civ.asabiya = 0.8` scalar that is immediately recomputed from region state, zero-pop / dead civs now reset `asabiya_variance` to `0.0`, and the scalar-write guard test now checks `politics.py` too.
+- **Final gate recovery (2026-03-25):** canonical 200-seed/500-turn validation now passes again after restoring the initial-age RNG stream to 1400, moving spatial RNG to 2000/2001, raising `MEMORY_SATISFACTION_WEIGHT` to `0.05`, and reducing `FOOD_SHORTAGE_WEIGHT` to `0.08`. Final gate artifact: `output/m55b/gated_age1400_mem05_food08_p24/full_gate/batch_1/validate_all.json`.
 
 ---
 

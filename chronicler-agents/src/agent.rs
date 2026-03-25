@@ -104,10 +104,12 @@ pub const MULE_STREAM_OFFSET: u64 = 1300;
 // M50 — Relationship formation / dissolution (not consumed in M50a)
 pub const RELATIONSHIP_STREAM_OFFSET: u64 = 1100;
 // M53: Initial age seeding (one-time spawn path only)
-pub const INITIAL_AGE_STREAM_OFFSET: u64 = 2000;
+// Restored to its pre-M55a stream so the long-run demographic calibration
+// remains comparable to the established M53/M54 gates.
+pub const INITIAL_AGE_STREAM_OFFSET: u64 = 1400;
 // M55a: Spatial position and drift RNG streams
-pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 1400;
-pub const SPATIAL_DRIFT_STREAM_OFFSET: u64 = 1401;
+pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 2000;
+pub const SPATIAL_DRIFT_STREAM_OFFSET: u64 = 2001;
 
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
@@ -223,7 +225,7 @@ pub const LEGACY_MIN_INTENSITY: i8 = 10;   // [FROZEN M53 SOFT] post-halving thr
 pub const LEGACY_MAX_MEMORIES: usize = 2;  // [FROZEN M53 SOFT] top-N extracted on death
 
 // M48: Memory behavioral constants [FROZEN M53 SOFT]
-pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.04;    // [CALIBRATE] keep memory texture visible while reducing long-tail satisfaction drag on survivor societies.
+pub const MEMORY_SATISFACTION_WEIGHT: f32 = 0.05;    // [CALIBRATE] full-gate reruns after the M55 branch stack show survivor societies rely on the positive side of memory texture to stay above the M53 satisfaction floor.
 pub const FAMINE_MEMORY_THRESHOLD: f32 = 0.6;        // [CALIBRATE] only pronounced shortages should crystallize into long-lived famine trauma.
 pub const PROSPERITY_THRESHOLD: f32 = 3.0;           // [FROZEN M53 SOFT]
 
@@ -410,9 +412,9 @@ mod tests {
             MEMORY_STREAM_OFFSET,
             MULE_STREAM_OFFSET,
             RELATIONSHIP_STREAM_OFFSET,
-            INITIAL_AGE_STREAM_OFFSET,       // now 2000
-            SPATIAL_POSITION_STREAM_OFFSET,  // 1400
-            SPATIAL_DRIFT_STREAM_OFFSET,     // 1401
+            INITIAL_AGE_STREAM_OFFSET,       // 1400
+            SPATIAL_POSITION_STREAM_OFFSET,  // 2000
+            SPATIAL_DRIFT_STREAM_OFFSET,     // 2001
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {
