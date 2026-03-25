@@ -1,12 +1,14 @@
 # Chronicler Phase 7.5 - Viewer & Bundle Compatibility
 
-> **Status:** Draft
+> **Status:** Draft (Dormant until M61b freeze gate is green)
 >
 > **Phase 7 prerequisite:** M61b lands and freezes the core simulation outputs for Phase 7.
 >
 > **Extracted from:** `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md` during the 2026-03-20 viability revision, to keep the main Phase 7 roadmap focused on simulation milestones through M61b.
 >
 > **Structural principle:** Stable export contracts before rich panels. The viewer should target durable simulation outputs, not chase a moving schema while Phase 7 systems are still settling.
+>
+> **Current state:** `viewer/` is deprecated for net-new feature work. Only break/fix maintenance is in scope until this roadmap is reactivated.
 >
 > **When to pick this back up:** Once M61b is complete, use this document as the working roadmap for viewer implementation and refinement.
 
@@ -35,6 +37,25 @@ Separating Phase 7.5 creates a clean handoff:
 | M62c | Entity, Trade & Network Panels | M62b | 4-5 | Rich inspection panels, diagnostics, backlog integration, domain-specific affordances |
 
 **Phase 7.5 estimate:** 11-14 days across 3 milestones/sub-milestones.
+
+## Reactivation Gate (M61b -> M62a)
+
+Phase 7.5 starts only when all conditions below are true:
+
+- M61b canonical validation run is complete and accepted.
+- Export surfaces needed by M62a are frozen for the current cycle (no pending schema-breaking PRs).
+- At least one full-scale reference bundle from the accepted M61b run is available for fixture-driven viewer work.
+- Ownership is explicitly assigned for Bundle v2 contract, viewer data plane, and panel layer work.
+
+## Pre-Activation Assets (2026-03-24)
+
+The following doc-level assets are prepared ahead of M61b so M62a can start quickly once the reactivation gate is green:
+
+- Bundle v2 contract draft: `docs/superpowers/specs/2026-03-24-m62a-bundle-v2-contract-design.md`
+- M62a pre-activation execution plan/checklist: `docs/superpowers/plans/2026-03-24-m62a-preactivation-prep.md`
+- Dormant implementation notes for typed loader/fixture/test scaffolding exist in local prep work, but that viewer-side code is intentionally not merged to `main` until Phase 7.5 is reactivated.
+
+Scope note: this is pre-activation scaffolding only. Phase 7.5 remains dormant until M61b acceptance. On `main`, the checked-in prep is doc-first: contract and activation planning are ready, while loader/fixture code stays deferred until activation.
 
 ## M62a: Export Contracts & Bundle v2
 
@@ -67,9 +88,32 @@ Move from a single monolithic export toward a manifest-plus-layers model:
 - Keep panel composition data-driven where possible so a new entity type can reuse cards, charts, timelines, and edge lists.
 - Prefer typed extension points over opaque blobs: the viewer should know how to load a new overlay or metric family without hardcoding each future milestone.
 
-### Open question
+### Bundle packaging decision (planning lock)
 
-Should archive output remain a monolithic JSON with optional chunk manifests, or should Bundle v2 become manifest-first with summary/detail layers as separate payloads? This is the first major Phase 7.5 spec decision because it affects both backward compatibility and the viewer loading strategy.
+| Option | Backward compatibility | Selective loading | Long-term schema evolution | Complexity | Planning decision |
+|--------|-------------------------|-------------------|----------------------------|------------|-------------------|
+| Monolithic JSON + optional chunks | Strong near-term | Weak-medium | Medium | Lower | Fallback only |
+| Manifest-first (summary + layered detail payloads) | Medium (needs adapter) | Strong | Strong | Medium | **Default** |
+
+**Planning default:** Bundle v2 is manifest-first, with summary/detail layers split into explicit payload families.
+
+**Compatibility fallback:** Keep a legacy "single artifact" export path as an adapter for archive/batch workflows during migration. The adapter is compatibility glue, not the primary contract.
+
+### Bundle contract test suite (M62a merge gate)
+
+M62a should land with fixture-driven contract tests, not only ad hoc viewer checks.
+
+- Golden fixture bundles for small, medium, and large runs (including one M61b-scale fixture).
+- Schema snapshot tests for manifest, entity IDs, timeline events, metric families, overlays, and network layers.
+- Backward-compat tests: N-1 loader compatibility for additive changes.
+- Determinism tests: same input run exports identical manifest/entity IDs and stable ordering.
+- Negative tests: missing chunk, unknown layer kind, and malformed manifest diagnostics are explicit and actionable.
+
+**Versioning rule (Bundle v2):**
+
+- `MAJOR`: incompatible schema change.
+- `MINOR`: additive backward-compatible fields/layers.
+- `PATCH`: doc-only or non-structural clarifications.
 
 ## M62b: Viewer Data Plane & Spatial Foundations
 
@@ -94,6 +138,21 @@ Should archive output remain a monolithic JSON with optional chunk manifests, or
 ### Scope guard
 
 M62b is where the viewer becomes capable of handling Phase 7 scale. It should not get buried under panel polish. If schedule pressure appears, protect the data plane and spatial loading rules first.
+
+### Data-plane performance budgets (draft merge gates)
+
+These are practical budgets for M62b/M62c acceptance on modern desktop hardware:
+
+| Metric | Budget (p95 unless noted) |
+|--------|----------------------------|
+| Manifest parse + summary load | <= 2.0s |
+| First map paint after bundle open | <= 1.0s after summary load |
+| Turn scrub latency (timeline drag) | <= 120ms |
+| Overlay toggle latency | <= 150ms |
+| Entity panel open latency (character/settlement/civ) | <= 200ms |
+| Region-level drilldown (agent/settlement detail fetch) | <= 300ms |
+| Peak browser memory on large fixture | <= 2.5GB |
+| Hard failure threshold | no full-tab freeze > 3s |
 
 ## M62c: Entity, Trade & Network Panels
 
@@ -224,7 +283,7 @@ Bundle v2 should be able to expose at least:
 - artifacts
 - validation/oracle summaries needed for diagnostic mode
 
-This is the target contract envelope. The exact delivery split across summary/detail payloads is a Phase 7.5 design decision.
+This is the target contract envelope. Delivery should follow the manifest-first planning lock above, with explicit migration notes for any contract changes.
 
 ## Phase 8-9 Compatibility Hooks
 
@@ -253,4 +312,10 @@ The Phase 7.5 viewer should not implement Phase 8-9 early, but it should leave c
 
 ## Iteration Hook
 
-This document is meant to be improved once `M61b` is done and the team is ready to build the viewer. At that point, the next useful step is to replace the high-level Bundle v2 direction with a concrete schema and loading plan based on the actual Phase 7 export surfaces that landed.
+This document is meant to be improved once `M61b` is done and the team is ready to build the viewer. At that point, replace the high-level Bundle v2 direction with a concrete schema and loading plan based on the actual Phase 7 export surfaces that landed.
+
+Reactivation trigger for status change from "Dormant" to "Active":
+
+- M61b accepted.
+- Bundle fixtures checked in.
+- M62a owner assigned and kickoff date set.

@@ -34,7 +34,7 @@ These five capabilities are designed as separate systems, but their most importa
 
 ## Milestone Overview
 
-Two tracks: **Depth** (M48-M53, agent interiority at current scale) and **Scale** (M54-M59, parallelism and spatial systems at 500K-1M agents). Depth track validates before scale track begins.
+Two tracks: **Depth** (M48-M53, agent interiority at current scale) and **Scale** (M54-M61b, parallelism, spatial systems, logistics, and scale validation at 500K-1M agents). Depth track validates before scale track begins. Viewer/data-plane work now lives in the separate Phase 7.5 roadmap and starts after M61b freezes the export contract.
 
 | # | Milestone | Track | Depends On | Est. Days |
 |---|-----------|-------|------------|-----------|
@@ -46,17 +46,23 @@ Two tracks: **Depth** (M48-M53, agent interiority at current scale) and **Scale*
 | M53 | Depth Tuning Pass | Depth | M48-M52 | 4-6 |
 | M54a | Rust Ecology Migration | Scale | M53 | 8-11 |
 | M54b | Rust Economy Migration | Scale | M54a | 10-14 |
-| M54c | Rust Politics Migration + Spatial Sort | Scale | M54a | 7-11 |
-| M55 | Spatial Positioning | Scale | M54a-c | 6-8 |
-| M56 | Settlement Emergence | Scale | M55 | 5-7 |
-| M57 | Marriage & Households | Scale | M50, M55 | 5-7 |
-| M58 | Agent-Level Trade | Scale | M55, M42-M43 | 5-7 |
-| M59 | Information Propagation | Scale | M50, M55 | 4-6 |
-| M60 | Military Units | Scale | M55 | 5-7 |
-| M61 | Scale Tuning Pass | Scale | M54a-c, M55-M60 | 5-8 |
-| M62 | Phase 7 Viewer | Both | M61 | 7-9 |
+| M54c | Rust Politics Migration | Scale | M54a | 7-11 |
+| M55a | Spatial Substrate | Scale | M54a | 4-5 |
+| M55b | Spatial Asabiya | Scale | M55a | 3-4 |
+| M56a | Settlement Detection | Scale | M55a | 2.5-3.5 |
+| M56b | Urban Effects | Scale | M56a | 2.5-3.5 |
+| M57a | Marriage Matching & Lineage Schema | Scale | M50, M55a | 2.5-3.5 |
+| M57b | Households, Inheritance & Joint Migration | Scale | M57a | 3-4 |
+| M58a | Merchant Mobility | Scale | M54b, M55a, M42-M43 | 3-4 |
+| M58b | Trade Integration & Macro Convergence | Scale | M58a | 3-4 |
+| M59a | Information Packets & Diffusion | Scale | M50, M55a | 2-3 |
+| M59b | Perception-Coupled Behavior | Scale | M59a | 2.5-3.5 |
+| M60a | Campaign Logistics | Scale | M55a, M59a | 3-4 |
+| M60b | Battles & Occupation | Scale | M60a | 2.5-3.5 |
+| M61a | Scale Harness & Determinism | Scale | M54a-c, M55a-b, M56a-b, M57a-b, M58a-b, M59a-b, M60a-b | 2.5-3.5 |
+| M61b | Scale Validation & Calibration | Scale | M61a | 3-4.5 |
 
-**Total estimate:** 102-140 days across 17 milestones. `[REVIEW]` Revised from 100-132 — M54 split adds checkpoint overhead but no net scope change. Realistic estimate including enrichment pull-in, integration cost, and session overhead: **115-155 days**. No contingency buffer; plan operationally for milestone reviews every 2-3 milestones with scope cuts if needed.
+**Core Phase 7 estimate:** 92-129 days across 23 milestones/sub-milestones. **Phase 7.5 viewer follow-on:** 11-14 days in the separate viewer roadmap. **Combined Phase 7 + 7.5 program:** 103-143 days before enrichment pull-in. Realistic combined estimate including integration cost, regression/debug loops, and session overhead: **115-155 days**. No contingency buffer; plan operationally for milestone reviews every 2-3 milestones with scope cuts if needed.
 
 ---
 
@@ -176,7 +182,7 @@ A "content but spiritually adrift" merchant is a valid simulation state. The ten
 
 **Perception model — perfect regional knowledge:** M49 assumes agents have immediate knowledge of their own region's conditions: food sufficiency, temple presence, war status, etc. Agents know everything about their own region instantly, nothing about other regions. This is correct for the depth track where the goal is to validate needs mechanics against satisfaction at current scale. M59 (Information Propagation) later adds realistic perception lag for cross-region knowledge — calibrate the response before adding the delay.
 
-**Constants:** 6 decay rates + ~18 restoration conditions = ~24 `[CALIBRATE]` constants. Tuned in M53.
+**Constants:** 6 decay rates + 6 thresholds + 6 weights + ~16 restoration conditions + 3 infrastructure constants = ~37 `[CALIBRATE]` constants. Tuned in M53.
 
 ---
 
@@ -200,7 +206,7 @@ bond_type: u8     — kin, mentor, rival, friend, co-religionist, grudge
 >
 > 1. **Formation/dissolution interface.** Current M40 uses `replace_social_edges()` (full Arrow graph replacement each turn). At 500K agents × 8 slots × 6 bytes = 24MB, full replacement per turn is too expensive. M50 relationships must live permanently in Rust with incremental updates. The M50 spec must define whether Python sends formation/dissolution commands (signals) or Rust owns formation logic entirely (requires access to event types, faith assignments, etc.).
 >
-> 2. **Hidden M55 dependency.** "Shared region" formation triggers fire for every co-located agent pair. At 500 agents/region, that's 125K pairs per region per tick — O(N²). This is expensive at 50K agents without spatial partitioning. M55's spatial hash would fix this (only check nearby agents), but M50 is in the Depth track (before M55). The M50 spec must either: (a) use a coarser proximity proxy (agent index within region), (b) run formation checks every N ticks instead of every tick, or (c) accept O(N²) at Depth scale and optimize when M55 lands.
+> 2. **Hidden M55a dependency.** "Shared region" formation triggers fire for every co-located agent pair. At 500 agents/region, that's 125K pairs per region per tick — O(N²). This is expensive at 50K agents without spatial partitioning. M55a's spatial hash would fix this (only check nearby agents), but M50 is in the Depth track (before M55a). The M50 spec must either: (a) use a coarser proximity proxy (agent index within region), (b) run formation checks every N ticks instead of every tick, or (c) accept O(N²) at Depth scale and optimize when M55a lands.
 >
 > 3. **M40 transition plan.** Python-side formation logic in `relationships.py` (`form_and_sync_relationships()` coordinator, rivalry/mentorship/marriage/exile/co-religionist functions) depends on world state not available in Rust. Define whether this logic migrates to Rust, becomes a signal-based command interface, or stays Python-side with only storage moving to Rust.
 
@@ -231,7 +237,7 @@ bond_type: u8     — kin, mentor, rival, friend, co-religionist, grudge
 
 #### Cross-System Interaction: Emergent Cohorts
 
-M48, M50, and M55 are designed as separate systems, but their interaction produces something bigger: **emergent cohorts.**
+M48, M50, and M55a are designed as separate systems, but their interaction produces something bigger: **emergent cohorts.**
 
 The chain: agents who share a memory (same famine, same battle) → eligible for friend bonds (M50 formation trigger). Friends who stay co-located → bonds strengthen (+1/turn). Shared trauma + spatial clustering + strong bonds = a group of 10-30 agents with mutual bonds, shared memories, and collective grievances. These are *clans* — not designed, not named, but structurally real.
 
@@ -251,7 +257,7 @@ A cohort of famine survivors with grudges against the ruling civ, shared safety 
 - On agent death, extract top 2 memories by absolute intensity
 - Compress: halve intensity, set decay_rate to slow (long-lasting but not permanent)
 - Write to children's memory ring buffer as legacy memories (new event_type: `LEGACY`)
-- Children can inherit legacy memories from both parents if marriage system exists (M57), otherwise from the single parent tracked by M39
+- Children can inherit legacy memories from both parents if the marriage/lineage system exists (M57a+), otherwise from the single parent tracked by M39
 
 **Behavioral effect:** A dynasty whose founder was executed carries a grudge memory for 2-3 generations. Each generation the intensity halves, so the grudge naturally fades unless reinforced by new events. A dynasty whose founder led a great conquest carries pride that makes descendants more bold in WAR utility.
 
@@ -330,9 +336,9 @@ The causation is narratively valid — the Mule's persistent weight modifier til
 
 *Emergent cohort validation (critical):*
 
-> `[REVIEW B-3]` **Adjusted for pre-M55 context.** M53 runs before spatial positioning exists. With 500 agents sharing a famine memory in a region, all share the bond eligibility trigger. At 8 relationship slots per agent, the probability of 10+ agents forming mutual bonds (bidirectional, each in the other's slot list) from a pool of 500 is low without spatial clustering. M53 validates the *interaction works* (memory → bond → behavioral effect). Full cohort validation at 10+ agents deferred to M61, after M55's spatial hash enables proximity-based formation. Distinguish first-generation cohorts (20-50 turn lifecycle) from inherited cohorts (legacy-memory descendants, potentially multi-generational).
+> `[REVIEW B-3]` **Adjusted for pre-M55a context.** M53 runs before spatial positioning exists. With 500 agents sharing a famine memory in a region, all share the bond eligibility trigger. At 8 relationship slots per agent, the probability of 10+ agents forming mutual bonds (bidirectional, each in the other's slot list) from a pool of 500 is low without spatial clustering. M53 validates the *interaction works* (memory → bond → behavioral effect). Full cohort validation at 10+ agents deferred to M61b, after M55a's spatial hash enables proximity-based formation. Distinguish first-generation cohorts (20-50 turn lifecycle) from inherited cohorts (legacy-memory descendants, potentially multi-generational).
 
-- **Cohort emergence (depth-scale threshold):** Do groups of 5+ agents with mutual bonds and shared memories form consistently across 200-seed runs? Measure: count agent clusters where ≥80% of members share at least one memory event_type+turn AND have mutual friend/grudge bonds. **Full validation (10+ agents) deferred to M61** after spatial positioning enables proximity-gated formation.
+- **Cohort emergence (depth-scale threshold):** Do groups of 5+ agents with mutual bonds and shared memories form consistently across 200-seed runs? Measure: count agent clusters where ≥80% of members share at least one memory event_type+turn AND have mutual friend/grudge bonds. **Full validation (10+ agents) deferred to M61b** after spatial positioning enables proximity-gated formation.
 - **Cohort behavioral distinctiveness:** Do cohorts produce measurably different collective behavior vs. unaffiliated agents? Measure: compare occupation switching rate, migration rate, and rebellion participation between cohort members and non-cohort agents with similar stats.
 - **Cohort lifecycle (first-generation):** Do first-generation cohorts form, persist for meaningful durations (20-50 turns), and eventually dissolve as members die or scatter? Permanent cohorts or instant dissolution both indicate broken tuning.
 - **Cohort lifecycle (inherited):** Do legacy-memory descendants of original cohort members form kin bonds with each other? Multi-generational persistence is valid (historical identity groups are real), but measure separately from first-generation lifecycle.
@@ -366,7 +372,7 @@ If cohorts don't emerge at the 5+ threshold, investigate: memory decay too fast 
 
 ---
 
-## Scale Track (M54-M60)
+## Scale Track (M54-M61b)
 
 ### M54a/b/c: Rust Phase Migration
 
@@ -376,11 +382,11 @@ If cohorts don't emerge at the 5+ threshold, investigate: memory decay too fast 
 
 **Sub-milestones:**
 
-**M54a: Ecology Migration (8-11 days).** Per-region, embarrassingly parallel. Soil/water/forest coupling is local to each region. rayon `par_iter` over regions. Simplest of the three — start here to establish the migration pattern and FFI surface. Gate: determinism test at 1/4/8/16 threads. Establishes the Arrow-batch-in, Arrow-batch-out FFI pattern for M54b/c.
+**M54a: Ecology Migration (8-11 days).** Per-region, embarrassingly parallel. Soil/water/forest coupling is local to each region. rayon `par_iter` over regions. Simplest of the three — start here to establish the migration pattern and FFI surface. Gate: determinism test at 1/4/8/16 threads. Establishes the Arrow-batch-in, Arrow-batch-out FFI pattern for M54b/c. The generic sort infrastructure that earlier planning sketches attached here was ultimately absorbed by M55a.
 
 **M54b: Economy Migration (10-14 days).** `economy.py` (1,015 lines pre-M47, ~1,095 after tatonnement) has transport costs, perishability tables, stockpile accumulation/decay/cap, salt preservation, conservation law tracking, shock detection, trade dependency classification, and the raider modifier. Trade flow computation has cross-region data dependencies — region-level parallelism with synchronization at the trade flow step. The most complex migration. `[REVIEW]` Estimate revised from 9-12 to 10-14 to account for EconomyTracker state handoff and trade flow synchronization design work. Gate: determinism test + conservation law verification.
 
-**M54c: Politics Migration + Spatial Sort (7-11 days).** Secession and federation checks can read agent distributions directly from the pool instead of round-tripping through Python snapshots. Complex stateful logic but fewer data dependencies than economy. Spatial sort infrastructure bundled here (radix sort machinery + benchmark harness). Gate: determinism test + bit-identical `--agents=off` output.
+**M54c: Politics Migration (7-11 days).** Secession and federation checks can read agent distributions directly from the pool instead of round-tripping through Python snapshots. Complex stateful logic but fewer data dependencies than economy. Gate: determinism test + bit-identical `--agents=off` output.
 
 **Architecture change — end-state goal:** The Python turn loop is reduced to pure orchestration: calling Rust phases, collecting results, and feeding the narrator. Each phase calls into Rust via PyO3, Rust executes with rayon, returns results. The 10-phase structure is preserved — execution moves, not design.
 
@@ -404,14 +410,15 @@ If cohorts don't emerge at the 5+ threshold, investigate: memory decay too fast 
 
 #### Spatial Sort Infrastructure
 
-**Goal:** Build the radix sort machinery and benchmark harness for cache-efficient agent pool iteration, using a region-index-only sort key. M55 later extends this to a full Morton Z-curve key with (x,y) interleaving once spatial coordinates exist. +1 day on the M54 total.
+**Goal:** Build the radix sort machinery and benchmark harness for cache-efficient agent pool iteration. Earlier planning attached a region-index-only precursor to M54a, but the final M55 closeout kept the whole sort story in M55a: one generic index-sort module supports both region-key ordering and full Morton/Z-order keys once `(x, y)` exists.
 
 **Rationale:** At 1M agents, the SoA pool exceeds L2 cache. Agent order in memory is determined by allocation/deallocation patterns, which have no relationship to spatial position. Full-pool sweeps (satisfaction, demographics, wealth decay) benefit significantly from memory locality — agents processed sequentially should be spatially proximate.
 
-**M54 implementation:**
-- Radix sort on `u32` keys, operating on the agent pool's index array (not moving SoA data — sort the index, then iterate in sorted order)
-- Sort key in M54: `region_index` as the full key. Agents in the same region become contiguous in iteration order. This alone improves cache behavior for per-region phases.
-- Benchmark harness: measure tick time with region-sorted order vs. arena order at 50K, 100K, 500K, and 1M agents (synthetic pools for the larger sizes)
+**Final M55a implementation target:**
+- Radix sort on composite keys, operating on the agent pool's index array (not moving SoA data — sort the index, then iterate in sorted order)
+- Region-key control/fallback path: `region_index`
+- Morton path: `(region_index, morton(x, y), agent_id)` so same-region agents stay contiguous while within-region locality improves
+- Benchmark harness: measure tick time with arena order vs. region-key ordering vs. Morton ordering at 50K, 100K, 500K, and 1M agents (synthetic pools for the larger sizes)
 - Activation threshold: only sort above `SPATIAL_SORT_AGENT_THRESHOLD` `[CALIBRATE]` (target: 100K). Below threshold, arena order is fine — the pool fits in L2.
 
 **Sort frequency:** Every tick. Radix sort on `u32` keys at 1M elements takes ~4ms. If the tick is 200ms, that's 2% overhead for a potential 15-30% speedup on cache-sensitive phases. Start with every tick; reduce frequency only if profiling shows the sort itself is a bottleneck.
@@ -428,257 +435,332 @@ If cohorts don't emerge at the 5+ threshold, investigate: memory decay too fast 
 
 ---
 
-### M55: Spatial Positioning
+### M55a: Spatial Substrate
 
-**Goal:** Give agents continuous (x,y) coordinates within their region. Proximity drives social influence, disease transmission, resource access. Includes spatial asabiya decomposition and full Morton sort activation.
+**Goal:** Give agents continuous `(x, y)` coordinates, deterministic movement, spatial indexing, and proto-settlement clustering pressure. This is the substrate milestone: make space *real* before layering spatially emergent institutions or civ-level formulas on top.
 
-**Storage:** 2 × f32 = 8 bytes/agent (was estimated at 4 bytes in Phase 6 considerations — 8 is correct for two f32 coordinates).
+**Depends on:** M54a. M55a absorbs the generic sort infrastructure and Morton activation itself, so the spatial branch still starts as soon as M54a lands and no longer waits on M54c.
+
+**Storage:** 2 x `f32` = 8 bytes/agent.
 
 **Tick integration:**
-- Agents have a position within their region's unit square [0,1) × [0,1)
-- Migration changes region AND resets position (random within new region)
-- Within-region movement: small random drift per tick toward attractors (resources, temples, markets)
-- Proximity queries: spatial hash grid per region, O(1) average neighbor lookup
+- Agents have a position within their region's unit square `[0,1) x [0,1)`.
+- Migration changes region and resets position deterministically within the new region.
+- Within-region movement uses weak drift toward attractors plus short-range density attraction and a repulsion/saturation term.
+- Proximity queries use a per-region spatial hash with O(1) average neighborhood lookup.
 
-**Spatial hash:** Per-region grid, cell size tuned to average interaction radius. At 500 agents per region, a 10×10 grid gives ~5 agents per cell. Neighbor checks = 9 cells × 5 agents = 45 candidates. Cache-friendly, parallelizable per region.
+**Proto-settlement clustering pressure:** M55a explicitly owns the forces that make M56a viable as a detection milestone instead of an artificial creator. Start with deterministic attractor seeds from geography and existing simulation facts:
+- river/coast access,
+- high-yield resource sites,
+- temples,
+- capital or administrative centers where available.
 
-**Morton sort prerequisite:** The spatial hash grid (M55) and the Morton sort (infrastructure from M54) are complementary. The hash provides O(1) neighbor lookup for interaction queries. The sort ensures that sequential memory access during full-pool sweeps benefits from cache locality. Both are needed at scale — the hash for random access, the sort for sequential access.
+Layer occupation-weighted attraction on top of those seeds:
+- farmers prefer resource/yield attractors,
+- clergy prefer temple attractors,
+- merchants prefer route/intersection attractors once available.
 
-**Morton sort activation:** With M55's spatial coordinates available, extend M54's region-index-only sort key to a full Morton Z-curve: `morton_code(region_index, x, y)` — region index as the high bits ensures agents in the same region are contiguous, and the Morton interleaving of (x,y) within each region preserves 2D locality. An approximate sort (radix sort on the top 16 bits of the Morton code) is sufficient for cache benefit.
+Add weak local density attraction with a cap plus repulsion so clusters become persistent hotspots rather than single-point collapse.
 
-**Downstream effects:**
-- Disease transmission (M35): severity scales with local density
-- Social influence: cultural drift weighted by proximity
-- Relationship formation (M50): proximity is a prerequisite for friend/rival bonds
-- Resource access: farmers near resource sites produce more (position × yield interaction)
-- **Spatial asabiya** (see below)
+**Spatial hash:** At ~500 agents/region, a 10x10 grid gives roughly 5 agents per cell. Neighbor checks become `9 cells x ~5 agents = ~45 candidates`, which is the whole point of landing this before the larger social/logistics milestones.
 
-#### Spatial Asabiya Decomposition
+**Morton sort activation:** With real coordinates available, extend M54a's region-index sort key to a full Morton/Z-order key: `morton_code(region_index, x, y)`. Region index stays in the high bits so same-region agents stay contiguous; `(x, y)` ordering improves cache locality within each region.
 
-**Goal:** Replace the civ-level asabiya scalar with a spatially emergent quantity. Per-region asabiya grows on frontier regions and decays in interior regions. The civ-level value becomes a population-weighted average of regional values.
+**Required diagnostics:** M55a should already export the metrics later milestones need:
+- hotspot persistence / non-uniform density,
+- attractor occupancy,
+- spatial hash occupancy distribution,
+- Morton sort determinism/perf counters.
 
-**Phase 6 asabiya is unchanged.** The current Phase 6 civ-level asabiya mutation (Phase 6 Culture, routed through StatAccumulator as `keep`) ships as-is through M47. M55 replaces the underlying computation — `civ.asabiya` continues to exist as a field, but its value is now sourced from regional aggregation rather than direct mutation.
+**Gate:** Spatial state is deterministic across thread counts, hotspot formation is measurably non-uniform, and the hash/sort infrastructure is trustworthy enough for downstream systems.
 
-**Formulas (Turchin's metaethnic frontier theory):**
+---
 
-Frontier region (adjacency list includes a region belonging to a different civilization):
-```
+### M55b: Spatial Asabiya
+
+**Goal:** Replace the civ-level asabiya scalar with a spatially emergent quantity derived from regional frontier status, then expose the resulting mean/variance structure to collapse and military-projection logic.
+
+**Depends on:** M55a.
+
+**Phase 6 asabiya is unchanged until this milestone lands.** `civ.asabiya` continues to exist as a field; M55b changes where it comes from, not how the rest of the code reads it.
+
+**Baseline formulation (Turchin-inspired):**
+
+Frontier region:
+```text
 S(t+1) = S(t) + r0 * S(t) * (1 - S(t))
 ```
 
-Interior region (all adjacent regions belong to the same civilization):
-```
+Interior region:
+```text
 S(t+1) = S(t) - delta * S(t)
 ```
 
 Civ-level asabiya:
-```
+```text
 civ.asabiya = weighted_average(region_asabiya, weights=region_population)
 ```
 
-**Computation:** O(regions × avg_adjacency) per turn. Trivial — frontier detection is a set membership check on region adjacency lists.
+**Preferred spec question:** keep the current binary frontier/interior model as the simple baseline, but evaluate a cheap "frontier fraction" variant in the spec if binary oscillation looks too sharp:
+```text
+f = foreign_neighbors / total_neighbors
+growth = r0 * f * S * (1 - S)
+decay = delta * (1 - f) * S
+```
 
-**StatAccumulator change:** Asabiya routing changes from `keep` (direct mutation in Phase 6) to a post-M55 computation that reads regional frontier status from the adjacency graph. Existing code that reads `civ.asabiya` continues to work — it reads a spatially-derived value instead of a directly-mutated one.
+**Transition strategy:** When M55b lands, Phase 6 Culture can either:
+- guard old direct asabiya mutations when spatial asabiya is active, or
+- continue to mutate and then be overwritten by the regional aggregation.
 
-**Phase 10 extension — variance-based collapse:** With spatial decomposition, Phase 10 collapse logic can additionally read asabiya *variance*. An empire with high average asabiya but extreme variance (zealous frontier, decadent core) is more collapse-prone than one with uniform moderate solidarity. Historically accurate (late Roman Empire, late Abbasid Caliphate) and generates richer narrative hooks for the curator pipeline.
+The roadmap preference remains the second approach if it avoids Phase 6 rework, but the spec should make the transition explicit.
 
-**Phase 4 integration — power projection decay:** Military strength degrades with distance from the capital: `P = A * mean(S) * exp(-d/h)`. This naturally limits expansion and creates a reason for MOVE_CAPITAL actions beyond the current heuristics. Pairs well with M60's supply line mechanics.
+**Phase 10 extension:** Collapse logic can now read both mean asabiya and *variance*. High mean + extreme regional variance becomes a richer collapse precursor than a single civ-level scalar.
 
-**Landlocked ally concern:** Civs entirely surrounded by allies (federation members, same-faith neighbors) could decay to zero asabiya with no recovery mechanism. Flag for M61 calibration — federation membership or same-faith adjacency may need to count as soft frontiers with reduced but non-zero growth rate (`r0 * SOFT_FRONTIER_FACTOR`). Don't solve now; validate in M61 200-seed runs.
+**Phase 4 extension:** Military projection decays with distance from the capital:
+```text
+P = A * mean(S) * exp(-d / h)
+```
+This gives MOVE_CAPITAL and campaign range more structural grounding before M60b battle resolution enters the picture.
 
-> `[REVIEW]` **Frontier gradient vs. binary classification.** The frontier/interior distinction is binary — a region either has a foreign neighbor or it doesn't. Historically, many empires had *degrees* of frontier-ness (border marches, buffer zones, contested regions that flip frequently). Binary classification produces sharp oscillations: a region that was frontier one turn becomes interior the next when a neighbor is conquered, switching from growth to decay instantly. Consider a "frontier fraction" — `f = foreign_neighbors / total_neighbors`. The growth formula becomes `S(t+1) = S(t) + r0 * f * S(t) * (1 - S(t))` and the decay `S(t+1) = S(t) - delta * (1 - f) * S(t)`. One line of arithmetic, smooths the transition. Flag for M55 spec — the binary model may be good enough; the gradient is cheap insurance.
-
-> `[REVIEW O-5]` **Asabiya transition strategy.** The Phase 6 Culture phase asabiya mutations (StatAccumulator `keep` routing) will still exist in code when M55 lands. The M55 spec must explicitly state the transition: either (a) guard Phase 6 asabiya mutations when M55 is active (cleaner, requires feature flag), or (b) let Phase 6 mutations fire, then overwrite with M55 regional aggregation (wasteful but safe, no Phase 6 rework). Option (b) matches the "no Phase 6 rework" claim in this roadmap.
-
-> `[REVIEW O-11]` **Multi-empire frontier oscillation.** Two expanding empires sharing a frontier both get frontier growth simultaneously. If both are in their growth phase, the logistic ceiling `(1 - S)` self-limits each independently — but the mutual frontier persists as long as both empires exist, meaning neither transitions to interior decay. Validate in M61: do two adjacent expanding empires produce stable frontier dynamics or runaway mutual asabiya?
+**Landlocked ally concern:** Civs surrounded by federation or same-faith neighbors may need a soft-frontier factor in M61b if pure frontier/interior dynamics decay them toward zero.
 
 **Constants:**
 
 | Constant | Role | Calibrate in |
 |----------|------|-------------|
-| `ASABIYA_FRONTIER_GROWTH_RATE` (r0) | Logistic growth rate on frontier regions | M61 |
-| `ASABIYA_INTERIOR_DECAY_RATE` (delta) | Linear decay rate in interior regions | M61 |
-| `ASABIYA_POWER_DROPOFF` (h) | Distance decay factor for military projection | M61 |
-| `ASABIYA_COLLAPSE_VARIANCE_THRESHOLD` | Variance level that triggers elevated collapse risk | M61 |
-
-> **Enrichment (not in estimate):** M55's spatial density enables a disease system upgrade from M35b's endemic baseline to a full SEIRS model — transmission rate (beta) scales with population density, urban settlements (M56) become disease amplifiers, quarantine as a policy tradeoff (reduces contact rate at cost of trade penalty). See brainstorm §E3.
+| `ASABIYA_FRONTIER_GROWTH_RATE` (r0) | Logistic growth rate on frontier regions | M61b |
+| `ASABIYA_INTERIOR_DECAY_RATE` (delta) | Linear decay rate in interior regions | M61b |
+| `ASABIYA_POWER_DROPOFF` (h) | Distance decay factor for military projection | M61b |
+| `ASABIYA_COLLAPSE_VARIANCE_THRESHOLD` | Variance level that triggers elevated collapse risk | M61b |
 
 ---
 
-### M56: Settlement Emergence
+### M56a: Settlement Detection
 
-**Goal:** Agent clusters become proto-cities with urban/rural distinction driving different economic and social dynamics.
+**Goal:** Detect and persist settlement structure from the clustering pressure created in M55a. This milestone answers "where are the proto-cities?" without yet wiring all urban/rural effects.
 
-**Depends on:** M55 (spatial positioning).
+**Depends on:** M55a.
 
-**Key insight — detection, not creation:** Spatial drift forces (attraction to other agents, markets, resources) create the clusters. Clustering is a *detection* step that labels what already exists. This means clustering can run every 10-20 ticks rather than every tick — it's observing emergent structure, not forcing it. This is much cheaper and naturally avoids flicker.
+**Key insight:** clustering is still detection, not creation. M55a owns the forces that make hotspots appear; M56a labels, persists, and names them.
 
 **Mechanism:**
-- Per-region: run density-based clustering on agent positions every N ticks (`SETTLEMENT_DETECTION_INTERVAL` `[CALIBRATE]`, target: 10-20 ticks)
-- Clusters above density threshold → settlement candidate
-- New clusters that persist through 2 consecutive detection passes → named settlement with `founding_turn`
+- Per-region density-based clustering every `SETTLEMENT_DETECTION_INTERVAL` ticks.
+- Clusters above threshold become settlement candidates.
+- Candidates that persist through consecutive passes become named settlements with stable IDs and `founding_turn`.
 
-**Settlement inertia:** Settlements have an `inertia_counter = f(population, age)`. Older, larger settlements are harder to kill. Each detection pass: if the settlement's cluster dissolved, decrement inertia. At zero, the settlement dissolves. If the cluster persists, inertia resets. A fishing camp that disperses after one bad turn vanishes; a 200-turn city with 500 agents persists through a temporary population dip.
+**Settlement inertia:** Settlements get an inertia counter based on population and age. If a cluster dissolves briefly, inertia absorbs the hit; if the cluster persists, inertia resets. This is the anti-flicker layer.
 
-```python
-@dataclass
-class Settlement:
-    name: str
-    region: str
-    founding_turn: int
-    population: int
-    economic_character: str    # based on dominant occupations
-    infrastructure: float      # grows with population persistence
-    inertia: int               # f(population, age), decremented on cluster dissolution
-```
+**Storage:** Per-region settlement list on the Python side, analogous to artifacts: low volume, high narrative value, and easy to expose to analytics/narration.
 
-**Urban/rural distinction:**
-- Urban agents: higher material need satisfaction (markets, temples nearby), lower safety (crime analog from density), higher social need satisfaction, faster cultural drift (exposure to diversity)
-- Rural agents: lower material access, higher safety, slower cultural drift, higher food production efficiency
-
-**Storage:** Per-region settlement list, Python-side (like artifacts — low volume, high narrative value). Rust only needs a per-agent `is_urban: bool` or `settlement_id: u16` flag for behavioral modifiers.
-
-**Narrative payoff:** "The river settlement of Karesh grew from a fishing camp to a thriving port, its markets drawing merchants from three civilizations." Cities emerge from agent behavior — no city-building action required.
+**Gate:** Settlements form, persist, and dissolve plausibly; IDs remain stable; clustering diagnostics are available before M56b starts consuming the results mechanically.
 
 ---
 
-### M57: Marriage & Households
+### M56b: Urban Effects
 
-**Goal:** Pair matching, household income pooling, inheritance, joint migration decisions. Extends M39 single-parent lineage into full family units.
+**Goal:** Turn settlements from labels into mechanical context by wiring urban/rural modifiers into needs, production, culture, safety, and narration.
 
-**Depends on:** M50 (deep relationships), M55 (spatial positioning for proximity-based matching).
+**Depends on:** M56a.
 
-**Matching:** Per-region, per-tick (or per-N-ticks). Eligible agents (age range, unmarried) in proximity form marriage bonds. Matching is not optimal — agents marry who's nearby and compatible, not the globally best match. Personality compatibility: similar values ± tolerance. Cross-faith marriages possible but lower probability.
+**Behavioral split:**
+- Urban agents: higher material/social access, lower safety, faster cultural drift, stronger market/temple exposure.
+- Rural agents: higher food efficiency, higher safety, slower cultural drift, weaker material access.
+
+**Runtime state:** Rust only needs a per-agent `is_urban: bool` or `settlement_id: u16`-style signal for downstream behavior. Keep the heavy settlement objects in Python-side world state.
+
+**Gate:** Urban/rural effects are measurable and legible without destabilizing unrelated needs or economy baselines.
+
+---
+
+### M57a: Marriage Matching & Lineage Schema
+
+**Goal:** Add proximity-based marriage formation and land the schema migration from single-parent to two-parent lineage. This is the invasive data-model half of the marriage milestone.
+
+**Depends on:** M50 and M55a.
+
+**Matching:** Per-region, per-tick (or per-N ticks). Eligible nearby agents form marriage bonds based on compatibility and opportunity, not global optimization. Cross-faith marriages remain possible but rarer.
+
+**Schema migration:** `parent_id` becomes `parent_ids: [u32; 2]` with `PARENT_NONE` sentinels for single-parent cases. Dynasty logic must stay compatible.
+
+**Scope guard:** This milestone does **not** yet take on pooled wealth, joint migration, or widowhood behavior. It establishes the durable social/data substrate first.
+
+**Gate:** Marriage bonds form correctly, births and lineage resolution still work, and the schema migration does not destabilize dynasty/succession logic.
+
+---
+
+### M57b: Households, Inheritance & Joint Migration
+
+**Goal:** Build the household-level mechanics on top of M57a's bond/schema substrate.
+
+**Depends on:** M57a.
 
 **Household model:**
-- Married pair pools income (combined wealth for satisfaction purposes)
-- Children inherit from both parents (M39 extended to two-parent)
-- Joint migration: married agents move together (one decides, both relocate)
-- Widowhood: surviving spouse keeps pooled wealth, children stay with survivor
+- married pairs pool income/wealth for household-level material context,
+- children inherit from both parents,
+- joint migration moves spouses together,
+- widowhood hands pooled wealth and child custody to the surviving spouse.
 
-**M39 extension:** `parent_id` becomes `parent_ids: [u32; 2]` with `PARENT_NONE` sentinel for single-parent cases. Dynasty detection logic handles two-parent lineage.
+**Scope guard:** No divorce, no polygamy, no complex household trees. The value is in economic and lineage coherence, not relationship-drama simulation.
 
-**Scope guard:** No divorce, no polygamy, no complex family structures. Marriage is a pair bond that persists until death. Keep it simple — the narrative value is in household economics and two-parent inheritance, not in relationship drama.
-
----
-
-### M58: Agent-Level Trade
-
-**Goal:** Merchant agents physically carry goods along spatial paths, replacing M42-M43's abstract carry model with agent-level economic simulation.
-
-**Depends on:** M55 (spatial positioning), M42-M43 (goods model and trade infrastructure).
-
-**Mechanism:**
-- Merchant agents evaluate available routes (price differentials visible from their region)
-- Select highest-margin route, load goods from regional surplus
-- Travel along path (1 region per turn, spatial position updates)
-- Deliver goods, collect margin as wealth
-- Return or continue to next opportunity
-
-> **Enrichment (not in estimate):** Route formation can be endogenous rather than static: trade route probability ∝ `(pop_A × pop_B) / distance²`. Routes activate when expected profit exceeds threshold. Merchants learn via exponential moving average of profitability — routes persist or dissolve based on realized returns. This means when a civ develops luxury goods, routes spontaneously form; wars shut routes down automatically (profit drops). ~100-150 lines Python + 20 lines Rust signal write-back. M58's agent merchants then operate on this dynamic route network rather than static paths. Source: Enhanced Gravity Model (Frontiers in Physics 2019).
-
-> **Enrichment (not in estimate):** Formalize production as `output[good] = f(inputs)` via sparse matrix. When inputs are scarce, production throttles to `min(available[input] / required[input])` across all inputs. Creates cascade effects: coal mine disruption → steel throttle → sword production drops → military power weakens. O(G²) per civ, negligible. ~120 lines extending `economy.py` goods definitions with input requirements. Source: ABIDES-Economist (arxiv 2024), BazaarBot (gamedeveloper.com).
-
-**Key change from M42:** Merchants now physically relocate during trade. This means merchant count in a region fluctuates as merchants travel. A region that sends all its merchants on long routes temporarily loses export capacity. This creates realistic boom-bust cycles in trade — merchant departure → local surplus → price drop → merchants return.
-
-**Route planning:** Each merchant evaluates ~5-10 candidate destinations per turn. At 50K merchants, this is 250K-500K route evaluations — parallelizable per agent, significant compute. This is one of the core compute-hungry systems that fills cores.
-
-**M42-M43 as calibration target (resolved):** The abstract trade model survives alongside agent-level trade, reframed: M42-M43's abstract model is the **macro-level specification** for M58. Agent-level trade should converge to similar macro distributions — price gradients, trade volumes, food sufficiency patterns. If it doesn't, something is wrong with the agent-level mechanics, not with the abstract model.
-
-The abstract model serves three roles:
-1. **`--agents=off` path.** Bit-identical aggregate behavior.
-2. **Regression baseline.** M61 validates that agent-level trade produces comparable macro patterns.
-3. **Narration scaffold.** Analytics extractors and the narrator can read either abstract or agent-level data through the same bundle schema.
-
-This means the work going into M42-M43 now is not at risk of being wasted — it's building the specification that M58 must satisfy. Accept the doubled trade code surface as the cost of backward compatibility and calibration rigor.
+**Gate:** Household economics, migration, and inheritance all work together without regressing wealth, demographics, or dynasty systems.
 
 ---
 
-### M59: Information Propagation
+### M58a: Merchant Mobility
 
-**Goal:** The primary channel through which agents perceive conditions beyond their immediate region. Information about distant events travels through the social graph with temporal lag proportional to graph distance — well-connected agents learn fast, isolated agents learn slow.
+**Goal:** Make merchants physically move goods through space. This milestone is about route choice, cargo reservation/loading, transit state, and travel - not yet full macro-convergence against the abstract economy.
 
-**Depends on:** M50 (deep relationships), M55 (spatial positioning).
-
-**Design framing — perception lag layer:** Before M59, agents in region A know nothing about a famine in region B until they migrate there or the famine's effects propagate through the economy (food price spike). After M59, information about region B's famine travels through the social graph — a merchant with a trade partner in region B learns about the famine 1-2 turns after it starts, and may preemptively migrate or stockpile.
-
-M59 is not just a flavor system (rumors are interesting). It formalizes the macro→micro perception channel with temporal lag. The lag is the graph distance between the agent and the information source, measured in hops per turn. This complements M49's "perfect regional knowledge" — agents always know their own region immediately, but cross-region awareness depends on social connectivity.
-
-**Relationship to M49:** M49 validates needs mechanics with perfect local perception. M59 adds realistic perception lag for cross-region information. This is the right sequencing — calibrate the response before adding the delay. No structural dependency change (M59 still depends on M50 and M55, not M49).
+**Depends on:** M54b, M55a, and M42-M43.
 
 **Mechanism:**
-- Information packets: `(info_type: u8, source_region: u16, turn: u16, intensity: u8)` = 6 bytes
-- Each agent holds 2-4 active information packets (`[CALIBRATE]`)
-- Per-tick: with probability proportional to relationship sentiment, copy information to connected agents
-- Information degrades as it propagates (intensity decreases per hop)
-- BFS-like diffusion across agent networks — O(edges) per tick
+- merchants evaluate candidate destinations from visible price differentials,
+- choose a route,
+- reserve/load goods from regional surplus,
+- travel one region per turn with spatial updates,
+- keep in-transit state visible to diagnostics.
 
-**Information types with propagation weights:**
+**Compute profile:** At 50K merchants and ~5-10 candidate routes each, this is already a major parallel workload. Splitting it from M58b keeps the first debugging pass focused on movement and state transitions rather than economy-wide calibration fallout.
 
-Each information type carries a `propagation_weight` that controls how quickly it spreads through the social graph. This is the tunable coupling constant from hybrid SD/ABM research — independent per-signal, not hardwired:
+**Required diagnostics:** route choice distributions, in-transit goods, merchant trip duration, and route profitability counters.
 
-| Info Type | Propagation Weight | Rationale |
-|-----------|-------------------|-----------|
-| Trade opportunity | High | Merchants actively share price information |
-| Threat warning | High | Survival-critical, shared urgently |
-| Religious event | Medium | Spread through co-religionist bonds preferentially |
-| Political rumor | Low | Unreliable, spread slowly through weak ties |
+**Gate:** Merchants move coherently through the world and transit state is inspectable before their effects are used as the new macro trade truth.
 
-Propagation weights are `[CALIBRATE]` constants tuned in M61.
+---
+
+### M58b: Trade Integration & Macro Convergence
+
+**Goal:** Turn merchant movement into economy-level outcomes and validate that the agent path converges toward the M42-M43 abstract baseline.
+
+**Depends on:** M58a.
+
+**Integration responsibilities:**
+- delivery/write-back of goods,
+- regional supply/availability effects,
+- merchant wealth realization,
+- stale-vs-current price interpretation where needed,
+- analytics surfaces needed for baseline comparison.
+
+**M42-M43 remains the macro specification.** The abstract trade model still serves as:
+1. the `--agents=off` path,
+2. the regression baseline,
+3. the narration/analytics scaffold.
+
+M58b is where the doubled trade code surface earns its keep: the agent-level system has to produce comparable macro patterns, not just "interesting" local behavior.
+
+**Gate:** Price gradients, trade volumes, and food sufficiency stay within an acceptable comparison band versus the abstract model.
+
+---
+
+### M59a: Information Packets & Diffusion
+
+**Goal:** Build the packet substrate that lets agents carry cross-region knowledge through the social graph with lag and decay.
+
+**Depends on:** M50 and M55a.
+
+**Mechanism:**
+- information packets of the form `(info_type, source_region, turn, intensity)`,
+- 2-4 active packets per agent,
+- propagation probability weighted by relationship sentiment / channel type,
+- decay and staleness on each hop,
+- diagnostics for source channel, freshness, and lag.
+
+**Propagation priorities:** trade opportunity and threat warning should spread fastest; religious and political signals can move more slowly or along more selective bond types.
+
+**Gate:** Diffusion is deterministic, inspectable, and already emitting the lag/staleness statistics M59b and M61b will need.
+
+---
+
+### M59b: Perception-Coupled Behavior
+
+**Goal:** Let agents actually act on propagated information, including stale or partially wrong information.
+
+**Depends on:** M59a.
 
 **Behavioral effects:**
-- Agents act on information: trade opportunity → merchant migration, threat → pre-emptive migration or loyalty shift
-- Information lag creates realistic fog-of-war: frontier agents learn about distant threats turns after they happen
-- False/outdated information: if conditions change before information arrives, agents act on stale data — realistic and narratively interesting
+- merchants react to learned trade opportunities,
+- migrants and loyalists react to distant threats,
+- agents can act on stale data if conditions changed before the packet arrived.
 
-**Compute:** At 500K agents with ~5 edges each, 2.5M edge traversals per tick. With spatial partitioning and rayon, this parallelizes well across cores.
+This is where M59 stops being an information layer and becomes a decision-system modifier.
+
+**Gate:** Cross-region awareness changes behavior in measurable ways without making needs or loyalty feel instantly omniscient.
 
 ---
 
-### M60: Military Units
+### M60a: Campaign Logistics
 
-**Goal:** Soldier agents form armies that march, siege, and fight. Battle resolution grounded in agent state rather than abstract rolls.
+**Goal:** Build army rally, marching, supply, morale, and desertion before adding battle-resolution complexity.
 
-**Depends on:** M55 (spatial positioning).
+**Depends on:** M55a and M59a.
 
 **Mechanism:**
-- WAR action triggers army formation: soldiers in the aggressor's regions rally to a designated staging region
-- Army marches: soldiers physically move through regions toward target (1 region/turn)
-- Battle resolution: when army reaches target, combat resolves based on soldier count, morale (satisfaction), terrain, supply line length
-- Survivors return or occupy conquered territory
-- Casualties are actual agent deaths, not abstract population reduction
+- WAR selects a staging region,
+- soldiers rally and march through the region graph,
+- supply line length, unmet needs, and information quality influence morale and desertion,
+- campaign state is visible even before the first battle resolves.
 
-**Supply lines:** Army strength degrades with distance from home territory. Long campaigns are risky — soldiers' needs (safety, material) go unmet, morale drops, desertion increases. This creates natural limits on expansion without artificial range caps. Pairs with M55's spatial asabiya power projection decay (`exp(-d/h)`) — military effectiveness and social solidarity both diminish with distance from the core.
+**Why split here:** Logistics bugs and combat bugs are different categories. M60a should prove that campaigns move plausibly and stop naturally before battle outcome tuning starts.
 
-**Narrative payoff:** "The army of Aram marched three regions to besiege Karesh. By the time they arrived, half the soldiers had deserted — their families were starving back home, and the merchant Hala's embargo had cut their supply lines."
-
-> **Enrichment (not in estimate):** Current war triggers are power-disparity based. Fearon identifies three structural conditions that explain war better than raw power: (1) **Commitment problems** — declining power is tempted to preempt before parity shifts; (2) **Information asymmetry** — mutual overconfidence when perception gap > 40%; (3) **No settlement zone** — overlapping claims leave no mutually acceptable division. Integration: check power trajectory (declining → preventive war risk), information gap (how well do civs estimate each other's strength — pairs with M59's perception lag), and settlement feasibility. This enriches M60 from "armies fight" to "wars start for structural reasons." Source: Fearon, "Rationalist Explanations for War" (Stanford 1995).
-
-> **Enrichment (not in estimate):** War risk spikes at power parity (ratio within ±15%), especially when the rising power is revisionist (dissatisfied with status quo). 3-5× more war-likely at parity than at clear dominance. Integration: compute pairwise power trajectories, flag pairs approaching parity, feed into war risk modifier in action engine. O(n log n). Complements Fearon's commitment problem mechanism.
-
-**Scope guard:** Not a tactical wargame. No formations, no flanking, no per-soldier combat rolls. Battle resolution is aggregate (army-level stats computed from soldier agent states). The value is in the campaign — march, supply, morale — not in the fight itself.
+**Gate:** Armies rally and march coherently, campaign range is limited by logistics rather than arbitrary caps, and supply/desertion diagnostics are ready for M60b and M61b.
 
 ---
 
-### M61: Scale Tuning Pass
+### M60b: Battles & Occupation
 
-**Goal:** Calibrate M54-M60 systems at target agent scale (500K-1M) and validate parallel correctness.
+**Goal:** Resolve battles and conquests using the campaign substrate from M60a.
+
+**Depends on:** M60a.
+
+**Mechanism:**
+- battle resolution based on army composition, morale, terrain, and supply context,
+- casualties become actual agent deaths,
+- survivors return, garrison, or occupy conquered territory,
+- occupation aftermath feeds the wider simulation without inventing a tactical mini-game.
+
+**Scope guard:** No formations, flanking, or per-soldier duel simulation. The campaign remains the core abstraction.
+
+**Gate:** Battle outcomes are believable, occupation/conquest side effects remain consistent with the rest of the sim, and the war system stays understandable at the aggregate level.
+
+---
+
+### M61a: Scale Harness & Determinism
+
+**Goal:** Build the harness that measures whether the scale track is trustworthy before spending time tuning it.
+
+**Depends on:** M54a-c, M55a-b, M56a-b, M57a-b, M58a-b, M59a-b, and M60a-b.
+
+**Responsibilities:**
+- cross-thread determinism replays (1/4/8/16 threads),
+- memory-budget and perf benchmarks,
+- Morton sort benchmark comparisons,
+- replay hooks and milestone-owned debug counters,
+- NUMA experiment harness/documentation.
+
+**Structural rule:** validation plumbing should ship with the milestone that creates the behavior, not appear for the first time in M61. M61a is the assembly point for those signals, not their origin.
+
+**Gate:** You trust the measuring instruments before using them to approve or reject the full scale track.
+
+---
+
+### M61b: Scale Validation & Calibration
+
+**Goal:** Calibrate the scale-track systems at 500K-1M agents and sign off the full simulation-side Phase 7 program.
+
+**Depends on:** M61a.
 
 **Critical validations:**
-- **Determinism:** Same seed produces identical output regardless of thread count (1, 4, 8, 16 threads)
-- **Performance:** Tick time under 200ms at 1M agents on 16 cores
-- **Memory:** Total pool under 250MB at 1M agents
-- **Behavioral stability:** Same emergent patterns at 500K as at 50K (scale shouldn't change qualitative behavior)
-- **Settlement emergence:** Cities form in 80%+ of runs at 500K+ agents
-- **Trade patterns:** Agent-level trade produces similar macro distributions to M42-M43 abstract model (price gradients, trade volumes, food sufficiency within ±20% of abstract baseline)
-- **Military realism:** Campaign range naturally limited by supply/morale to 3-5 regions
-- **Spatial asabiya — collapse prediction:** Asabiya variance predicts collapse within 20 turns in 70%+ of 200-seed runs where variance exceeds `ASABIYA_COLLAPSE_VARIANCE_THRESHOLD`
-- **Spatial asabiya — expansion balance:** Frontier growth and interior decay reach equilibrium in stable empires (asabiya does not trend monotonically in either direction over 200+ turns)
-- **Spatial asabiya — landlocked ally check:** Civs fully surrounded by federation allies for 50+ turns do not decay to zero asabiya. If they do, calibrate soft frontier factor.
-- **Morton sort:** Tick time with Morton sort vs. arena order at 500K and 1M agents (expect 15-30% improvement on full-pool sweeps). Identical pool ordering given identical spatial state (determinism check).
-- **NUMA experiment:** Results documented regardless of whether the optimization ships
-- **Cohort scaling:** Emergent cohorts validated in M53 at 50K still form at 500K-1M. Cohort size scales sublinearly with agent count (expect 15-50 member cohorts at 500K, not 150-500).
-- **Full cohort validation (deferred from M53):** `[REVIEW B-3]` M53 validates at 5+ agents without spatial proximity. M61 validates the full 10+ agent threshold with M55 spatial hash enabling proximity-gated bond formation. This is the authoritative cohort emergence test.
+- **Determinism:** same seed, identical output regardless of thread count.
+- **Performance:** tick time under 200ms at 1M agents on 16 cores.
+- **Memory:** total pool under 250MB at 1M agents.
+- **Behavioral stability:** same qualitative emergent patterns at 500K as at 50K.
+- **Settlement emergence:** cities form in 80%+ of large runs and do not flicker pathologically.
+- **Trade patterns:** M58b stays within the agreed comparison band versus M42-M43.
+- **Military realism:** campaign range is naturally limited by supply/morale to ~3-5 regions.
+- **Spatial asabiya collapse prediction:** variance predicts elevated collapse risk within a useful lead window.
+- **Spatial asabiya expansion balance:** frontier growth and interior decay reach equilibrium in stable empires.
+- **Landlocked ally check:** allied-border civs do not decay to zero solidarity without a soft-frontier correction.
+- **Cohort scaling:** the cohort dynamics validated at M53 still emerge at 500K-1M.
+- **Full cohort validation (deferred from M53):** authoritative 10+ agent threshold with real spatial proximity.
 
 **Spatial asabiya constants tuned here:**
 
@@ -692,67 +774,17 @@ Propagation weights are `[CALIBRATE]` constants tuned in M61.
 
 ---
 
-### M62: Phase 7 Viewer
+### Phase 7.5 Follow-On: Viewer & Bundle Compatibility
 
-**Goal:** Full viewer redesign covering Phase 7 spatial/interiority systems AND all deferred Phase 3-6 viewer requirements (M46 dropped from Phase 6 — viewer redesigned from the ground up here).
+Viewer/data-plane work now lives in the separate Phase 7.5 roadmap:
+`docs/superpowers/roadmaps/chronicler-phase75-viewer-roadmap.md`
 
-**Phase 7 components:**
-- Spatial agent map (zoomable from region-level to agent-level)
-- Settlement overlay (city boundaries, population, character)
-- Trade route visualization (merchant paths, goods flow)
-- Army march visualization (troop movement, supply lines)
-- Character detail panel: memory timeline, needs radar, relationship graph
-- Artifact display on character and civ panels
-- Mule character indicator (distinctive marker on character panel, memory-that-warped-them displayed, active window countdown)
-- Asabiya heatmap overlay (per-region, frontier vs. interior shading)
+The handoff remains:
+- **M62a:** Export Contracts & Bundle v2
+- **M62b:** Viewer Data Plane & Spatial Foundations
+- **M62c:** Entity, Trade & Network Panels
 
-**Phase 3-4 backlog (from dropped M46):**
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| CivPanel | Tech focus badge (icon + tooltip) | M21 |
-| CivPanel | Faction influence bar (four-segment: MIL/MER/CUL/CLR) | M22 + M38 |
-| RegionMap | Ecology variables on hover (soil/water/forest progress bars) | M23 |
-| RegionMap | Intelligence quality indicator (confidence ring or fog overlay) | M24 |
-
-**Phase 5 agent data (from dropped M46):**
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| RegionMap | Population heatmap (agent count, color by mean satisfaction) | M30 |
-| RegionMap | Occupation distribution donut on region hover | M30 |
-| TerritoryMap | Named character markers (icon + name label) | M30 |
-| TerritoryMap | Migration flow arrows (aggregate direction/volume, 10-turn window) | M30 |
-
-**Phase 6 material world (from dropped M46):**
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| RegionMap | Resource icons per region (crop/mineral/special) | M34 |
-| RegionMap | Seasonal indicator (spring/summer/autumn/winter badge) | M34 |
-| RegionMap | River overlay (blue lines connecting river-adjacent regions) | M35 |
-| RegionMap | Disease severity heatmap layer (toggle) | M35 |
-| RegionMap | Trade flow arrows (goods type + volume along routes) | M42-M43 |
-
-**Phase 6 society (from dropped M46):**
-
-| Component | Feature | Source |
-|-----------|---------|--------|
-| CharacterPanel | Personality radar chart (3 axes: boldness, ambition, loyalty) | M33 |
-| CharacterPanel | Character arc timeline (horizontal, key events marked) | M45 |
-| CharacterPanel | Family tree (vertical, max 3 generations) | M39 |
-| CharacterPanel | Social network (d3-force mini-graph, relationships to other named chars) | M40 |
-| CharacterPanel | Religious identity + faith icon | M37-M38 |
-| RegionMap | Cultural identity overlay (color by dominant cultural values) | M36 |
-| RegionMap | Religious majority overlay (color by dominant faith) | M37 |
-| CivPanel | Wealth distribution histogram + Gini coefficient | M41 |
-| CivPanel | Class tension indicator | M41 |
-| CivPanel | Goods production/consumption balance | M42 |
-| CivPanel | Trade dependency indicator | M43 |
-
-**Bundle schema:** `bundle_version` bump with Phase 6+7 additions: named_characters (personality, dynasty, faith, arc_type, relationships, memory, needs, mule_flag, utility_overrides), agent_wealth_distribution, cultural_map, religious_map, goods_economy, resource_map, spatial data, settlement data, regional_asabiya, artifacts.
-
-**Estimated scope:** ~5000-7000 lines TypeScript. Current viewer is ~5,300 lines; Phase 7 redesign includes spatial visualization, agent interiority, and the Phase 3-6 backlog. Designing it all at once avoids rework.
+Phase 7 now ends at M61b, when the simulation outputs and validation surfaces are stable enough for the viewer to target without chasing schema churn.
 
 ---
 
@@ -764,10 +796,10 @@ Propagation weights are `[CALIBRATE]` constants tuned in M61.
 | Memory ring buffer (M48, 8 slots) | 64 | 3.2MB | 32MB | 64MB |
 | Needs (M49) | 24 | 1.2MB | 12MB | 24MB |
 | Deep relationships (M50) | 48 | 2.4MB | 24MB | 48MB |
-| Spatial position (M55) | 8 | 0.4MB | 4MB | 8MB |
-| Settlement flag (M56) | 2 | 0.1MB | 1MB | 2MB |
-| Marriage (M57) | 4 | 0.2MB | 2MB | 4MB |
-| Info packets (M59, 4 slots) | 24 | 1.2MB | 12MB | 24MB |
+| Spatial position (M55a) | 8 | 0.4MB | 4MB | 8MB |
+| Settlement flag (M56a/M56b) | 2 | 0.1MB | 1MB | 2MB |
+| Marriage (M57a) | 4 | 0.2MB | 2MB | 4MB |
+| Info packets (M59a, 4 slots) | 24 | 1.2MB | 12MB | 24MB |
 | **Phase 7 total** | **242** | **12.1MB** | **121MB** | **242MB** |
 
 242MB at 1M agents. 192GB DDR5 provides ~790× headroom.
@@ -778,31 +810,38 @@ Mule flag is 1 bit on GreatPerson (Python-side, negligible). Utility overrides a
 
 ## Dependency Graph
 
-```
+```text
 M47 (Phase 6 tuning)
- └─► M48 (Agent Memory + Mule Promotions) ──────┐
-      ├─► M49 (Needs System)                     │
-      ├─► M50 (Deep Relationships) ◄── M40       │
-      │    └─► [feeds M57, M59]                  │
-      ├─► M51 (Multi-Gen Memory) ◄── M39         │
-      └─► M52 (Artifacts + Mule Artifacts)       │
-                                                  │
- M53 (Depth Tuning) ◄── M48-M52 ────────────────┘
-  └─► M54a (Rust Ecology Migration)
-       ├─► M54b (Rust Economy Migration)          ← can overlap with M54c
-       └─► M54c (Rust Politics + Spatial Sort)    ← can overlap with M54b
-            └─► M55 (Spatial Positioning + Asabiya + Morton) ◄── M54a-c
-                 ├─► M56 (Settlement Emergence)
-                 ├─► M57 (Marriage) ◄── M50
-                 ├─► M58 (Agent-Level Trade) ◄── M42-M43
-                 ├─► M59 (Info Propagation / Perception Lag) ◄── M50
-                 └─► M60 (Military Units)
+  -> M48 (Agent Memory + Mule Promotions) -----------+
+       -> M49 (Needs System)                         |
+       -> M50 (Deep Relationships) <- M40           |
+            -> [feeds M57a, M59a]                   |
+       -> M51 (Multi-Gen Memory) <- M39             |
+       -> M52 (Artifacts + Mule Artifacts)          |
+                                                     |
+M53 (Depth Tuning) <- M48-M52 ----------------------+
+  -> M54a (Rust Ecology)
+       -> M54b (Rust Economy)                       <- can overlap with M54c and the spatial branch
+       -> M54c (Rust Politics)                      <- can overlap with M54b and the spatial branch
+       -> M55a (Spatial Substrate + Sort Infrastructure)
+            -> M55b (Spatial Asabiya)
+            -> M56a (Settlement Detection)
+                 -> M56b (Urban Effects)
+            -> M57a (Marriage + Lineage Schema) <- M50
+                 -> M57b (Households)
+            -> M59a (Information Packets) <- M50
+                 -> M59b (Perception-Coupled Behavior)
+            -> M60a (Campaign Logistics) <- M59a
+                 -> M60b (Battles + Occupation)
+M54b + M55a + M42-M43 -> M58a (Merchant Mobility)
+                           -> M58b (Trade Integration + Macro Convergence)
 
- M61 (Scale Tuning) ◄── M54a-c, M55-M60
-  └─► M62 (Phase 7 Viewer)
+M61a (Scale Harness) <- M54a-c, M55a-b, M56a-b, M57a-b, M58a-b, M59a-b, M60a-b
+  -> M61b (Scale Validation + Calibration)
+       -> Phase 7.5 / M62a-M62c (Viewer & Bundle Compatibility)
 ```
 
-`[REVIEW]` M54 split into M54a/b/c. M54b and M54c depend on M54a (which establishes the migration FFI pattern) but can partially overlap with each other. M55 depends on all three completing. No other dependency changes.
+`[REVIEW]` M54c is politics-only, and the spatial branch starts as soon as M54a lands instead of waiting on the full Rust migration set. After M54a landed without the planned precursor sort work, M55a absorbed both the generic sort infrastructure and Morton activation. Phase 7 itself now ends at M61b; the viewer handoff lives in the separate Phase 7.5 roadmap.
 
 ---
 
@@ -811,13 +850,14 @@ M47 (Phase 6 tuning)
 | # | Decision | Rationale |
 |---|----------|-----------|
 | D1 | Mule influence via time-bounded civ-level weight modifier (0.5-0.8 floor, 20-30 turn active window, 10 turn fade), not permanent subtle nudge | Asimov's Mule doesn't nudge — he warps. A permanent 0.3 additive weight is undetectable in the action distribution. A 0.5-0.8 weight for 20-30 turns creates a dramatic, narratively visible window. Time-bounding prevents permanent simulation distortion. |
-| D2 | Morton sort infrastructure in M54, full activation in M55 | M54 has no spatial coordinates — can only sort by region index. M55 provides (x,y), enabling full Morton Z-curve. Split avoids dependency contradiction. |
-| D3 | Phase 6 asabiya unchanged; M55 replaces computation | Clean transition. Phase 6 code ships as-is. M55 swaps the source of `civ.asabiya` from direct mutation to regional aggregation. No Phase 6 rework. |
+| D2 | Generic sort infrastructure and Morton activation ship together in M55a | M54a landed without the precursor sort module. M55a has the full spatial context, so it ships one generic index-sort module with a region-key control path, Morton runtime path, and shared benchmark harness. |
+| D3 | Phase 6 asabiya unchanged; M55b replaces computation | Clean transition. Phase 6 code ships as-is. M55b swaps the source of `civ.asabiya` from direct mutation to regional aggregation. No Phase 6 rework. |
 | D4 | M59 reframed as perception lag layer, not flavor system | Information propagation is the formalization of the macro→micro channel. Perfect local perception (M49) + graph-distance lag (M59) gives tunable coupling. Design notes only — no code or dependency change. |
 | D5 | Memory ring buffer 8 slots (CALIBRATE 6-8), not 4 | 4 slots fills in 4 turns. M51 legacy memories occupy 2 slots at birth. 8 slots lets agents accumulate enough lived experience for cohort dynamics to form. +32 bytes/agent = 32MB at 1M, negligible. |
-| D6 | M42-M43 abstract trade is the macro specification for M58, not legacy code | Abstract model serves as `--agents=off` path, regression baseline, and narration scaffold. Agent-level trade must converge to similar macro distributions. Doubled code surface is the cost of calibration rigor. |
+| D6 | M42-M43 abstract trade is the macro specification for M58b, not legacy code | Abstract model serves as `--agents=off` path, regression baseline, and narration scaffold. Agent-level trade must converge to similar macro distributions. Doubled code surface is the cost of calibration rigor. |
 | D7 | Needs mechanically orthogonal to satisfaction, exposed to narrator | "Content but spiritually adrift" is a valid narrative state. No mechanical coupling needed. Risk of incoherence only if narrator can't see need state — so expose it. |
-| D8 | Settlement detection every 10-20 ticks with inertia counter, not per-tick creation | Clustering detects what spatial drift already created. Inertia = f(population, age) prevents flicker. Older/larger settlements persist through temporary dips. |
+| D8 | Settlement detection every 10-20 ticks with inertia counter in M56a, not per-tick creation | Clustering detects what M55a drift/attractor dynamics already created. Inertia = f(population, age) prevents flicker. Older/larger settlements persist through temporary dips. |
+| D9 | Validation plumbing ships with each split milestone, not only in M53/M61 | Each system should land with its minimum extractors, debug counters, and replay hooks while the implementation context is fresh. Tuning passes aggregate signals; they should not invent observability from scratch. |
 
 ---
 
@@ -830,14 +870,14 @@ M47 (Phase 6 tuning)
 | `MULE_UTILITY_FLOOR` | Mule promotions (M48) | M53 |
 | `MULE_ACTIVE_WINDOW` | Mule promotions (M48) | M53 |
 | `MULE_FADE_TURNS` | Mule promotions (M48) | M53 |
-| `ASABIYA_FRONTIER_GROWTH_RATE` | Spatial asabiya (M55) | M61 |
-| `ASABIYA_INTERIOR_DECAY_RATE` | Spatial asabiya (M55) | M61 |
-| `ASABIYA_POWER_DROPOFF` | Spatial asabiya (M55) | M61 |
-| `ASABIYA_COLLAPSE_VARIANCE_THRESHOLD` | Spatial asabiya (M55) | M61 |
-| `SPATIAL_SORT_AGENT_THRESHOLD` | Morton sort (M54) | M61 |
-| `SETTLEMENT_DETECTION_INTERVAL` | Settlement emergence (M56) | M61 |
+| `ASABIYA_FRONTIER_GROWTH_RATE` | Spatial asabiya (M55b) | M61b |
+| `ASABIYA_INTERIOR_DECAY_RATE` | Spatial asabiya (M55b) | M61b |
+| `ASABIYA_POWER_DROPOFF` | Spatial asabiya (M55b) | M61b |
+| `ASABIYA_COLLAPSE_VARIANCE_THRESHOLD` | Spatial asabiya (M55b) | M61b |
+| `SPATIAL_SORT_AGENT_THRESHOLD` | Region/Morton sort infra (M55a) | M61b |
+| `SETTLEMENT_DETECTION_INTERVAL` | Settlement detection (M56a) | M61b |
 
-11 new constants. All deferred to existing tuning passes (M53 for depth, M61 for scale).
+11 new constants. All deferred to existing tuning passes (M53 for depth, M61b for scale).
 
 ---
 
@@ -852,12 +892,12 @@ Current `STREAM_OFFSETS` in `agent.rs` uses ranges 0-800 (7 entries). Phase 7 ad
 | 1100 | Relationship formation / dissolution | M50 |
 | 1200 | Legacy memory inheritance variance | M51 |
 | 1300 | Mule promotion rolls | M48 (Mule) |
-| 1400 | Spatial position init + drift | M55 |
-| 1500 | Settlement detection noise | M56 |
-| 1600 | Marriage matching | M57 |
-| 1700 | Merchant route selection | M58 |
-| 1800 | Information propagation noise | M59 |
-| 1900 | Military rally / desertion rolls | M60 |
+| 1400 | Spatial position init + drift | M55a |
+| 1500 | Settlement detection noise | M56a |
+| 1600 | Marriage matching | M57a |
+| 1700 | Merchant route selection | M58a |
+| 1800 | Information propagation noise | M59a |
+| 1900 | Military rally / desertion rolls | M60a |
 
 ---
 
@@ -895,8 +935,8 @@ Current `life_events: u8` uses bits 0-6 (`REBELLION=0, MIGRATION=1, WAR_SURVIVAL
 | Does M42-M43 abstract trade survive alongside M58? | Yes — reframed as macro specification | D6 |
 | Should needs affect satisfaction or stay orthogonal? | Orthogonal. Narrator sees both. | D7 |
 | Settlement persistence across turns? | Detection every 10-20 ticks + inertia counter | D8 |
-| Two-parent lineage (`parent_id` → `parent_ids`) | No breakage — planned schema migration across ~7 files in Rust and Python, all within M57 scope. Dynasty resolution for two-parent lineage is a design question handled in M57 spec. | — |
-| Spatial positioning determinism | M55 adds 2 new `STREAM_OFFSETS` entries for position init and drift. Existing registry pattern and collision test (`agent.rs:202`) handle this. | — |
+| Two-parent lineage (`parent_id` -> `parent_ids`) | No breakage — schema migration lands in M57a, while household behavior waits for M57b. Dynasty resolution for two-parent lineage remains a design question handled in the M57 spec. | — |
+| Spatial positioning determinism | M55a adds the new `STREAM_OFFSETS` entries for position init and drift. Existing registry pattern and collision test (`agent.rs:202`) handle this. | — |
 
 ---
 
@@ -911,23 +951,23 @@ See `chronicler-phase8-9-horizon.md` for brainstorm-level ideas on governance, i
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | Memory system creates feedback loops with satisfaction | High | M53 tuning gate before scale. Memory satisfaction weight is `[CALIBRATE]` with hard cap. |
-| Needs system adds too many tuning dimensions (24+ constants) | Medium | Reduce to 4 needs if 6 proves intractable. Fewer well-tuned needs > many poorly-tuned. |
+| Needs system adds too many tuning dimensions (37+ constants) | Medium | Reduce to 4 needs if 6 proves intractable. Fewer well-tuned needs > many poorly-tuned. |
 | Deep relationships saturate at maximum sentiment (all friends) | Medium | Slot eviction + sentiment decay prevent saturation. Rivalry/grudge formation balances positive bonds. |
 | Rust phase migration introduces non-determinism | High | Per-phase determinism tests: same seed, different thread counts, bit-identical output. |
 | Spatial hash performance at 1M agents | Medium | Grid cell size tuning. Fallback: k-d tree per region if hash degrades. |
 | Agent-level trade doubles trade code (abstract + agent paths) | Medium | Abstract path is calibration specification, not dead weight. Accept the code surface. |
 | Military units make WAR action too detailed (mini-wargame creep) | Medium | Scope guard: aggregate battle resolution only. No per-soldier combat. |
 | 242 bytes/agent exceeds L1 per-region at high density | Low | At 500 agents × 242 bytes = 121KB, exceeds 64KB L1. Mitigated by SoA layout — each phase accesses specific fields, not whole agent. Working set per phase stays in L1. |
-| Spatial asabiya creates expansion feedback loop | Medium | Logistic ceiling `(1 - S)` is self-limiting. Interior decay offsets frontier growth at scale. Validate in M61. |
+| Spatial asabiya creates expansion feedback loop | Medium | Logistic ceiling `(1 - S)` is self-limiting. Interior decay offsets frontier growth at scale. Validate in M61b. |
 | Mule frequency too high destabilizes simulation | Low | 5-10% of already-rare GreatPerson promotions. ~1 Mule per 100 turns at 50K agents. Weight cap (2.5x) and time-bounding limit influence. |
 | Morton sort overhead exceeds cache benefit at low agent counts | Low | Only activate above `SPATIAL_SORT_AGENT_THRESHOLD` (target: 100K). Below threshold, arena order is fine. |
 | M59 perception lag makes needs system feel unresponsive | Medium | Agents always have perfect knowledge of own region (M49). M59 lag only affects cross-region information. Local conditions are immediate. |
-| Landlocked allies decay to zero asabiya | Medium | Flag for M61. Soft frontier factor for federation/same-faith borders if needed. Don't pre-solve — validate first. |
+| Landlocked allies decay to zero asabiya | Medium | Flag for M61b. Soft frontier factor for federation/same-faith borders if needed. Don't pre-solve — validate first. |
 | Cohort dynamics don't emerge due to independent tuning of M48/M50 | High | M53 explicitly validates cohort emergence as a cross-system target. If cohorts don't form, investigate memory decay, bond threshold, and slot eviction before proceeding. |
-| M54 schedule risk from three complex Rust migrations | High | `[REVIEW B-1]` Mitigated: split into M54a/b/c with independent merge gates. Ecology (M54a) establishes pattern. Economy (M54b) is the critical path. Politics + spatial sort (M54c) can partially overlap with M54b. |
-| M50 architecture gap — Python formation vs. Rust storage at 500K agents | High | `[REVIEW B-2]` M50 spec must resolve: (1) formation interface (Python signals vs Rust-owned logic), (2) O(N²) scaling without M55 spatial hash, (3) M40 transition plan. See B-2 inline tag on M50 section. |
-| M53 cohort threshold structurally unreachable pre-M55 | Medium | `[REVIEW B-3]` Mitigated: threshold lowered to 5+ agents at M53 (depth scale), full 10+ validation deferred to M61 (post-spatial). |
+| M54 schedule risk from three complex Rust migrations | High | `[REVIEW B-1]` Mitigated: split into M54a/b/c with independent merge gates. M54a establishes the shared migration pattern. M54b remains the critical path; M54c can slip without blocking M55a. |
+| M50 architecture gap — Python formation vs. Rust storage at 500K agents | High | `[REVIEW B-2]` M50 spec must resolve: (1) formation interface (Python signals vs Rust-owned logic), (2) O(N²) scaling without M55a's spatial hash, (3) M40 transition plan. See B-2 inline tag on M50 section. |
+| M53 cohort threshold structurally unreachable pre-M55a | Medium | `[REVIEW B-3]` Mitigated: threshold lowered to 5+ agents at M53 (depth scale), full 10+ validation deferred to M61b (post-spatial). |
 | Calibration cascade across five tuning passes (M47→M53→M61→M67→M72) | Medium | `[REVIEW B-4]` Establish constant-locking discipline: constants frozen in one pass cannot be re-tuned in subsequent passes without explicit approval. Each pass produces a frozen snapshot. |
 | 2.5x action weight cap designed for 3 contributors, now has 5 | Medium | `[REVIEW B-5]` Phase 6 has 3 (traditions, tech focus, factions). Phase 7 adds Mule (4th). Phase 8 institutions would be 5th. Cap mechanism needs resolution before M63 — either raise cap, add per-system contribution limits, or priority scheme. Phase 8 planning concern, not Phase 7. |
 | M58 enrichment scope creep (gravity model, production functions) | Medium | `[REVIEW]` Endogenous route formation enrichment feels essential for agent-level trade value proposition. Expect 3-5 days of enrichment pull-in. Build interface to accept dynamic routes from day one, even if gravity model lands later. |
-| Phase 7→8 "elite" concept bridge gap | Low | `[REVIEW]` Phase 8 EMP needs elite vs. wealthy distinction. Phase 7 has no "status" concept. Either M49 includes a status need, or M61 extractors compute PSI input quantities (median wealth, urbanization rate, youth bulge fraction). Resolve in Phase 8 spec, not Phase 7. |
+| Phase 7→8 "elite" concept bridge gap | Low | `[REVIEW]` Phase 8 EMP needs elite vs. wealthy distinction. Phase 7 has no "status" concept. Either M49 includes a status need, or M61a/M61b extractors compute PSI input quantities (median wealth, urbanization rate, youth bulge fraction). Resolve in Phase 8 spec, not Phase 7. |

@@ -4,6 +4,8 @@
 >
 > **Phoebe + Cici review (2026-03-19):** See `[REVIEW]` tags for structural concerns identified during Phase 7 roadmap review.
 >
+> **Brainstorm deep-dive (2026-03-25):** 9-agent research team read every line of the codebase, researched 5 academic theories, analyzed 4 strategy games, and traced 10 cross-system feedback loops. See `[BRAINSTORM]` tags for new findings. Companion docs: `references/phase8-9-academic-foundations.md`, `references/phase8-9-game-design-references.md`, `design/phase8-9-brainstorm-synthesis.md` (full synthesis), `design/phase8-9-narrative-integration.md` (per-milestone narrative spec sketch).
+>
 > **Phase 7 prerequisite:** M61 tuning pass validates depth + scale systems at 500K-1M agents.
 >
 > **Extracted from:** Phase 7 roadmap during finalization (2026-03-19). Separated to keep Phase 7 focused on committed scope (M48-M62).
@@ -50,6 +52,100 @@ Two phases: **Phase 8 — Governance** (institutions, commons, elites, legitimac
 | M72 | Culture Tuning Pass | 9 | Validate trait transmission rates, prestige economy stability, cascade frequency, cross-system interactions with Phase 8 governance |
 | M73 | Phase 8-9 Viewer | 9 | Institutional timeline, PSI dashboard, cultural trait maps, patronage network visualization |
 
+### `[BRAINSTORM]` Sub-Milestone Splits
+
+Deep-dive analysis recommends splitting 4 milestones into sub-milestones (matching the Phase 7 pattern of M54a/b/c, M55a/b, etc.):
+
+| Original | Sub-Milestone | Scope | Est. Days |
+|----------|--------------|-------|-----------|
+| M63 | **M63a**: Institution Data Model & Lifecycle | InstitutionType enum (16 types, 4 per faction), InstitutionState on Civilization, propose/repeal mechanics, enforcement cost computation | 3-4 |
+| M63 | **M63b**: Institutional Effects & Weight Cap Revision | Wire modifiers into action weights, satisfaction, governing costs. Resolve 2.5x cap (REVIEW B-5) — per-system contribution ceilings | 3-5 |
+| M65 | **M65a**: Elite Position Tracking & EMP | Define elite positions (from region count + institution count), track aspirants, conspicuous consumption ratchet. Piggybacks on existing `wealth_tick()` sort | 2-3 |
+| M65 | **M65b**: PSI Formula & Secular Cycle | MMP/EMP/SFD computation in Phase 10, one-turn-lag signal, crisis threshold triggers. Needs M64 present for ecological amplifier | 3-4 |
+| M66 | **M66a**: Legitimacy & Political Capital | Add legitimacy/political_capital to Leader/Civilization. Earn from victories/dynasty/institutions, spend on governance. Political capital as single shared budget (Old World insight) | 2-3 |
+| M66 | **M66b**: Ruler Ambitions & Event Chains | Randomized ambitions at accession, completion/failure tracking, legitimacy rewards. Memory-tag event prerequisites (Old World loosely-coupled chains) | 2-3 |
+| M68 | **M68a**: Memome Storage & Transmission | Per-agent `[u8; 8]` trait slots, conformist bias (algebraic sigmoid for D=2), prestige bias, compatibility matrix | 3-4 |
+| M68 | **M68b**: Cultural Distance & Behavioral Effects | Civ-level cultural distance, diplomacy friction, trade resistance, innovation at boundaries | 2-3 |
+
+Total: 19 milestones/sub-milestones from original 11.
+
+### `[BRAINSTORM]` Early Start Opportunities
+
+These milestones have **zero dependency on Phase 7 scale track** (M54-M61) and can start with only the Depth track (M47-M53) complete:
+
+1. **M63a** — needs only factions + treasury from Phase 6
+2. **M63b** — same; resolves REVIEW B-5 before more modifiers are added
+3. **M66a** — hooks existing succession in `politics.py`, needs only M39 (dynasty)
+4. **M66b** — hooks M48 (agent memory) for event chains
+
+**Recommended early start:** M63a → M63b → M66a → M66b in parallel with Phase 7 scale track. Front-loads ~12-16 days of governance work without blocking on anything.
+
+### `[BRAINSTORM]` Critical Path
+
+Longest chain: `M53 → M63a → M63b → M64 → M65b → M67 → M68a → M68b → M70 → M72 → M73` (11 milestones, ~48-72 days). True critical path blocked on: `M61b → M67` (governance tuning gates on scale validation).
+
+## Planning Envelope (Non-Binding)
+
+Draft effort and runtime envelopes to surface risk early. These are planning aids, not commitments.
+
+`[BRAINSTORM]` **Performance baseline:** Current tick has **27-47× headroom** at 10K agents (~0.25ms/tick vs 6s target). Cumulative Phase 8-9 overhead projected at +15-30%, leaving 20-30× headroom post-Phase 9.
+
+| Milestone | Est. days (draft) | Dominant complexity | Turn-time budget | `[BRAINSTORM]` Profiling notes |
+|-----------|-------------------|---------------------|------------------|-------------------------------|
+| M63 | 6-9 (split: 3-4 + 3-5) | O(civs × institutions) | +1% to +3% | Negligible — not O(agents) |
+| M64 | 4-6 | O(regions) | +0.5% to +1% | Truly negligible |
+| M65 | 5-7 (split: 2-3 + 3-4) | O(agents) + O(civs) | +2% to +4% | Piggyback elite classification on `wealth_tick()` sort — zero extra iteration |
+| M66 | 4-6 (split: 2-3 + 2-3) | O(civs + ruler events) | +0.5% to +1% | Negligible |
+| M67 | 4-6 | validation/oracles | no new steady-state | |
+| M68 | 5-7 (split: 3-4 + 2-3) | O(agents × 8 traits) | +4% to +8% | **Primary scaling risk.** Use algebraic sigmoid for D=2: `f²/(f²+(1-f)²)` saves ~90% vs `powf()`. Parallelize via rayon par_iter by region. |
+| M69 | 4-6 | O(routes × goods + patronage) | +2% to +5% | Depends on patronage density; GreatPerson-only = negligible |
+| M70 | 4-6 | O(agents × REL_SLOTS × iterations) | +2% to +4% avg, spikes +8-15% | Non-cascade turns: +1-2%. Cascade turns spike. Amortize checks every 4 turns. |
+| M71 | 4-6 | O(civs² × info channels) | +0.5% to +1% | Negligible |
+| M72 | 4-6 | validation/oracles | no new steady-state | |
+| M73 | 6-8 | viewer/data plane | n/a | |
+
+`[BRAINSTORM]` **Memory budget:** Current 224 bytes/agent + 24 bytes Phase 8-9 = 248 bytes/agent. At 1M agents: 248 MB (fits 192GB DDR5, 700× headroom). Cache concern: memome (+8 bytes) in hot path at 1M scale — place adjacent to cultural_value fields in SoA layout.
+
+## Pre-M63 Decision Locks
+
+These decisions must be explicitly locked in the relevant spec before implementation starts.
+
+| Decision | Planning default | Lock by |
+|----------|------------------|---------|
+| Action-weight cap mechanics with institutions | Keep global 2.5x cap; add per-system contribution ceilings so added contributors do not silently nerf older systems | M63 spec |
+| Revolt awareness diffusion path | Reuse M59 information-propagation channel with tagged message types (no parallel second diffusion engine) | M70 spec |
+| PSI formula interface | Implement exponent-ready form from day one: `PSI = MMP^a * EMP^b * SFD^c` with defaults `a=b=c=1.0` | M65 spec |
+| PSI input extractors from Phase 7 outputs | Treat `median_agent_wealth`, `urbanization_rate`, and `youth_bulge_fraction` as required extractor outputs for Phase 8 startup | M63 kickoff checklist |
+| `[BRAINSTORM]` Elite definition | Formal lock: wealth percentile > 0.90 within civ OR high-skill occupation (merchant/scholar/priest with skill ≥ 0.8) OR GreatPerson status. Elite positions = `max(2, civ_population / 100)`. Frustrated aspirant = qualifies but no position AND satisfaction < 0.3 | M65 spec |
+| `[BRAINSTORM]` State debt proxy | `state_debt` doesn't exist yet. Use `governing_cost / max(treasury, 1)` ratio for SFD until M66 introduces explicit debt tracking | M65 spec |
+| `[BRAINSTORM]` Revolt threshold distribution | Must NOT be Gaussian (produces only total-cascade or no-cascade). Derive from agent state: `f(satisfaction, personality, cultural_traits)` for naturally heterogeneous distribution. Add small stochastic noise for stability. | M70 spec |
+| `[BRAINSTORM]` The κ coupling (HANDY model) | Wealthy agents must extract disproportionately from commons: `elite_extraction_rate = base_rate × f(wealth_percentile)`. Without this, Type-C dual collapse (inequality + overdepletion) cannot emerge. | M64 spec |
+| `[BRAINSTORM]` Conformist bias computation | Use algebraic form for D=2: `f²/(f²+(1-f)²)` instead of `powf()`. Saves ~90% per-agent cost. D=2 is within the academically supported D=2-3 range. | M68 spec |
+| `[BRAINSTORM]` Cap mechanism concrete proposal | Per-system ceilings: trait max 2.0×, situational max 2.5×, faction max 1.5×, tech max 1.5×, institutions max 1.5×, Mule per existing overrides. Revised global cap: 3.5× or priority ordering with reserved bandwidth. | M63 spec |
+
+## Draft Acceptance Gates (M67 and M72)
+
+### M67 Governance Tuning Pass
+
+| Gate | Draft threshold |
+|------|-----------------|
+| Crisis predictiveness | In seeds with PSI crisis crossing, crisis outcomes occur within 10-40 turns in >=65% of those seeds |
+| Co-occurrence integrity | All three PSI sub-indices (MMP/EMP/SFD) exceed calibration thresholds in the same 20-turn window for >=50% of crisis seeds |
+| Secular-cycle recovery | In crisis seeds, >=60% show recovery trajectory (not one-way collapse) within 120 turns after peak PSI |
+| Institutional regime reachability | Across calibration sweeps, all 3 institutional regimes (frozen/fluctuating/cycling) appear in >=10% of tested runs |
+| Runtime budget | Combined M63-M66 additions remain within planned runtime budget envelope |
+
+### M72 Culture Tuning Pass
+
+| Gate | Draft threshold |
+|------|-----------------|
+| Trait diversity | No single trait family locks >85% global share in >80% of seeds unless intentionally configured |
+| Cascade plausibility | Revolution cascades are neither absent nor constant: at least 0.2 and at most 2.0 major cascades per 100 turns (median band) |
+| Prestige stability | Prestige network remains active without permanent monopoly lock (patronage concentration exceeds guardrail in <25% of seeds) |
+| Cross-system coupling | At least 2 cross-system interaction patterns from this roadmap occur in >=40% of seeds over long runs |
+| Runtime budget | Combined M68-M71 additions remain within planned runtime budget envelope |
+
+
 **M63 enrichment (Selectorate Theory — Bueno de Mesquita):** Winning coalition size (W) vs selectorate size (S) drives public vs private goods allocation. `private_goods_share = 1 - (W/S)`. Small-coalition regimes spend on military loyalty; large-coalition regimes spend on infrastructure/trade. Leader survives if loyalty payoff > challenger's offer. This gives each government type mechanically different action weight modifiers — not flavor text. O(n) per turn, ~25ms for 50 civs. Source: Bueno de Mesquita, *The Logic of Political Survival*.
 
 **M63 enrichment (Institutional Evolution — Acemoglu/Robinson):** Institutions change when enforcement costs exceed state capacity. Transitions emerge from structural pressure, not scripted triggers: Chiefdom → Monarchy (external military threat + population growth), Monarchy → Republic (faction conflict + elite competition + economic complexity), Any → Autocracy (crisis + strong individual leader). Source: Acemoglu & Robinson, "Paths to Inclusive Political Institutions" (MIT).
@@ -82,6 +178,20 @@ The individual systems above are valuable, but their *interactions* produce the 
 
 - **Commons overshoot → elite conflict:** When a region degrades below carrying capacity, the material base shrinks but the elite class doesn't — elite positions become even more scarce relative to elite population. Ecological crisis amplifies elite overproduction, compressing the secular cycle's expansion phase. The civilization that manages its commons extends its golden age; the one that doesn't enters crisis a generation early.
 
+### `[BRAINSTORM]` Emergent Cross-System Interactions (Not Previously Documented)
+
+Research team traced 5 additional interactions that emerge from the mechanical coupling of Phase 8-9 systems:
+
+- **PSI + commons simultaneous collapse:** When fiscal crisis prevents enforcement of COMMONS_MANAGEMENT at the same time ecology is degrading, all three PSI sub-indices spike together. This is the "perfect storm" that the multiplicative PSI formula is designed to detect — but compound recovery may be structurally impossible. **Guard:** subsistence floor mechanism; validate recovery path in M67 oracle.
+
+- **Trade-network revolution geography:** Bridge agents (merchants, diplomats) travel between regions for trade. Revolution cascades that reach trade route hubs spread through merchant networks to distant regions, bypassing geographic barriers. **Revolution geography follows trade topology, not just political boundaries.**
+
+- **Mule-induced patronage collapse:** A Mule's utility overrides can redirect resources away from prestige trade (e.g., favoring WAR over TRADE for 30 turns). The patronage network atrophies during the Mule window. Post-fade, the civ faces a legitimacy crisis it didn't see coming. **Guard:** patronage resilience buffer (2-3 turns of stored legitimacy before bonds break).
+
+- **Unbreakable military capture loop:** Military faction captures institution → war victories increase military influence → war costs drain treasury preventing non-military institutions → cultural homogenization from expansion removes cascade barriers → prestige redistributed through military hierarchy. Only exits: external military defeat, treasury bankruptcy, or internal faction split. **Guard:** internal reform pressure when any single faction holds >70% influence for >30 turns.
+
+- **Ecology-driven faith transitions:** Famine refugees carry beliefs to new regions → conversion pressure in receiving regions → clergy faction realignment → institutional changes → different commons management → different ecological outcome. Creates an unplanned interaction chain linking ecology to religion to governance.
+
 ## Mechanistic Sketches
 
 Brief implementation-flavored notes on the systems with the most complex internals.
@@ -106,6 +216,12 @@ PSI = MMP × EMP × SFD
 
 **Institutional life-cycle (M63):** ABM research (Maudet et al.) identifies three emergent regimes depending on the ratio of endogenized trust to exogenous authority: (1) **ordered/frozen** — institutions form fast, lock society into stable but rigid patterns; (2) **highly fluctuating** — institutions exist briefly, high trust but no stability; (3) **complex cycling** — institutions structure and destructure in irregular waves. M67 should validate that all three regimes are reachable by varying institutional formation/dissolution parameters. The complex cycling regime is the narratively richest — it produces the institutional rise-and-fall arcs that feel like real history. **Integration note:** institutional enforcement costs are not a new fiscal system — they map onto the existing governing-cost-per-region framework in `politics.py`. Each active institution adds to the per-turn governing cost. When treasury cannot sustain enforcement, institutions lose legitimacy (the existing treasury-to-stability link, extended).
 
+`[BRAINSTORM]` **The κ coupling (M64, from HANDY model):** The HANDY model (Motesharrei et al. 2014) reveals a critical missing mechanism: wealthy agents must extract disproportionately from commons. In HANDY, elites consume κ× more per capita — this drives Type-C (combined inequality + overdepletion) collapse. Chronicler currently lacks this: wealthy agents don't deplete resources faster. M64 must add `elite_extraction_rate = base_rate × f(wealth_percentile)`. Without it, the most historically realistic collapse scenario (inequality amplifying ecological crisis) cannot emerge. Integration point: `ecology.rs:396-452` (`tick_depletion_feedback`). See `references/phase8-9-academic-foundations.md` §6 for full HANDY ODE system.
+
+`[BRAINSTORM]` **Revolution formula (M70, from Epstein + Davies):** Per-agent revolt decision: `grievance = (1 - satisfaction) × (1 - legitimacy)`, amplified by J-curve frustration `(memory_score - satisfaction)` when conditions worsen after improvement. Rebel if `grievance + J_CURVE_WEIGHT × j_curve - risk_aversion × P(arrest) > REBEL_THRESHOLD`. P(arrest) = `1 - exp(-2.3 × soldiers_ratio / max(rebels_ratio, 0.01))`. Threshold distribution must be derived from agent state (NOT Gaussian — Granovetter/Watts show Gaussian produces only total-cascade or no-cascade). Dense networks (cities) produce bimodal cascades (fizzle or explode); sparse networks (rural) produce power-law sizes (gradual spread). See `references/phase8-9-academic-foundations.md` §3, §7.
+
+`[BRAINSTORM]` **Conformist bias optimization (M68):** For D=2 (within the academically supported D=2-3 range), the sigmoid `P(adopt) = f^D / (f^D + (1-f)^D)` simplifies algebraically to `f²/(f²+(1-f)²)` — just multiplies and one division, no `powf()`. Saves ~90% per-agent computation cost. This is the difference between M68 being +4-8% overhead (within budget) vs +15-25% (blown budget). Strongly recommended. Anti-conformist agents (D < 1, prefer rare traits) could map to high-boldness personality as natural cultural innovators and bridge agents.
+
 **Graduated sanctions (M63, from Ostrom):** Institutions with `COMMONS_MANAGEMENT` or `PROPERTY_RIGHTS` need graduated enforcement: first offense = warning (low cost), repeated offense = escalating punishment. This prevents the brittle failure mode where enforcement is all-or-nothing. Implementation: per-agent `violation_count` (u8) for active institutions, with sanction severity = f(violation_count). Agents with high violation counts and low sanction risk (weak enforcement) model the "institutional ceremonialization" failure pattern — the institution exists in name but lost functional substance.
 
 **DF-inspired villain mechanics (M66 extension):** Dwarf Fortress generates emergent antagonists through multi-step plot-hatching: villains recruit agents via corruption techniques (intimidation, bribery, exploiting grievances, promising revenge on enemies), infiltrate institutional positions, and build criminal/subversive networks. In Chronicler terms: a frustrated elite (EMP-surplus agent) with a grudge memory (M48), high wealth, and faction alignment could become an active conspirator — recruiting bridge agents (M50) into a plot to capture an institution (M63) or destabilize a rival. Not a scripted villain arc, but an emergent one where the system state produces the plot. Flag for Phase 8 spec work — likely a curator enhancement rather than a new simulation system.
@@ -125,6 +241,10 @@ These are the kinds of chronicles Phase 8 should produce:
 > *"The rebellion in the northern provinces burned hot but stayed contained — until Davan the Wanderer, a disgraced nobleman turned merchant, carried word to the southern guilds. Within a season, five cities had risen."*
 
 > *"The valley of Tessara fed three cities for a century. No one noticed the soil thinning beneath the wheat until the year the rains came late. The granaries held barely a season's reserve, and the surplus nobles — forty families with ancestral claims to land that could no longer feed them — turned on each other."*
+
+`[BRAINSTORM]` **Cross-system mega-chain example (Phase 8+9 combined):**
+
+> *"Historians would later identify seven links in the chain that destroyed the Asharan golden age, each one the natural consequence of the last: The commons overshoot in the Tessara Valley (1) reduced agricultural surplus, which compressed real wages for the farming class (2), which drove the MMP sub-index past the crisis threshold. Meanwhile, the forty noble families competing for twelve governorships (3) had pushed the EMP to levels not seen since the founding wars, while the jade mine flooding (4) severed the prestige goods that had kept patronage bonds intact. The fiscal crisis from Kiral's northern campaign (5) left the treasury unable to enforce the property rights that had kept the peace for three generations. When the rebellion began in the northern provinces (6), it was Davan — a merchant who had lost everything in the jade collapse, a man with connections in every guild hall from the mountains to the sea — who carried word south and transformed a local uprising into a cascade that swept five cities (7). Each link was individually unremarkable. Together, they produced the crisis that the poets would call the Asharan Twilight."*
 
 ## Phase 7 Dependencies
 
@@ -167,6 +287,50 @@ Phase 8-9 systems are designed to consume Phase 7 outputs:
 - Stephen Walt, balance of threat theory — alliance formation from shared threat perception, not just power balancing
 - Enhanced Gravity Model (Frontiers in Physics 2019) — endogenous trade route formation from profit signals
 - ABIDES-Economist (arxiv 2024) — agent-based economic simulation, Walrasian tatonnement, input-output matrices
+- `[BRAINSTORM]` Motesharrei, Rivas, Kalnay, "Human and nature dynamics (HANDY)" (Ecological Economics, 2014) — 4 coupled ODEs (commoners, elites, nature, wealth), three collapse scenarios, κ coupling
+- `[BRAINSTORM]` Piatti et al., "Cooperate or Collapse: GovSim" (NeurIPS, 2024) — LLM agents collapse commons 96% of the time; calibration baseline for M64
+- `[BRAINSTORM]` Epstein, "Modeling civil violence" (PNAS, 2002) — grievance = hardship × (1 - legitimacy); punctuated equilibrium rebellion dynamics
+- `[BRAINSTORM]` Davies, "Toward a Theory of Revolution" (1962) — J-curve theory: revolution when rising expectations sharply reversed
+- `[BRAINSTORM]` Watts, "A simple model of global cascades on random networks" (PNAS, 2002) — network topology determines cascade regime (power-law vs bimodal)
+
+`[BRAINSTORM]` **Game design reference values:** See `references/phase8-9-game-design-references.md` for full analysis. Key calibration values: legitimacy→capital ratio +0.1/point (Old World), cognomen decay 1/n (Old World), angry faction 1.5× opposition / neutral 0.5× (Vic3), faction discontent threshold 80%/110% military power (CK3), scheme breach auto-fail at 5 (CK3). Seven cross-game emergent story properties identified: single shared resource budgets, directional sensitivity, threshold phase transitions, endogenous antagonist emergence, imperfect information failure, multi-generational decay curves, loosely coupled event prerequisites.
+
+## `[BRAINSTORM]` Degenerate Condition Guards
+
+Feedback loop analysis identified 7 conditions where Phase 8-9 mechanics could produce degenerate behavior. Each requires an explicit guard in the relevant spec.
+
+| Condition | Severity | Relevant Milestones | Proposed Guard |
+|-----------|----------|---------------------|----------------|
+| Unbreakable military faction capture | High | M63, M65 | Internal reform pressure at >70% influence for >30 turns |
+| Simultaneous PSI + commons collapse with no recovery | Critical | M64, M65, M67 | Subsistence floor mechanism; validate recovery in M67 oracle |
+| Permanent revolt province (conquered, culturally distant) | Medium | M68, M70 | Forced assimilation as institutional option; depopulation as natural brake |
+| Prestige monopoly stability trap (sole controller never disrupted) | Medium | M69 | Ensure elite dilution endogenous brake fires even at stable supply |
+| Soil floor permanent famine cycling | Medium | M64 | Region abandonment mechanic when degradation exceeds recovery |
+| Clergy theocratic capture (via temple/conversion/holy-war stacking) | High | M63 | Same reform pressure as military capture |
+| One-way secular cycle (ratchet faster than reset) | Critical | M65, M67 | M67 gate: ≥60% of crisis seeds must show recovery within 120 turns |
+
+## `[BRAINSTORM]` Narrative Integration Summary
+
+Per-milestone narrative integration spec sketch in `design/phase8-9-narrative-integration.md`. Aggregate counts:
+
+| Category | Current (Phase 6) | Phase 8-9 Additions | New Total |
+|----------|--------------------|---------------------|-----------|
+| Event types in EXPECTED_EVENT_TYPES | 44+ | ~37 new | ~81 |
+| Causal patterns in CAUSAL_PATTERNS | 24 | ~57 new | ~81 |
+| Narrator context blocks | 10 | 4 new + 3 extensions | 14 |
+| Viewer components (top-level) | 14 | 5 new + 12 extensions | ~26 |
+
+New narrator context blocks: `institutional_context`, `secular_cycle_context`, `ruler_context`, `revolt_context` (conditional — fires only during active cascades). New infrastructure needed: conditional context injection (M70), multi-turn arc clustering for secular cycles (M65/M66), dramatic irony pattern for info asymmetry (M71). All Phase 8-9 data fits within Bundle v2's existing 7 layer kinds — no new kinds needed.
+
+## Scope Containment Triggers
+
+To prevent brainstorm enrichments from leaking into committed milestone scope:
+
+- If a milestone exceeds its draft effort window by >25%, cut enrichments before changing core acceptance gates.
+- If runtime budget misses by >15% across two profiling passes, freeze new feature surface and tune current mechanics first.
+- If a milestone starts with unresolved decision locks, do not begin implementation until the lock section is resolved in spec.
+- If M67 or M72 draft acceptance gates fail two consecutive calibration cycles, reduce model surface (fewer new mechanics) before adding enrichments.
+- If viewer work (M73) threatens core simulation/tuning milestones, split it into follow-on scope instead of backloading risk into M72.
 
 ## Still Deferred Beyond Phase 9
 
