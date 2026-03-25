@@ -1213,13 +1213,12 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
                 world.named_events.append(ne)
                 # M16a: Cultural works enhancement
                 if acc is not None:
-                    acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
                     acc.add(civ_idx, civ, "culture", 5, "guard-shock")
                     acc.add(civ_idx, civ, "prestige", 2, "keep")
                 else:
-                    civ.asabiya = min(1.0, civ.asabiya + 0.05)
                     civ.culture = clamp(civ.culture + 5, STAT_FLOOR["culture"], 100)
                     civ.prestige += 2
+                _apply_asabiya_to_regions(world, civ.name, 0.05)
                 events.append(Event(
                     turn=world.turn, event_type="cultural_work", actors=[civ.name],
                     description=ne.description, importance=6,

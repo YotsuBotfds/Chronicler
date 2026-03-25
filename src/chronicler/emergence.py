@@ -459,11 +459,8 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
     for civ_name in affected_civs:
         civ = next((c for c in world.civilizations if c.name == civ_name), None)
         if civ and civ.folk_heroes:
-            if acc is not None:
-                civ_idx = civ_index(world, civ.name)
-                acc.add(civ_idx, civ, "asabiya", 0.05, "keep")
-            else:
-                civ.asabiya = min(1.0, civ.asabiya + 0.05)
+            from chronicler.simulation import _apply_asabiya_to_regions
+            _apply_asabiya_to_regions(world, civ.name, 0.05)
 
     region_names = [r.name for r in cluster]
     events.append(Event(

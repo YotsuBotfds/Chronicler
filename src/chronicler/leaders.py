@@ -336,10 +336,10 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "stability", -int(30 * mult), "guard-shock")
-            acc.add(civ_idx, civ, "asabiya", 0.1, "keep")
         else:
             civ.stability = clamp(civ.stability - int(30 * mult), STAT_FLOOR["stability"], 100)
-            civ.asabiya = min(civ.asabiya + 0.1, 1.0)
+        from chronicler.simulation import _apply_asabiya_to_regions
+        _apply_asabiya_to_regions(world, civ.name, 0.1)
         world.named_events.append(NamedEvent(
             name=f"The {civ.name} Coup", event_type="coup", turn=world.turn,
             actors=[civ.name], description=f"{name} seizes power from {old_leader.name}", importance=8,

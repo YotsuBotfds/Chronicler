@@ -30,8 +30,8 @@ def leader_world(leader_civ):
     return WorldState(
         name="Test", seed=42, turn=20,
         regions=[
-            Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile"),
-            Region(name="Region B", terrain="mountains", carrying_capacity=50, resources="mineral"),
+            Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile", controller="Kethani Empire"),
+            Region(name="Region B", terrain="mountains", carrying_capacity=50, resources="mineral", controller="Dorrathi Clans"),
         ],
         civilizations=[leader_civ, civ2],
         relationships={
@@ -80,12 +80,17 @@ class TestSuccession:
         assert leader_civ.military == min(old_m + 10, 100)
 
     def test_usurper_succession_effects(self, leader_civ, leader_world):
-        old_s, old_a = leader_civ.stability, leader_civ.asabiya
+        old_s = leader_civ.stability
+        region_a = leader_world.regions[0]
+        old_region_asabiya = region_a.asabiya_state.asabiya
         leader_civ.leader.alive = False
         new = generate_successor(leader_civ, leader_world, seed=100, force_type="usurper")
         assert new.succession_type == "usurper"
         assert leader_civ.stability == max(old_s - 30, 1)
-        assert leader_civ.asabiya == min(old_a + 0.1, 1.0)
+        # M55b: asabiya delta applied to regions via D-policy
+        assert region_a.asabiya_state.asabiya == pytest.approx(
+            min(old_region_asabiya + 0.1, 1.0), abs=1e-4
+        )
 
     def test_elected_succession_requires_culture(self, leader_civ, leader_world):
         leader_civ.culture = 40
