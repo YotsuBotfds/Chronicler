@@ -110,3 +110,115 @@ def test_frontier_fraction_uncontrolled_region_still_computed():
     apply_asabiya_dynamics(world)
     assert r.asabiya_state.frontier_fraction == 1.0
     assert r.asabiya_state.asabiya == 0.5
+
+
+# --- Gradient formula tests ---
+
+
+def test_gradient_frontier_growth():
+    """Pure frontier (f=1.0): logistic growth."""
+    r = _make_region("Frontier", controller="A", adjacencies=["Enemy"])
+    r.asabiya_state.asabiya = 0.5
+    enemy = _make_region("Enemy", controller="B")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Frontier"],
+    )
+    world = _make_test_world([r, enemy], civs=[civ])
+    apply_asabiya_dynamics(world)
+    # s_next = 0.5 + 0.05 * 1.0 * 0.5 * 0.5 - 0.02 * 0.0 * 0.5 = 0.5125
+    assert r.asabiya_state.asabiya == pytest.approx(0.5125, abs=1e-4)
+
+
+def test_gradient_interior_decay():
+    """Pure interior (f=0.0): linear decay."""
+    r = _make_region("Interior", controller="A", adjacencies=["Friend"])
+    r.asabiya_state.asabiya = 0.5
+    friend = _make_region("Friend", controller="A")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Interior"],
+    )
+    world = _make_test_world([r, friend], civs=[civ])
+    apply_asabiya_dynamics(world)
+    # s_next = 0.5 + 0.0 - 0.02 * 1.0 * 0.5 = 0.49
+    assert r.asabiya_state.asabiya == pytest.approx(0.49, abs=1e-4)
+
+
+def test_gradient_boundary_zero_stays_zero():
+    """asabiya=0.0 is a fixed point (logistic s*(1-s) = 0)."""
+    r = _make_region("Dead", controller="A", adjacencies=["Enemy"])
+    r.asabiya_state.asabiya = 0.0
+    enemy = _make_region("Enemy", controller="B")
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.0,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Dead"],
+    )
+    world = _make_test_world([r, enemy], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert r.asabiya_state.asabiya == 0.0
+
+
+# --- Aggregation tests ---
+
+
+def test_civ_aggregation_equal_pop():
+    """2 regions, equal pop -> mean of asabiya values."""
+    r1 = _make_region("R1", controller="A", adjacencies=["R2"])
+    r1.asabiya_state.asabiya = 0.3
+    r1.population = 50
+    r2 = _make_region("R2", controller="A", adjacencies=["R1"])
+    r2.asabiya_state.asabiya = 0.7
+    r2.population = 50
+    civ = Civilization(
+        name="A", population=100, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1", "R2"],
+    )
+    world = _make_test_world([r1, r2], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert 0.0 <= civ.asabiya <= 1.0
+    assert civ.asabiya_variance >= 0.0
+
+
+def test_civ_aggregation_zero_pop_fallback():
+    """Zero total pop -> civ.asabiya unchanged."""
+    r = _make_region("Empty", controller="A", adjacencies=[])
+    r.asabiya_state.asabiya = 0.8
+    r.population = 0
+    civ = Civilization(
+        name="A", population=0, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.6,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Empty"],
+    )
+    world = _make_test_world([r], civs=[civ])
+    apply_asabiya_dynamics(world)
+    assert civ.asabiya == 0.6  # Unchanged
+
+
+def test_variance_computation():
+    """Verify population-weighted variance calculation."""
+    r1 = _make_region("R1", controller="A", adjacencies=[])
+    r1.asabiya_state.asabiya = 0.3
+    r1.population = 50
+    r2 = _make_region("R2", controller="A", adjacencies=[])
+    r2.asabiya_state.asabiya = 0.7
+    r2.population = 50
+    civ = Civilization(
+        name="A", population=100, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1", "R2"],
+    )
+    world = _make_test_world([r1, r2], civs=[civ])
+    # After tick, both are interior (f=0.0), so both decay:
+    # R1: 0.3 - 0.02 * 1.0 * 0.3 = 0.294
+    # R2: 0.7 - 0.02 * 1.0 * 0.7 = 0.686
+    # Mean = (0.294*50 + 0.686*50) / 100 = 0.49
+    # Var = (50*(0.294-0.49)^2 + 50*(0.686-0.49)^2) / 100
+    #     = (50*0.038416 + 50*0.038416) / 100 = 0.038416
+    apply_asabiya_dynamics(world)
+    assert civ.asabiya == pytest.approx(0.49, abs=1e-3)
+    assert civ.asabiya_variance == pytest.approx(0.038416, abs=1e-4)
