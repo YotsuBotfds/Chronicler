@@ -216,6 +216,14 @@ class RegionStockpile(BaseModel):
     goods: dict[str, float] = Field(default_factory=dict)
 
 
+class RegionAsabiya(BaseModel):
+    """Per-region asabiya state with frontier diagnostics (M55b)."""
+    asabiya: float = 0.5
+    frontier_fraction: float = 0.0
+    different_civ_count: int = 0
+    uncontrolled_count: int = 0
+
+
 class River(BaseModel):
     name: str
     path: list[str] = Field(min_length=2)
@@ -236,6 +244,7 @@ class Region(BaseModel):
     specialized_resources: list[Resource] = Field(default_factory=list)
     ecology: RegionEcology = Field(default_factory=RegionEcology)
     stockpile: RegionStockpile = Field(default_factory=RegionStockpile)
+    asabiya_state: RegionAsabiya = Field(default_factory=RegionAsabiya)
     low_forest_turns: int = 0
     forest_regrowth_turns: int = 0
     infrastructure: list[Infrastructure] = Field(default_factory=list)
@@ -340,6 +349,7 @@ class Civilization(BaseModel):
     goal: str = ""
     regions: list[str] = Field(default_factory=list)
     asabiya: float = 0.5
+    asabiya_variance: float = 0.0
     cultural_milestones: list[str] = Field(default_factory=list)
     action_counts: dict[str, int] = Field(default_factory=dict)
     prestige: int = 0
@@ -701,6 +711,7 @@ class CivSnapshot(BaseModel):
     stability: int
     treasury: int
     asabiya: float
+    asabiya_variance: float = 0.0
     tech_era: TechEra
     trait: str
     regions: list[str]
