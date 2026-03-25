@@ -579,6 +579,16 @@ def phase_action(
 
 # --- Asabiya dynamics (Turchin metaethnic frontier model) ---
 
+
+def _apply_asabiya_to_regions(world: WorldState, civ_name: str, delta: float) -> None:
+    """D-policy: apply asabiya delta to all regions controlled by a civ. Clamp [0, 1]."""
+    for region in world.regions:
+        if region.controller == civ_name:
+            region.asabiya_state.asabiya = round(
+                max(0.0, min(1.0, region.asabiya_state.asabiya + delta)), 4
+            )
+
+
 def apply_asabiya_dynamics(world: WorldState) -> None:
     """Update per-region asabiya via gradient frontier model, then aggregate to civ-level."""
     ASABIYA_FRONTIER_GROWTH_RATE = 0.05  # r0, calibrate in M61b

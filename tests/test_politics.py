@@ -870,8 +870,10 @@ def test_fallen_empire_asabiya_boost():
     civ = world.civilizations[0]
     civ.peak_region_count = 5
     civ.asabiya = 0.3
+    # M55b: Sync region asabiya to match civ before testing D-policy
+    world.regions[0].asabiya_state.asabiya = 0.3
     apply_fallen_empire(world)
-    assert civ.asabiya == pytest.approx(0.35, abs=1e-6)
+    assert world.regions[0].asabiya_state.asabiya == pytest.approx(0.35, abs=1e-6)
 
 
 # --- Task 25: Civilizational twilight ---

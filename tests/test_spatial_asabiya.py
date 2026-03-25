@@ -38,7 +38,7 @@ def test_civ_snapshot_asabiya_variance_default():
 # --- Frontier fraction tests ---
 
 from chronicler.models import Region, WorldState, Relationship, RegionAsabiya
-from chronicler.simulation import apply_asabiya_dynamics
+from chronicler.simulation import apply_asabiya_dynamics, _apply_asabiya_to_regions
 
 
 def _make_region(name, controller=None, adjacencies=None):
@@ -58,6 +58,42 @@ def _make_test_world(regions, civs=None):
         name="Test", seed=42, turn=1,
         regions=regions, civilizations=civs, relationships={},
     )
+
+
+# --- D-policy tests ---
+
+
+def test_d_policy_applies_to_all_regions():
+    """D-policy: delta applied to every region the civ controls."""
+    r1 = _make_region("R1", controller="A")
+    r1.asabiya_state.asabiya = 0.5
+    r2 = _make_region("R2", controller="A")
+    r2.asabiya_state.asabiya = 0.6
+    r3 = _make_region("R3", controller="B")
+    r3.asabiya_state.asabiya = 0.4
+    world = _make_test_world([r1, r2, r3])
+    _apply_asabiya_to_regions(world, "A", 0.1)
+    assert r1.asabiya_state.asabiya == pytest.approx(0.6)
+    assert r2.asabiya_state.asabiya == pytest.approx(0.7)
+    assert r3.asabiya_state.asabiya == pytest.approx(0.4)
+
+
+def test_d_policy_clamps_to_one():
+    """D-policy: region at 0.95 + 0.1 -> clamped to 1.0."""
+    r = _make_region("R1", controller="A")
+    r.asabiya_state.asabiya = 0.95
+    world = _make_test_world([r])
+    _apply_asabiya_to_regions(world, "A", 0.1)
+    assert r.asabiya_state.asabiya == 1.0
+
+
+def test_d_policy_clamps_to_zero():
+    """D-policy: region at 0.01 - 0.1 -> clamped to 0.0."""
+    r = _make_region("R1", controller="A")
+    r.asabiya_state.asabiya = 0.01
+    world = _make_test_world([r])
+    _apply_asabiya_to_regions(world, "A", -0.1)
+    assert r.asabiya_state.asabiya == 0.0
 
 
 def test_frontier_fraction_mixed_neighbors():

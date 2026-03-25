@@ -268,6 +268,12 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             leader_name_pool=list(civ.leader_name_pool or []),
         )
 
+        # M55b: Initialize breakaway region asabiya
+        for rname in breakaway_regions:
+            br = next((r for r in world.regions if r.name == rname), None)
+            if br is not None:
+                br.asabiya_state.asabiya = 0.7
+
         # Apply regnal naming to the breakaway leader now that breakaway_civ exists
         regnal_rng = random.Random(
             stable_hash_int("secession_regnal", world.seed, world.turn, breakaway_name)
@@ -533,13 +539,12 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
         if world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(vassal_idx,
                 stability_shock=min(1.0, 10 / max(vassal.stability, 1))))
-            vassal.asabiya = min(vassal.asabiya + 0.2, 1.0)
         elif acc is not None:
             acc.add(vassal_idx, vassal, "stability", 10, "guard-shock")
-            acc.add(vassal_idx, vassal, "asabiya", 0.2, "keep")
         else:
             vassal.stability = clamp(vassal.stability + 10, STAT_FLOOR["stability"], 100)
-            vassal.asabiya = min(vassal.asabiya + 0.2, 1.0)
+        from chronicler.simulation import _apply_asabiya_to_regions
+        _apply_asabiya_to_regions(world, vassal.name, 0.2)
 
         if vr.vassal in world.relationships and vr.overlord in world.relationships[vr.vassal]:
             world.relationships[vr.vassal][vr.overlord].disposition = Disposition.HOSTILE
@@ -1078,6 +1083,11 @@ def check_restoration(world: WorldState) -> list[Event]:
             restored_civ.founded_turn = world.turn
             restored_civ.decline_turns = 0
             restored_civ.stats_sum_history = []
+        # M55b: Initialize restored region asabiya
+        for rname in restored_civ.regions:
+            rr = next((r for r in world.regions if r.name == rname), None)
+            if rr is not None:
+                rr.asabiya_state.asabiya = 0.8
         # Apply regnal naming now that restored_civ exists
         regnal_rng = random.Random(
             stable_hash_int(
@@ -1214,11 +1224,8 @@ def apply_fallen_empire(world: WorldState, acc=None) -> list[Event]:
         if not _is_fallen_empire(civ, world):
             continue
         asabiya_boost = get_override(world, K_FALLEN_EMPIRE_ASABIYA_BOOST, 0.05)
-        if acc is not None:
-            civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "asabiya", asabiya_boost, "keep")
-        else:
-            civ.asabiya = min(civ.asabiya + asabiya_boost, 1.0)
+        from chronicler.simulation import _apply_asabiya_to_regions
+        _apply_asabiya_to_regions(world, civ.name, asabiya_boost)
     return events
 
 
