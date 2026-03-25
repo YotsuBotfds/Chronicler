@@ -30,7 +30,6 @@ from chronicler.models import (
     ActiveCondition,
     Civilization,
     CivShock,
-    Disposition,
     EMPTY_SLOT,
     Event,
     Leader,
@@ -580,41 +579,79 @@ def phase_action(
 
 # --- Asabiya dynamics (Turchin metaethnic frontier model) ---
 
-def apply_asabiya_dynamics(world: WorldState, acc=None) -> None:
-    """Update asabiya (collective solidarity) for each civilization."""
-    r0 = 0.05   # Growth rate at frontiers
-    delta = 0.02  # Decay rate in interior
+def apply_asabiya_dynamics(world: WorldState) -> None:
+    """Update per-region asabiya via gradient frontier model, then aggregate to civ-level."""
+    ASABIYA_FRONTIER_GROWTH_RATE = 0.05  # r0, calibrate in M61b
+    ASABIYA_INTERIOR_DECAY_RATE = 0.02   # delta, calibrate in M61b
+    # Defined but inactive (D5, D6) — wired in follow-up / M61b
+    ASABIYA_POWER_DROPOFF = 5.0          # h, military projection distance decay  # noqa: F841
+    ASABIYA_COLLAPSE_VARIANCE_THRESHOLD = 0.04  # variance collapse trigger  # noqa: F841
 
-    disp_threat = {Disposition.HOSTILE, Disposition.SUSPICIOUS}
+    region_map = {r.name: r for r in world.regions}
+    civ_by_name = {c.name: c for c in world.civilizations}
 
-    for civ_idx, civ in enumerate(world.civilizations):
+    # Step 1: Compute frontier fraction for each region
+    for region in world.regions:
+        valid_count = 0
+        diff_civ = 0
+        uncontrolled = 0
+        for adj_name in region.adjacencies:
+            adj = region_map.get(adj_name)
+            if adj is None:
+                continue
+            valid_count += 1
+            if adj.controller is None:
+                uncontrolled += 1
+            elif adj.controller != region.controller:
+                diff_civ += 1
+        region.asabiya_state.different_civ_count = diff_civ
+        region.asabiya_state.uncontrolled_count = uncontrolled
+        region.asabiya_state.frontier_fraction = (
+            (diff_civ + uncontrolled) / valid_count if valid_count > 0 else 0.0
+        )
+
+    # Step 2: Apply gradient formula to each controlled region
+    from chronicler.traditions import compute_folk_hero_asabiya_bonus
+
+    for region in world.regions:
+        if region.controller is None:
+            continue
+        s = region.asabiya_state.asabiya
+        f = region.asabiya_state.frontier_fraction
+        s_next = s + ASABIYA_FRONTIER_GROWTH_RATE * f * s * (1 - s) - ASABIYA_INTERIOR_DECAY_RATE * (1 - f) * s
+
+        # Folk hero per-turn bonus (applied after gradient, matching legacy order)
+        civ = civ_by_name.get(region.controller)
+        if civ is not None:
+            folk_bonus = compute_folk_hero_asabiya_bonus(civ)
+            if folk_bonus > 0:
+                s_next = s_next + folk_bonus * 0.1
+
+        region.asabiya_state.asabiya = round(max(0.0, min(1.0, s_next)), 4)
+
+    # Step 3: Aggregate to civ-level
+    for civ in world.civilizations:
         if len(civ.regions) == 0:
             continue
-        has_frontier = False
-        if civ.name in world.relationships:
-            for _other, rel in world.relationships[civ.name].items():
-                if rel.disposition in disp_threat:
-                    has_frontier = True
-                    break
+        total_pop = 0
+        weighted_sum = 0.0
+        region_data: list[tuple[float, int]] = []  # (asabiya, pop)
+        for rname in civ.regions:
+            r = region_map.get(rname)
+            if r is None:
+                continue
+            pop = r.population
+            total_pop += pop
+            weighted_sum += r.asabiya_state.asabiya * pop
+            region_data.append((r.asabiya_state.asabiya, pop))
 
-        s = civ.asabiya
-        if has_frontier:
-            s = s + r0 * s * (1 - s)
-        else:
-            s = s - delta * s
+        if total_pop == 0:
+            continue  # Keep existing civ.asabiya
 
-        # Folk hero asabiya bonus: permanent +0.03 per hero, applied as a floor
-        from chronicler.traditions import compute_folk_hero_asabiya_bonus
-        folk_bonus = compute_folk_hero_asabiya_bonus(civ)
-        if folk_bonus > 0:
-            s = s + folk_bonus * 0.1  # scale per-turn contribution
-
-        new_asabiya = round(max(0.0, min(1.0, s)), 4)
-        if acc is not None:
-            delta_val = new_asabiya - civ.asabiya
-            acc.add(civ_idx, civ, "asabiya", delta_val, "keep")
-        else:
-            civ.asabiya = new_asabiya
+        mean_a = weighted_sum / total_pop
+        variance = sum(p * (a - mean_a) ** 2 for a, p in region_data) / total_pop
+        civ.asabiya = round(max(0.0, min(1.0, mean_a)), 4)
+        civ.asabiya_variance = round(variance, 6)
 
 
 # --- Phase 7: Random events ---
