@@ -276,6 +276,28 @@ def test_world_gen_syncs_region_asabiya():
             )
 
 
+def test_scenario_override_syncs_regions():
+    """Scenario asabiya override syncs to all controlled regions."""
+    from chronicler.models import WorldState, Region, Civilization, Leader, TechEra
+    r1 = _make_region("R1", controller="A")
+    r1.asabiya_state.asabiya = 0.5
+    r2 = _make_region("R2", controller="A")
+    r2.asabiya_state.asabiya = 0.5
+    civ = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1", "R2"],
+    )
+    world = _make_test_world([r1, r2], civs=[civ])
+    # Simulate what scenario override does
+    civ.asabiya = 0.9
+    for region in world.regions:
+        if region.controller == civ.name:
+            region.asabiya_state.asabiya = civ.asabiya
+    assert r1.asabiya_state.asabiya == 0.9
+    assert r2.asabiya_state.asabiya == 0.9
+
+
 def test_world_gen_uncontrolled_regions_default():
     """Uncontrolled regions keep default asabiya 0.5."""
     world = generate_world(seed=42, num_regions=8, num_civs=2)

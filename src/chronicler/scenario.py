@@ -516,6 +516,10 @@ def _apply_civ_override(
         civ.treasury = override.treasury
     if override.asabiya is not None:
         civ.asabiya = override.asabiya
+        # M55b: Sync to controlled regions
+        for region in world.regions:
+            if region.controller == civ.name:
+                region.asabiya_state.asabiya = override.asabiya
     if override.tech_era is not None:
         civ.tech_era = TechEra(override.tech_era)
     if override.domains is not None:
