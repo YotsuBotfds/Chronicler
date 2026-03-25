@@ -274,6 +274,13 @@ def generate_world(
         if region.controller is not None:
             bootstrap_region_stockpile(region)
 
+    # M55b: Sync region asabiya to owning civ's initial asabiya
+    for civ in civs:
+        for rname in civ.regions:
+            region = next((r for r in regions if r.name == rname), None)
+            if region is not None:
+                region.asabiya_state.asabiya = civ.asabiya
+
     # M37: Generate one faith per civ
     if world.civilizations:
         from chronicler.religion import generate_faiths

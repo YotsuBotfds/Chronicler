@@ -222,3 +222,27 @@ def test_variance_computation():
     apply_asabiya_dynamics(world)
     assert civ.asabiya == pytest.approx(0.49, abs=1e-3)
     assert civ.asabiya_variance == pytest.approx(0.038416, abs=1e-4)
+
+
+# --- World generation sync tests ---
+
+from chronicler.world_gen import generate_world
+
+
+def test_world_gen_syncs_region_asabiya():
+    """After world gen, each controlled region's asabiya matches its civ's asabiya."""
+    world = generate_world(seed=42, num_regions=8, num_civs=4)
+    for civ in world.civilizations:
+        for rname in civ.regions:
+            region = next(r for r in world.regions if r.name == rname)
+            assert region.asabiya_state.asabiya == civ.asabiya, (
+                f"Region {rname} asabiya {region.asabiya_state.asabiya} != civ {civ.name} asabiya {civ.asabiya}"
+            )
+
+
+def test_world_gen_uncontrolled_regions_default():
+    """Uncontrolled regions keep default asabiya 0.5."""
+    world = generate_world(seed=42, num_regions=8, num_civs=2)
+    for region in world.regions:
+        if region.controller is None:
+            assert region.asabiya_state.asabiya == 0.5
