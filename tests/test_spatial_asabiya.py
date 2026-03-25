@@ -598,7 +598,7 @@ def test_no_direct_civ_asabiya_writes():
         r"\.asabiya\s*\+=",
         r'acc\.add\([^)]*"asabiya"',
     ]
-    allowed_files = {"simulation.py", "world_gen.py", "scenario.py", "models.py", "politics.py"}
+    allowed_files = {"simulation.py", "world_gen.py", "scenario.py", "models.py"}
 
     violations = []
     for root, _dirs, files in os.walk(src_dir):

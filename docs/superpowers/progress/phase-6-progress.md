@@ -243,6 +243,22 @@
 - **Key design decisions:** Attractor positions static (computed once from seed), weights dynamic (recomputed from RegionState each tick). Two-pass drift (snapshot then compute then write) for determinism. Spatial code no-op when attractors empty (backward compatible). Sort threshold at 100K agents. All constants [CALIBRATE M61b].
 - **Deferred:** Market attractor (reserved, inactive until M58a). Disease proximity spreading. Formation behavior change. Bundle schema changes.
 
+### M55b: Spatial Asabiya — implemented on `codex/m54a-rust-ecology`
+
+- 11 implementation commits on `codex/m54a-rust-ecology` plus final crystallization review fixes. 35 targeted M55b tests passing.
+- **Spec:** `docs/superpowers/specs/2026-03-24-m55b-spatial-asabiya-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-24-m55b-spatial-asabiya.md`
+- **Python:**
+  - `models.py`: `RegionAsabiya` sub-model on `Region`, `asabiya_variance` on `Civilization` and `CivSnapshot`.
+  - `simulation.py`: `apply_asabiya_dynamics()` rewritten to compute per-region frontier fractions, apply the gradient frontier formula, and aggregate mean/variance back to civ level after politics and before collapse.
+  - `politics.py`, `emergence.py`, `leaders.py`, `scenario.py`, `world_gen.py`: scalar `civ.asabiya` mutation sites migrated to region-broadcast D-policy helpers or initialization sync.
+  - `main.py`: `CivSnapshot` export includes `asabiya_variance`.
+- **Tests:**
+  - `tests/test_spatial_asabiya.py` covers frontier math, weighted aggregation, D-policy routing, phase ordering, convergence, determinism, and scalar-write guards.
+  - Existing politics, leaders, and culture tests updated for region-backed asabiya writes.
+- **Key design decisions:** Spot mutations broadcast to all owned regions, frontier detection is purely geographic (`different controller OR uncontrolled`), military projection and collapse-variance gameplay hooks are deferred, and conquered regions keep their prior regional asabiya instead of instant assimilation.
+- **Crystallization fixes (2026-03-24):** restoration no longer writes a redundant direct `restored_civ.asabiya = 0.8` scalar that is immediately recomputed from region state, zero-pop / dead civs now reset `asabiya_variance` to `0.0`, and the scalar-write guard test now checks `politics.py` too.
+
 ---
 
 ## Current Status

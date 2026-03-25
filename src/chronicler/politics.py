@@ -1076,7 +1076,6 @@ def check_restoration(world: WorldState) -> list[Event]:
             restored_civ.stability = 50
             restored_civ.treasury = 0
             restored_civ.tech_era = restored_era
-            restored_civ.asabiya = 0.8
             restored_civ.leader = restored_leader
             restored_civ.regions = [target_region]
             restored_civ.capital_region = target_region

@@ -642,6 +642,7 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
     # Step 3: Aggregate to civ-level
     for civ in world.civilizations:
         if len(civ.regions) == 0:
+            civ.asabiya_variance = 0.0
             continue
         total_pop = 0
         weighted_sum = 0.0
@@ -656,6 +657,7 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
             region_data.append((r.asabiya_state.asabiya, pop))
 
         if total_pop == 0:
+            civ.asabiya_variance = 0.0
             continue  # Keep existing civ.asabiya
 
         mean_a = weighted_sum / total_pop
