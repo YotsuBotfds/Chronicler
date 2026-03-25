@@ -313,6 +313,7 @@ def execute_run(
                     stability=civ.stability,
                     treasury=civ.treasury,
                     asabiya=civ.asabiya,
+                    asabiya_variance=civ.asabiya_variance,
                     tech_era=civ.tech_era,
                     trait=civ.leader.trait,
                     regions=list(civ.regions),

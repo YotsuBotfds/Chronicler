@@ -1043,8 +1043,6 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
                     curr_priest_counts[civ_name] = curr_priest_counts.get(civ_name, 0) + 1
         world._prev_priest_counts = curr_priest_counts
 
-    apply_asabiya_dynamics(world)
-
     from chronicler.politics import (
         check_capital_loss, check_secession, check_vassal_rebellion,
         check_federation_formation, check_federation_dissolution, update_allied_turns,
@@ -1064,6 +1062,7 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
     collapse_events.extend(check_restoration(world))
     collapse_events.extend(check_twilight_absorption(world))
     update_decline_tracking(world)
+    apply_asabiya_dynamics(world)
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
             if len(civ.regions) > 1:
@@ -1493,7 +1492,7 @@ def run_turn(
 
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
-        acc.apply_keep(world)  # Apply treasury, asabiya, prestige
+        acc.apply_keep(world)  # Apply treasury, prestige (asabiya now regional, M55b)
         shocks = acc.to_shock_signals()
         demands = acc.to_demand_signals(get_civ_capacities(world))
         # Fold pending_shocks from last turn's Phase 10

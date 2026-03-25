@@ -263,10 +263,11 @@ class TestCulturalWorksEnhancement:
 
     def test_cultural_work_boosts_asabiya(self, drift_world):
         drift_world.civilizations[0].culture = 80
-        initial_asabiya = drift_world.civilizations[0].asabiya
+        initial_region_asabiya = drift_world.regions[0].asabiya_state.asabiya
         from chronicler.simulation import phase_cultural_milestones
         phase_cultural_milestones(drift_world)
-        assert drift_world.civilizations[0].asabiya == pytest.approx(initial_asabiya + 0.05)
+        # M55b D-policy: delta applied to region-level asabiya, not civ-level
+        assert drift_world.regions[0].asabiya_state.asabiya == pytest.approx(initial_region_asabiya + 0.05)
 
 
 class TestWorldGenCulture:

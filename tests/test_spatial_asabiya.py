@@ -304,3 +304,18 @@ def test_world_gen_uncontrolled_regions_default():
     for region in world.regions:
         if region.controller is None:
             assert region.asabiya_state.asabiya == 0.5
+
+
+# --- Phase 10 ordering tests ---
+
+
+def test_phase10_ordering_rebellion_before_tick():
+    """Structural guard: asabiya tick must run after politics writes and before collapse read."""
+    import inspect
+    import chronicler.simulation as sim
+
+    src = inspect.getsource(sim.phase_consequences)
+    idx_vassal = src.index("check_vassal_rebellion")
+    idx_asabiya = src.index("apply_asabiya_dynamics(world)")
+    idx_collapse = src.index("if civ.asabiya < 0.1 and civ.stability <= 20")
+    assert idx_vassal < idx_asabiya < idx_collapse
