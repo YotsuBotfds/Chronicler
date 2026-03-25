@@ -583,3 +583,36 @@ def test_conquest_updates_frontier_fractions():
     apply_asabiya_dynamics(world)
     assert r1.asabiya_state.frontier_fraction == 0.0
     assert r2.asabiya_state.frontier_fraction == 0.0
+
+
+# --- No-scalar-write guard ---
+
+import os
+
+
+def test_no_direct_civ_asabiya_writes():
+    """Guard: no code directly writes civ.asabiya outside apply_asabiya_dynamics."""
+    src_dir = os.path.join(os.path.dirname(__file__), "..", "src", "chronicler")
+    forbidden_patterns = [
+        r"\.asabiya\s*=(?!=)",
+        r"\.asabiya\s*\+=",
+        r'acc\.add\([^)]*"asabiya"',
+    ]
+    allowed_files = {"simulation.py", "world_gen.py", "scenario.py", "models.py", "politics.py"}
+
+    violations = []
+    for root, _dirs, files in os.walk(src_dir):
+        for fname in files:
+            if not fname.endswith(".py") or fname in allowed_files:
+                continue
+            fpath = os.path.join(root, fname)
+            with open(fpath, encoding="utf-8") as f:
+                for lineno, line in enumerate(f, 1):
+                    if ".asabiya_state.asabiya" in line:
+                        continue
+                    for pat in forbidden_patterns:
+                        import re
+                        if re.search(pat, line):
+                            violations.append(f"{fname}:{lineno}: {line.strip()}")
+
+    assert violations == [], f"Found direct civ.asabiya writes:\n" + "\n".join(violations)
