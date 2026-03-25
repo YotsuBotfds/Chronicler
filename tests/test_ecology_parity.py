@@ -157,8 +157,26 @@ def _make_ecology_region_batch(
     })
 
 
-# Active focus u8 mapping for oracle comparison
-FOCUS_MAP = {0: None, 1: "agriculture", 2: "metallurgy", 3: "mechanization"}
+# Active focus u8 mapping for oracle comparison.
+# Must match agent_bridge._get_active_focus() / Rust ecology.rs.
+FOCUS_MAP = {
+    0: None,
+    1: "navigation",
+    2: "metallurgy",
+    3: "agriculture",
+    4: "fortification",
+    5: "commerce",
+    6: "scholarship",
+    7: "exploration",
+    8: "banking",
+    9: "printing",
+    10: "mechanization",
+    11: "railways",
+    12: "naval_power",
+    13: "networks",
+    14: "surveillance",
+    15: "media",
+}
 
 
 def _run_oracle_ecology_tick(
@@ -610,7 +628,7 @@ class TestSingleTurnParity:
             terrain_u8=TERRAIN_MAP["forest"], soil=0.70, water=0.70, forest_cover=0.80,
             population=10, carrying_capacity=50, capacity_modifier=1.0,
             climate_phase_u8=3,  # cooling
-            has_mine=False, has_irrigation=False, active_focus_u8=1,  # agriculture
+            has_mine=False, has_irrigation=False, active_focus_u8=3,  # agriculture
             disease_baseline=0.01, endemic_severity=0.01,
             prev_turn_water=0.70,
             resource_types=[RT_TIMBER, EMPTY_SLOT, EMPTY_SLOT],
