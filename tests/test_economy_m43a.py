@@ -587,7 +587,7 @@ def test_conservation_law():
 
     c = result.conservation
     inputs = old_total + c["production"]
-    outputs = new_total + c["consumption"] + c["transit_loss"] + c["storage_loss"] + c["cap_overflow"]
+    outputs = new_total + c["consumption"] + c["transit_loss"] + c["storage_loss"] + c["cap_overflow"] + c["clamp_floor_loss"]
     assert abs(inputs - outputs) < 0.01, (
         f"Conservation violated: inputs={inputs:.2f}, outputs={outputs:.2f}, "
         f"diff={abs(inputs - outputs):.4f}, conservation={c}"

@@ -884,7 +884,7 @@ def apply_injected_event(
 
 # --- Phase 10: Consequences ---
 
-def phase_consequences(world: WorldState, acc=None) -> list[Event]:
+def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
     for condition in world.active_conditions:
         condition.duration -= 1
@@ -1045,25 +1045,41 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
                     curr_priest_counts[civ_name] = curr_priest_counts.get(civ_name, 0) + 1
         world._prev_priest_counts = curr_priest_counts
 
-    from chronicler.politics import (
-        check_capital_loss, check_secession, check_vassal_rebellion,
-        check_federation_formation, check_federation_dissolution, update_allied_turns,
-    )
     collapse_events: list[Event] = []
     # M38b: flush buffered persecution events (computed in religion block above)
     collapse_events.extend(_persecution_events)
-    collapse_events.extend(check_capital_loss(world, acc=acc))
-    collapse_events.extend(check_secession(world, acc=acc))
-    update_allied_turns(world)
-    collapse_events.extend(check_vassal_rebellion(world, acc=acc))
-    collapse_events.extend(check_federation_formation(world))
-    collapse_events.extend(check_federation_dissolution(world, acc=acc))
-    from chronicler.politics import check_proxy_detection, check_restoration
-    from chronicler.politics import check_twilight_absorption, update_decline_tracking
-    collapse_events.extend(check_proxy_detection(world, acc=acc))
-    collapse_events.extend(check_restoration(world))
-    collapse_events.extend(check_twilight_absorption(world))
-    update_decline_tracking(world)
+    # M54c: Route the Phase 10 politics sub-pass through Rust when a runtime
+    # is available (both agent-backed modes and --agents=off).  Falls back to
+    # the Python oracle when no runtime is present (e.g. bare unit tests that
+    # call phase_consequences directly without constructing a simulator).
+    if politics_runtime is not None:
+        from chronicler.politics import call_rust_politics, apply_politics_ops
+        hybrid_mode = world.agent_mode == "hybrid"
+        ops = call_rust_politics(politics_runtime, world, hybrid_mode)
+        # M55b keeps collapse after regional aggregation. Rust politics still
+        # computes step-11 collapse from the pre-aggregation civ scalar, so we
+        # apply only steps 1-10 here and keep the collapse check below.
+        collapse_events.extend(apply_politics_ops(world, [op for op in ops if op[0] != 11]))
+    else:
+        # Legacy Python oracle path (used by tests and as parity reference)
+        from chronicler.politics import (
+            check_capital_loss, check_secession, check_vassal_rebellion,
+            check_federation_formation, check_federation_dissolution,
+            update_allied_turns,
+        )
+        collapse_events.extend(check_capital_loss(world, acc=acc))
+        collapse_events.extend(check_secession(world, acc=acc))
+        update_allied_turns(world)
+        collapse_events.extend(check_vassal_rebellion(world, acc=acc))
+        collapse_events.extend(check_federation_formation(world))
+        collapse_events.extend(check_federation_dissolution(world, acc=acc))
+        from chronicler.politics import check_proxy_detection, check_restoration
+        from chronicler.politics import check_twilight_absorption, update_decline_tracking
+        collapse_events.extend(check_proxy_detection(world, acc=acc))
+        collapse_events.extend(check_restoration(world))
+        collapse_events.extend(check_twilight_absorption(world))
+        update_decline_tracking(world)
+
     apply_asabiya_dynamics(world)
     for civ in world.civilizations:
         if civ.asabiya < 0.1 and civ.stability <= 20:
@@ -1075,8 +1091,11 @@ def phase_consequences(world: WorldState, acc=None) -> list[Event]:
                     if region.name in lost:
                         region.controller = None
                 if world.agent_mode == "hybrid":
-                    world.pending_shocks.append(CivShock(civ_idx,
-                        military_shock=-0.5, economy_shock=-0.5))
+                    world.pending_shocks.append(CivShock(
+                        civ_idx,
+                        military_shock=-0.5,
+                        economy_shock=-0.5,
+                    ))
                 else:
                     civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
                     civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
@@ -1376,6 +1395,7 @@ def run_turn(
     agent_bridge: object | None = None,
     economy_tracker: object | None = None,
     ecology_runtime: object | None = None,
+    politics_runtime: object | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     from chronicler.accumulator import StatAccumulator
@@ -1404,18 +1424,35 @@ def run_turn(
     env_rng = _random_m35b.Random(seed + world.turn * 1013)
     turn_events.extend(check_environmental_events(world, env_rng))
 
-    # --- M42: Goods economy (Phase 2 sub-sequence) ---
+    # --- M42/M54b: Goods economy (Phase 2 sub-sequence) ---
+    # M54b: Route through Rust economy when agent-backed snapshot exists.
+    # Python compute_economy() remains available as the parity oracle for tests.
     economy_result = None
     if agent_bridge is not None:
-        from chronicler.economy import compute_economy
         region_map = {r.name: r for r in world.regions}
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
-            from chronicler.resources import get_active_trade_routes
+            from chronicler.resources import get_active_trade_routes, get_season_id
+            from chronicler.economy import (
+                build_economy_region_input_batch,
+                build_economy_trade_route_batch,
+                reconstruct_economy_result,
+            )
+            from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             active_routes = get_active_trade_routes(world)
-            economy_result = compute_economy(
-                world, snapshot, region_map, agent_mode=True,
-                active_trade_routes=active_routes,
+            region_input = build_economy_region_input_batch(world)
+            trade_route_input = build_economy_trade_route_batch(
+                world, active_trade_routes=active_routes,
+            )
+            season_id = get_season_id(world.turn)
+            is_winter = season_id == 3
+            trade_friction = get_multiplier(world, K_TRADE_FRICTION)
+            rust_return = agent_bridge._sim.tick_economy(
+                region_input, trade_route_input,
+                season_id, is_winter, trade_friction,
+            )
+            economy_result = reconstruct_economy_result(
+                *rust_return, world,
             )
             agent_bridge.set_economy_result(economy_result)
 
@@ -1533,7 +1570,13 @@ def run_turn(
     # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.
     # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
     phase10_acc = acc if world.agent_mode == "hybrid" else None
-    turn_events.extend(phase_consequences(world, acc=phase10_acc))
+    # M54c: Determine the politics runtime for this turn.
+    # In agent modes, use the AgentSimulator via the bridge.
+    # In off mode, use the dedicated PoliticsSimulator (if provided).
+    _pol_rt = politics_runtime  # off-mode PoliticsSimulator (or None)
+    if agent_bridge is not None:
+        _pol_rt = agent_bridge._sim  # AgentSimulator has tick_politics()
+    turn_events.extend(phase_consequences(world, acc=phase10_acc, politics_runtime=_pol_rt))
     prune_inactive_wars(world)
 
     # M40: Unified relationship formation and dissolution

@@ -79,6 +79,11 @@ PER_GOOD_CAP_FACTOR: float = 5.0 * PER_CAPITA_FOOD
 INITIAL_BUFFER: float = 2.0 * PER_CAPITA_FOOD
 CONQUEST_STOCKPILE_SURVIVAL: float = 0.5
 
+# M54b: Fixed good slot ordering for FFI — no variable-length dicts cross the boundary
+FIXED_GOODS: tuple[str, ...] = (
+    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
+)
+
 _CATEGORY_MAP: dict[int, str] = {
     0: "food",          # GRAIN
     1: "raw_material",  # TIMBER
@@ -376,15 +381,25 @@ def accumulate_stockpile(
     production: dict[str, float],
     exports: dict[str, float],
     imports: dict[str, float],
-) -> None:
-    """Add (production - exports + imports) to stockpile per good. Mutates in place."""
+) -> float:
+    """Add (production - exports + imports) to stockpile per good. Mutates in place.
+
+    Returns total clamp floor loss (goods lost to non-negative clamping).
+    """
+    clamp_floor_loss = 0.0
     all_keys = set(goods.keys()) | set(production.keys()) | set(exports.keys()) | set(imports.keys())
     for good in all_keys:
         current = goods.get(good, 0.0)
         produced = production.get(good, 0.0)
         exported = exports.get(good, 0.0)
         imported = imports.get(good, 0.0)
-        goods[good] = max(current + (produced - exported) + imported, 0.0)
+        raw = current + (produced - exported) + imported
+        if raw < 0.0:
+            clamp_floor_loss += -raw
+            goods[good] = 0.0
+        else:
+            goods[good] = raw
+    return clamp_floor_loss
 
 
 def derive_food_sufficiency_from_stockpile(
@@ -500,7 +515,7 @@ class EconomyResult:
     # M43a: Conservation law tracking
     conservation: dict[str, float] = field(default_factory=lambda: {
         "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
-        "storage_loss": 0.0, "cap_overflow": 0.0,
+        "storage_loss": 0.0, "cap_overflow": 0.0, "clamp_floor_loss": 0.0,
     })
     # M43b: Supply shock detection and trade dependency
     imports_by_region: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -740,6 +755,175 @@ def _extract_civ_priest_count(
     """Count of priests for a civ. Uses pre-extracted arrays."""
     mask = (civ_affinity == civ_idx) & (occupations == 4)
     return int(mask.sum())
+
+
+# ---------------------------------------------------------------------------
+# M54b: Dedicated economy FFI batch builders
+# ---------------------------------------------------------------------------
+
+def build_economy_region_input_batch(world) -> "pa.RecordBatch":
+    """Pack world-state inputs for the Rust economy kernel.
+
+    One row per region. Columns: region_id, terrain, storage_population,
+    resource_type_0, resource_effective_yield_0, stockpile_<good> x8.
+    Does NOT include agent counts — Rust derives those from the live pool.
+    """
+    import pyarrow as pa
+    from chronicler.agent_bridge import TERRAIN_MAP
+
+    regions = world.regions
+    data = {
+        "region_id": pa.array(range(len(regions)), type=pa.uint16()),
+        "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in regions], type=pa.uint8()),
+        "storage_population": pa.array([r.population for r in regions], type=pa.uint16()),
+        "resource_type_0": pa.array([r.resource_types[0] for r in regions], type=pa.uint8()),
+        "resource_effective_yield_0": pa.array(
+            [r.resource_effective_yields[0] for r in regions], type=pa.float32(),
+        ),
+    }
+    for good in FIXED_GOODS:
+        data[f"stockpile_{good}"] = pa.array(
+            [r.stockpile.goods.get(good, 0.0) for r in regions], type=pa.float32(),
+        )
+    return pa.record_batch(data)
+
+
+def build_economy_trade_route_batch(world, active_trade_routes=None) -> "pa.RecordBatch":
+    """Pack decomposed boundary-pair trade routes for the Rust economy kernel.
+
+    Rows are stable-sorted by (origin_region_id, dest_region_id).
+    Columns: origin_region_id, dest_region_id, is_river.
+    """
+    import pyarrow as pa
+
+    if active_trade_routes is None:
+        from chronicler.resources import get_active_trade_routes
+        active_trade_routes = get_active_trade_routes(world)
+
+    region_map = {r.name: r for r in world.regions}
+    region_idx_map = {r.name: i for i, r in enumerate(world.regions)}
+    river_pairs = build_river_route_set(world.rivers) if hasattr(world, "rivers") and world.rivers else set()
+
+    civ_lookup: dict[str, set[str]] = {}
+    for civ in world.civilizations:
+        if len(civ.regions) > 0:
+            civ_lookup[civ.name] = set(civ.regions)
+
+    pairs: list[tuple[str, str]] = []
+    for civ_a_name, civ_b_name in active_trade_routes:
+        if civ_a_name not in civ_lookup or civ_b_name not in civ_lookup:
+            continue
+        a_regions = civ_lookup[civ_a_name]
+        b_regions = civ_lookup[civ_b_name]
+        for src_regions, dst_regions in [(a_regions, b_regions), (b_regions, a_regions)]:
+            pairs.extend(decompose_trade_routes(src_regions, dst_regions, region_map))
+
+    # Stable sort by (origin_region_id, dest_region_id)
+    pairs.sort(key=lambda p: (region_idx_map[p[0]], region_idx_map[p[1]]))
+
+    origin_ids = []
+    dest_ids = []
+    is_river_flags = []
+    for origin, dest in pairs:
+        origin_ids.append(region_idx_map[origin])
+        dest_ids.append(region_idx_map[dest])
+        is_river_flags.append(frozenset({origin, dest}) in river_pairs)
+
+    return pa.record_batch({
+        "origin_region_id": pa.array(origin_ids, type=pa.uint16()),
+        "dest_region_id": pa.array(dest_ids, type=pa.uint16()),
+        "is_river": pa.array(is_river_flags, type=pa.bool_()),
+    })
+
+
+def reconstruct_economy_result(
+    region_result_batch,
+    civ_result_batch,
+    observability_batch,
+    upstream_sources_batch,
+    conservation_batch,
+    world,
+) -> EconomyResult:
+    """Reconstruct a Python EconomyResult from five Rust return batches.
+
+    Produces the same field shapes as compute_economy() so that downstream
+    consumers (agent_bridge, action_engine, tick_factions, EconomyTracker,
+    detect_supply_shocks) need no contract changes.
+    """
+    result = EconomyResult()
+    region_names = [r.name for r in world.regions]
+    n_regions = len(region_names)
+
+    # --- Region result batch → stockpile write-back + signals ---
+    rr_ids = region_result_batch.column("region_id").to_pylist()
+    for col_good in FIXED_GOODS:
+        vals = region_result_batch.column(f"stockpile_{col_good}").to_pylist()
+        for i, rid in enumerate(rr_ids):
+            rname = region_names[rid]
+            world.regions[rid].stockpile.goods[col_good] = vals[i]
+
+    for signal in ("farmer_income_modifier", "food_sufficiency", "merchant_margin", "merchant_trade_income"):
+        vals = region_result_batch.column(signal).to_pylist()
+        target = {
+            "farmer_income_modifier": result.farmer_income_modifiers,
+            "food_sufficiency": result.food_sufficiency,
+            "merchant_margin": result.merchant_margins,
+            "merchant_trade_income": result.merchant_trade_incomes,
+        }[signal]
+        for i, rid in enumerate(rr_ids):
+            target[region_names[rid]] = vals[i]
+
+    trc_vals = region_result_batch.column("trade_route_count").to_pylist()
+    for i, rid in enumerate(rr_ids):
+        result.trade_route_counts[region_names[rid]] = trc_vals[i]
+
+    # --- Civ result batch → fiscal outputs ---
+    cr_ids = civ_result_batch.column("civ_id").to_pylist()
+    for field_name, target in [
+        ("treasury_tax", result.treasury_tax),
+        ("tithe_base", result.tithe_base),
+        ("priest_tithe_share", result.priest_tithe_shares),
+    ]:
+        vals = civ_result_batch.column(field_name).to_pylist()
+        for i, cid in enumerate(cr_ids):
+            target[cid] = vals[i]
+
+    # --- Observability batch → imports, stockpile levels, trade dependency ---
+    obs_ids = observability_batch.column("region_id").to_pylist()
+    for i, rid in enumerate(obs_ids):
+        rname = region_names[rid]
+        result.imports_by_region[rname] = {
+            cat: observability_batch.column(f"imports_{cat}").to_pylist()[i]
+            for cat in CATEGORIES
+        }
+        result.stockpile_levels[rname] = {
+            cat: observability_batch.column(f"stockpile_{cat}").to_pylist()[i]
+            for cat in CATEGORIES
+        }
+        result.import_share[rname] = observability_batch.column("import_share").to_pylist()[i]
+        result.trade_dependent[rname] = bool(observability_batch.column("trade_dependent").to_pylist()[i])
+
+    # --- Upstream sources batch → inbound_sources ---
+    if upstream_sources_batch.num_rows > 0:
+        dest_ids = upstream_sources_batch.column("dest_region_id").to_pylist()
+        ordinals = upstream_sources_batch.column("source_ordinal").to_pylist()
+        source_ids = upstream_sources_batch.column("source_region_id").to_pylist()
+        # Group by dest, sort by ordinal, map ids to names
+        from collections import defaultdict
+        grouped: dict[int, list[tuple[int, int]]] = defaultdict(list)
+        for dest_id, ordinal, source_id in zip(dest_ids, ordinals, source_ids):
+            grouped[dest_id].append((ordinal, source_id))
+        for dest_id, entries in grouped.items():
+            entries.sort(key=lambda x: x[0])
+            result.inbound_sources[region_names[dest_id]] = [
+                region_names[src_id] for _, src_id in entries
+            ]
+
+    # --- Conservation batch ---
+    for field_name in ("production", "transit_loss", "consumption", "storage_loss", "cap_overflow", "clamp_floor_loss"):
+        result.conservation[field_name] = conservation_batch.column(field_name).to_pylist()[0]
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1005,12 +1189,13 @@ def compute_economy(
         demand = region_demand.get(rname, _empty_category_dict())
 
         # Step 2g: Stockpile accumulation
-        accumulate_stockpile(
+        clamp_loss = accumulate_stockpile(
             region.stockpile.goods,
             production=region_per_good_production.get(rname, {}),
             exports=region_per_good_exports.get(rname, {}),
             imports=region_per_good_imports.get(rname, {}),
         )
+        result.conservation["clamp_floor_loss"] += clamp_loss
 
         # Step 2h: food_sufficiency from pre-consumption stockpile
         food_demand = demand.get("food", 0.0)

@@ -1,0 +1,121 @@
+{
+  "metadata": {
+    "generated_utc": "2026-03-24T13:45:53.593337+00:00",
+    "hostname": "DESKTOP-98334VU",
+    "platform": "Windows-11-10.0.22631-SP0",
+    "python_version": "3.14.3",
+    "python_executable": "C:\\Users\\tateb\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+    "cwd": "C:\\Users\\tateb\\Documents\\opusprogram_m54c_clean",
+    "git_head": "abddd649768c23ffe0fbc198e966895afbf7e742"
+  },
+  "decision": "ACCEPT_CONTROL_MATCHED",
+  "candidate": {
+    "name": "candidate",
+    "path": "output\\m54c\\codex_m53_secession_threshold25_full_500turn_purepolitics_cleanbranch\\batch_1\\validate_report.json",
+    "core_oracles_ok": true,
+    "regression": {
+      "status": "FAIL",
+      "satisfaction_mean": 0.4425,
+      "satisfaction_std": 0.1141,
+      "migration_rate_per_agent_turn": 0.073727,
+      "rebellion_rate_per_agent_turn": 0.074185,
+      "gini_in_range_fraction": 0.9435,
+      "occupation_ok": true
+    },
+    "determinism_status": "SKIP"
+  },
+  "controls": [
+    {
+      "name": "control_1",
+      "path": "C:\\Users\\tateb\\Documents\\opusprogram_m54b\\output\\m54b\\codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine\\batch_1\\validate_report.json",
+      "core_oracles_ok": true,
+      "regression": {
+        "status": "FAIL",
+        "satisfaction_mean": 0.446,
+        "satisfaction_std": 0.1114,
+        "migration_rate_per_agent_turn": 0.07332,
+        "rebellion_rate_per_agent_turn": 0.073669,
+        "gini_in_range_fraction": 0.9467,
+        "occupation_ok": true
+      },
+      "determinism_status": "SKIP"
+    },
+    {
+      "name": "control_2",
+      "path": "C:\\Users\\tateb\\Documents\\opusprogram_m54b\\output\\m54b\\codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine_run2\\batch_1\\validate_report.json",
+      "core_oracles_ok": true,
+      "regression": {
+        "status": "FAIL",
+        "satisfaction_mean": 0.446,
+        "satisfaction_std": 0.1114,
+        "migration_rate_per_agent_turn": 0.07332,
+        "rebellion_rate_per_agent_turn": 0.073669,
+        "gini_in_range_fraction": 0.9467,
+        "occupation_ok": true
+      },
+      "determinism_status": "SKIP"
+    },
+    {
+      "name": "control_3",
+      "path": "C:\\Users\\tateb\\Documents\\opusprogram_m54b\\output\\m54b\\codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine_run3\\batch_1\\validate_report.json",
+      "core_oracles_ok": true,
+      "regression": {
+        "status": "FAIL",
+        "satisfaction_mean": 0.446,
+        "satisfaction_std": 0.1114,
+        "migration_rate_per_agent_turn": 0.07332,
+        "rebellion_rate_per_agent_turn": 0.073669,
+        "gini_in_range_fraction": 0.9467,
+        "occupation_ok": true
+      },
+      "determinism_status": "SKIP"
+    }
+  ],
+  "accepted_baseline": {
+    "name": "accepted_baseline",
+    "path": "C:\\Users\\tateb\\Documents\\opusprogram_m54b\\output\\m54b\\codex_m53_secession_threshold25_full_500turn_bootstrapfix\\batch_1\\validate_report.json",
+    "core_oracles_ok": true,
+    "regression": {
+      "status": "PASS",
+      "satisfaction_mean": 0.4533,
+      "satisfaction_std": 0.1135,
+      "migration_rate_per_agent_turn": 0.069793,
+      "rebellion_rate_per_agent_turn": 0.067079,
+      "gini_in_range_fraction": 0.9689,
+      "occupation_ok": true
+    },
+    "determinism_status": "SKIP"
+  },
+  "control_mean": {
+    "satisfaction_mean": 0.446,
+    "migration_rate_per_agent_turn": 0.07332,
+    "rebellion_rate_per_agent_turn": 0.073669,
+    "gini_in_range_fraction": 0.9467
+  },
+  "control_spread": {
+    "satisfaction_mean": 0.0,
+    "migration_rate_per_agent_turn": 0.0,
+    "rebellion_rate_per_agent_turn": 0.0,
+    "gini_in_range_fraction": 0.0
+  },
+  "candidate_delta_vs_control_mean": {
+    "satisfaction_mean": -0.003500000000000003,
+    "migration_rate_per_agent_turn": 0.0004070000000000046,
+    "rebellion_rate_per_agent_turn": 0.0005160000000000026,
+    "gini_in_range_fraction": -0.0031999999999999806
+  },
+  "tolerances": {
+    "satisfaction_delta_max": 0.005,
+    "migration_delta_max": 0.001,
+    "rebellion_delta_max": 0.001,
+    "gini_delta_max": 0.005
+  },
+  "checks": {
+    "controls_core_ok": true,
+    "controls_floor_only": true,
+    "candidate_core_ok": true,
+    "candidate_floor_only": true,
+    "candidate_absolute_pass": false,
+    "candidate_control_matched": true
+  }
+}

@@ -67,6 +67,22 @@ def _create_ecology_runtime(world):
         return None
 
 
+def _create_politics_runtime(world):
+    """Create a dedicated PoliticsSimulator for --agents=off mode.
+
+    Wraps construction so tests can mock this function without
+    requiring the compiled Rust module.
+    """
+    try:
+        from chronicler_agents import PoliticsSimulator
+        from chronicler.politics import configure_politics_runtime
+        pol_sim = PoliticsSimulator()
+        configure_politics_runtime(pol_sim, world)
+        return pol_sim
+    except ImportError:
+        return None
+
+
 def execute_run(
     args: argparse.Namespace,
     sim_client: LLMClient | None = None,
@@ -230,6 +246,11 @@ def execute_run(
     if agent_mode == "off":
         ecology_runtime = _create_ecology_runtime(world)
 
+    # M54c: Off-mode politics runtime (Rust politics without agent pool)
+    politics_runtime = None
+    if agent_mode == "off":
+        politics_runtime = _create_politics_runtime(world)
+
     # M43b: Economy tracker (persists across turns for EMA-based shock detection)
     economy_tracker = None
     if agent_bridge is not None:
@@ -293,6 +314,7 @@ def execute_run(
             agent_bridge=agent_bridge,
             economy_tracker=economy_tracker,
             ecology_runtime=ecology_runtime,
+            politics_runtime=politics_runtime,
         )
 
         # Capture per-turn snapshot for viewer bundle

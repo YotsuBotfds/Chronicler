@@ -512,6 +512,13 @@ class TestAgentsWiring:
         mock_bridge.ecology_simulator.apply_region_postpass_patch = MagicMock()
         # tick_agents returns a list of events (empty for mocks)
         mock_bridge.tick_agents.return_value = []
+
+        # M54c: Mock tick_politics to return 12 empty Arrow batches.
+        def _mock_tick_politics(*args, **kwargs):
+            empty = pa.record_batch({"step": pa.array([], type=pa.uint8())})
+            return tuple(empty for _ in range(12))
+
+        mock_bridge._sim.tick_politics = _mock_tick_politics
         return mock_bridge
 
     def test_agents_hybrid_sets_agent_mode(self, tmp_path):
@@ -792,3 +799,153 @@ class TestApiNarrationIntegration:
         assert output["metadata"]["narrator_mode"] == "api"
         assert output["metadata"]["api_input_tokens"] > 0
         assert output["metadata"]["api_output_tokens"] > 0
+
+
+# ── M54c Task 4: Politics Runtime Wiring Tests ─────────────────────
+
+
+class TestPoliticsRuntimeWiring:
+    """Prove that --agents=off routes through the dedicated PoliticsSimulator
+    and that the politics_runtime parameter is correctly threaded."""
+
+    def test_off_mode_constructs_politics_runtime(self, tmp_path):
+        """--agents=off should construct a PoliticsSimulator via _create_politics_runtime."""
+        from chronicler.main import _create_politics_runtime
+        from chronicler.world_gen import generate_world
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        rt = _create_politics_runtime(world)
+        # If the Rust crate is built, we get a real PoliticsSimulator.
+        # If not, we get None (and that's OK — the test proves the function exists
+        # and does not crash).
+        assert rt is None or hasattr(rt, "tick_politics")
+
+    def test_off_mode_politics_runtime_is_mockable(self, tmp_path):
+        """_create_politics_runtime can be patched so tests avoid Rust build dep."""
+        mock_sim = MagicMock()
+        mock_sim.tick_politics = MagicMock()
+        with patch("chronicler.main._create_politics_runtime", return_value=mock_sim):
+            from chronicler.main import _create_politics_runtime
+            rt = _create_politics_runtime(None)
+            assert rt is mock_sim
+
+    def test_off_mode_passes_politics_runtime_to_run_turn(self, tmp_path):
+        """In off-mode, execute_run threads politics_runtime into run_turn."""
+        import pyarrow as pa
+        from chronicler.simulation import run_turn as _original_run_turn
+
+        # Track whether run_turn receives the politics_runtime
+        captured = {}
+
+        original_run_turn = _original_run_turn
+
+        def tracking_run_turn(*args, **kwargs):
+            captured["politics_runtime"] = kwargs.get("politics_runtime")
+            return original_run_turn(*args, **kwargs)
+
+        mock_pol = MagicMock()
+        # tick_politics returns 12 empty batches
+        empty = pa.record_batch({"step": pa.array([], type=pa.uint8())})
+        mock_pol.tick_politics = MagicMock(return_value=tuple(empty for _ in range(12)))
+
+        args = argparse.Namespace(
+            seed=42, turns=1, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+            simulate_only=True, agents="off",
+        )
+
+        with patch("chronicler.main._create_politics_runtime", return_value=mock_pol), \
+             patch("chronicler.main.run_turn", side_effect=tracking_run_turn):
+            execute_run(args)
+
+        assert captured.get("politics_runtime") is mock_pol
+
+    def test_agent_mode_uses_bridge_sim_as_politics_runtime(self, tmp_path):
+        """In agent-backed modes, the AgentSimulator serves as politics_runtime."""
+        import pyarrow as pa
+
+        mock_bridge = MagicMock()
+        mock_bridge.close = MagicMock()
+        mock_bridge.get_snapshot.return_value = None
+        mock_bridge._sim.get_snapshot.return_value = None
+        mock_bridge.named_agents = {}
+        mock_bridge._collect_rel_stats = False
+        mock_bridge.relationship_stats = []
+        mock_bridge.tick_agents.return_value = []
+
+        def _mock_tick_ecology(turn, climate_phase, pandemic_mask, army_arrived_mask):
+            n = len(pandemic_mask)
+            region_batch = pa.record_batch({
+                "region_id": pa.array(range(n), type=pa.uint16()),
+                "soil": pa.array([0.8] * n, type=pa.float32()),
+                "water": pa.array([0.6] * n, type=pa.float32()),
+                "forest_cover": pa.array([0.3] * n, type=pa.float32()),
+                "endemic_severity": pa.array([0.0] * n, type=pa.float32()),
+                "prev_turn_water": pa.array([0.6] * n, type=pa.float32()),
+                "soil_pressure_streak": pa.array([0] * n, type=pa.int32()),
+                "overextraction_streak_0": pa.array([0] * n, type=pa.int32()),
+                "overextraction_streak_1": pa.array([0] * n, type=pa.int32()),
+                "overextraction_streak_2": pa.array([0] * n, type=pa.int32()),
+                "resource_reserve_0": pa.array([1.0] * n, type=pa.float32()),
+                "resource_reserve_1": pa.array([1.0] * n, type=pa.float32()),
+                "resource_reserve_2": pa.array([1.0] * n, type=pa.float32()),
+                "resource_effective_yield_0": pa.array([0.5] * n, type=pa.float32()),
+                "resource_effective_yield_1": pa.array([0.5] * n, type=pa.float32()),
+                "resource_effective_yield_2": pa.array([0.5] * n, type=pa.float32()),
+                "current_turn_yield_0": pa.array([0.5] * n, type=pa.float32()),
+                "current_turn_yield_1": pa.array([0.5] * n, type=pa.float32()),
+                "current_turn_yield_2": pa.array([0.5] * n, type=pa.float32()),
+            })
+            event_batch = pa.record_batch({
+                "event_type": pa.array([], type=pa.uint8()),
+                "region_id": pa.array([], type=pa.uint16()),
+                "slot": pa.array([], type=pa.uint8()),
+                "magnitude": pa.array([], type=pa.float32()),
+            })
+            return (region_batch, event_batch)
+
+        mock_bridge.ecology_simulator.tick_ecology = _mock_tick_ecology
+        mock_bridge.ecology_simulator.apply_region_postpass_patch = MagicMock()
+
+        # M54c: Mock tick_politics
+        empty = pa.record_batch({"step": pa.array([], type=pa.uint8())})
+        mock_bridge._sim.tick_politics = MagicMock(
+            return_value=tuple(empty for _ in range(12))
+        )
+
+        import sys
+        args = argparse.Namespace(
+            seed=42, turns=1, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+            simulate_only=True, agents="hybrid",
+        )
+        mock_ab_module = MagicMock()
+        mock_ab_module.AgentBridge = MagicMock(return_value=mock_bridge)
+        saved = sys.modules.get("chronicler.agent_bridge")
+        sys.modules["chronicler.agent_bridge"] = mock_ab_module
+        try:
+            execute_run(args)
+        finally:
+            if saved is None:
+                sys.modules.pop("chronicler.agent_bridge", None)
+            else:
+                sys.modules["chronicler.agent_bridge"] = saved
+
+        # Verify tick_politics was called on the bridge's _sim
+        assert mock_bridge._sim.tick_politics.call_count >= 1
+
+    def test_phase_consequences_falls_back_to_oracle_without_runtime(self):
+        """When politics_runtime is None, phase_consequences uses the Python oracle."""
+        from chronicler.simulation import phase_consequences
+        from chronicler.world_gen import generate_world
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        # Advance past the prelude to just the politics pass
+        world.turn = 10
+        # Should not raise — falls back to Python oracle
+        events = phase_consequences(world, acc=None, politics_runtime=None)
+        assert isinstance(events, list)

@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-22 (M53 canonical validation passed on `feat/m53-depth-tuning`)
+> **Last updated:** 2026-03-25 (M55a + M55b crystallized on top of the accepted M54 line; canonical 200x500 gate recovered and re-passed)
 
 ---
 
@@ -457,16 +457,58 @@
   - `culture.py`: Ephemeral artifact prestige in `tick_prestige()` trade bonus.
 - **Key design decisions:** Intent-based creation (intents emitted from multiple sites, `tick_artifacts()` processes them). Artifact naming with cultural flavor vocabulary. `CULTURAL_PRODUCTION_CHANCE=0.15`, `GP_PRESTIGE_THRESHOLD=50`, `RELIC_CONVERSION_BONUS=0.15`.
 
+### M54c: Rust Politics Migration — closed (control-matched adjudication)
+
+- **Branch:** `codex/m54c-rust-politics-clean` is the clean squash integration branch cut from `main` after M54b merged. The original `codex/m54c-rust-politics` branch is retained only as implementation history.
+- **Spec:** `docs/superpowers/specs/2026-03-22-m54c-rust-politics-migration-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-23-m54c-rust-politics-migration.md` (5 tasks)
+- **What landed:**
+  - **Task 1:** Python politics oracle frozen. Dedicated FFI batch builders (`build_politics_*_batch()`), `reconstruct_politics_ops()`, and ordered `apply_politics_ops()` in `politics.py`. 47 builder/apply/oracle tests in `test_politics_bridge.py`.
+  - **Task 2:** Pure Rust politics core in `politics.rs`: 11-step ordered Phase 10 consequence pass, helper functions (`graph_distance`, `effective_capacity`, `get_severity_multiplier`, `stable_hash_int`), typed op emission. 40 Rust scenario/determinism/ordering tests in `test_politics.rs`.
+  - **Task 3:** Politics FFI surface in `ffi.rs`: `tick_politics()` entry point, `set_politics_config()`, 12 centralized schema helpers, dedicated `PoliticsSimulator` for `--agents=off`. Arrow batch conversion helpers in `politics.py`.
+  - **Task 4:** Production routing in `simulation.py`: Phase 10 politics sub-pass routes through Rust when `politics_runtime` is available (both agent-backed and off-mode). Python oracle fallback for bare unit tests. `main.py` constructs `PoliticsSimulator` for off-mode and threads `politics_runtime` through `execute_run()`/`run_turn()`/`phase_consequences()`.
+  - **Task 5:** Parity and determinism safety net. 35 Python parity tests in `test_politics_parity.py` (structural parity, apply-layer parity, forced-outcome parity, transient lifecycle, pending shock semantics, step ordering, 20-seed determinism). 6 new Rust determinism tests in `test_politics.rs` (20-seed determinism, complex topology determinism, event merge order stability, forced outcome determinism).
+- **Test results (final):**
+  - Rust: 46 politics tests + 74 ecology/economy tests = 120 integration tests passing.
+  - Python: 257 tests passing across `test_politics.py`, `test_politics_bridge.py`, `test_politics_parity.py`, `test_agent_bridge.py`, `test_main.py`.
+- **Final review fixes (2026-03-23):**
+  - `apply_politics_ops()` now keeps a stable mapping for existing federation refs while dissolves shift `world.federations`, so later append/remove ops still target the intended federation in the same ordered apply pass.
+  - `_materialize_restored_civ()` now resets war-frequency state on the absorber when restoration strips its last region, matching the preserved Python oracle's extinction semantics for `war_weariness` and `peace_momentum`.
+  - Focused verification after those fixes: `cargo nextest run --test test_politics` (`54 passed`) and `python -m pytest tests/test_action_engine.py tests/test_politics_bridge.py tests/test_politics_parity.py -q` (`170 passed`).
+  - Additional hybrid A/B parity harness: seeds `1-20`, `200` turns each, Rust Phase 10 politics vs forced-Python oracle, all matched after excluding timeline/raw-event sidecar fields.
+- **Post-review closeout (2026-03-24):**
+  - Backed out the stray economy civ-row patch from the M54c branch so the comparison line stays politics-only (`src/chronicler/economy.py`, `chronicler-agents/src/ffi.rs`, `tests/test_economy_bridge.py`).
+  - Preserved the original embargo target tie-break in `action_engine.py` and locked it with `test_embargo_preserves_relationship_iteration_tiebreak()`, so M54c does not silently change Phase 8 targeting behavior.
+  - Added coverage for the remaining politics edge cases: stable existing-federation refs across dissolves, non-truncated region-list round trips, proxy-war target-region matching, hybrid shock coalescing, restored-civ decline bookkeeping, and same-turn twilight viability after restoration.
+  - Focused verification after the review pass: `python -m pytest tests/test_economy_bridge.py tests/test_action_engine.py tests/test_politics_bridge.py tests/test_politics_parity.py -q` (`194 passed`) and `cargo nextest run --test test_economy --test test_politics` (`72 passed`).
+  - Cut clean squash-integration branch `codex/m54c-rust-politics-clean` at `caf263f`, which matches the reviewed M54c tree exactly while excluding the stray economy-only history detour from the original branch.
+- **Scope:** M54c stayed politics-only (no spatial sort). Spatial sort deferred to M55.
+- **Canonical 200-seed regression adjudication (2026-03-24):**
+  - Fresh clean-branch M54c rerun at `output/m54c/codex_m53_secession_threshold25_full_500turn_purepolitics_cleanbranch/batch_1/validate_report.json` passes `community`, `needs`, `era`, `cohort`, `artifacts`, and `arcs`, with `determinism=SKIP` as expected. `regression=FAIL` on `satisfaction_mean=0.4425` (other regression sub-metrics remain in range).
+  - Preserved same-machine M54b controls:
+    - `output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine/batch_1/validate_report.json`
+    - `output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine_run2/batch_1/validate_report.json`
+    - `output/m54b/codex_m53_secession_threshold25_full_500turn_control_recheck_current_machine_run3/batch_1/validate_report.json`
+    are identical and all fail only on `satisfaction_mean=0.4460`.
+  - Historical accepted M54b baseline remains `output/m54b/codex_m53_secession_threshold25_full_500turn_bootstrapfix/batch_1/validate_report.json` (`regression=PASS`, `satisfaction_mean=0.4533`), indicating the floor shift is baseline/provenance-related rather than M54c-specific.
+  - Formal adjudication artifact: `docs/superpowers/analytics/m54-baseline-adjudication-2026-03-24.md` and machine-readable output `docs/superpowers/analytics/m54-baseline-adjudication-2026-03-24.json`.
+  - M54 closeout rule: require core oracle pass plus control-relative deltas within tolerance (`|delta_satisfaction|<=0.005`, `|delta_migration|<=0.001`, `|delta_rebellion|<=0.001`, `|delta_gini|<=0.005`).
+- **Key decisions:**
+  - RNG parity between Python and Rust is structural, not numeric (different RNG engines). Probabilistic decisions are tested via forced-outcome scenarios and structural blocking conditions.
+  - Tie-breaking in capital reassignment differs (Python picks first-in-list, Rust picks last). Parity tests use distinct effective_capacity values to avoid ties.
+  - Python oracle functions preserved for test/parity reference. Deletion gated on both hybrid-mode and off-mode passing parity.
+
 ---
 
 ## Ready for Implementation
 
 **Next steps:**
-- **M54a:** Rust ecology migration is unblocked and can begin from the M53 passing baseline.
-- **M54a follow-up (2026-03-23):** Restored pre-M54a famine cooldown semantics so uncontrolled regions no longer decrement `famine_cooldown`, and added regression coverage for that path in `tests/test_ecology.py`.
-- **M54a wrap (2026-03-23):** Sidecar regression scoring now uses controlled-only occupation counts, so uncontrolled fallback buckets do not trip polity occupation caps. Fresh canonical `200 seeds x 500 turns` rerun at `output/m54a/codex_m53_secession_threshold25_full_500turn_controlled_occ/batch_1/validate_report.json` passes every oracle (`determinism=SKIP` remains expected because the gate has no duplicate seed pairs).
-- **M54b implementation handoff (2026-03-23):** `docs/superpowers/specs/2026-03-21-m54b-rust-economy-migration-design.md` now locks the post-M54a helper contract too: direct `PyRecordBatch` FFI shape, dedicated economy builders in `economy.py`, explicit `set_economy_config(...)` / `tick_economy(...)` expectations, and an explicit ban on reusing `build_region_batch()` / `set_region_state()` for Phase 2. Claude execution plan: `docs/superpowers/plans/2026-03-23-m54b-rust-economy-migration.md`.
-- **M54c pre-spec handoff (2026-03-22):** `docs/superpowers/plans/2026-03-22-m54c-pre-spec-handoff.md` captures the current politics seam, likely Phase 10 migration boundary, and the unresolved spatial-sort placement decision.
+- **M54 status:** M54a, M54b, and M54c are all closed on the clean line (`main` at `7c012d9` in this repo state).
+- **M54 regression policy:** Absolute `regression` floor remains informative, but final M54 signoff uses preserved same-machine control matching (`docs/superpowers/analytics/m54-baseline-adjudication-2026-03-24.md` and `.json`) to avoid false negatives from baseline/provenance shift.
+- **Operational tool:** `scripts/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
+- **M55 status:** M55a and M55b are both implemented and gated on the clean merge line. Final canonical artifact: `output/m55b/gate_food007_farmer030_stab280_p24/full_gate/batch_1/validate_all.json`.
+- **Gate recovery note:** The branch-level regression drift was not caused by M55b alone. Final recovery that restored the canonical gate on the accepted M54 runtime line combined (1) age stream staying at `1400`, (2) spatial streams moving to `2000/2001`, (3) `MEMORY_SATISFACTION_WEIGHT=0.05`, (4) `FOOD_SHORTAGE_WEIGHT=0.07`, (5) `FOOD_SCARCITY_FARMER_BONUS=0.30`, and (6) the satisfaction stability bonus denominator moving from `300` to `280`.
+- **Next implementation target:** Start M56 from the clean `main` line and keep both the accepted M54 controls and the final M55 gate artifact immutable for future comparisons.
 - **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
 - **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
 - **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
