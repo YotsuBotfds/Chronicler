@@ -319,3 +319,118 @@ def test_phase10_ordering_rebellion_before_tick():
     idx_asabiya = src.index("apply_asabiya_dynamics(world)")
     idx_collapse = src.index("if civ.asabiya < 0.1 and civ.stability <= 20")
     assert idx_vassal < idx_asabiya < idx_collapse
+
+
+# --- Integration tests ---
+
+
+def test_multi_turn_frontier_converges_upward():
+    """Over 20 turns, a pure frontier region's asabiya trends upward."""
+    r = _make_region("Frontier", controller="A", adjacencies=["Enemy"])
+    r.asabiya_state.asabiya = 0.3
+    r.population = 50
+    enemy = _make_region("Enemy", controller="B", adjacencies=["Frontier"])
+    enemy.population = 50
+    civ_a = Civilization(
+        name="A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.3,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Frontier"],
+    )
+    civ_b = Civilization(
+        name="B", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L2", trait="cautious", reign_start=0), regions=["Enemy"],
+    )
+    world = _make_test_world([r, enemy], civs=[civ_a, civ_b])
+    prev = r.asabiya_state.asabiya
+    for _ in range(20):
+        apply_asabiya_dynamics(world)
+        assert r.asabiya_state.asabiya >= prev
+        prev = r.asabiya_state.asabiya
+    assert r.asabiya_state.asabiya > 0.3
+
+
+def test_multi_turn_interior_converges_downward():
+    """Over 20 turns, a pure interior region's asabiya trends downward."""
+    r = _make_region("Interior", controller="A", adjacencies=["Friend"])
+    r.asabiya_state.asabiya = 0.7
+    r.population = 50
+    friend = _make_region("Friend", controller="A", adjacencies=["Interior"])
+    friend.asabiya_state.asabiya = 0.7
+    friend.population = 50
+    civ = Civilization(
+        name="A", population=100, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.7,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["Interior", "Friend"],
+    )
+    world = _make_test_world([r, friend], civs=[civ])
+    prev = r.asabiya_state.asabiya
+    for _ in range(20):
+        apply_asabiya_dynamics(world)
+        assert r.asabiya_state.asabiya <= prev
+        prev = r.asabiya_state.asabiya
+    assert r.asabiya_state.asabiya < 0.7
+
+
+def test_determinism_across_runs():
+    """Same seed + topology -> identical values over 50 turns."""
+    def run_sim():
+        r1 = _make_region("R1", controller="A", adjacencies=["R2", "R3"])
+        r1.asabiya_state.asabiya = 0.5
+        r1.population = 50
+        r2 = _make_region("R2", controller="B", adjacencies=["R1"])
+        r2.asabiya_state.asabiya = 0.6
+        r2.population = 40
+        r3 = _make_region("R3", controller=None, adjacencies=["R1"])
+        r3.population = 0
+        civ_a = Civilization(
+            name="A", population=50, military=30, economy=40, culture=30,
+            stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+            leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1"],
+        )
+        civ_b = Civilization(
+            name="B", population=40, military=30, economy=40, culture=30,
+            stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.6,
+            leader=Leader(name="L2", trait="cautious", reign_start=0), regions=["R2"],
+        )
+        world = _make_test_world([r1, r2, r3], civs=[civ_a, civ_b])
+        results = []
+        for _ in range(50):
+            apply_asabiya_dynamics(world)
+            results.append((civ_a.asabiya, civ_b.asabiya))
+        return results
+
+    run1 = run_sim()
+    run2 = run_sim()
+    assert run1 == run2
+
+
+def test_invariant_bounds_over_many_turns():
+    """All asabiya values stay in [0,1], variance in [0,0.25] over 50 turns."""
+    r1 = _make_region("R1", controller="A", adjacencies=["R2"])
+    r1.asabiya_state.asabiya = 0.1
+    r1.population = 80
+    r2 = _make_region("R2", controller="A", adjacencies=["R1", "R3"])
+    r2.asabiya_state.asabiya = 0.9
+    r2.population = 20
+    r3 = _make_region("R3", controller="B", adjacencies=["R2"])
+    r3.asabiya_state.asabiya = 0.5
+    r3.population = 50
+    civ_a = Civilization(
+        name="A", population=100, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L", trait="cautious", reign_start=0), regions=["R1", "R2"],
+    )
+    civ_b = Civilization(
+        name="B", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50, asabiya=0.5,
+        leader=Leader(name="L2", trait="cautious", reign_start=0), regions=["R3"],
+    )
+    world = _make_test_world([r1, r2, r3], civs=[civ_a, civ_b])
+    for _ in range(50):
+        apply_asabiya_dynamics(world)
+        for r in world.regions:
+            assert 0.0 <= r.asabiya_state.asabiya <= 1.0
+        for c in world.civilizations:
+            assert 0.0 <= c.asabiya <= 1.0
+            assert 0.0 <= c.asabiya_variance <= 0.25
