@@ -135,6 +135,195 @@ def extract_clusters(
     return clusters
 
 
+from chronicler.models import Settlement, SettlementStatus, Event
+
+
+def compute_inertia_cap(age_turns: int, population: int) -> int:
+    """Compute max inertia for a settlement based on age and population."""
+    return min(
+        BASE_INERTIA_CAP + age_turns // AGE_BONUS_INTERVAL + population // POP_BONUS_INTERVAL,
+        MAX_INERTIA_CAP,
+    )
+
+
+def _cluster_by_id(clusters: list[dict]) -> dict[int, dict]:
+    """Index clusters by component_id for O(1) lookup."""
+    return {c["component_id"]: c for c in clusters}
+
+
+def process_lifecycle(
+    world,
+    region_name: str,
+    matched_candidates: dict[int, int],
+    matched_active: dict[int, int],
+    clusters: list[dict],
+    unclaimed_cluster_ids: set[int],
+    unmatched_settlement_ids: set[int],
+    source_turn: int,
+) -> list[Event]:
+    """Process lifecycle transitions for one region in one detection pass."""
+    events: list[Event] = []
+    cluster_map = _cluster_by_id(clusters)
+    region_map = world.region_map
+
+    if not hasattr(world, '_settlement_founded_this_turn'):
+        world._settlement_founded_this_turn = []
+    if not hasattr(world, '_settlement_dissolved_this_turn'):
+        world._settlement_dissolved_this_turn = []
+    if not hasattr(world, '_settlement_transitions'):
+        world._settlement_transitions = []
+    target_region = region_map.get(region_name)
+    if target_region is None:
+        return events
+
+    # --- 1. Update matched active/dissolving settlements ---
+    for s in target_region.settlements:
+        if s.settlement_id in matched_active:
+            c = cluster_map[matched_active[s.settlement_id]]
+            s.centroid_x = c["centroid_x"]
+            s.centroid_y = c["centroid_y"]
+            s.footprint_cells = sorted(c["cells"])
+            s.population_estimate = c["population"]
+            s.peak_population = max(s.peak_population, c["population"])
+            s.last_seen_turn = source_turn
+            if s.status == SettlementStatus.DISSOLVING:
+                old_status = s.status
+                s.status = SettlementStatus.ACTIVE
+                s.inertia = 1
+                s.grace_remaining = 0
+                world._settlement_transitions.append({
+                    "settlement_id": s.settlement_id, "name": s.name,
+                    "region_name": target_region.name,
+                    "from_status": old_status.value, "to_status": s.status.value,
+                    "reason": "revived_on_match",
+                })
+            else:
+                cap = compute_inertia_cap(source_turn - s.founding_turn, s.population_estimate)
+                s.inertia = min(s.inertia + 1, cap)
+
+    # --- 2. Handle unmatched active/dissolving settlements ---
+    to_remove = []
+    for s in target_region.settlements:
+        if s.settlement_id not in unmatched_settlement_ids:
+            continue
+        if s.status == SettlementStatus.ACTIVE:
+            old_status = s.status
+            s.inertia -= 1
+            if s.inertia <= 0:
+                s.status = SettlementStatus.DISSOLVING
+                s.grace_remaining = DISSOLVE_GRACE
+                s.inertia = 0
+                world._settlement_transitions.append({
+                    "settlement_id": s.settlement_id, "name": s.name,
+                    "region_name": target_region.name,
+                    "from_status": old_status.value, "to_status": s.status.value,
+                    "reason": "entered_dissolving",
+                })
+        elif s.status == SettlementStatus.DISSOLVING:
+            s.grace_remaining -= 1
+            if s.grace_remaining <= 0:
+                s.status = SettlementStatus.DISSOLVED
+                s.dissolved_turn = source_turn
+                s.inertia = 0
+                s.grace_remaining = 0
+                s.candidate_passes = 0
+                s.footprint_cells = []
+                world.dissolved_settlements.append(s)
+                to_remove.append(s)
+                controller = target_region.controller
+                events.append(Event(
+                    turn=source_turn,
+                    event_type="settlement_dissolved",
+                    actors=[controller] if controller else [],
+                    description=f"The settlement of {s.name} in {target_region.name} has been abandoned",
+                    importance=3,
+                    source="agent",
+                ))
+                world._settlement_dissolved_this_turn.append(s.settlement_id)
+                world._settlement_transitions.append({
+                    "settlement_id": s.settlement_id, "name": s.name,
+                    "region_name": target_region.name,
+                    "from_status": "dissolving", "to_status": "dissolved",
+                    "reason": "dissolved_grace_expired",
+                })
+    for s in to_remove:
+        target_region.settlements.remove(s)
+
+    # --- 3. Process matched candidates ---
+    promoted_indices: set[int] = set()
+    old_candidates = [c for c in world.settlement_candidates if c.region_name == region_name]
+    other_candidates = [c for c in world.settlement_candidates if c.region_name != region_name]
+    for cand_idx, comp_id in matched_candidates.items():
+        if cand_idx >= len(old_candidates):
+            continue
+        cand = old_candidates[cand_idx]
+        c = cluster_map.get(comp_id)
+        if c is not None:
+            cand.centroid_x = c["centroid_x"]
+            cand.centroid_y = c["centroid_y"]
+            cand.footprint_cells = sorted(c["cells"])
+            cand.population_estimate = c["population"]
+            cand.last_seen_turn = source_turn
+        cand.candidate_passes += 1
+        if cand.candidate_passes >= CANDIDATE_PERSISTENCE:
+            cand.settlement_id = world.next_settlement_id
+            world.next_settlement_id += 1
+            seq = world.settlement_naming_counters.get(cand.region_name, 1)
+            cand.name = f"{cand.region_name} Settlement {seq}"
+            world.settlement_naming_counters[cand.region_name] = seq + 1
+            cand.founding_turn = source_turn
+            cand.status = SettlementStatus.ACTIVE
+            cand.inertia = 1
+            cand.candidate_passes = 0
+            cand.peak_population = max(cand.peak_population, cand.population_estimate)
+            target = region_map.get(cand.region_name)
+            if target is not None:
+                target.settlements.append(cand)
+            promoted_indices.add(cand_idx)
+            controller = target.controller if target else None
+            events.append(Event(
+                turn=source_turn,
+                event_type="settlement_founded",
+                actors=[controller] if controller else [],
+                description=f"A settlement has formed in {cand.region_name}: {cand.name}",
+                importance=4,
+                source="agent",
+            ))
+            world._settlement_founded_this_turn.append(cand.settlement_id)
+            world._settlement_transitions.append({
+                "settlement_id": cand.settlement_id, "name": cand.name,
+                "region_name": cand.region_name,
+                "from_status": "candidate", "to_status": "active",
+                "reason": "promoted_persistence",
+            })
+
+    # --- 4. Rebuild candidate list ---
+    new_candidates = []
+    for idx, cand in enumerate(old_candidates):
+        if idx in promoted_indices:
+            continue
+        if idx in matched_candidates:
+            new_candidates.append(cand)
+
+    # --- 5. Create new candidates from unclaimed clusters ---
+    for comp_id in sorted(unclaimed_cluster_ids):
+        c = cluster_map.get(comp_id)
+        if c is None:
+            continue
+        new_candidates.append(Settlement(
+            region_name=region_name,
+            last_seen_turn=source_turn,
+            centroid_x=c["centroid_x"],
+            centroid_y=c["centroid_y"],
+            footprint_cells=sorted(c["cells"]),
+            population_estimate=c["population"],
+            candidate_passes=1,
+        ))
+
+    world.settlement_candidates = other_candidates + new_candidates
+    return events
+
+
 def _centroid_distance(s, c) -> float:
     dx = s.centroid_x - c["centroid_x"]
     dy = s.centroid_y - c["centroid_y"]

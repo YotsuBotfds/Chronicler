@@ -307,6 +307,159 @@ class TestMatching:
         assert len(unmatched_s) == 1
 
 
+class TestLifecycle:
+    def _make_world_stub(self):
+        """Minimal world stub for lifecycle testing."""
+        from chronicler.models import WorldState, Region
+        w = WorldState(name="Test", seed=42)
+        r = Region(name="TestRegion", terrain="plains", carrying_capacity=1000, resources="fertile", controller="TestCiv")
+        w.regions = [r]
+        return w
+
+    def test_candidate_promotion_after_persistence(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import process_lifecycle, CANDIDATE_PERSISTENCE
+        w = self._make_world_stub()
+        cand = Settlement(
+            region_name="TestRegion", last_seen_turn=0,
+            centroid_x=0.5, centroid_y=0.5, population_estimate=50,
+            candidate_passes=CANDIDATE_PERSISTENCE - 1,
+        )
+        w.settlement_candidates = [cand]
+        matched_candidates = {0: 0}
+        clusters = [{"component_id": 0, "centroid_x": 0.51, "centroid_y": 0.51, "population": 55, "cells": {(5, 5)}}]
+        events = process_lifecycle(w, "TestRegion", matched_candidates, {}, clusters, set(), set(), source_turn=30)
+        assert len(w.settlement_candidates) == 0
+        region = w.region_map["TestRegion"]
+        assert len(region.settlements) == 1
+        s = region.settlements[0]
+        assert s.status == SettlementStatus.ACTIVE
+        assert s.settlement_id == 1
+        assert s.name == "TestRegion Settlement 1"
+        assert s.inertia == 1
+        assert s.founding_turn == 30
+        assert any(e.event_type == "settlement_founded" for e in events)
+
+    def test_candidate_dropped_when_unmatched(self):
+        from chronicler.models import Settlement
+        from chronicler.settlements import process_lifecycle
+        w = self._make_world_stub()
+        cand = Settlement(region_name="TestRegion", last_seen_turn=0, candidate_passes=1)
+        w.settlement_candidates = [cand]
+        events = process_lifecycle(w, "TestRegion", {}, {}, [], set(), set(), source_turn=30)
+        assert len(w.settlement_candidates) == 0
+
+    def test_new_candidate_created_from_unclaimed_cluster(self):
+        from chronicler.models import SettlementStatus
+        from chronicler.settlements import process_lifecycle
+        w = self._make_world_stub()
+        clusters = [{"component_id": 0, "centroid_x": 0.3, "centroid_y": 0.4, "population": 30, "cells": {(3, 4)}, "region_name": "TestRegion"}]
+        unclaimed_cluster_ids = {0}
+        events = process_lifecycle(w, "TestRegion", {}, {}, clusters, unclaimed_cluster_ids, set(), source_turn=15)
+        assert len(w.settlement_candidates) == 1
+        c = w.settlement_candidates[0]
+        assert c.status == SettlementStatus.CANDIDATE
+        assert c.candidate_passes == 1
+        assert c.region_name == "TestRegion"
+
+    def test_active_settlement_inertia_increment(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import process_lifecycle
+        w = self._make_world_stub()
+        s = Settlement(
+            settlement_id=1, name="TestRegion Settlement 1", region_name="TestRegion",
+            founding_turn=10, last_seen_turn=25, population_estimate=50,
+            status=SettlementStatus.ACTIVE, inertia=2, footprint_cells=[(5, 5)],
+        )
+        w.regions[0].settlements = [s]
+        matched_active = {1: 0}
+        clusters = [{"component_id": 0, "centroid_x": 0.52, "centroid_y": 0.52, "population": 60, "cells": {(5, 5)}}]
+        process_lifecycle(w, "TestRegion", {}, matched_active, clusters, set(), set(), source_turn=40)
+        updated = w.regions[0].settlements[0]
+        assert updated.inertia == 3
+        assert updated.population_estimate == 60
+        assert updated.last_seen_turn == 40
+
+    def test_active_unmatched_enters_dissolving(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import process_lifecycle, DISSOLVE_GRACE
+        w = self._make_world_stub()
+        s = Settlement(
+            settlement_id=1, name="S1", region_name="TestRegion",
+            founding_turn=10, last_seen_turn=25,
+            status=SettlementStatus.ACTIVE, inertia=1,
+        )
+        w.regions[0].settlements = [s]
+        unmatched_active = {1}
+        process_lifecycle(w, "TestRegion", {}, {}, [], set(), unmatched_active, source_turn=40)
+        updated = w.regions[0].settlements[0]
+        assert updated.status == SettlementStatus.DISSOLVING
+        assert updated.grace_remaining == DISSOLVE_GRACE
+
+    def test_dissolving_revived_on_match(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import process_lifecycle
+        w = self._make_world_stub()
+        s = Settlement(
+            settlement_id=1, name="S1", region_name="TestRegion",
+            founding_turn=10, last_seen_turn=25,
+            status=SettlementStatus.DISSOLVING, grace_remaining=1,
+        )
+        w.regions[0].settlements = [s]
+        matched_active = {1: 0}
+        clusters = [{"component_id": 0, "centroid_x": 0.5, "centroid_y": 0.5, "population": 30, "cells": {(5, 5)}}]
+        process_lifecycle(w, "TestRegion", {}, matched_active, clusters, set(), set(), source_turn=40)
+        updated = w.regions[0].settlements[0]
+        assert updated.status == SettlementStatus.ACTIVE
+        assert updated.inertia == 1
+
+    def test_dissolving_tombstoned_after_grace(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import process_lifecycle
+        w = self._make_world_stub()
+        s = Settlement(
+            settlement_id=1, name="S1", region_name="TestRegion",
+            founding_turn=10, last_seen_turn=25, peak_population=100,
+            status=SettlementStatus.DISSOLVING, grace_remaining=1,
+            footprint_cells=[(5, 5)],
+        )
+        w.regions[0].settlements = [s]
+        unmatched_active = {1}
+        events = process_lifecycle(w, "TestRegion", {}, {}, [], set(), unmatched_active, source_turn=40)
+        assert len(w.regions[0].settlements) == 0
+        assert len(w.dissolved_settlements) == 1
+        tomb = w.dissolved_settlements[0]
+        assert tomb.status == SettlementStatus.DISSOLVED
+        assert tomb.dissolved_turn == 40
+        assert tomb.inertia == 0
+        assert tomb.footprint_cells == []
+        assert any(e.event_type == "settlement_dissolved" for e in events)
+
+    def test_naming_counter_never_reused(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import process_lifecycle, CANDIDATE_PERSISTENCE
+        w = self._make_world_stub()
+        c1 = Settlement(region_name="TestRegion", last_seen_turn=0, candidate_passes=CANDIDATE_PERSISTENCE - 1)
+        w.settlement_candidates = [c1]
+        process_lifecycle(w, "TestRegion", {0: 0}, {}, [{"component_id": 0, "centroid_x": 0.5, "centroid_y": 0.5, "population": 50, "cells": {(5,5)}}], set(), set(), source_turn=30)
+        first_name = w.regions[0].settlements[0].name
+        first_id = w.regions[0].settlements[0].settlement_id
+        c2 = Settlement(region_name="TestRegion", last_seen_turn=0, candidate_passes=CANDIDATE_PERSISTENCE - 1)
+        w.settlement_candidates = [c2]
+        process_lifecycle(w, "TestRegion", {0: 1}, {}, [{"component_id": 1, "centroid_x": 0.8, "centroid_y": 0.8, "population": 50, "cells": {(8,8)}}], set(), set(), source_turn=45)
+        second = w.regions[0].settlements[1]
+        assert second.settlement_id == first_id + 1
+        assert second.name != first_name
+        assert "Settlement 2" in second.name
+
+    def test_inertia_cap_scales_with_age_and_population(self):
+        from chronicler.settlements import compute_inertia_cap
+        cap_young = compute_inertia_cap(age_turns=10, population=30)
+        cap_old = compute_inertia_cap(age_turns=200, population=500)
+        assert cap_old > cap_young
+        assert cap_old <= 10  # MAX_INERTIA_CAP
+
+
 class TestCandidateMatching:
     def test_candidate_match_by_proximity(self):
         from chronicler.models import Settlement, SettlementStatus
