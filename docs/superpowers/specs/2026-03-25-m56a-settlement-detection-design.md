@@ -173,7 +173,7 @@ Each detection pass runs two matching passes in sequence. Active/dissolving sett
 
 Detection uses snapshot positions from the current turn's agent tick. The `source_turn` for all lifecycle computations is `world.turn` at the time detection runs (after agent tick, before Phase 10).
 
-**Timing clarification:** `run_turn()` increments `world.turn` at the end (simulation.py ~line 1685). Detection runs *before* that increment, so `source_turn = world.turn` captures the current turn's value. TurnSnapshot is constructed in `main.py` *after* `run_turn()` returns (after increment). Therefore `TurnSnapshot.settlement_source_turn` must be stashed during detection and read back during snapshot construction — it cannot be recomputed from `world.turn` at snapshot time. Implementation: `detect_settlements()` sets `world._settlement_source_turn = source_turn`, and snapshot construction reads it.
+**Timing clarification:** `run_turn()` increments `world.turn` at the end (simulation.py ~line 1685). Detection runs *before* that increment, so `source_turn = world.turn` captures the current turn's value. TurnSnapshot is constructed in `main.py` *after* `run_turn()` returns (after increment). Therefore `TurnSnapshot.settlement_source_turn` must be stashed during detection and read back during snapshot construction — it cannot be recomputed from `world.turn` at snapshot time. Implementation: `run_settlement_tick()` sets `world._settlement_source_turn = source_turn`, and snapshot construction reads it.
 
 ---
 
@@ -276,7 +276,7 @@ Emitted when a candidate promotes to active.
 Event(
     turn=source_turn,
     event_type="settlement_founded",
-    actors=[region_controller or ""],  # Civ that controls the region
+    actors=[region_controller] if region_controller else [],
     description=f"A settlement has formed in {region_name}: {settlement_name}",
     consequences=[],
     importance=4,
@@ -292,7 +292,7 @@ Emitted when a dissolving settlement's grace expires.
 Event(
     turn=source_turn,
     event_type="settlement_dissolved",
-    actors=[region_controller or ""],
+    actors=[region_controller] if region_controller else [],
     description=f"The settlement of {settlement_name} in {region_name} has been abandoned",
     consequences=[],
     importance=3,
@@ -324,15 +324,14 @@ Inserted after snapshot stash and before Phase 10:
 # simulation.py, after line ~1567 (economy_result stash)
 
 # M56a: Settlement detection (called every turn; early-returns with minimal diagnostics on non-detection turns)
-if agent_bridge is not None:
-    from chronicler.settlements import run_settlement_tick
-    settlement_events = run_settlement_tick(
-        world, source_turn=world.turn, force=force_settlement_detection
-    )
-    turn_events.extend(settlement_events)
+from chronicler.settlements import run_settlement_tick
+settlement_events = run_settlement_tick(
+    world, source_turn=world.turn, force=force_settlement_detection
+)
+turn_events.extend(settlement_events)
 ```
 
-In `--agents=off` mode: no detection runs, no settlement state created. Debug log emitted once per run: `"Settlement detection disabled: no agent snapshot (mode=off)"`.
+`run_settlement_tick()` is called unconditionally. It checks `world._agent_snapshot` internally: if absent (`--agents=off`), it writes `mode_off_no_snapshot` diagnostics and returns `[]`. This keeps the diagnostics contract consistent across all modes.
 
 ### 7.4 `--agents=off` behavior
 
