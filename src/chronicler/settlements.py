@@ -324,6 +324,167 @@ def process_lifecycle(
     return events
 
 
+def _parse_snapshot_by_region(snapshot, num_regions: int) -> dict[int, list[tuple[float, float]]]:
+    """Extract per-region agent positions from Arrow snapshot."""
+    regions = snapshot.column("region").to_pylist()
+    xs = snapshot.column("x").to_pylist()
+    ys = snapshot.column("y").to_pylist()
+
+    by_region: dict[int, list[tuple[float, float]]] = {r: [] for r in range(num_regions)}
+    for i in range(len(regions)):
+        r = regions[i]
+        if r < num_regions:
+            by_region[r].append((xs[i], ys[i]))
+    return by_region
+
+
+def run_settlement_tick(
+    world,
+    source_turn: int,
+    force: bool = False,
+) -> list[Event]:
+    """Entry point called every turn from run_turn().
+
+    Checks snapshot, interval gate, runs detection + lifecycle on detection turns,
+    writes diagnostics on every turn. Processes each region independently so
+    component_ids stay region-local and never collide.
+    """
+    snapshot = getattr(world, '_agent_snapshot', None)
+
+    # No snapshot → off mode
+    if snapshot is None:
+        if not getattr(world, "_settlement_offmode_logged", False):
+            logger.debug("Settlement detection disabled: no agent snapshot (mode=off)")
+            world._settlement_offmode_logged = True
+        world._settlement_diagnostics = {
+            "detection_executed": False,
+            "interval": SETTLEMENT_DETECTION_INTERVAL,
+            "reason": "mode_off_no_snapshot",
+        }
+        world._settlement_source_turn = source_turn
+        world._settlement_founded_this_turn = []
+        world._settlement_dissolved_this_turn = []
+        world._settlement_transitions = []
+        return []
+
+    # Interval gate
+    is_interval = (source_turn % SETTLEMENT_DETECTION_INTERVAL == 0)
+    if not is_interval and not force:
+        world._settlement_diagnostics = {
+            "detection_executed": False,
+            "interval": SETTLEMENT_DETECTION_INTERVAL,
+            "reason": "not_detection_turn",
+        }
+        world._settlement_source_turn = source_turn
+        world._settlement_founded_this_turn = []
+        world._settlement_dissolved_this_turn = []
+        world._settlement_transitions = []
+        return []
+
+    reason = "forced_terminal" if force and not is_interval else "interval_match"
+
+    # --- Detection pass ---
+    num_regions = len(world.regions)
+    by_region = _parse_snapshot_by_region(snapshot, num_regions)
+
+    world._settlement_founded_this_turn = []
+    world._settlement_dissolved_this_turn = []
+    world._settlement_transitions = []
+
+    all_events: list[Event] = []
+    per_region_diag: dict[str, dict] = {}
+    stats = {
+        "matched_active": 0, "unmatched_active": 0,
+        "new_candidates": 0, "promoted": 0, "revived": 0,
+        "entered_dissolving": 0, "tombstoned": 0,
+    }
+
+    for r_idx, region in enumerate(world.regions):
+        positions = by_region.get(r_idx, [])
+        clusters = extract_clusters(positions)
+
+        for c in clusters:
+            c["region_name"] = region.name
+
+        if region.settlements or clusters:
+            ms, _, us, uc = match_settlements_to_clusters(
+                region.settlements, clusters, source_turn
+            )
+        else:
+            ms, _, us, uc = {}, {}, set(), set()
+
+        region_candidates = [
+            c for c in world.settlement_candidates
+            if c.region_name == region.name
+        ]
+        remaining_clusters = [c for c in clusters if c["component_id"] in uc]
+
+        cand_matched: dict[int, int] = {}
+        remaining_unclaimed = uc
+
+        if region_candidates and remaining_clusters:
+            mc2, _, _, uc2_clust = match_settlements_to_clusters(
+                region_candidates, remaining_clusters, source_turn
+            )
+            cand_matched = dict(mc2)
+            remaining_unclaimed = uc2_clust
+
+        region_events = process_lifecycle(
+            world, region.name, cand_matched, ms, clusters,
+            remaining_unclaimed, us, source_turn,
+        )
+        all_events.extend(region_events)
+
+        per_region_diag[region.name] = {
+            "dense_cells": sum(len(c["cells"]) for c in clusters),
+            "cluster_count": len(clusters),
+            "candidate_count": sum(1 for c in world.settlement_candidates if c.region_name == region.name),
+            "active_count": sum(1 for s in region.settlements if s.status == SettlementStatus.ACTIVE),
+            "dissolving_count": sum(1 for s in region.settlements if s.status == SettlementStatus.DISSOLVING),
+        }
+        stats["matched_active"] += len(ms)
+        stats["unmatched_active"] += len(us)
+
+    founded_ids = getattr(world, '_settlement_founded_this_turn', [])
+    dissolved_ids = getattr(world, '_settlement_dissolved_this_turn', [])
+    transitions = getattr(world, '_settlement_transitions', [])
+    stats["promoted"] = len(founded_ids)
+    stats["tombstoned"] = len(dissolved_ids)
+    stats["new_candidates"] = sum(
+        1 for c in world.settlement_candidates
+        if c.candidate_passes == 1 and c.last_seen_turn == source_turn
+    )
+    stats["revived"] = sum(1 for t in transitions if t.get("reason") == "revived_on_match")
+    stats["entered_dissolving"] = sum(
+        1 for t in transitions if t.get("reason") == "entered_dissolving"
+    )
+
+    world._settlement_diagnostics = {
+        "detection_executed": True,
+        "interval": SETTLEMENT_DETECTION_INTERVAL,
+        "reason": reason,
+        "source_turn": source_turn,
+        "per_region": per_region_diag,
+        "matching_stats": stats,
+        "transitions": transitions,
+        "global": {
+            "total_active": sum(
+                1 for r in world.regions for s in r.settlements
+                if s.status == SettlementStatus.ACTIVE
+            ),
+            "total_candidates": len(world.settlement_candidates),
+            "total_dissolving": sum(
+                1 for r in world.regions for s in r.settlements
+                if s.status == SettlementStatus.DISSOLVING
+            ),
+            "total_dissolved_cumulative": len(world.dissolved_settlements),
+        },
+    }
+    world._settlement_source_turn = source_turn
+
+    return all_events
+
+
 def _centroid_distance(s, c) -> float:
     dx = s.centroid_x - c["centroid_x"]
     dy = s.centroid_y - c["centroid_y"]

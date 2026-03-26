@@ -488,3 +488,99 @@ class TestCandidateMatching:
         )
         assert 0 in matched_s  # c1 (index 0, passes=3) wins over c2 (index 1, passes=1)
         assert 1 in unmatched_s
+
+
+class TestRunSettlementTick:
+    def _make_world_with_snapshot(self, agent_positions_by_region=None):
+        """Create a world with a mock agent snapshot."""
+        import pyarrow as pa
+        from chronicler.models import WorldState, Region
+
+        w = WorldState(name="Test", seed=42, turn=15)
+        regions = [
+            Region(name="R0", terrain="plains", carrying_capacity=1000, resources="fertile", controller="Civ1"),
+            Region(name="R1", terrain="coast", carrying_capacity=500, resources="maritime", controller="Civ2"),
+        ]
+        w.regions = regions
+
+        if agent_positions_by_region is not None:
+            ids, reg_col, xs, ys = [], [], [], []
+            agent_id = 1
+            for r_idx, positions in agent_positions_by_region.items():
+                for x, y in positions:
+                    ids.append(agent_id)
+                    reg_col.append(r_idx)
+                    xs.append(x)
+                    ys.append(y)
+                    agent_id += 1
+            batch = pa.RecordBatch.from_arrays(
+                [pa.array(ids, type=pa.uint32()),
+                 pa.array(reg_col, type=pa.uint16()),
+                 pa.array(xs, type=pa.float32()),
+                 pa.array(ys, type=pa.float32())],
+                names=["id", "region", "x", "y"],
+            )
+            w._agent_snapshot = batch
+        else:
+            w._agent_snapshot = None
+        return w
+
+    def test_off_mode_returns_empty_and_sets_diagnostics(self):
+        from chronicler.settlements import run_settlement_tick
+        w = self._make_world_with_snapshot(None)
+        events = run_settlement_tick(w, source_turn=15, force=False)
+        assert events == []
+        diag = getattr(w, '_settlement_diagnostics', None)
+        assert diag is not None
+        assert diag["detection_executed"] is False
+        assert diag["reason"] == "mode_off_no_snapshot"
+
+    def test_non_detection_turn_skips(self):
+        from chronicler.settlements import run_settlement_tick
+        w = self._make_world_with_snapshot({0: [(0.5, 0.5)]})
+        w.turn = 7
+        events = run_settlement_tick(w, source_turn=7, force=False)
+        assert events == []
+        diag = w._settlement_diagnostics
+        assert diag["detection_executed"] is False
+        assert diag["reason"] == "not_detection_turn"
+
+    def test_forced_detection_runs(self):
+        from chronicler.settlements import run_settlement_tick
+        w = self._make_world_with_snapshot({0: [(0.5, 0.5)]})
+        w.turn = 7
+        events = run_settlement_tick(w, source_turn=7, force=True)
+        diag = w._settlement_diagnostics
+        assert diag["detection_executed"] is True
+        assert diag["reason"] == "forced_terminal"
+
+    def test_detection_with_cluster_creates_candidate(self):
+        from chronicler.settlements import run_settlement_tick, DENSITY_FLOOR
+        positions = [(0.51 + i * 0.005, 0.51) for i in range(DENSITY_FLOOR + 1)]
+        w = self._make_world_with_snapshot({0: positions})
+        w.turn = 15
+        run_settlement_tick(w, source_turn=15, force=False)
+        assert len(w.settlement_candidates) == 1
+        assert w.settlement_candidates[0].region_name == "R0"
+
+    def test_diagnostics_schema_on_detection_pass(self):
+        from chronicler.settlements import run_settlement_tick, DENSITY_FLOOR
+        positions = [(0.51 + i * 0.005, 0.51) for i in range(DENSITY_FLOOR + 1)]
+        w = self._make_world_with_snapshot({0: positions})
+        w.turn = 15
+        run_settlement_tick(w, source_turn=15, force=False)
+        diag = w._settlement_diagnostics
+        assert diag["detection_executed"] is True
+        assert "matching_stats" in diag
+        assert "per_region" in diag
+        assert "global" in diag
+        assert "source_turn" in diag
+        assert diag["source_turn"] == 15
+
+    def test_source_turn_stashed_on_world(self):
+        from chronicler.settlements import run_settlement_tick, DENSITY_FLOOR
+        positions = [(0.51 + i * 0.005, 0.51) for i in range(DENSITY_FLOOR + 1)]
+        w = self._make_world_with_snapshot({0: positions})
+        w.turn = 15
+        run_settlement_tick(w, source_turn=15, force=False)
+        assert getattr(w, '_settlement_source_turn', None) == 15
