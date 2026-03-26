@@ -24,7 +24,7 @@ def _tracks_tokens(client: Any) -> bool:
     """Check if an LLM client tracks token usage (API clients)."""
     return hasattr(client, "total_input_tokens") and isinstance(client.total_input_tokens, int)
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
-from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, TurnSnapshot, WorldState
+from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, SettlementSummary, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
 from chronicler.narrative import NarrativeEngine
 from chronicler.simulation import apply_injected_event, run_turn
@@ -315,6 +315,7 @@ def execute_run(
             economy_tracker=economy_tracker,
             ecology_runtime=ecology_runtime,
             politics_runtime=politics_runtime,
+            force_settlement_detection=(turn_num == num_turns - 1),
         )
 
         # Capture per-turn snapshot for viewer bundle
@@ -415,6 +416,33 @@ def execute_run(
                 for obs in world.civilizations
                 for obs_name in [obs.name]
             },
+            # M56a: Settlement summary
+            settlement_source_turn=getattr(world, '_settlement_source_turn', 0),
+            settlement_count=sum(
+                len([s for s in r.settlements if s.status.value in ("active", "dissolving")])
+                for r in world.regions
+            ),
+            candidate_count=len(world.settlement_candidates),
+            total_settlement_population=sum(
+                s.population_estimate
+                for r in world.regions for s in r.settlements
+                if s.status.value in ("active", "dissolving")
+            ),
+            active_settlements=sorted(
+                [
+                    SettlementSummary(
+                        settlement_id=s.settlement_id, name=s.name,
+                        region_name=s.region_name, population_estimate=s.population_estimate,
+                        centroid_x=s.centroid_x, centroid_y=s.centroid_y,
+                        founding_turn=s.founding_turn, status=s.status.value,
+                    )
+                    for r in world.regions for s in r.settlements
+                    if s.status.value in ("active", "dissolving")
+                ],
+                key=lambda ss: (ss.region_name, ss.settlement_id),
+            ),
+            founded_this_turn=sorted(getattr(world, '_settlement_founded_this_turn', [])),
+            dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
         )
         history.append(snapshot)
 

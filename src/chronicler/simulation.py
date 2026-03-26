@@ -25,6 +25,7 @@ from chronicler.events import (
     apply_probability_cascade,
     roll_for_event,
 )
+from chronicler.settlements import run_settlement_tick
 from chronicler.models import (
     ActionType,
     ActiveCondition,
@@ -1396,6 +1397,7 @@ def run_turn(
     economy_tracker: object | None = None,
     ecology_runtime: object | None = None,
     politics_runtime: object | None = None,
+    force_settlement_detection: bool = False,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     from chronicler.accumulator import StatAccumulator
@@ -1425,8 +1427,10 @@ def run_turn(
     turn_events.extend(check_environmental_events(world, env_rng))
 
     # --- M42/M54b: Goods economy (Phase 2 sub-sequence) ---
-    # M54b: Route through Rust economy when agent-backed snapshot exists.
-    # Python compute_economy() remains available as the parity oracle for tests.
+    # M54b: Route through Rust economy only when an agent-backed snapshot exists.
+    # In --agents=off, production behavior stays frozen: there is no runtime
+    # economy_result here, and compute_economy(agent_mode=False) remains an
+    # oracle/test surface rather than an off-mode production path.
     economy_result = None
     if agent_bridge is not None:
         region_map = {r.name: r for r in world.regions}
@@ -1565,6 +1569,12 @@ def run_turn(
 
     # M42: Stash economy_result for Phase 10 tick_factions
     world._economy_result = economy_result
+
+    # M56a: Settlement detection
+    settlement_events = run_settlement_tick(
+        world, source_turn=world.turn, force=force_settlement_detection
+    )
+    turn_events.extend(settlement_events)
 
     # Phase 10: Consequences
     # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.

@@ -584,3 +584,21 @@ class TestRunSettlementTick:
         w.turn = 15
         run_settlement_tick(w, source_turn=15, force=False)
         assert getattr(w, '_settlement_source_turn', None) == 15
+
+
+class TestIntegration:
+    def test_run_turn_accepts_force_settlement_detection(self):
+        """Verify run_turn signature accepts the new parameter without error."""
+        import inspect
+        from chronicler.simulation import run_turn
+        sig = inspect.signature(run_turn)
+        assert "force_settlement_detection" in sig.parameters
+
+    def test_off_mode_snapshot_shape_stable(self):
+        """TurnSnapshot has settlement fields at defaults in off-mode."""
+        from chronicler.models import TurnSnapshot
+        snap = TurnSnapshot(turn=1, civ_stats={}, region_control={}, relationships={})
+        assert snap.settlement_count == 0
+        assert snap.active_settlements == []
+        assert snap.founded_this_turn == []
+        assert snap.dissolved_this_turn == []
