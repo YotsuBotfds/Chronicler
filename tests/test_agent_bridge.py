@@ -6,7 +6,7 @@ import tempfile
 import pyarrow as pa
 import pytest
 from chronicler_agents import AgentSimulator
-from chronicler.agent_bridge import build_region_batch, TERRAIN_MAP, AgentBridge
+from chronicler.agent_bridge import build_region_batch, build_settlement_batch, TERRAIN_MAP, AgentBridge
 from chronicler.models import GreatPerson
 from chronicler.sidecar import SidecarWriter
 
@@ -891,3 +891,72 @@ class TestPoliticsConfigWiring:
         sim = PoliticsSimulator()
         assert hasattr(sim, "tick_politics")
         assert hasattr(sim, "set_politics_config")
+
+
+# ---------------------------------------------------------------------------
+# Settlement batch tests (M56b)
+# ---------------------------------------------------------------------------
+
+def _make_minimal_world():
+    """Lightweight WorldState for settlement batch tests (no fixture deps)."""
+    from chronicler.models import (
+        WorldState, Region, Civilization, Leader, TechEra,
+    )
+    regions = [
+        Region(name="Plains", terrain="plains", carrying_capacity=80,
+               resources="fertile", controller="TestCiv"),
+    ]
+    civs = [
+        Civilization(
+            name="TestCiv", population=40, military=50, economy=50,
+            culture=50, stability=50, tech_era=TechEra.IRON, treasury=100,
+            leader=Leader(name="Leader", trait="calculating", reign_start=0),
+            domains=[], values=["Trade"], goal="test",
+            regions=["Plains"], asabiya=0.5,
+        ),
+    ]
+    return WorldState(
+        name="MinimalWorld", seed=1, turn=10,
+        regions=regions, civilizations=civs,
+        relationships={}, historical_figures=[], events_timeline=[],
+        active_conditions=[], event_probabilities={},
+    )
+
+
+def test_build_settlement_batch_basic():
+    """Settlement batch includes ACTIVE and DISSOLVING footprints, sorted correctly."""
+    from chronicler.models import Settlement, SettlementStatus
+
+    world = _make_minimal_world()
+    s1 = Settlement(
+        settlement_id=1, name="Town A", region_name=world.regions[0].name,
+        last_seen_turn=10, population_estimate=50, status=SettlementStatus.ACTIVE,
+        footprint_cells=[(3, 7), (4, 7)],
+    )
+    s2 = Settlement(
+        settlement_id=2, name="Town B", region_name=world.regions[0].name,
+        last_seen_turn=10, population_estimate=30, status=SettlementStatus.DISSOLVING,
+        footprint_cells=[(5, 5)],
+    )
+    s_candidate = Settlement(
+        settlement_id=3, name="Maybe", region_name=world.regions[0].name,
+        last_seen_turn=10, population_estimate=10, status=SettlementStatus.CANDIDATE,
+        footprint_cells=[(9, 9)],
+    )
+    world.regions[0].settlements = [s1, s2, s_candidate]
+
+    batch = build_settlement_batch(world)
+    assert batch.num_rows == 3  # 2 cells from s1 + 1 from s2, candidate excluded
+    settlement_ids = batch.column("settlement_id").to_pylist()
+    assert settlement_ids == [1, 1, 2]  # sorted by settlement_id
+    # Verify region_id is present and correct (region 0 for all)
+    region_ids = batch.column("region_id").to_pylist()
+    assert region_ids == [0, 0, 0]
+
+
+def test_build_settlement_batch_overflow_guard():
+    """Overflow guard fires when next_settlement_id > 65535."""
+    world = _make_minimal_world()
+    world.next_settlement_id = 65536
+    with pytest.raises(ValueError, match="65535"):
+        build_settlement_batch(world)

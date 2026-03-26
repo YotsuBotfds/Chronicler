@@ -445,6 +445,54 @@ def build_region_postpass_patch_batch(world: WorldState) -> pa.RecordBatch:
     })
 
 
+def build_settlement_batch(world: WorldState) -> pa.RecordBatch:
+    """Build settlement footprint Arrow batch for Rust-side grid construction.
+
+    Includes ACTIVE and DISSOLVING settlements. Excludes CANDIDATE and DISSOLVED.
+    Sorted by (region_id, settlement_id, cell_y, cell_x).
+    """
+    from chronicler.models import SettlementStatus
+
+    if world.next_settlement_id > 65535:
+        raise ValueError(
+            f"next_settlement_id ({world.next_settlement_id}) exceeds u16 max 65535"
+        )
+
+    region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+    rows: list[tuple[int, int, int, int]] = []
+
+    for region in world.regions:
+        region_id = region_name_to_idx[region.name]
+        for settlement in region.settlements:
+            if settlement.status not in (SettlementStatus.ACTIVE, SettlementStatus.DISSOLVING):
+                continue
+            for cell_x, cell_y in settlement.footprint_cells:
+                rows.append((region_id, settlement.settlement_id, cell_y, cell_x))
+
+    # Deterministic sort: (region_id, settlement_id, cell_y, cell_x)
+    rows.sort()
+
+    if not rows:
+        return pa.RecordBatch.from_pydict(
+            {
+                "region_id": pa.array([], type=pa.uint16()),
+                "settlement_id": pa.array([], type=pa.uint16()),
+                "cell_x": pa.array([], type=pa.uint8()),
+                "cell_y": pa.array([], type=pa.uint8()),
+            }
+        )
+
+    region_ids, settlement_ids, cell_ys, cell_xs = zip(*rows)
+    return pa.RecordBatch.from_pydict(
+        {
+            "region_id": pa.array(region_ids, type=pa.uint16()),
+            "settlement_id": pa.array(settlement_ids, type=pa.uint16()),
+            "cell_x": pa.array(cell_xs, type=pa.uint8()),
+            "cell_y": pa.array(cell_ys, type=pa.uint8()),
+        }
+    )
+
+
 def build_signals(world: WorldState, shocks: list | None = None,
                   demands: dict | None = None,
                   conquered: dict[int, bool] | None = None,
@@ -736,6 +784,9 @@ class AgentBridge:
         Must be called exactly once per turn BEFORE ecology tick or agent tick.
         """
         self._sim.set_region_state(build_region_batch(world, self._economy_result))
+        # M56b: Send settlement footprints for urban classification
+        settlement_batch = build_settlement_batch(world)
+        self._sim.set_settlement_footprints(settlement_batch)
 
     def tick_agents(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
         """Phase 2 of the split bridge: send signals and run agent tick.
