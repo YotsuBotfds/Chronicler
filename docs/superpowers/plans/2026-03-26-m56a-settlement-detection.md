@@ -1,6 +1,6 @@
 # M56a: Settlement Detection Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution refresh (2026-03-26):** Read `AGENTS.md` and `docs/superpowers/progress/phase-6-progress.md` before editing. Execute this plan task-by-task from the repo root. Use the exact `python -m pytest ...` commands below for Python tests, and set `$env:PYTHONPATH = "src"` for CLI smoke runs.
 
 **Goal:** Detect, persist, and name settlement structure from M55a's spatial clustering, with lifecycle management and diagnostics.
 
@@ -9,6 +9,11 @@
 **Tech Stack:** Python, Pydantic, Arrow (for reading agent snapshot)
 
 **Spec:** `docs/superpowers/specs/2026-03-25-m56a-settlement-detection-design.md`
+
+**Execution guardrails:**
+- `--agents=off` remains a settlement-detection no-op because there is no agent snapshot. M56a should preserve that behavior and surface default settlement fields in snapshots; do not invent an aggregate fallback here.
+- Production off-mode economy remains frozen. Do not use M56a wiring as a reason to broaden Phase 2 runtime scope in `simulation.py`.
+- The intended turn ordering is still: economy-result stash → settlement tick → Phase 10 consequences.
 
 ---
 
@@ -120,7 +125,7 @@ class TestSettlementModel:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/test_settlements.py::TestSettlementModel -v`
+Run: `python -m pytest tests/test_settlements.py::TestSettlementModel -v`
 Expected: FAIL — `ImportError: cannot import name 'Settlement'`
 
 - [ ] **Step 3: Implement models**
@@ -199,7 +204,7 @@ On `TurnSnapshot` class (after `perception_errors` field, ~line 773):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/test_settlements.py::TestSettlementModel -v`
+Run: `python -m pytest tests/test_settlements.py::TestSettlementModel -v`
 Expected: PASS (all 5 tests)
 
 - [ ] **Step 5: Write test for WorldState and Region field defaults**
@@ -233,7 +238,7 @@ class TestModelIntegration:
 
 - [ ] **Step 6: Run test — should pass immediately**
 
-Run: `pytest tests/test_settlements.py::TestModelIntegration -v`
+Run: `python -m pytest tests/test_settlements.py::TestModelIntegration -v`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
@@ -279,7 +284,7 @@ class TestDetectionGrid:
 
 - [ ] **Step 2: Run test — should fail (module not found)**
 
-Run: `pytest tests/test_settlements.py::TestDetectionGrid -v`
+Run: `python -m pytest tests/test_settlements.py::TestDetectionGrid -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Create `settlements.py` with grid cell assignment**
@@ -314,7 +319,7 @@ def assign_cell(x: float, y: float) -> tuple[int, int]:
 
 - [ ] **Step 4: Run test — should pass**
 
-Run: `pytest tests/test_settlements.py::TestDetectionGrid -v`
+Run: `python -m pytest tests/test_settlements.py::TestDetectionGrid -v`
 Expected: PASS
 
 - [ ] **Step 5: Write tests for `build_density_grid` and `find_dense_cells`**
@@ -362,7 +367,7 @@ class TestDensityGrid:
 
 - [ ] **Step 6: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestDensityGrid -v`
+Run: `python -m pytest tests/test_settlements.py::TestDensityGrid -v`
 
 - [ ] **Step 7: Implement `build_density_grid` and `find_dense_cells`**
 
@@ -389,7 +394,7 @@ def find_dense_cells(
 
 - [ ] **Step 8: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestDensityGrid -v`
+Run: `python -m pytest tests/test_settlements.py::TestDensityGrid -v`
 
 - [ ] **Step 9: Write tests for connected components**
 
@@ -454,7 +459,7 @@ class TestConnectedComponents:
 
 - [ ] **Step 10: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestConnectedComponents -v`
+Run: `python -m pytest tests/test_settlements.py::TestConnectedComponents -v`
 
 - [ ] **Step 11: Implement `find_connected_components`**
 
@@ -502,7 +507,7 @@ def find_connected_components(
 
 - [ ] **Step 12: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestConnectedComponents -v`
+Run: `python -m pytest tests/test_settlements.py::TestConnectedComponents -v`
 
 - [ ] **Step 13: Write tests for `extract_clusters`**
 
@@ -543,7 +548,7 @@ class TestExtractClusters:
 
 - [ ] **Step 14: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestExtractClusters -v`
+Run: `python -m pytest tests/test_settlements.py::TestExtractClusters -v`
 
 - [ ] **Step 15: Implement `extract_clusters`**
 
@@ -608,7 +613,7 @@ def extract_clusters(
 
 - [ ] **Step 16: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestExtractClusters -v`
+Run: `python -m pytest tests/test_settlements.py::TestExtractClusters -v`
 
 - [ ] **Step 17: Commit**
 
@@ -694,7 +699,7 @@ class TestMatching:
 
 - [ ] **Step 2: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestMatching -v`
+Run: `python -m pytest tests/test_settlements.py::TestMatching -v`
 
 - [ ] **Step 3: Implement `match_settlements_to_clusters`**
 
@@ -763,7 +768,7 @@ def match_settlements_to_clusters(
 
 - [ ] **Step 4: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestMatching -v`
+Run: `python -m pytest tests/test_settlements.py::TestMatching -v`
 
 - [ ] **Step 5: Write tests for candidate matching (Pass 2)**
 
@@ -800,7 +805,7 @@ class TestCandidateMatching:
 
 - [ ] **Step 6: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestCandidateMatching -v`
+Run: `python -m pytest tests/test_settlements.py::TestCandidateMatching -v`
 
 - [ ] **Step 7: Commit**
 
@@ -843,7 +848,7 @@ class TestLifecycle:
         # Simulate a match: candidate matched to cluster
         matched_candidates = {0: 0}  # candidate_index 0 → cluster 0
         clusters = [{"component_id": 0, "centroid_x": 0.51, "centroid_y": 0.51, "population": 55, "cells": {(5, 5)}}]
-        events = process_lifecycle(w, matched_candidates, {}, clusters, set(), set(), source_turn=30)
+        events = process_lifecycle(w, "TestRegion", matched_candidates, {}, clusters, set(), set(), source_turn=30)
         # Should have promoted
         assert len(w.settlement_candidates) == 0
         region = w.region_map["TestRegion"]
@@ -863,7 +868,7 @@ class TestLifecycle:
         w = self._make_world_stub()
         cand = Settlement(region_name="TestRegion", last_seen_turn=0, candidate_passes=1)
         w.settlement_candidates = [cand]
-        events = process_lifecycle(w, {}, {}, [], set(), {0}, source_turn=30)
+        events = process_lifecycle(w, "TestRegion", {}, {}, [], set(), set(), source_turn=30)
         assert len(w.settlement_candidates) == 0  # silently dropped
 
     def test_new_candidate_created_from_unclaimed_cluster(self):
@@ -872,7 +877,7 @@ class TestLifecycle:
         w = self._make_world_stub()
         clusters = [{"component_id": 0, "centroid_x": 0.3, "centroid_y": 0.4, "population": 30, "cells": {(3, 4)}, "region_name": "TestRegion"}]
         unclaimed_cluster_ids = {0}
-        events = process_lifecycle(w, {}, {}, clusters, unclaimed_cluster_ids, set(), source_turn=15)
+        events = process_lifecycle(w, "TestRegion", {}, {}, clusters, unclaimed_cluster_ids, set(), source_turn=15)
         assert len(w.settlement_candidates) == 1
         c = w.settlement_candidates[0]
         assert c.status == SettlementStatus.CANDIDATE
@@ -891,7 +896,7 @@ class TestLifecycle:
         w.regions[0].settlements = [s]
         matched_active = {1: 0}
         clusters = [{"component_id": 0, "centroid_x": 0.52, "centroid_y": 0.52, "population": 60, "cells": {(5, 5)}}]
-        process_lifecycle(w, {}, matched_active, clusters, set(), set(), source_turn=40)
+        process_lifecycle(w, "TestRegion", {}, matched_active, clusters, set(), set(), source_turn=40)
         updated = w.regions[0].settlements[0]
         assert updated.inertia == 3
         assert updated.population_estimate == 60
@@ -908,7 +913,7 @@ class TestLifecycle:
         )
         w.regions[0].settlements = [s]
         unmatched_active = {1}
-        process_lifecycle(w, {}, {}, [], set(), unmatched_active, source_turn=40)
+        process_lifecycle(w, "TestRegion", {}, {}, [], set(), unmatched_active, source_turn=40)
         updated = w.regions[0].settlements[0]
         assert updated.status == SettlementStatus.DISSOLVING
         assert updated.grace_remaining == DISSOLVE_GRACE
@@ -925,7 +930,7 @@ class TestLifecycle:
         w.regions[0].settlements = [s]
         matched_active = {1: 0}
         clusters = [{"component_id": 0, "centroid_x": 0.5, "centroid_y": 0.5, "population": 30, "cells": {(5, 5)}}]
-        process_lifecycle(w, {}, matched_active, clusters, set(), set(), source_turn=40)
+        process_lifecycle(w, "TestRegion", {}, matched_active, clusters, set(), set(), source_turn=40)
         updated = w.regions[0].settlements[0]
         assert updated.status == SettlementStatus.ACTIVE
         assert updated.inertia == 1
@@ -942,7 +947,7 @@ class TestLifecycle:
         )
         w.regions[0].settlements = [s]
         unmatched_active = {1}
-        events = process_lifecycle(w, {}, {}, [], set(), unmatched_active, source_turn=40)
+        events = process_lifecycle(w, "TestRegion", {}, {}, [], set(), unmatched_active, source_turn=40)
         assert len(w.regions[0].settlements) == 0
         assert len(w.dissolved_settlements) == 1
         tomb = w.dissolved_settlements[0]
@@ -959,13 +964,13 @@ class TestLifecycle:
         # First promotion
         c1 = Settlement(region_name="TestRegion", last_seen_turn=0, candidate_passes=CANDIDATE_PERSISTENCE - 1)
         w.settlement_candidates = [c1]
-        process_lifecycle(w, {0: 0}, {}, [{"component_id": 0, "centroid_x": 0.5, "centroid_y": 0.5, "population": 50, "cells": {(5,5)}}], set(), set(), source_turn=30)
+        process_lifecycle(w, "TestRegion", {0: 0}, {}, [{"component_id": 0, "centroid_x": 0.5, "centroid_y": 0.5, "population": 50, "cells": {(5,5)}}], set(), set(), source_turn=30)
         first_name = w.regions[0].settlements[0].name
         first_id = w.regions[0].settlements[0].settlement_id
         # Second promotion
         c2 = Settlement(region_name="TestRegion", last_seen_turn=0, candidate_passes=CANDIDATE_PERSISTENCE - 1)
         w.settlement_candidates = [c2]
-        process_lifecycle(w, {0: 1}, {}, [{"component_id": 1, "centroid_x": 0.8, "centroid_y": 0.8, "population": 50, "cells": {(8,8)}}], set(), set(), source_turn=45)
+        process_lifecycle(w, "TestRegion", {0: 1}, {}, [{"component_id": 1, "centroid_x": 0.8, "centroid_y": 0.8, "population": 50, "cells": {(8,8)}}], set(), set(), source_turn=45)
         second = w.regions[0].settlements[1]
         assert second.settlement_id == first_id + 1
         assert second.name != first_name
@@ -983,7 +988,7 @@ class TestLifecycle:
 
 - [ ] **Step 2: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestLifecycle -v`
+Run: `python -m pytest tests/test_settlements.py::TestLifecycle -v`
 
 - [ ] **Step 3: Implement `compute_inertia_cap` and `process_lifecycle`**
 
@@ -1006,6 +1011,7 @@ def _cluster_by_id(clusters: list[dict]) -> dict[int, dict]:
 
 def process_lifecycle(
     world,
+    region_name: str,
     matched_candidates: dict[int, int],  # candidate_index → component_id
     matched_active: dict[int, int],       # settlement_id → component_id
     clusters: list[dict],
@@ -1013,7 +1019,10 @@ def process_lifecycle(
     unmatched_settlement_ids: set[int],   # active/dissolving IDs that had no match
     source_turn: int,
 ) -> list[Event]:
-    """Process all lifecycle transitions for one detection pass. Mutates world in-place.
+    """Process lifecycle transitions for one region in one detection pass.
+
+    Important: this function only rewrites candidate state for `region_name`.
+    Candidates from other regions are preserved unchanged.
 
     Also stashes on world:
         _settlement_founded_this_turn: list[int]  (extended, not replaced)
@@ -1031,73 +1040,99 @@ def process_lifecycle(
         world._settlement_dissolved_this_turn = []
     if not hasattr(world, '_settlement_transitions'):
         world._settlement_transitions = []
+    target_region = region_map.get(region_name)
+    if target_region is None:
+        return events
 
     # --- 1. Update matched active/dissolving settlements ---
-    for region in world.regions:
-        for s in region.settlements:
-            if s.settlement_id in matched_active:
-                c = cluster_map[matched_active[s.settlement_id]]
-                s.centroid_x = c["centroid_x"]
-                s.centroid_y = c["centroid_y"]
-                s.footprint_cells = sorted(c["cells"])
-                s.population_estimate = c["population"]
-                s.peak_population = max(s.peak_population, c["population"])
-                s.last_seen_turn = source_turn
-                if s.status == SettlementStatus.DISSOLVING:
-                    # Revival
-                    s.status = SettlementStatus.ACTIVE
-                    s.inertia = 1
-                    s.grace_remaining = 0
-                else:
-                    cap = compute_inertia_cap(source_turn - s.founding_turn, s.population_estimate)
-                    s.inertia = min(s.inertia + 1, cap)
+    for s in target_region.settlements:
+        if s.settlement_id in matched_active:
+            c = cluster_map[matched_active[s.settlement_id]]
+            s.centroid_x = c["centroid_x"]
+            s.centroid_y = c["centroid_y"]
+            s.footprint_cells = sorted(c["cells"])
+            s.population_estimate = c["population"]
+            s.peak_population = max(s.peak_population, c["population"])
+            s.last_seen_turn = source_turn
+            if s.status == SettlementStatus.DISSOLVING:
+                # Revival
+                old_status = s.status
+                s.status = SettlementStatus.ACTIVE
+                s.inertia = 1
+                s.grace_remaining = 0
+                world._settlement_transitions.append({
+                    "settlement_id": s.settlement_id,
+                    "name": s.name,
+                    "region_name": target_region.name,
+                    "from_status": old_status.value,
+                    "to_status": s.status.value,
+                    "reason": "revived_on_match",
+                })
+            else:
+                cap = compute_inertia_cap(source_turn - s.founding_turn, s.population_estimate)
+                s.inertia = min(s.inertia + 1, cap)
 
     # --- 2. Handle unmatched active/dissolving settlements ---
-    for region in world.regions:
-        to_remove = []
-        for s in region.settlements:
-            if s.settlement_id not in unmatched_settlement_ids:
-                continue
-            if s.status == SettlementStatus.ACTIVE:
-                s.inertia -= 1
-                if s.inertia <= 0:
-                    s.status = SettlementStatus.DISSOLVING
-                    s.grace_remaining = DISSOLVE_GRACE
-                    s.inertia = 0
-            elif s.status == SettlementStatus.DISSOLVING:
-                s.grace_remaining -= 1
-                if s.grace_remaining <= 0:
-                    # Tombstone
-                    s.status = SettlementStatus.DISSOLVED
-                    s.dissolved_turn = source_turn
-                    s.inertia = 0
-                    s.grace_remaining = 0
-                    s.candidate_passes = 0
-                    s.footprint_cells = []
-                    world.dissolved_settlements.append(s)
-                    to_remove.append(s)
-                    controller = region.controller
-                    events.append(Event(
-                        turn=source_turn,
-                        event_type="settlement_dissolved",
-                        actors=[controller] if controller else [],
-                        description=f"The settlement of {s.name} in {region.name} has been abandoned",
-                        importance=3,
-                        source="agent",
-                    ))
-                    world._settlement_dissolved_this_turn.append(s.settlement_id)
-                    world._settlement_transitions.append({
-                        "settlement_id": s.settlement_id, "name": s.name,
-                        "region_name": region.name,
-                        "from_status": "dissolving", "to_status": "dissolved",
-                        "reason": "dissolved_grace_expired",
-                    })
-        for s in to_remove:
-            region.settlements.remove(s)
+    to_remove = []
+    for s in target_region.settlements:
+        if s.settlement_id not in unmatched_settlement_ids:
+            continue
+        if s.status == SettlementStatus.ACTIVE:
+            old_status = s.status
+            s.inertia -= 1
+            if s.inertia <= 0:
+                s.status = SettlementStatus.DISSOLVING
+                s.grace_remaining = DISSOLVE_GRACE
+                s.inertia = 0
+                world._settlement_transitions.append({
+                    "settlement_id": s.settlement_id,
+                    "name": s.name,
+                    "region_name": target_region.name,
+                    "from_status": old_status.value,
+                    "to_status": s.status.value,
+                    "reason": "entered_dissolving",
+                })
+        elif s.status == SettlementStatus.DISSOLVING:
+            s.grace_remaining -= 1
+            if s.grace_remaining <= 0:
+                # Tombstone
+                s.status = SettlementStatus.DISSOLVED
+                s.dissolved_turn = source_turn
+                s.inertia = 0
+                s.grace_remaining = 0
+                s.candidate_passes = 0
+                s.footprint_cells = []
+                world.dissolved_settlements.append(s)
+                to_remove.append(s)
+                controller = target_region.controller
+                events.append(Event(
+                    turn=source_turn,
+                    event_type="settlement_dissolved",
+                    actors=[controller] if controller else [],
+                    description=f"The settlement of {s.name} in {target_region.name} has been abandoned",
+                    importance=3,
+                    source="agent",
+                ))
+                world._settlement_dissolved_this_turn.append(s.settlement_id)
+                world._settlement_transitions.append({
+                    "settlement_id": s.settlement_id, "name": s.name,
+                    "region_name": target_region.name,
+                    "from_status": "dissolving", "to_status": "dissolved",
+                    "reason": "dissolved_grace_expired",
+                })
+    for s in to_remove:
+        target_region.settlements.remove(s)
 
     # --- 3. Process matched candidates ---
     promoted_indices: set[int] = set()
-    old_candidates = list(world.settlement_candidates)
+    old_candidates = [
+        c for c in world.settlement_candidates
+        if c.region_name == region_name
+    ]
+    other_candidates = [
+        c for c in world.settlement_candidates
+        if c.region_name != region_name
+    ]
     for cand_idx, comp_id in matched_candidates.items():
         if cand_idx >= len(old_candidates):
             continue
@@ -1122,11 +1157,11 @@ def process_lifecycle(
             cand.inertia = 1
             cand.candidate_passes = 0
             cand.peak_population = max(cand.peak_population, cand.population_estimate)
-            region = region_map.get(cand.region_name)
-            if region is not None:
-                region.settlements.append(cand)
+            target = region_map.get(cand.region_name)
+            if target is not None:
+                target.settlements.append(cand)
             promoted_indices.add(cand_idx)
-            controller = region.controller if region else None
+            controller = target.controller if target else None
             events.append(Event(
                 turn=source_turn,
                 event_type="settlement_founded",
@@ -1157,11 +1192,8 @@ def process_lifecycle(
         c = cluster_map.get(comp_id)
         if c is None:
             continue
-        # Determine region_name from cluster — caller must provide region context
-        # For now, use world.regions[0].name as placeholder; actual implementation
-        # will be per-region in run_settlement_tick
         new_candidates.append(Settlement(
-            region_name=c.get("region_name", ""),
+            region_name=region_name,
             last_seen_turn=source_turn,
             centroid_x=c["centroid_x"],
             centroid_y=c["centroid_y"],
@@ -1170,13 +1202,14 @@ def process_lifecycle(
             candidate_passes=1,
         ))
 
-    world.settlement_candidates = new_candidates
+    # Preserve other regions' candidates exactly; only rewrite this region.
+    world.settlement_candidates = other_candidates + new_candidates
     return events
 ```
 
 - [ ] **Step 4: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestLifecycle -v`
+Run: `python -m pytest tests/test_settlements.py::TestLifecycle -v`
 
 - [ ] **Step 5: Commit**
 
@@ -1298,7 +1331,7 @@ class TestRunSettlementTick:
 
 - [ ] **Step 2: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestRunSettlementTick -v`
+Run: `python -m pytest tests/test_settlements.py::TestRunSettlementTick -v`
 
 - [ ] **Step 3: Implement `run_settlement_tick`**
 
@@ -1307,13 +1340,12 @@ Add to `settlements.py`:
 ```python
 def _parse_snapshot_by_region(snapshot, num_regions: int) -> dict[int, list[tuple[float, float]]]:
     """Extract per-region agent positions from Arrow snapshot."""
-    ids = snapshot.column("id").to_pylist()
     regions = snapshot.column("region").to_pylist()
     xs = snapshot.column("x").to_pylist()
     ys = snapshot.column("y").to_pylist()
 
     by_region: dict[int, list[tuple[float, float]]] = {r: [] for r in range(num_regions)}
-    for i in range(len(ids)):
+    for i in range(len(regions)):
         r = regions[i]
         if r < num_regions:
             by_region[r].append((xs[i], ys[i]))
@@ -1335,6 +1367,9 @@ def run_settlement_tick(
 
     # No snapshot → off mode
     if snapshot is None:
+        if not getattr(world, "_settlement_offmode_logged", False):
+            logger.debug("Settlement detection disabled: no agent snapshot (mode=off)")
+            world._settlement_offmode_logged = True
         world._settlement_diagnostics = {
             "detection_executed": False,
             "interval": SETTLEMENT_DETECTION_INTERVAL,
@@ -1343,6 +1378,7 @@ def run_settlement_tick(
         world._settlement_source_turn = source_turn
         world._settlement_founded_this_turn = []
         world._settlement_dissolved_this_turn = []
+        world._settlement_transitions = []
         return []
 
     # Interval gate
@@ -1356,6 +1392,7 @@ def run_settlement_tick(
         world._settlement_source_turn = source_turn
         world._settlement_founded_this_turn = []
         world._settlement_dissolved_this_turn = []
+        world._settlement_transitions = []
         return []
 
     reason = "forced_terminal" if force and not is_interval else "interval_match"
@@ -1376,7 +1413,6 @@ def run_settlement_tick(
         "new_candidates": 0, "promoted": 0, "revived": 0,
         "entered_dissolving": 0, "tombstoned": 0,
     }
-    transitions: list[dict] = []
 
     # Process each region independently — component_ids are region-local
     for r_idx, region in enumerate(world.regions):
@@ -1389,34 +1425,32 @@ def run_settlement_tick(
 
         # Pass 1: active/dissolving settlements in this region
         if region.settlements or clusters:
-            ms, mc, us, uc = match_settlements_to_clusters(
+            ms, _, us, uc = match_settlements_to_clusters(
                 region.settlements, clusters, source_turn
             )
         else:
-            ms, mc, us, uc = {}, {}, set(), set()
+            ms, _, us, uc = {}, {}, set(), set()
 
-        # Pass 2: candidates for this region
-        region_cand_indices = [
-            i for i, c in enumerate(world.settlement_candidates)
+        # Pass 2: candidates for this region (local candidate index space)
+        region_candidates = [
+            c for c in world.settlement_candidates
             if c.region_name == region.name
         ]
         remaining_clusters = [c for c in clusters if c["component_id"] in uc]
 
-        cand_matched: dict[int, int] = {}  # global_cand_index → component_id
+        cand_matched: dict[int, int] = {}  # local_candidate_index → component_id
         remaining_unclaimed = uc  # default: all unclaimed from Pass 1
 
-        if region_cand_indices and remaining_clusters:
-            cand_list = [world.settlement_candidates[i] for i in region_cand_indices]
+        if region_candidates and remaining_clusters:
             mc2, _, _, uc2_clust = match_settlements_to_clusters(
-                cand_list, remaining_clusters, source_turn
+                region_candidates, remaining_clusters, source_turn
             )
-            for local_idx, comp_id in mc2.items():
-                cand_matched[region_cand_indices[local_idx]] = comp_id
+            cand_matched = dict(mc2)
             remaining_unclaimed = uc2_clust
 
         # Run lifecycle for this region (clusters cached from first extraction)
         region_events = process_lifecycle(
-            world, cand_matched, ms, clusters,
+            world, region.name, cand_matched, ms, clusters,
             remaining_unclaimed, us, source_turn,
         )
         all_events.extend(region_events)
@@ -1435,14 +1469,16 @@ def run_settlement_tick(
     # Aggregate stats from stashed transition data
     founded_ids = getattr(world, '_settlement_founded_this_turn', [])
     dissolved_ids = getattr(world, '_settlement_dissolved_this_turn', [])
+    transitions = getattr(world, '_settlement_transitions', [])
     stats["promoted"] = len(founded_ids)
     stats["tombstoned"] = len(dissolved_ids)
-    stats["new_candidates"] = sum(1 for c in world.settlement_candidates if c.candidate_passes == 1)
-    # revived and entered_dissolving tracked via process_lifecycle transition returns
-    stats["revived"] = sum(1 for e in all_events if "revived" in getattr(e, 'description', '').lower())
+    stats["new_candidates"] = sum(
+        1 for c in world.settlement_candidates
+        if c.candidate_passes == 1 and c.last_seen_turn == source_turn
+    )
+    stats["revived"] = sum(1 for t in transitions if t.get("reason") == "revived_on_match")
     stats["entered_dissolving"] = sum(
-        1 for r in world.regions for s in r.settlements
-        if s.status == SettlementStatus.DISSOLVING and s.grace_remaining == DISSOLVE_GRACE
+        1 for t in transitions if t.get("reason") == "entered_dissolving"
     )
 
     # Diagnostics
@@ -1453,7 +1489,7 @@ def run_settlement_tick(
         "source_turn": source_turn,
         "per_region": per_region_diag,
         "matching_stats": stats,
-        "transitions": getattr(world, '_settlement_transitions', []),
+        "transitions": transitions,
         "global": {
             "total_active": sum(
                 1 for r in world.regions for s in r.settlements
@@ -1474,7 +1510,7 @@ def run_settlement_tick(
 
 - [ ] **Step 4: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestRunSettlementTick -v`
+Run: `python -m pytest tests/test_settlements.py::TestRunSettlementTick -v`
 
 - [ ] **Step 5: Commit**
 
@@ -1515,7 +1551,7 @@ class TestIntegration:
 
 - [ ] **Step 2: Run existing tests first to ensure no regressions**
 
-Run: `pytest tests/ -x --timeout=60 -q`
+Run: `python -m pytest tests/ -x -q`
 Expected: All existing tests pass.
 
 - [ ] **Step 3: Add `force_settlement_detection` parameter to `run_turn()`**
@@ -1524,11 +1560,16 @@ In `src/chronicler/simulation.py`, modify the `run_turn` signature (line ~1390):
 
 Add `force_settlement_detection: bool = False,` after `politics_runtime` parameter.
 
+At module import scope (near other `chronicler.*` imports), add:
+
+```python
+from chronicler.settlements import run_settlement_tick
+```
+
 After the economy_result stash (line ~1567), add:
 
 ```python
     # M56a: Settlement detection
-    from chronicler.settlements import run_settlement_tick
     settlement_events = run_settlement_tick(
         world, source_turn=world.turn, force=force_settlement_detection
     )
@@ -1585,12 +1626,12 @@ from chronicler.models import SettlementSummary
 
 - [ ] **Step 6: Run integration test**
 
-Run: `pytest tests/test_settlements.py::TestIntegration -v`
+Run: `python -m pytest tests/test_settlements.py::TestIntegration -v`
 Expected: PASS
 
 - [ ] **Step 7: Run full test suite for regressions**
 
-Run: `pytest tests/ -x --timeout=120 -q`
+Run: `python -m pytest tests/ -x -q`
 Expected: All tests pass (existing + new).
 
 - [ ] **Step 8: Commit**
@@ -1624,6 +1665,7 @@ class TestAnalyticsExtractor:
         history = [
             TurnSnapshot(
                 turn=15, civ_stats={}, region_control={}, relationships={},
+                settlement_source_turn=14,
                 settlement_count=1, candidate_count=0,
                 total_settlement_population=50,
                 active_settlements=[
@@ -1631,9 +1673,11 @@ class TestAnalyticsExtractor:
                                      population_estimate=50, centroid_x=0.5, centroid_y=0.5,
                                      founding_turn=15, status="active")
                 ],
+                founded_this_turn=[1],
             ),
             TurnSnapshot(
                 turn=30, civ_stats={}, region_control={}, relationships={},
+                settlement_source_turn=29,
                 settlement_count=1, candidate_count=0,
                 total_settlement_population=60,
                 active_settlements=[
@@ -1641,6 +1685,7 @@ class TestAnalyticsExtractor:
                                      population_estimate=60, centroid_x=0.5, centroid_y=0.5,
                                      founding_turn=15, status="active")
                 ],
+                dissolved_this_turn=[1],
             ),
         ]
         result = extract_settlement_diagnostics(history)
@@ -1649,11 +1694,14 @@ class TestAnalyticsExtractor:
         assert len(result["per_settlement"]) == 1
         assert result["per_settlement"][1]["name"] == "S1"
         assert len(result["per_settlement"][1]["population_series"]) == 2
+        # Rates are keyed by source turn anchor, not post-increment snapshot turn
+        assert result["founding_rate"] == [{"turn": 14, "count": 1}]
+        assert result["dissolution_rate"] == [{"turn": 29, "count": 1}]
 ```
 
 - [ ] **Step 2: Run — should fail**
 
-Run: `pytest tests/test_settlements.py::TestAnalyticsExtractor -v`
+Run: `python -m pytest tests/test_settlements.py::TestAnalyticsExtractor -v`
 
 - [ ] **Step 3: Implement `extract_settlement_diagnostics`**
 
@@ -1675,6 +1723,7 @@ def extract_settlement_diagnostics(history: list) -> dict:
     dissolution_rate: dict[int, int] = {}
 
     for snap in history:
+        source_turn = getattr(snap, "settlement_source_turn", 0) or snap.turn
         count_series.append({
             "turn": snap.turn,
             "active": snap.settlement_count,
@@ -1696,11 +1745,11 @@ def extract_settlement_diagnostics(history: list) -> dict:
             })
 
         for sid in snap.founded_this_turn:
-            founding_rate[snap.turn] = founding_rate.get(snap.turn, 0) + 1
+            founding_rate[source_turn] = founding_rate.get(source_turn, 0) + 1
         for sid in snap.dissolved_this_turn:
-            dissolution_rate[snap.turn] = dissolution_rate.get(snap.turn, 0) + 1
+            dissolution_rate[source_turn] = dissolution_rate.get(source_turn, 0) + 1
             if sid in per_settlement:
-                per_settlement[sid]["dissolved_turn"] = snap.turn
+                per_settlement[sid]["dissolved_turn"] = source_turn
 
     return {
         "settlement_count_series": count_series,
@@ -1712,7 +1761,7 @@ def extract_settlement_diagnostics(history: list) -> dict:
 
 - [ ] **Step 4: Run — should pass**
 
-Run: `pytest tests/test_settlements.py::TestAnalyticsExtractor -v`
+Run: `python -m pytest tests/test_settlements.py::TestAnalyticsExtractor -v`
 
 - [ ] **Step 5: Commit**
 
@@ -1823,7 +1872,7 @@ class TestSaveLoad:
 
 - [ ] **Step 2: Run tests**
 
-Run: `pytest tests/test_settlements.py::TestDeterminism tests/test_settlements.py::TestSaveLoad -v`
+Run: `python -m pytest tests/test_settlements.py::TestDeterminism tests/test_settlements.py::TestSaveLoad -v`
 Expected: PASS
 
 - [ ] **Step 3: Commit**
@@ -1842,7 +1891,7 @@ git commit -m "test(m56a): determinism and save/load round-trip tests"
 
 - [ ] **Step 1: Run full Python test suite**
 
-Run: `pytest tests/ -x --timeout=120 -q`
+Run: `python -m pytest tests/ -x -q`
 Expected: All tests pass.
 
 - [ ] **Step 2: Run Rust test suite (no changes expected, verify no breakage)**
@@ -1854,17 +1903,19 @@ Expected: All tests pass (M56a has no Rust changes).
 
 Run a quick off-mode simulation to ensure no crash:
 
-```bash
-cd /c/Users/tateb/Documents/opusprogram
-python -m chronicler --seed 42 --turns 30 --agents off --no-narration 2>&1 | tail -5
+```powershell
+$env:PYTHONPATH = "src"
+python -m chronicler.main --seed 42 --turns 30 --agents off --simulate-only 2>&1 | Select-Object -Last 5
 ```
 
 Expected: Clean run, no settlement-related errors.
+Settlement detection should remain disabled in off-mode because no agent snapshot exists.
 
 - [ ] **Step 4: Verify agent mode produces settlements**
 
-```bash
-python -m chronicler --seed 42 --turns 50 --agents hybrid --no-narration 2>&1 | tail -10
+```powershell
+$env:PYTHONPATH = "src"
+python -m chronicler.main --seed 42 --turns 50 --agents hybrid --simulate-only 2>&1 | Select-Object -Last 10
 ```
 
 Expected: Clean run. Check logs for settlement detection diagnostics.
@@ -1882,4 +1933,46 @@ git commit -m "fix(m56a): post-integration cleanup"
 
 ```bash
 git push
+```
+
+---
+
+### Task 10: Post-Implementation Closeout and Handoff
+
+**Files:**
+- Modify: `docs/superpowers/progress/phase-6-progress.md`
+- Review: `docs/superpowers/specs/2026-03-25-m56a-settlement-detection-design.md`
+- Review: `docs/superpowers/plans/2026-03-25-m56b-pre-spec-handoff-agent-b.md`
+
+- [ ] **Step 1: Update the progress log**
+
+Add an M56a entry to `docs/superpowers/progress/phase-6-progress.md` that records:
+- what landed
+- what validation ran
+- the explicit off-mode behavior (`no snapshot -> no-op detector, default snapshot fields`)
+- any deferred follow-up work
+
+- [ ] **Step 2: Verify the M56b contract against the implementation**
+
+Check that the implemented M56a surface matches the handoff contract:
+- `Region.settlements`
+- `WorldState.dissolved_settlements`
+- `TurnSnapshot.active_settlements`
+- `TurnSnapshot.founded_this_turn`
+- `TurnSnapshot.dissolved_this_turn`
+- settlement IDs, centroids, footprint cells, and lifecycle status
+
+- [ ] **Step 3: Record all remaining post-M56a follow-ups**
+
+Write the remaining work explicitly into the progress log and/or next-plan handoff:
+- M56b mechanical consumers (`is_urban`, per-agent `settlement_id`, urban/rural effects)
+- richer narrator integration for settlement events
+- calibration follow-up (`SETTLEMENT_DETECTION_INTERVAL`, `DENSITY_FLOOR`, `CANDIDATE_PERSISTENCE`, `DISSOLVE_GRACE`)
+- any larger regression/comparison sweep still required before milestone signoff
+
+- [ ] **Step 4: Commit the closeout docs**
+
+```bash
+git add docs/superpowers/progress/phase-6-progress.md docs/superpowers/plans/2026-03-26-m56a-settlement-detection.md
+git commit -m "docs(m56a): add closeout and m56b handoff tasks"
 ```

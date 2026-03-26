@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-25 (M55a + M55b crystallized on top of the accepted M54 line; canonical 200x500 gate recovered and re-passed)
+> **Last updated:** 2026-03-26 (M56a settlement detection implemented on `feat/m56a-settlement-detection`; 54 tests, off-mode verified)
 
 ---
 
@@ -259,6 +259,25 @@
 - **Key design decisions:** Spot mutations broadcast to all owned regions, frontier detection is purely geographic (`different controller OR uncontrolled`), military projection and collapse-variance gameplay hooks are deferred, and conquered regions keep their prior regional asabiya instead of instant assimilation.
 - **Crystallization fixes (2026-03-24):** restoration no longer writes a redundant direct `restored_civ.asabiya = 0.8` scalar that is immediately recomputed from region state, zero-pop / dead civs now reset `asabiya_variance` to `0.0`, and the scalar-write guard test now checks `politics.py` too.
 - **Final gate recovery (2026-03-25):** canonical 200-seed/500-turn validation now passes again after restoring the initial-age RNG stream to 1400, moving spatial RNG to 2000/2001, raising `MEMORY_SATISFACTION_WEIGHT` to `0.05`, and reducing `FOOD_SHORTAGE_WEIGHT` to `0.08`. Final gate artifact: `output/m55b/gated_age1400_mem05_food08_p24/full_gate/batch_1/validate_all.json`.
+
+### M56a: Settlement Detection — implemented on `feat/m56a-settlement-detection`
+
+- 8 commits on `feat/m56a-settlement-detection` branch. 54 settlement tests, all passing. No Rust changes.
+- **Spec:** `docs/superpowers/specs/2026-03-25-m56a-settlement-detection-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-26-m56a-settlement-detection.md`
+- **Python:**
+  - `models.py`: `SettlementStatus` enum (4 values), `Settlement` model (16 fields with sentinel defaults for candidates), `SettlementSummary` model. `Region.settlements`, `WorldState.dissolved_settlements`/`next_settlement_id`/`settlement_naming_counters`/`settlement_candidates`, `TurnSnapshot` settlement summary fields (7 fields).
+  - `settlements.py` (new, ~490 lines): Detection grid (10x10 uniform hash), density filtering (`DENSITY_FLOOR=5`, `DENSITY_FRACTION=0.03`), 8-neighbor connected components (BFS, row-major scan), cluster extraction with centroid computation, two-pass matching (distance gate `MAX_MATCH_DISTANCE=0.25`, age/pass-count priority), lifecycle state machine (candidate → active → dissolving → dissolved), `run_settlement_tick()` entry point with interval gate (`SETTLEMENT_DETECTION_INTERVAL=15`), diagnostics output.
+  - `simulation.py`: `force_settlement_detection` parameter on `run_turn()`, `run_settlement_tick()` call between economy stash and Phase 10.
+  - `main.py`: `force_settlement_detection=(turn_num == num_turns - 1)` on terminal turn, 7 settlement fields on `TurnSnapshot`, `SettlementSummary` import.
+  - `analytics.py`: `extract_settlement_diagnostics()` extractor.
+- **Tests:** `tests/test_settlements.py` — 54 tests across 11 test classes: model construction, grid/density/components/clusters, matching (active + candidate), lifecycle (9 transitions), entry point (6 paths), analytics, determinism, save/load round-trip, integration.
+- **Off-mode behavior:** `--agents=off` → no agent snapshot → `run_settlement_tick` early-returns with diagnostics `reason="mode_off_no_snapshot"`. TurnSnapshot settlement fields default to 0/[]. Off-mode 30-turn smoke test passes.
+- **Hybrid mode:** Not smoke-tested due to pre-existing FFI mismatch (`set_economy_config` AttributeError). Settlement code is fully unit-tested independently.
+- **Key design decisions:** Detection is purely spatial (no RNG). Component IDs are region-local (no cross-region collisions). Candidates persist for `CANDIDATE_PERSISTENCE=2` passes before promotion. Inertia cap scales with age+population. Dissolved settlements get tombstone (zeroed lifecycle fields, preserved in `dissolved_settlements` list). Naming counters never reuse IDs.
+- **Calibration constants ([CALIBRATE M61b]):** `GRID_SIZE=10`, `DENSITY_FLOOR=5`, `DENSITY_FRACTION=0.03`, `SETTLEMENT_DETECTION_INTERVAL=15`, `MAX_MATCH_DISTANCE=0.25`, `CANDIDATE_PERSISTENCE=2`, `BASE_INERTIA_CAP=3`, `AGE_BONUS_INTERVAL=50`, `POP_BONUS_INTERVAL=100`, `MAX_INERTIA_CAP=10`, `DISSOLVE_GRACE=2`.
+- **No Rust changes.** Entirely Python-side.
+- **Deferred:** M56b mechanical consumers (`is_urban`, per-agent `settlement_id`, urban/rural effects). Richer narrator integration for settlement events. Calibration follow-up (M61b). 200-seed regression sweep (blocked on hybrid smoke).
 
 ---
 
@@ -528,6 +547,7 @@
 - **~~Viewer extensions (M46)~~ — Dropped 2026-03-17.** Phase 7 redesigns the viewer from scratch (M62). All Phase 3-6 viewer requirements preserved as inventory in Phase 7 roadmap.
 - **M44: Sequential batch token accumulation bleeds across seeds.** `--batch N --narrator api` shares one `AnthropicClient` across seeds; seed 2's bundle metadata shows seed 1+2 cumulative tokens. Low urgency — edge case, tokens for operator awareness not billing. Fix: reset accumulators per `execute_run()`, or snapshot deltas. Phoebe NB-1.
 - **M44: `_run_narrate()` agent context still limited.** Pre-existing gap — `narrate_batch()` call in `_run_narrate()` doesn't thread `great_persons`, `social_edges`, `gini_by_civ`, `economy_result`. API and local narration both equally affected. Not M44 scope.
+- **M54b: off-mode economy runtime is intentionally frozen.** Production `run_turn()` does not synthesize `world._economy_result` in `--agents=off`; `compute_economy(agent_mode=False)` remains an oracle/test surface only. A regression test now locks this expectation in `tests/test_simulation.py::test_agents_off_keeps_economy_result_unset`, and M56a planning should preserve the same no-op off-mode assumption.
 - **Spec-ahead strategy:** M44 merged. M45 design complete (spec doc pending).
 - **M42 analytics deferred:** Price time series extractor needs bundle format update to persist `EconomyResult` prices into turn snapshots. Land when bundle schema is designed (M43 or M62).
 - **M42+M43a 200-seed regression pending:** Calibration values (PER_CAPITA_FOOD, RAW_MATERIAL_PER_SOLDIER, LUXURY_PER_WEALTHY_AGENT, LUXURY_DEMAND_THRESHOLD, MERCHANT_MARGIN_NORMALIZER, TAX_RATE, BASE_FARMER_INCOME, plus M43a transport/decay/stockpile constants) need tuning before regression is meaningful.
