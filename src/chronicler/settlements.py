@@ -1,6 +1,7 @@
 # src/chronicler/settlements.py
 """M56a: Settlement detection, matching, lifecycle, and diagnostics."""
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -132,3 +133,57 @@ def extract_clusters(
             "cells": cells,
         })
     return clusters
+
+
+def _centroid_distance(s, c) -> float:
+    dx = s.centroid_x - c["centroid_x"]
+    dy = s.centroid_y - c["centroid_y"]
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def match_settlements_to_clusters(
+    settlements: list,
+    clusters: list[dict],
+    source_turn: int,
+) -> tuple[dict[int, int], dict[int, int], set[int], set[int]]:
+    """Two-pass matching is handled by the caller. This does Pass 1 (or Pass 2).
+
+    Returns:
+        matched_s: {settlement_id (or candidate_index): cluster component_id}
+        matched_c: {cluster component_id: settlement_id (or candidate_index)}
+        unmatched_s: set of settlement_ids (or candidate_indices) not matched
+        unmatched_c: set of cluster component_ids not matched
+    """
+    pairs = []
+    for s_idx, s in enumerate(settlements):
+        s_key = s.settlement_id if s.settlement_id != 0 else s_idx
+        for c in clusters:
+            dist = _centroid_distance(s, c)
+            if dist <= MAX_MATCH_DISTANCE:
+                if s.settlement_id != 0:
+                    age = source_turn - s.founding_turn
+                    pairs.append((dist, -age, s.settlement_id, c["component_id"], s_key))
+                else:
+                    pairs.append((dist, -s.candidate_passes, s_idx, c["component_id"], s_idx))
+
+    pairs.sort(key=lambda p: (p[0], p[1], p[2], p[3]))
+
+    matched_s: dict[int, int] = {}
+    matched_c: dict[int, int] = {}
+    used_s: set[int] = set()
+    used_c: set[int] = set()
+
+    for _, _, s_key, c_key, s_key_out in pairs:
+        if s_key_out in used_s or c_key in used_c:
+            continue
+        matched_s[s_key_out] = c_key
+        matched_c[c_key] = s_key_out
+        used_s.add(s_key_out)
+        used_c.add(c_key)
+
+    all_s_keys = {s.settlement_id if s.settlement_id != 0 else i for i, s in enumerate(settlements)}
+    all_c_keys = {c["component_id"] for c in clusters}
+    unmatched_s = all_s_keys - used_s
+    unmatched_c = all_c_keys - used_c
+
+    return matched_s, matched_c, unmatched_s, unmatched_c

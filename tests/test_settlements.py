@@ -242,3 +242,96 @@ class TestExtractClusters:
         )
         clusters = extract_clusters(agents)
         assert len(clusters) == 2
+
+
+class TestMatching:
+    def _make_settlement(self, sid, cx, cy, founding, status="active", inertia=3):
+        from chronicler.models import Settlement, SettlementStatus
+        return Settlement(
+            settlement_id=sid, name=f"S{sid}", region_name="R",
+            founding_turn=founding, last_seen_turn=founding,
+            centroid_x=cx, centroid_y=cy,
+            status=SettlementStatus(status), inertia=inertia,
+        )
+
+    def _make_cluster(self, cid, cx, cy, pop=10):
+        return {
+            "component_id": cid, "centroid_x": cx, "centroid_y": cy,
+            "population": pop, "cells": {(int(cx * 10), int(cy * 10))},
+        }
+
+    def test_match_single_settlement_to_nearest_cluster(self):
+        from chronicler.settlements import match_settlements_to_clusters
+        settlements = [self._make_settlement(1, 0.5, 0.5, 10)]
+        clusters = [
+            self._make_cluster(0, 0.52, 0.52),
+            self._make_cluster(1, 0.9, 0.9),
+        ]
+        matched_s, matched_c, unmatched_s, unmatched_c = match_settlements_to_clusters(
+            settlements, clusters, source_turn=20
+        )
+        assert matched_s == {1: 0}
+        assert 1 in unmatched_c
+
+    def test_distance_gate_rejects_far_cluster(self):
+        from chronicler.settlements import match_settlements_to_clusters
+        settlements = [self._make_settlement(1, 0.1, 0.1, 10)]
+        clusters = [self._make_cluster(0, 0.9, 0.9)]
+        matched_s, matched_c, unmatched_s, unmatched_c = match_settlements_to_clusters(
+            settlements, clusters, source_turn=20
+        )
+        assert matched_s == {}
+        assert 1 in unmatched_s
+        assert 0 in unmatched_c
+
+    def test_older_settlement_wins_tie(self):
+        from chronicler.settlements import match_settlements_to_clusters
+        s_old = self._make_settlement(1, 0.5, 0.5, founding=5)
+        s_new = self._make_settlement(2, 0.52, 0.52, founding=15)
+        clusters = [self._make_cluster(0, 0.51, 0.51)]
+        matched_s, _, unmatched_s, _ = match_settlements_to_clusters(
+            [s_old, s_new], clusters, source_turn=20
+        )
+        assert matched_s == {1: 0}
+        assert 2 in unmatched_s
+
+    def test_greedy_no_double_assignment(self):
+        from chronicler.settlements import match_settlements_to_clusters
+        s1 = self._make_settlement(1, 0.5, 0.5, 10)
+        s2 = self._make_settlement(2, 0.55, 0.55, 10)
+        clusters = [self._make_cluster(0, 0.52, 0.52)]
+        matched_s, _, unmatched_s, _ = match_settlements_to_clusters(
+            [s1, s2], clusters, source_turn=20
+        )
+        assert len(matched_s) == 1
+        assert len(unmatched_s) == 1
+
+
+class TestCandidateMatching:
+    def test_candidate_match_by_proximity(self):
+        from chronicler.models import Settlement, SettlementStatus
+        from chronicler.settlements import match_settlements_to_clusters
+        cand = Settlement(
+            region_name="R", last_seen_turn=15,
+            centroid_x=0.5, centroid_y=0.5, candidate_passes=1,
+        )
+        cluster = {
+            "component_id": 0, "centroid_x": 0.52, "centroid_y": 0.52,
+            "population": 10, "cells": {(5, 5)},
+        }
+        matched_s, _, _, _ = match_settlements_to_clusters(
+            [cand], [cluster], source_turn=30
+        )
+        assert 0 in matched_s
+
+    def test_candidate_higher_passes_wins(self):
+        from chronicler.models import Settlement
+        from chronicler.settlements import match_settlements_to_clusters
+        c1 = Settlement(region_name="R", last_seen_turn=15, centroid_x=0.5, centroid_y=0.5, candidate_passes=3)
+        c2 = Settlement(region_name="R", last_seen_turn=15, centroid_x=0.52, centroid_y=0.52, candidate_passes=1)
+        cluster = {"component_id": 0, "centroid_x": 0.51, "centroid_y": 0.51, "population": 10, "cells": {(5, 5)}}
+        matched_s, _, unmatched_s, _ = match_settlements_to_clusters(
+            [c1, c2], [cluster], source_turn=30
+        )
+        assert 0 in matched_s  # c1 (index 0, passes=3) wins over c2 (index 1, passes=1)
+        assert 1 in unmatched_s
