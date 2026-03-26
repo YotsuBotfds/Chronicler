@@ -44,7 +44,7 @@ One row per occupied cell per settlement. Includes **ACTIVE and DISSOLVING** set
 
 **Row sort:** Deterministic `(region_id, settlement_id, cell_y, cell_x)` before FFI transfer.
 
-**Overflow guard:** `build_settlement_batch()` raises `ValueError` if any `settlement_id > 65535` (u16 max).
+**Overflow guard:** `build_settlement_batch()` checks `world.next_settlement_id > 65535` as the primary fail-fast condition and raises `ValueError` before emitting any rows. This catches overflow at the allocation point, not after settlement creation.
 
 **Off-mode:** When `--agents=off`, `build_settlement_batch()` is not called. No batch is produced.
 
@@ -107,16 +107,30 @@ All constants marked `[CALIBRATE M61b]`. Rural agents (settlement_id == 0) recei
 
 ### 3.1 Needs Restoration (`needs.rs`)
 
-Multiplicative modifiers on per-need restoration rate, applied inside `restore_needs()`:
+Multiplicative modifiers on per-need restoration delta, applied inside `restore_needs()` (`needs.rs:183`).
+
+The 6 needs are: `safety`, `material`, `social`, `spiritual`, `autonomy`, `purpose` (pool.rs:63-68). There is no separate food need — food sufficiency contributes to safety and material restoration as an input factor.
+
+**Per-need restoration multipliers** (applied to the total `delta` for each need):
 
 | Need | Urban Multiplier | Constant Name |
 |------|-----------------|---------------|
+| Safety | 0.90 | `URBAN_SAFETY_RESTORATION_MULT` |
 | Material | 1.10 | `URBAN_MATERIAL_RESTORATION_MULT` |
 | Social | 1.08 | `URBAN_SOCIAL_RESTORATION_MULT` |
-| Food | 0.92 | `URBAN_FOOD_RESTORATION_MULT` |
-| Safety | 0.90 | `URBAN_SAFETY_RESTORATION_MULT` |
+| Spiritual | 1.0 | — (no M56b effect) |
+| Autonomy | 1.0 | — (no M56b effect) |
+| Purpose | 1.0 | — (no M56b effect) |
 
-Applied as: `restoration_rate *= mult` when `pool.settlement_ids[slot] != 0`.
+**Food-sufficiency contribution modifier** (applied specifically to the `food_sufficiency` term within material restoration at needs.rs:234):
+
+| Modifier | Value | Constant Name |
+|----------|-------|---------------|
+| Urban food-sufficiency factor | 0.92 | `URBAN_FOOD_SUFFICIENCY_MULT` |
+
+This captures "urban agents benefit less from regional food sufficiency" without inventing a new need. Applied as: `food_sufficiency_contribution *= URBAN_FOOD_SUFFICIENCY_MULT` when `pool.settlement_ids[slot] != 0`, before the contribution is added to the material delta.
+
+All multipliers applied as: `delta *= mult` when `pool.settlement_ids[slot] != 0`.
 
 ### 3.2 Satisfaction (`satisfaction.rs`)
 
@@ -178,7 +192,7 @@ No new per-region narration fields. Per-region `urban_fraction` is derivable fro
 
 ### 4.2 Delta Computation
 
-`urban_fraction_delta_20t` is computed directly from turn history when building narration context: look up `history[turn - 20].civ_stats[civ_name]` and compute the fraction difference. Default `0.0` if fewer than 20 turns of history exist. No new transient state on WorldState.
+`urban_fraction_delta_20t` is computed when building narration context by scanning the turn history list for the snapshot whose `snapshot.turn == current_turn - 20`. If found, compute `current_urban_fraction - past_urban_fraction`. If no snapshot with that turn exists (fewer than 20 turns of history, or gaps from save/load), default `0.0`. Lookup is by `snapshot.turn` field, not by list index. No new transient state on WorldState.
 
 ### 4.3 Existing Event Types
 
@@ -230,7 +244,7 @@ Python snapshot consumers (`agent_bridge.py`) parse the new column for aggregati
 | **RNG stream offsets** | No new RNG sources — all modifiers are deterministic multipliers on existing values. No offset reservation needed. |
 | **Memory budget** | 2 bytes (u16) per agent for `settlement_id`. Matches Phase 7 roadmap table allocation. |
 | **Grid size cross-boundary invariant** | Python `GRID_SIZE = 10` and Rust `SETTLEMENT_GRID_SIZE = 10` must match. Both constants linked by comment to this spec. |
-| **u16 overflow** | Python `build_settlement_batch()` fails fast if `settlement_id > 65535`. |
+| **u16 overflow** | Python `build_settlement_batch()` fails fast if `world.next_settlement_id > 65535`. |
 
 ---
 
@@ -278,13 +292,14 @@ Python snapshot consumers (`agent_bridge.py`) parse the new column for aggregati
 - Agent outside all footprints → `settlement_id = 0`
 - Tie-break: overlapping cells → lowest `settlement_id` wins
 - Dissolving settlement footprints included in grid
-- `u16` overflow guard fires at 65536
+- `u16` overflow guard fires when `world.next_settlement_id > 65535`
 - Batch row sort is deterministic
 
 **Directional behavior (Rust unit tests):**
-- Urban agent: material need restores faster than rural baseline
-- Urban agent: food need restores slower than rural baseline
-- Urban agent: safety need restores slower than rural baseline
+- Urban agent: material need restores faster than rural baseline (1.10x)
+- Urban agent: safety need restores slower than rural baseline (0.90x)
+- Urban agent: social need restores faster than rural baseline (1.08x)
+- Urban agent: food-sufficiency contribution to material restoration is reduced (0.92x)
 - Urban agent: satisfaction includes material bonus (+0.02 delta)
 - Urban agent: satisfaction includes safety penalty (-0.04 delta)
 - Rural agent: all values identical to pre-M56b baseline (zero-change test)
@@ -323,10 +338,10 @@ All `[CALIBRATE M61b]`. Rural = baseline.
 
 | Constant | Value | Location |
 |----------|-------|----------|
+| `URBAN_SAFETY_RESTORATION_MULT` | 0.90 | `agent.rs` |
 | `URBAN_MATERIAL_RESTORATION_MULT` | 1.10 | `agent.rs` |
 | `URBAN_SOCIAL_RESTORATION_MULT` | 1.08 | `agent.rs` |
-| `URBAN_FOOD_RESTORATION_MULT` | 0.92 | `agent.rs` |
-| `URBAN_SAFETY_RESTORATION_MULT` | 0.90 | `agent.rs` |
+| `URBAN_FOOD_SUFFICIENCY_MULT` | 0.92 | `agent.rs` |
 | `URBAN_MATERIAL_SATISFACTION_BONUS` | 0.02 | `agent.rs` |
 | `URBAN_SAFETY_SATISFACTION_PENALTY` | 0.04 | `agent.rs` (stored positive, applied as negative) |
 | `URBAN_CULTURE_DRIFT_MULT` | 1.15 | `agent.rs` |
