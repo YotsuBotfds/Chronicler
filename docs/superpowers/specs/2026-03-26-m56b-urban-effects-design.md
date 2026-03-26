@@ -111,26 +111,33 @@ Multiplicative modifiers on per-need restoration delta, applied inside `restore_
 
 The 6 needs are: `safety`, `material`, `social`, `spiritual`, `autonomy`, `purpose` (pool.rs:63-68). There is no separate food need — food sufficiency contributes to safety and material restoration as an input factor.
 
-**Per-need restoration multipliers** (applied to the total `delta` for each need):
+**Safety and Social** — total-delta multipliers (applied to the computed `delta` for each need):
 
 | Need | Urban Multiplier | Constant Name |
 |------|-----------------|---------------|
 | Safety | 0.90 | `URBAN_SAFETY_RESTORATION_MULT` |
-| Material | 1.10 | `URBAN_MATERIAL_RESTORATION_MULT` |
 | Social | 1.08 | `URBAN_SOCIAL_RESTORATION_MULT` |
 | Spiritual | 1.0 | — (no M56b effect) |
 | Autonomy | 1.0 | — (no M56b effect) |
 | Purpose | 1.0 | — (no M56b effect) |
 
-**Food-sufficiency contribution modifier** (applied specifically to the `food_sufficiency` term within material restoration at needs.rs:234):
+Applied as: `delta *= mult` when `pool.settlement_ids[slot] != 0`.
 
-| Modifier | Value | Constant Name |
-|----------|-------|---------------|
-| Urban food-sufficiency factor | 0.92 | `URBAN_FOOD_SUFFICIENCY_MULT` |
+**Material** — per-term multipliers (no overlapping effects). Material restoration has two additive terms (needs.rs:228-244): a food-sufficiency contribution and a wealth-percentile contribution. Each gets its own modifier:
 
-This captures "urban agents benefit less from regional food sufficiency" without inventing a new need. Applied as: `food_sufficiency_contribution *= URBAN_FOOD_SUFFICIENCY_MULT` when `pool.settlement_ids[slot] != 0`, before the contribution is added to the material delta.
+| Term | Urban Multiplier | Constant Name |
+|------|-----------------|---------------|
+| Food-sufficiency contribution | 0.92 | `URBAN_FOOD_SUFFICIENCY_MULT` |
+| Wealth-percentile contribution | 1.10 | `URBAN_WEALTH_RESTORATION_MULT` |
 
-All multipliers applied as: `delta *= mult` when `pool.settlement_ids[slot] != 0`.
+Explicit formula for urban material restoration:
+```
+food_term  = MATERIAL_RESTORE_FOOD * food_sufficiency * deficit * URBAN_FOOD_SUFFICIENCY_MULT
+wealth_term = MATERIAL_RESTORE_WEALTH * wealth_percentile * deficit * URBAN_WEALTH_RESTORATION_MULT
+delta = food_term + wealth_term
+```
+
+For rural agents (settlement_id == 0), both multipliers are 1.0 — no change from current behavior. This avoids the overlapping-multiply problem where a single total-delta multiplier would net the food term back above baseline (`1.10 * 0.92 = 1.012`).
 
 ### 3.2 Satisfaction (`satisfaction.rs`)
 
@@ -296,10 +303,11 @@ Python snapshot consumers (`agent_bridge.py`) parse the new column for aggregati
 - Batch row sort is deterministic
 
 **Directional behavior (Rust unit tests):**
-- Urban agent: material need restores faster than rural baseline (1.10x)
-- Urban agent: safety need restores slower than rural baseline (0.90x)
-- Urban agent: social need restores faster than rural baseline (1.08x)
-- Urban agent: food-sufficiency contribution to material restoration is reduced (0.92x)
+- Urban agent: safety need restores slower than rural baseline (0.90x total delta)
+- Urban agent: social need restores faster than rural baseline (1.08x total delta)
+- Urban agent: material wealth-percentile contribution restores faster (1.10x per-term)
+- Urban agent: material food-sufficiency contribution is reduced (0.92x per-term)
+- Urban agent: material food term is below rural baseline (no overlapping multiply)
 - Urban agent: satisfaction includes material bonus (+0.02 delta)
 - Urban agent: satisfaction includes safety penalty (-0.04 delta)
 - Rural agent: all values identical to pre-M56b baseline (zero-change test)
@@ -339,9 +347,9 @@ All `[CALIBRATE M61b]`. Rural = baseline.
 | Constant | Value | Location |
 |----------|-------|----------|
 | `URBAN_SAFETY_RESTORATION_MULT` | 0.90 | `agent.rs` |
-| `URBAN_MATERIAL_RESTORATION_MULT` | 1.10 | `agent.rs` |
 | `URBAN_SOCIAL_RESTORATION_MULT` | 1.08 | `agent.rs` |
 | `URBAN_FOOD_SUFFICIENCY_MULT` | 0.92 | `agent.rs` |
+| `URBAN_WEALTH_RESTORATION_MULT` | 1.10 | `agent.rs` |
 | `URBAN_MATERIAL_SATISFACTION_BONUS` | 0.02 | `agent.rs` |
 | `URBAN_SAFETY_SATISFACTION_PENALTY` | 0.04 | `agent.rs` (stored positive, applied as negative) |
 | `URBAN_CULTURE_DRIFT_MULT` | 1.15 | `agent.rs` |
