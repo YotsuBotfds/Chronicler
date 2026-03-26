@@ -56,8 +56,9 @@ class Settlement(BaseModel):
     peak_population: int = 0
     centroid_x: float = 0.0
     centroid_y: float = 0.0
+    footprint_cells: list[tuple[int, int]] = Field(default_factory=list)  # Dense grid cells [(cx, cy), ...] in detection grid coords
     status: SettlementStatus = SettlementStatus.CANDIDATE
-    # Active/dissolving lifecycle state (dropped on tombstone)
+    # Active/dissolving lifecycle state (zeroed on tombstone — see Section 5.4)
     inertia: int = 0
     grace_remaining: int = 0
     # Candidate tracking
@@ -136,7 +137,7 @@ Cluster key: `(region_index, component_id)` where `component_id` is assigned in 
 For each cluster (connected component):
 - **Population:** Count of agents whose positions fall within the cluster's cells.
 - **Centroid:** Population-weighted mean of raw agent `(x, y)` positions within the cluster (not cell centers).
-- **Cell set:** The set of `(cx, cy)` grid cells in the component (for footprint comparison if needed later).
+- **Cell set:** The set of `(cx, cy)` grid cells in the component. Persisted as `Settlement.footprint_cells` on active/dissolving settlements. Updated each matched detection pass. M56b consumes this for urban classification.
 
 ---
 
@@ -171,6 +172,8 @@ Each detection pass runs two matching passes in sequence. Active/dissolving sett
 ### 4.2 Turn anchor
 
 Detection uses snapshot positions from the current turn's agent tick. The `source_turn` for all lifecycle computations is `world.turn` at the time detection runs (after agent tick, before Phase 10).
+
+**Timing clarification:** `run_turn()` increments `world.turn` at the end (simulation.py ~line 1685). Detection runs *before* that increment, so `source_turn = world.turn` captures the current turn's value. TurnSnapshot is constructed in `main.py` *after* `run_turn()` returns (after increment). Therefore `TurnSnapshot.settlement_source_turn` must be stashed during detection and read back during snapshot construction — it cannot be recomputed from `world.turn` at snapshot time. Implementation: `detect_settlements()` sets `world._settlement_source_turn = source_turn`, and snapshot construction reads it.
 
 ---
 
@@ -212,6 +215,7 @@ Detection uses snapshot positions from the current turn's agent tick. The `sourc
 
 Each detection pass where an active settlement is **matched:**
 - Update `centroid_x`, `centroid_y` from cluster centroid.
+- Update `footprint_cells` from cluster cell set.
 - Update `population_estimate` from cluster population.
 - Update `peak_population = max(peak_population, population_estimate)`.
 - Update `last_seen_turn = source_turn`.
@@ -250,7 +254,7 @@ Each detection pass where a dissolving settlement is **unmatched:**
 - `grace_remaining -= 1`.
 - If `grace_remaining == 0`:
   - Set `status = DISSOLVED`, `dissolved_turn = source_turn`.
-  - Drop transient lifecycle fields (`inertia`, `grace_remaining`, `candidate_passes`).
+  - Zero lifecycle fields: `inertia = 0`, `grace_remaining = 0`, `candidate_passes = 0`. Clear `footprint_cells = []`. These fields remain on the `Settlement` model (single schema, no separate tombstone model) but are semantically inert at `DISSOLVED` status.
   - Move from `Region.settlements` to `WorldState.dissolved_settlements`.
   - Emit `settlement_dissolved` event.
   - Transition reason: `dissolved_grace_expired`.
@@ -319,12 +323,13 @@ Inserted after snapshot stash and before Phase 10:
 ```python
 # simulation.py, after line ~1567 (economy_result stash)
 
-# M56a: Settlement detection
+# M56a: Settlement detection (called every turn; early-returns with minimal diagnostics on non-detection turns)
 if agent_bridge is not None:
-    from chronicler.settlements import detect_settlements
-    if world.turn % SETTLEMENT_DETECTION_INTERVAL == 0 or force_settlement_detection:
-        settlement_events = detect_settlements(world, source_turn=world.turn)
-        turn_events.extend(settlement_events)
+    from chronicler.settlements import run_settlement_tick
+    settlement_events = run_settlement_tick(
+        world, source_turn=world.turn, force=force_settlement_detection
+    )
+    turn_events.extend(settlement_events)
 ```
 
 In `--agents=off` mode: no detection runs, no settlement state created. Debug log emitted once per run: `"Settlement detection disabled: no agent snapshot (mode=off)"`.
@@ -352,6 +357,8 @@ class SettlementSummary(BaseModel):
 
 class TurnSnapshot(BaseModel):
     # ... existing fields ...
+    # M56a: Turn anchor for settlement transitions
+    settlement_source_turn: int = 0              # world.turn at detection time (before Phase 10 increment)
     # M56a: Settlement summary
     settlement_count: int = 0                                    # Active + dissolving
     candidate_count: int = 0
@@ -373,7 +380,9 @@ Populated during inline snapshot construction in `main.py` (where `TurnSnapshot(
 
 ### 9.1 Per-turn diagnostics
 
-Every turn (not just detection passes), `world._settlement_diagnostics` records:
+`run_settlement_tick()` is called every turn and always sets `world._settlement_diagnostics`. On non-detection turns it early-returns after writing minimal diagnostics (no cluster analysis, no matching). This makes the emission path unambiguous: the function is always called, always writes diagnostics, and the `detection_executed` flag distinguishes the two cases.
+
+Every turn, `world._settlement_diagnostics` records:
 
 ```python
 {
@@ -542,7 +551,7 @@ M56b will consume the following from M56a:
 
 - `Region.settlements` list with stable `settlement_id`, `centroid_x/y`, `population_estimate`, `status`.
 - `Settlement.settlement_id` for per-agent `settlement_id: u16` Rust field (M56b adds this).
-- Settlement footprint (cell set or centroid + radius) for "is agent urban?" classification.
+- `Settlement.footprint_cells` (list of `(cx, cy)` detection grid coordinates) for "is agent urban?" classification. M56b can check if an agent's grid cell is in a settlement's footprint.
 - `WorldState.dissolved_settlements` for ruins/resettlement detection.
 - Lifecycle events for richer narrator templates.
 - `display_name` field for narrator-assigned settlement names.
