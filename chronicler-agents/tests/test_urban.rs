@@ -230,3 +230,63 @@ fn test_rural_agent_unchanged_from_baseline() {
     assert!((pool_a.need_material[sa] - pool_b.need_material[sb]).abs() < 1e-6);
     assert!((pool_a.need_social[sa] - pool_b.need_social[sb]).abs() < 1e-6);
 }
+
+#[test]
+fn test_urban_satisfaction_material_bonus() {
+    use chronicler_agents::satisfaction::{SatisfactionInputs, compute_satisfaction_with_culture};
+
+    let mut base = SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.5, pop_over_capacity: 0.0,
+        civ_at_war: false, region_contested: false,
+        occ_matches_faction: false, is_displaced: false,
+        trade_routes: 1, faction_influence: 0.0,
+        shock: chronicler_agents::signals::CivShock::default(),
+        agent_values: [0, 0, 0], controller_values: [0, 0, 0],
+        agent_belief: 0, majority_belief: 0, has_temple: false,
+        persecution_intensity: 0.0,
+        gini_coefficient: 0.0, wealth_percentile: 0.5,
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
+        is_urban: false,
+    };
+    let rural = compute_satisfaction_with_culture(&base);
+    base.is_urban = true;
+    let urban = compute_satisfaction_with_culture(&base);
+
+    let diff = urban - rural;
+    // Net: +0.02 (material bonus) - 0.04 (safety penalty) = -0.02
+    assert!(diff > -0.03 && diff < -0.01,
+        "Urban-rural diff {:.4} should be ~-0.02", diff);
+}
+
+#[test]
+fn test_urban_safety_penalty_respects_cap() {
+    use chronicler_agents::satisfaction::{SatisfactionInputs, compute_satisfaction_with_culture};
+
+    let mut inp = SatisfactionInputs {
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+        demand_supply_ratio: 0.5, pop_over_capacity: 0.0,
+        civ_at_war: false, region_contested: false,
+        occ_matches_faction: false, is_displaced: false,
+        trade_routes: 1, faction_influence: 0.0,
+        shock: chronicler_agents::signals::CivShock::default(),
+        agent_values: [4, 3, 2], controller_values: [0, 1, 5], // max cultural mismatch
+        agent_belief: 1, majority_belief: 2,                     // religious mismatch
+        has_temple: false,
+        persecution_intensity: 1.0,                               // max persecution
+        gini_coefficient: 1.0, wealth_percentile: 0.0,          // max class tension
+        food_sufficiency: 1.0, merchant_margin: 0.0,
+        memory_score: 0.0,
+        is_urban: true,
+    };
+    let urban_sat = compute_satisfaction_with_culture(&inp);
+    inp.is_urban = false;
+    let rural_sat = compute_satisfaction_with_culture(&inp);
+
+    // Both should hit the cap. Urban has material bonus but penalty is capped.
+    // At cap: urban should be ~+0.02 higher (material bonus is outside cap)
+    let diff = urban_sat - rural_sat;
+    assert!(diff > 0.01 && diff < 0.03,
+        "At cap, urban-rural diff {:.4} should be ~+0.02 (material bonus only)", diff);
+}

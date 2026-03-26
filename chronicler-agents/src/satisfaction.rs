@@ -156,6 +156,8 @@ pub struct SatisfactionInputs {
     pub merchant_margin: f32,
     // M48: Memory satisfaction score
     pub memory_score: f32,
+    // M56b: Urban context
+    pub is_urban: bool,
 }
 
 /// Wraps compute_satisfaction(), subtracting the cultural and religious mismatch penalties (capped).
@@ -205,18 +207,26 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     // Priority clamping (Decision 3): core identity/persecution terms first,
     // class tension takes whatever budget remains under the 0.40 cap.
     let three_term = cultural_pen + religious_pen + penalty;
-    let class_tension_clamped = class_tension_pen.min((crate::agent::PENALTY_CAP - three_term).max(0.0));
+    // M56b: Urban safety penalty — priority 2 (after three_term, before class tension)
+    let urban_safety_pen = if inp.is_urban {
+        crate::agent::URBAN_SAFETY_SATISFACTION_PENALTY
+    } else {
+        0.0
+    };
+    let urban_safety_clamped = urban_safety_pen
+        .min((crate::agent::PENALTY_CAP - three_term).max(0.0));
+    let class_tension_clamped = class_tension_pen.min((crate::agent::PENALTY_CAP - three_term - urban_safety_clamped).max(0.0));
     // M48: Memory penalty — 5th priority (lowest), takes whatever budget remains.
     // memory_score is in satisfaction-space (positive=good, negative=bad).
     // Convert to penalty-space by negation: bad memories → positive penalty addition.
     let memory_penalty = if inp.memory_score < 0.0 {
         // Bad memories: add penalty, clamped to remaining budget
-        (-inp.memory_score).min((crate::agent::PENALTY_CAP - three_term - class_tension_clamped).max(0.0))
+        (-inp.memory_score).min((crate::agent::PENALTY_CAP - three_term - urban_safety_clamped - class_tension_clamped).max(0.0))
     } else {
         // Good memories: reduce penalty (negative penalty addition)
         -inp.memory_score
     };
-    let total_non_eco_penalty = (three_term + class_tension_clamped + memory_penalty)
+    let total_non_eco_penalty = (three_term + urban_safety_clamped + class_tension_clamped + memory_penalty)
         .min(crate::agent::PENALTY_CAP)
         .max(0.0); // positive memories cannot create net bonus
     // M42: Food sufficiency penalty — material condition, outside social penalty cap
@@ -225,7 +235,13 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     } else {
         0.0
     };
-    (base_sat - total_non_eco_penalty + temple_bonus - food_penalty).clamp(0.0, 1.0)
+    // M56b: Urban material bonus (positive, outside penalty cap)
+    let urban_material_bonus = if inp.is_urban {
+        crate::agent::URBAN_MATERIAL_SATISFACTION_BONUS
+    } else {
+        0.0
+    };
+    (base_sat + urban_material_bonus - total_non_eco_penalty + temple_bonus - food_penalty).clamp(0.0, 1.0)
 }
 
 /// Target occupation ratios for a region based on terrain and ecology.
@@ -350,6 +366,7 @@ mod m36_tests {
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
+            is_urban: false,
         });
         assert!((base - with_culture).abs() < 0.001);
     }
@@ -373,6 +390,7 @@ mod m37_tests {
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
+            is_urban: false,
         }
     }
 
@@ -621,6 +639,7 @@ mod m41_tests {
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
+            is_urban: false,
         }
     }
 

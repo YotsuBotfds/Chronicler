@@ -1042,6 +1042,7 @@ fn test_memory_satisfaction_inside_cap() {
         gini_coefficient: 1.0, wealth_percentile: 0.0,           // class tension fills remaining 0.05
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: -0.20, // negative memory — should be absorbed (no budget)
+        is_urban: false,
     });
 
     let sat_no_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
@@ -1056,6 +1057,7 @@ fn test_memory_satisfaction_inside_cap() {
         gini_coefficient: 1.0, wealth_percentile: 0.0,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
+        is_urban: false,
     });
 
     // Memory should have no effect when budget is fully consumed
@@ -1083,6 +1085,7 @@ fn test_memory_satisfaction_partial_budget() {
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
+        is_urban: false,
     });
 
     let sat_neg_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
@@ -1097,6 +1100,7 @@ fn test_memory_satisfaction_partial_budget() {
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: -0.10, // negative memory
+        is_urban: false,
     });
 
     let diff = sat_no_mem - sat_neg_mem;
@@ -1124,6 +1128,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
+        is_urban: false,
     });
 
     // Positive memory = +0.05 should reduce the 0.10 cultural penalty
@@ -1139,6 +1144,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.05,
+        is_urban: false,
     });
 
     assert!(sat_pos_mem > sat_no_mem,
@@ -1159,6 +1165,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.50, // much larger than the 0.10 cultural penalty
+        is_urban: false,
     });
 
     // Should recover the full 0.10 cultural penalty but not more
@@ -1174,6 +1181,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
+        is_urban: false,
     });
 
     // huge positive memory with cultural penalty should equal zero-penalty baseline

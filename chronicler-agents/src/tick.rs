@@ -991,6 +991,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                                 food_sufficiency: region.food_sufficiency,
                                 merchant_margin: region.merchant_margin,
                                 memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),
+                                is_urban: pool_ref.settlement_ids[slot] != 0,
                             },
                         );
 
