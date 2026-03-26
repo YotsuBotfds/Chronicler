@@ -444,6 +444,31 @@ def execute_run(
             founded_this_turn=sorted(getattr(world, '_settlement_founded_this_turn', [])),
             dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
         )
+
+        # M56b: Urban fraction aggregation from agent snapshot
+        urban_by_civ: dict[str, tuple[int, int]] = {}  # civ_name -> (urban_count, total_count)
+        if agent_bridge and hasattr(world, '_agent_snapshot') and world._agent_snapshot is not None:
+            snap = world._agent_snapshot
+            if "settlement_id" in snap.column_names:
+                civ_col = snap.column("civ_affinity").to_pylist()
+                sid_col = snap.column("settlement_id").to_pylist()
+                for civ_id, sid in zip(civ_col, sid_col):
+                    civ_name = world.civilizations[civ_id].name if civ_id < len(world.civilizations) else None
+                    if civ_name:
+                        u, t = urban_by_civ.get(civ_name, (0, 0))
+                        urban_by_civ[civ_name] = (u + (1 if sid > 0 else 0), t + 1)
+
+        for civ_name, cs in snapshot.civ_stats.items():
+            if civ_name in urban_by_civ:
+                u, t = urban_by_civ[civ_name]
+                cs.urban_agents = u
+                cs.urban_fraction = u / t if t > 0 else 0.0
+
+        total_urban = sum(u for u, _ in urban_by_civ.values())
+        total_agents = sum(t for _, t in urban_by_civ.values())
+        snapshot.urban_agent_count = total_urban
+        snapshot.urban_fraction = total_urban / total_agents if total_agents > 0 else 0.0
+
         history.append(snapshot)
 
         # Record chronicle entry

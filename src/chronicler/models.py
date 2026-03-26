@@ -767,6 +767,8 @@ class CivSnapshot(BaseModel):
     in_twilight: bool = False
     federation_name: str | None = None
     gini: float = 0.0  # Wealth Gini coefficient (M41)
+    urban_agents: int = 0
+    urban_fraction: float = 0.0
     prestige: int = 0
     capital_region: str | None = None
     great_persons: list[dict] = Field(default_factory=list)
@@ -822,6 +824,9 @@ class TurnSnapshot(BaseModel):
     active_settlements: list[SettlementSummary] = Field(default_factory=list)
     founded_this_turn: list[int] = Field(default_factory=list)
     dissolved_this_turn: list[int] = Field(default_factory=list)
+    # M56b: Urban metrics
+    urban_agent_count: int = 0
+    urban_fraction: float = 0.0
 
 
 # --- M20a: Narration Pipeline v2 models ---
@@ -877,6 +882,9 @@ class AgentContext(BaseModel):
     # M43b: Trade & supply context
     trade_dependent_regions: list[str] = Field(default_factory=list)
     active_shocks: list[ShockContext] = Field(default_factory=list)
+    # M56b: Urbanization context
+    urban_fraction_delta_20t: float = 0.0
+    top_settlements: list[SettlementSummary] = Field(default_factory=list)
 
 
 class NarrationContext(BaseModel):
