@@ -362,6 +362,17 @@ pub const SYNTHESIS_BUDGET_MAX: u8 = 100;  // [FROZEN M53 SOFT]
 // Life-event dissolution cadence
 pub const LIFE_EVENT_DISSOLUTION: u8 = 6;  // [FROZEN M53 SOFT]
 
+// M56b: Urban effects constants [CALIBRATE M61b]
+pub const SETTLEMENT_GRID_SIZE: usize = 10; // mirrors settlements.py:GRID_SIZE
+pub const URBAN_SAFETY_RESTORATION_MULT: f32 = 0.90;
+pub const URBAN_SOCIAL_RESTORATION_MULT: f32 = 1.08;
+pub const URBAN_FOOD_SUFFICIENCY_MULT: f32 = 0.92;
+pub const URBAN_WEALTH_RESTORATION_MULT: f32 = 1.10;
+pub const URBAN_MATERIAL_SATISFACTION_BONUS: f32 = 0.02;
+pub const URBAN_SAFETY_SATISFACTION_PENALTY: f32 = 0.04;
+pub const URBAN_CULTURE_DRIFT_MULT: f32 = 1.15;
+pub const URBAN_CONVERSION_MULT: f32 = 1.06;
+
 #[cfg(test)]
 mod tests {
     use super::*;

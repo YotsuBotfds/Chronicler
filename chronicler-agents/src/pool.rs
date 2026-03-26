@@ -77,6 +77,8 @@ pub struct AgentPool {
     // M55a: Spatial position (unit square per region)
     pub x: Vec<f32>,
     pub y: Vec<f32>,
+    // M56b: Per-agent settlement assignment (0 = rural, >0 = settlement_id)
+    pub settlement_ids: Vec<u16>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -135,6 +137,7 @@ impl AgentPool {
             synthesis_budget: Vec::with_capacity(capacity),
             x: Vec::with_capacity(capacity),
             y: Vec::with_capacity(capacity),
+            settlement_ids: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -210,6 +213,7 @@ impl AgentPool {
             self.synthesis_budget[slot] = crate::agent::SYNTHESIS_BUDGET_MAX;
             self.x[slot] = 0.5;
             self.y[slot] = 0.5;
+            self.settlement_ids[slot] = 0;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -262,6 +266,7 @@ impl AgentPool {
             self.synthesis_budget.push(crate::agent::SYNTHESIS_BUDGET_MAX);
             self.x.push(0.5);
             self.y.push(0.5);
+            self.settlement_ids.push(0);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -497,6 +502,7 @@ impl AgentPool {
         let mut wealth_col = Float32Builder::with_capacity(live);
         let mut x_col = Float32Builder::with_capacity(live);
         let mut y_col = Float32Builder::with_capacity(live);
+        let mut settlement_id_col = UInt16Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -528,6 +534,7 @@ impl AgentPool {
             wealth_col.append_value(self.wealth[slot]);
             x_col.append_value(self.x[slot]);
             y_col.append_value(self.y[slot]);
+            settlement_id_col.append_value(self.settlement_ids[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -555,6 +562,7 @@ impl AgentPool {
                 Arc::new(wealth_col.finish()) as _,
                 Arc::new(x_col.finish()) as _,
                 Arc::new(y_col.finish()) as _,
+                Arc::new(settlement_id_col.finish()) as _,
             ],
         )
     }
