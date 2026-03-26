@@ -261,6 +261,28 @@ def test_narrate_batch_warns_on_first_failure(caplog):
     assert "API error" in caplog.text or "narration failed" in caplog.text.lower()
 
 
+def test_agent_context_has_urban_fields():
+    """AgentContext includes urbanization fields when populated."""
+    from chronicler.models import AgentContext, SettlementSummary
+    ctx = AgentContext(
+        urban_fraction_delta_20t=0.05,
+        top_settlements=[
+            SettlementSummary(
+                settlement_id=1,
+                name="Ur",
+                region_name="Lower Mesopotamia",
+                population_estimate=500,
+                centroid_x=0.4,
+                centroid_y=0.6,
+                founding_turn=12,
+                status="active",
+            )
+        ],
+    )
+    assert ctx.urban_fraction_delta_20t == 0.05
+    assert len(ctx.top_settlements) == 1
+
+
 def test_agent_context_includes_relationships():
     from chronicler.narrative import build_agent_context_for_moment
     from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole

@@ -30,6 +30,7 @@ from chronicler.models import (
     NarrativeMoment,
     NarrativeRole,
     NamedEvent,
+    SettlementSummary,
     ShockContext,
     TurnSnapshot,
     WorldState,
@@ -286,6 +287,9 @@ def build_agent_context_for_moment(
     economy_result=None,  # M43b
     civ_names: list[str] | None = None,  # M48: for memory rendering
     world_turn: int = 0,  # M48: current turn for Mule window calculation
+    history: Sequence[TurnSnapshot] | None = None,  # M56b: for urban delta
+    current_snapshot: TurnSnapshot | None = None,  # M56b: for focal civ stats
+    world: WorldState | None = None,  # M56b: for settlement enumeration
 ) -> AgentContext | None:
     """Build AgentContext if the moment has agent-source or economy events."""
     agent_events = [e for e in moment.events if e.source == "agent"]
@@ -435,12 +439,61 @@ def build_agent_context_for_moment(
     # M41: Gini coefficient for wealth inequality context
     gini = (gini_by_civ or {}).get(civ_idx, 0.0) if civ_idx is not None else 0.0
 
+    # M56b: Urbanization context — focal civ, urban delta, top settlements
+    focal_civ = None
+    if current_snapshot is not None:
+        for ev in moment.events:
+            for actor in ev.actors:
+                if actor in current_snapshot.civ_stats:
+                    focal_civ = actor
+                    break
+            if focal_civ is not None:
+                break
+        if focal_civ is None and current_snapshot.civ_stats:
+            focal_civ = sorted(current_snapshot.civ_stats.keys())[0]
+
+    urban_fraction_delta_20t = 0.0
+    if history is not None and current_snapshot is not None and focal_civ is not None:
+        current_stats = current_snapshot.civ_stats.get(focal_civ)
+        if current_stats is not None:
+            current_frac = current_stats.urban_fraction
+            past_turn = current_snapshot.turn - 20
+            past_snapshot = next((s for s in history if s.turn == past_turn), None)
+            if past_snapshot is not None and focal_civ in past_snapshot.civ_stats:
+                urban_fraction_delta_20t = current_frac - past_snapshot.civ_stats[focal_civ].urban_fraction
+
+    top_settlements: list[SettlementSummary] = []
+    if world is not None and focal_civ is not None:
+        candidates: list[SettlementSummary] = []
+        for region in world.regions:
+            if region.controller != focal_civ:
+                continue
+            for s in region.settlements:
+                if s.status.value not in ("active", "dissolving"):
+                    continue
+                candidates.append(
+                    SettlementSummary(
+                        settlement_id=s.settlement_id,
+                        name=s.name,
+                        region_name=s.region_name,
+                        population_estimate=s.population_estimate,
+                        centroid_x=s.centroid_x,
+                        centroid_y=s.centroid_y,
+                        founding_turn=s.founding_turn,
+                        status=s.status.value,
+                    )
+                )
+        candidates.sort(key=lambda ss: (-ss.population_estimate, ss.settlement_id))
+        top_settlements = candidates[:3]
+
     ctx = AgentContext(
         named_characters=chars[:10],  # cap for token budget
         population_mood=mood,
         displacement_fraction=avg_disp,
         relationships=relationships,
         gini_coefficient=gini,
+        urban_fraction_delta_20t=urban_fraction_delta_20t,
+        top_settlements=top_settlements,
     )
 
     # M43b: Populate trade dependency and shock context
@@ -1042,6 +1095,7 @@ class NarrativeEngine:
                     for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
                         moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
 
+                snap = _closest_snap(snap_map, moment.anchor_turn)
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons, {}, {},
                     gp_by_agent_id=gp_by_agent_id,
@@ -1051,6 +1105,9 @@ class NarrativeEngine:
                     hostage_data=hostage_data,
                     gini_by_civ=gini_by_civ,
                     economy_result=economy_result,
+                    history=history,
+                    current_snapshot=snap,
+                    world=getattr(self, "_world", None),
                 )
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
