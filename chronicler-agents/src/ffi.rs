@@ -2301,6 +2301,7 @@ impl AgentSimulator {
             &mut self.spatial_grids,
             &self.attractors,
             &mut spatial_diag,
+            &self.settlement_grids,  // M56b
         );
         self.last_spatial_diag = spatial_diag;
         self.prev_kin_bond_failures = self.kin_bond_failures;

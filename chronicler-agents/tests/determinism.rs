@@ -81,7 +81,7 @@ fn run_simulation(seed: [u8; 32], turns: u32) -> (usize, Vec<u16>) {
         if percentiles.len() < pool.capacity() {
             percentiles.resize(pool.capacity(), 0.0);
         }
-        tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles, &mut Vec::new(), &[], &mut chronicler_agents::spatial::SpatialDiagnostics::default());
+        tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles, &mut Vec::new(), &[], &mut chronicler_agents::spatial::SpatialDiagnostics::default(), &[]);
     }
     let batch = pool.to_record_batch().unwrap();
     let ages_col = batch
@@ -153,7 +153,7 @@ fn test_spatial_determinism_20_turns() {
             }
             tick_agents(
                 &mut pool, &regions, &signals, seed, turn,
-                &mut percentiles, &mut grids, &attractors, &mut diag,
+                &mut percentiles, &mut grids, &attractors, &mut diag, &[],
             );
         }
         // Collect (id, x_bits, y_bits) sorted by id for stable comparison

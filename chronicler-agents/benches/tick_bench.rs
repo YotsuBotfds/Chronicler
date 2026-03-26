@@ -99,6 +99,7 @@ fn bench_tick_matrix(c: &mut Criterion) {
                         &mut Vec::new(),
                         &[],
                         &mut chronicler_agents::spatial::SpatialDiagnostics::default(),
+                        &[],  // M56b
                     );
                 },
                 BatchSize::SmallInput,

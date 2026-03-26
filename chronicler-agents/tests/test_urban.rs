@@ -46,3 +46,26 @@ fn test_assignment_basic() {
     assert_eq!(pool.settlement_ids[s0], 1);
     assert_eq!(pool.settlement_ids[s1], 0);
 }
+
+#[test]
+fn test_dual_pass_assignment() {
+    let mut pool = AgentPool::new(4);
+    let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    pool.x[s0] = 0.35;
+    pool.y[s0] = 0.72;
+
+    let grids = build_settlement_grids(1, &[0], &[1], &[3], &[7]);
+
+    // Pass A: assign from current position
+    assign_settlement_ids(&mut pool, &grids);
+    assert_eq!(pool.settlement_ids[s0], 1, "Pass A should assign urban");
+
+    // Simulate migration: move agent to (0.95, 0.95) → cell (9,9) which is rural
+    pool.x[s0] = 0.95;
+    pool.y[s0] = 0.95;
+
+    // Pass B: reassign from new position
+    assign_settlement_ids(&mut pool, &grids);
+    assert_eq!(pool.settlement_ids[s0], 0, "Pass B should assign rural after move");
+}
