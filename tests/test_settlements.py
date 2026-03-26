@@ -602,3 +602,49 @@ class TestIntegration:
         assert snap.active_settlements == []
         assert snap.founded_this_turn == []
         assert snap.dissolved_this_turn == []
+
+
+class TestAnalyticsExtractor:
+    def test_extract_empty_history(self):
+        from chronicler.analytics import extract_settlement_diagnostics
+        from chronicler.models import TurnSnapshot
+        result = extract_settlement_diagnostics([])
+        assert result["settlement_count_series"] == []
+
+    def test_extract_basic_series(self):
+        from chronicler.analytics import extract_settlement_diagnostics
+        from chronicler.models import TurnSnapshot, SettlementSummary
+        history = [
+            TurnSnapshot(
+                turn=15, civ_stats={}, region_control={}, relationships={},
+                settlement_source_turn=14,
+                settlement_count=1, candidate_count=0,
+                total_settlement_population=50,
+                active_settlements=[
+                    SettlementSummary(settlement_id=1, name="S1", region_name="R",
+                                     population_estimate=50, centroid_x=0.5, centroid_y=0.5,
+                                     founding_turn=15, status="active")
+                ],
+                founded_this_turn=[1],
+            ),
+            TurnSnapshot(
+                turn=30, civ_stats={}, region_control={}, relationships={},
+                settlement_source_turn=29,
+                settlement_count=1, candidate_count=0,
+                total_settlement_population=60,
+                active_settlements=[
+                    SettlementSummary(settlement_id=1, name="S1", region_name="R",
+                                     population_estimate=60, centroid_x=0.5, centroid_y=0.5,
+                                     founding_turn=15, status="active")
+                ],
+                dissolved_this_turn=[1],
+            ),
+        ]
+        result = extract_settlement_diagnostics(history)
+        assert len(result["settlement_count_series"]) == 2
+        assert result["settlement_count_series"][0] == {"turn": 15, "active": 1, "candidates": 0}
+        assert len(result["per_settlement"]) == 1
+        assert result["per_settlement"][1]["name"] == "S1"
+        assert len(result["per_settlement"][1]["population_series"]) == 2
+        assert result["founding_rate"] == [{"turn": 14, "count": 1}]
+        assert result["dissolution_rate"] == [{"turn": 29, "count": 1}]

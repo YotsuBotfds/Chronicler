@@ -1857,3 +1857,54 @@ def extract_legacy_chain_metrics(bundles: list[dict]) -> dict:
         "dynasty_chain_lengths": chain_lengths,
         "mean_chain_length": mean_length,
     }
+
+
+def extract_settlement_diagnostics(history: list) -> dict:
+    """Summarize settlement lifecycle from TurnSnapshot history.
+
+    Returns:
+        settlement_count_series: [{turn, active, candidates}, ...]
+        per_settlement: {settlement_id: {name, region, founding_turn, dissolved_turn, population_series}}
+        founding_rate: [{turn, count}, ...]
+        dissolution_rate: [{turn, count}, ...]
+    """
+    count_series = []
+    per_settlement: dict[int, dict] = {}
+    founding_rate: dict[int, int] = {}
+    dissolution_rate: dict[int, int] = {}
+
+    for snap in history:
+        source_turn = getattr(snap, "settlement_source_turn", 0) or snap.turn
+        count_series.append({
+            "turn": snap.turn,
+            "active": snap.settlement_count,
+            "candidates": snap.candidate_count,
+        })
+
+        for ss in snap.active_settlements:
+            if ss.settlement_id not in per_settlement:
+                per_settlement[ss.settlement_id] = {
+                    "name": ss.name,
+                    "region": ss.region_name,
+                    "founding_turn": ss.founding_turn,
+                    "dissolved_turn": None,
+                    "population_series": [],
+                }
+            per_settlement[ss.settlement_id]["population_series"].append({
+                "turn": snap.turn,
+                "population": ss.population_estimate,
+            })
+
+        for sid in snap.founded_this_turn:
+            founding_rate[source_turn] = founding_rate.get(source_turn, 0) + 1
+        for sid in snap.dissolved_this_turn:
+            dissolution_rate[source_turn] = dissolution_rate.get(source_turn, 0) + 1
+            if sid in per_settlement:
+                per_settlement[sid]["dissolved_turn"] = source_turn
+
+    return {
+        "settlement_count_series": count_series,
+        "per_settlement": per_settlement,
+        "founding_rate": [{"turn": t, "count": c} for t, c in sorted(founding_rate.items())],
+        "dissolution_rate": [{"turn": t, "count": c} for t, c in sorted(dissolution_rate.items())],
+    }
