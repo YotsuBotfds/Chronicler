@@ -69,7 +69,7 @@ class TestPythonRoundTrip:
                     "loyalty", "satisfaction", "skill", "age", "displacement_turn",
                     "boldness", "ambition", "loyalty_trait",
                     "cultural_value_0", "cultural_value_1", "cultural_value_2",
-                    "belief", "parent_id", "wealth", "x", "y"]
+                    "belief", "parent_id", "wealth", "x", "y", "settlement_id"]
         assert snap.schema.names == expected
 
     def test_aggregates_population_matches_and_metrics_in_range(self):

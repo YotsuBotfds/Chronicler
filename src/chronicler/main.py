@@ -452,11 +452,28 @@ def execute_run(
             if "settlement_id" in snap.column_names:
                 civ_col = snap.column("civ_affinity").to_pylist()
                 sid_col = snap.column("settlement_id").to_pylist()
-                for civ_id, sid in zip(civ_col, sid_col):
-                    civ_name = world.civilizations[civ_id].name if civ_id < len(world.civilizations) else None
-                    if civ_name:
-                        u, t = urban_by_civ.get(civ_name, (0, 0))
-                        urban_by_civ[civ_name] = (u + (1 if sid > 0 else 0), t + 1)
+                region_col = snap.column("region").to_pylist() if "region" in snap.column_names else [None] * len(civ_col)
+                for civ_id, region_id, sid in zip(civ_col, region_col, sid_col):
+                    civ_name = None
+                    try:
+                        region_idx = int(region_id)
+                    except (TypeError, ValueError):
+                        region_idx = -1
+                    if 0 <= region_idx < len(world.regions):
+                        controller = world.regions[region_idx].controller
+                        if controller is not None:
+                            civ_name = controller
+                    if civ_name is None:
+                        try:
+                            civ_idx = int(civ_id)
+                        except (TypeError, ValueError):
+                            civ_idx = -1
+                        if 0 <= civ_idx < len(world.civilizations):
+                            civ_name = world.civilizations[civ_idx].name
+                    if civ_name is None:
+                        continue
+                    u, t = urban_by_civ.get(civ_name, (0, 0))
+                    urban_by_civ[civ_name] = (u + (1 if sid > 0 else 0), t + 1)
 
         for civ_name, cs in snapshot.civ_stats.items():
             if civ_name in urban_by_civ:

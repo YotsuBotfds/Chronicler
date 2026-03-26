@@ -164,6 +164,14 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
     lines = ["## Agent Context"]
     lines.append(f"Population mood: {ctx.population_mood}")
     lines.append(f"Displacement: {int(ctx.displacement_fraction * 100)}% of population displaced")
+    if abs(ctx.urban_fraction_delta_20t) > 1e-6:
+        lines.append(f"Urbanization trend (20 turns): {ctx.urban_fraction_delta_20t * 100.0:+.1f}pp")
+    if ctx.top_settlements:
+        lines.append("Largest settlements:")
+        for settlement in ctx.top_settlements:
+            lines.append(
+                f"- {settlement.name} ({settlement.region_name}, pop ~{settlement.population_estimate})"
+            )
     lines.append("")
 
     if ctx.named_characters:
