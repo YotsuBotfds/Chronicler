@@ -65,6 +65,8 @@ pub use region::RegionState;
 #[doc(hidden)]
 pub use tick::{tick_agents, AgentEvent, DemographicDebug};
 #[doc(hidden)]
+pub use tick::{assign_settlement_ids, build_settlement_grids};
+#[doc(hidden)]
 pub use named_characters::{CharacterRole, NamedCharacterRegistry};
 #[doc(hidden)]
 pub use social::{RelationshipType, SocialEdge, SocialGraph};

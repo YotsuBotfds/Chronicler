@@ -1174,6 +1174,56 @@ fn tick_region_demographics(
 }
 
 // ---------------------------------------------------------------------------
+// M56b: Settlement grid construction and per-agent assignment
+// ---------------------------------------------------------------------------
+
+/// Build per-region settlement lookup grids from flat footprint data.
+/// Input arrays must be pre-sorted by (region_id, settlement_id, cell_y, cell_x).
+/// Tie-break: lowest settlement_id wins (first write persists).
+pub fn build_settlement_grids(
+    num_regions: usize,
+    region_ids: &[u16],
+    settlement_ids: &[u16],
+    cell_xs: &[u8],
+    cell_ys: &[u8],
+) -> Vec<[u16; 100]> {
+    let mut grids = vec![[0u16; 100]; num_regions];
+    for i in 0..region_ids.len() {
+        let rid = region_ids[i] as usize;
+        if rid >= num_regions {
+            continue;
+        }
+        let cx = cell_xs[i].min(9) as usize;
+        let cy = cell_ys[i].min(9) as usize;
+        let idx = cy * 10 + cx;
+        if grids[rid][idx] == 0 {
+            grids[rid][idx] = settlement_ids[i];
+        }
+    }
+    grids
+}
+
+/// Assign settlement_id to each alive agent based on position and settlement grids.
+pub fn assign_settlement_ids(
+    pool: &mut AgentPool,
+    settlement_grids: &[[u16; 100]],
+) {
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) {
+            continue;
+        }
+        let region = pool.regions[slot] as usize;
+        if region >= settlement_grids.len() {
+            pool.settlement_ids[slot] = 0;
+            continue;
+        }
+        let cx = (pool.x[slot] * 10.0).min(9.0) as usize;
+        let cy = (pool.y[slot] * 10.0).min(9.0) as usize;
+        pool.settlement_ids[slot] = settlement_grids[region][cy * 10 + cx];
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

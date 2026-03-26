@@ -1679,6 +1679,8 @@ pub struct AgentSimulator {
     economy_config: crate::economy::EconomyConfig,
     // M54c: politics state
     politics_config: PoliticsConfig,
+    // M56b: Per-region settlement lookup grids
+    settlement_grids: Vec<[u16; 100]>,
 }
 
 #[pymethods]
@@ -1717,6 +1719,7 @@ impl AgentSimulator {
             last_spatial_diag: crate::spatial::SpatialDiagnostics::default(),
             economy_config: crate::economy::EconomyConfig::default(),
             politics_config: PoliticsConfig::default(),
+            settlement_grids: Vec::new(),
         }
     }
 
@@ -3743,6 +3746,48 @@ impl AgentSimulator {
             PyRecordBatch::new(upstream_sources_batch),
             PyRecordBatch::new(conservation_batch),
         ))
+    }
+
+    /// M56b: Ingest settlement footprint batch and build per-region grids.
+    pub fn set_settlement_footprints(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        if rb.num_rows() == 0 {
+            self.settlement_grids = vec![[0u16; 100]; self.num_regions];
+            return Ok(());
+        }
+
+        macro_rules! col_u16 {
+            ($name:expr) => {{
+                rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column: {}", $name)))?
+                    .as_any()
+                    .downcast_ref::<arrow::array::UInt16Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt16", $name)))?
+            }};
+        }
+        macro_rules! col_u8 {
+            ($name:expr) => {{
+                rb.column_by_name($name)
+                    .ok_or_else(|| PyValueError::new_err(format!("missing column: {}", $name)))?
+                    .as_any()
+                    .downcast_ref::<arrow::array::UInt8Array>()
+                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt8", $name)))?
+            }};
+        }
+
+        let region_ids = col_u16!("region_id");
+        let settlement_ids = col_u16!("settlement_id");
+        let cell_xs = col_u8!("cell_x");
+        let cell_ys = col_u8!("cell_y");
+
+        self.settlement_grids = crate::tick::build_settlement_grids(
+            self.num_regions,
+            region_ids.values(),
+            settlement_ids.values(),
+            cell_xs.values(),
+            cell_ys.values(),
+        );
+        Ok(())
     }
 }
 
