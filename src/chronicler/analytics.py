@@ -1902,9 +1902,31 @@ def extract_settlement_diagnostics(history: list) -> dict:
             if sid in per_settlement:
                 per_settlement[sid]["dissolved_turn"] = source_turn
 
-    return {
+    # M56b: Urbanization time series
+    urbanization = {
+        "global_trend": [],
+        "per_civ": {},
+    }
+    for snap in history:
+        urbanization["global_trend"].append({
+            "turn": snap.turn,
+            "urban_agent_count": snap.urban_agent_count,
+            "urban_fraction": snap.urban_fraction,
+        })
+        for civ_name, cs in snap.civ_stats.items():
+            if civ_name not in urbanization["per_civ"]:
+                urbanization["per_civ"][civ_name] = []
+            urbanization["per_civ"][civ_name].append({
+                "turn": snap.turn,
+                "urban_agents": cs.urban_agents,
+                "urban_fraction": cs.urban_fraction,
+            })
+
+    result = {
         "settlement_count_series": count_series,
         "per_settlement": per_settlement,
         "founding_rate": [{"turn": t, "count": c} for t, c in sorted(founding_rate.items())],
         "dissolution_rate": [{"turn": t, "count": c} for t, c in sorted(dissolution_rate.items())],
+        "urbanization": urbanization,
     }
+    return result

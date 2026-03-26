@@ -404,3 +404,46 @@ def test_extract_conversion_rates_basic():
     assert result["Persecution"]["median"] == 2.0
     assert result["Schism"]["median"] == 1.0
     assert result["Reformation"]["median"] == 0
+
+
+def test_settlement_diagnostics_includes_urbanization():
+    """extract_settlement_diagnostics includes urban fraction time series."""
+    from chronicler.analytics import extract_settlement_diagnostics
+    from chronicler.models import TurnSnapshot, CivSnapshot
+
+    # Build minimal history with urban fractions
+    history = []
+    for t in range(5):
+        civ_stats = {
+            "TestCiv": CivSnapshot(
+                population=100, military=10, economy=20, culture=10,
+                stability=50, treasury=50, asabiya=0.5, tech_era="iron",
+                trait="cautious", regions=["r1"], leader_name="Leader",
+                alive=True, urban_agents=t * 10, urban_fraction=t * 0.1,
+            )
+        }
+        snap = TurnSnapshot(
+            turn=t,
+            civ_stats=civ_stats,
+            region_control={"r1": "TestCiv"},
+            relationships={},
+            urban_agent_count=t * 10,
+            urban_fraction=t * 0.1,
+        )
+        history.append(snap)
+
+    result = extract_settlement_diagnostics(history)
+    assert "urbanization" in result
+    assert "global_trend" in result["urbanization"]
+    assert len(result["urbanization"]["global_trend"]) == 5
+    # Verify per-civ data
+    assert "TestCiv" in result["urbanization"]["per_civ"]
+    assert len(result["urbanization"]["per_civ"]["TestCiv"]) == 5
+    # Verify values at turn 3
+    global_t3 = result["urbanization"]["global_trend"][3]
+    assert global_t3["turn"] == 3
+    assert global_t3["urban_agent_count"] == 30
+    assert abs(global_t3["urban_fraction"] - 0.3) < 1e-9
+    per_civ_t3 = result["urbanization"]["per_civ"]["TestCiv"][3]
+    assert per_civ_t3["urban_agents"] == 30
+    assert abs(per_civ_t3["urban_fraction"] - 0.3) < 1e-9
