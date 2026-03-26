@@ -290,3 +290,81 @@ fn test_urban_safety_penalty_respects_cap() {
     assert!(diff > 0.01 && diff < 0.03,
         "At cap, urban-rural diff {:.4} should be ~+0.02 (material bonus only)", diff);
 }
+
+#[test]
+fn test_urban_culture_drifts_faster() {
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
+
+    let mut pool_urban = AgentPool::new(10);
+    let mut pool_rural = AgentPool::new(10);
+
+    let mut urban_slots = Vec::new();
+    let mut rural_slots = Vec::new();
+    for _ in 0..5 {
+        let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        pool_urban.settlement_ids[su] = 1;
+        pool_rural.settlement_ids[sr] = 0;
+        urban_slots.push(su);
+        rural_slots.push(sr);
+    }
+
+    let mut region = RegionState::new(0);
+    region.controller_values = [1, 2, 3];
+    region.culture_investment_active = true;
+    region.population = 5;
+
+    let seed = [42u8; 32];
+    chronicler_agents::culture_tick::culture_tick(&mut pool_urban, &urban_slots, &region, seed, 1, 0, 1.0);
+    chronicler_agents::culture_tick::culture_tick(&mut pool_rural, &rural_slots, &region, seed, 1, 0, 1.0);
+
+    let urban_changes: u32 = urban_slots.iter().map(|&s| {
+        (pool_urban.cultural_value_0[s] != 0) as u32 +
+        (pool_urban.cultural_value_1[s] != 0) as u32 +
+        (pool_urban.cultural_value_2[s] != 0) as u32
+    }).sum();
+    let rural_changes: u32 = rural_slots.iter().map(|&s| {
+        (pool_rural.cultural_value_0[s] != 0) as u32 +
+        (pool_rural.cultural_value_1[s] != 0) as u32 +
+        (pool_rural.cultural_value_2[s] != 0) as u32
+    }).sum();
+
+    assert!(urban_changes >= rural_changes,
+        "Urban changes {} should be >= rural changes {}", urban_changes, rural_changes);
+}
+
+#[test]
+fn test_urban_conversion_higher_probability() {
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
+
+    let mut pool_urban = AgentPool::new(100);
+    let mut pool_rural = AgentPool::new(100);
+    let mut urban_slots = Vec::new();
+    let mut rural_slots = Vec::new();
+
+    for _ in 0..50 {
+        let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        pool_urban.settlement_ids[su] = 1;
+        pool_rural.settlement_ids[sr] = 0;
+        pool_urban.beliefs[su] = 0;
+        pool_rural.beliefs[sr] = 0;
+        urban_slots.push(su);
+        rural_slots.push(sr);
+    }
+
+    let mut region = RegionState::new(0);
+    region.conversion_rate = 0.5;
+    region.conversion_target_belief = 1;
+    region.majority_belief = 1;
+
+    let seed = [42u8; 32];
+    chronicler_agents::conversion_tick::conversion_tick(&mut pool_urban, &urban_slots, &region, seed, 1, 0, 1.0);
+    chronicler_agents::conversion_tick::conversion_tick(&mut pool_rural, &rural_slots, &region, seed, 1, 0, 1.0);
+
+    let urban_converted: u32 = urban_slots.iter().map(|&s| (pool_urban.beliefs[s] == 1) as u32).sum();
+    let rural_converted: u32 = rural_slots.iter().map(|&s| (pool_rural.beliefs[s] == 1) as u32).sum();
+
+    assert!(urban_converted >= rural_converted,
+        "Urban conversions {} should be >= rural conversions {}", urban_converted, rural_converted);
+}

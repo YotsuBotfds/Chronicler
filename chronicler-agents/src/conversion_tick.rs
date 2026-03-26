@@ -62,10 +62,15 @@ pub fn conversion_tick(
         }
 
         // Determine conversion probability.
-        let prob = if region.conquest_conversion_active {
-            (agent::CONQUEST_CONVERSION_RATE * religion_multiplier).min(1.0)
+        let urban_mult = if pool.settlement_ids[slot] != 0 {
+            agent::URBAN_CONVERSION_MULT
         } else {
-            let base = region.conversion_rate * religion_multiplier;
+            1.0
+        };
+        let prob = if region.conquest_conversion_active {
+            (agent::CONQUEST_CONVERSION_RATE * religion_multiplier * urban_mult).min(1.0)
+        } else {
+            let base = region.conversion_rate * religion_multiplier * urban_mult;
             if pool.satisfactions[slot] < agent::SUSCEPTIBILITY_THRESHOLD {
                 (base * agent::SUSCEPTIBILITY_MULTIPLIER).min(1.0)
             } else {

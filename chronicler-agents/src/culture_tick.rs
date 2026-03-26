@@ -62,7 +62,12 @@ pub fn culture_tick(
 
     for &slot in slots {
         if !pool.alive[slot] { continue; }
-        let effective_rate = agent::CULTURAL_DRIFT_RATE * drift_multiplier;
+        let urban_mult = if pool.settlement_ids[slot] != 0 {
+            agent::URBAN_CULTURE_DRIFT_MULT
+        } else {
+            1.0
+        };
+        let effective_rate = agent::CULTURAL_DRIFT_RATE * drift_multiplier * urban_mult;
         drift_agent(slot, pool, &dist, effective_rate, &mut rng);
     }
 }
