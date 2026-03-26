@@ -194,6 +194,7 @@ pub fn restore_needs(
         }
         let region = &regions[region_idx];
         let civ = pool.civ_affinities[slot];
+        let is_urban = pool.settlement_ids[slot] != 0;
 
         // Look up civ signals (guard for out-of-bounds)
         let civ_signals = signals.civs.get(civ as usize);
@@ -222,6 +223,11 @@ pub fn restore_needs(
             let bold_mod = personality_modifier(pool.boldness[slot], agent::BOLD_SAFETY_RESTORE_WEIGHT);
             delta *= bold_mod;
 
+            // M56b: Urban safety restoration penalty
+            if is_urban {
+                delta *= agent::URBAN_SAFETY_RESTORATION_MULT;
+            }
+
             pool.need_safety[slot] += delta;
         }
 
@@ -230,23 +236,36 @@ pub fn restore_needs(
             let deficit = 1.0 - pool.need_material[slot];
             let mut delta = 0.0_f32;
 
-            // Food sufficiency
-            delta += agent::MATERIAL_RESTORE_FOOD * region.food_sufficiency.min(1.5) * deficit;
+            // Food sufficiency (per-term urban modifier)
+            let mut food_contribution = agent::MATERIAL_RESTORE_FOOD
+                * region.food_sufficiency.min(1.5) * deficit;
+            if is_urban {
+                food_contribution *= agent::URBAN_FOOD_SUFFICIENCY_MULT;
+            }
+            delta += food_contribution;
 
-            // Per-agent wealth percentile
+            // Per-agent wealth percentile (per-term urban modifier)
             let wp = if slot < wealth_percentiles.len() {
                 wealth_percentiles[slot]
             } else {
                 0.0
             };
-            delta += agent::MATERIAL_RESTORE_WEALTH * wp * deficit;
+            let mut wealth_contribution = agent::MATERIAL_RESTORE_WEALTH * wp * deficit;
+            if is_urban {
+                wealth_contribution *= agent::URBAN_WEALTH_RESTORATION_MULT;
+            }
+            delta += wealth_contribution;
 
             pool.need_material[slot] += delta;
         }
 
         // ----- Social (pre-M50 proxy) -----
         {
-            let delta = social_restoration(pool, slot, region);
+            let mut delta = social_restoration(pool, slot, region);
+            // M56b: Urban social restoration bonus
+            if is_urban {
+                delta *= agent::URBAN_SOCIAL_RESTORATION_MULT;
+            }
             pool.need_social[slot] += delta;
         }
 
