@@ -648,3 +648,91 @@ class TestAnalyticsExtractor:
         assert len(result["per_settlement"][1]["population_series"]) == 2
         assert result["founding_rate"] == [{"turn": 14, "count": 1}]
         assert result["dissolution_rate"] == [{"turn": 29, "count": 1}]
+
+
+class TestDeterminism:
+    def _run_detection_sequence(self, seed=42):
+        """Run 3 detection passes on identical input; return settlement state."""
+        import pyarrow as pa
+        from chronicler.models import WorldState, Region
+        from chronicler.settlements import run_settlement_tick, SETTLEMENT_DETECTION_INTERVAL, DENSITY_FLOOR
+
+        w = WorldState(name="Test", seed=seed, turn=0)
+        w.regions = [Region(name="R0", terrain="plains", carrying_capacity=1000, resources="fertile", controller="C1")]
+
+        cluster_agents = [(0.51 + i * 0.003, 0.51 + (i % 3) * 0.003) for i in range(DENSITY_FLOOR + 5)]
+
+        for pass_num in range(3):
+            turn = pass_num * SETTLEMENT_DETECTION_INTERVAL
+            w.turn = turn
+            batch = pa.RecordBatch.from_arrays(
+                [pa.array(list(range(1, len(cluster_agents) + 1)), type=pa.uint32()),
+                 pa.array([0] * len(cluster_agents), type=pa.uint16()),
+                 pa.array([x for x, y in cluster_agents], type=pa.float32()),
+                 pa.array([y for x, y in cluster_agents], type=pa.float32())],
+                names=["id", "region", "x", "y"],
+            )
+            w._agent_snapshot = batch
+            run_settlement_tick(w, source_turn=turn, force=False)
+
+        return {
+            "candidates": len(w.settlement_candidates),
+            "active": [(s.settlement_id, s.name, s.inertia) for r in w.regions for s in r.settlements],
+            "dissolved": len(w.dissolved_settlements),
+            "next_id": w.next_settlement_id,
+            "naming": dict(w.settlement_naming_counters),
+        }
+
+    def test_same_seed_produces_identical_results(self):
+        r1 = self._run_detection_sequence(seed=42)
+        r2 = self._run_detection_sequence(seed=42)
+        assert r1 == r2
+
+    def test_different_seed_same_structure(self):
+        """Different seeds with same spatial input produce same results (detection is spatial, not RNG)."""
+        r1 = self._run_detection_sequence(seed=42)
+        r2 = self._run_detection_sequence(seed=99)
+        assert r1 == r2
+
+
+class TestSaveLoad:
+    def test_settlement_fields_round_trip(self):
+        """WorldState save/load preserves settlement fields."""
+        import tempfile
+        from pathlib import Path
+        from chronicler.models import WorldState, Region, Settlement, SettlementStatus
+
+        w = WorldState(name="Test", seed=42, turn=30)
+        w.regions = [Region(name="R0", terrain="plains", carrying_capacity=100, resources="fertile")]
+        w.regions[0].settlements = [Settlement(
+            settlement_id=1, name="R0 Settlement 1", region_name="R0",
+            founding_turn=15, last_seen_turn=30, population_estimate=50,
+            peak_population=50, centroid_x=0.5, centroid_y=0.5,
+            footprint_cells=[(5, 5)],
+            status=SettlementStatus.ACTIVE, inertia=3,
+        )]
+        w.next_settlement_id = 2
+        w.settlement_naming_counters = {"R0": 2}
+        w.settlement_candidates = [Settlement(
+            region_name="R0", last_seen_turn=30, candidate_passes=1,
+            centroid_x=0.3, centroid_y=0.4,
+        )]
+        w.dissolved_settlements = [Settlement(
+            settlement_id=99, name="R0 Old", region_name="R0",
+            founding_turn=5, last_seen_turn=20, dissolved_turn=25,
+            status=SettlementStatus.DISSOLVED,
+        )]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            w.save(path)
+            loaded = WorldState.load(path)
+
+        assert loaded.next_settlement_id == 2
+        assert loaded.settlement_naming_counters == {"R0": 2}
+        assert len(loaded.regions[0].settlements) == 1
+        assert loaded.regions[0].settlements[0].settlement_id == 1
+        assert loaded.regions[0].settlements[0].footprint_cells == [(5, 5)]
+        assert len(loaded.settlement_candidates) == 1
+        assert loaded.settlement_candidates[0].candidate_passes == 1
+        assert len(loaded.dissolved_settlements) == 1
