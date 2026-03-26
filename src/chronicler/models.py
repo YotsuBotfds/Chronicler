@@ -158,6 +158,13 @@ class ActionCategory(str, Enum):
     REACTION = "reaction"
 
 
+class SettlementStatus(str, Enum):
+    CANDIDATE = "candidate"
+    ACTIVE = "active"
+    DISSOLVING = "dissolving"
+    DISSOLVED = "dissolved"
+
+
 class Infrastructure(BaseModel):
     type: InfrastructureType
     builder_civ: str
@@ -224,6 +231,36 @@ class RegionAsabiya(BaseModel):
     uncontrolled_count: int = 0
 
 
+class Settlement(BaseModel):
+    settlement_id: int = 0
+    name: str = ""
+    display_name: str | None = None
+    region_name: str
+    founding_turn: int = 0
+    last_seen_turn: int
+    dissolved_turn: int | None = None
+    population_estimate: int = 0
+    peak_population: int = 0
+    centroid_x: float = 0.0
+    centroid_y: float = 0.0
+    footprint_cells: list[tuple[int, int]] = Field(default_factory=list)
+    status: SettlementStatus = SettlementStatus.CANDIDATE
+    inertia: int = 0
+    grace_remaining: int = 0
+    candidate_passes: int = 0
+
+
+class SettlementSummary(BaseModel):
+    settlement_id: int
+    name: str
+    region_name: str
+    population_estimate: int
+    centroid_x: float
+    centroid_y: float
+    founding_turn: int
+    status: str
+
+
 class River(BaseModel):
     name: str
     path: list[str] = Field(min_length=2)
@@ -245,6 +282,7 @@ class Region(BaseModel):
     ecology: RegionEcology = Field(default_factory=RegionEcology)
     stockpile: RegionStockpile = Field(default_factory=RegionStockpile)
     asabiya_state: RegionAsabiya = Field(default_factory=RegionAsabiya)
+    settlements: list[Settlement] = Field(default_factory=list)
     low_forest_turns: int = 0
     forest_regrowth_turns: int = 0
     infrastructure: list[Infrastructure] = Field(default_factory=list)
@@ -668,6 +706,11 @@ class WorldState(BaseModel):
     belief_registry: list[Belief] = Field(default_factory=list)  # max 16 faiths
     # M52: Artifacts & Significant Items
     artifacts: list[Artifact] = Field(default_factory=list)
+    # M56a: Settlement detection
+    dissolved_settlements: list[Settlement] = Field(default_factory=list)
+    next_settlement_id: int = 1
+    settlement_naming_counters: dict[str, int] = Field(default_factory=dict)
+    settlement_candidates: list[Settlement] = Field(default_factory=list)
     # M47: Cached region lookup
     _region_map: dict[str, "Region"] | None = PrivateAttr(default=None)
     # Hybrid-mode bridge hook for transient agent/civ synchronization.
@@ -771,6 +814,14 @@ class TurnSnapshot(BaseModel):
     active_conditions: list[dict] = Field(default_factory=list)
     per_pair_accuracy: dict[str, dict[str, float]] = Field(default_factory=dict)
     perception_errors: dict[str, dict[str, dict[str, int]]] = Field(default_factory=dict)
+    # M56a: Settlement summary
+    settlement_source_turn: int = 0
+    settlement_count: int = 0
+    candidate_count: int = 0
+    total_settlement_population: int = 0
+    active_settlements: list[SettlementSummary] = Field(default_factory=list)
+    founded_this_turn: list[int] = Field(default_factory=list)
+    dissolved_this_turn: list[int] = Field(default_factory=list)
 
 
 # --- M20a: Narration Pipeline v2 models ---
