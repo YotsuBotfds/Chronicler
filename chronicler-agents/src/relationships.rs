@@ -41,7 +41,7 @@ pub const EMPTY_BOND_TYPE: u8 = 255;
 
 /// Kin bonds are eviction-protected. Marriage joins in M57.
 pub fn is_protected(bond_type: u8) -> bool {
-    bond_type == BondType::Kin as u8
+    bond_type == BondType::Kin as u8 || bond_type == BondType::Marriage as u8
 }
 
 /// Positive-valence bonds strengthen when co-located.
@@ -57,6 +57,26 @@ pub fn is_asymmetric(bond_type: u8) -> bool {
 
 pub fn is_symmetric(bond_type: u8) -> bool {
     !is_asymmetric(bond_type)
+}
+
+/// Find the target ID of an agent's Marriage bond.
+/// Returns None if the agent has no active Marriage bond.
+/// In debug builds, asserts at most one Marriage bond exists.
+pub fn get_spouse_id(pool: &AgentPool, slot: usize) -> Option<u32> {
+    let count = pool.rel_count[slot] as usize;
+    let mut found: Option<u32> = None;
+    for i in 0..count {
+        if pool.rel_bond_types[slot][i] == BondType::Marriage as u8 {
+            let target = pool.rel_target_ids[slot][i];
+            debug_assert!(found.is_none(), "agent has multiple Marriage bonds (slot={})", slot);
+            if found.is_some() {
+                // Release fallback: return first found
+                return found;
+            }
+            found = Some(target);
+        }
+    }
+    found
 }
 
 // ---------------------------------------------------------------------------
@@ -668,6 +688,29 @@ mod tests {
         // Turn 2: on cadence (2%2==0)
         drift_relationships(&mut pool, 2);
         assert_eq!(pool.rel_sentiments[a][0], 106);
+    }
+
+    #[test]
+    fn test_marriage_is_protected() {
+        assert!(is_protected(BondType::Marriage as u8));
+        assert!(is_protected(BondType::Kin as u8));
+        assert!(!is_protected(BondType::Friend as u8));
+        assert!(!is_protected(BondType::Rival as u8));
+    }
+
+    #[test]
+    fn test_get_spouse_id_none() {
+        let (pool, slots) = setup_pool(1);
+        assert_eq!(get_spouse_id(&pool, slots[0]), None);
+    }
+
+    #[test]
+    fn test_get_spouse_id_found() {
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let id_b = pool.ids[slots[1]];
+        upsert_symmetric(&mut pool, a, slots[1], BondType::Marriage as u8, 50, 10);
+        assert_eq!(get_spouse_id(&pool, a), Some(id_b));
     }
 
     #[test]
