@@ -45,8 +45,9 @@ pub struct AgentPool {
     pub cultural_value_2: Vec<u8>,   // Tertiary (base drift rate)
     // Belief (M37)—indexes into Python-side belief_registry
     pub beliefs: Vec<u8>,
-    // Parentage (M39) — stable agent_id of biological parent
-    pub parent_ids: Vec<u32>,
+    // Parentage (M39/M57a) — stable agent_ids of biological parents
+    pub parent_id_0: Vec<u32>,  // birth parent
+    pub parent_id_1: Vec<u32>,  // other parent (spouse at birth time), PARENT_NONE if unknown
     // Wealth (M41) — personal economic accumulation
     pub wealth: Vec<f32>,
     // M48: Memory ring buffer (8 slots per agent)
@@ -113,7 +114,8 @@ impl AgentPool {
             cultural_value_1: Vec::with_capacity(capacity),
             cultural_value_2: Vec::with_capacity(capacity),
             beliefs: Vec::with_capacity(capacity),
-            parent_ids: Vec::with_capacity(capacity),
+            parent_id_0: Vec::with_capacity(capacity),
+            parent_id_1: Vec::with_capacity(capacity),
             wealth: Vec::with_capacity(capacity),
             memory_event_types: Vec::with_capacity(capacity),
             memory_source_civs: Vec::with_capacity(capacity),
@@ -188,7 +190,8 @@ impl AgentPool {
             self.cultural_value_1[slot] = cultural_value_1;
             self.cultural_value_2[slot] = cultural_value_2;
             self.beliefs[slot] = belief;
-            self.parent_ids[slot] = crate::agent::PARENT_NONE;
+            self.parent_id_0[slot] = crate::agent::PARENT_NONE;
+            self.parent_id_1[slot] = crate::agent::PARENT_NONE;
             self.wealth[slot] = crate::agent::STARTING_WEALTH;
             self.memory_event_types[slot] = [0; 8];
             self.memory_source_civs[slot] = [0; 8];
@@ -241,7 +244,8 @@ impl AgentPool {
             self.cultural_value_1.push(cultural_value_1);
             self.cultural_value_2.push(cultural_value_2);
             self.beliefs.push(belief);
-            self.parent_ids.push(crate::agent::PARENT_NONE);
+            self.parent_id_0.push(crate::agent::PARENT_NONE);
+            self.parent_id_1.push(crate::agent::PARENT_NONE);
             self.wealth.push(crate::agent::STARTING_WEALTH);
             self.memory_event_types.push([0; 8]);
             self.memory_source_civs.push([0; 8]);
@@ -424,8 +428,22 @@ impl AgentPool {
         self.life_events[slot] & crate::agent::IS_NAMED != 0
     }
     #[inline]
-    pub fn parent_id(&self, slot: usize) -> u32 {
-        self.parent_ids[slot]
+    pub fn parent_id_0(&self, slot: usize) -> u32 {
+        self.parent_id_0[slot]
+    }
+    #[inline]
+    pub fn parent_id_1(&self, slot: usize) -> u32 {
+        self.parent_id_1[slot]
+    }
+    #[inline]
+    pub fn parent_ids(&self, slot: usize) -> [u32; 2] {
+        [self.parent_id_0[slot], self.parent_id_1[slot]]
+    }
+    /// Check if `agent_id` is either parent of the agent at `slot`.
+    #[inline]
+    pub fn has_parent(&self, slot: usize, agent_id: u32) -> bool {
+        agent_id != crate::agent::PARENT_NONE
+            && (self.parent_id_0[slot] == agent_id || self.parent_id_1[slot] == agent_id)
     }
 
     // --- Skill (M26) ---
@@ -498,7 +516,8 @@ impl AgentPool {
         let mut cultural_value_1_col = UInt8Builder::with_capacity(live);
         let mut cultural_value_2_col = UInt8Builder::with_capacity(live);
         let mut belief_col = UInt8Builder::with_capacity(live);
-        let mut parent_id_col = UInt32Builder::with_capacity(live);
+        let mut parent_id_0_col = UInt32Builder::with_capacity(live);
+        let mut parent_id_1_col = UInt32Builder::with_capacity(live);
         let mut wealth_col = Float32Builder::with_capacity(live);
         let mut x_col = Float32Builder::with_capacity(live);
         let mut y_col = Float32Builder::with_capacity(live);
@@ -530,7 +549,8 @@ impl AgentPool {
             cultural_value_1_col.append_value(self.cultural_value_1[slot]);
             cultural_value_2_col.append_value(self.cultural_value_2[slot]);
             belief_col.append_value(self.beliefs[slot]);
-            parent_id_col.append_value(self.parent_ids[slot]);
+            parent_id_0_col.append_value(self.parent_id_0[slot]);
+            parent_id_1_col.append_value(self.parent_id_1[slot]);
             wealth_col.append_value(self.wealth[slot]);
             x_col.append_value(self.x[slot]);
             y_col.append_value(self.y[slot]);
@@ -558,7 +578,8 @@ impl AgentPool {
                 Arc::new(cultural_value_1_col.finish()) as _,
                 Arc::new(cultural_value_2_col.finish()) as _,
                 Arc::new(belief_col.finish()) as _,
-                Arc::new(parent_id_col.finish()) as _,
+                Arc::new(parent_id_0_col.finish()) as _,
+                Arc::new(parent_id_1_col.finish()) as _,
                 Arc::new(wealth_col.finish()) as _,
                 Arc::new(x_col.finish()) as _,
                 Arc::new(y_col.finish()) as _,
@@ -1290,12 +1311,14 @@ mod tests {
     fn test_parent_id_defaults_to_none() {
         let mut pool = AgentPool::new(4);
         let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
-        assert_eq!(pool.parent_id(s0), crate::agent::PARENT_NONE);
+        assert_eq!(pool.parent_id_0(s0), crate::agent::PARENT_NONE);
+        assert_eq!(pool.parent_id_1(s0), crate::agent::PARENT_NONE);
 
-        // Kill and reuse slot — parent_id should reset to PARENT_NONE
+        // Kill and reuse slot — parent_ids should reset to PARENT_NONE
         pool.kill(s0);
         let s1 = pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert_eq!(s1, s0); // reused slot
-        assert_eq!(pool.parent_id(s1), crate::agent::PARENT_NONE);
+        assert_eq!(pool.parent_id_0(s1), crate::agent::PARENT_NONE);
+        assert_eq!(pool.parent_id_1(s1), crate::agent::PARENT_NONE);
     }
 }

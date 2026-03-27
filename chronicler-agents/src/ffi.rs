@@ -2377,7 +2377,7 @@ impl AgentSimulator {
                 Some(label) => label_col.append_value(label),
                 None => label_col.append_null(),
             }
-            parent_id_col.append_value(self.pool.parent_ids[slot]);
+            parent_id_col.append_value(self.pool.parent_id_0[slot]);
 
             // Register in the Rust-side registry.
             // origin_civ_id = current civ at promotion time (best available;
@@ -2392,7 +2392,7 @@ impl AgentSimulator {
                 born,
                 self.turn as u16,
                 trigger,
-                self.pool.parent_ids[slot],
+                self.pool.parent_id_0[slot],
             );
         }
 

@@ -458,9 +458,13 @@ pub fn tick_agents(
         std::collections::HashMap::new();
     for slot in 0..pool.capacity() {
         if pool.is_alive(slot) {
-            let parent_id = pool.parent_ids[slot];
-            if parent_id != crate::agent::PARENT_NONE {
-                parent_to_children.entry(parent_id).or_default().push(slot);
+            let pid0 = pool.parent_id_0[slot];
+            if pid0 != crate::agent::PARENT_NONE {
+                parent_to_children.entry(pid0).or_default().push(slot);
+            }
+            let pid1 = pool.parent_id_1[slot];
+            if pid1 != crate::agent::PARENT_NONE {
+                parent_to_children.entry(pid1).or_default().push(slot);
             }
         }
     }
@@ -564,7 +568,7 @@ pub fn tick_agents(
                 birth.belief,
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
-            pool.parent_ids[new_slot] = birth.parent_id;
+            pool.parent_id_0[new_slot] = birth.parent_id;
             // M50a: auto-form kin bond between parent and child
             if birth.parent_id != crate::agent::PARENT_NONE {
                 if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
@@ -1553,7 +1557,7 @@ mod tests {
         let parent_slot = pool.spawn(0, 0, crate::agent::Occupation::Farmer, 25,
             0.8, -0.5, 0.3,
             0, 1, 2, crate::agent::BELIEF_NONE);
-        assert_eq!(pool.parent_id(parent_slot), PARENT_NONE);
+        assert_eq!(pool.parent_id_0(parent_slot), PARENT_NONE);
 
         let parent_agent_id = pool.id(parent_slot);
         assert_ne!(parent_agent_id, PARENT_NONE);
