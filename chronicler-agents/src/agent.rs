@@ -110,6 +110,17 @@ pub const INITIAL_AGE_STREAM_OFFSET: u64 = 1400;
 // M55a: Spatial position and drift RNG streams
 pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 2000;
 pub const SPATIAL_DRIFT_STREAM_OFFSET: u64 = 2001;
+// M57a: Marriage formation
+pub const MARRIAGE_STREAM_OFFSET: u64 = 1600;  // reserved, not consumed in v1
+pub const MARRIAGE_CADENCE: u32 = 4;            // marriage scan runs every 4th turn per region
+pub const MARRIAGE_RADIUS: f32 = 0.25;          // spatial proximity threshold (unit square)
+pub const MARRIAGE_MIN_AGE: u16 = 16;           // matches FERTILITY_AGE_MIN
+// Marriage compatibility weights
+pub const MARRIAGE_SAME_CIV_BONUS: f32 = 0.30;
+pub const MARRIAGE_SAME_BELIEF_BONUS: f32 = 0.20;
+pub const MARRIAGE_CULTURE_MATCH_BONUS: f32 = 0.15;  // per matching cultural value (max 3)
+pub const MARRIAGE_CLOSENESS_CAP: f32 = 0.20;        // max spatial proximity bonus
+pub const MARRIAGE_CROSS_FAITH_PENALTY: f32 = 0.10;
 
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
@@ -426,6 +437,7 @@ mod tests {
             INITIAL_AGE_STREAM_OFFSET,       // 1400
             SPATIAL_POSITION_STREAM_OFFSET,  // 2000
             SPATIAL_DRIFT_STREAM_OFFSET,     // 2001
+            MARRIAGE_STREAM_OFFSET,          // 1600
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {
