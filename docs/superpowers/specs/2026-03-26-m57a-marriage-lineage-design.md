@@ -32,7 +32,7 @@ A dedicated `marriage_scan()` function in `formation.rs`, called **before** the 
 
 ### Eligibility Gates (all must pass)
 
-- Both agents alive and adult (age >= 16, consistent with existing fertility floor).
+- Both agents alive and marriage-eligible (age >= 16, matching `FERTILITY_AGE_MIN`, not `AGE_ADULT` which is 20).
 - Neither has an existing `Marriage` bond.
 - Same region.
 - Spatial proximity: `distance(a, b) <= MARRIAGE_RADIUS` (starting value: 0.25 in normalized region coordinates).
@@ -235,7 +235,7 @@ for slot in 0..pool.capacity() {
 }
 ```
 
-Inheritance rule unchanged: top 2 memories by absolute intensity, halve intensity, slow decay, write as `LEGACY` type.
+Inheritance rule unchanged: top 2 memories by absolute intensity, halve intensity, apply legacy decay override, mark `is_legacy = true`, and **preserve the original event type** (Battle, DeathOfKin, etc.). Do not overwrite to a `LEGACY` event type — `MemoryEventType::Legacy` is vestigial in the live code. The `is_legacy` flag plus decay override is the correct M51 mechanism.
 
 **Both-parents-die-same-turn:** Correct behavior. Child can inherit from both lines (up to 4 legacy memories). These compete for ring buffer slots normally.
 
@@ -286,7 +286,7 @@ Marriage events are **not free** from the existing event pipeline. Named-charact
 
 ### Diagnostics
 
-Return marriage counters through the existing `get_relationship_stats()` map in `ffi.rs` and history collector in `agent_bridge.py`. Internally, a `MarriageStats` struct is fine. Externally, append keys:
+**Transport path:** `marriage_scan()` returns a `MarriageStats` struct internally. In `tick.rs`, fold the marriage counters into the existing `FormationStats` by adding marriage-prefixed fields (not a second stats struct). The merged `FormationStats` flows through the existing pipeline: `tick_agents()` → `AgentSimulator.formation_stats` → `get_relationship_stats()` → Python-side history collector in `agent_bridge.py`. Externally, the stats map gains these keys:
 
 - `marriages_formed`
 - `marriage_pairs_evaluated`
@@ -350,7 +350,7 @@ Freeze `check_marriage_formation()` in `relationships.py` with a deprecation com
 ### Rust Tests
 
 **New file: `chronicler-agents/tests/test_m57a_marriage.rs`**
-- Deterministic: same seed → same marriages, parent pairs, dynasty assignments
+- Deterministic: same seed → same marriages, same parent pairs
 - Exclusivity: no agent gets two Marriage bonds
 - Eligibility: hostile rejected, incest rejected (both slots), age enforced, distance enforced
 - Scored greedy: higher-score pairs win when agents overlap
