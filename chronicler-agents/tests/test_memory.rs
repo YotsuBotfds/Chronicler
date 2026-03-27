@@ -132,6 +132,7 @@ fn test_memory_decay_basic() {
 
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
@@ -218,6 +219,7 @@ fn test_memory_eviction_min_intensity() {
     for (i, &intensity) in intensities.iter().enumerate() {
         let intent = MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: i as u8,
             source_civ: 0,
             intensity,
@@ -231,6 +233,7 @@ fn test_memory_eviction_min_intensity() {
     // Write a 9th memory — should evict slot 4 (intensity -10, lowest |intensity|)
     let new_intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Victory as u8,
         source_civ: 1,
         intensity: 90,
@@ -257,6 +260,7 @@ fn test_memory_eviction_tiebreak() {
     for i in 0..8 {
         let intent = MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Battle as u8,
             source_civ: 0,
             intensity: -50,
@@ -270,6 +274,7 @@ fn test_memory_eviction_tiebreak() {
     // All have |intensity| = 50, so tiebreak picks index 0
     let new_intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 2,
         intensity: 80,
@@ -301,6 +306,7 @@ fn test_memory_count_lifecycle() {
         assert_eq!(pool.memory_count[slot], i as u8);
         let intent = MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: (i % 12) as u8,
             source_civ: 0,
             intensity: -50,
@@ -315,6 +321,7 @@ fn test_memory_count_lifecycle() {
     for i in 0..3 {
         let intent = MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Victory as u8,
             source_civ: 0,
             intensity: 90,
@@ -345,6 +352,7 @@ fn test_memory_satisfaction_score_positive() {
     // Write a positive memory
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 0,
         intensity: 50,
@@ -367,6 +375,7 @@ fn test_memory_satisfaction_score_negative() {
     // Write a negative memory
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
@@ -387,6 +396,7 @@ fn test_memory_satisfaction_score_mixed() {
     // Write opposing memories that roughly cancel
     let positive = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Victory as u8,
         source_civ: 0,
         intensity: 60,
@@ -395,6 +405,7 @@ fn test_memory_satisfaction_score_mixed() {
     };
     let negative = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Battle as u8,
         source_civ: 0,
         intensity: -60,
@@ -426,6 +437,7 @@ fn test_consolidated_write_ordering() {
     let intents = vec![
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
@@ -434,6 +446,7 @@ fn test_consolidated_write_ordering() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Battle as u8,
             source_civ: 1,
             intensity: -60,
@@ -442,6 +455,7 @@ fn test_consolidated_write_ordering() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Prosperity as u8,
             source_civ: 0,
             intensity: 50,
@@ -450,6 +464,7 @@ fn test_consolidated_write_ordering() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Migration as u8,
             source_civ: 2,
             intensity: -30,
@@ -495,6 +510,7 @@ fn test_consolidated_write_multiple_agents() {
     let intents = vec![
         MemoryIntent {
             agent_slot: slot_a,
+            expected_agent_id: pool.ids[slot_a],
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
@@ -503,6 +519,7 @@ fn test_consolidated_write_multiple_agents() {
         },
         MemoryIntent {
             agent_slot: slot_b,
+            expected_agent_id: pool.ids[slot_b],
             event_type: MemoryEventType::Battle as u8,
             source_civ: 1,
             intensity: -60,
@@ -511,6 +528,7 @@ fn test_consolidated_write_multiple_agents() {
         },
         MemoryIntent {
             agent_slot: slot_a,
+            expected_agent_id: pool.ids[slot_a],
             event_type: MemoryEventType::Victory as u8,
             source_civ: 0,
             intensity: 60,
@@ -538,6 +556,7 @@ fn test_gate_blocks_duplicate_write() {
     let intents = vec![
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Battle as u8,
             source_civ: 0,
             intensity: -60,
@@ -546,6 +565,7 @@ fn test_gate_blocks_duplicate_write() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Battle as u8,
             source_civ: 1,
             intensity: -50, // different intensity to distinguish
@@ -574,6 +594,7 @@ fn test_gate_blocks_famine_duplicate() {
     let intents = vec![
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
@@ -582,6 +603,7 @@ fn test_gate_blocks_famine_duplicate() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -70,
@@ -606,6 +628,7 @@ fn test_non_gated_types_allow_duplicates() {
     let intents = vec![
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Migration as u8,
             source_civ: 0,
             intensity: -30,
@@ -614,6 +637,7 @@ fn test_non_gated_types_allow_duplicates() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Migration as u8,
             source_civ: 1,
             intensity: -25,
@@ -854,6 +878,7 @@ fn test_write_all_memories_respects_pre_existing_gate() {
     let intents = vec![
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Famine as u8,
             source_civ: 0,
             intensity: -80,
@@ -862,6 +887,7 @@ fn test_write_all_memories_respects_pre_existing_gate() {
         },
         MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: MemoryEventType::Victory as u8,
             source_civ: 0,
             intensity: 60,
@@ -889,6 +915,7 @@ fn test_memory_gate_battle() {
 
     let intent1 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Battle as u8,
         source_civ: 0,
         intensity: -60,
@@ -903,6 +930,7 @@ fn test_memory_gate_battle() {
     // Second BATTLE should be blocked by the gate
     let intent2 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Battle as u8,
         source_civ: 1,
         intensity: -50,
@@ -924,6 +952,7 @@ fn test_memory_gate_famine() {
 
     let intent1 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
@@ -938,6 +967,7 @@ fn test_memory_gate_famine() {
     // Second FAMINE should be blocked by the gate
     let intent2 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -70,
@@ -958,6 +988,7 @@ fn test_memory_gate_prosperity() {
 
     let intent1 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 0,
         intensity: 50,
@@ -972,6 +1003,7 @@ fn test_memory_gate_prosperity() {
     // Second PROSPERITY should be blocked by the gate
     let intent2 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Prosperity as u8,
         source_civ: 0,
         intensity: 40,
@@ -992,6 +1024,7 @@ fn test_memory_gate_persecution() {
 
     let intent1 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Persecution as u8,
         source_civ: 0,
         intensity: -90,
@@ -1006,6 +1039,7 @@ fn test_memory_gate_persecution() {
     // Second PERSECUTION should be blocked by the gate
     let intent2 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Persecution as u8,
         source_civ: 1,
         intensity: -85,
@@ -1202,6 +1236,7 @@ fn test_utility_modifier_famine() {
 
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Famine as u8,
         source_civ: 0,
         intensity: -80,
@@ -1227,6 +1262,7 @@ fn test_utility_modifier_conquest_sides() {
     // Conquest memory from civ 0 (conqueror side — source matches agent's civ)
     let intent_conqueror = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: MemoryEventType::Conquest as u8,
         source_civ: 0, // same as agent's civ
         intensity: -70,
@@ -1246,6 +1282,7 @@ fn test_utility_modifier_conquest_sides() {
     // Conquest memory from civ 0 (conquered side — source doesn't match agent's civ 1)
     let intent_conquered = MemoryIntent {
         agent_slot: slot2,
+        expected_agent_id: pool.ids[slot2],
         event_type: MemoryEventType::Conquest as u8,
         source_civ: 0, // different from agent's civ 1
         intensity: -70,

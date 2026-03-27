@@ -116,6 +116,7 @@ pub fn tick_agents(
             if regions[region_idx].food_sufficiency < crate::agent::FAMINE_MEMORY_THRESHOLD {
                 memory_intents.push(crate::memory::MemoryIntent {
                     agent_slot: slot,
+                    expected_agent_id: pool.ids[slot],
                     event_type: crate::memory::MemoryEventType::Famine as u8,
                     source_civ: pool.civ_affinities[slot],
                     intensity: crate::agent::FAMINE_DEFAULT_INTENSITY,
@@ -128,6 +129,7 @@ pub fn tick_agents(
         if pool.wealth[slot] > crate::agent::PROSPERITY_THRESHOLD {
             memory_intents.push(crate::memory::MemoryIntent {
                 agent_slot: slot,
+                expected_agent_id: pool.ids[slot],
                 event_type: crate::memory::MemoryEventType::Prosperity as u8,
                 source_civ: pool.civ_affinities[slot],
                 intensity: crate::agent::PROSPERITY_DEFAULT_INTENSITY,
@@ -258,6 +260,7 @@ pub fn tick_agents(
         for &(slot, _from, _to) in &pd.migrations {
             memory_intents.push(crate::memory::MemoryIntent {
                 agent_slot: slot,
+                expected_agent_id: pool.ids[slot],
                 event_type: crate::memory::MemoryEventType::Migration as u8,
                 source_civ: pool.civ_affinities[slot],
                 intensity: crate::agent::MIGRATION_DEFAULT_INTENSITY,
@@ -318,6 +321,7 @@ pub fn tick_agents(
                     // Battle intent for soldiers in contested regions
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: slot,
+                        expected_agent_id: pool.ids[slot],
                         event_type: crate::memory::MemoryEventType::Battle as u8,
                         source_civ: pool.civ_affinities[slot],
                         intensity: crate::agent::BATTLE_DEFAULT_INTENSITY,
@@ -328,6 +332,7 @@ pub fn tick_agents(
                     if region_id < regions.len() && regions[region_id].war_won_this_turn {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
+                            expected_agent_id: pool.ids[slot],
                             event_type: crate::memory::MemoryEventType::Victory as u8,
                             source_civ: pool.civ_affinities[slot],
                             intensity: crate::agent::VICTORY_DEFAULT_INTENSITY,
@@ -359,6 +364,7 @@ pub fn tick_agents(
                     if pool.is_alive(slot) {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
+                            expected_agent_id: pool.ids[slot],
                             event_type: crate::memory::MemoryEventType::Conquest as u8,
                             source_civ: conquering_civ,
                             intensity: crate::agent::CONQUEST_DEFAULT_INTENSITY,
@@ -373,6 +379,7 @@ pub fn tick_agents(
                     if pool.is_alive(slot) {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
+                            expected_agent_id: pool.ids[slot],
                             event_type: crate::memory::MemoryEventType::Secession as u8,
                             source_civ: pool.civ_affinities[slot],
                             intensity: crate::agent::SECESSION_DEFAULT_INTENSITY,
@@ -512,6 +519,7 @@ pub fn tick_agents(
                     if pool.is_alive(child_slot) {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: child_slot,
+                            expected_agent_id: pool.ids[child_slot],
                             event_type: crate::memory::MemoryEventType::DeathOfKin as u8,
                             source_civ: pool.civ_affinities[child_slot],
                             intensity: crate::agent::DEATHOFKIN_DEFAULT_INTENSITY,
@@ -532,6 +540,7 @@ pub fn tick_agents(
                             for &(event_type, source_civ, halved_intensity) in &legacy_memories {
                                 memory_intents.push(crate::memory::MemoryIntent {
                                     agent_slot: child_slot,
+                                    expected_agent_id: pool.ids[child_slot],
                                     event_type,
                                     source_civ,
                                     intensity: halved_intensity,
@@ -631,6 +640,7 @@ pub fn tick_agents(
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == pid {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: parent_slot,
+                            expected_agent_id: pool.ids[parent_slot],
                             event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
                             source_civ: pool.civ_affinities[parent_slot],
                             intensity: crate::agent::BIRTHOFKIN_DEFAULT_INTENSITY,
@@ -737,6 +747,7 @@ pub fn tick_agents(
                     };
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: slot,
+                        expected_agent_id: pool.ids[slot],
                         event_type: crate::memory::MemoryEventType::Conversion as u8,
                         source_civ: pool.civ_affinities[slot],
                         intensity,
@@ -751,6 +762,7 @@ pub fn tick_agents(
                 {
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: slot,
+                        expected_agent_id: pool.ids[slot],
                         event_type: crate::memory::MemoryEventType::Persecution as u8,
                         source_civ: pool.civ_affinities[slot],
                         intensity: crate::agent::PERSECUTION_DEFAULT_INTENSITY,

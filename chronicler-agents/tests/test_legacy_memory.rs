@@ -5,6 +5,7 @@ use chronicler_agents::{AgentPool, Occupation, BELIEF_NONE, factor_from_half_lif
 fn test_memory_intent_legacy_fields() {
     let intent = MemoryIntent {
         agent_slot: 0,
+        expected_agent_id: 0,
         event_type: 0, // Famine
         source_civ: 1,
         intensity: -45,
@@ -44,6 +45,7 @@ fn test_write_legacy_memory_decay_override() {
 
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 0, // Famine — default factor would be famine rate, not legacy rate
         source_civ: 1,
         intensity: -45,
@@ -85,6 +87,7 @@ fn test_non_legacy_memory_clears_bit() {
     // Write a non-legacy memory to slot 0
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 1, // Battle
         source_civ: 0,
         intensity: -60,
@@ -114,6 +117,7 @@ fn test_legacy_bit_cleared_on_eviction() {
     // Write weak legacy memory to slot 0 (intensity -10)
     let legacy_intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 0, // Famine
         source_civ: 1,
         intensity: -10,
@@ -129,6 +133,7 @@ fn test_legacy_bit_cleared_on_eviction() {
     for i in 1..8 {
         let intent = MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: 1, // Battle
             source_civ: 1,
             intensity: -50,
@@ -145,6 +150,7 @@ fn test_legacy_bit_cleared_on_eviction() {
     // Write a 9th memory with intensity -80 — should evict slot 0 (weakest at |-10|)
     let strong_intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 2, // Conquest
         source_civ: 1,
         intensity: -80,
@@ -178,6 +184,7 @@ fn test_legacy_bit_uses_slot_index() {
     for i in 0..2 {
         let intent = MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: pool.ids[slot],
             event_type: 1,
             source_civ: 0,
             intensity: -50,
@@ -190,6 +197,7 @@ fn test_legacy_bit_uses_slot_index() {
     // Write legacy to slot 2 (third write)
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 0,
         source_civ: 1,
         intensity: -45,
@@ -223,9 +231,11 @@ fn test_extract_legacy_memories_top_2() {
         (5, 1, 50),   // Prosperity, civ 1, intensity +50
         (3, 0, -10),  // Persecution, civ 0, intensity -10
     ];
+    let slot_id = pool.ids[slot];
     for (turn, &(event_type, source_civ, intensity)) in intensities.iter().enumerate() {
         write_single_memory(&mut pool, &MemoryIntent {
             agent_slot: slot,
+            expected_agent_id: slot_id,
             event_type,
             source_civ,
             intensity,
@@ -261,8 +271,10 @@ fn test_extract_legacy_memories_filters_below_threshold() {
     let mut pool = AgentPool::new(8);
     let slot = spawn_test_agent(&mut pool);
 
+    let slot_id = pool.ids[slot];
     write_single_memory(&mut pool, &MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: slot_id,
         event_type: 0, // Famine
         source_civ: 1,
         intensity: 15, // halved = 7 < 10 threshold
@@ -292,8 +304,10 @@ fn test_legacy_utility_preservation() {
     let mut pool = AgentPool::new(8);
     let slot = spawn_test_agent(&mut pool);
 
+    let slot_id = pool.ids[slot];
     write_single_memory(&mut pool, &MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: slot_id,
         event_type: 0, // Famine
         source_civ: 0,
         intensity: -40,
@@ -313,8 +327,10 @@ fn test_legacy_satisfaction_preservation() {
     let slot = spawn_test_agent(&mut pool);
 
     // Write a positive legacy memory
+    let slot_id = pool.ids[slot];
     write_single_memory(&mut pool, &MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: slot_id,
         event_type: 5, // Prosperity
         source_civ: 0,
         intensity: 50,
@@ -337,6 +353,7 @@ fn test_multi_generational_legacy_decay() {
     let parent = spawn_test_agent(&mut pool);
     let orig = MemoryIntent {
         agent_slot: parent,
+        expected_agent_id: pool.ids[parent],
         event_type: 3, // Persecution
         source_civ: 1,
         intensity: -90,
@@ -353,6 +370,7 @@ fn test_multi_generational_legacy_decay() {
     assert_eq!(legacies[0].2, -45, "Gen2 intensity should be -45 (-90/2)");
     let intent2 = MemoryIntent {
         agent_slot: child,
+        expected_agent_id: pool.ids[child],
         event_type: legacies[0].0,
         source_civ: legacies[0].1,
         intensity: legacies[0].2,
@@ -369,6 +387,7 @@ fn test_multi_generational_legacy_decay() {
     assert_eq!(legacies2[0].2, -22, "Gen3 intensity should be -22 (-45/2 truncated)");
     let intent3 = MemoryIntent {
         agent_slot: grandchild,
+        expected_agent_id: pool.ids[grandchild],
         event_type: legacies2[0].0,
         source_civ: legacies2[0].1,
         intensity: legacies2[0].2,
@@ -385,6 +404,7 @@ fn test_multi_generational_legacy_decay() {
     assert_eq!(legacies3[0].2, -11, "Gen4 intensity should be -11 (-22/2 truncated)");
     let intent4 = MemoryIntent {
         agent_slot: great,
+        expected_agent_id: pool.ids[great],
         event_type: legacies3[0].0,
         source_civ: legacies3[0].1,
         intensity: legacies3[0].2,
@@ -408,6 +428,7 @@ fn test_death_of_kin_and_legacy_same_consolidated_write() {
     let parent = spawn_test_agent(&mut pool);
     let battle = MemoryIntent {
         agent_slot: parent,
+        expected_agent_id: pool.ids[parent],
         event_type: 1, // Battle
         source_civ: 1,
         intensity: -60,
@@ -427,6 +448,7 @@ fn test_death_of_kin_and_legacy_same_consolidated_write() {
     // DeathOfKin intent (event_type=9, not gated)
     intents.push(MemoryIntent {
         agent_slot: child,
+        expected_agent_id: pool.ids[child],
         event_type: 9, // DeathOfKin
         source_civ: pool.civ_affinities[parent],
         intensity: -80,
@@ -441,6 +463,7 @@ fn test_death_of_kin_and_legacy_same_consolidated_write() {
     for (et, sc, halved) in &legacies {
         intents.push(MemoryIntent {
             agent_slot: child,
+            expected_agent_id: pool.ids[child],
             event_type: *et,
             source_civ: *sc,
             intensity: *halved,
@@ -487,6 +510,7 @@ fn test_ffi_get_agent_memories_includes_legacy_flag() {
     // Write legacy memory to slot 0
     let intent = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 0,
         source_civ: 1,
         intensity: -45,
@@ -502,6 +526,7 @@ fn test_ffi_get_agent_memories_includes_legacy_flag() {
     // Write non-legacy memory to slot 1
     let intent2 = MemoryIntent {
         agent_slot: slot,
+        expected_agent_id: pool.ids[slot],
         event_type: 1,
         source_civ: 1,
         intensity: -60,
@@ -528,8 +553,11 @@ fn test_legacy_shared_memory_matching() {
     let battle_type = 1u8; // Battle
 
     // Both siblings receive the same legacy Battle memory at turn 42
+    let id_a = pool.ids[sibling_a];
+    let id_b = pool.ids[sibling_b];
     write_single_memory(&mut pool, &MemoryIntent {
         agent_slot: sibling_a,
+        expected_agent_id: id_a,
         event_type: battle_type,
         source_civ: 2,
         intensity: -45,
@@ -538,6 +566,7 @@ fn test_legacy_shared_memory_matching() {
     }, 42);
     write_single_memory(&mut pool, &MemoryIntent {
         agent_slot: sibling_b,
+        expected_agent_id: id_b,
         event_type: battle_type,
         source_civ: 2,
         intensity: -45,
