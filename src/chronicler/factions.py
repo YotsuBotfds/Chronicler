@@ -455,7 +455,8 @@ def _build_gp_successor_candidate(gp, civ, dominant):
         "gp_trait": gp.trait,
         "gp_base_name": getattr(gp, "base_name", None),
         "agent_id": gp.agent_id,
-        "parent_id": gp.parent_id,
+        "parent_id_0": gp.parent_id_0,
+        "parent_id_1": gp.parent_id_1,
         "dynasty_id": gp.dynasty_id,
         "weight": weight,
     }
