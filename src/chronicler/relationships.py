@@ -160,7 +160,11 @@ def check_mentorship_formation(world: WorldState, existing_edges: list[tuple]) -
 # --- Marriage Alliance ---
 
 def check_marriage_formation(world: WorldState, existing_edges: list[tuple]) -> list[tuple]:
-    """Form marriage alliances between agent-source great persons of long-allied civs.
+    """DEPRECATED (M57a): Marriage formation is now Rust-native via marriage_scan()
+    in formation.rs. This Python-side helper is frozen — do not extend.
+    Retained for test compatibility only.
+
+    Original: Form marriage alliances between agent-source great persons of long-allied civs.
     agent_a < agent_b by convention. RNG seed uses civ-name pair for determinism stability.
     """
     from chronicler.models import Disposition

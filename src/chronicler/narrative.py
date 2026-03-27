@@ -207,6 +207,9 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                 else:
                     dynasty_line += f" ({char['dynasty_living']}/{char['dynasty_total']} living)"
                 lines.append(dynasty_line)
+            # M57a: Lineage house context (secondary dynasty from other parent)
+            if char.get("lineage_house"):
+                lines.append(f"  With lineage ties to the House of {char['lineage_house']}")
             # M48: Memory context
             if char.get("memories"):
                 civ_names = char.get("_civ_names", [])
@@ -338,6 +341,13 @@ def build_agent_context_for_moment(
                 char["dynasty_total"] = len(dynasty.members)
                 if dynasty.split_detected:
                     char["dynasty_split"] = True
+            # M57a: Resolve lineage house (secondary dynasty from other parent)
+            if gp.lineage_house and gp.lineage_house != (gp.dynasty_id or 0):
+                try:
+                    lineage_dynasty = dynasty_registry._find(gp.lineage_house)
+                    char["lineage_house"] = lineage_dynasty.founder_name
+                except ValueError:
+                    pass  # Dynasty not found — skip silently
 
         # M45: Arc context
         if gp.arc_type:

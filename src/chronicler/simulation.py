@@ -1593,7 +1593,7 @@ def run_turn(
     # One-turn latency: agent tick ran between Phase 9 and 10.
     # Rust reads edges from the previous turn's Phase 10 output. Intentional.
     if agent_bridge is not None:
-        from chronicler.relationships import form_and_sync_relationships, compute_belief_data, REL_RIVAL
+        from chronicler.relationships import form_and_sync_relationships, compute_belief_data, REL_RIVAL, REL_MARRIAGE
 
         # M50b: gate off Python-side formation when Rust owns it
         if not agent_bridge.rust_owns_formation:
@@ -1643,6 +1643,20 @@ def run_turn(
                     description="A rivalry forms between great persons of opposing civilizations.",
                     importance=5,
                 ))
+
+        # M57a: Marriage formation events for named characters
+        for edge in new_edges:
+            if edge[2] == REL_MARRIAGE and edge[3] == world.turn:
+                gp_a = gp_by_id.get(edge[0])
+                gp_b = gp_by_id.get(edge[1])
+                if gp_a and gp_b:
+                    turn_events.append(Event(
+                        turn=world.turn, event_type="marriage_formed",
+                        actors=[gp_a.name, gp_b.name],
+                        description=f"A marriage is forged between {gp_a.name} and {gp_b.name}.",
+                        importance=6,
+                        source="agent",
+                    ))
 
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression
