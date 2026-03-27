@@ -1,0 +1,23 @@
+{
+  "manifest_version": 1,
+  "bundle_schema_version": "2.0.0",
+  "seed": 9001,
+  "total_turns": 300,
+  "summary_layer": "summary.core.v1",
+  "layers": [
+    {
+      "id": "summary.core.v1",
+      "kind": "summary",
+      "version": "1.0.0",
+      "path": "layers/summary.core.v1.json",
+      "required": false
+    },
+    {
+      "id": "timeline.events.v1",
+      "kind": "timeline",
+      "version": "1.0.0",
+      "path": "layers/timeline.events.v1.json",
+      "required": true
+    }
+  ]
+}

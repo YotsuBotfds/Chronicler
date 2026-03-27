@@ -187,6 +187,19 @@ class TestRunTurn:
         run_turn(sample_world, action_selector=stub_selector, narrator=stub_narrator, seed=42)
         assert len(sample_world.events_timeline) > 0
 
+    def test_agents_off_keeps_economy_result_unset(self, sample_world):
+        """M54b freeze: production off-mode does not synthesize economy_result."""
+        def stub_selector(civ, world):
+            return ActionType.DEVELOP
+
+        def stub_narrator(world, turn_events):
+            return "A quiet turn passed."
+
+        run_turn(sample_world, action_selector=stub_selector, narrator=stub_narrator, seed=42)
+
+        assert hasattr(sample_world, "_economy_result")
+        assert sample_world._economy_result is None
+
     def test_collapse_events_passed_to_narrator(self, sample_world):
         """Narrator must receive collapse events (critical fix: was previously missed)."""
         # Force a collapse for the first civ

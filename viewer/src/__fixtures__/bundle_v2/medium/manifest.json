@@ -1,0 +1,58 @@
+{
+  "manifest_version": 1,
+  "bundle_schema_version": "2.1.0",
+  "seed": 4242,
+  "total_turns": 500,
+  "summary_layer": "summary.core.v1",
+  "layers": [
+    {
+      "id": "summary.core.v1",
+      "kind": "summary",
+      "version": "1.1.0",
+      "path": "layers/summary.core.v1.json",
+      "required": true
+    },
+    {
+      "id": "entities.core.v1",
+      "kind": "entities",
+      "version": "1.1.0",
+      "path": "layers/entities.core.v1.json",
+      "required": true
+    },
+    {
+      "id": "timeline.events.v1",
+      "kind": "timeline",
+      "version": "1.0.0",
+      "path": "layers/timeline.events.v1.json",
+      "required": true
+    },
+    {
+      "id": "metrics.civ.v1",
+      "kind": "metrics",
+      "version": "1.0.0",
+      "path": "layers/metrics.civ.v1.json",
+      "required": false
+    },
+    {
+      "id": "overlays.map.v1",
+      "kind": "overlays",
+      "version": "1.0.0",
+      "path": "layers/overlays.map.v1.json",
+      "required": false
+    },
+    {
+      "id": "networks.relationships.v1",
+      "kind": "networks",
+      "version": "1.0.0",
+      "path": "layers/networks.relationships.v1.json",
+      "required": false
+    },
+    {
+      "id": "detail.settlements.v1",
+      "kind": "detail",
+      "version": "1.0.0",
+      "path": "layers/detail.settlements.v1.json",
+      "required": false
+    }
+  ]
+}

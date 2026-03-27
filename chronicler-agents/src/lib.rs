@@ -96,6 +96,8 @@ pub use agent::{LEGACY_HALF_LIFE, LEGACY_MIN_INTENSITY, LEGACY_MAX_MEMORIES};
 pub use agent::{
     SAFETY_DECAY, MATERIAL_DECAY, SOCIAL_DECAY, SPIRITUAL_DECAY, AUTONOMY_DECAY, PURPOSE_DECAY,
 };
+#[doc(hidden)]
+pub use agent::{URBAN_MATERIAL_SATISFACTION_BONUS, URBAN_SAFETY_SATISFACTION_PENALTY};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

@@ -255,9 +255,15 @@ fn test_urban_satisfaction_material_bonus() {
     let urban = compute_satisfaction_with_culture(&base);
 
     let diff = urban - rural;
-    // Net: +0.02 (material bonus) - 0.04 (safety penalty) = -0.02
-    assert!(diff > -0.03 && diff < -0.01,
-        "Urban-rural diff {:.4} should be ~-0.02", diff);
+    let expected =
+        chronicler_agents::URBAN_MATERIAL_SATISFACTION_BONUS
+        - chronicler_agents::URBAN_SAFETY_SATISFACTION_PENALTY;
+    assert!(
+        (diff - expected).abs() < 0.01,
+        "Urban-rural diff {:.4} should be near configured net effect {:.4}",
+        diff,
+        expected
+    );
 }
 
 #[test]
@@ -285,10 +291,15 @@ fn test_urban_safety_penalty_respects_cap() {
     let rural_sat = compute_satisfaction_with_culture(&inp);
 
     // Both should hit the cap. Urban has material bonus but penalty is capped.
-    // At cap: urban should be ~+0.02 higher (material bonus is outside cap)
+    // At cap: urban-rural delta should track the configured material bonus.
     let diff = urban_sat - rural_sat;
-    assert!(diff > 0.01 && diff < 0.03,
-        "At cap, urban-rural diff {:.4} should be ~+0.02 (material bonus only)", diff);
+    let expected = chronicler_agents::URBAN_MATERIAL_SATISFACTION_BONUS;
+    assert!(
+        (diff - expected).abs() < 0.01,
+        "At cap, urban-rural diff {:.4} should be near material bonus {:.4}",
+        diff,
+        expected
+    );
 }
 
 #[test]

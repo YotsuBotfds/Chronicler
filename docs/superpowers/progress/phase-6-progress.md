@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-26 (M56a settlement detection implemented on `feat/m56a-settlement-detection`; 54 tests, off-mode verified)
+> **Last updated:** 2026-03-26 (M56b urban-effects tuning completed on `feat/m56b-urban-effects`; 200-seed sidecar gate PASS)
 
 ---
 
@@ -278,6 +278,30 @@
 - **Calibration constants ([CALIBRATE M61b]):** `GRID_SIZE=10`, `DENSITY_FLOOR=5`, `DENSITY_FRACTION=0.03`, `SETTLEMENT_DETECTION_INTERVAL=15`, `MAX_MATCH_DISTANCE=0.25`, `CANDIDATE_PERSISTENCE=2`, `BASE_INERTIA_CAP=3`, `AGE_BONUS_INTERVAL=50`, `POP_BONUS_INTERVAL=100`, `MAX_INERTIA_CAP=10`, `DISSOLVE_GRACE=2`.
 - **No Rust changes.** Entirely Python-side.
 - **Deferred:** M56b mechanical consumers (`is_urban`, per-agent `settlement_id`, urban/rural effects). Richer narrator integration for settlement events. Calibration follow-up (M61b). 200-seed regression sweep (blocked on hybrid smoke).
+
+### M56b: Urban Effects â€” implementation verified + calibrated pre-merge on `feat/m56b-urban-effects`
+
+- **Spec:** `docs/superpowers/specs/2026-03-26-m56b-urban-effects-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-26-m56b-urban-effects.md`
+- **Calibration pass (2026-03-26):**
+  - Updated M56b urban constants in `chronicler-agents/src/agent.rs`:
+    - `URBAN_SAFETY_RESTORATION_MULT = 0.97`
+    - `URBAN_SOCIAL_RESTORATION_MULT = 1.04`
+    - `URBAN_FOOD_SUFFICIENCY_MULT = 0.96`
+    - `URBAN_WEALTH_RESTORATION_MULT = 1.02`
+    - `URBAN_MATERIAL_SATISFACTION_BONUS = 0.034`
+    - `URBAN_SAFETY_SATISFACTION_PENALTY = 0.008`
+    - `URBAN_CULTURE_DRIFT_MULT = 1.08`
+    - `URBAN_CONVERSION_MULT = 1.03`
+- **Probe gate (50 seeds / 500 turns / hybrid / sidecar / parallel 24):**
+  - Artifact: `output/m56b/gates/tuning_probe_hybrid_p24_sidecar_v6_with_tuning/validate_all.json`
+  - Regression PASS (`satisfaction_mean=0.4506`, `rebellion_rate=0.079908`, `migration_rate=0.080581`, `occupation_ok=true`)
+- **Full gate (200 seeds / 500 turns / hybrid / sidecar / parallel 24):**
+  - Artifact: `output/m56b/gates/full_gate_hybrid_p24_sidecar_tuned/validate_all.json`
+  - Oracles: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `regression PASS`, `determinism SKIP` (no duplicate pairs)
+  - Regression metrics: `satisfaction_mean=0.4503`, `satisfaction_std=0.1213`, `migration_rate=0.078388`, `rebellion_rate=0.06929`, `gini_in_range_fraction=0.8404`, `occupation_ok=true`
+- **Rust verification:** `cargo nextest run --manifest-path chronicler-agents/Cargo.toml --workspace --all-targets -j 24` -> `632 passed, 2 skipped`
+- **Off-mode smoke (non-blocking sanity):** `output/m56b/gates/smoke_off_tuned` completed without runtime errors.
 
 ---
 

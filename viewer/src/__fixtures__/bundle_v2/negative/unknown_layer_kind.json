@@ -1,0 +1,23 @@
+{
+  "manifest_version": 1,
+  "bundle_schema_version": "2.0.0",
+  "seed": 321,
+  "total_turns": 80,
+  "summary_layer": "summary.core.v1",
+  "layers": [
+    {
+      "id": "summary.core.v1",
+      "kind": "summary",
+      "version": "1.0.0",
+      "path": "layers/summary.core.v1.json",
+      "required": true
+    },
+    {
+      "id": "mystery.layer.v1",
+      "kind": "mystery",
+      "version": "1.0.0",
+      "path": "layers/mystery.layer.v1.json",
+      "required": false
+    }
+  ]
+}

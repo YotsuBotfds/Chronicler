@@ -21,6 +21,7 @@
 | `pool.rs` | `settlement_ids: Vec<u16>` SoA field in struct, `new()`, `spawn()`, `to_record_batch()` |
 | `ffi.rs` | `settlement_grids` on `AgentSimulator`, `set_settlement_footprints()` method, `snapshot_schema()` field |
 | `tick.rs` | `assign_settlement_ids()` function, dual-pass calls in `tick_agents()` |
+| `lib.rs` | Re-export `build_settlement_grids` / `assign_settlement_ids` for integration tests |
 | `needs.rs` | Urban multipliers in `restore_needs()` |
 | `satisfaction.rs` | `is_urban` on `SatisfactionInputs`, material bonus + safety penalty in priority clamp |
 | `culture_tick.rs` | Urban drift multiplier |
@@ -152,6 +153,7 @@ git commit -m "feat(m56b): urban constants, settlement_ids pool field, snapshot 
 - Modify: `chronicler-agents/src/ffi.rs:1644-1681` (`AgentSimulator` struct)
 - Modify: `chronicler-agents/src/ffi.rs` (add `set_settlement_footprints()` method)
 - Modify: `chronicler-agents/src/tick.rs` (add `assign_settlement_ids()`)
+- Modify: `chronicler-agents/src/lib.rs` (re-export helpers for integration tests)
 - Create: `chronicler-agents/tests/test_urban.rs`
 
 - [ ] **Step 1: Write the grid construction + assignment test**
@@ -161,23 +163,12 @@ Create `chronicler-agents/tests/test_urban.rs`:
 ```rust
 //! M56b: Urban effects tests
 
-/// Build a settlement grid from flat footprint data.
-/// Returns Vec<[u16; 100]> indexed by region_id.
-fn build_settlement_grids(
-    num_regions: usize,
-    region_ids: &[u16],
-    settlement_ids: &[u16],
-    cell_xs: &[u8],
-    cell_ys: &[u8],
-) -> Vec<[u16; 100]> {
-    // Inline the function under test so it's self-contained
-    crate::tick::build_settlement_grids(num_regions, region_ids, settlement_ids, cell_xs, cell_ys)
-}
+use chronicler_agents::{AgentPool, Occupation, assign_settlement_ids, build_settlement_grids};
 
 #[test]
 fn test_grid_construction_basic() {
     // One settlement (id=1) in region 0 with 2 footprint cells
-    let grids = crate::tick::build_settlement_grids(
+    let grids = build_settlement_grids(
         2,
         &[0, 0],
         &[1, 1],
@@ -196,7 +187,7 @@ fn test_grid_tiebreak_lowest_id_wins() {
     // Two settlements claim the same cell (3,7) in region 0
     // Settlement 5 and settlement 2 — sorted by settlement_id ascending,
     // so 2 is processed first and wins.
-    let grids = crate::tick::build_settlement_grids(
+    let grids = build_settlement_grids(
         1,
         &[0, 0],
         &[2, 5],
@@ -208,11 +199,10 @@ fn test_grid_tiebreak_lowest_id_wins() {
 
 #[test]
 fn test_assignment_basic() {
-    use chronicler_agents::pool::AgentPool;
     let mut pool = AgentPool::new(4);
     // Spawn 2 agents in region 0
-    let s0 = pool.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-    let s1 = pool.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let s1 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
     // Place agent 0 inside settlement footprint, agent 1 outside
     pool.x[s0] = 0.35;
     pool.y[s0] = 0.72;
@@ -220,14 +210,14 @@ fn test_assignment_basic() {
     pool.y[s1] = 0.95;
 
     // Build grid: settlement 1 in region 0, cell (3,7)
-    let grids = crate::tick::build_settlement_grids(
+    let grids = build_settlement_grids(
         1,
         &[0],
         &[1],
         &[3],
         &[7],
     );
-    crate::tick::assign_settlement_ids(&mut pool, &grids);
+    assign_settlement_ids(&mut pool, &grids);
 
     assert_eq!(pool.settlement_ids[s0], 1); // inside footprint
     assert_eq!(pool.settlement_ids[s1], 0); // outside → rural
@@ -289,6 +279,15 @@ pub fn assign_settlement_ids(
         pool.settlement_ids[slot] = settlement_grids[region][cy * 10 + cx];
     }
 }
+```
+
+- [ ] **Step 2b: Re-export helpers for integration tests**
+
+In `chronicler-agents/src/lib.rs`, add:
+
+```rust
+#[doc(hidden)]
+pub use tick::{assign_settlement_ids, build_settlement_grids};
 ```
 
 - [ ] **Step 3: Add `settlement_grids` field to `AgentSimulator`**
@@ -362,7 +361,7 @@ Expected: New tests in `test_urban.rs` pass. Existing tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add chronicler-agents/src/tick.rs chronicler-agents/src/ffi.rs chronicler-agents/tests/test_urban.rs
+git add chronicler-agents/src/tick.rs chronicler-agents/src/ffi.rs chronicler-agents/src/lib.rs chronicler-agents/tests/test_urban.rs
 git commit -m "feat(m56b): grid construction, assignment function, FFI ingestion"
 ```
 
@@ -383,18 +382,18 @@ Add to `chronicler-agents/tests/test_urban.rs`:
 ```rust
 #[test]
 fn test_dual_pass_assignment() {
-    use chronicler_agents::pool::AgentPool;
+    use chronicler_agents::{AgentPool, Occupation, assign_settlement_ids, build_settlement_grids};
     let mut pool = AgentPool::new(4);
-    let s0 = pool.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let s0 = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     // Agent starts at (0.35, 0.72) → cell (3,7) which is urban
     pool.x[s0] = 0.35;
     pool.y[s0] = 0.72;
 
-    let grids = crate::tick::build_settlement_grids(1, &[0], &[1], &[3], &[7]);
+    let grids = build_settlement_grids(1, &[0], &[1], &[3], &[7]);
 
     // Pass A: assign from current position
-    crate::tick::assign_settlement_ids(&mut pool, &grids);
+    assign_settlement_ids(&mut pool, &grids);
     assert_eq!(pool.settlement_ids[s0], 1, "Pass A should assign urban");
 
     // Simulate migration: move agent to (0.95, 0.95) → cell (9,9) which is rural
@@ -402,7 +401,7 @@ fn test_dual_pass_assignment() {
     pool.y[s0] = 0.95;
 
     // Pass B: reassign from new position
-    crate::tick::assign_settlement_ids(&mut pool, &grids);
+    assign_settlement_ids(&mut pool, &grids);
     assert_eq!(pool.settlement_ids[s0], 0, "Pass B should assign rural after move");
 }
 ```
@@ -467,6 +466,24 @@ In `ffi.rs` at the `tick_agents` call (line ~2290), add the new parameter:
         );
 ```
 
+- [ ] **Step 5b: Update all remaining `tick_agents(...)` call sites**
+
+Changing the `tick_agents` signature will break existing internal/integration tests unless all call sites pass the new argument.
+
+Run:
+
+```bash
+rg "tick_agents\\(" chronicler-agents/src chronicler-agents/tests
+```
+
+Then update every call to append an empty settlement grid slice when urban grids are irrelevant:
+
+```rust
+&[]
+```
+
+This includes (at minimum) `tick.rs` internal tests and integration tests under `chronicler-agents/tests/` (`determinism.rs`, `regression.rs`, `test_spatial.rs`).
+
 - [ ] **Step 6: Run tests**
 
 Run: `cd chronicler-agents && cargo nextest run`
@@ -492,16 +509,45 @@ git commit -m "feat(m56b): dual-pass settlement assignment in tick_agents"
 Add to `chronicler-agents/tests/test_urban.rs`:
 
 ```rust
+fn baseline_civ_signal() -> chronicler_agents::signals::CivSignals {
+    chronicler_agents::signals::CivSignals {
+        civ_id: 0,
+        stability: 50,
+        is_at_war: false,
+        dominant_faction: 0,
+        faction_military: 0.0,
+        faction_merchant: 0.0,
+        faction_cultural: 0.0,
+        faction_clergy: 0.0,
+        shock_stability: 0.0,
+        shock_economy: 0.0,
+        shock_military: 0.0,
+        shock_culture: 0.0,
+        demand_shift_farmer: 0.0,
+        demand_shift_soldier: 0.0,
+        demand_shift_merchant: 0.0,
+        demand_shift_scholar: 0.0,
+        demand_shift_priest: 0.0,
+        mean_boldness: 0.0,
+        mean_ambition: 0.0,
+        mean_loyalty_trait: 0.0,
+        gini_coefficient: 0.0,
+        conquered_this_turn: false,
+        priest_tithe_share: 0.0,
+        cultural_drift_multiplier: 1.0,
+        religion_intensity_multiplier: 1.0,
+    }
+}
+
 #[test]
 fn test_urban_safety_restores_slower() {
-    use chronicler_agents::pool::AgentPool;
-    use chronicler_agents::region::RegionState;
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
 
     let mut pool_urban = AgentPool::new(2);
     let mut pool_rural = AgentPool::new(2);
 
-    let su = pool_urban.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-    let sr = pool_rural.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     // Set identical starting need
     pool_urban.need_safety[su] = 0.3;
@@ -510,15 +556,15 @@ fn test_urban_safety_restores_slower() {
     pool_urban.settlement_ids[su] = 1;
     pool_rural.settlement_ids[sr] = 0;
 
-    let regions = vec![RegionState::default()];
+    let regions = vec![RegionState::new(0)];
     let signals = chronicler_agents::signals::TickSignals {
-        civs: vec![chronicler_agents::signals::CivSignals::default()],
+        civs: vec![baseline_civ_signal()],
         contested_regions: vec![false],
     };
     let wp = vec![0.5_f32];
 
-    crate::needs::update_needs(&mut pool_urban, &regions, &signals, &wp);
-    crate::needs::update_needs(&mut pool_rural, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_urban, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_rural, &regions, &signals, &wp);
 
     // Urban safety should restore less than rural
     assert!(pool_urban.need_safety[su] < pool_rural.need_safety[sr],
@@ -528,14 +574,13 @@ fn test_urban_safety_restores_slower() {
 
 #[test]
 fn test_urban_material_food_contribution_reduced() {
-    use chronicler_agents::pool::AgentPool;
-    use chronicler_agents::region::RegionState;
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
 
     let mut pool_urban = AgentPool::new(2);
     let mut pool_rural = AgentPool::new(2);
 
-    let su = pool_urban.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-    let sr = pool_rural.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     pool_urban.need_material[su] = 0.3;
     pool_rural.need_material[sr] = 0.3;
@@ -543,17 +588,17 @@ fn test_urban_material_food_contribution_reduced() {
     pool_rural.settlement_ids[sr] = 0;
 
     // Set high food_sufficiency, zero wealth → isolates food contribution
-    let mut region = RegionState::default();
+    let mut region = RegionState::new(0);
     region.food_sufficiency = 1.2;
     let regions = vec![region];
     let signals = chronicler_agents::signals::TickSignals {
-        civs: vec![chronicler_agents::signals::CivSignals::default()],
+        civs: vec![baseline_civ_signal()],
         contested_regions: vec![false],
     };
     let wp = vec![0.0_f32]; // zero wealth → only food term contributes
 
-    crate::needs::update_needs(&mut pool_urban, &regions, &signals, &wp);
-    crate::needs::update_needs(&mut pool_rural, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_urban, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_rural, &regions, &signals, &wp);
 
     // With zero wealth, only food term contributes to material.
     // Urban food contribution is 0.92x, so urban material should be lower.
@@ -564,29 +609,28 @@ fn test_urban_material_food_contribution_reduced() {
 
 #[test]
 fn test_urban_social_restores_faster() {
-    use chronicler_agents::pool::AgentPool;
-    use chronicler_agents::region::RegionState;
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
 
     let mut pool_urban = AgentPool::new(2);
     let mut pool_rural = AgentPool::new(2);
 
-    let su = pool_urban.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-    let sr = pool_rural.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     pool_urban.need_social[su] = 0.3;
     pool_rural.need_social[sr] = 0.3;
     pool_urban.settlement_ids[su] = 1;
     pool_rural.settlement_ids[sr] = 0;
 
-    let regions = vec![RegionState::default()];
+    let regions = vec![RegionState::new(0)];
     let signals = chronicler_agents::signals::TickSignals {
-        civs: vec![chronicler_agents::signals::CivSignals::default()],
+        civs: vec![baseline_civ_signal()],
         contested_regions: vec![false],
     };
     let wp = vec![0.5_f32];
 
-    crate::needs::update_needs(&mut pool_urban, &regions, &signals, &wp);
-    crate::needs::update_needs(&mut pool_rural, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_urban, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_rural, &regions, &signals, &wp);
 
     assert!(pool_urban.need_social[su] > pool_rural.need_social[sr],
         "Urban social {:.4} should be > rural {:.4}",
@@ -595,14 +639,13 @@ fn test_urban_social_restores_faster() {
 
 #[test]
 fn test_rural_agent_unchanged_from_baseline() {
-    use chronicler_agents::pool::AgentPool;
-    use chronicler_agents::region::RegionState;
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
 
     let mut pool_a = AgentPool::new(2);
     let mut pool_b = AgentPool::new(2);
 
-    let sa = pool_a.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-    let sb = pool_b.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let sa = pool_a.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let sb = pool_b.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     pool_a.need_safety[sa] = 0.3;
     pool_a.need_material[sa] = 0.3;
@@ -615,15 +658,15 @@ fn test_rural_agent_unchanged_from_baseline() {
     pool_a.settlement_ids[sa] = 0;
     pool_b.settlement_ids[sb] = 0;
 
-    let regions = vec![RegionState::default()];
+    let regions = vec![RegionState::new(0)];
     let signals = chronicler_agents::signals::TickSignals {
-        civs: vec![chronicler_agents::signals::CivSignals::default()],
+        civs: vec![baseline_civ_signal()],
         contested_regions: vec![false],
     };
     let wp = vec![0.5_f32];
 
-    crate::needs::update_needs(&mut pool_a, &regions, &signals, &wp);
-    crate::needs::update_needs(&mut pool_b, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_a, &regions, &signals, &wp);
+    chronicler_agents::needs::update_needs(&mut pool_b, &regions, &signals, &wp);
 
     // Two identical rural agents should produce identical results
     assert!((pool_a.need_safety[sa] - pool_b.need_safety[sb]).abs() < 1e-6);
@@ -813,9 +856,9 @@ In `satisfaction.rs`, add after `memory_score: f32` (line ~158):
     pub is_urban: bool,
 ```
 
-- [ ] **Step 3: Grep for all `SatisfactionInputs` construction sites and add `is_urban: false`**
+- [ ] **Step 3: Find all `SatisfactionInputs` construction sites and add `is_urban: false`**
 
-Run: `grep -rn "SatisfactionInputs {" chronicler-agents/src/ chronicler-agents/tests/`
+Run: `rg "SatisfactionInputs \\{" chronicler-agents/src chronicler-agents/tests`
 
 Add `is_urban: false,` (or `is_urban: pool.settlement_ids[slot] != 0,` in `update_satisfaction`) to every construction site. This is critical — missing one causes a compile error.
 
@@ -912,8 +955,7 @@ Add to `chronicler-agents/tests/test_urban.rs`:
 ```rust
 #[test]
 fn test_urban_culture_drifts_faster() {
-    use chronicler_agents::pool::AgentPool;
-    use chronicler_agents::region::RegionState;
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
 
     let mut pool_urban = AgentPool::new(10);
     let mut pool_rural = AgentPool::new(10);
@@ -922,15 +964,15 @@ fn test_urban_culture_drifts_faster() {
     let mut urban_slots = Vec::new();
     let mut rural_slots = Vec::new();
     for _ in 0..5 {
-        let su = pool_urban.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-        let sr = pool_rural.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
         pool_urban.settlement_ids[su] = 1;
         pool_rural.settlement_ids[sr] = 0;
         urban_slots.push(su);
         rural_slots.push(sr);
     }
 
-    let mut region = RegionState::default();
+    let mut region = RegionState::new(0);
     region.controller_values = [1, 2, 3]; // different from agent default (0,0,0)
     region.culture_investment_active = true;
     region.population = 5;
@@ -965,8 +1007,7 @@ Add to `chronicler-agents/tests/test_urban.rs`:
 ```rust
 #[test]
 fn test_urban_conversion_higher_probability() {
-    use chronicler_agents::pool::AgentPool;
-    use chronicler_agents::region::RegionState;
+    use chronicler_agents::{AgentPool, Occupation, RegionState};
 
     let mut pool_urban = AgentPool::new(100);
     let mut pool_rural = AgentPool::new(100);
@@ -974,8 +1015,8 @@ fn test_urban_conversion_higher_probability() {
     let mut rural_slots = Vec::new();
 
     for _ in 0..50 {
-        let su = pool_urban.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-        let sr = pool_rural.spawn(0, 0, chronicler_agents::agent::Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let su = pool_urban.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let sr = pool_rural.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
         pool_urban.settlement_ids[su] = 1;
         pool_rural.settlement_ids[sr] = 0;
         // Start with belief 0, conversion target is 1
@@ -985,7 +1026,7 @@ fn test_urban_conversion_higher_probability() {
         rural_slots.push(sr);
     }
 
-    let mut region = RegionState::default();
+    let mut region = RegionState::new(0);
     region.conversion_rate = 0.5;
     region.conversion_target_belief = 1;
     region.majority_belief = 1;
@@ -1166,7 +1207,7 @@ In `agent_bridge.py`, modify `sync_regions()` (line ~733) to also send settlemen
         self._sim.set_settlement_footprints(settlement_batch)
 ```
 
-Also add the same call in the `tick()` compatibility wrapper if it calls `set_region_state` directly, or in the `__init__` method where the initial `set_region_state` is called.
+No additional `tick()` wiring is needed because `tick()` already calls `sync_regions()`. Keep `set_settlement_footprints(...)` only inside `sync_regions()` to avoid double-send paths.
 
 - [ ] **Step 4: Run tests**
 
@@ -1212,7 +1253,7 @@ In `AgentContext`, add after `trade_dependent_regions`:
 ```python
     # M56b: Urbanization context
     urban_fraction_delta_20t: float = 0.0
-    top_settlements: list[dict] = Field(default_factory=list)
+    top_settlements: list[SettlementSummary] = Field(default_factory=list)
 ```
 
 - [ ] **Step 2: Add urban aggregation in snapshot build**
@@ -1282,55 +1323,117 @@ Add to `tests/test_narrative.py`:
 ```python
 def test_agent_context_has_urban_fields():
     """AgentContext includes urbanization fields when populated."""
-    from chronicler.models import AgentContext
+    from chronicler.models import AgentContext, SettlementSummary
     ctx = AgentContext(
         urban_fraction_delta_20t=0.05,
-        top_settlements=[{"name": "Ur", "population_estimate": 500}],
+        top_settlements=[
+            SettlementSummary(
+                settlement_id=1,
+                name="Ur",
+                region_name="Lower Mesopotamia",
+                population_estimate=500,
+                centroid_x=0.4,
+                centroid_y=0.6,
+                founding_turn=12,
+                status="active",
+            )
+        ],
     )
     assert ctx.urban_fraction_delta_20t == 0.05
     assert len(ctx.top_settlements) == 1
 ```
 
-- [ ] **Step 2: Enrich AgentContext in narration pipeline**
+- [ ] **Step 2: Enrich AgentContext in narration pipeline (explicit insertion points)**
 
-Find where `AgentContext` is built in `narrative.py` (search for `AgentContext(`). Add the urbanization fields:
+This step must be done inside `build_agent_context_for_moment(...)` in `narrative.py`, where `AgentContext` is actually constructed.
+
+1. Extend the function signature so the needed context is in scope:
 
 ```python
-    # M56b: Urbanization context
-    urban_fraction_delta_20t = 0.0
-    if len(history) >= 20:
-        past_turn = current_turn - 20
-        past_snapshot = next((s for s in history if s.turn == past_turn), None)
-        if past_snapshot and civ_name in past_snapshot.civ_stats:
-            past_frac = past_snapshot.civ_stats[civ_name].urban_fraction
-            current_frac = current_snapshot.civ_stats.get(civ_name, None)
-            if current_frac is not None:
-                urban_fraction_delta_20t = current_frac.urban_fraction - past_frac
-
-    # Top settlements for this civ's regions
-    top_settlements = []
-    for region in world.regions:
-        if region.controller == civ_name:
-            for s in sorted(region.settlements, key=lambda s: s.population_estimate, reverse=True)[:3]:
-                if s.status.value in ("active", "dissolving"):
-                    top_settlements.append({
-                        "name": s.name,
-                        "population_estimate": s.population_estimate,
-                        "region_name": s.region_name,
-                        "status": s.status.value,
-                    })
-    top_settlements.sort(key=lambda s: s["population_estimate"], reverse=True)
-    top_settlements = top_settlements[:3]
+def build_agent_context_for_moment(
+    ...,
+    history: Sequence[TurnSnapshot] | None = None,
+    current_snapshot: TurnSnapshot | None = None,
+    world: WorldState | None = None,
+) -> AgentContext | None:
 ```
 
-Pass these into the `AgentContext` constructor:
+2. Update the call site in `build_batch_prompts(...)` (where `agent_ctx = build_agent_context_for_moment(...)`):
+
+Before calling `build_agent_context_for_moment(...)`, compute:
 
 ```python
-    agent_context = AgentContext(
-        ...,  # existing fields
-        urban_fraction_delta_20t=urban_fraction_delta_20t,
-        top_settlements=top_settlements,
-    )
+snap = _closest_snap(snap_map, moment.anchor_turn)
+```
+
+Then pass:
+
+```python
+history=history,
+current_snapshot=snap,
+world=getattr(self, "_world", None),
+```
+
+Reuse this same `snap` later in the function for era voice selection (remove duplicate `_closest_snap(...)` calls).
+
+3. In `build_agent_context_for_moment(...)`, compute a deterministic focal civ and the two urban fields:
+
+```python
+from chronicler.models import SettlementSummary
+
+focal_civ = None
+if current_snapshot is not None:
+    for ev in moment.events:
+        for actor in ev.actors:
+            if actor in current_snapshot.civ_stats:
+                focal_civ = actor
+                break
+        if focal_civ is not None:
+            break
+    if focal_civ is None and current_snapshot.civ_stats:
+        focal_civ = sorted(current_snapshot.civ_stats.keys())[0]
+
+urban_fraction_delta_20t = 0.0
+if history is not None and current_snapshot is not None and focal_civ is not None:
+    current_frac = current_snapshot.civ_stats.get(focal_civ).urban_fraction
+    past_turn = current_snapshot.turn - 20
+    past_snapshot = next((s for s in history if s.turn == past_turn), None)
+    if past_snapshot is not None and focal_civ in past_snapshot.civ_stats:
+        urban_fraction_delta_20t = current_frac - past_snapshot.civ_stats[focal_civ].urban_fraction
+
+top_settlements: list[SettlementSummary] = []
+if world is not None and focal_civ is not None:
+    candidates: list[SettlementSummary] = []
+    for region in world.regions:
+        if region.controller != focal_civ:
+            continue
+        for s in region.settlements:
+            if s.status.value not in ("active", "dissolving"):
+                continue
+            candidates.append(
+                SettlementSummary(
+                    settlement_id=s.settlement_id,
+                    name=s.name,
+                    region_name=s.region_name,
+                    population_estimate=s.population_estimate,
+                    centroid_x=s.centroid_x,
+                    centroid_y=s.centroid_y,
+                    founding_turn=s.founding_turn,
+                    status=s.status.value,
+                )
+            )
+    candidates.sort(key=lambda ss: (-ss.population_estimate, ss.settlement_id))
+    top_settlements = candidates[:3]
+```
+
+4. Pass fields into `AgentContext(...)`:
+
+```python
+agent_context = AgentContext(
+    ...,
+    urban_fraction_delta_20t=urban_fraction_delta_20t,
+    top_settlements=top_settlements,
+)
 ```
 
 - [ ] **Step 3: Run tests**

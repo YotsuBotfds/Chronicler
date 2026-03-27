@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, CartesianGrid,
+  CartesianGrid,
 } from "recharts";
 import type { BatchReport, AnomalyFlag, PercentileData } from "../types";
 

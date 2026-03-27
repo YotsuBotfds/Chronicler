@@ -1,41 +1,20 @@
 import { useState, useCallback } from "react";
 import type { Bundle } from "../types";
-
-const REQUIRED_KEYS: (keyof Bundle)[] = [
-  "world_state",
-  "history",
-  "events_timeline",
-  "named_events",
-  "chronicle_entries",
-  "era_reflections",
-  "metadata",
-];
+import { formatBundleLoaderDiagnostics, parseBundleJsonPayload } from "../lib/bundleLoader";
 
 export function parseBundle(jsonString: string): {
   bundle: Bundle | null;
   error: string | null;
 } {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonString);
-  } catch {
-    return { bundle: null, error: "Invalid JSON: could not parse file" };
+  const result = parseBundleJsonPayload(jsonString);
+  if (result.kind === "legacy") {
+    return { bundle: result.bundle, error: null };
   }
 
-  if (typeof parsed !== "object" || parsed === null) {
-    return { bundle: null, error: "Invalid JSON: expected an object" };
-  }
-
-  const obj = parsed as Record<string, unknown>;
-  const missing = REQUIRED_KEYS.filter((k) => !(k in obj));
-  if (missing.length > 0) {
-    return {
-      bundle: null,
-      error: `Missing required keys: ${missing.join(", ")}`,
-    };
-  }
-
-  return { bundle: obj as unknown as Bundle, error: null };
+  return {
+    bundle: null,
+    error: formatBundleLoaderDiagnostics(result.diagnostics),
+  };
 }
 
 export function useBundle() {

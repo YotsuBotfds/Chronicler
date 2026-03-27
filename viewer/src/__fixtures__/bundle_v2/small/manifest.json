@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "bundle_schema_version": "2.0.0",
+  "seed": 101,
+  "total_turns": 120,
+  "summary_layer": "summary.core.v1",
+  "layers": [
+    {
+      "id": "summary.core.v1",
+      "kind": "summary",
+      "version": "1.0.0",
+      "path": "layers/summary.core.v1.json",
+      "required": true
+    },
+    {
+      "id": "entities.core.v1",
+      "kind": "entities",
+      "version": "1.0.0",
+      "path": "layers/entities.core.v1.json",
+      "required": true
+    },
+    {
+      "id": "timeline.events.v1",
+      "kind": "timeline",
+      "version": "1.0.0",
+      "path": "layers/timeline.events.v1.json",
+      "required": true
+    }
+  ]
+}
