@@ -34,40 +34,69 @@ class DynastyRegistry:
         gp_map: dict[int, GreatPerson],
     ) -> list[Event]:
         events: list[Event] = []
-        parent_id = child.parent_id
-        if parent_id not in named_agents:
+
+        # M57a: Resolve dynasty from both parents
+        parent_0 = gp_map.get(child.parent_id_0) if child.parent_id_0 in named_agents else None
+        parent_1 = gp_map.get(child.parent_id_1) if child.parent_id_1 in named_agents else None
+
+        dynasty_0 = parent_0.dynasty_id if parent_0 else None
+        dynasty_1 = parent_1.dynasty_id if parent_1 else None
+
+        # Resolution rule (spec Section 3):
+        # 1. Exactly one parent has a dynasty → child takes it
+        # 2. Both share the same dynasty → child takes it
+        # 3. Both have different dynasties → birth parent's; lineage_house records other
+        # 4. Neither → founder logic (if parent is named but no dynasty yet)
+        chosen_dynasty = None
+        lineage_house = 0
+
+        if dynasty_0 is not None and dynasty_1 is not None:
+            if dynasty_0 == dynasty_1:
+                chosen_dynasty = dynasty_0
+            else:
+                chosen_dynasty = dynasty_0  # birth parent's dynasty
+                lineage_house = dynasty_1
+        elif dynasty_0 is not None:
+            chosen_dynasty = dynasty_0
+        elif dynasty_1 is not None:
+            chosen_dynasty = dynasty_1
+
+        if chosen_dynasty is not None:
+            dynasty = self._find(chosen_dynasty)
+            dynasty.members.append(child.agent_id)
+            child.dynasty_id = chosen_dynasty
+            child.lineage_house = lineage_house
             return events
 
-        parent = gp_map[parent_id]
-        if parent.dynasty_id is not None:
-            dynasty = self._find(parent.dynasty_id)
-            dynasty.members.append(child.agent_id)
-            child.dynasty_id = parent.dynasty_id
-        else:
-            dynasty = Dynasty(
-                dynasty_id=self._next_id,
-                founder_id=parent_id,
-                founder_name=parent.name,
-                civ_id=parent.civilization,
-                members=[parent_id, child.agent_id],
-                founded_turn=child.born_turn,
-            )
-            self.dynasties.append(dynasty)
-            parent.dynasty_id = self._next_id
-            child.dynasty_id = self._next_id
-            self._next_id += 1
+        # Rule 4: Neither parent has a dynasty — found a new one from first named parent
+        founder_parent = parent_0 or parent_1
+        if founder_parent is None:
+            return events
 
-            events.append(Event(
-                turn=child.born_turn,
-                event_type="dynasty_founded",
-                actors=[parent.name, child.name],
-                description=(
-                    f"The House of {parent.name} is established as {child.name}, "
-                    f"child of the great {parent.role} {parent.name}, rises to prominence"
-                ),
-                importance=7,
-                source="agent",
-            ))
+        dynasty = Dynasty(
+            dynasty_id=self._next_id,
+            founder_id=founder_parent.agent_id,
+            founder_name=founder_parent.name,
+            civ_id=founder_parent.civilization,
+            members=[founder_parent.agent_id, child.agent_id],
+            founded_turn=child.born_turn,
+        )
+        self.dynasties.append(dynasty)
+        founder_parent.dynasty_id = self._next_id
+        child.dynasty_id = self._next_id
+        self._next_id += 1
+
+        events.append(Event(
+            turn=child.born_turn,
+            event_type="dynasty_founded",
+            actors=[founder_parent.name, child.name],
+            description=(
+                f"The House of {founder_parent.name} is established as {child.name}, "
+                f"child of the great {founder_parent.role} {founder_parent.name}, rises to prominence"
+            ),
+            importance=7,
+            source="agent",
+        ))
         return events
 
     def check_extinctions(self, gp_map: dict[int, GreatPerson], turn: int) -> list[Event]:
@@ -147,17 +176,13 @@ def compute_dynasty_legitimacy(candidate: dict, civ) -> float:
     ruler_agent_id = getattr(ruler, "agent_id", None)
     ruler_dynasty_id = getattr(ruler, "dynasty_id", None)
 
-    cand_parent_id = candidate.get("parent_id", 0)
+    cand_parent_ids = (candidate.get("parent_id_0", 0), candidate.get("parent_id_1", 0))
     cand_dynasty_id = candidate.get("dynasty_id")
 
     # Direct heir: candidate's parent is the current ruler
-    if (
-        ruler_agent_id is not None
-        and ruler_agent_id != 0
-        and cand_parent_id != 0
-        and cand_parent_id == ruler_agent_id
-    ):
-        return LEGITIMACY_DIRECT_HEIR
+    if ruler_agent_id is not None and ruler_agent_id != 0:
+        if ruler_agent_id in cand_parent_ids and ruler_agent_id != 0:
+            return LEGITIMACY_DIRECT_HEIR
 
     # Same dynasty
     if (
