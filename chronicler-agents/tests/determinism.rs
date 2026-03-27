@@ -131,6 +131,118 @@ fn test_determinism_across_thread_counts() {
     }
 }
 
+/// M57a: Marriage determinism — verifies marriage_scan produces identical marriages
+/// and parent_id_0/parent_id_1 assignments across two runs with the same seed.
+///
+/// Runs 30 turns so agents (spawned at age 0) reach MARRIAGE_MIN_AGE (16) and
+/// several MARRIAGE_CADENCE (4-turn) cycles fire. Uses spatial regions so agents
+/// cluster within MARRIAGE_RADIUS and actually form marriages.
+#[test]
+fn test_marriage_determinism() {
+    use chronicler_agents::spatial::{init_attractors, SpatialGrid, SpatialDiagnostics};
+    use chronicler_agents::relationships::BondType;
+
+    /// Collected marriage state for one run — sorted by agent id for stable comparison.
+    #[derive(Debug, PartialEq)]
+    struct MarriageSnapshot {
+        /// (agent_id, spouse_agent_id) for every agent that has a Marriage bond
+        marriages: Vec<(u32, u32)>,
+        /// (agent_id, parent_id_0, parent_id_1) for every alive agent
+        parentage: Vec<(u32, u32, u32)>,
+    }
+
+    fn run_marriage_sim(seed: [u8; 32], turns: u32) -> MarriageSnapshot {
+        let regions = make_spatial_regions();
+        let signals = make_default_signals(5, 5);
+        let attractors: Vec<_> = regions.iter()
+            .map(|r| init_attractors(seed[0] as u64, r.region_id, r))
+            .collect();
+        let mut pool = make_test_pool(&regions);
+        let mut percentiles: Vec<f32> = Vec::new();
+        let mut grids: Vec<SpatialGrid> = Vec::new();
+        let mut diag = SpatialDiagnostics::default();
+        for turn in 0..turns {
+            if percentiles.len() < pool.capacity() {
+                percentiles.resize(pool.capacity(), 0.0);
+            }
+            tick_agents(
+                &mut pool, &regions, &signals, seed, turn,
+                &mut percentiles, &mut grids, &attractors, &mut diag, &[],
+            );
+        }
+
+        // Collect marriage bonds
+        let mut marriages: Vec<(u32, u32)> = Vec::new();
+        let mut parentage: Vec<(u32, u32, u32)> = Vec::new();
+        for slot in 0..pool.capacity() {
+            if !pool.is_alive(slot) { continue; }
+            let agent_id = pool.ids[slot];
+
+            // Check for Marriage bond
+            let rel_count = pool.rel_count[slot] as usize;
+            for i in 0..rel_count {
+                if pool.rel_bond_types[slot][i] == BondType::Marriage as u8 {
+                    marriages.push((agent_id, pool.rel_target_ids[slot][i]));
+                    break; // at most one Marriage bond per agent
+                }
+            }
+
+            // Collect parentage
+            parentage.push((agent_id, pool.parent_id_0[slot], pool.parent_id_1[slot]));
+        }
+        marriages.sort_by_key(|m| m.0);
+        parentage.sort_by_key(|p| p.0);
+        MarriageSnapshot { marriages, parentage }
+    }
+
+    let mut seed = [0u8; 32];
+    seed[0] = 57; // M57a-themed seed
+
+    let run_a = run_marriage_sim(seed, 30);
+    let run_b = run_marriage_sim(seed, 30);
+
+    // Verify marriages actually formed (test is meaningful)
+    assert!(
+        !run_a.marriages.is_empty(),
+        "No marriages formed in 30 turns — test cannot verify determinism"
+    );
+
+    // Core determinism check: identical marriages
+    assert_eq!(
+        run_a.marriages.len(), run_b.marriages.len(),
+        "Marriage count mismatch: {} vs {}",
+        run_a.marriages.len(), run_b.marriages.len()
+    );
+    assert_eq!(
+        run_a.marriages, run_b.marriages,
+        "Marriage pairs differ between runs"
+    );
+
+    // Core determinism check: identical parent assignments
+    assert_eq!(
+        run_a.parentage.len(), run_b.parentage.len(),
+        "Alive agent count mismatch: {} vs {}",
+        run_a.parentage.len(), run_b.parentage.len()
+    );
+    assert_eq!(
+        run_a.parentage, run_b.parentage,
+        "Parent assignments differ between runs"
+    );
+
+    // Verify at least some agents have non-PARENT_NONE parent_id_1 (dual-parent births)
+    // PARENT_NONE = 0 (sentinel from agent.rs, not re-exported)
+    const PARENT_NONE: u32 = 0;
+    let dual_parent_count = run_a.parentage.iter()
+        .filter(|p| p.2 != PARENT_NONE)
+        .count();
+    // Note: dual_parent_count may be 0 if no births happened to married agents
+    // in 30 turns — that's fine, the marriage determinism itself is the primary check.
+    eprintln!(
+        "Marriage determinism: {} marriages, {} agents, {} with dual parents",
+        run_a.marriages.len(), run_a.parentage.len(), dual_parent_count
+    );
+}
+
 /// M55a: Full spatial determinism — 20-turn simulation with attractors enabled.
 /// Verifies that (x, y) positions are bit-identical across two runs with the same seed.
 #[test]
