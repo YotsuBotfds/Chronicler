@@ -464,7 +464,9 @@ class GreatPerson(BaseModel):
     recognized_by: list[str] = Field(default_factory=list)
     source: str = "aggregate"  # "aggregate" or "agent"
     agent_id: int | None = None
-    parent_id: int = 0
+    parent_id_0: int = 0
+    parent_id_1: int = 0  # M57a: other parent (spouse at birth), 0 = unknown
+    lineage_house: int = 0  # M57a: secondary dynasty id for narration, 0 = none
     dynasty_id: int | None = None
     # M38b: Pilgrimages
     pilgrimage_destination: str | None = None
@@ -485,6 +487,10 @@ class GreatPerson(BaseModel):
     needs: Optional[dict] = None  # M49: cached from Rust via FFI, None in aggregate mode
     agent_bonds: Optional[list] = None  # M50a: synced from Rust per-agent store
     base_name: str | None = None  # M51: personal name without title, set at promotion
+
+    def parent_ids(self) -> tuple[int, int]:
+        """Return both parent IDs as a tuple."""
+        return (self.parent_id_0, self.parent_id_1)
 
 
 class ShockContext(BaseModel):
