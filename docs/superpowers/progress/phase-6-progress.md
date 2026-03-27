@@ -305,7 +305,7 @@
 
 ### M57a: Marriage Matching & Lineage Schema — implemented on `m57a-marriage-lineage`
 
-- 17 tasks, 16 commits on `m57a-marriage-lineage` branch. 23 Rust marriage tests + 10 Python dual-parent tests. 639 Rust tests, 2188 Python tests passing.
+- 17 tasks, 16 implementation commits on `m57a-marriage-lineage`, plus 2 follow-up review/docs commits (`4888d48`, `604205e`). 23 Rust marriage tests + 10 Python dual-parent tests. 639 Rust tests, 2188 Python tests passing.
 - **Spec:** `docs/superpowers/specs/2026-03-26-m57a-marriage-lineage-design.md`
 - **Plan:** `docs/superpowers/plans/2026-03-26-m57a-marriage-lineage-plan.md`
 - **Rust:**
@@ -331,7 +331,8 @@
   - Python DLL path issue on Windows: `C:\Users\tateb\AppData\Local\Python\pythoncore-3.14-64` must be on PATH for `cargo nextest run` to find python314.dll.
   - Maturin develop on Windows may silently fail to overwrite locked .pyd — use `pip install --force-reinstall` if Python tests see stale FFI.
   - `MARRIAGE_STREAM_OFFSET=1600` is reserved but not consumed in v1 (determinism without RNG noise).
-- **Deferred:** 200-seed regression sweep (pending calibration). M57b (household economics, inheritance, joint migration, widowhood semantics). Later follow-ons can revisit divorce, political marriage, and marriage-based diplomacy if still desired.
+- **Regression status (2026-03-27):** canonical 200-seed/500-turn full gate rerun completed at `output/m57a/full_gate/batch_1` with `--parallel 24`. Oracles: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `determinism SKIP` (no duplicate seed pairs), `regression FAIL`. Reported regression metrics: `satisfaction_mean=0.424`, `satisfaction_std=0.1393`, `migration_rate=0.093362`, `rebellion_rate=0.070325`, `gini_in_range_fraction=0.963`, `occupation_ok=true`; failure is the current regression gate's `satisfaction_mean >= 0.45` requirement in `validate.py`.
+- **Deferred / follow-up:** investigate the M57a regression dip before calling the milestone fully closed. M57b (household economics, inheritance, joint migration, widowhood semantics) can still proceed in parallel at the spec level. Later follow-ons can revisit divorce, political marriage, and marriage-based diplomacy if still desired.
 
 ---
 

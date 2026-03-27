@@ -3,7 +3,7 @@
 > Date: 2026-03-27
 > Status: Ready for spec drafting
 > Depends on: M57a (implemented on `m57a-marriage-lineage`)
-> Note: M57a code review passed; the one remaining milestone-closeout item is the 200-seed regression sweep
+> Note: M57a code review passed; the 200-seed regression sweep completed but currently fails the regression oracle on `satisfaction_mean=0.424`, so milestone closeout still needs regression investigation
 
 ## Goal
 
@@ -260,5 +260,4 @@ The M57b spec should explicitly require:
 
 And before calling M57a fully closed, remember:
 
-- the 200-seed regression is still pending
-
+- the 200-seed regression has been run and currently fails only the regression oracle (`satisfaction_mean=0.424` vs `>= 0.45` gate), so M57a is review-complete but not yet fully closed
