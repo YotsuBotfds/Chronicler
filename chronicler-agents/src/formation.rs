@@ -361,6 +361,16 @@ pub struct FormationStats {
     pub bonds_dissolved_death: u32,
     pub pairs_evaluated: u32,
     pub pairs_eligible: u32,
+    // M57a: Marriage formation stats
+    pub marriages_formed: u32,
+    pub marriage_pairs_evaluated: u32,
+    pub marriage_pairs_rejected_hostile: u32,
+    pub marriage_pairs_rejected_incest: u32,
+    pub marriage_pairs_rejected_distance: u32,
+    pub cross_civ_marriages: u32,
+    pub same_civ_marriages: u32,
+    pub cross_faith_marriages: u32,
+    pub same_faith_marriages: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +479,224 @@ fn build_belief_census(pool: &AgentPool, slots: &[usize]) -> HashMap<u8, usize> 
         }
     }
     census
+}
+
+// ---------------------------------------------------------------------------
+// M57a: Marriage formation
+// ---------------------------------------------------------------------------
+
+struct MarriageCandidate {
+    slot_a: usize,
+    slot_b: usize,
+    score: f32,
+    hash: u64,
+}
+
+fn marriage_pair_hash(turn: u32, region_idx: u32, id_a: u32, id_b: u32) -> u64 {
+    let (lo, hi) = if id_a <= id_b { (id_a, id_b) } else { (id_b, id_a) };
+    let mut h = (turn as u64).wrapping_mul(0x9E3779B97F4A7C15);
+    h ^= (region_idx as u64).wrapping_mul(0x517CC1B727220A95);
+    h ^= (lo as u64).wrapping_mul(0x6C62272E07BB0142);
+    h ^= (hi as u64).wrapping_mul(0x2545F4914F6CDD1D);
+    h ^= h >> 33;
+    h = h.wrapping_mul(0xFF51AFD7ED558CCD);
+    h ^= h >> 33;
+    h
+}
+
+fn shares_parent(pool: &AgentPool, a: usize, b: usize) -> bool {
+    let parents_a = pool.parent_ids(a);
+    let parents_b = pool.parent_ids(b);
+    for &pa in &parents_a {
+        if pa == crate::agent::PARENT_NONE { continue; }
+        for &pb in &parents_b {
+            if pa == pb { return true; }
+        }
+    }
+    false
+}
+
+fn is_parent_child(pool: &AgentPool, a: usize, b: usize) -> bool {
+    let id_a = pool.ids[a];
+    let id_b = pool.ids[b];
+    pool.has_parent(a, id_b) || pool.has_parent(b, id_a)
+}
+
+fn marriage_score(pool: &AgentPool, a: usize, b: usize) -> f32 {
+    use crate::agent::*;
+    let mut score: f32 = 0.0;
+    if pool.civ_affinities[a] == pool.civ_affinities[b] { score += MARRIAGE_SAME_CIV_BONUS; }
+    let ba = pool.beliefs[a];
+    let bb = pool.beliefs[b];
+    if ba == bb && ba != BELIEF_NONE { score += MARRIAGE_SAME_BELIEF_BONUS; }
+    else if ba != BELIEF_NONE && bb != BELIEF_NONE && ba != bb { score -= MARRIAGE_CROSS_FAITH_PENALTY; }
+    let cv_a = [pool.cultural_value_0[a], pool.cultural_value_1[a], pool.cultural_value_2[a]];
+    let cv_b = [pool.cultural_value_0[b], pool.cultural_value_1[b], pool.cultural_value_2[b]];
+    for i in 0..3 {
+        if cv_a[i] == cv_b[i] && cv_a[i] != CULTURAL_VALUE_EMPTY { score += MARRIAGE_CULTURE_MATCH_BONUS; }
+    }
+    let dx = pool.x[a] - pool.x[b];
+    let dy = pool.y[a] - pool.y[b];
+    let dist = (dx * dx + dy * dy).sqrt();
+    if dist > 0.001 { score += (1.0 / (1.0 + dist * 4.0)).min(MARRIAGE_CLOSENESS_CAP); }
+    else { score += MARRIAGE_CLOSENESS_CAP; }
+    score
+}
+
+/// M57a: Marriage scan — scored greedy matching within regions.
+///
+/// Runs BEFORE formation_scan on a staggered cadence (MARRIAGE_CADENCE).
+/// Evaluates eligible unmarried adults, rejects ineligible pairs (distance,
+/// incest, cross-civ hostility), scores the rest, and greedily accepts
+/// the highest-scoring disjoint pairs.
+pub fn marriage_scan(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &crate::signals::TickSignals,
+    turn: u32,
+    alive_slots: &[usize],
+) -> FormationStats {
+    let mut stats = FormationStats::default();
+    let cadence_phase = turn % agent::MARRIAGE_CADENCE;
+    let num_regions = regions.len();
+
+    // Bucket alive agents by region
+    let mut region_buckets: Vec<Vec<usize>> = vec![Vec::new(); num_regions];
+    for &slot in alive_slots {
+        let r = pool.regions[slot] as usize;
+        if r < num_regions {
+            region_buckets[r].push(slot);
+        }
+    }
+
+    // Pre-build civ war lookup: for each civ_id, is it at war?
+    let mut civ_at_war = [false; 256];
+    for cs in &signals.civs {
+        civ_at_war[cs.civ_id as usize] = cs.is_at_war;
+    }
+
+    const MARRIAGE_INITIAL_SENTIMENT: i8 = 50;
+
+    for region_idx in 0..num_regions {
+        // Staggered cadence check
+        if (region_idx as u32) % agent::MARRIAGE_CADENCE != cadence_phase {
+            continue;
+        }
+
+        let bucket = &region_buckets[region_idx];
+
+        // Filter eligible: old enough and unmarried
+        let eligible: Vec<usize> = bucket.iter()
+            .filter(|&&slot| {
+                pool.ages[slot] >= agent::MARRIAGE_MIN_AGE
+                    && crate::relationships::get_spouse_id(pool, slot).is_none()
+            })
+            .copied()
+            .collect();
+
+        if eligible.len() < 2 {
+            continue;
+        }
+
+        // Evaluate all pairs, collect candidates
+        let mut candidates: Vec<MarriageCandidate> = Vec::new();
+
+        for i in 0..eligible.len() {
+            let slot_a = eligible[i];
+            for j in (i + 1)..eligible.len() {
+                let slot_b = eligible[j];
+
+                stats.marriage_pairs_evaluated += 1;
+
+                // Reject: distance check
+                let dx = pool.x[slot_a] - pool.x[slot_b];
+                let dy = pool.y[slot_a] - pool.y[slot_b];
+                let dist = (dx * dx + dy * dy).sqrt();
+                if dist > agent::MARRIAGE_RADIUS {
+                    stats.marriage_pairs_rejected_distance += 1;
+                    continue;
+                }
+
+                // Reject: incest (parent-child or shared parent)
+                if is_parent_child(pool, slot_a, slot_b) || shares_parent(pool, slot_a, slot_b) {
+                    stats.marriage_pairs_rejected_incest += 1;
+                    continue;
+                }
+
+                // Reject: cross-civ hostile
+                let civ_a = pool.civ_affinities[slot_a];
+                let civ_b = pool.civ_affinities[slot_b];
+                if civ_a != civ_b {
+                    if civ_at_war[civ_a as usize] || civ_at_war[civ_b as usize] {
+                        stats.marriage_pairs_rejected_hostile += 1;
+                        continue;
+                    }
+                }
+
+                // Score the pair
+                let score = marriage_score(pool, slot_a, slot_b);
+                let hash = marriage_pair_hash(turn, region_idx as u32, pool.ids[slot_a], pool.ids[slot_b]);
+
+                candidates.push(MarriageCandidate {
+                    slot_a,
+                    slot_b,
+                    score,
+                    hash,
+                });
+            }
+        }
+
+        // Sort by descending score, then ascending hash for tie-breaking
+        candidates.sort_by(|a, b| {
+            b.score.partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.hash.cmp(&b.hash))
+        });
+
+        // Greedily accept disjoint pairs
+        let mut married_this_region: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+        for mc in &candidates {
+            if married_this_region.contains(&mc.slot_a) || married_this_region.contains(&mc.slot_b) {
+                continue;
+            }
+
+            let ok = crate::relationships::upsert_symmetric(
+                pool, mc.slot_a, mc.slot_b,
+                BondType::Marriage as u8,
+                MARRIAGE_INITIAL_SENTIMENT,
+                turn as u16,
+            );
+
+            if ok {
+                stats.marriages_formed += 1;
+                married_this_region.insert(mc.slot_a);
+                married_this_region.insert(mc.slot_b);
+
+                // Track civ stats
+                let civ_a = pool.civ_affinities[mc.slot_a];
+                let civ_b = pool.civ_affinities[mc.slot_b];
+                if civ_a == civ_b {
+                    stats.same_civ_marriages += 1;
+                } else {
+                    stats.cross_civ_marriages += 1;
+                }
+
+                // Track faith stats (only when both have a belief)
+                let belief_a = pool.beliefs[mc.slot_a];
+                let belief_b = pool.beliefs[mc.slot_b];
+                if belief_a != agent::BELIEF_NONE && belief_b != agent::BELIEF_NONE {
+                    if belief_a == belief_b {
+                        stats.same_faith_marriages += 1;
+                    } else {
+                        stats.cross_faith_marriages += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    stats
 }
 
 /// Check whether agents a and b share a positive contact (triadic closure).

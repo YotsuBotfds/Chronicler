@@ -813,6 +813,17 @@ pub fn tick_agents(
     }
 
     // -----------------------------------------------------------------------
+    // M57a: Marriage scan (before formation scan)
+    // -----------------------------------------------------------------------
+    let marriage_stats = crate::formation::marriage_scan(
+        pool,
+        regions,
+        signals,
+        turn,
+        &post_alive,
+    );
+
+    // -----------------------------------------------------------------------
     // M50b: Formation scan (LAST operation before return)
     // -----------------------------------------------------------------------
     let mut formation_stats = crate::formation::formation_scan(
@@ -822,6 +833,17 @@ pub fn tick_agents(
         &post_alive,
     );
     formation_stats.bonds_dissolved_death = death_dissolved_count;
+
+    // M57a: Merge marriage stats into formation_stats
+    formation_stats.marriages_formed = marriage_stats.marriages_formed;
+    formation_stats.marriage_pairs_evaluated = marriage_stats.marriage_pairs_evaluated;
+    formation_stats.marriage_pairs_rejected_hostile = marriage_stats.marriage_pairs_rejected_hostile;
+    formation_stats.marriage_pairs_rejected_incest = marriage_stats.marriage_pairs_rejected_incest;
+    formation_stats.marriage_pairs_rejected_distance = marriage_stats.marriage_pairs_rejected_distance;
+    formation_stats.cross_civ_marriages = marriage_stats.cross_civ_marriages;
+    formation_stats.same_civ_marriages = marriage_stats.same_civ_marriages;
+    formation_stats.cross_faith_marriages = marriage_stats.cross_faith_marriages;
+    formation_stats.same_faith_marriages = marriage_stats.same_faith_marriages;
 
     (events, kin_bond_failures, formation_stats, demo_debug)
 }

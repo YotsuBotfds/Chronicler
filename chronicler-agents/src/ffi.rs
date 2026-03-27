@@ -2844,6 +2844,17 @@ impl AgentSimulator {
         stats.insert("pairs_evaluated".into(), self.formation_stats.pairs_evaluated as f64);
         stats.insert("pairs_eligible".into(), self.formation_stats.pairs_eligible as f64);
 
+        // M57a: Marriage formation stats
+        stats.insert("marriages_formed".into(), self.formation_stats.marriages_formed as f64);
+        stats.insert("marriage_pairs_evaluated".into(), self.formation_stats.marriage_pairs_evaluated as f64);
+        stats.insert("marriage_pairs_rejected_hostile".into(), self.formation_stats.marriage_pairs_rejected_hostile as f64);
+        stats.insert("marriage_pairs_rejected_incest".into(), self.formation_stats.marriage_pairs_rejected_incest as f64);
+        stats.insert("marriage_pairs_rejected_distance".into(), self.formation_stats.marriage_pairs_rejected_distance as f64);
+        stats.insert("cross_civ_marriages".into(), self.formation_stats.cross_civ_marriages as f64);
+        stats.insert("same_civ_marriages".into(), self.formation_stats.same_civ_marriages as f64);
+        stats.insert("cross_faith_marriages".into(), self.formation_stats.cross_faith_marriages as f64);
+        stats.insert("same_faith_marriages".into(), self.formation_stats.same_faith_marriages as f64);
+
         // Kin bond failures delta (this tick vs last tick)
         let delta = self.kin_bond_failures.saturating_sub(self.prev_kin_bond_failures);
         stats.insert("kin_bond_failures_delta".into(), delta as f64);
