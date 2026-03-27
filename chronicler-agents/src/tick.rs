@@ -463,7 +463,7 @@ pub fn tick_agents(
                 parent_to_children.entry(pid0).or_default().push(slot);
             }
             let pid1 = pool.parent_id_1[slot];
-            if pid1 != crate::agent::PARENT_NONE {
+            if pid1 != crate::agent::PARENT_NONE && pid1 != pid0 {
                 parent_to_children.entry(pid1).or_default().push(slot);
             }
         }
@@ -476,10 +476,10 @@ pub fn tick_agents(
         let mut pmap = std::collections::HashMap::new();
         for (dr, _) in &demo_results {
             for birth in &dr.births {
-                if birth.parent_id != crate::agent::PARENT_NONE {
-                    if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                        if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
-                            pmap.entry(birth.parent_id)
+                if birth.birth_parent_id != crate::agent::PARENT_NONE {
+                    if let Some(&parent_slot) = id_to_slot.get(&birth.birth_parent_id) {
+                        if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
+                            pmap.entry(birth.birth_parent_id)
                                 .or_insert((pool.x[parent_slot], pool.y[parent_slot]));
                         }
                     }
@@ -568,13 +568,23 @@ pub fn tick_agents(
                 birth.belief,
             );
             pool.set_loyalty(new_slot, birth.parent_loyalty);
-            pool.parent_id_0[new_slot] = birth.parent_id;
-            // M50a: auto-form kin bond between parent and child
-            if birth.parent_id != crate::agent::PARENT_NONE {
-                if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                    // Guard: parent may have died and slot reused by earlier birth in same batch.
-                    // Check both alive AND id match to detect stale HashMap entries.
-                    if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
+            pool.parent_id_0[new_slot] = birth.birth_parent_id;
+            pool.parent_id_1[new_slot] = birth.other_parent_id;
+            // M50a/M57a: auto-form kin bonds to both parents
+            if birth.birth_parent_id != crate::agent::PARENT_NONE {
+                if let Some(&parent_slot) = id_to_slot.get(&birth.birth_parent_id) {
+                    if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
+                        if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
+                            kin_bond_failures += 1;
+                        }
+                    }
+                }
+            }
+            if birth.other_parent_id != crate::agent::PARENT_NONE
+                && birth.other_parent_id != birth.birth_parent_id
+            {
+                if let Some(&parent_slot) = id_to_slot.get(&birth.other_parent_id) {
+                    if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.other_parent_id {
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
                         }
@@ -583,7 +593,7 @@ pub fn tick_agents(
             }
             // M55a: Place newborn near parent position
             if !attractors.is_empty() {
-                let base = parent_pos.get(&birth.parent_id).copied().unwrap_or((0.5, 0.5));
+                let base = parent_pos.get(&birth.birth_parent_id).copied().unwrap_or((0.5, 0.5));
                 let (bx, by) = crate::spatial::newborn_position(
                     pool.id(new_slot),
                     birth.region,
@@ -608,17 +618,26 @@ pub fn tick_agents(
                 turn,
             });
 
-            // M48: BirthOfKin intent for the parent
-            if let Some(&parent_slot) = id_to_slot.get(&birth.parent_id) {
-                if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.parent_id {
-                    memory_intents.push(crate::memory::MemoryIntent {
-                        agent_slot: parent_slot,
-                        event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
-                        source_civ: pool.civ_affinities[parent_slot],
-                        intensity: crate::agent::BIRTHOFKIN_DEFAULT_INTENSITY,
-                        is_legacy: false,
-                        decay_factor_override: None,
-                    });
+            // M48/M57a: BirthOfKin intent for both parents
+            let parents_for_intent: [u32; 2] = [birth.birth_parent_id, birth.other_parent_id];
+            for (idx, &pid) in parents_for_intent.iter().enumerate() {
+                if pid == crate::agent::PARENT_NONE {
+                    continue;
+                }
+                if idx == 1 && pid == parents_for_intent[0] {
+                    continue; // same parent in both slots — already emitted
+                }
+                if let Some(&parent_slot) = id_to_slot.get(&pid) {
+                    if pool.alive[parent_slot] && pool.ids[parent_slot] == pid {
+                        memory_intents.push(crate::memory::MemoryIntent {
+                            agent_slot: parent_slot,
+                            event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
+                            source_civ: pool.civ_affinities[parent_slot],
+                            intensity: crate::agent::BIRTHOFKIN_DEFAULT_INTENSITY,
+                            is_legacy: false,
+                            decay_factor_override: None,
+                        });
+                    }
                 }
             }
         }
@@ -1025,7 +1044,8 @@ struct BirthInfo {
     personality: [f32; 3],
     cultural_values: [u8; 3],
     belief: u8,  // M37: inherited from parent
-    parent_id: u32,  // M39: stable agent_id of biological parent
+    birth_parent_id: u32,   // M39: stable agent_id of biological parent
+    other_parent_id: u32,   // M57a: spouse of birth parent at birth time, or PARENT_NONE
 }
 
 struct DemographicsPending {
@@ -1169,6 +1189,9 @@ fn tick_region_demographics(
                 let personality = crate::demographics::inherit_personality(
                     &mut personality_rng, parent_personality,
                 );
+                let birth_parent_id = pool.ids[slot];
+                let other_parent_id = crate::relationships::get_spouse_id(pool, slot)
+                    .unwrap_or(crate::agent::PARENT_NONE);
                 pending.births.push(BirthInfo {
                     region: region_id as u16,
                     civ: civ_id,
@@ -1180,7 +1203,8 @@ fn tick_region_demographics(
                         pool.cultural_value_2[slot],
                     ],
                     belief: pool.beliefs[slot],  // M37: read in parallel phase
-                    parent_id: pool.ids[slot],  // M39: slot IS the parent in this loop
+                    birth_parent_id,
+                    other_parent_id,
                 });
             }
         }
