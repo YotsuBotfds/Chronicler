@@ -388,14 +388,14 @@ class TestGPSuccessorCandidate:
         gp = GreatPerson(
             name="General Kiran", role="general", trait="bold",
             civilization="TestCiv", origin_civilization="TestCiv",
-            born_turn=5, source="agent", agent_id=100, parent_id=50,
+            born_turn=5, source="agent", agent_id=100, parent_id_0=50,
             dynasty_id=7,
         )
         civ = _make_civ()
         dominant = FactionType.MILITARY
         candidate = _build_gp_successor_candidate(gp, civ, dominant)
         assert candidate["agent_id"] == 100
-        assert candidate["parent_id"] == 50
+        assert candidate["parent_id_0"] == 50
         assert candidate["dynasty_id"] == 7
         assert candidate["gp_base_name"] is None  # base_name not set
         assert candidate["source"] == "great_person"

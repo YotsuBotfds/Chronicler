@@ -338,11 +338,11 @@ from chronicler.dynasties import compute_dynasty_legitimacy
 
 
 def test_legitimacy_direct_heir():
-    """GP whose parent_id matches ruler's agent_id gets full bonus."""
+    """GP whose parent_id_0 matches ruler's agent_id gets full bonus."""
     ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
                    agent_id=100, dynasty_id=1)
     civ = Civilization(name="Aram", leader=ruler)
-    candidate = {"parent_id": 100, "dynasty_id": 1, "agent_id": 200}
+    candidate = {"parent_id_0": 100, "parent_id_1": 0, "dynasty_id": 1, "agent_id": 200}
     score = compute_dynasty_legitimacy(candidate, civ)
     assert score == 0.15  # LEGITIMACY_DIRECT_HEIR
 
@@ -352,7 +352,7 @@ def test_legitimacy_same_dynasty():
     ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
                    agent_id=100, dynasty_id=1)
     civ = Civilization(name="Aram", leader=ruler)
-    candidate = {"parent_id": 50, "dynasty_id": 1, "agent_id": 200}
+    candidate = {"parent_id_0": 50, "parent_id_1": 0, "dynasty_id": 1, "agent_id": 200}
     score = compute_dynasty_legitimacy(candidate, civ)
     assert score == 0.08  # LEGITIMACY_SAME_DYNASTY
 
@@ -362,7 +362,7 @@ def test_legitimacy_no_match():
     ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
                    agent_id=100, dynasty_id=1)
     civ = Civilization(name="Aram", leader=ruler)
-    candidate = {"parent_id": 50, "dynasty_id": 2, "agent_id": 200}
+    candidate = {"parent_id_0": 50, "parent_id_1": 0, "dynasty_id": 2, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
 
 
@@ -370,17 +370,62 @@ def test_legitimacy_no_ruler_lineage():
     """When ruler has no agent_id (non-GP), all candidates get 0."""
     ruler = Leader(name="King Kiran", trait="bold", reign_start=0)
     civ = Civilization(name="Aram", leader=ruler)
-    candidate = {"parent_id": 100, "dynasty_id": 1, "agent_id": 200}
+    candidate = {"parent_id_0": 100, "parent_id_1": 0, "dynasty_id": 1, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
 
 
 def test_legitimacy_parent_none_sentinel():
-    """parent_id=0 (PARENT_NONE) should not match any ruler."""
+    """parent_id_0=0 (PARENT_NONE) should not match any ruler."""
     ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
                    agent_id=0)  # edge case: ruler agent_id is 0
     civ = Civilization(name="Aram", leader=ruler)
-    candidate = {"parent_id": 0, "dynasty_id": None, "agent_id": 200}
+    candidate = {"parent_id_0": 0, "parent_id_1": 0, "dynasty_id": None, "agent_id": 200}
     assert compute_dynasty_legitimacy(candidate, civ) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# M57a: Either-parent legitimacy (dual-parent)
+# ---------------------------------------------------------------------------
+
+def test_legitimacy_ruler_as_parent_id_0():
+    """Ruler as parent_id_0 -> LEGITIMACY_DIRECT_HEIR returned."""
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
+    candidate = {"parent_id_0": 100, "parent_id_1": 0, "dynasty_id": 1, "agent_id": 200}
+    score = compute_dynasty_legitimacy(candidate, civ)
+    assert score == 0.15  # LEGITIMACY_DIRECT_HEIR
+
+
+def test_legitimacy_ruler_as_parent_id_1():
+    """Ruler as parent_id_1 -> LEGITIMACY_DIRECT_HEIR returned."""
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
+    candidate = {"parent_id_0": 50, "parent_id_1": 100, "dynasty_id": 1, "agent_id": 200}
+    score = compute_dynasty_legitimacy(candidate, civ)
+    assert score == 0.15  # LEGITIMACY_DIRECT_HEIR
+
+
+def test_legitimacy_ruler_in_neither_parent_slot():
+    """Ruler in neither parent slot -> no direct-heir bonus, falls to dynasty match."""
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
+    # Neither parent slot matches ruler agent_id 100
+    candidate = {"parent_id_0": 50, "parent_id_1": 60, "dynasty_id": 1, "agent_id": 200}
+    score = compute_dynasty_legitimacy(candidate, civ)
+    assert score == 0.08  # LEGITIMACY_SAME_DYNASTY, not direct heir
+
+
+def test_legitimacy_ruler_in_neither_slot_no_dynasty():
+    """Ruler in neither parent slot + no dynasty match -> 0."""
+    ruler = Leader(name="King Kiran", trait="bold", reign_start=0,
+                   agent_id=100, dynasty_id=1)
+    civ = Civilization(name="Aram", leader=ruler)
+    candidate = {"parent_id_0": 50, "parent_id_1": 60, "dynasty_id": 2, "agent_id": 200}
+    score = compute_dynasty_legitimacy(candidate, civ)
+    assert score == 0.0
 
 
 # ---------------------------------------------------------------------------

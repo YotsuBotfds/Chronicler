@@ -561,3 +561,49 @@ def test_agents_off_produces_empty_relationships():
     world = WorldState(name="TestWorld", seed=42, turn=50, regions=[], civilizations=[], relationships={})
     dissolved = form_and_sync_relationships(world, NullBridge(), set(), {}, {})
     assert len(dissolved) == 0
+
+
+# --- M57a: Aggregate mode (agents=off) smoke test ---
+
+def test_agents_off_no_marriage_events_and_default_lineage():
+    """In aggregate mode, no marriage_formed events should exist and
+    GreatPerson records keep parent_id_1 == 0 and lineage_house == 0."""
+    from chronicler.models import WorldState, Civilization, Leader, Region
+
+    # Build minimal aggregate-mode world
+    civ = Civilization(
+        name="TestCiv", population=50, military=50, economy=50,
+        culture=50, stability=50,
+        leader=Leader(name="King Test", trait="bold", reign_start=0),
+        regions=["Region A"],
+    )
+    world = WorldState(
+        name="AggTest", seed=42, turn=10,
+        regions=[Region(name="Region A", terrain="plains", carrying_capacity=80, resources="fertile")],
+        civilizations=[civ],
+        relationships={},
+    )
+    # Create some GreatPersons (as aggregate mode would)
+    gp1 = GreatPerson(
+        name="General Kiran", role="general", trait="bold",
+        civilization="TestCiv", origin_civilization="TestCiv",
+        born_turn=5, source="aggregate",
+    )
+    gp2 = GreatPerson(
+        name="Merchant Tala", role="merchant", trait="shrewd",
+        civilization="TestCiv", origin_civilization="TestCiv",
+        born_turn=8, source="aggregate",
+    )
+    civ.great_persons = [gp1, gp2]
+
+    # Verify default dual-parent fields
+    for gp in civ.great_persons:
+        assert gp.parent_id_1 == 0, f"{gp.name} should have parent_id_1 == 0 in aggregate mode"
+        assert gp.lineage_house == 0, f"{gp.name} should have lineage_house == 0 in aggregate mode"
+
+    # Verify no marriage_formed events in the world's events timeline
+    assert not hasattr(world, 'events_timeline') or len(getattr(world, 'events_timeline', [])) == 0
+    # Explicitly: no event with type "marriage_formed" anywhere
+    all_events = getattr(world, 'events_timeline', [])
+    marriage_events = [e for e in all_events if getattr(e, 'event_type', '') == 'marriage_formed']
+    assert len(marriage_events) == 0, "No marriage_formed events should exist in aggregate mode"

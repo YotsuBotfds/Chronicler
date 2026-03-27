@@ -69,7 +69,7 @@ class TestPythonRoundTrip:
                     "loyalty", "satisfaction", "skill", "age", "displacement_turn",
                     "boldness", "ambition", "loyalty_trait",
                     "cultural_value_0", "cultural_value_1", "cultural_value_2",
-                    "belief", "parent_id", "wealth", "x", "y", "settlement_id"]
+                    "belief", "parent_id_0", "parent_id_1", "wealth", "x", "y", "settlement_id"]
         assert snap.schema.names == expected
 
     def test_aggregates_population_matches_and_metrics_in_range(self):
@@ -815,7 +815,7 @@ class TestDynastyIntegration:
         parent = GreatPerson(
             name="Kiran", role="general", trait="bold",
             civilization="Ashara", origin_civilization="Ashara",
-            born_turn=5, source="agent", agent_id=100, parent_id=0,
+            born_turn=5, source="agent", agent_id=100, parent_id_0=0,
         )
         named_agents[100] = "Kiran"
         gp_by_agent_id[100] = parent
@@ -824,7 +824,7 @@ class TestDynastyIntegration:
         child = GreatPerson(
             name="Tala", role="merchant", trait="shrewd",
             civilization="Ashara", origin_civilization="Ashara",
-            born_turn=15, source="agent", agent_id=200, parent_id=100,
+            born_turn=15, source="agent", agent_id=200, parent_id_0=100,
         )
         named_agents[200] = "Tala"
         gp_by_agent_id[200] = child
