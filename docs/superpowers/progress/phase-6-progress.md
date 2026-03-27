@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-26 (M56b urban-effects tuning completed on `feat/m56b-urban-effects`; 200-seed sidecar gate PASS)
+> **Last updated:** 2026-03-26 (M57a marriage matching & lineage schema implemented on `m57a-marriage-lineage`; 200-seed regression pending)
 
 ---
 
@@ -302,6 +302,36 @@
   - Regression metrics: `satisfaction_mean=0.4503`, `satisfaction_std=0.1213`, `migration_rate=0.078388`, `rebellion_rate=0.06929`, `gini_in_range_fraction=0.8404`, `occupation_ok=true`
 - **Rust verification:** `cargo nextest run --manifest-path chronicler-agents/Cargo.toml --workspace --all-targets -j 24` -> `632 passed, 2 skipped`
 - **Off-mode smoke (non-blocking sanity):** `output/m56b/gates/smoke_off_tuned` completed without runtime errors.
+
+### M57a: Marriage Matching & Lineage Schema — implemented on `m57a-marriage-lineage`
+
+- 17 tasks, 12 commits on `m57a-marriage-lineage` branch. 23 Rust marriage tests + 10 Python dual-parent tests. 639 Rust tests, 2188 Python tests passing.
+- **Spec:** `docs/superpowers/specs/2026-03-26-m57a-marriage-lineage-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-26-m57a-marriage-lineage-plan.md`
+- **Rust:**
+  - `agent.rs`: 9 marriage constants (`MARRIAGE_STREAM_OFFSET=1600`, `MARRIAGE_CADENCE=4`, `MARRIAGE_RADIUS=0.25`, `MARRIAGE_MIN_AGE=16`, 5 compatibility weights).
+  - `pool.rs`: `parent_ids` split into `parent_id_0` (birth parent) + `parent_id_1` (spouse at birth). New accessors: `parent_id_0()`, `parent_id_1()`, `parent_ids()`, `has_parent()`.
+  - `ffi.rs`: `snapshot_schema()` and `promotions_schema()` export both parent columns. `get_promotions()` passes both to `register()`. 9 marriage stats in `get_relationship_stats()`.
+  - `named_characters.rs`: `NamedCharacter.parent_id` → `parent_id_0` + `parent_id_1`, `register()` takes both.
+  - `relationships.rs`: `is_protected()` includes Marriage. New `get_spouse_id()` helper.
+  - `tick.rs`: `BirthInfo` dual-parent. Spouse captured at birth-generation time via `get_spouse_id()`. Dual kin bonds, BirthOfKin for both parents. Reverse index widened. `MemoryIntent` identity validation (`expected_agent_id` field).
+  - `formation.rs`: `marriage_scan()` — scored greedy matching with region cadence stagger, eligibility filters (age, existing spouse), rejection gates (distance, incest, cross-civ hostility), compatibility scoring (civ/belief/culture/spatial), deterministic hash tie-breaking, disjoint pair acceptance. 9 diagnostic stats.
+  - `memory.rs`: `MemoryIntent.expected_agent_id` + identity check in `write_all_memories()`.
+- **Python:**
+  - `models.py`: `GreatPerson.parent_id` → `parent_id_0` + `parent_id_1` + `lineage_house`. `parent_ids()` helper.
+  - `agent_bridge.py`: `_process_promotions()` reads dual-parent columns.
+  - `dynasties.py`: `check_promotion()` — 4-rule dual-parent dynasty resolution. `compute_dynasty_legitimacy()` — either-parent direct-heir check.
+  - `factions.py`: Succession candidate dict dual-parent.
+  - `simulation.py`: `marriage_formed` event wiring for named characters.
+  - `narrative.py`: Lineage house resolution in narrator context ("with lineage ties to the House of X").
+  - `relationships.py`: `check_marriage_formation()` deprecated (frozen, Rust-native replacement).
+- **Tests:** `test_m57a_marriage.rs` (23 tests: determinism, exclusivity, age/distance/incest gates, scored greedy, cadence, FFI round-trip, remarriage, wartime blocking, stats). `test_dynasties.py` (5 dual-parent resolution tests). `test_m51_regnal.py` (4 either-parent legitimacy tests). `test_relationships.py` (aggregate-mode smoke test).
+- **Smoke verified:** 50-turn `--agents hybrid` run completed. `marriage_formed` event appears in bundle output.
+- **Gotchas discovered:**
+  - Python DLL path issue on Windows: `C:\Users\tateb\AppData\Local\Python\pythoncore-3.14-64` must be on PATH for `cargo nextest run` to find python314.dll.
+  - Maturin develop on Windows may silently fail to overwrite locked .pyd — use `pip install --force-reinstall` if Python tests see stale FFI.
+  - `MARRIAGE_STREAM_OFFSET=1600` is reserved but not consumed in v1 (determinism without RNG noise).
+- **Deferred:** 200-seed regression sweep (pending calibration). M57b (behavioral consumers — divorce, political marriage, marriage-based alliance).
 
 ---
 
