@@ -39,7 +39,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
     cmd = [
         sys.executable,
         "-m",
-        "chronicler",
+        "chronicler.main",
         "--seed-range",
         f"{args.seed_start}-{args.seed_start + args.seeds - 1}",
         "--turns",
@@ -62,7 +62,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
     cmd = [
         sys.executable,
         "-m",
-        "chronicler",
+        "chronicler.main",
         "--seed-range",
         f"{args.seed_start}-{args.seed_start + args.seeds - 1}",
         "--turns",
@@ -89,7 +89,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd = [
             sys.executable,
             "-m",
-            "chronicler",
+            "chronicler.main",
             "--seed",
             "42",
             "--turns",

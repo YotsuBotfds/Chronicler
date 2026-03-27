@@ -248,7 +248,7 @@ def _run_seed(seed: int, turns: int, agents: str, output_dir: Path) -> tuple[int
     seed_dir = output_dir / f"seed_{seed}"
     seed_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
-        sys.executable, "-m", "chronicler",
+        sys.executable, "-m", "chronicler.main",
         "--simulate-only",
         "--seed", str(seed),
         "--turns", str(turns),
