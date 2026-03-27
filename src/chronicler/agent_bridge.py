@@ -1222,7 +1222,8 @@ class AgentBridge:
         created = []
         for i in range(batch.num_rows):
             agent_id = batch.column("agent_id")[i].as_py()
-            parent_id = batch.column("parent_id")[i].as_py()
+            parent_id_0 = batch.column("parent_id_0")[i].as_py()
+            parent_id_1 = batch.column("parent_id_1")[i].as_py()
             role_id = batch.column("role")[i].as_py()
             trigger = batch.column("trigger")[i].as_py()
             origin_region = batch.column("origin_region")[i].as_py()
@@ -1272,7 +1273,8 @@ class AgentBridge:
                 born_turn=world.turn,
                 source="agent",
                 agent_id=agent_id,
-                parent_id=parent_id,
+                parent_id_0=parent_id_0,
+                parent_id_1=parent_id_1,
             )
             gp.base_name = strip_title(gp.name)
             # M40: Set origin_region from promotions batch
