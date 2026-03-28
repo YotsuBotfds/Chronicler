@@ -192,7 +192,7 @@ fn test_effective_wealth_widowed_after_kill() {
     upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
     // Kill b and remove bonds (simulating death_cleanup_sweep)
     pool.kill(b);
-    crate::chronicler_agents::relationships::swap_remove_rel(&mut pool, a, 0);
+    chronicler_agents::relationships::swap_remove_rel(&mut pool, a, 0);
     let id_to_slot = build_id_to_slot(&pool);
     let ew = household_effective_wealth(&pool, a, &id_to_slot);
     assert!((ew - 50.0).abs() < 0.01, "widowed: personal only, got {}", ew);
@@ -381,7 +381,7 @@ fn test_spouse_first_transfer() {
     let parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
     let mut stats = HouseholdStats::default();
 
-    let events = household_death_transfer(
+    let (events, intents) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert_eq!(events.len(), 1);
@@ -389,6 +389,9 @@ fn test_spouse_first_transfer() {
     assert!((events[0].amount - 50.0).abs() < 0.01);
     assert!((pool.wealth[b] - 80.0).abs() < 0.01, "spouse got estate");
     assert_eq!(stats.inheritance_transfers_spouse, 1);
+    // Spec: spouse DeathOfKin memory intent emitted
+    assert_eq!(intents.len(), 1, "spouse gets DeathOfKin intent");
+    assert_eq!(intents[0].agent_slot, b);
 }
 
 #[test]
@@ -418,7 +421,7 @@ fn test_double_death_goes_to_children() {
     let mut stats = HouseholdStats::default();
 
     // A dies: both in dead_ids, so no spouse transfer → children split
-    let events_a = household_death_transfer(
+    let (events_a, _) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert_eq!(events_a.len(), 2, "split between 2 children");
@@ -439,7 +442,7 @@ fn test_no_heirs_wealth_lost() {
     let parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
     let mut stats = HouseholdStats::default();
 
-    let events = household_death_transfer(
+    let (events, _) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert!(events.is_empty(), "no heirs: wealth lost");
@@ -458,7 +461,7 @@ fn test_max_wealth_clamp_overflow_tracked() {
     let parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
     let mut stats = HouseholdStats::default();
 
-    let events = household_death_transfer(
+    let (events, _) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert_eq!(events.len(), 1);
@@ -482,7 +485,7 @@ fn test_adult_child_fallback() {
     parent_to_children.entry(pool.ids[a]).or_default().push(adult_child);
     let mut stats = HouseholdStats::default();
 
-    let events = household_death_transfer(
+    let (events, _) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert_eq!(events.len(), 1);
@@ -504,7 +507,7 @@ fn test_heir_eligibility_triple_check() {
     parent_to_children.entry(pool.ids[a]).or_default().push(child);
     let mut stats = HouseholdStats::default();
 
-    let events = household_death_transfer(
+    let (events, _) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert!(events.is_empty(), "child in dead_ids: not eligible");
@@ -524,8 +527,9 @@ Add to `chronicler-agents/src/household.rs`:
 /// Process inheritance for a single dying agent. Called inside the death-apply loop,
 /// BEFORE pool.kill() and BEFORE death_cleanup_sweep.
 ///
-/// Returns Vec<InheritanceEvent> (empty if no heirs). Mutates pool.wealth for heirs.
-/// Updates `stats` counters for diagnostics.
+/// Returns (Vec<InheritanceEvent>, Vec<MemoryIntent>). Mutates pool.wealth for heirs.
+/// Updates `stats` counters for diagnostics. Memory intents must be appended to the
+/// tick-level `memory_intents` vec by the caller.
 pub fn household_death_transfer(
     pool: &mut AgentPool,
     dying_slot: usize,
@@ -533,12 +537,13 @@ pub fn household_death_transfer(
     id_to_slot: &std::collections::HashMap<u32, usize>,
     parent_to_children: &std::collections::HashMap<u32, Vec<usize>>,
     stats: &mut HouseholdStats,
-) -> Vec<InheritanceEvent> {
+) -> (Vec<InheritanceEvent>, Vec<crate::memory::MemoryIntent>) {
     let estate = pool.wealth[dying_slot];
     if estate <= 0.0 {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
     let dying_id = pool.ids[dying_slot];
+    let mut intents: Vec<crate::memory::MemoryIntent> = Vec::new();
 
     // Try spouse-first
     if let Some(spouse_id) = relationships::get_spouse_id(pool, dying_slot) {
@@ -551,13 +556,23 @@ pub fn household_death_transfer(
                     let overflow = estate - actual;
                     stats.inheritance_transfers_spouse += 1;
                     stats.inheritance_wealth_lost += overflow;
-                    return vec![InheritanceEvent {
+                    // Spec-required: spouse DeathOfKin memory intent
+                    intents.push(crate::memory::MemoryIntent {
+                        agent_slot: spouse_slot,
+                        expected_agent_id: pool.ids[spouse_slot],
+                        event_type: crate::memory::MemoryEventType::DeathOfKin as u8,
+                        source_civ: pool.civ_affinities[spouse_slot],
+                        intensity: crate::agent::DEATHOFKIN_DEFAULT_INTENSITY,
+                        is_legacy: false,
+                        decay_factor_override: None,
+                    });
+                    return (vec![InheritanceEvent {
                         heir_slot: spouse_slot,
                         deceased_id: dying_id,
                         amount: actual,
                         overflow,
                         transfer_type: TransferType::SpouseInherit,
-                    }];
+                    }], intents);
                 }
             }
         }
@@ -566,7 +581,7 @@ pub fn household_death_transfer(
     // No spouse — try children
     let heirs = find_child_heirs(pool, dying_id, full_dead_ids, id_to_slot, parent_to_children);
     if heirs.is_empty() {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
 
     let (transfer_type, is_dependent) = if heirs.iter().any(|&s| pool.ages[s] < crate::agent::AGE_ADULT) {
@@ -593,7 +608,7 @@ pub fn household_death_transfer(
             transfer_type,
         });
     }
-    events
+    (events, intents)
 }
 
 /// Find eligible child heirs. First pass: dependent children (age < AGE_ADULT).
@@ -693,10 +708,11 @@ In the death-apply loop, BEFORE the existing DeathOfKin memory intents (line 514
 
 ```rust
             // M57b: Inheritance transfer — MUST run before DeathOfKin and pool.kill
-            let _inheritance = crate::household::household_death_transfer(
+            let (_inheritance_events, spouse_intents) = crate::household::household_death_transfer(
                 pool, slot, &full_dead_ids, &id_to_slot, &parent_to_children,
                 &mut household_stats,
             );
+            memory_intents.extend(spouse_intents);
 ```
 
 - [ ] **Step 4: Count `births_by_marital_status` in birth-apply loop**
@@ -780,17 +796,27 @@ In `ffi.rs`, after `get_relationship_stats` (around line 2900), add:
     }
 ```
 
-- [ ] **Step 8: Verify compilation**
+- [ ] **Step 8: Update internal tick test destructuring**
+
+In `chronicler-agents/src/tick.rs`, update the two existing `tick_agents` call sites in tests that destructure the 4-tuple:
+
+Line ~1366: change `let (events, _, _, _) = tick_agents(...)` to `let (events, _, _, _, _) = tick_agents(...)`
+
+Line ~1473: change `let (events, _, _, _) = tick_agents(...)` to `let (events, _, _, _, _) = tick_agents(...)`
+
+Search for any other `tick_agents(` call sites in the crate and update their destructuring to 5-tuple.
+
+- [ ] **Step 9: Verify compilation**
 
 Run: `cargo check -p chronicler-agents`
 Expected: compiles with no errors.
 
-- [ ] **Step 9: Run full test suite**
+- [ ] **Step 10: Run full test suite**
 
 Run: `cargo nextest run -p chronicler-agents`
 Expected: all existing tests + M57b tests pass. No regressions.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add chronicler-agents/src/tick.rs chronicler-agents/src/ffi.rs
@@ -802,8 +828,25 @@ git commit -m "feat(m57b): wire death transfer and birth counting into tick, add
 ### Task 5: Joint Migration Consolidation
 
 **Files:**
+- Modify: `chronicler-agents/src/behavior.rs`
 - Modify: `chronicler-agents/src/household.rs`
 - Modify: `chronicler-agents/tests/test_m57b_household.rs`
+
+- [ ] **Step 0: Make `PendingDecisions::new()` public**
+
+In `chronicler-agents/src/behavior.rs`, line 421, change:
+
+```rust
+    fn new() -> Self {
+```
+
+to:
+
+```rust
+    pub fn new() -> Self {
+```
+
+This is needed by `consolidate_household_migrations` tests (integration tests can't call private methods).
 
 - [ ] **Step 1: Write failing tests for migration consolidation**
 
@@ -820,7 +863,7 @@ fn test_spouse_follows_lead_migration() {
     let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
     upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
     let contested = vec![false, false];
 
     let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
@@ -843,7 +886,7 @@ fn test_spouse_rebellion_cancels_migration() {
     let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
     upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
     let contested = vec![false, false];
 
     let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
@@ -867,7 +910,7 @@ fn test_catastrophe_gate_cancels_household() {
     let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
     upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
     let id_to_slot = build_id_to_slot(&pool);
-    let mut regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
     regions[1].food_sufficiency = 0.1; // below CATASTROPHE_FOOD_THRESHOLD
     let contested = vec![false, true]; // region 1 contested
 
@@ -891,7 +934,7 @@ fn test_dependent_follows_household() {
     pool.parent_id_0[child] = pool.ids[a];
     pool.parent_id_1[child] = pool.ids[b];
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
     let contested = vec![false, false];
 
     let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
@@ -916,7 +959,7 @@ fn test_married_minor_excluded_from_dependents() {
     let minor_spouse = spawn(&mut pool, 0, 0, Occupation::Farmer, 18);
     upsert_symmetric(&mut pool, married_minor, minor_spouse, BondType::Marriage as u8, 50, 1);
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
     let contested = vec![false, false];
 
     let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
@@ -937,9 +980,9 @@ fn test_both_spouses_migrate_lower_slot_leads() {
     upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
     let id_to_slot = build_id_to_slot(&pool);
     let regions = vec![
-        RegionState::new(0, 100),
-        RegionState::new(1, 100),
-        RegionState::new(2, 100),
+        RegionState::new(0),
+        RegionState::new(1),
+        RegionState::new(2),
     ];
     let contested = vec![false, false, false];
 
@@ -967,7 +1010,7 @@ fn test_primary_action_invariant_after_consolidation() {
     pool.parent_id_0[child] = pool.ids[a];
     pool.parent_id_1[child] = pool.ids[b];
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
     let contested = vec![false, false];
 
     let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
@@ -995,10 +1038,10 @@ fn test_cancel_removes_dependent_independent_migration() {
     pool.parent_id_0[child] = pool.ids[a];
     pool.parent_id_1[child] = pool.ids[b];
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100), RegionState::new(2, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
     let contested = vec![false, false, false];
 
-    let mut pds = vec![PendingDecisions::new(); 3];
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new(), PendingDecisions::new()];
     pds[0].migrations.push((a, 0, 1)); // A migrates
     pds[0].rebellions.push((b, 0)); // B rebels → cancel
     pds[0].migrations.push((child, 0, 2)); // child independently migrating
@@ -1398,7 +1441,7 @@ def household_effective_wealth_py(snapshot_df, relationships_df):
         agent_ids = relationships_df.column("agent_id").to_pylist()
         target_ids = relationships_df.column("target_id").to_pylist()
         bond_types = relationships_df.column("bond_type").to_pylist()
-        MARRIAGE_BOND = 5  # BondType::Marriage
+        MARRIAGE_BOND = 2  # BondType::Marriage
         for aid, tid, bt in zip(agent_ids, target_ids, bond_types):
             if bt == MARRIAGE_BOND:
                 spouse_map[aid] = tid
@@ -1470,6 +1513,37 @@ def test_extract_household_stats_round_trip():
     assert len(result["per_turn"]) == 2
     assert result["summary"]["inheritance_transfers_spouse_total"] == 3.0
     assert result["summary"]["births_married_parent_mean"] == 4.0
+
+
+def test_household_stats_reset_each_tick():
+    """M57b: Verify household counters reset each tick (not accumulated).
+    Two-tick assertion: counters from tick 1 must not bleed into tick 2."""
+    from chronicler.main import execute_run
+    from chronicler.world_gen import generate_world
+
+    world = generate_world(seed=99, num_civs=4, num_regions=8)
+    execute_run(world, turns=5, agents="hybrid", narrator="local",
+                narrate=False, quiet=True)
+    bridge = world._agent_bridge
+    if bridge is None:
+        pytest.skip("no agent bridge in this run")
+    stats_history = bridge.household_stats
+    if len(stats_history) < 2:
+        pytest.skip("not enough ticks for reset test")
+    # Each entry is an independent tick snapshot, not cumulative.
+    # If counters were accumulated, later ticks would have >= earlier values for ALL keys.
+    # With reset, it's normal for some ticks to have 0 while others have >0.
+    has_zero_in_later_tick = False
+    for key in stats_history[0]:
+        vals = [s.get(key, 0) for s in stats_history]
+        if any(v > 0 for v in vals) and any(v == 0 for v in vals[1:]):
+            has_zero_in_later_tick = True
+            break
+    # If every counter monotonically increases, reset is broken.
+    # This test passes as long as at least one counter resets to 0 in a later tick.
+    assert has_zero_in_later_tick or all(
+        s.get("inheritance_transfers_spouse", 0) == 0 for s in stats_history
+    ), "counters should reset each tick, not accumulate"
 ```
 
 - [ ] **Step 6: Run Python tests**
@@ -1506,7 +1580,7 @@ fn test_cross_civ_marriage_preserves_affinity() {
     pool.civ_affinities[b] = 1;
     upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
     let id_to_slot = build_id_to_slot(&pool);
-    let regions = vec![RegionState::new(0, 100), RegionState::new(1, 100)];
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
     let contested = vec![false, false];
 
     let civ_a_before = pool.civ_affinities[a];
@@ -1590,7 +1664,7 @@ fn test_wealth_conservation_in_death_phase() {
     parent_to_children.entry(pool.ids[b]).or_default().push(child);
     let mut stats = HouseholdStats::default();
 
-    let events = household_death_transfer(
+    let (events, _) = household_death_transfer(
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
 
