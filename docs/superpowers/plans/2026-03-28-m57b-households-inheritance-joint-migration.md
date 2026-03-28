@@ -1525,8 +1525,10 @@ def test_extract_household_stats_round_trip():
 
 def test_household_stats_reset_each_tick(tmp_path):
     """M57b: Verify household counters reset each tick (not accumulated).
-    Two-tick assertion: counters from tick 1 must not bleed into tick 2."""
+    Two-tick assertion: counters from tick 1 must not bleed into tick 2.
+    Reads from the bundle file since RunResult does not carry the world."""
     import argparse
+    import json
     from chronicler.main import execute_run
 
     args = argparse.Namespace(
@@ -1537,17 +1539,14 @@ def test_household_stats_reset_each_tick(tmp_path):
         llm_actions=False, scenario=None, pause_every=None,
         agents="hybrid",
     )
-    result = execute_run(args)
-    # Access bridge from the world used in the run
-    world = result.world if hasattr(result, 'world') else None
-    bridge = getattr(world, '_agent_bridge', None) if world else None
-    if bridge is None:
-        pytest.skip("no agent bridge in this run")
-    stats_history = bridge.household_stats
+    execute_run(args)
+    bundle_path = tmp_path / "chronicle_bundle.json"
+    assert bundle_path.exists(), "bundle must be written"
+    bundle = json.loads(bundle_path.read_text())
+    stats_history = bundle.get("metadata", {}).get("household_stats", [])
     if len(stats_history) < 2:
         pytest.skip("not enough ticks for reset test")
     # Each entry is an independent tick snapshot, not cumulative.
-    # If counters were accumulated, later ticks would have >= earlier values for ALL keys.
     # With reset, it's normal for some ticks to have 0 while others have >0.
     has_zero_in_later_tick = False
     for key in stats_history[0]:
@@ -1556,7 +1555,6 @@ def test_household_stats_reset_each_tick(tmp_path):
             has_zero_in_later_tick = True
             break
     # If every counter monotonically increases, reset is broken.
-    # This test passes as long as at least one counter resets to 0 in a later tick.
     assert has_zero_in_later_tick or all(
         s.get("inheritance_transfers_spouse", 0) == 0 for s in stats_history
     ), "counters should reset each tick, not accumulate"
