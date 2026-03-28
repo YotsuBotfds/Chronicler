@@ -56,7 +56,9 @@ New Rust module `chronicler-agents/src/household.rs` with pure helper functions.
 
 Lightweight wealth combiner. Uses existing `get_spouse_id(pool, slot)` from `relationships.rs` to find spouse, resolves spouse slot via `id_to_slot` (passed as param — no linear `find_slot_by_id` fallback in hot paths). Sums both agents' `pool.wealth[slot]`. Returns personal wealth if unmarried. O(1) given the id-to-slot map.
 
-**Pre-decision map build seam:** The current `id_to_slot` map is built at `tick.rs:455`, inside demographics — too late for decision-time use. M57b must build a **separate pre-decision `id_to_slot`** before `evaluate_region_decisions` (after `wealth_tick`, before decisions). This map is used by `household_effective_wealth` during migration utility evaluation and by `consolidate_household_migrations` during post-decision consolidation. The demographics-phase map remains separate (built from post-demographics alive set) for inheritance. Two distinct maps, two distinct alive sets — no reuse across phases.
+**Pre-decision map build seam:** The current `id_to_slot` map is built at `tick.rs:455`, inside demographics — too late for decision-time use. M57b must build a **separate pre-decision `id_to_slot`** before `evaluate_region_decisions` (after `wealth_tick`, before decisions). This map is used by `household_effective_wealth` during migration utility evaluation and by `consolidate_household_migrations` during post-decision consolidation.
+
+**Demographics-phase map:** The existing `id_to_slot` at `tick.rs:455` is built **before** the death-apply loop (comment: "Must be built BEFORE deaths so we can find children of dying parents"). This map reflects the pre-death alive set, which is exactly what `household_death_transfer` needs — dying agents' slots are still in the map, and surviving spouses can be resolved. This map is NOT built from a "post-demographics alive set." Two distinct maps: pre-decision (for behavior) and pre-death (for inheritance).
 
 ### `resolve_dependents(pool, slot, spouse_slot, dependent_index) -> Vec<usize>`
 
@@ -154,10 +156,15 @@ Mutates in place. Only touches `migrations`, `rebellions`, and `occupation_switc
 
 The current model enforces exactly one primary action per agent per tick via Gumbel argmax (`rebel | migrate | switch | stay`). Household follow must respect this invariant.
 
-**Spouse conflict rule:**
+**Spouse conflict rule (APPROVED path):**
 - Trailing spouse chose **rebellion** → CANCEL lead's migration. Household stays. Rebellion stands.
 - Trailing spouse chose **migrate** (different destination) → Replace with lead's destination. Primary action stays "migrate."
 - Trailing spouse chose **switch** or **stay** → Replace primary action with "migrate" to lead's destination. Occupation switch discarded.
+
+**Spouse actions on CANCEL path:** When a proposal is cancelled (by rebellion or catastrophe), no primary action replacement ever happened. The trailing spouse's original action is preserved as-is:
+- If trailing spouse had **migrate** (independent destination) → removed (can't leave without household).
+- If trailing spouse had **switch** or **stay** → preserved (actions at current location, not movement).
+- If trailing spouse had **rebellion** (the cause of cancel) → preserved (rebellion stands).
 
 **Dependent conflict rule:**
 - On **APPROVED** (household moves): Dependents (`age < AGE_ADULT`, not married) follow the household. Their independent primary action is replaced with follow-migration. Household coherence overrides individual agency below adulthood.
@@ -177,9 +184,10 @@ The current model enforces exactly one primary action per agent per tick via Gum
 
 5. **Determine lead:** Single migrating spouse leads. If both migrate, lower slot index leads. (Acknowledged as structurally biased — frozen for M57b.)
 
-6. **Evaluate proposal:**
-   - Check `bucket.rebellions` for trailing spouse → CANCEL
-   - Catastrophe gate: `is_catastrophic = to < regions.len() && to < contested_regions.len() && contested_regions[to] && regions[to].food_sufficiency < CATASTROPHE_FOOD_THRESHOLD` → CANCEL
+6. **Evaluate proposal (short-circuit precedence):**
+   - **First:** Check `bucket.rebellions` for trailing spouse → CANCEL, increment `household_migrations_cancelled_rebellion`
+   - **Second (only if rebellion check passed):** Catastrophe gate: `is_catastrophic = to < regions.len() && to < contested_regions.len() && contested_regions[to] && regions[to].food_sufficiency < CATASTROPHE_FOOD_THRESHOLD` → CANCEL, increment `household_migrations_cancelled_catastrophe`
+   - Rebellion check takes precedence. If both conditions are true, only the rebellion counter increments. This avoids double-counting and makes the diagnostic signal unambiguous.
 
 7. **CANCEL:** Remove lead from `bucket.migrations`. Remove trailing spouse from `bucket.migrations` (if present). Find dependents (using shared dependent-filter helper) and remove from `bucket.migrations`. Household stays in place, no member migrates.
 
@@ -244,7 +252,7 @@ Always collect household stats in agent modes (`hybrid`, `demographics-only`, `s
 
 Same pattern as relationship stats:
 - `AgentBridge.__init__`: `self._household_stats_history: list = []`
-- `AgentBridge.tick()`: calls `self._sim.get_household_stats()` after tick, appends to history (in all agent modes)
+- `AgentBridge._process_tick_results()` (`agent_bridge.py:813`): calls `self._sim.get_household_stats()` alongside existing `get_relationship_stats()` call, appends to history. This is the stable post-tick hook — called from both `tick()` and `tick_agents()`, covering all production turn flow paths (`simulation.py:1549`, `simulation.py:1554`).
 - `AgentBridge.household_stats` property exposes the history list
 - Stats written into bundle metadata alongside relationship stats
 
