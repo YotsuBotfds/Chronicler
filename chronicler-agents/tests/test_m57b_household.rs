@@ -494,3 +494,56 @@ fn test_cross_civ_marriage_preserves_affinity() {
     assert_eq!(pool.civ_affinities[a], civ_a_before, "migration must not change civ_affinity");
     assert_eq!(pool.civ_affinities[b], civ_b_before, "follow must not change civ_affinity");
 }
+
+// ─── Wealth Conservation Tests ────────────────────────────────────────────
+
+#[test]
+fn test_wealth_conservation_in_death_phase() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 50);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 48);
+    let child = spawn(&mut pool, 0, 0, Occupation::Farmer, 10);
+    pool.wealth[a] = 100.0;
+    pool.wealth[b] = 80.0;
+    pool.wealth[child] = 5.0;
+    pool.parent_id_0[child] = pool.ids[a];
+    pool.parent_id_1[child] = pool.ids[b];
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+
+    // A dies, spouse B survives
+    let id_to_slot = build_id_to_slot(&pool);
+    let dead_ids: HashSet<u32> = [pool.ids[a]].into_iter().collect();
+    let mut parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    parent_to_children.entry(pool.ids[a]).or_default().push(child);
+    parent_to_children.entry(pool.ids[b]).or_default().push(child);
+    let mut stats = HouseholdStats::default();
+
+    let wealth_b_before = pool.wealth[b];
+    let wealth_child_before = pool.wealth[child];
+
+    let (events, _) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+
+    // Conservation: estate is fully accounted for in heir wealth gains + overflow.
+    // Note: household_death_transfer does NOT zero dying_slot.wealth — that happens
+    // later in pool.kill(). So we check that amount + overflow across all events
+    // equals the original estate.
+    let estate = 100.0_f32; // A's wealth
+    let total_amount: f32 = events.iter().map(|e| e.amount).sum();
+    let total_overflow: f32 = events.iter().map(|e| e.overflow).sum();
+    assert!(
+        (estate - (total_amount + total_overflow)).abs() < 0.01,
+        "wealth conservation: estate={}, amount={}, overflow={}",
+        estate, total_amount, total_overflow,
+    );
+
+    // Cross-check: heir wealth actually changed by the reported amounts
+    let heir_wealth_delta = (pool.wealth[b] - wealth_b_before)
+        + (pool.wealth[child] - wealth_child_before);
+    assert!(
+        (total_amount - heir_wealth_delta).abs() < 0.01,
+        "heir wealth delta matches events: amount={}, delta={}",
+        total_amount, heir_wealth_delta,
+    );
+}
