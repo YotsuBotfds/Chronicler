@@ -43,7 +43,7 @@ Build household-level mechanics on top of M57a's marriage bond and two-parent li
 
 **Execution invariants:**
 1. Death transfer runs **before** marriage bond removal (otherwise spouse lookup is lossy).
-2. Household-effective wealth is derived **post-transfer, pre-decision** (widowhood effects are coherent immediately).
+2. Household-effective wealth reflects **current-tick** personal wealth at decision time. Inheritance transfers happen later (in demographics), so a widowed spouse's inherited wealth affects decisions on the **next** tick, not the current one. This is a natural one-turn lag — same pattern as Gini's existing one-turn lag via `AgentBridge._gini_by_civ`.
 3. Migration consolidation runs **before** move commit; catastrophe gate cancels for the whole household (no split).
 
 ---
@@ -55,6 +55,8 @@ New Rust module `chronicler-agents/src/household.rs` with pure helper functions.
 ### `household_effective_wealth(pool, slot, id_to_slot) -> f32`
 
 Lightweight wealth combiner. Uses existing `get_spouse_id(pool, slot)` from `relationships.rs` to find spouse, resolves spouse slot via `id_to_slot` (passed as param — no linear `find_slot_by_id` fallback in hot paths). Sums both agents' `pool.wealth[slot]`. Returns personal wealth if unmarried. O(1) given the id-to-slot map.
+
+**Pre-decision map build seam:** The current `id_to_slot` map is built at `tick.rs:455`, inside demographics — too late for decision-time use. M57b must build a **separate pre-decision `id_to_slot`** before `evaluate_region_decisions` (after `wealth_tick`, before decisions). This map is used by `household_effective_wealth` during migration utility evaluation and by `consolidate_household_migrations` during post-decision consolidation. The demographics-phase map remains separate (built from post-demographics alive set) for inheritance. Two distinct maps, two distinct alive sets — no reuse across phases.
 
 ### `resolve_dependents(pool, slot, spouse_slot, dependent_index) -> Vec<usize>`
 
@@ -73,7 +75,7 @@ Household-effective wealth affects behavior only:
 
 ### Python parity
 
-Matching `household_effective_wealth()` in `agent_bridge.py` for diagnostics/analytics only. Not authoritative — Rust is canonical for simulation.
+Matching `household_effective_wealth()` in `agent_bridge.py` for diagnostics/analytics only. Not authoritative — Rust is canonical for simulation. Requires spouse lookup from `get_all_relationships()` output (bond_type = Marriage), not from snapshot columns (snapshot schema has no spouse/relationship fields).
 
 ---
 
@@ -158,7 +160,8 @@ The current model enforces exactly one primary action per agent per tick via Gum
 - Trailing spouse chose **switch** or **stay** → Replace primary action with "migrate" to lead's destination. Occupation switch discarded.
 
 **Dependent conflict rule:**
-- Dependents (`age < AGE_ADULT`, not married) **always follow the household**. Their independent primary action is replaced with follow-migration. Household coherence overrides individual agency below adulthood.
+- On **APPROVED** (household moves): Dependents (`age < AGE_ADULT`, not married) follow the household. Their independent primary action is replaced with follow-migration. Household coherence overrides individual agency below adulthood.
+- On **CANCEL** (household stays): Dependents' independent *migrations* are removed (cannot leave without household), but other primary actions (rebellion, occupation switch) are **preserved** — these are actions at the current location and don't involve movement. "Always follow" means dependents cannot independently *relocate*, not that all agency is suppressed when the household stays put.
 
 **Loyalty drift asymmetry:** When a dependent's rebellion is overridden to follow-migration, no drift gap is created. Rebels already skip loyalty drift (`behavior.rs:556`, `chosen != 0` guard). The overridden dependent had no drift computed regardless. Acceptable for M57b; explicitly stated.
 
@@ -335,7 +338,7 @@ Adopted from `docs/superpowers/analytics/m57-adjudication-2026-03-27.md:64-83`. 
 
 - `births_by_marital_status` matches manual count
 - `extract_household_stats` round-trips through bundle metadata
-- Analytics parity helper matches Rust on snapshot data
+- Analytics parity helper matches Rust (uses `get_all_relationships()` for spouse lookup + snapshot for wealth)
 
 ### Integration tests
 
@@ -372,6 +375,8 @@ All M57b insertion points in the tick:
 0.8   relationship drift (UNCHANGED)
 1.    satisfaction (UNCHANGED — consumes personal percentiles)
 2.    region stats (UNCHANGED)
+2.5   NEW: build pre-decision id_to_slot map (for household_effective_wealth
+        and consolidate_household_migrations)
 3.    decisions: evaluate_region_decisions (CHANGED — migration utility
         uses household_effective_wealth for married agents)
 3.5   NEW: consolidate_household_migrations (post-decision, pre-apply)
