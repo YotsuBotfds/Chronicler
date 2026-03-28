@@ -122,6 +122,9 @@ pub const MARRIAGE_CULTURE_MATCH_BONUS: f32 = 0.15;  // per matching cultural va
 pub const MARRIAGE_CLOSENESS_CAP: f32 = 0.20;        // max spatial proximity bonus
 pub const MARRIAGE_CROSS_FAITH_PENALTY: f32 = 0.10;
 
+// M57b: Household constants
+pub const CATASTROPHE_FOOD_THRESHOLD: f32 = 0.30; // [CALIBRATE M47]
+
 // Skill
 pub const SKILL_RESET_ON_SWITCH: f32 = 0.3;
 pub const SKILL_GROWTH_PER_TURN: f32 = 0.05;

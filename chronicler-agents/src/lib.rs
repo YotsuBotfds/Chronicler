@@ -22,6 +22,7 @@ pub mod memory;
 pub mod needs;
 pub mod relationships;
 pub mod formation;
+pub mod household;
 pub mod ecology;
 pub mod spatial;
 pub mod sort;
@@ -98,6 +99,10 @@ pub use agent::{
 };
 #[doc(hidden)]
 pub use agent::{URBAN_MATERIAL_SATISFACTION_BONUS, URBAN_SAFETY_SATISFACTION_PENALTY};
+#[doc(hidden)]
+pub use household::{HouseholdStats, InheritanceEvent, TransferType};
+#[doc(hidden)]
+pub use agent::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.
