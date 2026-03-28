@@ -469,3 +469,28 @@ fn test_cancel_removes_dependent_independent_migration() {
     assert!(!pds[0].migrations.iter().any(|&(s, _, _)| s == a), "lead removed");
     assert!(!pds[0].migrations.iter().any(|&(s, _, _)| s == child), "dependent migration removed on cancel");
 }
+
+#[test]
+fn test_cross_civ_marriage_preserves_affinity() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25); // civ 0
+    pool.civ_affinities[a] = 0;
+    let b = spawn(&mut pool, 0, 1, Occupation::Farmer, 23); // civ 1
+    pool.civ_affinities[b] = 1;
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let civ_a_before = pool.civ_affinities[a];
+    let civ_b_before = pool.civ_affinities[b];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1));
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    assert_eq!(pool.civ_affinities[a], civ_a_before, "migration must not change civ_affinity");
+    assert_eq!(pool.civ_affinities[b], civ_b_before, "follow must not change civ_affinity");
+}

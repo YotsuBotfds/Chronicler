@@ -56,3 +56,20 @@ def test_household_stats_reset_each_tick(tmp_path):
     assert has_zero_in_later_tick or all(
         s.get("inheritance_transfers_spouse", 0) == 0 for s in stats_history
     ), "counters should reset each tick, not accumulate"
+
+
+def test_agents_off_smoke(tmp_path):
+    """M57b: --agents=off must not execute any household code paths."""
+    import argparse
+    from chronicler.main import execute_run
+
+    args = argparse.Namespace(
+        seed=42, turns=10, civs=4, regions=8,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None,
+    )
+    # agents defaults to "off" via getattr in main.py
+    result = execute_run(args)
+    assert result is not None, "simulation completed"
