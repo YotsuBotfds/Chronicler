@@ -1741,6 +1741,23 @@ def extract_bond_health(bundles: list[dict]) -> dict:
     }
 
 
+def extract_household_stats(bundles: list[dict]) -> dict:
+    """M57b: Extract per-turn household stats from bundle metadata."""
+    result = {"per_turn": [], "summary": {}}
+    for bundle in bundles:
+        metadata = bundle.get("metadata", {})
+        h_stats = metadata.get("household_stats", [])
+        result["per_turn"].extend(h_stats)
+
+    if result["per_turn"]:
+        keys = result["per_turn"][0].keys()
+        for key in keys:
+            vals = [t.get(key, 0) for t in result["per_turn"]]
+            result["summary"][f"{key}_total"] = sum(vals)
+            result["summary"][f"{key}_mean"] = sum(vals) / len(vals)
+    return result
+
+
 def extract_era_signals(bundles: list[dict]) -> dict:
     """Extract per-civ time series of key signals from the history list.
 

@@ -749,6 +749,8 @@ class AgentBridge:
         # M53: Relationship stats collection
         self._collect_rel_stats = relationship_stats
         self._relationship_stats_history: list = []
+        # M57b: Household stats collection (always in agent modes)
+        self._household_stats_history: list = []
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -819,6 +821,13 @@ class AgentBridge:
                 self._relationship_stats_history.append(stats)
             except Exception:
                 pass
+
+        # M57b: household stats collection (always in agent modes)
+        try:
+            h_stats = self._sim.get_household_stats()
+            self._household_stats_history.append(h_stats)
+        except Exception:
+            pass
 
         if self._mode == "hybrid":
             self._write_back(world)
@@ -971,6 +980,11 @@ class AgentBridge:
     def relationship_stats(self) -> list:
         """M53: Per-tick relationship stats history (populated when --relationship-stats is set)."""
         return self._relationship_stats_history
+
+    @property
+    def household_stats(self) -> list:
+        """M57b: Per-tick household stats history."""
+        return self._household_stats_history
 
     def write_final_sidecar_snapshot(self, world: "WorldState") -> None:
         """Capture the true post-loop state for validation sidecars.
@@ -1996,3 +2010,32 @@ class AgentBridge:
             "op_type", "agent_a", "agent_b", "bond_type", "sentiment", "formed_turn"
         ])
         self._sim.apply_relationship_ops(batch)
+
+
+def household_effective_wealth_py(snapshot_df, relationships_df):
+    """M57b: Python parity helper for household effective wealth.
+    Uses get_all_relationships() for spouse lookup + snapshot for wealth.
+    Diagnostics/analytics only — Rust is canonical."""
+    ids = snapshot_df.column("id").to_pylist()
+    wealth = snapshot_df.column("wealth").to_pylist()
+    id_to_wealth = dict(zip(ids, wealth))
+
+    # Find marriage bonds from relationships
+    spouse_map = {}
+    if relationships_df is not None and relationships_df.num_rows > 0:
+        agent_ids = relationships_df.column("agent_id").to_pylist()
+        target_ids = relationships_df.column("target_id").to_pylist()
+        bond_types = relationships_df.column("bond_type").to_pylist()
+        MARRIAGE_BOND = 2  # BondType::Marriage
+        for aid, tid, bt in zip(agent_ids, target_ids, bond_types):
+            if bt == MARRIAGE_BOND:
+                spouse_map[aid] = tid
+
+    result = {}
+    for aid, w in zip(ids, wealth):
+        spouse_id = spouse_map.get(aid)
+        if spouse_id is not None and spouse_id in id_to_wealth:
+            result[aid] = w + id_to_wealth[spouse_id]
+        else:
+            result[aid] = w
+    return result

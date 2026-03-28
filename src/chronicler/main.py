@@ -747,6 +747,10 @@ def execute_run(
     if agent_bridge is not None and agent_bridge._collect_rel_stats:
         bundle["metadata"]["relationship_stats"] = agent_bridge.relationship_stats
 
+    # M57b: household stats metadata (always collected in agent modes)
+    if agent_bridge is not None:
+        bundle["metadata"]["household_stats"] = agent_bridge.household_stats
+
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)
     print(f"Viewer bundle written to {bundle_path}")
