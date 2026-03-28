@@ -3,7 +3,7 @@
 > Date: 2026-03-27
 > Status: Ready for spec drafting
 > Depends on: M57a (implemented on `m57a-marriage-lineage`)
-> Note: M57a code review passed; the 200-seed regression sweep completed but currently fails the regression oracle on `satisfaction_mean=0.424`, so milestone closeout still needs regression investigation
+> Note: M57a code review passed and the 200-seed regression sweep now passes (`satisfaction_mean=0.4708`) on commit `1d306a7`, so this handoff is aligned with a regression-clean baseline.
 
 ## Goal
 
@@ -258,6 +258,6 @@ The M57b spec should explicitly require:
 - determinism preserved across thread counts
 - targeted tests for widowhood transfer, dependent movement, and cross-civ marriage households
 
-And before calling M57a fully closed, remember:
+M57a baseline status for M57b drafting:
 
-- the 200-seed regression has been run and currently fails only the regression oracle (`satisfaction_mean=0.424` vs `>= 0.45` gate), so M57a is review-complete but not yet fully closed
+- the latest 200-seed run is regression-clean (`satisfaction_mean=0.4708`, migration/rebellion/gini/treasury all passing), so this handoff can be used directly without waiting on further M57a gate work.
