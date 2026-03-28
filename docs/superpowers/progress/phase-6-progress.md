@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-27 (M57a marriage matching & lineage schema implemented on `m57a-marriage-lineage`; 200-seed regression pending)
+> **Last updated:** 2026-03-28 (M57b households, inheritance & joint migration implemented on `m57a-marriage-lineage`; 200-seed regression pending)
 
 ---
 
@@ -334,6 +334,23 @@
 - **Regression status (2026-03-27):** canonical 200-seed/500-turn full gate rerun completed at `output/m57a/full_gate/batch_1` with `--parallel 24`. Oracles: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `determinism SKIP` (no duplicate seed pairs), `regression FAIL`. Reported regression metrics: `satisfaction_mean=0.424`, `satisfaction_std=0.1393`, `migration_rate=0.093362`, `rebellion_rate=0.070325`, `gini_in_range_fraction=0.963`, `occupation_ok=true`; failure is the current regression gate's `satisfaction_mean >= 0.45` requirement in `validate.py`.
 - **Deferred / follow-up:** investigate the M57a regression dip before calling the milestone fully closed. M57b (household economics, inheritance, joint migration, widowhood semantics) can still proceed in parallel at the spec level. Later follow-ons can revisit divorce, political marriage, and marriage-based diplomacy if still desired.
 
+### M57b: Households, Inheritance & Joint Migration — implemented on `m57a-marriage-lineage`
+
+- 10 commits on `m57a-marriage-lineage`. 21 Rust household tests, 4 Python tests. 661 total Rust tests, 2196 Python tests passing.
+- **Spec:** `docs/superpowers/specs/2026-03-28-m57b-households-inheritance-joint-migration-design.md`
+- **Plan:** `docs/superpowers/plans/2026-03-28-m57b-households-inheritance-joint-migration.md`
+- **Rust:**
+  - `household.rs` (new): `household_effective_wealth`, `resolve_dependents`, `household_death_transfer`, `consolidate_household_migrations`, `HouseholdStats`, `InheritanceEvent`.
+  - `tick.rs`: pre-decision `id_to_slot`, `full_dead_ids` precompute, death-transfer in death-apply loop, birth marital counting, household stats accumulation.
+  - `behavior.rs`: `evaluate_region_decisions` gains `id_to_slot` param, `migrate_utility` modulated by household-effective wealth.
+  - `ffi.rs`: `get_household_stats()` PyO3 method.
+  - `agent.rs`: `CATASTROPHE_FOOD_THRESHOLD` constant.
+- **Python:**
+  - `agent_bridge.py`: `_household_stats_history`, collection in `_process_tick_results()`, `household_effective_wealth_py` parity helper.
+  - `analytics.py`: `extract_household_stats()` extractor.
+  - `main.py`: household stats in bundle metadata.
+- **Regression:** 200-seed regression pending.
+
 ---
 
 ## Current Status
@@ -582,7 +599,8 @@
 - **Operational tool:** `scripts/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
 - **M55 status:** M55a and M55b are both implemented and gated on the clean merge line. Final canonical artifact: `output/m55b/gate_food007_farmer030_stab280_p24/full_gate/batch_1/validate_all.json`.
 - **Gate recovery note:** The branch-level regression drift was not caused by M55b alone. Final recovery that restored the canonical gate on the accepted M54 runtime line combined (1) age stream staying at `1400`, (2) spatial streams moving to `2000/2001`, (3) `MEMORY_SATISFACTION_WEIGHT=0.05`, (4) `FOOD_SHORTAGE_WEIGHT=0.07`, (5) `FOOD_SCARCITY_FARMER_BONUS=0.30`, and (6) the satisfaction stability bonus denominator moving from `300` to `280`.
-- **Next implementation target:** Start M56 from the clean `main` line and keep both the accepted M54 controls and the final M55 gate artifact immutable for future comparisons.
+- **Next implementation target:** Start M57a from the clean `main` line and keep the accepted M54 controls, the final M55 gate artifact, and the tuned M56b gate artifacts immutable for future comparisons.
+- **M57a prep (2026-03-26):** Added `docs/superpowers/plans/2026-03-26-m57a-pre-spec-handoff.md` to capture the live post-M56 baseline for `M57a: Marriage Matching & Lineage Schema`, including the Rust-owned formation seam, the single-parent lineage surfaces that must migrate together, and the concrete user questions to resolve before spec freeze.
 - **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
 - **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
 - **ERA_REGISTER A/B experiment:** Dropped (2026-03-21)
