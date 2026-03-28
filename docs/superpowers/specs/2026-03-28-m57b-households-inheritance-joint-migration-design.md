@@ -3,7 +3,7 @@
 > Date: 2026-03-28
 > Status: Approved
 > Depends on: M57a (Marriage Matching & Lineage Schema) — implemented on `m57a-marriage-lineage`
-> Baseline: M57a regression-clean (`satisfaction_mean=0.4708` on `1d306a7`); same-machine controls at `satisfaction_mean=0.4171`
+> Baseline: Same-machine `main` controls (`satisfaction_mean=0.4171`); M57b candidate compared via `ACCEPT_M57_BASELINE_EXCEPTION` policy
 
 ---
 
@@ -81,7 +81,13 @@ Matching `household_effective_wealth()` in `agent_bridge.py` for diagnostics/ana
 
 ### Insertion point
 
-Inside the sequential death-apply loop (`tick.rs:503-557`), after legacy memory transfer and before `pool.kill(slot)`. For each dying agent, inheritance transfer runs while the slot is still live.
+Inside the sequential death-apply loop (`tick.rs:503-557`), **before** DeathOfKin memory intents and legacy memory transfer, and before `pool.kill(slot)`. Inheritance transfer is the first operation on each dying agent — it needs live wealth and intact marriage bonds, and must complete before any other death-related processing.
+
+**Canonical ordering per dying agent:**
+1. `household_death_transfer` (reads wealth, finds spouse via bond, transfers)
+2. DeathOfKin memory intents (existing)
+3. Legacy memory transfer (existing)
+4. `pool.kill(slot)`
 
 ### Precompute `full_dead_ids`
 
@@ -259,11 +265,15 @@ Same pattern as relationship stats:
 
 ### Regression gates
 
-200-seed, 500-turn, `--agents hybrid`, `--parallel 24`. Absolute gate values from `validate.py`:
+200-seed, 500-turn, `--agents hybrid`, `--parallel 24`. Full absolute gate set from `validate.py:1986-1994`:
 - `satisfaction_mean`: `0.45 <= x <= 0.65`
+- `satisfaction_std`: `0.10 <= x <= 0.25`
 - `migration_rate_per_agent_turn`: `0.05 <= x <= 0.15`
 - `rebellion_rate_per_agent_turn`: `0.02 <= x <= 0.08`
-- `gini_in_range_fraction`: fraction of final Ginis in `[0.30, 0.70]`
+- `gini_in_range_fraction`: `>= 0.20` of final Ginis in `[0.30, 0.70]`
+- `occupation_ok`: all occupation shares in `(0.0, 0.70]`
+- `civ_survival_ok`: zero-survival fraction = 0.0, full-survival fraction <= 0.20
+- `treasury_ok`: negative-treasury seed count <= max(1, 30% of seeds)
 
 ### Acceptance policy: `ACCEPT_M57_BASELINE_EXCEPTION`
 
@@ -369,11 +379,11 @@ All M57b insertion points in the tick:
 4.5   spatial reset (UNCHANGED)
 5.    demographics:
         precompute full_dead_ids from all demo_results (MOVED EARLIER)
-        sequential death-apply loop:
-          NEW: household_death_transfer per dying agent (before pool.kill)
-          existing: DeathOfKin memory intents
-          existing: legacy memory transfer
-          pool.kill(slot)
+        sequential death-apply loop (per dying agent, in order):
+          1. NEW: household_death_transfer (reads wealth, finds spouse, transfers)
+          2. existing: DeathOfKin memory intents
+          3. existing: legacy memory transfer
+          4. pool.kill(slot)
         births: NEW count births_married/unmarried from BirthInfo.other_parent_id
 5.1   death_cleanup_sweep (UNCHANGED — reuses precomputed full_dead_ids)
 6+    cultural drift, conversion, memory, marriage_scan, formation_scan
