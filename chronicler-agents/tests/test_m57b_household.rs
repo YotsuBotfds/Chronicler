@@ -2,8 +2,12 @@
 
 use chronicler_agents::{AgentPool, Occupation};
 use chronicler_agents::relationships::{upsert_symmetric, BondType};
-use chronicler_agents::household::{household_effective_wealth, resolve_dependents};
-use chronicler_agents::{AGE_ADULT, PARENT_NONE};
+use chronicler_agents::household::{
+    household_effective_wealth, resolve_dependents,
+    household_death_transfer, HouseholdStats, TransferType,
+};
+use chronicler_agents::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
+use std::collections::HashSet;
 use std::collections::HashMap;
 
 fn spawn(pool: &mut AgentPool, region: u16, civ: u8, occ: Occupation, age: u16) -> usize {
@@ -115,4 +119,151 @@ fn test_resolve_dependents_excludes_married_minor() {
     let dep_index = build_dependent_index(&pool);
     let deps = resolve_dependents(&pool, parent_a, parent_b, &dep_index);
     assert_eq!(deps.len(), 0, "married minor is independent household");
+}
+
+// ─── Death Transfer (Inheritance) Tests ─────────────────────────────────────
+
+#[test]
+fn test_spouse_first_transfer() {
+    let mut pool = AgentPool::new(10);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 30);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 28);
+    pool.wealth[a] = 50.0;
+    pool.wealth[b] = 30.0;
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let dead_ids: HashSet<u32> = [pool.ids[a]].into_iter().collect();
+    let parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    let mut stats = HouseholdStats::default();
+
+    let (events, intents) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].transfer_type, TransferType::SpouseInherit);
+    assert!((events[0].amount - 50.0).abs() < 0.01);
+    assert!((pool.wealth[b] - 80.0).abs() < 0.01, "spouse got estate");
+    assert_eq!(stats.inheritance_transfers_spouse, 1);
+    // Spec: spouse DeathOfKin memory intent emitted
+    assert_eq!(intents.len(), 1, "spouse gets DeathOfKin intent");
+    assert_eq!(intents[0].agent_slot, b);
+}
+
+#[test]
+fn test_double_death_goes_to_children() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 40);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 38);
+    pool.wealth[a] = 100.0;
+    pool.wealth[b] = 60.0;
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let child1 = spawn(&mut pool, 0, 0, Occupation::Farmer, 10);
+    pool.parent_id_0[child1] = pool.ids[a];
+    pool.parent_id_1[child1] = pool.ids[b];
+    pool.wealth[child1] = 5.0;
+    let child2 = spawn(&mut pool, 0, 0, Occupation::Farmer, 8);
+    pool.parent_id_0[child2] = pool.ids[a];
+    pool.parent_id_1[child2] = pool.ids[b];
+    pool.wealth[child2] = 5.0;
+
+    let id_to_slot = build_id_to_slot(&pool);
+    let dead_ids: HashSet<u32> = [pool.ids[a], pool.ids[b]].into_iter().collect();
+    let mut parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    parent_to_children.entry(pool.ids[a]).or_default().push(child1);
+    parent_to_children.entry(pool.ids[a]).or_default().push(child2);
+    parent_to_children.entry(pool.ids[b]).or_default().push(child1);
+    parent_to_children.entry(pool.ids[b]).or_default().push(child2);
+    let mut stats = HouseholdStats::default();
+
+    // A dies: both in dead_ids, so no spouse transfer -> children split
+    let (events_a, _) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+    assert_eq!(events_a.len(), 2, "split between 2 children");
+    for e in &events_a {
+        assert_eq!(e.transfer_type, TransferType::OrphanSplit);
+        assert!((e.amount - 50.0).abs() < 0.01, "100 / 2 = 50 each");
+    }
+    assert_eq!(stats.inheritance_transfers_child, 2);
+}
+
+#[test]
+fn test_no_heirs_wealth_lost() {
+    let mut pool = AgentPool::new(10);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 50);
+    pool.wealth[a] = 200.0;
+    let id_to_slot = build_id_to_slot(&pool);
+    let dead_ids: HashSet<u32> = [pool.ids[a]].into_iter().collect();
+    let parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    let mut stats = HouseholdStats::default();
+
+    let (events, _) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+    assert!(events.is_empty(), "no heirs: wealth lost");
+}
+
+#[test]
+fn test_max_wealth_clamp_overflow_tracked() {
+    let mut pool = AgentPool::new(10);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 30);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 28);
+    pool.wealth[a] = MAX_WEALTH;
+    pool.wealth[b] = MAX_WEALTH - 10.0;
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let dead_ids: HashSet<u32> = [pool.ids[a]].into_iter().collect();
+    let parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    let mut stats = HouseholdStats::default();
+
+    let (events, _) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+    assert_eq!(events.len(), 1);
+    assert!((pool.wealth[b] - MAX_WEALTH).abs() < 0.01, "clamped to MAX_WEALTH");
+    assert!(events[0].overflow > 0.0, "overflow tracked");
+    assert!(stats.inheritance_wealth_lost > 0.0, "stat recorded");
+}
+
+#[test]
+fn test_adult_child_fallback() {
+    let mut pool = AgentPool::new(10);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 50);
+    pool.wealth[a] = 90.0;
+    let adult_child = spawn(&mut pool, 0, 0, Occupation::Soldier, AGE_ADULT + 5);
+    pool.parent_id_0[adult_child] = pool.ids[a];
+    pool.wealth[adult_child] = 10.0;
+
+    let id_to_slot = build_id_to_slot(&pool);
+    let dead_ids: HashSet<u32> = [pool.ids[a]].into_iter().collect();
+    let mut parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    parent_to_children.entry(pool.ids[a]).or_default().push(adult_child);
+    let mut stats = HouseholdStats::default();
+
+    let (events, _) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].transfer_type, TransferType::AdultChildSplit);
+    assert!((pool.wealth[adult_child] - 100.0).abs() < 0.01);
+}
+
+#[test]
+fn test_heir_eligibility_triple_check() {
+    let mut pool = AgentPool::new(10);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 50);
+    pool.wealth[a] = 100.0;
+    let child = spawn(&mut pool, 0, 0, Occupation::Farmer, 10);
+    pool.parent_id_0[child] = pool.ids[a];
+    // Child is also dying this tick
+    let dead_ids: HashSet<u32> = [pool.ids[a], pool.ids[child]].into_iter().collect();
+    let id_to_slot = build_id_to_slot(&pool);
+    let mut parent_to_children: HashMap<u32, Vec<usize>> = HashMap::new();
+    parent_to_children.entry(pool.ids[a]).or_default().push(child);
+    let mut stats = HouseholdStats::default();
+
+    let (events, _) = household_death_transfer(
+        &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
+    );
+    assert!(events.is_empty(), "child in dead_ids: not eligible");
 }
