@@ -446,6 +446,7 @@ pub fn evaluate_region_decisions(
     stats: &RegionStats,
     region_id: usize,
     rng: &mut ChaCha8Rng,
+    id_to_slot: &std::collections::HashMap<u32, usize>,  // M57b
 ) -> PendingDecisions {
     let mut pending = PendingDecisions::new();
 
@@ -503,6 +504,19 @@ pub fn evaluate_region_decisions(
         rebel_util += need_mods.rebel;
         if !is_displaced {
             migrate_util += need_mods.migrate;
+        }
+
+        // M57b: Household-effective wealth modulates migration threshold for married agents.
+        // Wealthier households are less likely to migrate (higher opportunity cost).
+        if !is_displaced {
+            let eff_wealth = crate::household::household_effective_wealth(pool, slot, id_to_slot);
+            let personal_wealth = pool.wealth[slot];
+            if eff_wealth > personal_wealth {
+                // Married with pooled wealth: dampen migration utility slightly
+                // Ratio > 1.0 means spouse has wealth; diminish by inverse sqrt of ratio
+                let ratio = eff_wealth / personal_wealth.max(0.01);
+                migrate_util *= 1.0 / ratio.sqrt();
+            }
         }
 
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
@@ -768,6 +782,7 @@ mod tests {
             stats,
             region_id,
             rng,
+            &std::collections::HashMap::new(),  // M57b: no household effect in unit tests
         )
     }
 

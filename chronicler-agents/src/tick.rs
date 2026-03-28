@@ -167,6 +167,7 @@ pub fn tick_agents(
     let pending_decisions: Vec<_> = {
         let pool_ref = &*pool;
         let stats_ref = &stats;
+        let id_to_slot_ref = &pre_decision_id_to_slot;  // M57b
         region_groups
             .par_iter()
             .enumerate()
@@ -183,6 +184,7 @@ pub fn tick_agents(
                     stats_ref,
                     region_id,
                     &mut rng,
+                    id_to_slot_ref,  // M57b
                 )
             })
             .collect()
