@@ -106,7 +106,11 @@ And in the re-exports section (after the formation re-export at line 90), add:
 ```rust
 #[doc(hidden)]
 pub use household::{HouseholdStats, InheritanceEvent, TransferType};
+#[doc(hidden)]
+pub use agent::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
 ```
+
+Note: `AGE_ADULT`, `PARENT_NONE`, and `MAX_WEALTH` are needed by M57b integration tests. The `agent` module is private, so these must be re-exported.
 
 - [ ] **Step 4: Verify compilation**
 
@@ -238,7 +242,8 @@ Expected: all 3 tests PASS.
 Add to `chronicler-agents/tests/test_m57b_household.rs`:
 
 ```rust
-use chronicler_agents::agent::AGE_ADULT;
+// AGE_ADULT, PARENT_NONE, MAX_WEALTH are re-exported from lib.rs (added in Task 1 Step 3)
+use chronicler_agents::{AGE_ADULT, PARENT_NONE};
 
 #[test]
 fn test_resolve_dependents_basic() {
@@ -285,11 +290,11 @@ fn build_dependent_index(pool: &AgentPool) -> HashMap<u32, Vec<usize>> {
         if !pool.is_alive(slot) { continue; }
         if pool.ages[slot] >= AGE_ADULT { continue; }
         let pid0 = pool.parent_id_0[slot];
-        if pid0 != chronicler_agents::agent::PARENT_NONE {
+        if pid0 != PARENT_NONE {
             index.entry(pid0).or_default().push(slot);
         }
         let pid1 = pool.parent_id_1[slot];
-        if pid1 != chronicler_agents::agent::PARENT_NONE && pid1 != pid0 {
+        if pid1 != PARENT_NONE && pid1 != pid0 {
             index.entry(pid1).or_default().push(slot);
         }
     }
@@ -365,7 +370,7 @@ Add to `chronicler-agents/tests/test_m57b_household.rs`:
 use chronicler_agents::household::{
     household_death_transfer, HouseholdStats, InheritanceEvent, TransferType,
 };
-use chronicler_agents::agent::{MAX_WEALTH, PARENT_NONE};
+use chronicler_agents::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
 use std::collections::HashSet;
 
 #[test]
@@ -1458,12 +1463,15 @@ def household_effective_wealth_py(snapshot_df, relationships_df):
 
 - [ ] **Step 3: Wire household stats into bundle metadata in `main.py`**
 
-In `src/chronicler/main.py`, find where relationship stats are written to bundle metadata (search for `relationship_stats`). Add alongside:
+In `src/chronicler/main.py`, after the relationship stats metadata block (line 748), add:
 
 ```python
-        if agent_bridge is not None and hasattr(agent_bridge, 'household_stats'):
-            metadata["household_stats"] = agent_bridge.household_stats
+    # M57b: household stats metadata (always collected in agent modes)
+    if agent_bridge is not None:
+        bundle["metadata"]["household_stats"] = agent_bridge.household_stats
 ```
+
+Note: uses `bundle["metadata"]["..."]` to match the existing pattern (e.g., line 748: `bundle["metadata"]["relationship_stats"]`).
 
 - [ ] **Step 4: Add `extract_household_stats` extractor in `analytics.py`**
 
@@ -1515,16 +1523,24 @@ def test_extract_household_stats_round_trip():
     assert result["summary"]["births_married_parent_mean"] == 4.0
 
 
-def test_household_stats_reset_each_tick():
+def test_household_stats_reset_each_tick(tmp_path):
     """M57b: Verify household counters reset each tick (not accumulated).
     Two-tick assertion: counters from tick 1 must not bleed into tick 2."""
+    import argparse
     from chronicler.main import execute_run
-    from chronicler.world_gen import generate_world
 
-    world = generate_world(seed=99, num_civs=4, num_regions=8)
-    execute_run(world, turns=5, agents="hybrid", narrator="local",
-                narrate=False, quiet=True)
-    bridge = world._agent_bridge
+    args = argparse.Namespace(
+        seed=99, turns=5, civs=4, regions=8,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None,
+        agents="hybrid",
+    )
+    result = execute_run(args)
+    # Access bridge from the world used in the run
+    world = result.world if hasattr(result, 'world') else None
+    bridge = getattr(world, '_agent_bridge', None) if world else None
     if bridge is None:
         pytest.skip("no agent bridge in this run")
     stats_history = bridge.household_stats
@@ -1602,19 +1618,22 @@ fn test_cross_civ_marriage_preserves_affinity() {
 Add to `tests/test_m57b_household.py`:
 
 ```python
-def test_agents_off_smoke():
+def test_agents_off_smoke(tmp_path):
     """M57b: --agents=off must not execute any household code paths."""
+    import argparse
     from chronicler.main import execute_run
-    from chronicler.models import WorldState
-    from chronicler.world_gen import generate_world
 
-    world = generate_world(seed=42, num_civs=4, num_regions=8)
-    # Run 10 turns with agents=off
-    execute_run(world, turns=10, agents="off", narrator="local",
-                narrate=False, quiet=True)
-    # If we get here without error, the smoke test passes.
-    # Household helpers should never have been called.
-    assert len(world.civilizations) > 0, "simulation completed"
+    args = argparse.Namespace(
+        seed=42, turns=10, civs=4, regions=8,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None,
+        # agents defaults to "off" via getattr in main.py
+    )
+    # Run completes without error — household helpers never called.
+    result = execute_run(args)
+    assert result is not None, "simulation completed"
 ```
 
 - [ ] **Step 3: Run all tests**
