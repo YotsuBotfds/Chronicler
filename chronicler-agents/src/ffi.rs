@@ -1683,6 +1683,8 @@ pub struct AgentSimulator {
     politics_config: PoliticsConfig,
     // M56b: Per-region settlement lookup grids
     settlement_grids: Vec<[u16; 100]>,
+    // M57b: household stats from last tick
+    household_stats: crate::household::HouseholdStats,
 }
 
 #[pymethods]
@@ -1722,6 +1724,7 @@ impl AgentSimulator {
             economy_config: crate::economy::EconomyConfig::default(),
             politics_config: PoliticsConfig::default(),
             settlement_grids: Vec::new(),
+            household_stats: crate::household::HouseholdStats::default(),
         }
     }
 
@@ -2293,7 +2296,7 @@ impl AgentSimulator {
         }
 
         let mut spatial_diag = crate::spatial::SpatialDiagnostics::default();
-        let (events, kin_failures, formation_stats, demo_debug) = crate::tick::tick_agents(
+        let (events, kin_failures, formation_stats, demo_debug, household_stats) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
@@ -2310,6 +2313,7 @@ impl AgentSimulator {
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
         self.formation_stats = formation_stats;
         self.demographic_debug = demo_debug;
+        self.household_stats = household_stats;
 
         // M53: demographic debug counters
         // event_type 0 = death, 5 = birth (from tick.rs AgentEvent)
@@ -2930,6 +2934,22 @@ impl AgentSimulator {
         } else { 0.0 };
         stats.insert("cross_civ_bond_fraction".into(), cross_frac);
 
+        Ok(stats)
+    }
+
+    /// M57b: Return household stats from last tick as a flat HashMap.
+    #[pyo3(name = "get_household_stats")]
+    pub fn get_household_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
+        let mut stats = std::collections::HashMap::new();
+        stats.insert("inheritance_transfers_spouse".into(), self.household_stats.inheritance_transfers_spouse as f64);
+        stats.insert("inheritance_transfers_child".into(), self.household_stats.inheritance_transfers_child as f64);
+        stats.insert("inheritance_wealth_lost".into(), self.household_stats.inheritance_wealth_lost as f64);
+        stats.insert("household_migrations_follow".into(), self.household_stats.household_migrations_follow as f64);
+        stats.insert("household_migrations_cancelled_rebellion".into(), self.household_stats.household_migrations_cancelled_rebellion as f64);
+        stats.insert("household_migrations_cancelled_catastrophe".into(), self.household_stats.household_migrations_cancelled_catastrophe as f64);
+        stats.insert("household_dependent_overrides".into(), self.household_stats.household_dependent_overrides as f64);
+        stats.insert("births_married_parent".into(), self.household_stats.births_married_parent as f64);
+        stats.insert("births_unmarried_parent".into(), self.household_stats.births_unmarried_parent as f64);
         Ok(stats)
     }
 

@@ -52,7 +52,7 @@ pub fn tick_agents(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
-) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug) {
+) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -62,6 +62,7 @@ pub fn tick_agents(
     let alive_slots: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
     crate::memory::decay_memories(pool, &alive_slots);
     let mut memory_intents: Vec<crate::memory::MemoryIntent> = Vec::with_capacity(alive_slots.len());
+    let mut household_stats = crate::household::HouseholdStats::default();
 
     // -----------------------------------------------------------------------
     // 0. Skill growth — iterate all alive agents
@@ -496,6 +497,12 @@ pub fn tick_agents(
         pmap
     };
 
+    // M57b: Precompute full dead set for inheritance eligibility.
+    let full_dead_ids: std::collections::HashSet<u32> = demo_results
+        .iter()
+        .flat_map(|(dr, _)| dr.deaths.iter().map(|&(slot, _)| pool.ids[slot]))
+        .collect();
+
     // Sequential apply: deaths, age increments, births
     let mut kin_bond_failures: u32 = 0;
     for (dr, _) in &demo_results {
@@ -510,6 +517,13 @@ pub fn tick_agents(
                 occupation: pool.occupation(slot),
                 turn,
             });
+
+            // M57b: Inheritance transfer — MUST run before DeathOfKin and pool.kill
+            let (_inheritance_events, spouse_intents) = crate::household::household_death_transfer(
+                pool, slot, &full_dead_ids, &id_to_slot, &parent_to_children,
+                &mut household_stats,
+            );
+            memory_intents.extend(spouse_intents);
 
             // M48: DeathOfKin intent for each living child of the dying agent
             let dying_agent_id = pool.ids[slot];
@@ -579,6 +593,12 @@ pub fn tick_agents(
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             pool.parent_id_0[new_slot] = birth.birth_parent_id;
             pool.parent_id_1[new_slot] = birth.other_parent_id;
+            // M57b: Count births by marital status
+            if birth.other_parent_id != crate::agent::PARENT_NONE {
+                household_stats.births_married_parent += 1;
+            } else {
+                household_stats.births_unmarried_parent += 1;
+            }
             // M50a/M57a: auto-form kin bonds to both parents
             if birth.birth_parent_id != crate::agent::PARENT_NONE {
                 if let Some(&parent_slot) = id_to_slot.get(&birth.birth_parent_id) {
@@ -656,10 +676,8 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 5.1 M50b: Death cleanup sweep — remove bonds to this tick's dead agents
     // -----------------------------------------------------------------------
-    let dead_ids: std::collections::HashSet<u32> = events.iter()
-        .filter(|e| e.event_type == 0) // event_type 0 = death
-        .map(|e| e.agent_id)
-        .collect();
+    // M57b: Reuse precomputed full_dead_ids
+    let dead_ids = &full_dead_ids;
     let mut death_dissolved_count: u32 = 0;
     if !dead_ids.is_empty() {
         let alive_slots_post_demo: Vec<usize> = (0..pool.capacity())
@@ -845,7 +863,7 @@ pub fn tick_agents(
     formation_stats.cross_faith_marriages = marriage_stats.cross_faith_marriages;
     formation_stats.same_faith_marriages = marriage_stats.same_faith_marriages;
 
-    (events, kin_bond_failures, formation_stats, demo_debug)
+    (events, kin_bond_failures, formation_stats, demo_debug, household_stats)
 }
 
 // ---------------------------------------------------------------------------
@@ -1363,7 +1381,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+        let (events, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1435,8 +1453,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
-            let (eb, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+            let (ea, _, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+            let (eb, _, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1470,7 +1488,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+        let (events, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
