@@ -8,7 +8,7 @@ const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 const PEAK_YIELD: f32 = 1.0;
 const FOOD_SHORTAGE_WEIGHT: f32 = 0.07;  // [CALIBRATE] integrated M54+M55 closeout: keep scarcity meaningful while avoiding the late-run satisfaction floor miss on the accepted runtime line.
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
-const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.30;  // [CALIBRATE] integrated M54+M55 closeout: pull more labor back toward farming before low-stockpile regions spiral into persistent food scarcity.
+const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.36;  // [CALIBRATE] M57 tuning: strengthen scarcity reallocation toward farming to stabilize food sufficiency.
 
 /// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7
 fn is_food(rtype: u8) -> bool {
@@ -107,7 +107,7 @@ pub fn compute_satisfaction(
         _ => 0.6 - (1.0 - civ_stability as f32 / 100.0) * 0.2,   // Priest
     };
 
-    let stability_bonus = civ_stability as f32 / 280.0;  // [CALIBRATE] integrated M54+M55 closeout: recover a small amount of civic-stability upside without returning to the old positive-feedback strength.
+    let stability_bonus = civ_stability as f32 / 200.0;  // [CALIBRATE] M57 tuning: stronger civic-stability upside to recover regression-floor satisfaction under stricter rebel containment.
 
     let ds_raw = demand_supply_ratio * 0.2;
     let ds_bonus = ds_raw.clamp(-0.2, 0.2);

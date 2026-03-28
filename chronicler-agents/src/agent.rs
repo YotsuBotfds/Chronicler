@@ -41,12 +41,12 @@ pub const FERTILITY_FULL_AGE_MAX: u16 = 60;   // Follow-on retune: the replaceme
 pub const FERTILITY_TAPER_AGE_MAX: u16 = 80;  // Follow-on retune: preserve viable late-run fertility without reverting to the old hard cutoff cliff.
 pub const FERTILITY_BASE_FARMER: f32 = 0.060;   // [CALIBRATE] ease late-game population pressure while preserving replacement in recovering agrarian civs.
 pub const FERTILITY_BASE_OTHER: f32 = 0.042;    // [CALIBRATE] trim non-farm growth in the same proportion so diversified civs do not outrun food recovery.
-pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.20;  // [CALIBRATE] unhappy societies should stop compounding scarcity sooner, without returning to the pre-M53 collapse regime.
+pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.26;  // [CALIBRATE] M57 tuning: tighten fertility gating to reduce sustained overcapacity pressure that drags late-run satisfaction.
 
 // Decision thresholds
 pub const REBEL_LOYALTY_THRESHOLD: f32 = 0.2;
 pub const REBEL_SATISFACTION_THRESHOLD: f32 = 0.08;
-pub const REBEL_MIN_COHORT: usize = 5;
+pub const REBEL_MIN_COHORT: usize = 6;
 pub const MIGRATE_SATISFACTION_THRESHOLD: f32 = 0.25;
 pub const OCCUPATION_SWITCH_UNDERSUPPLY: f32 = 1.5;
 // M53 follow-on retune: 0.5 made the derived 2.0x oversupply threshold
@@ -59,7 +59,7 @@ pub const LOYALTY_FLIP_THRESHOLD: f32 = 0.22;
 
 // Utility-based decision model (M32) [CALIBRATE: M47]
 // Three-tier calibration: 1) CAP ratios  2) DECISION_TEMPERATURE  3) Weights
-pub const STAY_BASE: f32 = 0.5;
+pub const STAY_BASE: f32 = 0.58;
 pub const REBEL_CAP: f32 = 1.5;
 pub const MIGRATE_CAP: f32 = 1.0;
 pub const SWITCH_CAP: f32 = 0.6;
@@ -180,9 +180,9 @@ pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
 pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability
 
 // M38b: Persecution
-pub const PERSECUTION_SAT_WEIGHT: f32 = 0.12;
-pub const PERSECUTION_REBEL_BOOST: f32 = 0.24;
-pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.16;
+pub const PERSECUTION_SAT_WEIGHT: f32 = 0.09;  // [CALIBRATE] M57 tuning: ease minority satisfaction drag while rebellion containment is enforced by decision gating.
+pub const PERSECUTION_REBEL_BOOST: f32 = 0.18;  // [CALIBRATE] M57 tuning: shift persecution response toward migration to reduce rebellion spikes without suppressing pressure release.
+pub const PERSECUTION_MIGRATE_BOOST: f32 = 0.20; // [CALIBRATE] paired with rebel-boost trim above so displaced minorities still react strongly.
 
 // M39: Parentage
 pub const PARENT_NONE: u32 = 0;                 // sentinel for no parent
@@ -198,7 +198,7 @@ pub const CONQUEST_BONUS: f32 = 3.0;        // [CALIBRATE] one-shot wealth spike
 // MERCHANT_INCOME and MERCHANT_BASELINE removed — M42 replaces with merchant_trade_income signal
 pub const SCHOLAR_INCOME: f32 = 0.20;       // [CALIBRATE] equilibrium ~10
 pub const PRIEST_INCOME: f32 = 0.20;        // [CALIBRATE] equilibrium ~10; M42 adds tithe
-pub const CLASS_TENSION_WEIGHT: f32 = 0.15; // [CALIBRATE] max penalty for poorest at Gini=1.0
+pub const CLASS_TENSION_WEIGHT: f32 = 0.11; // [CALIBRATE] M57 tuning: further soften inequality penalty to recover global satisfaction floor.
 
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
@@ -246,8 +246,8 @@ pub const BATTLE_BOLD_STAY_BOOST: f32 = 0.1;                  // [FROZEN M53 SOF
 pub const BATTLE_CAUTIOUS_MIGRATE_BOOST: f32 = 0.15;          // [FROZEN M53 SOFT]
 pub const CONQUEST_CONQUERED_MIGRATE_BOOST: f32 = 0.3;        // [FROZEN M53 SOFT]
 pub const CONQUEST_CONQUEROR_STAY_BOOST: f32 = 0.1;           // [FROZEN M53 SOFT]
-pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.10;         // [CALIBRATE] retain persecution salience without letting stale grievance dominate late decisions.
-pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.15;       // [CALIBRATE] retain flight pressure while reducing perpetual migration churn.
+pub const PERSECUTION_REBEL_BOOST_MEMORY: f32 = 0.07;         // [CALIBRATE] M57 tuning: damp long-tail rebel escalation from inherited persecution memories.
+pub const PERSECUTION_MIGRATE_BOOST_MEMORY: f32 = 0.17;       // [CALIBRATE] keep persecution memories behaviorally meaningful via migration pressure.
 pub const PROSPERITY_MIGRATE_PENALTY: f32 = 0.2;              // [FROZEN M53 SOFT]
 pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;               // [FROZEN M53 SOFT]
 pub const VICTORY_STAY_BOOST: f32 = 0.1;                      // [FROZEN M53 SOFT]
