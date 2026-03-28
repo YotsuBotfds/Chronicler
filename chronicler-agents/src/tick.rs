@@ -146,6 +146,20 @@ pub fn tick_agents(
     let stats = compute_region_stats(pool, regions, signals);
 
     // -----------------------------------------------------------------------
+    // M57b: Pre-decision id_to_slot map for household_effective_wealth and consolidation.
+    // Distinct from demographics-phase map (tick.rs ~line 455) — this one uses pre-decision alive set.
+    // -----------------------------------------------------------------------
+    let pre_decision_id_to_slot: std::collections::HashMap<u32, usize> = {
+        let mut map = std::collections::HashMap::with_capacity(pool.alive_count());
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) {
+                map.insert(pool.ids[slot], slot);
+            }
+        }
+        map
+    };
+
+    // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
     // -----------------------------------------------------------------------
     let region_groups = pool.partition_by_region(num_regions as u16);
@@ -173,6 +187,19 @@ pub fn tick_agents(
             })
             .collect()
     };
+
+    // -----------------------------------------------------------------------
+    // M57b: Household migration consolidation (post-decision, pre-apply)
+    // -----------------------------------------------------------------------
+    let mut pending_decisions = pending_decisions; // make mutable for consolidation
+    crate::household::consolidate_household_migrations(
+        pool,
+        &mut pending_decisions,
+        regions,
+        &signals.contested_regions,
+        &pre_decision_id_to_slot,
+        &mut household_stats,
+    );
 
     // -----------------------------------------------------------------------
     // 4. Apply decisions sequentially
