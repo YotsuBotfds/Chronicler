@@ -418,7 +418,7 @@ pub struct PendingDecisions {
 }
 
 impl PendingDecisions {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             rebellions: Vec::new(),
             migrations: Vec::new(),

@@ -1,10 +1,12 @@
 //! M57b Household: Integration tests for helpers, inheritance, and migration.
 
-use chronicler_agents::{AgentPool, Occupation};
+use chronicler_agents::{AgentPool, Occupation, RegionState};
 use chronicler_agents::relationships::{upsert_symmetric, BondType};
+use chronicler_agents::behavior::PendingDecisions;
 use chronicler_agents::household::{
     household_effective_wealth, resolve_dependents,
-    household_death_transfer, HouseholdStats, TransferType,
+    household_death_transfer, consolidate_household_migrations,
+    HouseholdStats, TransferType,
 };
 use chronicler_agents::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
 use std::collections::HashSet;
@@ -266,4 +268,204 @@ fn test_heir_eligibility_triple_check() {
         &mut pool, a, &dead_ids, &id_to_slot, &parent_to_children, &mut stats,
     );
     assert!(events.is_empty(), "child in dead_ids: not eligible");
+}
+
+// ─── Migration Consolidation Tests ─────────────────────────────────────────
+
+#[test]
+fn test_spouse_follows_lead_migration() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1)); // A migrates 0 -> 1
+    // B stays (no action)
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    // B should now also migrate 0 -> 1
+    assert!(pds[0].migrations.iter().any(|&(s, _, t)| s == b && t == 1),
+        "trailing spouse should follow");
+    assert_eq!(stats.household_migrations_follow, 1);
+}
+
+#[test]
+fn test_spouse_rebellion_cancels_migration() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1));
+    pds[0].rebellions.push((b, 0)); // B rebels
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    assert!(!pds[0].migrations.iter().any(|&(s, _, _)| s == a),
+        "lead migration removed");
+    assert!(pds[0].rebellions.iter().any(|&(s, _)| s == b),
+        "rebellion preserved");
+    assert_eq!(stats.household_migrations_cancelled_rebellion, 1);
+}
+
+#[test]
+fn test_catastrophe_gate_cancels_household() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[1].food_sufficiency = 0.1; // below CATASTROPHE_FOOD_THRESHOLD
+    let contested = vec![false, true]; // region 1 contested
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1));
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    assert!(pds[0].migrations.is_empty(), "catastrophe cancelled all migrations");
+    assert_eq!(stats.household_migrations_cancelled_catastrophe, 1);
+}
+
+#[test]
+fn test_dependent_follows_household() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 30);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 28);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let child = spawn(&mut pool, 0, 0, Occupation::Farmer, 10);
+    pool.parent_id_0[child] = pool.ids[a];
+    pool.parent_id_1[child] = pool.ids[b];
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1));
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    assert!(pds[0].migrations.iter().any(|&(s, _, t)| s == child && t == 1),
+        "dependent child follows");
+}
+
+#[test]
+fn test_married_minor_excluded_from_dependents() {
+    let mut pool = AgentPool::new(20);
+    let parent_a = spawn(&mut pool, 0, 0, Occupation::Farmer, 35);
+    let parent_b = spawn(&mut pool, 0, 0, Occupation::Farmer, 33);
+    upsert_symmetric(&mut pool, parent_a, parent_b, BondType::Marriage as u8, 50, 1);
+    let married_minor = spawn(&mut pool, 0, 0, Occupation::Farmer, 17);
+    pool.parent_id_0[married_minor] = pool.ids[parent_a];
+    pool.parent_id_1[married_minor] = pool.ids[parent_b];
+    let minor_spouse = spawn(&mut pool, 0, 0, Occupation::Farmer, 18);
+    upsert_symmetric(&mut pool, married_minor, minor_spouse, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((parent_a, 0, 1));
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    assert!(!pds[0].migrations.iter().any(|&(s, _, _)| s == married_minor),
+        "married minor not dragged as dependent");
+}
+
+#[test]
+fn test_both_spouses_migrate_lower_slot_leads() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![
+        RegionState::new(0),
+        RegionState::new(1),
+        RegionState::new(2),
+    ];
+    let contested = vec![false, false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1)); // A wants region 1
+    pds[0].migrations.push((b, 0, 2)); // B wants region 2
+    // Lower slot (a) should lead — both go to region 1
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    let a_dest: Vec<u16> = pds[0].migrations.iter().filter(|m| m.0 == a).map(|m| m.2).collect();
+    let b_dest: Vec<u16> = pds[0].migrations.iter().filter(|m| m.0 == b).map(|m| m.2).collect();
+    assert_eq!(a_dest, vec![1], "lead keeps destination");
+    assert_eq!(b_dest, vec![1], "trailing follows lead destination");
+}
+
+#[test]
+fn test_primary_action_invariant_after_consolidation() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 23);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let child = spawn(&mut pool, 0, 0, Occupation::Farmer, 12);
+    pool.parent_id_0[child] = pool.ids[a];
+    pool.parent_id_1[child] = pool.ids[b];
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1));
+    pds[0].occupation_switches.push((b, 3)); // B was switching
+    pds[0].rebellions.push((child, 0)); // child was rebelling
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    // Check no slot appears in more than one primary action list
+    let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    for &(s, _, _) in &pds[0].migrations { assert!(seen.insert(s), "slot {} in multiple", s); }
+    for &(s, _) in &pds[0].rebellions { assert!(seen.insert(s), "slot {} in multiple", s); }
+    for &(s, _) in &pds[0].occupation_switches { assert!(seen.insert(s), "slot {} in multiple", s); }
+}
+
+#[test]
+fn test_cancel_removes_dependent_independent_migration() {
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 30);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 28);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let child = spawn(&mut pool, 0, 0, Occupation::Farmer, 12);
+    pool.parent_id_0[child] = pool.ids[a];
+    pool.parent_id_1[child] = pool.ids[b];
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
+    let contested = vec![false, false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new(), PendingDecisions::new()];
+    pds[0].migrations.push((a, 0, 1)); // A migrates
+    pds[0].rebellions.push((b, 0)); // B rebels -> cancel
+    pds[0].migrations.push((child, 0, 2)); // child independently migrating
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    // All household migrations should be removed
+    assert!(!pds[0].migrations.iter().any(|&(s, _, _)| s == a), "lead removed");
+    assert!(!pds[0].migrations.iter().any(|&(s, _, _)| s == child), "dependent migration removed on cancel");
 }

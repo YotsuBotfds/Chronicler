@@ -100,7 +100,7 @@ pub use agent::{
 #[doc(hidden)]
 pub use agent::{URBAN_MATERIAL_SATISFACTION_BONUS, URBAN_SAFETY_SATISFACTION_PENALTY};
 #[doc(hidden)]
-pub use household::{HouseholdStats, InheritanceEvent, TransferType, household_death_transfer};
+pub use household::{HouseholdStats, InheritanceEvent, TransferType, household_death_transfer, consolidate_household_migrations};
 #[doc(hidden)]
 pub use agent::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
 
