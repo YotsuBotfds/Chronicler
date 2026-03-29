@@ -28,6 +28,7 @@ pub mod spatial;
 pub mod sort;
 pub mod economy;
 pub mod politics;
+pub mod merchant;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
