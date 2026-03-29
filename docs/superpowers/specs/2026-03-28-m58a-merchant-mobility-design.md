@@ -28,7 +28,7 @@ Make merchants physically move goods through space. This milestone implements ro
 - Disruption replan/unwind on edge invalidation (embargo, war, suspension)
 - Market attractor activation (merchant-only, idle-only)
 - Diagnostics metadata surface (9 metrics)
-- Transit-agent exclusion from behavior/stats/spatial systems; economy counts transit merchants by anchor region
+- Non-idle agent exclusion (`trip_phase != Idle`) from behavior/stats/spatial systems; economy counts non-idle merchants by origin policy
 
 ### Out-of-scope (deferred to M58b+)
 
@@ -239,7 +239,7 @@ M58a operates under **"in-flight conservation only."** Once cargo arrives (`in_t
 
 **Why 0.9:** Mobility runs before decisions queue, eliminating decision-queue conflict. Wealth at 0.5 already ran, so agents entering Loading received normal income — **documented one-turn lag by design** (merchant earned stationary income, then begins trip). Satisfaction at 1.0 reads post-mobility state.
 
-**Settlement staleness:** Transit merchants entering a new region at 0.9 have stale `settlement_id` until Pass B. Since satisfaction runs at 1.0 (between Pass A and Pass B), `is_urban` may be stale for moved merchants. This is a **known one-turn lag, identical to existing migration behavior.** No fix needed.
+**Settlement staleness:** Merchants moved during step 0.9 have stale `settlement_id` until Pass B. Since satisfaction runs at 1.0 (between Pass A and Pass B), `is_urban` may be stale for moved merchants. This is a **known one-turn lag, analogous to existing migration behavior** (which also moves agents between Pass A and Pass B). The timing exposure is new (step 0.9 vs step 4 for regular migration), but the staleness window relative to satisfaction is the same.
 
 ### Exclusion Rules by Trip Phase
 
@@ -296,7 +296,7 @@ AttractorType::Market => {
 
 **`migration_reset_position()` guard (line 643):** If `best_score <= 0.0` after scanning all attractors, fall back to `(0.5, 0.5)` center position instead of selecting a zero-scored attractor. Prevents Market (always active) from pulling zero-affinity occupations.
 
-**Transit agent grid exclusion:** Transit agents excluded from `SpatialGrid` population entirely — they don't appear as neighbors for density/repulsion calculations.
+**Non-idle agent grid exclusion:** Agents with `trip_phase != Idle` (both Loading and Transit) excluded from `SpatialGrid` population entirely — they don't appear as neighbors for density/repulsion calculations.
 
 ---
 
@@ -383,9 +383,9 @@ Merchant mobility is entirely within the agent tick. `--agents=off` skips the ag
 - Multi-turn travel: merchant departs, transits N hops, arrives — verify region updates each turn
 - Disruption replan: embargo mid-trip → merchant replans or unwinds correctly
 - Conquest unwind: region changes controller → impacted merchants unwound in correct order (identify → unwind → clear)
-- Transit exclusion: transit merchants not counted in occupation supply, behavior decisions, spatial grid
-- Economy anchor counting: transit merchants counted by origin in `tick_economy` merchant tally
-- Household skip: in-transit merchant not force-migrated by spouse
+- Non-idle exclusion: `trip_phase != Idle` agents (Loading + Transit) not counted in occupation supply, behavior decisions, spatial grid
+- Economy origin counting: Transit merchants counted by `trip_origin_region`; Loading merchants counted by current region
+- Household skip: `trip_phase != Idle` merchant not force-migrated by spouse
 
 **Transient signal tests:**
 - Any new signal crossing FFI boundary resets after consumption
@@ -411,11 +411,11 @@ Merchant mobility is entirely within the agent tick. `--agents=off` skips the ag
 
 These constraints were identified during design review and are binding on the implementation:
 
-1. **Macro leak via merchant location:** In-transit merchants excluded from `tick_economy` merchant-count by current region. Counted by `trip_origin_region` instead (`ffi.rs` merchant tally).
+1. **Macro leak via merchant location:** Non-idle merchants (`trip_phase != Idle`) excluded from `tick_economy` merchant-count by current region. Transit counted by `trip_origin_region`; Loading counted by current region (`ffi.rs` merchant tally).
 
-2. **Macro leak via occupation supply:** In-transit merchants excluded from `compute_region_stats` — all aggregates, not just occupation supply.
+2. **Macro leak via occupation supply:** Non-idle merchants excluded from `compute_region_stats` — all aggregates, not just occupation supply.
 
-3. **Household collision:** `consolidate_household_migrations()` skips agents with active trip state. Spouse-follow cannot force-move a transit merchant.
+3. **Household collision:** `consolidate_household_migrations()` skips agents with `trip_phase != Idle`. Spouse-follow cannot force-move a Loading or Transit merchant.
 
 4. **Multi-hop uses trade-allowed edges, not raw adjacency:** Merchant path graph built from adjacency + cross-civ gates (trade permission, embargo, war, suspension), not unrestricted neighbor links.
 
@@ -438,7 +438,7 @@ M58a delivers to M58b:
 - **Route-provider seam** (Arrow edge-list batch) — Python builder swappable
 - **Precomputed path tables** — BFS replaceable with weighted Dijkstra
 - **Replan trigger plumbing** — generic `replan_reason` field, only disruption enabled
-- **Transit exclusion infrastructure** — all systems check `trip_phase`
+- **Non-idle exclusion infrastructure** — all systems check `trip_phase != Idle`
 - **9 diagnostics metrics** via metadata time series
 
 M58b adds:
@@ -459,11 +459,11 @@ M58b adds:
 | `agent.rs` | Register `MERCHANT_ROUTE_STREAM_OFFSET = 1700`, add to collision-check array |
 | `pool.rs` | 9 new SoA fields for trip state |
 | `tick.rs` | Step 0.9 merchant mobility phase, exclusion guards in steps 2/3/4.5 |
-| `behavior.rs` | `compute_region_stats` excludes transit agents from all aggregates |
+| `behavior.rs` | `compute_region_stats` excludes `trip_phase != Idle` agents from all aggregates |
 | `economy.rs` | No changes (shadow ledger is separate) |
 | `ffi.rs` | Stockpile feed to `RegionState`, edge-list batch parsing, anchor-region merchant count, `get_merchant_trip_stats()` getter |
 | `region.rs` | Add `stockpile: [f32; 8]` to `RegionState` |
-| `spatial.rs` | Market attractor always-active, `update_attractor_weights` EMA, `transit_entry_position()` pub helper, `migration_reset_position()` zero-score guard, transit grid exclusion |
+| `spatial.rs` | Market attractor always-active, `update_attractor_weights` EMA, `transit_entry_position()` pub helper, `migration_reset_position()` zero-score guard, non-idle grid exclusion |
 | New: `merchant.rs` | Shadow ledger struct, route evaluation, cargo lifecycle, disruption handling |
 
 **Python:**
@@ -481,6 +481,6 @@ M58b adds:
 | File | Scope |
 |------|-------|
 | Rust unit tests | State machine, shadow ledger, BFS pathfinding, tie-breaks, reservation guard |
-| Rust integration tests | Multi-turn travel, disruption, conquest unwind, transit exclusion, anchor counting, household skip, thread-count determinism |
+| Rust integration tests | Multi-turn travel, disruption, conquest unwind, non-idle exclusion (Loading + Transit), origin counting, household skip, thread-count determinism |
 | Python integration tests | Edge-list batch construction, stockpile feed, diagnostics collection, `--agents=off` compatibility |
 | Transient signal tests | Any new cross-boundary signal resets after consumption |
