@@ -390,6 +390,7 @@ pub const URBAN_CULTURE_DRIFT_MULT: f32 = 1.08;
 pub const URBAN_CONVERSION_MULT: f32 = 1.03;
 
 // M58a: Merchant mobility constants
+pub const MARKET_WEIGHT_ALPHA: f32 = 0.3; // [CALIBRATE] EMA smoothing for market attractor
 pub const MAX_PATH_LEN: usize = 16;
 pub const TRIP_PHASE_IDLE: u8 = 0;
 pub const TRIP_PHASE_LOADING: u8 = 1;

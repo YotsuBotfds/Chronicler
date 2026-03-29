@@ -67,6 +67,10 @@ pub fn rebuild_spatial_grids(pool: &AgentPool, grids: &mut Vec<SpatialGrid>, num
     }
     for slot in 0..pool.capacity() {
         if pool.is_alive(slot) {
+            // M58a: Skip non-idle merchants from spatial grid (on trip)
+            if pool.is_on_trip(slot) {
+                continue;
+            }
             let r = pool.regions[slot] as usize;
             if r < grids.len() {
                 grids[r].insert(slot as u32, pool.x[slot], pool.y[slot]);
@@ -118,7 +122,7 @@ pub const OCCUPATION_AFFINITY: [[f32; MAX_ATTRACTORS]; OCCUPATION_COUNT] = [
     // River, Coast, Res0, Res1, Res2, Temple, Capital, Market
     [0.4, 0.1, 0.8, 0.8, 0.8, 0.05, 0.1, 0.0], // Farmer
     [0.1, 0.1, 0.1, 0.1, 0.1, 0.05, 0.7, 0.0], // Soldier
-    [0.2, 0.3, 0.3, 0.3, 0.3, 0.05, 0.5, 0.0], // Merchant
+    [0.2, 0.3, 0.3, 0.3, 0.3, 0.05, 0.5, 0.4], // Merchant — M58a: Market activated
     [0.1, 0.1, 0.1, 0.1, 0.1, 0.5, 0.5, 0.0],  // Scholar
     [0.1, 0.05, 0.05, 0.05, 0.05, 0.8, 0.3, 0.0], // Priest
 ];
@@ -261,7 +265,10 @@ pub fn init_attractors(seed: u64, region_id: u16, region: &RegionState) -> Regio
             atype: AttractorType::Capital,
             active: region.is_capital,
         },
-        // Market: never active (reserved)
+        Candidate {
+            atype: AttractorType::Market,
+            active: true, // M58a: always active, weight-driven
+        },
     ];
 
     for c in &candidates {
@@ -280,7 +287,7 @@ pub fn init_attractors(seed: u64, region_id: u16, region: &RegionState) -> Regio
             AttractorType::Resource0 | AttractorType::Resource1 | AttractorType::Resource2
             | AttractorType::Temple => interior_position(seed, region_id, disc),
             AttractorType::Capital => center_position(seed, region_id, disc),
-            AttractorType::Market => unreachable!(),
+            AttractorType::Market => interior_position(seed, region_id, disc),
         };
         att.positions[idx] = (clamp_pos(pos.0), clamp_pos(pos.1));
         att.count += 1;
@@ -391,7 +398,13 @@ pub fn update_attractor_weights(attractors: &mut RegionAttractors, region: &Regi
                 let cap = region.carrying_capacity.max(1) as f32;
                 (region.population as f32 / cap).min(1.0)
             }
-            AttractorType::Market => 0.0,
+            AttractorType::Market => {
+                let raw = (region.trade_route_count as f32 * 0.3
+                           + region.merchant_margin * 0.7)
+                           .clamp(0.0, 1.0);
+                let prev = attractors.weights[i];
+                prev + crate::agent::MARKET_WEIGHT_ALPHA * (raw - prev)
+            }
         };
         attractors.weights[i] = w.max(0.0).min(1.0);
     }
@@ -669,6 +682,11 @@ pub fn migration_reset_position(
         }
     }
 
+    // M58a: If no attractor has positive score, fall back to center
+    if best_score <= 0.0 {
+        return (0.5, 0.5);
+    }
+
     let mut rng = ChaCha8Rng::from_seed(*master_seed);
     rng.set_stream(
         agent_id as u64 * 1000
@@ -716,9 +734,27 @@ pub fn newborn_position(
     (x, y)
 }
 
-/// Compute an entry position for a merchant transiting into `to_region` from `from_region`.
-/// TODO(Task 9): Replace placeholder with proper edge-biased position based on
-/// relative region layout. Currently returns center (0.5, 0.5).
-pub fn transit_entry_position(_seed: u64, _to_region: u16, _from_region: u16) -> (f32, f32) {
-    (0.5, 0.5)
+/// Position a transit merchant at an edge entry point in the destination region,
+/// biased toward the direction they came from.
+pub fn transit_entry_position(
+    seed: u64,
+    region_id: u16,
+    from_region_id: u16,
+) -> (f32, f32) {
+    let disc = from_region_id as u64;
+    let h0 = seed
+        .wrapping_mul(0x517cc1b727220a95)
+        .wrapping_add(region_id as u64)
+        .wrapping_mul(0x6c62272e07bb0142)
+        .wrapping_add(disc);
+    let edge = (h0 % 4) as u8;
+    let h1 = h0.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
+    let frac = (h1 as f32 / u64::MAX as f32).clamp(0.1, 0.9);
+    match edge {
+        0 => (frac, 0.05),        // top edge
+        1 => (frac, 0.95),        // bottom edge
+        2 => (0.05, frac),        // left edge
+        3 => (0.95, frac),        // right edge
+        _ => (0.5, 0.5),
+    }
 }
