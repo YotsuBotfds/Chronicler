@@ -1474,7 +1474,7 @@ Add property:
         return self._merchant_trip_stats_history
 ```
 
-Add route graph sync to `tick_agents()` method (called by `simulation.py:1549,1554`). In `tick_agents()`, after `sync_regions()` and before `self._sim.tick()`:
+Add route graph sync to `tick_agents()` method (called by `simulation.py:1549,1554`). Insert immediately before `self._sim.tick(...)` in `tick_agents()` (line 801). Note: `tick_agents()` assumes `sync_regions()` was already called by the caller — do NOT add a `sync_regions()` call here:
 
 ```python
         # M58a: Build and set merchant route graph
