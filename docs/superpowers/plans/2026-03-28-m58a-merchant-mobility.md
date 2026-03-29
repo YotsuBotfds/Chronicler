@@ -55,7 +55,7 @@ pub const MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700;
 
 - [ ] **Step 2: Add to collision-check array**
 
-In the `test_stream_offsets_unique` test (around line 428), add `MERCHANT_ROUTE_STREAM_OFFSET` to the `offsets` array:
+In the `test_stream_offsets_no_collision` test (around line 428), add `MERCHANT_ROUTE_STREAM_OFFSET` to the `offsets` array:
 
 ```rust
 MERCHANT_ROUTE_STREAM_OFFSET,    // 1700
@@ -63,7 +63,7 @@ MERCHANT_ROUTE_STREAM_OFFSET,    // 1700
 
 - [ ] **Step 3: Run collision test**
 
-Run: `cargo nextest run -p chronicler-agents test_stream_offsets_unique`
+Run: `cargo nextest run -p chronicler-agents test_stream_offsets_no_collision`
 Expected: PASS (1700 is unique)
 
 - [ ] **Step 4: Commit**
@@ -1261,16 +1261,16 @@ pub fn merchant_mobility_phase(
 
 - [ ] **Step 2: Add non-idle exclusion to compute_region_stats**
 
-In `chronicler-agents/src/behavior.rs`, in `compute_region_stats()` (line 243), add a check in the per-agent loop to skip non-idle agents. Find the line where occupation supply is incremented (around line 279):
+In `chronicler-agents/src/behavior.rs`, in `compute_region_stats()` (line 243), add a check at the top of the per-agent loop (after the alive and region bounds checks at lines 255-261) to skip non-idle agents from ALL aggregates (rebel_eligible, sat_sum, pop_count, occupation_supply, civ_data):
 
 ```rust
-            // M58a: Skip non-idle merchants from region stats
-            if pool.is_on_trip(slot) {
-                continue;
-            }
+        // M58a: Skip non-idle merchants from ALL region aggregates
+        if pool.is_on_trip(slot) {
+            continue;
+        }
 ```
 
-Add this before the `occupation_supply[r][occ] += 1;` line.
+Add this at line 262 (after `if r >= n { continue; }` and before `let sat = pool.satisfaction(slot);`). This excludes non-idle agents from rebel eligibility counts, satisfaction averages, population counts, occupation supply, and civ data — matching the spec's "all aggregates" requirement.
 
 - [ ] **Step 3: Add step 0.9 to tick_agents and exclusion guards**
 
@@ -1285,7 +1285,7 @@ In `tick_agents()`, after the relationship drift step (line 103) and before sati
     // 0.9 Merchant mobility — route eval, departure, movement, arrival (M58a)
     // -----------------------------------------------------------------------
     let merchant_stats = if let Some((ref graph, ref mut ledger)) = merchant_state {
-        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger)
+        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, master_seed)
     } else {
         crate::merchant::MerchantTripStats::default()
     };
@@ -1473,7 +1473,7 @@ Add property:
         return self._merchant_trip_stats_history
 ```
 
-Add route graph sync before tick call. In the tick method, after `sync_regions()` and before `self._sim.tick()`:
+Add route graph sync to `tick_agents()` method (called by `simulation.py:1549,1554`). In `tick_agents()`, after `sync_regions()` and before `self._sim.tick()`:
 
 ```python
         # M58a: Build and set merchant route graph
@@ -1481,6 +1481,8 @@ Add route graph sync before tick call. In the tick method, after `sync_regions()
         route_batch = build_merchant_route_graph(world)
         self._sim.set_merchant_route_graph(route_batch)
 ```
+
+This is the correct call site because both hybrid mode (`simulation.py:1549`) and non-hybrid agent modes (`simulation.py:1554`) call `agent_bridge.tick_agents()`. The route graph is rebuilt each turn from current world state.
 
 - [ ] **Step 7: Wire main.py bundle metadata**
 
@@ -1676,11 +1678,11 @@ fn test_multi_turn_travel() {
     let mut ledger = ShadowLedger::new(4);
 
     // Turn 1: merchant should plan and enter Loading
-    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
     assert_eq!(pool.trip_phase[0], TRIP_PHASE_LOADING);
 
     // Turn 2: should depart (Loading → Transit) and advance one hop
-    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
     assert_eq!(pool.trip_phase[0], TRIP_PHASE_TRANSIT);
     // Should have moved from region 0
     assert_ne!(pool.regions[0], 0);
@@ -1692,15 +1694,15 @@ fn test_disruption_unwind() {
     let mut ledger = ShadowLedger::new(4);
 
     // Turn 1: start trip
-    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
     // Turn 2: depart
-    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
 
     // Turn 3: remove the edge the merchant needs — simulate embargo
     let broken_graph = RouteGraph::from_edges(
         &[0, 1], &[1, 0], &[false; 2], &[1.0; 2], 4,
     ); // Only region 0↔1 connected
-    let stats = merchant_mobility_phase(&mut pool, &regions, &broken_graph, &mut ledger);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &broken_graph, &mut ledger, 42);
 
     // Merchant should have been unwound (if destination unreachable)
     // or replanned (if still reachable via alternate route)
@@ -1726,22 +1728,32 @@ In `tests/test_merchant_mobility.py`:
 
 ```python
 """M58a: Merchant mobility integration tests."""
+import argparse
+import json
 import pytest
-from chronicler.main import execute_run, RunConfig
 
 
-def test_agents_off_unaffected():
-    """--agents=off produces identical output regardless of M58a code."""
-    config = RunConfig(
-        seed=42,
-        scenario="default",
-        turns=10,
-        agents="off",
+def _make_args(tmp_path, seed=42, turns=10, agents="off"):
+    return argparse.Namespace(
+        seed=seed, turns=turns, civs=2, regions=5,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10, llm_actions=False,
+        live=False, scenario=None, agents=agents,
+        narrator="local", agent_narrative=False,
+        pause_every=None,
     )
-    result = execute_run(config)
-    assert result is not None
-    # Verify no merchant_trip_stats in bundle when agents=off
-    bundle = result.bundle
+
+
+def test_agents_off_unaffected(tmp_path):
+    """--agents=off produces identical output regardless of M58a code."""
+    from chronicler.main import execute_run
+    args = _make_args(tmp_path, agents="off")
+    execute_run(args)
+    bundle_path = tmp_path / "chronicle_bundle.json"
+    assert bundle_path.exists()
+    bundle = json.loads(bundle_path.read_text())
+    # No merchant_trip_stats when agents=off
     assert "merchant_trip_stats" not in bundle.get("metadata", {})
 ```
 
@@ -1947,12 +1959,20 @@ git commit -m "feat(m58a): conquest/controller-change unwind for impacted mercha
 
 - [ ] **Step 1: Add merchant_trip_stats extractor**
 
-In `src/chronicler/analytics.py`, add alongside existing extractors:
+In `src/chronicler/analytics.py`, add alongside existing extractors (following the `bundles: list[dict]` convention used by `extract_stockpiles`, `extract_politics`, etc.):
 
 ```python
-def extract_merchant_trip_stats(bundle: dict) -> list[dict]:
-    """M58a: Extract per-turn merchant trip stats from bundle metadata."""
-    return bundle.get("metadata", {}).get("merchant_trip_stats", [])
+def extract_merchant_trip_stats(bundles: list[dict]) -> dict:
+    """M58a: Per-seed merchant trip stats time series.
+
+    Returns {"by_seed": {seed: [per_turn_stats_dicts]}}.
+    """
+    by_seed: dict[int, list[dict]] = {}
+    for b in bundles:
+        seed = b.get("metadata", {}).get("seed", 0)
+        stats = b.get("metadata", {}).get("merchant_trip_stats", [])
+        by_seed[seed] = stats
+    return {"by_seed": by_seed}
 ```
 
 - [ ] **Step 2: Commit**
@@ -2038,17 +2058,30 @@ fn test_thread_count_determinism() {
 Note: Full `RAYON_NUM_THREADS=1` vs `RAYON_NUM_THREADS=4` comparison should be tested at the Python integration level by running two simulations with different thread counts and comparing bundle output. Add this to the Python test file:
 
 ```python
-def test_thread_count_determinism():
+def test_thread_count_determinism(tmp_path):
     """Same seed with different thread counts produces identical merchant stats."""
     import os
+    from chronicler.main import execute_run
+
     os.environ["RAYON_NUM_THREADS"] = "1"
-    r1 = execute_run(RunConfig(seed=42, turns=20, agents="hybrid"))
+    d1 = tmp_path / "run1"
+    d1.mkdir()
+    args1 = _make_args(d1, seed=42, turns=20, agents="hybrid")
+    execute_run(args1)
+
     os.environ["RAYON_NUM_THREADS"] = "4"
-    r2 = execute_run(RunConfig(seed=42, turns=20, agents="hybrid"))
-    del os.environ["RAYON_NUM_THREADS"]
-    s1 = r1.bundle["metadata"].get("merchant_trip_stats", [])
-    s2 = r2.bundle["metadata"].get("merchant_trip_stats", [])
-    assert s1 == s2, f"Merchant stats diverge: {s1} vs {s2}"
+    d2 = tmp_path / "run2"
+    d2.mkdir()
+    args2 = _make_args(d2, seed=42, turns=20, agents="hybrid")
+    execute_run(args2)
+
+    os.environ.pop("RAYON_NUM_THREADS", None)
+
+    b1 = json.loads((d1 / "chronicle_bundle.json").read_text())
+    b2 = json.loads((d2 / "chronicle_bundle.json").read_text())
+    s1 = b1.get("metadata", {}).get("merchant_trip_stats", [])
+    s2 = b2.get("metadata", {}).get("merchant_trip_stats", [])
+    assert s1 == s2, f"Merchant stats diverge between thread counts"
 ```
 
 - [ ] **Step 3: Run tests**
