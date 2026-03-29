@@ -821,6 +821,41 @@ mod tests {
     // -------------------------------------------------------------------
 
     #[test]
+    fn test_loading_invalidation_cancels_reservation() {
+        let mut pool = AgentPool::new(5);
+        let s = pool.spawn(
+            0, 0, crate::agent::Occupation::Merchant, 20,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        let mut ledger = ShadowLedger::new(3);
+
+        // Set up merchant in Loading state with path 0→1→2
+        pool.trip_phase[s] = TRIP_PHASE_LOADING;
+        pool.trip_origin_region[s] = 0;
+        pool.trip_dest_region[s] = 2;
+        pool.trip_good_slot[s] = 0;
+        pool.trip_cargo_qty[s] = 5.0;
+        pool.trip_path[s] = {
+            let mut p = [u16::MAX; MAX_PATH_LEN];
+            p[0] = 1; p[1] = 2;
+            p
+        };
+        pool.trip_path_len[s] = 2;
+        pool.trip_path_cursor[s] = 0;
+        ledger.reserve(0, 0, 5.0);
+
+        // Graph WITHOUT edge 0→1 (invalidated)
+        let graph = RouteGraph::from_edges(
+            &[1, 2], &[2, 1], &[false; 2], &[1.0; 2], 3,
+        );
+
+        let departed = depart_merchant(&mut pool, s, &graph, &mut ledger);
+        assert!(!departed);
+        assert_eq!(pool.trip_phase[s], TRIP_PHASE_IDLE);
+        assert_eq!(ledger.reserved[0][0], 0.0);
+    }
+
+    #[test]
     fn test_conquest_unwind_loading_and_transit() {
         let mut pool = AgentPool::new(5);
         let s0 = pool.spawn(

@@ -200,3 +200,19 @@ fn test_full_trip_lifecycle() {
         "Merchant should not remain in Transit after completing a 1-hop trip"
     );
 }
+
+#[test]
+fn test_thread_count_determinism() {
+    let (mut pool1, regions1, graph1) = setup_linear_world();
+    let (mut pool2, regions2, graph2) = setup_linear_world();
+    let mut ledger1 = ShadowLedger::new(4);
+    let mut ledger2 = ShadowLedger::new(4);
+
+    let stats1 = merchant_mobility_phase(&mut pool1, &regions1, &graph1, &mut ledger1, &[0u8; 32]);
+    let stats2 = merchant_mobility_phase(&mut pool2, &regions2, &graph2, &mut ledger2, &[0u8; 32]);
+
+    assert_eq!(stats1.active_trips, stats2.active_trips);
+    assert_eq!(stats1.completed_trips, stats2.completed_trips);
+    assert_eq!(stats1.avg_trip_duration, stats2.avg_trip_duration);
+    assert_eq!(stats1.total_in_transit_qty, stats2.total_in_transit_qty);
+}

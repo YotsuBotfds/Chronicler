@@ -19,6 +19,32 @@ def _make_args(tmp_path, seed=42, turns=10, agents="off"):
     )
 
 
+def test_thread_count_determinism(tmp_path):
+    """Same seed with different thread counts produces identical merchant stats."""
+    import os
+    from chronicler.main import execute_run
+
+    os.environ["RAYON_NUM_THREADS"] = "1"
+    d1 = tmp_path / "run1"
+    d1.mkdir()
+    args1 = _make_args(d1, seed=42, turns=20, agents="hybrid")
+    execute_run(args1)
+
+    os.environ["RAYON_NUM_THREADS"] = "4"
+    d2 = tmp_path / "run2"
+    d2.mkdir()
+    args2 = _make_args(d2, seed=42, turns=20, agents="hybrid")
+    execute_run(args2)
+
+    os.environ.pop("RAYON_NUM_THREADS", None)
+
+    b1 = json.loads((d1 / "chronicle_bundle.json").read_text())
+    b2 = json.loads((d2 / "chronicle_bundle.json").read_text())
+    s1 = b1.get("metadata", {}).get("merchant_trip_stats", [])
+    s2 = b2.get("metadata", {}).get("merchant_trip_stats", [])
+    assert s1 == s2, f"Merchant stats diverge between thread counts"
+
+
 def test_agents_off_unaffected(tmp_path):
     """--agents=off produces output regardless of M58a code."""
     from chronicler.main import execute_run
