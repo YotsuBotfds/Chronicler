@@ -260,6 +260,11 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
             continue;
         }
 
+        // M58a: Skip non-idle merchants from ALL region aggregates
+        if pool.is_on_trip(slot) {
+            continue;
+        }
+
         let sat = pool.satisfaction(slot);
         let loy = pool.loyalty(slot);
         let occ = pool.occupation(slot) as usize;
@@ -456,6 +461,11 @@ pub fn evaluate_region_decisions(
 
     for &slot in slots {
         if !pool.is_alive(slot) {
+            continue;
+        }
+
+        // M58a: Skip non-idle merchants from decisions (on trip)
+        if pool.is_on_trip(slot) {
             continue;
         }
 

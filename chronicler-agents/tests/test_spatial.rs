@@ -169,7 +169,7 @@ fn test_attractor_weight_dynamics() {
 fn test_empty_region_no_attractors() {
     let region = RegionState::new(0); // all defaults
     let a = init_attractors(42, 0, &region);
-    assert_eq!(a.count, 0, "Empty region should have no attractors");
+    assert_eq!(a.count, 1, "Empty region should have 1 attractor (Market, always active)");
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn test_attractor_types_correct() {
     assert!(types.contains(&AttractorType::Capital));
     assert!(!types.contains(&AttractorType::Coast));
     assert!(!types.contains(&AttractorType::Resource2)); // yield is 0.0
-    assert!(!types.contains(&AttractorType::Market)); // always inactive
+    assert!(types.contains(&AttractorType::Market)); // M58a: always active
 }
 
 #[test]
@@ -314,12 +314,22 @@ fn test_occupation_affinity_dimensions() {
     for row in &OCCUPATION_AFFINITY {
         assert_eq!(row.len(), MAX_ATTRACTORS);
     }
-    // Market column should be 0 for all occupations
-    for row in &OCCUPATION_AFFINITY {
-        assert!(
-            (row[AttractorType::Market as usize] - 0.0).abs() < f32::EPSILON,
-            "Market affinity should be 0 for all occupations"
-        );
+    // Market column: Merchant (idx 2) has 0.4, all others have 0.0
+    let market_col = AttractorType::Market as usize;
+    for (occ_idx, row) in OCCUPATION_AFFINITY.iter().enumerate() {
+        if occ_idx == 2 {
+            // Merchant — M58a activated Market affinity
+            assert!(
+                (row[market_col] - 0.4).abs() < f32::EPSILON,
+                "Merchant Market affinity should be 0.4"
+            );
+        } else {
+            assert!(
+                (row[market_col] - 0.0).abs() < f32::EPSILON,
+                "Non-Merchant occupation {} Market affinity should be 0",
+                occ_idx
+            );
+        }
     }
 }
 
@@ -753,7 +763,7 @@ fn test_full_tick_with_spatial_determinism() {
             }
             tick_agents(
                 &mut pool, &regions, &signals, seed, turn,
-                &mut percentiles, &mut grids, &attractors, &mut diag, &[],
+                &mut percentiles, &mut grids, &attractors, &mut diag, &[], None,
             );
         }
         // Collect alive agent (id, x_bits, y_bits) for deterministic comparison

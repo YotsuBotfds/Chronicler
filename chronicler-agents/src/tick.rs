@@ -52,7 +52,8 @@ pub fn tick_agents(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
-) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats) {
+    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger)>,  // M58a
+) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -101,6 +102,30 @@ pub fn tick_agents(
     // 0.8 Relationship sentiment drift (M50a)
     // -----------------------------------------------------------------------
     crate::relationships::drift_relationships(pool, turn);
+
+    // -----------------------------------------------------------------------
+    // 0.9 Merchant mobility (M58a)
+    // -----------------------------------------------------------------------
+    // M58a: Conquest unwind before mobility — cancel trips impacted by controller change
+    let mut conquest_unwind_count: u32 = 0;
+    if let Some((_, ref mut ledger)) = merchant_state {
+        let conquered: Vec<u16> = regions
+            .iter()
+            .filter(|r| r.controller_changed_this_turn)
+            .map(|r| r.region_id)
+            .collect();
+        if !conquered.is_empty() {
+            let mut conquest_stats = crate::merchant::MerchantTripStats::default();
+            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats);
+            conquest_unwind_count = conquest_stats.unwind_count;
+        }
+    }
+    let mut merchant_stats = if let Some((graph, ref mut ledger)) = merchant_state {
+        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed)
+    } else {
+        crate::merchant::MerchantTripStats::default()
+    };
+    merchant_stats.unwind_count += conquest_unwind_count;
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
@@ -713,7 +738,7 @@ pub fn tick_agents(
             .filter(|&s| pool.is_alive(s))
             .collect();
         let (dissolution_events, removed) =
-            crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, &dead_ids, turn);
+            crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, dead_ids, turn);
         events.extend(dissolution_events);
         death_dissolved_count = removed;
     }
@@ -892,7 +917,7 @@ pub fn tick_agents(
     formation_stats.cross_faith_marriages = marriage_stats.cross_faith_marriages;
     formation_stats.same_faith_marriages = marriage_stats.same_faith_marriages;
 
-    (events, kin_bond_failures, formation_stats, demo_debug, household_stats)
+    (events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats)
 }
 
 // ---------------------------------------------------------------------------
@@ -1410,7 +1435,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+        let (events, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1438,8 +1463,8 @@ mod tests {
         for turn in 0..10 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
-            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+            tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+            tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
         }
         assert_eq!(pool_a.alive_count(), pool_b.alive_count());
     }
@@ -1482,8 +1507,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
-            let (eb, _, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+            let (ea, _, _, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+            let (eb, _, _, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1517,7 +1542,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+        let (events, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(
@@ -1553,7 +1578,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 1;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
 
         // After one tick, soldier skill should have grown (if agent survived)
         if pool.is_alive(slot) {
@@ -1577,7 +1602,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 3;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[]);
+        tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
 
         // After tick, satisfaction should differ from default 0.5
         // (healthy region with good soil/water should give decent satisfaction)

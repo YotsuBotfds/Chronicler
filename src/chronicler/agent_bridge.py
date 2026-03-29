@@ -26,6 +26,10 @@ TERRAIN_MAP = {
     "river": 0,   # Maps to plains for Rust terrain modifiers
     "hills": 0,   # Maps to plains for Rust terrain modifiers
 }
+# M58a: Fixed good slot ordering — mirrors economy.FIXED_GOODS (avoid circular import)
+_FIXED_GOODS: tuple[str, ...] = (
+    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
+)
 FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
 
 EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
@@ -410,6 +414,17 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # M55a: Spatial substrate signals
         "is_capital": pa.array(is_capital_flags, type=pa.bool_()),
         "temple_prestige": pa.array(temple_prestiges, type=pa.float32()),
+        # M58a: Per-good stockpile levels for merchant cargo availability
+        # Slot ordering matches economy.FIXED_GOODS:
+        #   0=grain, 1=fish, 2=salt, 3=timber, 4=ore, 5=botanicals, 6=precious, 7=exotic
+        **{
+            f"stockpile_{g}": pa.array(
+                [r.stockpile.goods.get(good_name, 0.0) if r.stockpile else 0.0
+                 for r in world.regions],
+                type=pa.float32(),
+            )
+            for g, good_name in enumerate(_FIXED_GOODS)
+        },
     })
 
 
@@ -738,6 +753,8 @@ class AgentBridge:
         self._relationship_stats_history: list = []
         # M57b: Household stats collection (always in agent modes)
         self._household_stats_history: list = []
+        # M58a: Merchant trip stats collection
+        self._merchant_trip_stats_history: list = []
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -783,6 +800,11 @@ class AgentBridge:
         Assumes sync_regions() was already called this turn.
         Does NOT call set_region_state() again.
         """
+        # M58a: Sync merchant route graph before tick
+        from chronicler.economy import build_merchant_route_graph
+        route_batch = build_merchant_route_graph(world)
+        self._sim.set_merchant_route_graph(route_batch)
+
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
@@ -794,6 +816,12 @@ class AgentBridge:
         Use sync_regions() + tick_agents() separately when ecology runs between them.
         """
         self.sync_regions(world)
+
+        # M58a: Sync merchant route graph before tick
+        from chronicler.economy import build_merchant_route_graph
+        route_batch = build_merchant_route_graph(world)
+        self._sim.set_merchant_route_graph(route_batch)
+
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
@@ -815,6 +843,13 @@ class AgentBridge:
             self._household_stats_history.append(h_stats)
         except Exception:
             logger.exception("Failed to collect household stats from Rust tick")
+
+        # M58a: merchant trip stats collection
+        try:
+            m_stats = self._sim.get_merchant_trip_stats()
+            self._merchant_trip_stats_history.append(m_stats)
+        except Exception:
+            pass
 
         if self._mode == "hybrid":
             self._write_back(world)
@@ -978,6 +1013,11 @@ class AgentBridge:
     def household_stats(self) -> list:
         """M57b: Per-tick household stats history."""
         return self._household_stats_history
+
+    @property
+    def merchant_trip_stats(self) -> list:
+        """M58a: Per-tick merchant trip stats history."""
+        return self._merchant_trip_stats_history
 
     def write_final_sidecar_snapshot(self, world: "WorldState") -> None:
         """Capture the true post-loop state for validation sidecars.
