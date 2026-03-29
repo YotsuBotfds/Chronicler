@@ -614,7 +614,9 @@ def _transport_cost(r1, r2, world) -> float:
     return base
 ```
 
-Note: verify `_regions_share_river` against actual river_mask semantics by reading `resources.py` river logic. The above is a placeholder — the implementation agent should check `r.river_mask` bit layout and adjacency indexing.
+- [ ] **Step 1a: Validate `_regions_share_river` against actual river_mask bit layout**
+
+The `_regions_share_river` helper above is a placeholder. Before using it, read `src/chronicler/resources.py` and `src/chronicler/world_gen.py` to understand how `river_mask` is assigned. `river_mask` is a bitmask where bit `i` indicates a river connection to region `i` (matching `adjacency_mask` layout). The correct check is whether the two regions share a river edge, not just whether either has any river. Fix the implementation to use the actual bit layout — e.g., `bool(r1.river_mask & (1 << region_name_to_idx[r2.name]))`. This step is blocking — do not proceed until the helper is correct.
 
 - [ ] **Step 2: Add edge-list parsing to merchant.rs**
 
