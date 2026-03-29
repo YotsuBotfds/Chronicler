@@ -42,6 +42,10 @@ const MIGRATION_TARGET_SOFT_CAP: f32 = 1.10;
 const MIGRATION_FOOD_SIGNAL_WEIGHT: f32 = 0.25;
 /// Neutral by default; left as an explicit hook for future migration retuning.
 const MIGRATION_SELF_RULE_BONUS: f32 = 0.0;
+/// M57b tuning: pooled household wealth dampens migration pressure for wealthy pairs.
+const HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT: f32 = 1.20;
+/// Flat risk-aversion factor for partnered households with pooled wealth.
+const HOUSEHOLD_MIGRATION_MARRIED_FACTOR: f32 = 0.88;
 
 // ---------------------------------------------------------------------------
 // Helpers — smoothstep, gumbel_argmax
@@ -513,9 +517,10 @@ pub fn evaluate_region_decisions(
             let personal_wealth = pool.wealth[slot];
             if eff_wealth > personal_wealth {
                 // Married with pooled wealth: dampen migration utility slightly
-                // Ratio > 1.0 means spouse has wealth; diminish by inverse sqrt of ratio
+                // Ratio > 1.0 means spouse has wealth; damp migration by inverse power.
                 let ratio = eff_wealth / personal_wealth.max(0.01);
-                migrate_util *= 1.0 / ratio.sqrt();
+                migrate_util *= HOUSEHOLD_MIGRATION_MARRIED_FACTOR
+                    * (1.0 / ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT));
             }
         }
 
@@ -1301,12 +1306,15 @@ mod tests {
 
     #[test]
     fn test_rebel_utility_smoothstep_cohort_gate() {
-        use crate::agent::REBEL_CAP;
-        let u_zero = super::rebel_utility(-1.0, -1.0, 3);
+        use crate::agent::{REBEL_CAP, REBEL_MIN_COHORT};
+        let edge0 = REBEL_MIN_COHORT.saturating_sub(2);
+        let edge1 = REBEL_MIN_COHORT + 3;
+
+        let u_zero = super::rebel_utility(-1.0, -1.0, edge0.saturating_sub(1));
         assert_eq!(u_zero, 0.0);
-        let u_full = super::rebel_utility(-1.0, -1.0, 8);
+        let u_full = super::rebel_utility(-1.0, -1.0, edge1);
         assert!((u_full - REBEL_CAP).abs() < 0.01);
-        let u_mid = super::rebel_utility(-1.0, -1.0, 5);
+        let u_mid = super::rebel_utility(-1.0, -1.0, REBEL_MIN_COHORT);
         assert!(u_mid > 0.0 && u_mid < REBEL_CAP);
     }
 

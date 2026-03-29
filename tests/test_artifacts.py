@@ -526,6 +526,8 @@ class TestConquestTransfers:
         assert any(e.event_type == "artifact_destroyed" for e in events)
 
     def test_portable_artifacts_transfer_on_capital_capture(self):
+        from chronicler.artifacts import PORTABLE_CAPTURE_LOSS_CHANCE
+        from chronicler.utils import stable_hash_int
         world = _make_world_with_civ()
         _make_active_artifact(world, ArtifactType.TREATISE, anchored=False, owner_civ="TestCiv")
         world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
@@ -534,8 +536,24 @@ class TestConquestTransfers:
         ))
         world.turn = 20
         events = tick_artifacts(world)
-        assert world.artifacts[0].owner_civ == "Conqueror"
-        assert any(e.event_type == "artifact_captured" for e in events)
+        roll = (
+            stable_hash_int(
+                "artifact_capture_loss",
+                world.seed,
+                world.turn,
+                "TestCiv",
+                "Conqueror",
+                "Region1",
+                world.artifacts[0].artifact_id,
+            ) % 10_000
+        ) / 10_000.0
+        if roll < PORTABLE_CAPTURE_LOSS_CHANCE:
+            assert world.artifacts[0].status == ArtifactStatus.LOST
+            assert world.artifacts[0].owner_civ is None
+            assert any(e.event_type == "artifact_lost" for e in events)
+        else:
+            assert world.artifacts[0].owner_civ == "Conqueror"
+            assert any(e.event_type == "artifact_captured" for e in events)
 
     def test_portable_artifacts_NOT_transferred_on_non_capital_conquest(self):
         world = _make_world_with_civ()
@@ -795,6 +813,49 @@ class TestGPPromotionIntent:
         emit_gp_artifact_intent(world, civ, gp)
         assert len(world._artifact_intents) == 1
         assert world._artifact_intents[0].artifact_type == ArtifactType.RELIC
+
+    def test_scientist_promotion_uses_deterministic_gate(self):
+        from chronicler.artifacts import (
+            GP_PRESTIGE_THRESHOLD,
+            GP_SCIENTIST_ARTIFACT_CHANCE,
+            emit_gp_artifact_intent,
+        )
+        from chronicler.utils import stable_hash_int
+
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = GP_PRESTIGE_THRESHOLD + 10
+        world._artifact_intents = []
+        world.turn = 42
+        world.seed = 123
+
+        gp = GreatPerson(
+            name="Sera",
+            role="scientist",
+            trait="ingenious",
+            civilization="TestCiv",
+            origin_civilization="TestCiv",
+            born_turn=42,
+        )
+
+        expected_roll = (
+            stable_hash_int(
+                "gp_scientist_artifact",
+                world.seed,
+                world.turn,
+                civ.name,
+                gp.name,
+                gp.born_turn,
+            ) % 10_000
+        ) / 10_000.0
+
+        emit_gp_artifact_intent(world, civ, gp)
+
+        if expected_roll < GP_SCIENTIST_ARTIFACT_CHANCE:
+            assert len(world._artifact_intents) == 1
+            assert world._artifact_intents[0].artifact_type == ArtifactType.TREATISE
+        else:
+            assert len(world._artifact_intents) == 0
 
     def test_exile_promotion_no_artifact(self):
         from chronicler.artifacts import GP_PRESTIGE_THRESHOLD

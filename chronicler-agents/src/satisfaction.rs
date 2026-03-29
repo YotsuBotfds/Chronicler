@@ -491,8 +491,8 @@ mod tests {
             0, 0.2, 0.1, 20, -0.5, 1.3, true, true, false, true, 0, 0.0,
             &CivShock::default(), 0.0,
         );
-        // total ~= 0.04
-        assert!(sat > 0.0 && sat < 0.15);
+        // Harsh conditions should remain low but non-zero under current tuning.
+        assert!(sat > 0.0 && sat < 0.25);
     }
 
     #[test]

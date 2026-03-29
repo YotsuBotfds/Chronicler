@@ -236,8 +236,9 @@ fn test_urban_satisfaction_material_bonus() {
     use chronicler_agents::satisfaction::{SatisfactionInputs, compute_satisfaction_with_culture};
 
     let mut base = SatisfactionInputs {
-        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
-        demand_supply_ratio: 0.5, pop_over_capacity: 0.0,
+        // Keep base sat away from clamp(1.0) so urban delta is observable.
+        occupation: 0, soil: 0.5, water: 0.5, civ_stability: 20,
+        demand_supply_ratio: 0.0, pop_over_capacity: 0.0,
         civ_at_war: false, region_contested: false,
         occ_matches_faction: false, is_displaced: false,
         trade_routes: 1, faction_influence: 0.0,

@@ -9,11 +9,14 @@ from chronicler.models import (
     Artifact, ArtifactType, ArtifactStatus,
     ArtifactIntent, ArtifactLifecycleIntent, Event,
 )
+from chronicler.utils import stable_hash_int
 
 # --- Calibration constants [FROZEN M53 SOFT] ---
 
 CULTURAL_PRODUCTION_CHANCE = 0.45
 GP_PRESTIGE_THRESHOLD = 25
+GP_SCIENTIST_ARTIFACT_CHANCE = 0.60  # [CALIBRATE M57]
+PORTABLE_CAPTURE_LOSS_CHANCE = 0.14  # [CALIBRATE M57]
 RELIC_CONVERSION_BONUS = 0.15
 PROSPERITY_STABILITY_THRESHOLD = 55
 PROSPERITY_TREASURY_THRESHOLD = 5
@@ -194,14 +197,41 @@ def _process_conquest(world, intent: ArtifactLifecycleIntent, events: list) -> N
             continue
         if not a.anchored and a.owner_civ == intent.losing_civ:
             if intent.is_capital or intent.is_full_absorption:
-                a.owner_civ = intent.gaining_civ
-                _add_history(a, f"Captured by {intent.gaining_civ} during the fall of {intent.region}, turn {world.turn}")
-                events.append(Event(
-                    turn=world.turn, event_type="artifact_captured",
-                    actors=[intent.gaining_civ, intent.losing_civ, a.name],
-                    description=f"{a.name} captured by {intent.gaining_civ}",
-                    importance=7,
-                ))
+                # M57 tuning: even portable artifacts are sometimes lost in regime-collapse chaos.
+                capture_loss_roll = (
+                    stable_hash_int(
+                        "artifact_capture_loss",
+                        world.seed,
+                        world.turn,
+                        intent.losing_civ,
+                        intent.gaining_civ,
+                        intent.region,
+                        a.artifact_id,
+                    ) % 10_000
+                ) / 10_000.0
+                if capture_loss_roll < PORTABLE_CAPTURE_LOSS_CHANCE:
+                    a.status = ArtifactStatus.LOST
+                    a.owner_civ = None
+                    _add_history(
+                        a,
+                        f"Lost during the fall of {intent.region}, turn {world.turn}",
+                    )
+                    events.append(Event(
+                        turn=world.turn,
+                        event_type="artifact_lost",
+                        actors=[intent.losing_civ, a.name],
+                        description=f"{a.name} lost during the fall of {intent.region}",
+                        importance=6,
+                    ))
+                else:
+                    a.owner_civ = intent.gaining_civ
+                    _add_history(a, f"Captured by {intent.gaining_civ} during the fall of {intent.region}, turn {world.turn}")
+                    events.append(Event(
+                        turn=world.turn, event_type="artifact_captured",
+                        actors=[intent.gaining_civ, intent.losing_civ, a.name],
+                        description=f"{a.name} captured by {intent.gaining_civ}",
+                        importance=7,
+                    ))
 
 
 def _process_civ_destruction(world, intent: ArtifactLifecycleIntent, events: list) -> None:
@@ -378,6 +408,20 @@ def emit_gp_artifact_intent(world, civ, gp) -> None:
     mapping = _GP_ROLE_TO_ARTIFACT.get(gp.role)
     if mapping is None:
         return
+    if gp.role == "scientist":
+        # M57 tuning: curb treatise overproduction while staying deterministic.
+        scientist_roll = (
+            stable_hash_int(
+                "gp_scientist_artifact",
+                world.seed,
+                world.turn,
+                civ.name,
+                gp.name,
+                gp.born_turn,
+            ) % 10_000
+        ) / 10_000.0
+        if scientist_roll >= GP_SCIENTIST_ARTIFACT_CHANCE:
+            return
 
     artifact_type, character_held = mapping
     region = gp.origin_region or civ.capital_region or (civ.regions[0] if civ.regions else "unknown")

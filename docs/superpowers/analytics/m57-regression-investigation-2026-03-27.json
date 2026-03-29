@@ -1,0 +1,80 @@
+{
+  "decision": "HOLD_ABSOLUTE_GATE_FAIL_BASELINE_SHIFT_CONFIRMED",
+  "date": "2026-03-27",
+  "candidate_report": "output/m57a/full_gate/batch_1/validate_report_full.json",
+  "control_report": "output/m57a_main_control_2026_03_27/full_gate/batch_1/validate_report_full.json",
+  "candidate_metrics": {
+    "satisfaction_mean": 0.424,
+    "satisfaction_std": 0.1393,
+    "migration_rate_per_agent_turn": 0.093362,
+    "rebellion_rate_per_agent_turn": 0.070325,
+    "gini_in_range_fraction": 0.963,
+    "occupation_ok": true
+  },
+  "control_metrics": {
+    "satisfaction_mean": 0.4171,
+    "satisfaction_std": 0.1468,
+    "migration_rate_per_agent_turn": 0.098642,
+    "rebellion_rate_per_agent_turn": 0.069242,
+    "gini_in_range_fraction": 0.9489,
+    "occupation_ok": true
+  },
+  "delta_candidate_minus_control": {
+    "satisfaction_mean": 0.0069,
+    "satisfaction_std": -0.0075,
+    "migration_rate_per_agent_turn": -0.00528,
+    "rebellion_rate_per_agent_turn": 0.001083,
+    "gini_in_range_fraction": 0.0141
+  },
+  "oracle_status": {
+    "candidate": {
+      "community": "PASS",
+      "needs": "PASS",
+      "era": "PASS",
+      "cohort": "PASS",
+      "artifacts": "PARTIAL",
+      "arcs": "PASS",
+      "determinism": "SKIP",
+      "regression": "FAIL"
+    },
+    "control": {
+      "community": "PASS",
+      "needs": "PASS",
+      "era": "PASS",
+      "cohort": "PASS",
+      "artifacts": "PARTIAL",
+      "arcs": "PASS",
+      "determinism": "SKIP",
+      "regression": "FAIL"
+    }
+  },
+  "supporting_probes": {
+    "match_fix_50": {
+      "report": "output/m57a_probe_match_fix/full_gate/batch_1/validate_report_full.json",
+      "satisfaction_mean": 0.4268
+    },
+    "no_marriage_50": {
+      "report": "output/m57a_probe_no_marriage_seq/full_gate/batch_1/validate_report_full.json",
+      "satisfaction_mean": 0.4238
+    },
+    "old_memory_50": {
+      "report": "output/m57a_probe_no_marriage_old_memory/full_gate/batch_1/validate_report_full.json",
+      "satisfaction_mean": 0.406
+    },
+    "parent0_dynasty_50": {
+      "report": "output/m57a_probe_parent0_dynasty/full_gate/batch_1/validate_report_full.json",
+      "satisfaction_mean": 0.4258
+    },
+    "social_fix_50": {
+      "report": "output/m57a_probe_social_fix/full_gate/batch_1/validate_report_full.json",
+      "satisfaction_mean": 0.4151
+    }
+  },
+  "conclusion": {
+    "absolute_gate_passes": false,
+    "baseline_shift_confirmed": true,
+    "m57a_specific_regression_confirmed": false,
+    "closeout_ready_under_current_rule": false,
+    "next_step": "Require explicit M57 adjudication policy or retune current runtime line back to absolute pass"
+  }
+}

@@ -254,10 +254,10 @@ mod tests {
 
     #[test]
     fn test_fertility_low_satisfaction() {
-        // Follow-on retune: low-satisfaction societies should need to recover above 0.20
-        // before births resume, so scarcity does not compound indefinitely.
-        assert!(fertility_rate(25, 0.20, 0, 0.8) == 0.0);
-        assert!(fertility_rate(25, 0.21, 0, 0.8) > 0.0);
+        // Keep this test tied to the live threshold constant instead of stale literals.
+        let gate = FERTILITY_SATISFACTION_THRESHOLD;
+        assert!(fertility_rate(25, gate, 0, 0.8) == 0.0);
+        assert!(fertility_rate(25, gate + 0.01, 0, 0.8) > 0.0);
     }
 
     #[test]

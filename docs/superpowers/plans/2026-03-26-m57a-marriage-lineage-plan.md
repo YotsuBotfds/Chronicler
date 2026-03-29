@@ -30,8 +30,8 @@
 | `chronicler-agents/src/agent.rs` | New constants: `MARRIAGE_CADENCE`, `MARRIAGE_RADIUS`, `MARRIAGE_STREAM_OFFSET`, `MARRIAGE_MIN_AGE`, compatibility weights. Add offset to collision test. |
 | `chronicler-agents/src/pool.rs` | Split `parent_ids` → `parent_id_0` + `parent_id_1`. Update `spawn()`, `kill()` (no-op — free-list), `to_record_batch()`, accessors. |
 | `chronicler-agents/src/relationships.rs` | `is_protected()` adds Marriage. New `get_spouse_id()` helper. |
-| `chronicler-agents/src/formation.rs` | New `marriage_scan()`, `MarriageCandidate`, `MarriageStats`, `marriage_pair_hash()`. Extract `mix_hash` to `pub`. Add marriage stats fields to `FormationStats`. |
-| `chronicler-agents/src/tick.rs` | `BirthInfo` dual-parent. Kin bond widening. Reverse-index widening. BirthOfKin for both parents. Wire `marriage_scan()` before `formation_scan()`. |
+| `chronicler-agents/src/formation.rs` | New `marriage_scan()`, `MarriageCandidate`, `marriage_pair_hash()`. Reuse existing hashing helpers without widening visibility unless needed. Add marriage diagnostics fields to `FormationStats`. |
+| `chronicler-agents/src/tick.rs` | `BirthInfo` dual-parent. Kin bond widening. Reverse-index widening. BirthOfKin for both parents. Wire `marriage_scan()` before `formation_scan()` using `signals` and post-demographics alive slots. |
 | `chronicler-agents/src/ffi.rs` | `snapshot_schema()`: `parent_id` → `parent_id_0` + `parent_id_1`. `promotions_schema()`: same. `get_promotions()`: export both parents. `get_relationship_stats()`: add marriage keys. |
 | `chronicler-agents/src/named_characters.rs` | `NamedCharacter.parent_id` → `parent_id_0` + `parent_id_1`. `register()` signature. |
 | `chronicler-agents/src/memory.rs` | `MemoryIntent` + `expected_agent_id`. `write_all_memories()` identity check. |
@@ -47,11 +47,11 @@
 | File | Responsibility |
 |------|---------------|
 | `src/chronicler/models.py` | `GreatPerson`: `parent_id` → `parent_id_0` + `parent_id_1`, add `lineage_house`, `parent_ids()` helper. |
-| `src/chronicler/agent_bridge.py` | `_process_promotions()`: read `parent_id_0`/`parent_id_1` columns. Snapshot column reads. Stats passthrough. |
+| `src/chronicler/agent_bridge.py` | `_process_promotions()`: read `parent_id_0`/`parent_id_1` columns. Snapshot column reads. Stats passthrough. Carry lineage metadata through the promotion/materialization seam. |
 | `src/chronicler/dynasties.py` | `check_promotion()`: dual-parent dynasty resolution. `compute_dynasty_legitimacy()`: either-parent direct-heir check. |
 | `src/chronicler/factions.py` | Succession candidate dict: `parent_id` → `parent_id_0` + `parent_id_1`. |
 | `src/chronicler/simulation.py` | `marriage_formed` named-character event wiring. |
-| `src/chronicler/narrative.py` | `lineage_house` name resolution in narrator context. |
+| `src/chronicler/narrative.py` | Consume resolved lineage-house context in narrator text; do not instantiate a dynasty registry here. |
 | `src/chronicler/relationships.py` | Deprecation comment on `check_marriage_formation()`. |
 
 ---
@@ -224,15 +224,15 @@ with:
 
 Run: `cargo check -p chronicler-agents 2>&1` — this will surface every compilation error from the removed field/accessor. Fix each caller:
 - `tick.rs`: `pool.parent_ids[slot]` → `pool.parent_id_0[slot]` (birth path assigns parent_id_0; reverse index reads both — addressed in Task 6)
-- `ffi.rs`: `pool.parent_ids[slot]` → `pool.parent_id_0[slot]` (promotions — addressed in Task 5)
+- `ffi.rs`: `pool.parent_ids[slot]` → `pool.parent_id_0[slot]` (promotions — addressed in Task 3)
 - Any test that uses `pool.parent_id(slot)` → `pool.parent_id_0(slot)`
 
 For now, make it compile by pointing single-parent callers at `parent_id_0`. The full dual-parent wiring happens in later tasks.
 
-- [ ] **Step 8: Run tests**
+- [ ] **Step 8: Run compile check**
 
-Run: `cargo nextest run -p chronicler-agents`
-Expected: PASS (existing tests still work with parent_id_0 carrying the birth parent)
+Run: `cargo check -p chronicler-agents`
+Expected: PASS. Full Rust test coverage resumes after Tasks 3-4 complete the FFI and named-character migration.
 
 - [ ] **Step 9: Commit**
 
@@ -442,8 +442,7 @@ Add to the existing test module in `relationships.rs` (after the `test_is_protec
         let (mut pool, slots) = setup_pool(2);
         let a = slots[0];
         let id_b = pool.ids[slots[1]];
-        upsert_directed(&mut pool, a, id_b, BondType::Marriage as u8, 50, 10);
-        pool.rel_count[a] = 1;  // upsert_directed already sets this, but be explicit
+        upsert_symmetric(&mut pool, a, slots[1], BondType::Marriage as u8, 50, 10);
         assert_eq!(get_spouse_id(&pool, a), Some(id_b));
     }
 ```
@@ -714,7 +713,6 @@ with:
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == pid {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: parent_slot,
-                            expected_agent_id: pool.ids[parent_slot],
                             event_type: crate::memory::MemoryEventType::BirthOfKin as u8,
                             source_civ: pool.civ_affinities[parent_slot],
                             intensity: crate::agent::BIRTHOFKIN_DEFAULT_INTENSITY,
@@ -803,7 +801,7 @@ pub fn write_all_memories(pool: &mut AgentPool, intents: &[MemoryIntent], turn: 
 
 Every `MemoryIntent { agent_slot: ..., ... }` in tick.rs must now include `expected_agent_id`. Search for `MemoryIntent {` and add the field. The value is `pool.ids[slot]` where `slot` is the `agent_slot`.
 
-For the BirthOfKin intents (already updated in Task 6), add:
+For the BirthOfKin intents added in Task 6, add:
 ```rust
 expected_agent_id: pool.ids[parent_slot],
 ```
@@ -831,16 +829,9 @@ git commit -m "fix(m57a): MemoryIntent identity validation prevents stale-slot m
 - Modify: `chronicler-agents/src/formation.rs` (add marriage types, `marriage_pair_hash()`, `marriage_scan()`, stats fields on `FormationStats`)
 - Modify: `chronicler-agents/src/tick.rs` (wire `marriage_scan()` before `formation_scan()`)
 
-- [ ] **Step 1: Make `mix_hash` public**
+- [ ] **Step 1: Reuse existing hashing helpers without widening visibility unless needed**
 
-In formation.rs:452, change:
-```rust
-fn mix_hash(a: u32, b: u32, c: u32) -> u64 {
-```
-to:
-```rust
-pub fn mix_hash(a: u32, b: u32, c: u32) -> u64 {
-```
+If `marriage_scan()` lives in the same module as `mix_hash()`, keep `mix_hash()` private. Only widen its visibility if another module actually needs it for deterministic ordering.
 
 - [ ] **Step 2: Add marriage stats fields to `FormationStats`**
 
@@ -953,152 +944,48 @@ fn marriage_score(pool: &AgentPool, a: usize, b: usize) -> f32 {
 
 - [ ] **Step 4: Implement `marriage_scan()`**
 
+Implement `marriage_scan()` as a separate pass in `formation.rs` with this shape:
+
 ```rust
-/// M57a: Marriage formation scan. Called once per tick BEFORE formation_scan().
-///
-/// Scored greedy matching: enumerate eligible local pairs, sort by compatibility
-/// score with deterministic tie-break, greedily accept disjoint pairs.
 pub fn marriage_scan(
     pool: &mut AgentPool,
     regions: &[RegionState],
+    signals: &TickSignals,
     turn: u32,
     alive_slots: &[usize],
-) -> FormationStats {
-    use crate::agent::*;
-    use crate::relationships::{BondType, get_spouse_id};
-
-    let mut stats = FormationStats::default();
-    let cadence_phase = turn % MARRIAGE_CADENCE;
-
-    // Bucket alive agents by region
-    let num_regions = regions.len();
-    let mut region_buckets: Vec<Vec<usize>> = vec![Vec::new(); num_regions];
-    for &slot in alive_slots {
-        let r = pool.regions[slot] as usize;
-        if r < num_regions {
-            region_buckets[r].push(slot);
-        }
-    }
-
-    for region_idx in 0..num_regions {
-        if (region_idx as u32) % MARRIAGE_CADENCE != cadence_phase {
-            continue;
-        }
-
-        let bucket = &region_buckets[region_idx];
-        if bucket.len() < 2 {
-            continue;
-        }
-
-        // Filter to eligible agents: alive, adult, unmarried
-        let eligible: Vec<usize> = bucket.iter().copied().filter(|&slot| {
-            pool.ages[slot] >= MARRIAGE_MIN_AGE
-                && get_spouse_id(pool, slot).is_none()
-        }).collect();
-
-        if eligible.len() < 2 {
-            continue;
-        }
-
-        // Enumerate eligible pairs, apply gates, score
-        let mut candidates: Vec<MarriageCandidate> = Vec::new();
-
-        for i in 0..eligible.len() {
-            let a = eligible[i];
-            let civ_a = pool.civ_affinities[a];
-
-            for j in (i + 1)..eligible.len() {
-                let b = eligible[j];
-                stats.marriage_pairs_evaluated += 1;
-
-                // Spatial distance gate
-                let dx = pool.x[a] - pool.x[b];
-                let dy = pool.y[a] - pool.y[b];
-                let dist_sq = dx * dx + dy * dy;
-                if dist_sq > MARRIAGE_RADIUS * MARRIAGE_RADIUS {
-                    stats.marriage_pairs_rejected_distance += 1;
-                    continue;
-                }
-
-                // Hostile/war gate
-                let civ_b = pool.civ_affinities[b];
-                if civ_a != civ_b {
-                    let r = &regions[region_idx];
-                    let hostile = r.hostile_pairs.iter().any(|&(x, y)| {
-                        (x == civ_a && y == civ_b) || (x == civ_b && y == civ_a)
-                    });
-                    if hostile {
-                        stats.marriage_pairs_rejected_hostile += 1;
-                        continue;
-                    }
-                }
-
-                // Incest gates
-                if is_parent_child(pool, a, b) || shares_parent(pool, a, b) {
-                    stats.marriage_pairs_rejected_incest += 1;
-                    continue;
-                }
-
-                let score = marriage_score(pool, a, b);
-                let hash = marriage_pair_hash(turn, region_idx as u32, pool.ids[a], pool.ids[b]);
-                candidates.push(MarriageCandidate { slot_a: a, slot_b: b, score, hash });
-            }
-        }
-
-        // Sort: highest score first, then hash for tie-break
-        candidates.sort_by(|a, b| {
-            b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.hash.cmp(&b.hash))
-        });
-
-        // Greedy accept: disjoint pairs only
-        let mut matched: std::collections::HashSet<usize> = std::collections::HashSet::new();
-        for cand in &candidates {
-            if matched.contains(&cand.slot_a) || matched.contains(&cand.slot_b) {
-                continue;
-            }
-
-            // Commit marriage bond
-            let ok = crate::relationships::upsert_symmetric(
-                pool, cand.slot_a, cand.slot_b,
-                BondType::Marriage as u8, 50, turn as u16,
-            );
-            if ok {
-                matched.insert(cand.slot_a);
-                matched.insert(cand.slot_b);
-                stats.marriages_formed += 1;
-
-                // Track cross-civ / cross-faith
-                let same_civ = pool.civ_affinities[cand.slot_a] == pool.civ_affinities[cand.slot_b];
-                if same_civ { stats.same_civ_marriages += 1; } else { stats.cross_civ_marriages += 1; }
-                let same_faith = pool.beliefs[cand.slot_a] == pool.beliefs[cand.slot_b];
-                if same_faith { stats.same_faith_marriages += 1; } else { stats.cross_faith_marriages += 1; }
-            }
-        }
-    }
-
-    stats
-}
+) -> FormationStats
 ```
 
-**Note on hostile/war check:** `RegionState` does not have a `hostile_pairs` field. War status comes from `CivSignals.is_at_war` (per-civ boolean) in `TickSignals`. The `marriage_scan()` signature must take `signals: &TickSignals` as an additional parameter. For cross-civ pairs, the hostile check should be: if either civ `is_at_war`, reject the cross-civ pair. This is slightly more restrictive than "not at war with each other specifically" but pair-level war targets are not available in Rust signals. A future refinement can add pair-level war data if needed. Update the hostile check in the code above from `r.hostile_pairs.iter()...` to:
-```rust
-                // Hostile/war gate: if either civ is at war, reject cross-civ pair
-                let civ_b = pool.civ_affinities[b];
-                if civ_a != civ_b {
-                    let a_at_war = signals.civs.iter()
-                        .find(|c| c.civ_id == civ_a)
-                        .map_or(false, |c| c.is_at_war);
-                    let b_at_war = signals.civs.iter()
-                        .find(|c| c.civ_id == civ_b)
-                        .map_or(false, |c| c.is_at_war);
-                    if a_at_war || b_at_war {
-                        stats.marriage_pairs_rejected_hostile += 1;
-                        continue;
-                    }
-                }
-```
-Also update the `marriage_scan()` signature and the call site in `tick_agents()` to pass `signals`.
+Implementation checklist:
+
+1. Bucket the provided `alive_slots` by region, following the same region cadence rule as the spec:
+   `region_idx % MARRIAGE_CADENCE == turn % MARRIAGE_CADENCE`.
+2. Treat `alive_slots` here as the post-demographics alive list from `tick_agents()`, not the tick-start snapshot.
+3. Filter eligible agents to:
+   - `pool.ages[slot] >= MARRIAGE_MIN_AGE`
+   - no existing `Marriage` bond via `get_spouse_id(pool, slot).is_none()`
+4. Enumerate local pairs inside each on-cadence region bucket.
+5. Reject pairs by:
+   - distance (`MARRIAGE_RADIUS`)
+   - incest (`is_parent_child()` or `shares_parent()` using both parent slots)
+   - cross-civ war/hostility proxy: for `civ_a != civ_b`, reject if either civ's `CivSignals.is_at_war` is true
+6. Score remaining pairs with:
+   - same-civ bonus
+   - same-belief bonus only when both beliefs are non-`BELIEF_NONE`
+   - cross-faith penalty only when both beliefs are non-`BELIEF_NONE` and differ
+   - cultural-value match bonuses
+   - capped spatial closeness bonus
+7. Create `MarriageCandidate { slot_a, slot_b, score, hash }` using `marriage_pair_hash()` as the deterministic tie-break.
+8. Sort by descending score, then ascending pair hash.
+9. Greedily accept only disjoint pairs, committing via `upsert_symmetric(... BondType::Marriage ...)`.
+10. Populate only the marriage-related fields on `FormationStats`; the general formation counters remain at their default values in this pass.
+11. For `same_faith_marriages` / `cross_faith_marriages`, only count marriages where both beliefs are non-`BELIEF_NONE`.
+
+Implementation notes:
+
+- Do **not** reference a nonexistent `RegionState.hostile_pairs`.
+- Use `signals: &TickSignals` to read `CivSignals.is_at_war`.
+- Keep the pass deterministic without consuming `MARRIAGE_STREAM_OFFSET`; the offset stays reserved in `agent.rs` for future use.
 
 - [ ] **Step 5: Wire `marriage_scan()` in `tick_agents()`**
 
@@ -1106,7 +993,7 @@ In `tick_agents()` (tick.rs), find where `formation_scan()` is called. Before th
 
 ```rust
     // M57a: Marriage scan runs BEFORE general formation
-    let marriage_stats = crate::formation::marriage_scan(pool, regions, turn, &alive_slots);
+    let marriage_stats = crate::formation::marriage_scan(pool, regions, signals, turn, &post_alive);
 ```
 
 After `formation_scan()` returns, merge the marriage stats:
@@ -1451,6 +1338,7 @@ git commit -m "feat(m57a): succession candidate dict dual-parent fields"
 ## Task 14: Narrative & Events — Marriage Formed + Lineage Context
 
 **Files:**
+- Modify: `src/chronicler/agent_bridge.py` (promotion/materialization seam for lineage-house display context, if needed)
 - Modify: `src/chronicler/simulation.py:1631-1645` (rivalry_formed block)
 - Modify: `src/chronicler/narrative.py` (lineage house context)
 - Modify: `src/chronicler/relationships.py` (deprecation comment)
@@ -1469,30 +1357,27 @@ Find the `rivalry_formed` block (simulation.py:1631-1645). After it, add an anal
                 if gp_a and gp_b:
                     turn_events.append(Event(
                         turn=world.turn, event_type="marriage_formed",
-                        actors=[gp_a.civilization, gp_b.civilization],
+                        actors=[gp_a.name, gp_b.name],
                         description=f"A marriage is forged between {gp_a.name} and {gp_b.name}.",
                         importance=6,
+                        source="agent",
                     ))
 ```
 
-- [ ] **Step 2: Add lineage house resolution in narrative context**
+Mirror the `rivalry_formed` plumbing, but keep the event character-centered: use great-person names as actors, and preserve whatever edge deduping rule the existing new-edge path already relies on for symmetric bonds.
 
-In `narrative.py`, find where GreatPerson context is assembled for narration. When `gp.lineage_house != 0`, resolve the dynasty name and include it:
+- [ ] **Step 2: Add lineage house resolution at the promotion/materialization seam, then surface it in narrative context**
 
-```python
-        # M57a: Secondary lineage context
-        if hasattr(gp, 'lineage_house') and gp.lineage_house:
-            # Resolve lineage_house dynasty_id to house name
-            from chronicler.dynasties import DynastyRegistry
-            # The dynasty registry is available via the bridge or world state
-            # Look up the dynasty name for lineage_house
-            for dynasty in dynasty_registry.dynasties:
-                if dynasty.dynasty_id == gp.lineage_house:
-                    context_parts.append(f"lineage ties to the House of {dynasty.founder_name}")
-                    break
-```
+Do **not** instantiate or import a fresh `DynastyRegistry` inside `narrative.py`.
 
-The implementation agent must find the exact insertion point by reading `narrative.py`'s GreatPerson context assembly. The key: resolve `lineage_house` to a dynasty name, append it to the narrator context string.
+Instead:
+
+1. At a seam that already has access to the live dynasty registry (prefer `AgentBridge._process_promotions()` and/or the simulation-side context assembly that already uses `agent_bridge.dynasty_registry`), resolve `gp.lineage_house` to a dynasty/house display name.
+2. Pass that resolved context into the narrator-facing GreatPerson context.
+3. In `narrative.py`, only consume the resolved lineage text/name and append phrasing like:
+   - `"with lineage ties to the House of X"`
+
+Keep the language parent-neutral. Do not introduce `mother` / `father` wording, because the model tracks parent slots, not gendered parent roles.
 
 - [ ] **Step 3: Add deprecation comment on `check_marriage_formation()` in relationships.py**
 
@@ -1513,7 +1398,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/chronicler/simulation.py src/chronicler/narrative.py src/chronicler/relationships.py
+git add src/chronicler/agent_bridge.py src/chronicler/simulation.py src/chronicler/narrative.py src/chronicler/relationships.py
 git commit -m "feat(m57a): marriage_formed events, lineage narration, legacy code freeze"
 ```
 
@@ -1522,7 +1407,7 @@ git commit -m "feat(m57a): marriage_formed events, lineage narration, legacy cod
 ## Task 15: Python Tests — Dynasty, Legitimacy, Schema
 
 **Files:**
-- Modify: `tests/test_dynasties.py`, `tests/test_m51_regnal.py`, `tests/test_agent_bridge.py`
+- Modify: `tests/test_dynasties.py`, `tests/test_m51_regnal.py`, `tests/test_agent_bridge.py`, `tests/test_relationships.py` (or the existing `--agents=off` smoke-test file if that is a better fit)
 
 - [ ] **Step 1: Update `test_dynasties.py` for dual-parent resolution**
 
@@ -1545,11 +1430,11 @@ Use the existing `compute_dynasty_legitimacy()` test pattern.
 
 - [ ] **Step 3: Add `--agents=off` smoke test**
 
-Add a test that runs a short simulation with `--agents=off` and verifies:
-- No marriages formed (check relationship stats)
-- All `parent_id_1` values are `PARENT_NONE` (0)
-- All `lineage_house` values are 0
+Prefer extending the existing aggregate-mode / empty-relationships coverage in `tests/test_relationships.py` (or whichever current `--agents=off` smoke-test file is the closest fit). Add a test that runs a short simulation with `--agents=off` and verifies:
 - No `marriage_formed` events emitted
+- No marriage-derived relationship surface appears in aggregate mode
+- Any emitted/promoted records keep `parent_id_1 == 0`
+- Any emitted/promoted records keep `lineage_house == 0`
 
 - [ ] **Step 4: Fix any broken test fixtures**
 
@@ -1582,9 +1467,8 @@ git commit -m "test(m57a): dual-parent dynasty, legitimacy, and schema migration
 In `determinism.rs`, add a test that runs a multi-turn simulation twice with identical seed and verifies:
 - Same marriages formed
 - Same `parent_id_0`/`parent_id_1` assignments
-- Same dynasty assignments
 
-Follow the existing determinism test pattern in that file.
+Follow the existing determinism test pattern in that file, including a thread-count variant if that file already checks multi-thread determinism. Dynasty assignment remains Python-owned and should be covered by the Python test suite, not the Rust determinism test.
 
 - [ ] **Step 2: Run full Rust test suite**
 
@@ -1598,7 +1482,7 @@ Expected: PASS
 
 - [ ] **Step 4: Run a short smoke-test simulation**
 
-Run: `python -m chronicler.main --seed 42 --turns 50 --agents hybrid 2>&1 | tail -20`
+Run: `python -m chronicler.main --seed 42 --turns 50 --agents hybrid`
 Expected: Runs to completion without errors. Check output for marriage-related stats.
 
 - [ ] **Step 5: Commit**

@@ -749,7 +749,10 @@ def execute_run(
 
     # M57b: household stats metadata (always collected in agent modes)
     if agent_bridge is not None:
-        bundle["metadata"]["household_stats"] = agent_bridge.household_stats
+        household_stats = getattr(agent_bridge, "household_stats", [])
+        if not isinstance(household_stats, list):
+            household_stats = []
+        bundle["metadata"]["household_stats"] = household_stats
 
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)

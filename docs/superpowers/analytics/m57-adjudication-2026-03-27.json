@@ -1,0 +1,130 @@
+{
+  "metadata": {
+    "generated_utc": "2026-03-27T22:49:41.962210+00:00",
+    "hostname": "DESKTOP-98334VU",
+    "platform": "Windows-11-10.0.22631-SP0",
+    "python_version": "3.14.3",
+    "python_executable": "C:\\Users\\tateb\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+    "cwd": "C:\\Users\\tateb\\Documents\\opusprogram",
+    "git_head": "c1e7e261dcc07ad08142c3200d476b27dba1737a"
+  },
+  "decision": "REJECT_DIVERGENCE",
+  "candidate": {
+    "name": "candidate",
+    "path": "output\\m57a\\full_gate\\batch_1\\validate_report_full.json",
+    "core_oracles_ok": false,
+    "regression": {
+      "status": "FAIL",
+      "satisfaction_mean": 0.424,
+      "satisfaction_std": 0.1393,
+      "migration_rate_per_agent_turn": 0.093362,
+      "rebellion_rate_per_agent_turn": 0.070325,
+      "gini_in_range_fraction": 0.963,
+      "occupation_ok": true
+    },
+    "determinism_status": "SKIP"
+  },
+  "controls": [
+    {
+      "name": "control_1",
+      "path": "output\\m57a_main_control_2026_03_27\\full_gate\\batch_1\\validate_report_full.json",
+      "core_oracles_ok": false,
+      "regression": {
+        "status": "FAIL",
+        "satisfaction_mean": 0.4171,
+        "satisfaction_std": 0.1468,
+        "migration_rate_per_agent_turn": 0.098642,
+        "rebellion_rate_per_agent_turn": 0.069242,
+        "gini_in_range_fraction": 0.9489,
+        "occupation_ok": true
+      },
+      "determinism_status": "SKIP"
+    },
+    {
+      "name": "control_2",
+      "path": "output\\m57a_main_control_2026_03_27_run2\\full_gate\\batch_1\\validate_report_full.json",
+      "core_oracles_ok": false,
+      "regression": {
+        "status": "FAIL",
+        "satisfaction_mean": 0.4171,
+        "satisfaction_std": 0.1468,
+        "migration_rate_per_agent_turn": 0.098642,
+        "rebellion_rate_per_agent_turn": 0.069242,
+        "gini_in_range_fraction": 0.9489,
+        "occupation_ok": true
+      },
+      "determinism_status": "SKIP"
+    },
+    {
+      "name": "control_3",
+      "path": "output\\m57a_main_control_2026_03_27_run3\\full_gate\\batch_1\\validate_report_full.json",
+      "core_oracles_ok": false,
+      "regression": {
+        "status": "FAIL",
+        "satisfaction_mean": 0.4171,
+        "satisfaction_std": 0.1468,
+        "migration_rate_per_agent_turn": 0.098642,
+        "rebellion_rate_per_agent_turn": 0.069242,
+        "gini_in_range_fraction": 0.9489,
+        "occupation_ok": true
+      },
+      "determinism_status": "SKIP"
+    }
+  ],
+  "accepted_baseline": null,
+  "control_mean": {
+    "satisfaction_mean": 0.4171,
+    "migration_rate_per_agent_turn": 0.098642,
+    "rebellion_rate_per_agent_turn": 0.069242,
+    "gini_in_range_fraction": 0.9489
+  },
+  "control_spread": {
+    "satisfaction_mean": 0.0,
+    "migration_rate_per_agent_turn": 0.0,
+    "rebellion_rate_per_agent_turn": 0.0,
+    "gini_in_range_fraction": 0.0
+  },
+  "candidate_delta_vs_control_mean": {
+    "satisfaction_mean": 0.006899999999999962,
+    "migration_rate_per_agent_turn": -0.005279999999999993,
+    "rebellion_rate_per_agent_turn": 0.0010830000000000006,
+    "gini_in_range_fraction": 0.014100000000000001
+  },
+  "tolerances": {
+    "satisfaction_delta_max": 0.005,
+    "migration_delta_max": 0.001,
+    "rebellion_delta_max": 0.001,
+    "gini_delta_max": 0.005
+  },
+  "checks": {
+    "controls_core_ok": false,
+    "controls_floor_only": true,
+    "candidate_core_ok": false,
+    "candidate_floor_only": true,
+    "candidate_absolute_pass": false,
+    "candidate_control_matched": false
+  },
+  "proposed_m57_policy": {
+    "name": "ACCEPT_M57_BASELINE_EXCEPTION",
+    "requirements": {
+      "same_machine_control_runs": 3,
+      "same_oracle_status_vector_as_controls": true,
+      "occupation_ok_required": true,
+      "candidate_satisfaction_not_below_control_mean": true,
+      "rebellion_delta_max_if_worse": 0.002,
+      "migration_delta_max_if_worse": 0.003,
+      "gini_delta_min_if_worse": -0.01,
+      "probe_evidence_required": true
+    },
+    "candidate_evaluation": {
+      "oracle_status_vector_match": true,
+      "occupation_ok": true,
+      "satisfaction_delta_vs_control_mean": 0.006899999999999962,
+      "rebellion_delta_vs_control_mean": 0.0010830000000000006,
+      "migration_delta_vs_control_mean": -0.005279999999999993,
+      "gini_delta_vs_control_mean": 0.014100000000000001,
+      "probe_evidence_supports_exception": true,
+      "qualifies_if_policy_is_adopted": true
+    }
+  }
+}

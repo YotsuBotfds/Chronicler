@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-28 (M57b households, inheritance & joint migration implemented on `m57a-marriage-lineage`; 200-seed regression pending)
+> **Last updated:** 2026-03-28 (M57b tuned 200-seed run completed at `output/m57b_tuned_v5/full_gate/batch_1`; all active gates PASS, determinism SKIP)
 
 ---
 
@@ -349,7 +349,28 @@
   - `agent_bridge.py`: `_household_stats_history`, collection in `_process_tick_results()`, `household_effective_wealth_py` parity helper.
   - `analytics.py`: `extract_household_stats()` extractor.
   - `main.py`: household stats in bundle metadata.
-- **Regression:** 200-seed regression pending.
+- **Regression status (2026-03-28):** canonical 200-seed/500-turn full gate completed at `output/m57b/full_gate/batch_1` with `--parallel 24`. Oracles: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PARTIAL`, `arcs FAIL`, `determinism SKIP` (no duplicate seed pairs), `regression PASS`. Regression metrics: `satisfaction_mean=0.4786`, `satisfaction_std=0.1441`, `migration_rate=0.113802`, `rebellion_rate=0.063411`, `gini_in_range_fraction=0.986`, `occupation_ok=true`.
+- **Oracle details:** `arcs FAIL` due `icarus` dominance `0.43662` (> `0.40` cap). `artifacts PARTIAL` because `type_diversity_ok=false` and `loss_destruction_rate_ok=false` (`0.08198` vs required `[0.10, 0.30]`), while creation-rate check still passes (`1.8725` artifacts per civ per 100 turns).
+- **Policy check note:** compared against control means pinned in `docs/superpowers/analytics/m57-adjudication-2026-03-27.json` (`satisfaction_mean=0.4171`, `migration_rate=0.098642`, `rebellion_rate=0.069242`, `gini_in_range_fraction=0.9489`), M57b deltas are `+0.0615`, `+0.015160`, `-0.005831`, `+0.0371` respectively; the oracle status vector also differs because `arcs` is now `FAIL`.
+- **Tuning follow-up (2026-03-28):**
+  - Artifact tuning:
+    - `src/chronicler/artifacts.py`: deterministic scientist promotion gate (`GP_SCIENTIST_ARTIFACT_CHANCE=0.60`) to diversify artifact mix.
+    - `src/chronicler/artifacts.py`: deterministic portable-artifact conquest loss path (`PORTABLE_CAPTURE_LOSS_CHANCE=0.14`) to raise `LOST/DESTROYED` rate into oracle range.
+  - Household migration tuning:
+    - `chronicler-agents/src/behavior.rs`: household wealth damping switched from inverse-sqrt only to inverse-power plus a flat household factor:
+      - `HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT=1.20`
+      - `HOUSEHOLD_MIGRATION_MARRIED_FACTOR=0.88`
+    - This reduced arc dominance pressure while keeping regression means within gate bounds.
+  - Windows FFI hygiene:
+    - `pip install -e .\\chronicler-agents\\ --force-reinstall` was required repeatedly to avoid stale `.pyd` reuse during tuning probes.
+  - Probe confidence run:
+    - `output/m57b_tune_probe10_exp120_f88_t500_s80/oracle_subset/batch_1` -> all active subset gates `PASS` (`determinism SKIP`).
+- **Final regression status (2026-03-28):** canonical 200-seed/500-turn full gate rerun completed at `output/m57b_tuned_v5/full_gate/batch_1` with `--parallel 24`. Oracles: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `determinism SKIP` (no duplicate seed pairs), `regression PASS`.
+- **Final metrics (m57b_tuned_v5):**
+  - Regression: `satisfaction_mean=0.4507`, `satisfaction_std=0.149`, `migration_rate=0.099566`, `rebellion_rate=0.059994`, `gini_in_range_fraction=0.9909`, `occupation_ok=true`.
+  - Arcs: `icarus=0.371779` (below `0.40` cap), all required families present.
+  - Artifacts: `creation_rate=1.45975` per civ/100 turns, `loss_destruction_rate=0.132214`, `type_diversity_ok=true`.
+- **Updated policy check note:** against control means (`0.4171`, `0.098642`, `0.069242`, `0.9489`), final deltas are `+0.0336`, `+0.000924`, `-0.009248`, `+0.0420` (sat/migration/rebellion/gini).
 
 ---
 
