@@ -608,7 +608,7 @@ def _transport_cost(r1, r2, world) -> float:
     if r1.terrain == "coast" or r2.terrain == "coast":
         base *= 0.6  # coastal discount
     # Winter modifier
-    from chronicler.ecology import get_season_id
+    from chronicler.resources import get_season_id
     if get_season_id(world.turn) == 3:  # Winter
         base *= 1.5
     return base
@@ -981,7 +981,7 @@ pub fn apply_trip_intent(
 /// Advance a Transit merchant one hop along their path.
 /// Updates region and spatial position via transit_entry_position.
 /// Returns the new region, or None if arrived.
-pub fn advance_one_hop(pool: &mut AgentPool, slot: usize, master_seed: u64) -> Option<u16> {
+pub fn advance_one_hop(pool: &mut AgentPool, slot: usize, master_seed: &[u8; 32]) -> Option<u16> {
     let cursor = pool.trip_path_cursor[slot] as usize;
     let len = pool.trip_path_len[slot] as usize;
     if cursor >= len { return None; } // already at destination
@@ -993,7 +993,8 @@ pub fn advance_one_hop(pool: &mut AgentPool, slot: usize, master_seed: u64) -> O
     pool.trip_turns_elapsed[slot] += 1;
 
     // Set spatial position at edge entry point
-    let (x, y) = crate::spatial::transit_entry_position(master_seed, next_region, from_region);
+    let seed_u64 = u64::from_le_bytes(master_seed[..8].try_into().unwrap());
+    let (x, y) = crate::spatial::transit_entry_position(seed_u64, next_region, from_region);
     pool.x[slot] = x;
     pool.y[slot] = y;
 
@@ -1143,7 +1144,7 @@ pub fn merchant_mobility_phase(
     regions: &[RegionState],
     graph: &RouteGraph,
     ledger: &mut ShadowLedger,
-    master_seed: u64,
+    master_seed: &[u8; 32],
 ) -> MerchantTripStats {
     let mut stats = MerchantTripStats::default();
     let cap = pool.capacity();
@@ -1285,7 +1286,7 @@ In `tick_agents()`, after the relationship drift step (line 103) and before sati
     // 0.9 Merchant mobility — route eval, departure, movement, arrival (M58a)
     // -----------------------------------------------------------------------
     let merchant_stats = if let Some((ref graph, ref mut ledger)) = merchant_state {
-        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, master_seed)
+        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed)
     } else {
         crate::merchant::MerchantTripStats::default()
     };
@@ -1482,7 +1483,16 @@ Add route graph sync to `tick_agents()` method (called by `simulation.py:1549,15
         self._sim.set_merchant_route_graph(route_batch)
 ```
 
-This is the correct call site because both hybrid mode (`simulation.py:1549`) and non-hybrid agent modes (`simulation.py:1554`) call `agent_bridge.tick_agents()`. The route graph is rebuilt each turn from current world state.
+This is the primary call site because both hybrid mode (`simulation.py:1549`) and non-hybrid agent modes (`simulation.py:1554`) call `agent_bridge.tick_agents()`. The route graph is rebuilt each turn from current world state.
+
+Also add the same graph sync to the `tick()` compatibility wrapper (`agent_bridge.py:804`), which is used by test harnesses (`test_agent_bridge.py`, `test_m50a_relationships.py`). Add the same two lines after `self.sync_regions(world)` (line 809):
+
+```python
+        # M58a: Build and set merchant route graph
+        from chronicler.economy import build_merchant_route_graph
+        route_batch = build_merchant_route_graph(world)
+        self._sim.set_merchant_route_graph(route_batch)
+```
 
 - [ ] **Step 7: Wire main.py bundle metadata**
 
@@ -1678,11 +1688,11 @@ fn test_multi_turn_travel() {
     let mut ledger = ShadowLedger::new(4);
 
     // Turn 1: merchant should plan and enter Loading
-    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
     assert_eq!(pool.trip_phase[0], TRIP_PHASE_LOADING);
 
     // Turn 2: should depart (Loading → Transit) and advance one hop
-    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
     assert_eq!(pool.trip_phase[0], TRIP_PHASE_TRANSIT);
     // Should have moved from region 0
     assert_ne!(pool.regions[0], 0);
@@ -1694,15 +1704,15 @@ fn test_disruption_unwind() {
     let mut ledger = ShadowLedger::new(4);
 
     // Turn 1: start trip
-    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
     // Turn 2: depart
-    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, 42);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
 
     // Turn 3: remove the edge the merchant needs — simulate embargo
     let broken_graph = RouteGraph::from_edges(
         &[0, 1], &[1, 0], &[false; 2], &[1.0; 2], 4,
     ); // Only region 0↔1 connected
-    let stats = merchant_mobility_phase(&mut pool, &regions, &broken_graph, &mut ledger, 42);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &broken_graph, &mut ledger, &[0u8; 32]);
 
     // Merchant should have been unwound (if destination unreachable)
     // or replanned (if still reachable via alternate route)
@@ -2040,13 +2050,13 @@ fn test_thread_count_determinism() {
     // and verify identical output stats.
     // Note: Full RAYON_NUM_THREADS comparison requires integration test harness.
     // This test verifies determinism of the single-threaded path.
-    let (mut pool1, regions, graph) = setup_linear_world();
-    let mut pool2 = pool1.clone(); // AgentPool must impl Clone for this
+    let (mut pool1, regions1, graph1) = setup_linear_world();
+    let (mut pool2, regions2, graph2) = setup_linear_world();
     let mut ledger1 = ShadowLedger::new(4);
     let mut ledger2 = ShadowLedger::new(4);
 
-    let stats1 = merchant_mobility_phase(&mut pool1, &regions, &graph, &mut ledger1, 42);
-    let stats2 = merchant_mobility_phase(&mut pool2, &regions, &graph, &mut ledger2, 42);
+    let stats1 = merchant_mobility_phase(&mut pool1, &regions1, &graph1, &mut ledger1, &[0u8; 32]);
+    let stats2 = merchant_mobility_phase(&mut pool2, &regions2, &graph2, &mut ledger2, &[0u8; 32]);
 
     assert_eq!(stats1.active_trips, stats2.active_trips);
     assert_eq!(stats1.completed_trips, stats2.completed_trips);
