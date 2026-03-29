@@ -389,6 +389,13 @@ pub const URBAN_SAFETY_SATISFACTION_PENALTY: f32 = 0.008;
 pub const URBAN_CULTURE_DRIFT_MULT: f32 = 1.08;
 pub const URBAN_CONVERSION_MULT: f32 = 1.03;
 
+// M58a: Merchant mobility constants
+pub const MAX_PATH_LEN: usize = 16;
+pub const TRIP_PHASE_IDLE: u8 = 0;
+pub const TRIP_PHASE_LOADING: u8 = 1;
+pub const TRIP_PHASE_TRANSIT: u8 = 2;
+pub const TRIP_GOOD_SLOT_NONE: u8 = 255;
+
 #[cfg(test)]
 mod tests {
     use super::*;

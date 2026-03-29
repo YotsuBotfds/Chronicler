@@ -80,6 +80,16 @@ pub struct AgentPool {
     pub y: Vec<f32>,
     // M56b: Per-agent settlement assignment (0 = rural, >0 = settlement_id)
     pub settlement_ids: Vec<u16>,
+    // M58a: Merchant mobility trip state
+    pub trip_phase: Vec<u8>,           // Idle=0, Loading=1, Transit=2
+    pub trip_dest_region: Vec<u16>,
+    pub trip_origin_region: Vec<u16>,
+    pub trip_good_slot: Vec<u8>,       // good slot 0..7, 255=none
+    pub trip_cargo_qty: Vec<f32>,
+    pub trip_turns_elapsed: Vec<u16>,
+    pub trip_path: Vec<[u16; crate::agent::MAX_PATH_LEN]>,
+    pub trip_path_len: Vec<u8>,
+    pub trip_path_cursor: Vec<u8>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -140,6 +150,15 @@ impl AgentPool {
             x: Vec::with_capacity(capacity),
             y: Vec::with_capacity(capacity),
             settlement_ids: Vec::with_capacity(capacity),
+            trip_phase: Vec::with_capacity(capacity),
+            trip_dest_region: Vec::with_capacity(capacity),
+            trip_origin_region: Vec::with_capacity(capacity),
+            trip_good_slot: Vec::with_capacity(capacity),
+            trip_cargo_qty: Vec::with_capacity(capacity),
+            trip_turns_elapsed: Vec::with_capacity(capacity),
+            trip_path: Vec::with_capacity(capacity),
+            trip_path_len: Vec::with_capacity(capacity),
+            trip_path_cursor: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -217,6 +236,15 @@ impl AgentPool {
             self.x[slot] = 0.5;
             self.y[slot] = 0.5;
             self.settlement_ids[slot] = 0;
+            self.trip_phase[slot] = crate::agent::TRIP_PHASE_IDLE;
+            self.trip_dest_region[slot] = 0;
+            self.trip_origin_region[slot] = 0;
+            self.trip_good_slot[slot] = crate::agent::TRIP_GOOD_SLOT_NONE;
+            self.trip_cargo_qty[slot] = 0.0;
+            self.trip_turns_elapsed[slot] = 0;
+            self.trip_path[slot] = [u16::MAX; crate::agent::MAX_PATH_LEN];
+            self.trip_path_len[slot] = 0;
+            self.trip_path_cursor[slot] = 0;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -271,6 +299,15 @@ impl AgentPool {
             self.x.push(0.5);
             self.y.push(0.5);
             self.settlement_ids.push(0);
+            self.trip_phase.push(crate::agent::TRIP_PHASE_IDLE);
+            self.trip_dest_region.push(0);
+            self.trip_origin_region.push(0);
+            self.trip_good_slot.push(crate::agent::TRIP_GOOD_SLOT_NONE);
+            self.trip_cargo_qty.push(0.0);
+            self.trip_turns_elapsed.push(0);
+            self.trip_path.push([u16::MAX; crate::agent::MAX_PATH_LEN]);
+            self.trip_path_len.push(0);
+            self.trip_path_cursor.push(0);
             self.alive.push(true);
             self.count += 1;
             slot
@@ -444,6 +481,12 @@ impl AgentPool {
     pub fn has_parent(&self, slot: usize, agent_id: u32) -> bool {
         agent_id != crate::agent::PARENT_NONE
             && (self.parent_id_0[slot] == agent_id || self.parent_id_1[slot] == agent_id)
+    }
+
+    /// M58a: Check if agent is currently on a merchant trip.
+    #[inline]
+    pub fn is_on_trip(&self, slot: usize) -> bool {
+        self.trip_phase[slot] != crate::agent::TRIP_PHASE_IDLE
     }
 
     // --- Skill (M26) ---
