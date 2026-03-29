@@ -244,8 +244,16 @@ pub fn consolidate_household_migrations(
         let migration_snapshot: Vec<(usize, u16, u16)> = bucket.migrations.clone();
 
         for &(slot, from, _to) in &migration_snapshot {
+            // M58a: Skip non-idle merchants — trip state takes precedence
+            if pool.is_on_trip(slot) {
+                continue;
+            }
             if let Some(spouse_id) = relationships::get_spouse_id(pool, slot) {
                 if let Some(&spouse_slot) = id_to_slot.get(&spouse_id) {
+                    // M58a: Don't follow a spouse who is on a trade trip
+                    if pool.is_on_trip(spouse_slot) {
+                        continue;
+                    }
                     if pool.is_alive(spouse_slot)
                         && pool.ids[spouse_slot] == spouse_id
                         && pool.regions[spouse_slot] == from // co-located
