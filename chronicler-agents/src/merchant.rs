@@ -274,7 +274,7 @@ pub fn evaluate_route(
             continue;
         }
         let avail = ledger.available(origin, slot as usize, &regions[origin].stockpile);
-        if avail > best_avail || (avail == best_avail && best_slot.map_or(true, |s| slot < s)) {
+        if avail > best_avail || (avail == best_avail && best_slot.is_none_or(|s| slot < s)) {
             best_avail = avail;
             best_slot = Some(slot);
         }

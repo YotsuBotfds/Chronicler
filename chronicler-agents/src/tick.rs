@@ -120,7 +120,7 @@ pub fn tick_agents(
             // mobility phase's own disruption handling (double-unwound trips are already idle).
         }
     }
-    let merchant_stats = if let Some((ref graph, ref mut ledger)) = merchant_state {
+    let merchant_stats = if let Some((graph, ref mut ledger)) = merchant_state {
         crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed)
     } else {
         crate::merchant::MerchantTripStats::default()
@@ -737,7 +737,7 @@ pub fn tick_agents(
             .filter(|&s| pool.is_alive(s))
             .collect();
         let (dissolution_events, removed) =
-            crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, &dead_ids, turn);
+            crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, dead_ids, turn);
         events.extend(dissolution_events);
         death_dissolved_count = removed;
     }
