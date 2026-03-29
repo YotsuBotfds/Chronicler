@@ -1947,3 +1947,16 @@ def extract_settlement_diagnostics(history: list) -> dict:
         "urbanization": urbanization,
     }
     return result
+
+
+def extract_merchant_trip_stats(bundles: list[dict]) -> dict:
+    """M58a: Per-seed merchant trip stats time series.
+
+    Returns {"by_seed": {seed: [per_turn_stats_dicts]}}.
+    """
+    by_seed: dict[int, list[dict]] = {}
+    for b in bundles:
+        seed = b.get("metadata", {}).get("seed", 0)
+        stats = b.get("metadata", {}).get("merchant_trip_stats", [])
+        by_seed[seed] = stats
+    return {"by_seed": by_seed}
