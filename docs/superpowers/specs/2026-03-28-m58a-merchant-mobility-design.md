@@ -239,7 +239,7 @@ M58a operates under **"in-flight conservation only."** Once cargo arrives (`in_t
 
 **Why 0.9:** Mobility runs before decisions queue, eliminating decision-queue conflict. Wealth at 0.5 already ran, so agents entering Loading received normal income — **documented one-turn lag by design** (merchant earned stationary income, then begins trip). Satisfaction at 1.0 reads post-mobility state.
 
-**Settlement staleness:** Merchants moved during step 0.9 have stale `settlement_id` until Pass B. Since satisfaction runs at 1.0 (between Pass A and Pass B), `is_urban` may be stale for moved merchants. This is a **known one-turn lag, analogous to existing migration behavior** (which also moves agents between Pass A and Pass B). The timing exposure is new (step 0.9 vs step 4 for regular migration), but the staleness window relative to satisfaction is the same.
+**Settlement staleness:** Merchants moved during step 0.9 have stale `settlement_id` until Pass B. Since satisfaction runs at 1.0 (between Pass A and Pass B), `is_urban` may be stale for moved merchants. This is a **known one-turn lag, analogous to but not identical to existing migration behavior.** Regular migration moves agents at step 4 (post-satisfaction), so migrating agents get satisfaction computed at their old region. Merchant mobility moves agents at step 0.9 (pre-satisfaction), so moved merchants get satisfaction computed at their new region but with stale `settlement_id`. Both are acceptable one-turn lags with different timing characteristics.
 
 ### Exclusion Rules by Trip Phase
 
