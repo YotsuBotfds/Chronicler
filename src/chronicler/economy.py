@@ -923,7 +923,15 @@ def build_merchant_route_graph(world) -> "pa.RecordBatch":
             if r2.controller is None:
                 continue
 
-            # Intra-civ: always allowed.
+            # Route suspensions are region-scoped on the "trade_route" key.
+            # If either endpoint has an active trade-route suspension, block the edge.
+            if (
+                r1.route_suspensions.get("trade_route", 0) > 0
+                or r2.route_suspensions.get("trade_route", 0) > 0
+            ):
+                continue
+
+            # Intra-civ: allowed unless blocked by endpoint suspensions above.
             if r1.controller != r2.controller:
                 # Cross-civ gating: war check
                 civ_pair = frozenset({r1.controller, r2.controller})
@@ -931,11 +939,6 @@ def build_merchant_route_graph(world) -> "pa.RecordBatch":
                     continue
                 # Embargo check
                 if civ_pair in embargo_set:
-                    continue
-                # Route suspension check (keyed by target region name)
-                if adj_name in r1.route_suspensions:
-                    continue
-                if r1.name in r2.route_suspensions:
                     continue
                 # Disposition check: both sides must be >= neutral (2)
                 rel_ab = world.relationships.get(r1.controller, {}).get(r2.controller)

@@ -5,6 +5,28 @@ Verifies --agents=off mode is unaffected by M58a merchant mobility code.
 import argparse
 import json
 import pytest
+from chronicler.models import Disposition
+
+
+def _configure_two_region_world(sample_world):
+    """Prepare two adjacent controlled regions with neutral diplomacy."""
+    civ_a = sample_world.civilizations[0].name
+    civ_b = sample_world.civilizations[1].name
+    r1 = sample_world.regions[0]
+    r2 = sample_world.regions[1]
+
+    r1.controller = civ_a
+    r2.controller = civ_b
+    r1.adjacencies = [r2.name]
+    r2.adjacencies = [r1.name]
+    r1.route_suspensions = {}
+    r2.route_suspensions = {}
+
+    sample_world.active_wars = []
+    sample_world.embargoes = []
+    sample_world.relationships[civ_a][civ_b].disposition = Disposition.NEUTRAL
+    sample_world.relationships[civ_b][civ_a].disposition = Disposition.NEUTRAL
+    return r1, r2
 
 
 def _make_args(tmp_path, seed=42, turns=10, agents="off"):
@@ -59,3 +81,32 @@ def test_agents_off_unaffected(tmp_path):
         "merchant_trip_stats should not appear in agents=off metadata"
     )
     assert result.total_turns == 10
+
+
+def test_route_suspension_blocks_cross_civ_edges(sample_world):
+    """Endpoint route_suspensions must block cross-civ edges."""
+    from chronicler.economy import build_merchant_route_graph
+
+    r1, _r2 = _configure_two_region_world(sample_world)
+
+    batch = build_merchant_route_graph(sample_world)
+    assert batch.num_rows == 2, "Expected two directed edges without suspension"
+
+    r1.route_suspensions["trade_route"] = 3
+    blocked = build_merchant_route_graph(sample_world)
+    assert blocked.num_rows == 0, "Any endpoint suspension should block both directions"
+
+
+def test_route_suspension_blocks_intra_civ_edges(sample_world):
+    """Endpoint route_suspensions must also block intra-civ movement edges."""
+    from chronicler.economy import build_merchant_route_graph
+
+    r1, r2 = _configure_two_region_world(sample_world)
+    r2.controller = r1.controller
+
+    batch = build_merchant_route_graph(sample_world)
+    assert batch.num_rows == 2, "Expected two directed intra-civ edges without suspension"
+
+    r2.route_suspensions["trade_route"] = 2
+    blocked = build_merchant_route_graph(sample_world)
+    assert blocked.num_rows == 0, "Intra-civ edges touching suspended regions must be blocked"
