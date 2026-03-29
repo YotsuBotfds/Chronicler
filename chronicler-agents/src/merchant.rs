@@ -411,6 +411,58 @@ pub fn reset_trip_fields(pool: &mut AgentPool, slot: usize) {
 }
 
 // ---------------------------------------------------------------------------
+// Conquest / controller-change unwind
+// ---------------------------------------------------------------------------
+
+/// Handle conquest/controller-change: identify impacted trips, unwind, clear residuals.
+/// Must be called when a region changes controller, BEFORE the merchant mobility phase.
+/// `conquered_regions` contains indices of regions that changed controller this turn.
+pub fn conquest_unwind(
+    pool: &mut AgentPool,
+    ledger: &mut ShadowLedger,
+    conquered_regions: &[u16],
+    stats: &mut MerchantTripStats,
+) {
+    let conquered_set: std::collections::HashSet<u16> = conquered_regions.iter().copied().collect();
+    if conquered_set.is_empty() {
+        return;
+    }
+
+    let cap = pool.capacity();
+    for slot in 0..cap {
+        if !pool.is_alive(slot) || pool.trip_phase[slot] == TRIP_PHASE_IDLE {
+            continue;
+        }
+        let origin = pool.trip_origin_region[slot];
+        let dest = pool.trip_dest_region[slot];
+        let current = pool.regions[slot];
+        if !conquered_set.contains(&origin)
+            && !conquered_set.contains(&dest)
+            && !conquered_set.contains(&current)
+        {
+            continue;
+        }
+        let good = pool.trip_good_slot[slot] as usize;
+        let qty = pool.trip_cargo_qty[slot];
+        let origin_idx = origin as usize;
+        match pool.trip_phase[slot] {
+            TRIP_PHASE_LOADING => {
+                ledger.cancel_reservation(origin_idx, good, qty);
+            }
+            TRIP_PHASE_TRANSIT => {
+                ledger.unwind(origin_idx, good, qty);
+                stats.unwind_count += 1;
+            }
+            _ => {}
+        }
+        reset_trip_fields(pool, slot);
+    }
+    for &region in conquered_regions {
+        ledger.clear_region(region as usize);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Full mobility phase orchestration
 // ---------------------------------------------------------------------------
 
@@ -762,5 +814,55 @@ mod tests {
         let i1 = evaluate_route(0, 100, 0, &regions, &table, &ledger).unwrap();
         let i2 = evaluate_route(0, 100, 0, &regions, &table, &ledger).unwrap();
         assert_eq!(i1.dest_region, i2.dest_region);
+    }
+
+    // -------------------------------------------------------------------
+    // Conquest unwind tests
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn test_conquest_unwind_loading_and_transit() {
+        let mut pool = AgentPool::new(5);
+        let s0 = pool.spawn(
+            0, 0, crate::agent::Occupation::Merchant, 20,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        let s1 = pool.spawn(
+            1, 0, crate::agent::Occupation::Merchant, 20,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+
+        let mut ledger = ShadowLedger::new(4);
+
+        // s0: Loading at region 0
+        pool.trip_phase[s0] = TRIP_PHASE_LOADING;
+        pool.trip_origin_region[s0] = 0;
+        pool.trip_dest_region[s0] = 2;
+        pool.trip_good_slot[s0] = 0;
+        pool.trip_cargo_qty[s0] = 5.0;
+        ledger.reserve(0, 0, 5.0);
+
+        // s1: Transit from region 1
+        pool.trip_phase[s1] = TRIP_PHASE_TRANSIT;
+        pool.trip_origin_region[s1] = 1;
+        pool.trip_dest_region[s1] = 3;
+        pool.trip_good_slot[s1] = 0;
+        pool.trip_cargo_qty[s1] = 3.0;
+        ledger.reserve(1, 0, 3.0);
+        ledger.depart(1, 0, 3.0);
+
+        let mut stats = MerchantTripStats::default();
+
+        // Conquer region 0 — should unwind s0 (Loading, cancel reservation)
+        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats);
+        assert_eq!(pool.trip_phase[s0], TRIP_PHASE_IDLE);
+        assert_eq!(ledger.reserved[0][0], 0.0);
+        // s1 should be unaffected
+        assert_eq!(pool.trip_phase[s1], TRIP_PHASE_TRANSIT);
+
+        // Conquer region 3 (s1's destination) — should unwind s1
+        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats);
+        assert_eq!(pool.trip_phase[s1], TRIP_PHASE_IDLE);
+        assert_eq!(stats.unwind_count, 1); // only transit counts toward unwind_count
     }
 }
