@@ -916,12 +916,11 @@ def build_merchant_route_graph(world) -> "pa.RecordBatch":
         if r1.controller is None:
             continue
         for adj_name in r1.adjacencies:
-            r2 = None
-            for r in regions:
-                if r.name == adj_name:
-                    r2 = r
-                    break
-            if r2 is None or r2.controller is None:
+            adj_idx = region_idx.get(adj_name)
+            if adj_idx is None:
+                continue
+            r2 = regions[adj_idx]
+            if r2.controller is None:
                 continue
 
             # Intra-civ: always allowed.

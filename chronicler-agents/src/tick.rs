@@ -107,6 +107,7 @@ pub fn tick_agents(
     // 0.9 Merchant mobility (M58a)
     // -----------------------------------------------------------------------
     // M58a: Conquest unwind before mobility — cancel trips impacted by controller change
+    let mut conquest_unwind_count: u32 = 0;
     if let Some((_, ref mut ledger)) = merchant_state {
         let conquered: Vec<u16> = regions
             .iter()
@@ -116,15 +117,15 @@ pub fn tick_agents(
         if !conquered.is_empty() {
             let mut conquest_stats = crate::merchant::MerchantTripStats::default();
             crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats);
-            // conquest_stats.unwind_count will be reflected in the main stats via the
-            // mobility phase's own disruption handling (double-unwound trips are already idle).
+            conquest_unwind_count = conquest_stats.unwind_count;
         }
     }
-    let merchant_stats = if let Some((graph, ref mut ledger)) = merchant_state {
+    let mut merchant_stats = if let Some((graph, ref mut ledger)) = merchant_state {
         crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed)
     } else {
         crate::merchant::MerchantTripStats::default()
     };
+    merchant_stats.unwind_count += conquest_unwind_count;
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
