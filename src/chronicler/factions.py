@@ -20,6 +20,7 @@ from chronicler.utils import stable_hash_int
 # ---------------------------------------------------------------------------
 
 FACTION_FLOOR = 0.08  # M38a: floor per faction (was 0.10 for 3 factions)
+POWER_STRUGGLE_SECOND_THRESHOLD = 0.30  # Re-tuned for 4-faction balance.
 
 # M38a: clergy event shift constants
 EVT_TEMPLE_BUILT = 0.03
@@ -91,9 +92,13 @@ GP_SUCCESSION_TYPE: dict[str, str] = {
 def normalize_influence(factions: FactionState) -> None:
     # First pass: normalize to sum-to-1
     total = sum(factions.influence.values())
-    if total > 0:
+    if total <= 0:
+        equal_share = 1.0 / len(FactionType)
         for ft in FactionType:
-            factions.influence[ft] /= total
+            factions.influence[ft] = equal_share
+        return
+    for ft in FactionType:
+        factions.influence[ft] /= total
     # Iteratively enforce floor per faction and redistribute the "borrowed"
     # share from overvalued ones
     floor = FACTION_FLOOR
@@ -104,12 +109,20 @@ def normalize_influence(factions: FactionState) -> None:
         deficit = sum(floor - factions.influence[ft] for ft in under)
         over = [ft for ft in FactionType if factions.influence[ft] > floor]
         over_total = sum(factions.influence[ft] for ft in over)
+        if over_total <= 0:
+            # No over-floor faction available to fund redistribution; keep equalized floor state.
+            break
         for ft in under:
             factions.influence[ft] = floor
         for ft in over:
             factions.influence[ft] -= deficit * (factions.influence[ft] / over_total)
     # Final renormalize for floating-point safety
     total = sum(factions.influence.values())
+    if total <= 0:
+        equal_share = 1.0 / len(FactionType)
+        for ft in FactionType:
+            factions.influence[ft] = equal_share
+        return
     for ft in FactionType:
         factions.influence[ft] /= total
 
@@ -133,19 +146,26 @@ def get_leader_faction_alignment(leader: Leader, factions: FactionState) -> floa
 def _event_is_win(event: Event, civ: Civilization, faction_type: FactionType) -> bool:
     if civ.name not in event.actors:
         return False
+    event_type_lower = event.event_type.lower()
+    event_desc_lower = event.description.lower()
     if faction_type == FactionType.MILITARY:
-        if event.event_type == "war" and len(event.actors) >= 2:
+        if event_type_lower == "war" and len(event.actors) >= 2:
             is_attacker = event.actors[0] == civ.name
-            if (is_attacker and "attacker_wins" in event.description) or \
-               (not is_attacker and "defender_wins" in event.description):
+            if (is_attacker and "attacker_wins" in event_desc_lower) or \
+               (not is_attacker and "defender_wins" in event_desc_lower):
                 return True
-        elif event.event_type == "expand" and event.importance >= 5:
+        elif event_type_lower == "expand" and event.importance >= 5:
             return True
     elif faction_type == FactionType.MERCHANT:
-        if event.event_type == "trade" and len(event.actors) >= 2:
+        if event_type_lower == "trade" and len(event.actors) >= 2:
             return True
     elif faction_type == FactionType.CULTURAL:
-        if event.event_type in ("cultural_work", "movement_adoption"):
+        if event_type_lower in ("cultural_work", "movement_adoption"):
+            return True
+    elif faction_type == FactionType.CLERGY:
+        if event_type_lower == "build_started" and "temples" in event_desc_lower:
+            return True
+        if event_type_lower in ("schism", "reformation", "persecution"):
             return True
     return False
 
@@ -202,7 +222,7 @@ def get_faction_weight_modifier(civ: Civilization, action: ActionType) -> float:
 def check_power_struggle(factions: FactionState) -> tuple[FactionType, FactionType] | None:
     sorted_factions = sorted(factions.influence.items(), key=lambda x: x[1], reverse=True)
     top, second = sorted_factions[0], sorted_factions[1]
-    if top[1] - second[1] < 0.15 and second[1] > 0.40:
+    if top[1] - second[1] < 0.15 and second[1] >= POWER_STRUGGLE_SECOND_THRESHOLD:
         return (top[0], second[0])
     return None
 

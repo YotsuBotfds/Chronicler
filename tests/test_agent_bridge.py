@@ -199,6 +199,15 @@ class TestDemographicsOnlyIntegration:
         # Just verify it stayed bounded (carrying_capacity * 1.2 check above) and didn't explode.
         assert sum(final_pops.values()) < sum(initial_pops.values()) * 2
 
+    def test_demographics_tick_clears_dead_agents_transient(self, sample_world):
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        sample_world._dead_agents_this_turn = [object()]
+        sample_world.turn = 1
+
+        bridge.tick(sample_world)
+
+        assert sample_world._dead_agents_this_turn == []
+
     def test_write_final_sidecar_snapshot_uses_post_loop_turn(self, sample_world):
         bridge = AgentBridge(sample_world, mode="demographics-only")
         recorded_turns = []
@@ -621,6 +630,17 @@ class TestRegionBatchResourceColumns:
         batch = build_region_batch(sample_world)
         assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
 
+    def test_region_batch_rejects_more_than_32_regions(self, sample_world):
+        """adjacency_mask is uint32; bridge must fail fast for >32 regions."""
+        while len(sample_world.regions) <= 32:
+            clone = sample_world.regions[0].model_copy(deep=True)
+            clone.name = f"overflow_{len(sample_world.regions)}"
+            clone.adjacencies = []
+            sample_world.regions.append(clone)
+
+        with pytest.raises(ValueError, match="at most 32 regions"):
+            build_region_batch(sample_world)
+
     def test_region_batch_has_m54a_ecology_columns(self, sample_world):
         """M54a: Region batch includes ecology schema columns."""
         from chronicler.agent_bridge import build_region_batch
@@ -848,6 +868,42 @@ class TestDynastyIntegration:
         bridge = AgentBridge(sample_world, mode="demographics-only")
         assert isinstance(bridge.dynasty_registry, DynastyRegistry)
         assert bridge.dynasty_registry.dynasties == []
+
+
+class TestBridgeResetAndEventFallback:
+    def test_reset_clears_gini_and_cached_state(self, sample_world):
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        bridge._gini_by_civ = {0: 0.42}
+        bridge._wealth_stats = {0: {"p50": 10.0}}
+        bridge._economy_result = object()
+        bridge._relationship_stats_history = [{"turn": 1}]
+        bridge._household_stats_history = [{"turn": 1}]
+
+        bridge.reset()
+
+        assert bridge._gini_by_civ == {}
+        assert bridge._wealth_stats == {}
+        assert bridge._economy_result is None
+        assert bridge._relationship_stats_history == []
+        assert bridge._household_stats_history == []
+        bridge.close()
+
+    def test_convert_events_unknown_type_is_safe(self, sample_world):
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        batch = pa.record_batch({
+            "agent_id": pa.array([1], type=pa.uint32()),
+            "event_type": pa.array([255], type=pa.uint8()),
+            "region": pa.array([0], type=pa.uint16()),
+            "target_region": pa.array([0], type=pa.uint16()),
+            "civ_affinity": pa.array([0], type=pa.uint16()),
+            "occupation": pa.array([0], type=pa.uint8()),
+        })
+
+        records = bridge._convert_events(batch, turn=9)
+
+        assert len(records) == 1
+        assert records[0].event_type == "unknown_255"
+        bridge.close()
 
 
 class TestPythonDeterminism:

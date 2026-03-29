@@ -18,12 +18,14 @@ from chronicler.religion import (
     compute_majority_belief,
     compute_civ_majority_faith,
     compute_conversion_signals,
+    compute_martyrdom_boosts,
     decay_conquest_boosts,
     BASE_CONVERSION_RATE,
     CONQUEST_BOOST_RATE,
     CONQUEST_BOOST_DURATION,
 )
 from chronicler.models import (
+    AgentEventRecord,
     Belief,
     Region,
     DOCTRINE_STANCE,
@@ -67,6 +69,23 @@ def _make_belief(faith_id: int, doctrines: list[int] | None = None) -> Belief:
     if doctrines is None:
         doctrines = [0, 0, 0, 0, 0]
     return Belief(faith_id=faith_id, name=f"Faith{faith_id}", civ_origin=faith_id, doctrines=doctrines)
+
+
+def test_compute_martyrdom_boosts_accepts_agent_event_records():
+    region = _make_region(name="R0")
+    dead = [
+        AgentEventRecord(
+            turn=1,
+            agent_id=10,
+            event_type="death",
+            region=0,
+            target_region=0,
+            civ_affinity=0,
+            occupation=0,
+        )
+    ]
+    compute_martyrdom_boosts([region], dead)
+    assert region.martyrdom_boost > 0.0
 
 
 # ---------------------------------------------------------------------------

@@ -821,15 +821,15 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
             target_idx = civ_index(world, target.name)
             if world.agent_mode == "hybrid":
                 world.pending_shocks.append(CivShock(target_idx,
-                    stability_shock=min(1.0, 5 / max(target.stability, 1))))
+                    stability_shock=max(-1.0, -5 / max(target.stability, 1))))
             elif acc is not None:
-                acc.add(target_idx, target, "stability", 5, "guard-shock")
+                acc.add(target_idx, target, "stability", -5, "guard-shock")
             else:
-                target.stability = clamp(target.stability + 5, STAT_FLOOR["stability"], 100)
+                target.stability = clamp(target.stability - 5, STAT_FLOOR["stability"], 100)
 
-            rels = world.relationships.get(pw.sponsor, {})
-            if pw.target_civ in rels:
-                rels[pw.target_civ].disposition = Disposition.HOSTILE
+            rels = world.relationships.get(pw.target_civ, {})
+            if pw.sponsor in rels:
+                rels[pw.sponsor].disposition = Disposition.HOSTILE
 
             events.append(Event(
                 turn=world.turn,
@@ -1286,7 +1286,6 @@ def apply_twilight(world: WorldState, acc=None) -> list[Event]:
 def check_twilight_absorption(world: WorldState) -> list[Event]:
     """Phase 10: Peacefully absorb civs in terminal twilight."""
     events: list[Event] = []
-    to_remove = []
 
     for civ in list(world.civilizations):
         # M22: Absorb structurally unviable civs
@@ -1346,7 +1345,6 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                         )
                 sync_civ_population(best_absorber_u, world)
                 sync_civ_population(civ, world)
-                to_remove.append(civ)
                 world.exile_modifiers.append(ExileModifier(
                     original_civ_name=civ.name,
                     absorber_civ=best_absorber_u.name,
@@ -1421,7 +1419,6 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                 )
         sync_civ_population(best_absorber, world)
         sync_civ_population(civ, world)
-        to_remove.append(civ)
 
         world.exile_modifiers.append(ExileModifier(
             original_civ_name=civ.name,
@@ -1494,28 +1491,23 @@ def resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> 
     """Resolve FUND_INSTABILITY action: start covert destabilization."""
     civ_map = {c.name: c for c in world.civilizations}
 
-    # Find most hostile neighbor with regions
-    target = None
+    # Find most hostile viable target (deterministic ranking).
+    # Rank by disposition hostility, then by region count, then name.
     rels = world.relationships.get(civ.name, {})
-    candidates = []
+    candidates: list[tuple[int, int, str, Civilization]] = []
     for other_name, rel in rels.items():
         if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
             other = civ_map.get(other_name)
-            if other and len(other.regions) >= 2:
-                candidates.append(other)
-    if not candidates:
-        # Fallback: any hostile neighbor
-        for other_name, rel in rels.items():
-            if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
-                other = civ_map.get(other_name)
-                if other and other.regions:
-                    candidates.append(other)
+            if other and other.regions:
+                hostility_rank = 2 if rel.disposition == Disposition.HOSTILE else 1
+                candidates.append((hostility_rank, len(other.regions), other.name, other))
 
     if not candidates:
         return Event(turn=world.turn, event_type="fund_instability_failed",
                      actors=[civ.name], description=f"{civ.name} found no viable target", importance=3)
 
-    target = candidates[0]
+    candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    target = candidates[0][3]
 
     # Pick most distant region from target's capital
     target_region = target.regions[0]

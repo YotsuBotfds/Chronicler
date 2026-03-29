@@ -6,6 +6,7 @@ through resolve_action() — one direction only, no circular imports.
 
 from __future__ import annotations
 
+import logging
 import random
 from typing import Callable, NamedTuple
 
@@ -36,6 +37,8 @@ from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
 from chronicler.emergence import get_severity_multiplier
+
+logger = logging.getLogger(__name__)
 
 
 # M48: Mule constants [FROZEN M53 SOFT]
@@ -537,7 +540,12 @@ def resolve_war(
                         new_civ_id=attacker_idx,
                     )
                 except Exception:
-                    pass
+                    logger.exception(
+                        "Failed to realign region agents after conquest (region=%s, attacker=%s, defender=%s)",
+                        contested.name if contested else None,
+                        attacker.name,
+                        defender.name,
+                    )
             if not hasattr(world, '_conquered_this_turn'):
                 world._conquered_this_turn = set()
             world._conquered_this_turn.add(world.civilizations.index(attacker))

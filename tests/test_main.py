@@ -1,5 +1,6 @@
 """Tests for the main entry point — end-to-end with mocked LLM."""
 import argparse
+import json
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
@@ -303,6 +304,24 @@ class TestExecuteRun:
         )
         # 3 pre-fork wars must be excluded; with ALLIED + DEVELOP, no new wars
         assert result.war_count == 0
+
+    def test_snapshot_marks_dead_civ_not_alive(self, tmp_path):
+        """Turn snapshots should not mark extinct civs as alive."""
+        from chronicler.world_gen import generate_world
+
+        sim = self._mock_llm("DEVELOP")
+        narr = self._mock_llm("Quiet turn.")
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        dead_civ = world.civilizations[1]
+        dead_civ.regions = []
+        dead_civ.population = 0
+        args = self._make_args(tmp_path, turns=1)
+
+        execute_run(args, sim_client=sim, narrative_client=narr, world=world)
+
+        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+        first_snapshot = bundle["history"][0]
+        assert first_snapshot["civ_stats"][dead_civ.name]["alive"] is False
 
 
 class TestNewCLIFlags:

@@ -588,9 +588,54 @@ def test_worldstate_has_proxy_and_exile_fields():
     assert ws.exile_modifiers == []
 
 
+def test_fund_instability_prefers_hostile_over_suspicious_targets():
+    from chronicler.models import Relationship, Disposition
+
+    world = _make_world_with_regions(["A"], capital="A")
+    sponsor = world.civilizations[0]
+
+    hostile_leader = Leader(name="L2", trait="bold", reign_start=0)
+    suspicious_leader = Leader(name="L3", trait="bold", reign_start=0)
+    hostile = Civilization(
+        name="HostileTarget",
+        population=30,
+        military=20,
+        economy=30,
+        culture=30,
+        stability=40,
+        treasury=50,
+        leader=hostile_leader,
+        regions=["B"],
+        capital_region="B",
+    )
+    suspicious = Civilization(
+        name="SuspiciousTarget",
+        population=30,
+        military=20,
+        economy=30,
+        culture=30,
+        stability=40,
+        treasury=50,
+        leader=suspicious_leader,
+        regions=["C", "D"],
+        capital_region="C",
+    )
+    world.civilizations.extend([hostile, suspicious])
+    world.relationships = {
+        sponsor.name: {
+            "HostileTarget": Relationship(disposition=Disposition.HOSTILE),
+            "SuspiciousTarget": Relationship(disposition=Disposition.SUSPICIOUS),
+        }
+    }
+
+    evt = resolve_fund_instability(sponsor, world)
+    assert evt.event_type == "fund_instability"
+    assert world.proxy_wars[-1].target_civ == "HostileTarget"
+
+
 # --- Task 18: Proxy war mechanics ---
 
-from chronicler.politics import apply_proxy_wars, check_proxy_detection
+from chronicler.politics import apply_proxy_wars, check_proxy_detection, resolve_fund_instability
 
 
 def test_proxy_war_drains_sponsor_and_target():
@@ -635,16 +680,23 @@ def test_proxy_detection_scales_with_culture():
     world.civilizations.append(target)
     world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
     world.relationships = {
-        "Empire": {"Target": Relationship(disposition=Disposition.HOSTILE)},
-        "Target": {"Empire": Relationship(disposition=Disposition.HOSTILE)},
+        "Empire": {"Target": Relationship(disposition=Disposition.FRIENDLY)},
+        "Target": {"Empire": Relationship(disposition=Disposition.FRIENDLY)},
     }
     detected = False
+    old_stability = target.stability
     for seed in range(20):
         world.seed = seed
         world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+        target.stability = old_stability
+        world.relationships["Target"]["Empire"].disposition = Disposition.FRIENDLY
+        world.relationships["Empire"]["Target"].disposition = Disposition.FRIENDLY
         events = check_proxy_detection(world)
         if world.proxy_wars[0].detected:
             detected = True
+            assert target.stability == old_stability - 5
+            assert world.relationships["Target"]["Empire"].disposition == Disposition.HOSTILE
+            assert world.relationships["Empire"]["Target"].disposition == Disposition.FRIENDLY
             break
     assert detected
 

@@ -197,6 +197,10 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
     region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
+    if len(world.regions) > 32:
+        raise ValueError(
+            "build_region_batch supports at most 32 regions (adjacency_mask is uint32)"
+        )
 
     adj_masks = []
     for r in world.regions:
@@ -406,24 +410,6 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # M55a: Spatial substrate signals
         "is_capital": pa.array(is_capital_flags, type=pa.bool_()),
         "temple_prestige": pa.array(temple_prestiges, type=pa.float32()),
-    })
-
-
-def build_region_postpass_patch_batch(world: WorldState) -> pa.RecordBatch:
-    """Build a narrow post-pass patch batch for Rust after Python ecology post-processing.
-
-    Side-effect free. Must not clear one-turn signals.
-    Schema: region_id(u16), population(u16), soil(f32), water(f32),
-            forest_cover(f32), terrain(u8), carrying_capacity(u16).
-    """
-    return pa.record_batch({
-        "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
-        "population": pa.array([r.population for r in world.regions], type=pa.uint16()),
-        "soil": pa.array([r.ecology.soil for r in world.regions], type=pa.float32()),
-        "water": pa.array([r.ecology.water for r in world.regions], type=pa.float32()),
-        "forest_cover": pa.array([r.ecology.forest_cover for r in world.regions], type=pa.float32()),
-        "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
-        "carrying_capacity": pa.array([r.carrying_capacity for r in world.regions], type=pa.uint16()),
     })
 
 
@@ -724,7 +710,8 @@ class AgentBridge:
         # Prime the simulator once at bridge construction so the first Phase 2
         # economy tick sees the live world population rather than an empty pool.
         self._sim.set_region_state(build_region_batch(world))
-        self._event_window: deque = deque(maxlen=10)  # sliding window for event aggregation
+        # Keep 20 turns so economic_boom aggregation can actually use its 20-turn horizon.
+        self._event_window: deque = deque(maxlen=20)  # sliding window for event aggregation
         self._demand_manager = DemandSignalManager()
         self._shadow_logger: ShadowLogger | None = None
         if mode == "shadow" and shadow_output is not None:
@@ -820,14 +807,14 @@ class AgentBridge:
                 stats = self._sim.get_relationship_stats()
                 self._relationship_stats_history.append(stats)
             except Exception:
-                pass
+                logger.exception("Failed to collect relationship stats from Rust tick")
 
         # M57b: household stats collection (always in agent modes)
         try:
             h_stats = self._sim.get_household_stats()
             self._household_stats_history.append(h_stats)
         except Exception:
-            pass
+            logger.exception("Failed to collect household stats from Rust tick")
 
         if self._mode == "hybrid":
             self._write_back(world)
@@ -888,8 +875,12 @@ class AgentBridge:
                     self._wealth_stats = stats
             except Exception:
                 self.displacement_by_region = {}
+                self._gini_by_civ = {}
+                self._wealth_stats = {}
+                logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
 
             raw_events = self._convert_events(agent_events, world.turn)
+            world._dead_agents_this_turn = [e for e in raw_events if e.event_type == "death"]
             death_events = self._process_deaths(raw_events, world)  # step 2
             world.agent_events_raw.extend(raw_events)
 
@@ -961,6 +952,7 @@ class AgentBridge:
             promotions_batch = self._sim.get_promotions()
             self._process_promotions(promotions_batch, world)
             raw_events = self._convert_events(agent_events, world.turn)
+            world._dead_agents_this_turn = [e for e in raw_events if e.event_type == "death"]
             self._process_deaths(raw_events, world)
             world.agent_events_raw.extend(raw_events)
             self._event_window.append(raw_events)
@@ -969,6 +961,7 @@ class AgentBridge:
                 self._write_sidecar_snapshot(world)
             return []
         elif self._mode == "demographics-only":
+            world._dead_agents_this_turn = []
             self._apply_demographics_clamp(world)
             # M53: sidecar snapshot (demographics-only mode)
             if self._sidecar and world.turn % 10 == 0:
@@ -1019,6 +1012,7 @@ class AgentBridge:
                     edges.append((agent_ids[i], target_ids[i], bond_types[i], sentiments[i]))
         except Exception:
             edges = []
+            logger.exception("Sidecar graph snapshot: failed to read relationships")
 
         try:
             mem_batch = self._sim.get_all_memories()
@@ -1036,6 +1030,7 @@ class AgentBridge:
                     mem_sigs[aid].append((m_event_types[i], m_turns[i], valence))
         except Exception:
             mem_sigs = {}
+            logger.exception("Sidecar graph snapshot: failed to read memories")
 
         self._sidecar.write_graph_snapshot(turn=turn, edges=edges, memory_signatures=mem_sigs)
 
@@ -1052,6 +1047,7 @@ class AgentBridge:
                 }
         except Exception:
             needs_data = None
+            logger.exception("Sidecar needs snapshot: failed to read/write needs")
 
         # Agent aggregate: per-civ satisfaction, occupations, mean needs, memory occupancy
         try:
@@ -1147,7 +1143,7 @@ class AgentBridge:
                     }
             self._sidecar.write_agent_aggregate(turn=turn, aggregates=agg)
         except Exception:
-            pass
+            logger.exception("Sidecar agent aggregate: failed to build/write aggregate snapshot")
 
         # Condensed community summary for full-gate structural checks
         try:
@@ -1203,16 +1199,17 @@ class AgentBridge:
 
                 self._sidecar.write_community_summary(turn=turn, summary=dict(region_summary))
         except Exception:
-            pass
+            logger.exception("Sidecar community summary: failed to build/write summary")
 
     def _convert_events(self, batch, turn):
         """Convert Arrow events RecordBatch to AgentEventRecord list."""
         records = []
         for i in range(batch.num_rows):
+            event_type_code = batch.column("event_type")[i].as_py()
             records.append(AgentEventRecord(
                 turn=turn,
                 agent_id=batch.column("agent_id")[i].as_py(),
-                event_type=EVENT_TYPE_MAP[batch.column("event_type")[i].as_py()],
+                event_type=EVENT_TYPE_MAP.get(event_type_code, f"unknown_{event_type_code}"),
                 region=batch.column("region")[i].as_py(),
                 target_region=batch.column("target_region")[i].as_py(),
                 civ_affinity=batch.column("civ_affinity")[i].as_py(),
@@ -1471,7 +1468,11 @@ class AgentBridge:
                 try:
                     self._sim.set_agent_civ(gp.agent_id, conqueror_civ_id)
                 except Exception:
-                    pass
+                    logger.exception(
+                        "Failed to set GP civ during conquest exile (agent_id=%s, new_civ_id=%s)",
+                        gp.agent_id,
+                        conqueror_civ_id,
+                    )
             else:
                 # In surviving territory → refugee, not captured
                 gp.captured_by = None
@@ -1479,7 +1480,11 @@ class AgentBridge:
                 try:
                     self._sim.set_agent_civ(gp.agent_id, host_id)
                 except Exception:
-                    pass
+                    logger.exception(
+                        "Failed to set GP civ during conquest exile fallback (agent_id=%s, new_civ_id=%s)",
+                        gp.agent_id,
+                        host_id,
+                    )
 
             events.append(Event(
                 turn=turn,
@@ -1529,7 +1534,11 @@ class AgentBridge:
                 try:
                     self._sim.set_agent_civ(gp.agent_id, new_civ_id)
                 except Exception:
-                    pass
+                    logger.exception(
+                        "Failed to set GP civ during secession defection (agent_id=%s, new_civ_id=%s)",
+                        gp.agent_id,
+                        new_civ_id,
+                    )
 
             events.append(Event(
                 turn=turn,
@@ -1578,7 +1587,11 @@ class AgentBridge:
                 try:
                     self._sim.set_agent_civ(gp.agent_id, restored_civ_id)
                 except Exception:
-                    pass
+                    logger.exception(
+                        "Failed to set GP civ during restoration transition (agent_id=%s, new_civ_id=%s)",
+                        gp.agent_id,
+                        restored_civ_id,
+                    )
 
     def apply_absorption_transitions(
         self,
@@ -1617,7 +1630,11 @@ class AgentBridge:
                 try:
                     self._sim.set_agent_civ(gp.agent_id, absorber_civ_id)
                 except Exception:
-                    pass
+                    logger.exception(
+                        "Failed to set GP civ during absorption transition (agent_id=%s, new_civ_id=%s)",
+                        gp.agent_id,
+                        absorber_civ_id,
+                    )
 
     def realign_region_agents_to_civ(
         self,
@@ -1650,6 +1667,7 @@ class AgentBridge:
         try:
             snapshot = self._sim.get_snapshot()
         except Exception:
+            logger.exception("Failed to fetch agent snapshot for region-to-civ realignment")
             return set()
 
         if snapshot is None or getattr(snapshot, "num_rows", 0) == 0:
@@ -1680,6 +1698,11 @@ class AgentBridge:
                 self._sim.set_agent_civ(int(agent_id), int(new_civ_id))
                 transferred.add(int(agent_id))
             except Exception:
+                logger.exception(
+                    "Failed to set agent civ during region realignment (agent_id=%s, new_civ_id=%s)",
+                    int(agent_id),
+                    int(new_civ_id),
+                )
                 continue
 
         return transferred
@@ -1947,6 +1970,11 @@ class AgentBridge:
         self._origin_regions.clear()
         self._departure_turns.clear()
         self.displacement_by_region.clear()
+        self._gini_by_civ.clear()
+        self._wealth_stats.clear()
+        self._economy_result = None
+        self._relationship_stats_history.clear()
+        self._household_stats_history.clear()
 
     def close(self) -> None:
         if self._shadow_logger:

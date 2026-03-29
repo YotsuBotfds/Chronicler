@@ -329,9 +329,10 @@ class TestReformationThreshold:
             previous_faith=0, current_faith=1, ratio=REFORMATION_THRESHOLD,
         )
         registry = [_make_belief(0, name="OldFaith"), _make_belief(1, name="NewFaith")]
-        events = detect_reformation([civ], registry)
+        events = detect_reformation([civ], registry, current_turn=77)
         assert len(events) == 1
         assert events[0].event_type == "Reformation"
+        assert events[0].turn == 77
         assert events[0].importance == 8
 
     def test_above_threshold_fires(self):
@@ -390,12 +391,11 @@ class TestFireSchism:
     def test_splinter_faith_added_to_registry(self):
         region = _make_region("r0")
         civ = _make_civ("CivA", faith_id=0)
-        civ._civ_id = 0
 
         original = _make_belief(0, doctrines=[0, 0, +1, 0, 0], name="Faith of CivA")
         registry = [original]
 
-        new_belief = fire_schism(region, 0, registry, civ, current_turn=1)
+        new_belief = fire_schism(region, 0, registry, civ, current_turn=1, civ_origin=0)
 
         assert new_belief is not None
         assert len(registry) == 2
@@ -404,53 +404,48 @@ class TestFireSchism:
     def test_splinter_name_is_reformed(self):
         region = _make_region("r0")
         civ = _make_civ("CivA", faith_id=0)
-        civ._civ_id = 0
 
         original = _make_belief(0, name="Faith of CivA")
         registry = [original]
 
-        new_belief = fire_schism(region, 0, registry, civ, current_turn=1)
+        new_belief = fire_schism(region, 0, registry, civ, current_turn=1, civ_origin=0)
         assert new_belief.name == "Faith of CivA (Reformed)"
 
     def test_splinter_name_increments_on_collision(self):
         region = _make_region("r0")
         civ = _make_civ("CivA", faith_id=0)
-        civ._civ_id = 0
 
         original = _make_belief(0, name="Faith of CivA")
         reformed = _make_belief(1, name="Faith of CivA (Reformed)")
         registry = [original, reformed]
 
-        new_belief = fire_schism(region, 0, registry, civ, current_turn=1)
+        new_belief = fire_schism(region, 0, registry, civ, current_turn=1, civ_origin=0)
         assert new_belief.name == "Faith of CivA (Reformed 2)"
 
     def test_region_schism_flags_set(self):
         region = _make_region("r0")
         civ = _make_civ("CivA", faith_id=0)
-        civ._civ_id = 0
 
         original = _make_belief(0, name="Faith of CivA")
         registry = [original]
 
-        new_belief = fire_schism(region, 0, registry, civ, current_turn=1)
+        new_belief = fire_schism(region, 0, registry, civ, current_turn=1, civ_origin=0)
         assert region.schism_convert_from == 0
         assert region.schism_convert_to == new_belief.faith_id
 
     def test_returns_none_when_registry_full(self):
         region = _make_region("r0")
         civ = _make_civ("CivA", faith_id=0)
-        civ._civ_id = 0
 
         registry = [_make_belief(i) for i in range(MAX_FAITHS)]
 
-        result = fire_schism(region, 0, registry, civ, current_turn=1)
+        result = fire_schism(region, 0, registry, civ, current_turn=1, civ_origin=0)
         assert result is None
 
     def test_returns_none_for_unknown_faith(self):
         region = _make_region("r0")
         civ = _make_civ("CivA", faith_id=99)
-        civ._civ_id = 0
         registry = [_make_belief(0)]
 
-        result = fire_schism(region, 99, registry, civ, current_turn=1)
+        result = fire_schism(region, 99, registry, civ, current_turn=1, civ_origin=0)
         assert result is None

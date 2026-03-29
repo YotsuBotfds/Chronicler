@@ -127,16 +127,19 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     )
     if event is not None:
         rng = random.Random(seed + 1)
+        alive_civs = [c for c in world.civilizations if len(c.regions) > 0]
+        if not alive_civs:
+            return events
         affected = rng.sample(
-            world.civilizations,
-            k=max(1, len(world.civilizations) // 2),
+            alive_civs,
+            k=max(1, len(alive_civs) // 2),
         )
         event.actors = [c.name for c in affected]
 
         if event.event_type == "drought":
             for civ in affected:
                 mult = get_severity_multiplier(civ, world)
-                drain = int(get_override(world, K_DROUGHT_STABILITY, 3))
+                drain = int(get_override(world, K_DROUGHT_STABILITY, 3) * mult)
                 if acc is not None:
                     civ_idx = civ_index(world, civ.name)
                     acc.add(civ_idx, civ, "stability", -drain, "signal")
@@ -308,14 +311,18 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
             break  # Only check first controlled region for simplicity
 
     # 5. Ongoing war costs: -3/turn per active war
+    # In accumulator mode, track projected treasury per civ so zero-crossing
+    # checks match aggregate semantics even before keep-changes are applied.
+    pending_war_treasury = {c.name: c.treasury for c in world.civilizations}
     for war in world.active_wars:
         for civ_name in war:
             c = get_civ(world, civ_name)
             if c:
                 if acc is not None:
                     c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                    pending_war_treasury[c.name] = pending_war_treasury.get(c.name, c.treasury) - 3
                     acc.add(c_idx, c, "treasury", -3, "keep")
-                    if c.treasury <= 0:
+                    if pending_war_treasury[c.name] <= 0:
                         drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
                         acc.add(c_idx, c, "stability", -drain, "signal")
                 else:
@@ -537,26 +544,32 @@ def phase_action(
     """Each civilization takes one action from the constrained menu."""
     events: list[Event] = []
 
-    for civ in world.civilizations:
+    for civ_idx, civ in enumerate(world.civilizations):
         if len(civ.regions) == 0:
             continue
         # Snapshot stat values before action (for crisis halving)
         in_crisis = is_in_crisis(civ)
         pre_stats: dict[str, int] = {}
+        crisis_checkpoint = -1
         if in_crisis:
             pre_stats = {s: getattr(civ, s) for s in _CRISIS_HALVED_STATS}
+            if acc is not None:
+                crisis_checkpoint = acc.checkpoint()
 
         action = action_selector(civ, world)
         event = resolve_action(civ, action, world, acc=acc)
 
         # Crisis halving: reduce positive stat gains by 50%
         if in_crisis:
-            for stat in _CRISIS_HALVED_STATS:
-                before = pre_stats[stat]
-                after = getattr(civ, stat)
-                if after > before:
-                    halved = before + (after - before) // 2
-                    setattr(civ, stat, max(halved, STAT_FLOOR.get(stat, 0)))
+            if acc is not None:
+                acc.halve_positive_deltas(civ_idx, _CRISIS_HALVED_STATS, crisis_checkpoint)
+            else:
+                for stat in _CRISIS_HALVED_STATS:
+                    before = pre_stats[stat]
+                    after = getattr(civ, stat)
+                    if after > before:
+                        halved = before + (after - before) // 2
+                        setattr(civ, stat, max(halved, STAT_FLOOR.get(stat, 0)))
 
         # Track action in history (for streak breaker)
         history = world.action_history.setdefault(civ.name, [])
@@ -681,7 +694,10 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
     )
     if event is not None:
         rng = random.Random(seed + 2)
-        event.actors = [rng.choice(world.civilizations).name]
+        alive_civs = [c for c in world.civilizations if len(c.regions) > 0]
+        if not alive_civs:
+            return events
+        event.actors = [rng.choice(alive_civs).name]
 
         world.event_probabilities = apply_probability_cascade(
             event.event_type, world.event_probabilities
@@ -712,7 +728,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
         else:
             civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
-        check_rival_fall(civ, old_leader.name, world)
+        check_rival_fall(civ, old_leader.name, world, acc=acc)
         # Check whether death triggers a succession crisis instead of immediate succession
         crisis_prob = compute_crisis_probability(civ, world)
         rng = _random.Random(
@@ -981,7 +997,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         )
         _persecution_events.extend(schism_events)
         reformation_events = detect_reformation(
-            world.civilizations, world.belief_registry,
+            world.civilizations, world.belief_registry, current_turn=world.turn,
         )
         _persecution_events.extend(reformation_events)
 
@@ -1386,6 +1402,31 @@ def prune_inactive_wars(world: WorldState) -> None:
         world.war_start_turns.pop(key, None)
 
 
+def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result) -> None:
+    """Apply M42 treasury tax with deterministic fractional carryover.
+
+    Economy tax is computed as a float. Carrying fractional remainders avoids
+    persistent truncation bias where small civs can remain permanently tax-exempt.
+    """
+    if economy_result is None or acc is None:
+        return
+
+    prior_carry = getattr(world, "_treasury_tax_carry", {})
+    next_carry: dict[int, float] = {}
+
+    for civ_idx, tax in economy_result.treasury_tax.items():
+        if civ_idx >= len(world.civilizations):
+            continue
+
+        gross = max(0.0, float(tax) + float(prior_carry.get(civ_idx, 0.0)))
+        whole_tax = int(gross)
+        next_carry[civ_idx] = gross - whole_tax
+        if whole_tax > 0:
+            acc.add(civ_idx, world.civilizations[civ_idx], "treasury", whole_tax, "keep")
+
+    world._treasury_tax_carry = next_carry
+
+
 # --- Turn orchestrator ---
 
 def run_turn(
@@ -1481,10 +1522,7 @@ def run_turn(
     turn_events.extend(apply_automatic_effects(world, acc=acc))
 
     # M42: Apply treasury tax (keep category)
-    if economy_result and acc is not None:
-        for civ_idx, tax in economy_result.treasury_tax.items():
-            if civ_idx < len(world.civilizations):
-                acc.add(civ_idx, world.civilizations[civ_idx], "treasury", int(tax), "keep")
+    _apply_treasury_tax_from_economy(world, acc, economy_result)
 
     # Phase 3: Production
     phase_production(world, acc=acc)

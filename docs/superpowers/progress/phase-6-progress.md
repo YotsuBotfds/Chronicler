@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-03-29 Audit Follow-up (Dedicated Pass)
+
+- Completed a dedicated hardening/closure pass against `docs/superpowers/audits/2026-03-29-full-codebase-audit.md`.
+- Closed remaining concrete bugs:
+  - `STAT_FLOOR` divergence removed: `StatAccumulator` now uses `utils.STAT_FLOOR` (single floor source).
+  - `agent_bridge.py` silent exception sites replaced with explicit exception logging + safe fallbacks (relationship stats, household stats, snapshot aggregates, sidecar outputs, civ realignment flows).
+  - Schism civ-origin monkey patch removed: `fire_schism(..., civ_origin=...)` now receives origin explicitly (no `_civ_id` transient mutation on civ models).
+  - Treasury tax truncation bias fixed via deterministic fractional carry (`world._treasury_tax_carry`).
+  - `apply_stockpile_cap()` no longer destroys stockpile in zero-pop regions.
+  - Faction robustness fixes: zero-sum normalization guard, clergy win detection wiring, 4-faction power-struggle threshold retune, deterministic `FUND_INSTABILITY` target ranking.
+  - Event aggregation window mismatch fixed (`AgentBridge._event_window` now `maxlen=20`, matching economic boom horizon).
+  - Dead temp list removed in `check_twilight_absorption` (`to_remove` no-op cleanup).
+- Regression/tests:
+  - Full Python suite PASS: `2209 passed, 4 skipped`.
+  - New tests added for fractional tax carry, clergy win detection, zero-sum normalization handling, fund-instability target ranking, and martyrdom input-shape compatibility.
+
 ## Merged Milestones
 
 ### M36: Cultural Identity — merged, sticky flag fixed

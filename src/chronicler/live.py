@@ -257,7 +257,7 @@ class LiveServer:
                         try:
                             resolved = Path(report_path).resolve()
                             allowed = Path("output").resolve()
-                            if not str(resolved).startswith(str(allowed)):
+                            if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {report_path}")
                             report = json.loads(resolved.read_text(encoding="utf-8"))
                             await websocket.send(json.dumps({

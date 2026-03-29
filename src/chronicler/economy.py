@@ -448,6 +448,10 @@ def apply_stockpile_cap(
 
     Returns total overflow (for conservation law verification).
     """
+    if population <= 0:
+        # Preserve stock in temporarily unpopulated regions; cap resumes on recolonization.
+        return 0.0
+
     cap = PER_GOOD_CAP_FACTOR * population
     total_overflow = 0.0
     for good in list(goods.keys()):

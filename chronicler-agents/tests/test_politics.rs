@@ -796,20 +796,31 @@ fn test_proxy_detection_mutation_and_hostility() {
         if result.proxy_war_ops.iter().any(|op| op.op_type == ProxyWarOpType::SetDetected) {
             detected = true;
 
-            // Verify hostility update
+            // Verify hostility update (target -> sponsor)
+            assert!(
+                result.relationship_ops.iter().any(|op| {
+                    op.step == 7
+                        && matches!(&op.civ_a, CivRef::Existing(1))
+                        && matches!(&op.civ_b, CivRef::Existing(0))
+                        && op.disposition == Disposition::Hostile
+                }),
+                "Should set target->sponsor to HOSTILE on detection"
+            );
+
+            // Verify stability penalty to target
+            assert!(
+                result.civ_effects.iter().any(|e| {
+                    matches!(&e.civ, CivRef::Existing(1)) && e.field == "stability" && e.delta_i == -5
+                }),
+                "Target should get -5 stability on detection"
+            );
+
+            // Keep legacy assertion that step is correct for relationship mutation.
             assert!(
                 result.relationship_ops.iter().any(|op| {
                     op.step == 7 && op.disposition == Disposition::Hostile
                 }),
-                "Should set sponsor->target to HOSTILE on detection"
-            );
-
-            // Verify stability boost to target
-            assert!(
-                result.civ_effects.iter().any(|e| {
-                    matches!(&e.civ, CivRef::Existing(1)) && e.field == "stability" && e.delta_i == 5
-                }),
-                "Target should get +5 stability on detection"
+                "Expected step-7 hostility operation"
             );
 
             break;

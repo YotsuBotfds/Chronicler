@@ -162,20 +162,6 @@ pub fn region_state_schema() -> Schema {
     ])
 }
 
-/// Schema for civ_signals input to `tick()`.
-#[allow(dead_code)]
-pub fn civ_signals_schema() -> Schema {
-    Schema::new(vec![
-        Field::new("civ_id", DataType::UInt8, false),
-        Field::new("stability", DataType::UInt8, false),
-        Field::new("is_at_war", DataType::Boolean, false),
-        Field::new("dominant_faction", DataType::UInt8, false),
-        Field::new("faction_military", DataType::Float32, false),
-        Field::new("faction_merchant", DataType::Float32, false),
-        Field::new("faction_cultural", DataType::Float32, false),
-    ])
-}
-
 // ---------------------------------------------------------------------------
 // Ecology return schemas
 // ---------------------------------------------------------------------------

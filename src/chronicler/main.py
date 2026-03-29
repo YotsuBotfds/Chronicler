@@ -341,7 +341,7 @@ def execute_run(
                     trait=civ.leader.trait,
                     regions=list(civ.regions),
                     leader_name=civ.leader.name,
-                    alive=True,
+                    alive=len(civ.regions) > 0,
                     is_vassal=any(vr.vassal == civ.name for vr in world.vassal_relations),
                     is_fallen_empire=(civ.peak_region_count >= 5 and len(civ.regions) == 1),
                     in_twilight=(civ.decline_turns >= 20 and len(civ.regions) == 1),

@@ -340,7 +340,7 @@ def test_stockpile_cap():
 def test_stockpile_cap_zero_population():
     goods = {"grain": 100.0}
     apply_stockpile_cap(goods, population=0)
-    assert goods["grain"] == 0.0
+    assert goods["grain"] == 100.0
 
 
 # --- Task 10: Stockpile Initialization in world_gen.py ---

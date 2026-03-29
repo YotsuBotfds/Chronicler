@@ -63,7 +63,6 @@ SCHISM_NEUTRAL_POLE_MAP = {
 PILGRIMAGE_DURATION_MIN = 5
 PILGRIMAGE_DURATION_MAX = 10
 PILGRIMAGE_SKILL_BOOST = 0.10
-LIFE_EVENT_PILGRIMAGE = 1 << 7  # 128
 
 # ---------------------------------------------------------------------------
 # Doctrine bias table
@@ -558,7 +557,7 @@ def compute_persecution(
 
 def compute_martyrdom_boosts(
     regions: list[Region],
-    dead_agents: "list[dict] | None",
+    dead_agents: "list[dict | object] | None",
 ) -> None:
     """Add martyrdom boost to regions where persecuted agents died this turn.
 
@@ -571,10 +570,21 @@ def compute_martyrdom_boosts(
         return
 
     for agent in dead_agents:
-        region_idx = agent.get("region_idx")
-        if region_idx is None or region_idx >= len(regions):
+        if isinstance(agent, dict):
+            region_idx = agent.get("region_idx", agent.get("region"))
+        else:
+            region_idx = getattr(agent, "region_idx", None)
+            if region_idx is None:
+                region_idx = getattr(agent, "region", None)
+        if region_idx is None:
             continue
-        region = regions[region_idx]
+        try:
+            region_idx_int = int(region_idx)
+        except (TypeError, ValueError):
+            continue
+        if region_idx_int < 0 or region_idx_int >= len(regions):
+            continue
+        region = regions[region_idx_int]
         region.martyrdom_boost = min(
             MARTYRDOM_BOOST_CAP,
             region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
@@ -658,6 +668,7 @@ def fire_schism(
     belief_registry: list["Belief"],
     civ,
     current_turn: int,
+    civ_origin: int = 0,
 ) -> "Belief | None":
     """Create a splinter faith and mark the region for schism conversion.
 
@@ -705,9 +716,6 @@ def fire_schism(
     # Assign the next available faith_id
     used_ids = {b.faith_id for b in belief_registry}
     new_faith_id = next(i for i in range(MAX_FAITHS) if i not in used_ids)
-
-    # civ_origin: detect_schisms sets civ._civ_id = civ_idx before calling fire_schism
-    civ_origin = getattr(civ, '_civ_id', 0)
 
     from chronicler.models import Belief as _Belief
     new_belief = _Belief(
@@ -826,11 +834,13 @@ def detect_schisms(
         if len(belief_registry) >= MAX_FAITHS:
             break
 
-        # Tag civ index for fire_schism to use as civ_origin
-        civ._civ_id = civ_idx
-
         new_belief = fire_schism(
-            best_region, majority_faith_id, belief_registry, civ, current_turn,
+            best_region,
+            majority_faith_id,
+            belief_registry,
+            civ,
+            current_turn,
+            civ_origin=civ_idx,
         )
         if new_belief is None:
             continue
@@ -853,6 +863,7 @@ def detect_schisms(
 def detect_reformation(
     civs: list,
     belief_registry: list["Belief"],
+    current_turn: int | None = None,
 ) -> list:
     """Fire reformation events when a civ's majority faith has shifted significantly.
 
@@ -891,7 +902,7 @@ def detect_reformation(
 
         events.append(Event(
             event_type="Reformation",
-            turn=getattr(civ, '_current_turn', 0),
+            turn=current_turn if current_turn is not None else 0,
             actors=[civ.name],
             description=(
                 f"{civ.name} undergoes a Reformation: '{faith_name}' "

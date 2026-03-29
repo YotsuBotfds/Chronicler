@@ -2256,7 +2256,7 @@ fn step_proxy_detection(
             target_region: pw.target_region,
         });
 
-        // Stability boost to target
+        // Detection is destabilizing for the target.
         let routing = if hybrid_mode {
             EffectRouting::HybridShock
         } else {
@@ -2267,23 +2267,23 @@ fn step_proxy_detection(
             seq: seq.next(),
             civ: CivRef::Existing(target_idx),
             field: "stability",
-            delta_i: 5,
+            delta_i: -5,
             delta_f: if hybrid_mode {
-                (5.0 / live_civs[target_idx as usize].stability.max(1) as f32).min(1.0)
+                (-5.0 / live_civs[target_idx as usize].stability.max(1) as f32).max(-1.0)
             } else {
                 0.0
             },
             routing,
         });
 
-        // Set sponsor->target disposition to HOSTILE
-        live_rels.set_disposition(pw.sponsor, pw.target_civ, Disposition::Hostile);
+        // Target discovered espionage: set target->sponsor to HOSTILE.
+        live_rels.set_disposition(pw.target_civ, pw.sponsor, Disposition::Hostile);
         result.relationship_ops.push(RelationshipOp {
             step,
             seq: seq.next(),
             op_type: RelationshipOpType::SetDisposition,
-            civ_a: CivRef::Existing(pw.sponsor),
-            civ_b: CivRef::Existing(pw.target_civ),
+            civ_a: CivRef::Existing(pw.target_civ),
+            civ_b: CivRef::Existing(pw.sponsor),
             disposition: Disposition::Hostile,
         });
 

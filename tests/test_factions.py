@@ -81,6 +81,15 @@ class TestNormalization:
         assert fs.influence[FactionType.MERCHANT] >= 0.05
         assert fs.influence[FactionType.CULTURAL] >= 0.05
 
+    def test_normalize_handles_all_zero_input(self):
+        fs = FactionState()
+        for faction_type in FactionType:
+            fs.influence[faction_type] = 0.0
+        normalize_influence(fs)
+        assert sum(fs.influence.values()) == pytest.approx(1.0)
+        for faction_type in FactionType:
+            assert fs.influence[faction_type] == pytest.approx(0.25)
+
 
 class TestCoreHelpers:
     def test_shift_faction_influence(self):
@@ -247,6 +256,15 @@ class TestPowerStruggle:
         assert FactionType.MILITARY in result
         assert FactionType.MERCHANT in result
 
+    def test_trigger_when_second_faction_is_viable_in_four_faction_balance(self):
+        fs = FactionState()
+        fs.influence[FactionType.MILITARY] = 0.34
+        fs.influence[FactionType.MERCHANT] = 0.31
+        fs.influence[FactionType.CULTURAL] = 0.20
+        fs.influence[FactionType.CLERGY] = 0.15
+        result = check_power_struggle(fs)
+        assert result is not None
+
     def test_no_trigger_when_gap_too_large(self):
         fs = FactionState()
         fs.influence[FactionType.MILITARY] = 0.50
@@ -277,6 +295,17 @@ class TestPowerStruggle:
         assert civ.factions.influence[FactionType.MILITARY] > 0.36
         assert len(result_events) == 1
         assert result_events[0].event_type == "power_struggle_resolved"
+
+    def test_clergy_events_count_as_wins(self):
+        civ = _make_civ()
+        temple_event = Event(
+            turn=10,
+            event_type="build_started",
+            actors=[civ.name],
+            description="Temples were commissioned in the capital",
+            importance=5,
+        )
+        assert _event_is_win(temple_event, civ, FactionType.CLERGY) is True
 
 
 class TestTickFactions:

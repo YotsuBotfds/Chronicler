@@ -3,14 +3,17 @@ import pytest
 from chronicler.simulation import (
     phase_environment,
     phase_production,
+    apply_automatic_effects,
     phase_action,
     phase_random_events,
     phase_consequences,
+    _apply_event_effects,
     prune_inactive_wars,
     run_turn,
     apply_asabiya_dynamics,
     update_war_frequency_accumulators,
     reset_war_frequency_on_extinction,
+    _apply_treasury_tax_from_economy,
 )
 from chronicler.action_engine import resolve_war, resolve_trade
 from chronicler.simulation import apply_injected_event
@@ -49,6 +52,26 @@ class TestPhaseEnvironment:
         new_stabilities = {c.name: c.stability for c in sample_world.civilizations}
         assert any(new_stabilities[n] < old_stabilities[n] for n in old_stabilities)
 
+    def test_drought_stability_uses_severity_multiplier_with_acc(self, sample_world, monkeypatch):
+        """Accumulator path should apply severity scaling to drought stability drain."""
+        from chronicler.accumulator import StatAccumulator
+
+        sample_world.event_probabilities = {k: 0.0 for k in sample_world.event_probabilities}
+        sample_world.event_probabilities["drought"] = 1.0
+        # Keep exactly one alive civ to avoid random affected-set variation.
+        for civ in sample_world.civilizations[1:]:
+            civ.regions = []
+
+        monkeypatch.setattr("chronicler.simulation.get_severity_multiplier", lambda *_: 2.0)
+
+        civ = sample_world.civilizations[0]
+        old_stability = civ.stability
+        acc = StatAccumulator()
+        phase_environment(sample_world, seed=42, acc=acc)
+        acc.apply(sample_world)
+
+        assert civ.stability == old_stability - 6  # default drought drain 3 * severity 2.0
+
 
 class TestPhaseProduction:
     def test_treasury_increases(self, sample_world):
@@ -80,6 +103,49 @@ class TestAutomaticEffects:
 
         assert civ.stability == 30
 
+    def test_war_cost_stability_uses_projected_treasury_in_acc_mode(self, sample_world):
+        """War-cost stability drain should trigger when treasury crosses <= 0 in acc mode."""
+        from chronicler.accumulator import StatAccumulator
+
+        c0 = sample_world.civilizations[0]
+        c1 = sample_world.civilizations[1]
+        c0.treasury = 2
+        c0.stability = 50
+        c0.military = 0
+        c1.military = 0
+        c0.last_income = 0
+        c1.last_income = 0
+        sample_world.active_wars = [(c0.name, c1.name)]
+
+        acc = StatAccumulator()
+        apply_automatic_effects(sample_world, acc=acc)
+        acc.apply(sample_world)
+
+        assert c0.treasury == 0
+        assert c0.stability == 48
+
+    def test_treasury_tax_fractional_carry_prevents_permanent_zeroing(self, sample_world):
+        """Fractional tax should carry and eventually convert to whole-treasury increments."""
+        from types import SimpleNamespace
+        from chronicler.accumulator import StatAccumulator
+
+        civ = sample_world.civilizations[0]
+        civ.treasury = 0
+        sample_world._treasury_tax_carry = {}
+        economy_result = SimpleNamespace(treasury_tax={0: 0.6})
+
+        acc_1 = StatAccumulator()
+        _apply_treasury_tax_from_economy(sample_world, acc_1, economy_result)
+        acc_1.apply_keep(sample_world)
+        assert civ.treasury == 0
+        assert sample_world._treasury_tax_carry[0] == pytest.approx(0.6)
+
+        acc_2 = StatAccumulator()
+        _apply_treasury_tax_from_economy(sample_world, acc_2, economy_result)
+        acc_2.apply_keep(sample_world)
+        assert civ.treasury == 1
+        assert sample_world._treasury_tax_carry[0] == pytest.approx(0.2)
+
 
 class TestPhaseAction:
     def test_each_civ_takes_one_action(self, sample_world):
@@ -89,6 +155,41 @@ class TestPhaseAction:
 
         events = phase_action(sample_world, action_selector=stub_selector)
         assert len(events) == len(sample_world.civilizations)
+
+    def test_crisis_halving_applies_in_accumulator_mode(self, sample_world):
+        """Crisis action gains must be halved even when actions route through StatAccumulator."""
+        from chronicler.accumulator import StatAccumulator
+        from chronicler.simulation import _CRISIS_HALVED_STATS
+
+        crisis_world = sample_world.model_copy(deep=True)
+        normal_world = sample_world.model_copy(deep=True)
+
+        crisis_civ = crisis_world.civilizations[0]
+        normal_civ = normal_world.civilizations[0]
+        crisis_civ.succession_crisis_turns_remaining = 2
+        normal_civ.succession_crisis_turns_remaining = 0
+
+        before_crisis = {s: getattr(crisis_civ, s) for s in _CRISIS_HALVED_STATS}
+        before_normal = {s: getattr(normal_civ, s) for s in _CRISIS_HALVED_STATS}
+
+        selector = lambda civ, world: ActionType.DEVELOP
+
+        acc_crisis = StatAccumulator()
+        phase_action(crisis_world, action_selector=selector, acc=acc_crisis)
+        acc_crisis.apply(crisis_world)
+
+        acc_normal = StatAccumulator()
+        phase_action(normal_world, action_selector=selector, acc=acc_normal)
+        acc_normal.apply(normal_world)
+
+        positive_stats_checked = 0
+        for stat in _CRISIS_HALVED_STATS:
+            normal_gain = getattr(normal_civ, stat) - before_normal[stat]
+            crisis_gain = getattr(crisis_civ, stat) - before_crisis[stat]
+            if normal_gain > 0:
+                positive_stats_checked += 1
+                assert crisis_gain == normal_gain // 2
+        assert positive_stats_checked > 0
 
 
 class TestResolveWar:
@@ -118,6 +219,20 @@ class TestResolveTrade:
         resolve_trade(c1, c2, sample_world)
         assert c1.treasury >= old_t1
         assert c2.treasury >= old_t2
+
+
+def test_phase_random_events_targets_only_living_civs(sample_world):
+    sample_world.event_probabilities = {k: 0.0 for k in sample_world.event_probabilities}
+    sample_world.event_probabilities["rebellion"] = 1.0
+
+    for civ in sample_world.civilizations:
+        civ.regions = []
+    living = sample_world.civilizations[0]
+    living.regions = [sample_world.regions[0].name]
+
+    events = phase_random_events(sample_world, seed=123)
+    assert events
+    assert events[0].actors == [living.name]
 
 
 class TestAsabiyaDynamics:
@@ -164,6 +279,23 @@ class TestPhaseConsequences:
         assert len(collapse_events) == 1
         assert collapse_events[0].importance == 10
         assert civ.name in collapse_events[0].actors
+
+    def test_leader_death_passes_acc_to_rival_fall(self, sample_world, monkeypatch):
+        """Leader-death path should pass the active accumulator into rival-fall handling."""
+        from chronicler.accumulator import StatAccumulator
+
+        seen = {"acc": None}
+
+        def _fake_rival_fall(civ, dead_leader_name, world, acc=None):
+            seen["acc"] = acc
+            return None
+
+        monkeypatch.setattr("chronicler.simulation.check_rival_fall", _fake_rival_fall)
+
+        acc = StatAccumulator()
+        _apply_event_effects("leader_death", sample_world.civilizations[0], sample_world, acc=acc)
+
+        assert seen["acc"] is acc
 
 
 class TestRunTurn:

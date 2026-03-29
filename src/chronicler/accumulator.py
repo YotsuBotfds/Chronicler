@@ -9,17 +9,10 @@ signal/guard-shock → shock signal.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from chronicler.models import StatChange, CivShock, DemandSignal
+from chronicler.utils import STAT_FLOOR
 
 if TYPE_CHECKING:
     from chronicler.models import Civilization, WorldState
-
-STAT_FLOOR: dict[str, int] = {
-    "stability": 5,
-    "economy": 5,
-    "military": 5,
-    "culture": 5,
-    "population": 0,
-}
 
 UNBOUNDED_STATS = {"treasury", "asabiya", "prestige"}
 
@@ -59,6 +52,48 @@ class StatAccumulator:
         self._changes.append(StatChange(
             civ_idx, stat, delta, category, getattr(civ, stat, 0),
         ))
+
+    def checkpoint(self) -> int:
+        """Return the current change-list length for slice-based post-processing."""
+        return len(self._changes)
+
+    def halve_positive_deltas(self, civ_idx: int, stats: tuple[str, ...], start_index: int) -> None:
+        """Halve net positive deltas for a civ/stat subset in a tail slice.
+
+        Used by succession-crisis action halving in accumulator mode. This mirrors
+        aggregate behavior (halve net gain, keep losses unchanged).
+        """
+        if start_index >= len(self._changes):
+            return
+
+        # Net deltas by stat for changes emitted after start_index.
+        net: dict[str, float] = {s: 0.0 for s in stats}
+        for change in self._changes[start_index:]:
+            if change.civ_id == civ_idx and change.stat in net:
+                net[change.stat] += change.delta
+
+        # For each stat with net positive gain, reduce positive deltas until
+        # net gain equals floor(net_gain / 2), matching pre-existing integer behavior.
+        for stat, total in net.items():
+            if total <= 0:
+                continue
+            target = total // 2
+            remaining_reduction = total - target
+
+            for idx in range(len(self._changes) - 1, start_index - 1, -1):
+                change = self._changes[idx]
+                if (
+                    change.civ_id != civ_idx
+                    or change.stat != stat
+                    or change.delta <= 0
+                    or remaining_reduction <= 0
+                ):
+                    continue
+                reduction = min(change.delta, remaining_reduction)
+                change.delta -= reduction
+                remaining_reduction -= reduction
+                if remaining_reduction <= 0:
+                    break
 
     def apply(self, world: WorldState) -> None:
         """Aggregate mode: apply all changes in insertion order. Bit-identical."""

@@ -44,8 +44,8 @@ class TestStatAccumulatorApply:
         acc.add(0, civ, "stability", -50, "signal")
         acc.add(0, civ, "stability", -50, "signal")
         acc.apply(world)
-        # First: 80-50=30. Second: 30-50=-20 → clamped to floor (5 for stability)
-        assert civ.stability == 5  # STAT_FLOOR["stability"]
+        # First: 80-50=30. Second: 30-50=-20 → clamped to floor (0 for stability)
+        assert civ.stability == 0  # STAT_FLOOR["stability"]
 
     def test_apply_clamps_to_100(self):
         from chronicler.accumulator import StatAccumulator
