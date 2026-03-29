@@ -12,6 +12,7 @@
 - **Patched route-suspension gating in `build_merchant_route_graph()`** so endpoint `trade_route` suspensions now block both cross-civ and intra-civ traversal.
 - **Added regression coverage:** `test_route_suspension_blocks_cross_civ_edges` and `test_route_suspension_blocks_intra_civ_edges` in `tests/test_merchant_mobility.py`.
 - **M58b pre-spec handoff drafted:** `docs/superpowers/plans/2026-03-29-m58b-pre-spec-handoff.md`.
+- **M58a closeout full gate (2026-03-29):** ran `200` seeds x `500` turns (`--agents hybrid`, `--validation-sidecar`, `--parallel 24`) at `output/m58a_closeout/full_gate/batch_1`, then validated with `python -m chronicler.validate --oracles all`. Oracle results: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `determinism SKIP` (no duplicate seed pairs), `regression PASS`. Key regression metrics: `satisfaction_mean=0.4518`, `satisfaction_std=0.1439`, `migration_rate_per_agent_turn=0.096218`, `rebellion_rate_per_agent_turn=0.060259`, `gini_in_range_fraction=0.9828`, `occupation_ok=true`.
 - **Operational note:** if Python reports missing PyO3 methods (for example `set_merchant_route_graph`), rebuild extension with `python -m maturin develop --release` in `chronicler-agents/`.
 
 ---
