@@ -28,7 +28,7 @@ Make merchants physically move goods through space. This milestone implements ro
 - Disruption replan/unwind on edge invalidation (embargo, war, suspension)
 - Market attractor activation (merchant-only, idle-only)
 - Diagnostics metadata surface (9 metrics)
-- Full transit-agent exclusion from behavior/stats/spatial/economy systems
+- Transit-agent exclusion from behavior/stats/spatial systems; economy counts transit merchants by anchor region
 
 ### Out-of-scope (deferred to M58b+)
 
@@ -61,8 +61,8 @@ Make merchants physically move goods through space. This milestone implements ro
 ### Persistent States (pool fields)
 
 - **Idle** (0) — no active trip. Merchant participates in normal spatial drift, market attractor pull, and is counted in region stats.
-- **Loading** (1) — cargo reserved from shadow ledger, departs next tick.
-- **Transit** (2) — moving one hop per turn along path. Behavior decisions suppressed. Excluded from region stats, economy counts, spatial grid.
+- **Loading** (1) — cargo reserved from shadow ledger, departs next tick. Behavior decisions suppressed. Excluded from behavior stats and spatial grid. Economy: counted by current region (still stationary).
+- **Transit** (2) — moving one hop per turn along path. Behavior decisions suppressed. Excluded from behavior stats and spatial grid. Economy: counted by `trip_origin_region` (anchor counting).
 
 ### Ephemeral States (within-tick logic, not persisted)
 
@@ -196,8 +196,10 @@ At Loading → Transit transition, re-validate next hop against current-turn edg
 
 ### Conquest / Controller-Change Handling (strict order)
 
-1. **Identify:** Scan all in-transit merchants — collect those with `origin == conquered_region` or `dest == conquered_region` or current position `== conquered_region`.
-2. **Unwind:** For each impacted merchant: execute unwind transition (decrement `in_transit_out`, zero agent cargo, transition to Idle).
+1. **Identify:** Scan all non-Idle merchants (Loading AND Transit) — collect those with `origin == conquered_region` or `dest == conquered_region` or current position `== conquered_region`.
+2. **Unwind:** For each impacted merchant:
+   - If Loading: cancel reservation (decrement `reserved[origin][slot]`), zero agent cargo fields, transition to Idle.
+   - If Transit: execute unwind transition (decrement `in_transit_out[origin][slot]`), zero agent cargo, transition to Idle.
 3. **Clear residuals:** Zero any orphaned `reserved` or `in_transit_out` entries for the conquered region (safety sweep after all trips resolved).
 
 ### Shadow-Mode Conservation Caveat
@@ -211,48 +213,49 @@ M58a operates under **"in-flight conservation only."** Once cargo arrives (`in_t
 ### Tick Placement: Step 0.9 (before satisfaction and decisions)
 
 ```
-0.5  Wealth tick
-0.6  Settlement assignment (Pass A)
-0.75 Needs decay
-0.8  Relationship drift
-0.9  MERCHANT MOBILITY (new):
-     a. Disruption check: validate all Transit merchants' next hops
-     b. Replan/unwind disrupted merchants
-     c. Loading invalidation + departure (Loading → Transit)
-     d. Advance Transit merchants one hop
-     e. Process arrivals (Transit → Idle)
-     f. Route evaluation for Idle merchants (Planning)
-     g. Cargo reservation for new trips (→ Loading)
-     h. Update shadow ledger + collect diagnostics
-1.   Satisfaction
-2.   Behavior decisions — skip trip_phase != Idle
-3.   Household consolidation — skip trip_phase != Idle
-4.   Apply decisions
-5.   Demographics
-5+   Settlement assignment (Pass B — post-movement correction)
-6.   Spatial drift — skip trip_phase != Idle
+0.5   Wealth tick
+0.6   Settlement assignment (Pass A)
+0.75  Needs decay
+0.8   Relationship drift
+0.9   MERCHANT MOBILITY (new):
+      a. Disruption check: validate all Transit merchants' next hops
+      b. Replan/unwind disrupted merchants
+      c. Loading invalidation + departure (Loading → Transit)
+      d. Advance Transit merchants one hop
+      e. Process arrivals (Transit → Idle)
+      f. Route evaluation for Idle merchants (Planning)
+      g. Cargo reservation for new trips (→ Loading)
+      h. Update shadow ledger + collect diagnostics
+1.    Satisfaction
+2.    Behavior decisions — skip trip_phase != Idle
+3.    Household consolidation — skip trip_phase != Idle
+4.    Apply decisions
+4.5   Spatial drift — skip trip_phase != Idle (UNCHANGED position)
+5.    Demographics
+5+    Settlement assignment (Pass B — post-movement correction)
 ```
+
+**No reordering of existing phases.** Spatial drift stays at its current position (step 4.5, after apply decisions, before demographics — `tick.rs:330`). M58a only inserts the new merchant mobility phase at 0.9 and adds exclusion guards to existing phases. This avoids behavioral risk from reordering drift relative to demographics.
 
 **Why 0.9:** Mobility runs before decisions queue, eliminating decision-queue conflict. Wealth at 0.5 already ran, so agents entering Loading received normal income — **documented one-turn lag by design** (merchant earned stationary income, then begins trip). Satisfaction at 1.0 reads post-mobility state.
 
 **Settlement staleness:** Transit merchants entering a new region at 0.9 have stale `settlement_id` until Pass B. Since satisfaction runs at 1.0 (between Pass A and Pass B), `is_urban` may be stale for moved merchants. This is a **known one-turn lag, identical to existing migration behavior.** No fix needed.
 
-### Exclusion Rule: `trip_phase != Idle`
+### Exclusion Rules by Trip Phase
 
-Consistent across ALL systems:
+**Loading** merchants are stationary (still in origin region) but committed to a trip. **Transit** merchants are physically moving.
 
-| System | Exclusion scope |
-|---|---|
-| `compute_region_stats` | All aggregates: occupation supply, population counts, mean satisfaction, migration opportunity |
-| Behavior decisions | Skip `decide_for_agent()` entirely |
-| Household consolidation | Skip in `consolidate_household_migrations()` |
-| Spatial drift | Skip drift computation AND neighbor grid population (transit agents invisible to spatial system) |
+| System | Loading | Transit |
+|---|---|---|
+| `compute_region_stats` | Excluded from all aggregates | Excluded from all aggregates |
+| Behavior decisions | Skip `decide_for_agent()` | Skip `decide_for_agent()` |
+| Household consolidation | Skip in `consolidate_household_migrations()` | Skip in `consolidate_household_migrations()` |
+| Spatial drift | Skip drift + grid population | Skip drift + grid population |
+| Economy merchant count | Counted by current region (still stationary) | Counted by `trip_origin_region` (anchor) |
 
-### Economy Merchant-Count Policy: Count by Anchor Region
+Both Loading and Transit suppress behavior decisions and spatial participation. The only difference is economy counting: Loading merchants haven't moved yet so they count at their current (origin) region; Transit merchants count by anchor to prevent location leak.
 
-Transit merchants counted in `tick_economy`'s merchant population by `trip_origin_region`, not current position. Preserves total merchant count stability while preventing location leak.
-
-Implementation: `ffi.rs` merchant tally reads `trip_origin_region` when `trip_phase != Idle`, otherwise reads current `region`.
+Implementation: `ffi.rs` merchant tally reads `trip_origin_region` when `trip_phase == Transit`, otherwise reads current `region` (covers both Idle and Loading).
 
 ### Transit Merchant Spatial Position
 
@@ -336,7 +339,7 @@ Getter pattern matching existing `household_stats`:
 - `self.merchant_trip_stats: MerchantTripStats` stored on `AgentSimulator`
 - `get_merchant_trip_stats() -> HashMap<String, f64>` exposed via PyO3
 - Python bridge appends to per-turn metadata series in `agent_bridge.py`
-- Bundle surface: `merchant_trip_stats` key in bundle metadata
+- Bundle surface: `merchant_trip_stats` key in `bundle["metadata"]`, written in `main.py` (same pattern as `relationship_stats` at `main.py:748` and `household_stats` at `main.py:752`)
 
 ---
 
@@ -357,6 +360,8 @@ Register `MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700` in `agent.rs` `STREAM_OFFSET
 ### Two-Phase Apply Model
 
 Route evaluation runs in parallel (read-only against precomputed path tables). Shadow-ledger mutations (reserve/depart/unwind) collected as intents, applied in a single deterministic pass: **regions in sorted order, agents within each region in ID order.** No concurrent mutation of shared ledger state.
+
+**Reservation re-check at apply time:** Each reservation intent re-checks availability against the shadow ledger at the moment of commit, not at the moment of evaluation. If multiple merchants from the same region evaluated the same good slot in parallel, the first (by deterministic ordering) commits; subsequent intents that would exceed availability are rejected and the merchant stays Idle. `overcommit_count` increments for each rejected intent.
 
 Float reductions (e.g., `total_in_transit_qty`) use deterministic ordered summation, not parallel reduction with non-deterministic accumulation order.
 
@@ -453,7 +458,7 @@ M58b adds:
 |------|---------|
 | `agent.rs` | Register `MERCHANT_ROUTE_STREAM_OFFSET = 1700`, add to collision-check array |
 | `pool.rs` | 9 new SoA fields for trip state |
-| `tick.rs` | Step 0.9 merchant mobility phase, exclusion guards in steps 2/3/6 |
+| `tick.rs` | Step 0.9 merchant mobility phase, exclusion guards in steps 2/3/4.5 |
 | `behavior.rs` | `compute_region_stats` excludes transit agents from all aggregates |
 | `economy.rs` | No changes (shadow ledger is separate) |
 | `ffi.rs` | Stockpile feed to `RegionState`, edge-list batch parsing, anchor-region merchant count, `get_merchant_trip_stats()` getter |
@@ -468,9 +473,9 @@ M58b adds:
 | `simulation.py` | Pass edge-list batch to agent tick |
 | `models.py` | No changes (shadow ledger is Rust-only) |
 | `economy.py` | Route graph builder incorporating `route_suspensions` |
-| `main.py` | No changes |
+| `main.py` | Write `merchant_trip_stats` into `bundle["metadata"]` (same pattern as `relationship_stats` line 748, `household_stats` line 752) |
 | `analytics.py` | `extract_merchant_trip_stats()` extractor |
-| `bundle.py` | `merchant_trip_stats` in bundle metadata |
+| `bundle.py` | No changes (metadata written in `main.py`) |
 
 **Tests:**
 | File | Scope |
