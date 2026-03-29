@@ -1974,6 +1974,14 @@ impl AgentSimulator {
             .column_by_name("initial_belief")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
+        // M58a: Per-good stockpile columns (optional, backward compatible)
+        let stockpile_cols: Vec<Option<&arrow::array::Float32Array>> = (0..8)
+            .map(|g| {
+                rb.column_by_name(&format!("stockpile_{g}"))
+                    .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>())
+            })
+            .collect();
+
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -2036,6 +2044,16 @@ impl AgentSimulator {
                     // M55a
                     is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
+                    // M58a: Per-good stockpile
+                    stockpile: {
+                        let mut s = [0.0f32; 8];
+                        for (g, col) in stockpile_cols.iter().enumerate() {
+                            if let Some(arr) = col {
+                                s[g] = arr.value(i);
+                            }
+                        }
+                        s
+                    },
                     // M54a ecology
                     disease_baseline: disease_baseline_col.map_or(0.0, |arr| arr.value(i)),
                     capacity_modifier: capacity_modifier_col.map_or(1.0, |arr| arr.value(i)),
@@ -2207,6 +2225,14 @@ impl AgentSimulator {
                 r.seceded_this_turn = seceded_col.map_or(false, |arr| arr.value(i));
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
+                // M58a: Per-good stockpile
+                for (g, col) in stockpile_cols.iter().enumerate() {
+                    if let Some(arr) = col {
+                        r.stockpile[g] = arr.value(i);
+                    } else {
+                        r.stockpile[g] = 0.0;
+                    }
+                }
                 // M54a ecology — read-only inputs
                 if let Some(arr) = disease_baseline_col { r.disease_baseline = arr.value(i); }
                 if let Some(arr) = capacity_modifier_col { r.capacity_modifier = arr.value(i); }

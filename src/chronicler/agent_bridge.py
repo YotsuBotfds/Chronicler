@@ -26,6 +26,10 @@ TERRAIN_MAP = {
     "river": 0,   # Maps to plains for Rust terrain modifiers
     "hills": 0,   # Maps to plains for Rust terrain modifiers
 }
+# M58a: Fixed good slot ordering — mirrors economy.FIXED_GOODS (avoid circular import)
+_FIXED_GOODS: tuple[str, ...] = (
+    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
+)
 FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
 
 EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
@@ -406,6 +410,17 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # M55a: Spatial substrate signals
         "is_capital": pa.array(is_capital_flags, type=pa.bool_()),
         "temple_prestige": pa.array(temple_prestiges, type=pa.float32()),
+        # M58a: Per-good stockpile levels for merchant cargo availability
+        # Slot ordering matches economy.FIXED_GOODS:
+        #   0=grain, 1=fish, 2=salt, 3=timber, 4=ore, 5=botanicals, 6=precious, 7=exotic
+        **{
+            f"stockpile_{g}": pa.array(
+                [r.stockpile.goods.get(good_name, 0.0) if r.stockpile else 0.0
+                 for r in world.regions],
+                type=pa.float32(),
+            )
+            for g, good_name in enumerate(_FIXED_GOODS)
+        },
     })
 
 

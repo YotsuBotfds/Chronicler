@@ -77,6 +77,8 @@ pub struct RegionState {
     // M55a: Spatial substrate signals
     pub is_capital: bool,
     pub temple_prestige: f32,
+    // M58a: Per-good stockpile levels (from Python RegionStockpile)
+    pub stockpile: [f32; 8],
 }
 
 impl RegionState {
@@ -131,6 +133,8 @@ impl RegionState {
             // M55a: Spatial substrate
             is_capital: false,
             temple_prestige: 0.0,
+            // M58a: Stockpile
+            stockpile: [0.0; 8],
         }
     }
 }
