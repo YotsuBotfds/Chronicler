@@ -836,6 +836,131 @@ def build_economy_trade_route_batch(world, active_trade_routes=None) -> "pa.Reco
     })
 
 
+# ---------------------------------------------------------------------------
+# M58a: Merchant route graph — edge-list batch for Rust pathfinding
+# ---------------------------------------------------------------------------
+
+# Disposition ordering for trade permission checks.
+_DISP_NUMERIC: dict[str, int] = {
+    "hostile": 0, "suspicious": 1, "neutral": 2, "friendly": 3, "allied": 4,
+}
+
+
+def _regions_share_river(r1, r2) -> bool:
+    """Check if two regions share a river connection.
+
+    river_mask is a per-river bitmask: bit ``river_idx`` is set for every
+    region along that river's path.  Two adjacent regions share a river iff
+    their masks have at least one common bit (i.e. they both lie on the same
+    river).
+    """
+    return bool(r1.river_mask & r2.river_mask)
+
+
+def _transport_cost(r1, r2, is_winter: bool) -> float:
+    """Compute directed transport cost from *r1* to *r2*.
+
+    Uses average terrain cost of the two endpoints, then applies discounts
+    for river/coastal adjacency and a winter surcharge.
+    """
+    cost1 = TERRAIN_COST.get(r1.terrain, 1.0)
+    cost2 = TERRAIN_COST.get(r2.terrain, 1.0)
+    base = TRANSPORT_COST_BASE * (cost1 + cost2) / 2.0
+
+    if _regions_share_river(r1, r2):
+        base *= RIVER_DISCOUNT
+    elif r1.terrain == "coast" and r2.terrain == "coast":
+        base *= COASTAL_DISCOUNT
+
+    if is_winter:
+        base *= WINTER_MODIFIER
+
+    return base
+
+
+def build_merchant_route_graph(world) -> "pa.RecordBatch":
+    """Build a directed edge-list batch for Rust merchant pathfinding.
+
+    Edges are region adjacency pairs filtered by diplomatic permissions:
+    - Intra-civ edges always allowed.
+    - Cross-civ edges gated by: neutral+ disposition (both sides),
+      no active war, no embargo, no route_suspensions.
+    - Uncontrolled regions are not traversable.
+
+    Returns a RecordBatch with columns:
+    ``from_region`` (uint16), ``to_region`` (uint16),
+    ``is_river`` (bool), ``transport_cost`` (float32).
+    """
+    import pyarrow as pa
+    from chronicler.resources import get_season_id
+
+    regions = world.regions
+    region_idx = {r.name: i for i, r in enumerate(regions)}
+    is_winter = get_season_id(world.turn) == 3
+
+    # Pre-build lookup sets for O(1) gating checks.
+    war_set: set[frozenset[str]] = set()
+    for a, b in world.active_wars:
+        war_set.add(frozenset({a, b}))
+
+    embargo_set: set[frozenset[str]] = set()
+    for a, b in world.embargoes:
+        embargo_set.add(frozenset({a, b}))
+
+    from_ids: list[int] = []
+    to_ids: list[int] = []
+    is_river_flags: list[bool] = []
+    transport_costs: list[float] = []
+
+    for r1 in regions:
+        if r1.controller is None:
+            continue
+        for adj_name in r1.adjacencies:
+            r2 = None
+            for r in regions:
+                if r.name == adj_name:
+                    r2 = r
+                    break
+            if r2 is None or r2.controller is None:
+                continue
+
+            # Intra-civ: always allowed.
+            if r1.controller != r2.controller:
+                # Cross-civ gating: war check
+                civ_pair = frozenset({r1.controller, r2.controller})
+                if civ_pair in war_set:
+                    continue
+                # Embargo check
+                if civ_pair in embargo_set:
+                    continue
+                # Route suspension check (keyed by target region name)
+                if adj_name in r1.route_suspensions:
+                    continue
+                if r1.name in r2.route_suspensions:
+                    continue
+                # Disposition check: both sides must be >= neutral (2)
+                rel_ab = world.relationships.get(r1.controller, {}).get(r2.controller)
+                rel_ba = world.relationships.get(r2.controller, {}).get(r1.controller)
+                if rel_ab is None or rel_ba is None:
+                    continue
+                if _DISP_NUMERIC.get(rel_ab.disposition.value, 0) < 2:
+                    continue
+                if _DISP_NUMERIC.get(rel_ba.disposition.value, 0) < 2:
+                    continue
+
+            from_ids.append(region_idx[r1.name])
+            to_ids.append(region_idx[r2.name])
+            is_river_flags.append(_regions_share_river(r1, r2))
+            transport_costs.append(_transport_cost(r1, r2, is_winter))
+
+    return pa.record_batch({
+        "from_region": pa.array(from_ids, type=pa.uint16()),
+        "to_region": pa.array(to_ids, type=pa.uint16()),
+        "is_river": pa.array(is_river_flags, type=pa.bool_()),
+        "transport_cost": pa.array(transport_costs, type=pa.float32()),
+    })
+
+
 def reconstruct_economy_result(
     region_result_batch,
     civ_result_batch,
