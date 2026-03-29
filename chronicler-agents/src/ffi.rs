@@ -1685,6 +1685,10 @@ pub struct AgentSimulator {
     settlement_grids: Vec<[u16; 100]>,
     // M57b: household stats from last tick
     household_stats: crate::household::HouseholdStats,
+    // M58a: merchant mobility state
+    merchant_graph: Option<crate::merchant::RouteGraph>,
+    merchant_ledger: Option<crate::merchant::ShadowLedger>,
+    merchant_trip_stats: crate::merchant::MerchantTripStats,
 }
 
 #[pymethods]
@@ -1725,6 +1729,9 @@ impl AgentSimulator {
             politics_config: PoliticsConfig::default(),
             settlement_grids: Vec::new(),
             household_stats: crate::household::HouseholdStats::default(),
+            merchant_graph: None,
+            merchant_ledger: None,
+            merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
         }
     }
 
@@ -2322,6 +2329,16 @@ impl AgentSimulator {
         }
 
         let mut spatial_diag = crate::spatial::SpatialDiagnostics::default();
+
+        // M58a: Build merchant_state from graph + ledger if both are present
+        // Use take/put pattern to satisfy borrow checker (need &RouteGraph + &mut ShadowLedger)
+        let merchant_graph_taken = self.merchant_graph.take();
+        let mut merchant_ledger_taken = self.merchant_ledger.take();
+        let merchant_state = match (&merchant_graph_taken, &mut merchant_ledger_taken) {
+            (Some(graph), Some(ledger)) => Some((graph, ledger)),
+            _ => None,
+        };
+
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
@@ -2333,15 +2350,20 @@ impl AgentSimulator {
             &self.attractors,
             &mut spatial_diag,
             &self.settlement_grids,  // M56b
-            None,  // M58a: merchant_state wired in Task 8
+            merchant_state,
         );
+
+        // Restore graph and ledger
+        self.merchant_graph = merchant_graph_taken;
+        self.merchant_ledger = merchant_ledger_taken;
+
         self.last_spatial_diag = spatial_diag;
         self.prev_kin_bond_failures = self.kin_bond_failures;
         self.kin_bond_failures = self.kin_bond_failures.saturating_add(kin_failures);
         self.formation_stats = formation_stats;
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
-        let _ = merchant_stats; // M58a: consumed in Task 8
+        self.merchant_trip_stats = merchant_stats;
 
         // M53: demographic debug counters
         // event_type 0 = death, 5 = birth (from tick.rs AgentEvent)
@@ -3589,7 +3611,14 @@ impl AgentSimulator {
                 match Occupation::from_u8(self.pool.occupation(slot)) {
                     Some(Occupation::Farmer) => farmer_count += 1,
                     Some(Occupation::Soldier) => soldier_count += 1,
-                    Some(Occupation::Merchant) => merchant_count += 1,
+                    Some(Occupation::Merchant) => {
+                        // M58a: Transit merchants counted by origin region in second pass
+                        if self.pool.trip_phase[slot] == crate::agent::TRIP_PHASE_TRANSIT {
+                            // Don't count here — counted by origin region below
+                        } else {
+                            merchant_count += 1;
+                        }
+                    }
                     _ => {}
                 }
                 if self.pool.wealth[slot] > self.economy_config.luxury_demand_threshold {
@@ -3603,6 +3632,17 @@ impl AgentSimulator {
                 merchant_count,
                 wealthy_count,
             });
+        }
+
+        // M58a: Second pass — count transit merchants by their origin region (anchor counting)
+        for slot in 0..self.pool.capacity() {
+            if !self.pool.is_alive(slot) { continue; }
+            if self.pool.trip_phase[slot] != crate::agent::TRIP_PHASE_TRANSIT { continue; }
+            if self.pool.occupations[slot] != Occupation::Merchant as u8 { continue; }
+            let origin = self.pool.trip_origin_region[slot] as usize;
+            if origin < agent_counts.len() {
+                agent_counts[origin].merchant_count += 1;
+            }
         }
 
         // --- Derive per-civ merchant wealth and priest count ---
@@ -3854,6 +3894,82 @@ impl AgentSimulator {
             cell_ys.values(),
         );
         Ok(())
+    }
+
+    /// M58a: Ingest merchant route graph from Python as an Arrow RecordBatch.
+    /// Schema: from_region (uint16), to_region (uint16), is_river (bool), transport_cost (float32).
+    #[pyo3(name = "set_merchant_route_graph")]
+    pub fn set_merchant_route_graph(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        let n = rb.num_rows();
+        if n == 0 {
+            // Empty graph — clear merchant state
+            self.merchant_graph = Some(crate::merchant::RouteGraph::from_edges(
+                &[], &[], &[], &[], self.regions.len(),
+            ));
+            if self.merchant_ledger.is_none() {
+                self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(self.regions.len()));
+            }
+            return Ok(());
+        }
+
+        let from_region = rb.column_by_name("from_region")
+            .ok_or_else(|| PyValueError::new_err("missing column: from_region"))?
+            .as_any()
+            .downcast_ref::<arrow::array::UInt16Array>()
+            .ok_or_else(|| PyValueError::new_err("column from_region not UInt16"))?;
+        let to_region = rb.column_by_name("to_region")
+            .ok_or_else(|| PyValueError::new_err("missing column: to_region"))?
+            .as_any()
+            .downcast_ref::<arrow::array::UInt16Array>()
+            .ok_or_else(|| PyValueError::new_err("column to_region not UInt16"))?;
+        let is_river = rb.column_by_name("is_river")
+            .ok_or_else(|| PyValueError::new_err("missing column: is_river"))?
+            .as_any()
+            .downcast_ref::<arrow::array::BooleanArray>()
+            .ok_or_else(|| PyValueError::new_err("column is_river not Boolean"))?;
+        let transport_cost = rb.column_by_name("transport_cost")
+            .ok_or_else(|| PyValueError::new_err("missing column: transport_cost"))?
+            .as_any()
+            .downcast_ref::<arrow::array::Float32Array>()
+            .ok_or_else(|| PyValueError::new_err("column transport_cost not Float32"))?;
+
+        // Extract bool values from BooleanArray (bit-packed)
+        let mut is_river_vec = Vec::with_capacity(n);
+        for i in 0..n {
+            is_river_vec.push(is_river.value(i));
+        }
+
+        let num_regions = self.regions.len();
+        self.merchant_graph = Some(crate::merchant::RouteGraph::from_edges(
+            from_region.values(),
+            to_region.values(),
+            &is_river_vec,
+            transport_cost.values(),
+            num_regions,
+        ));
+
+        // Initialize ledger on first call
+        if self.merchant_ledger.is_none() {
+            self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(num_regions));
+        }
+        Ok(())
+    }
+
+    /// M58a: Return merchant trip stats from last tick as a flat HashMap.
+    #[pyo3(name = "get_merchant_trip_stats")]
+    pub fn get_merchant_trip_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
+        let mut stats = std::collections::HashMap::new();
+        stats.insert("active_trips".into(), self.merchant_trip_stats.active_trips as f64);
+        stats.insert("completed_trips".into(), self.merchant_trip_stats.completed_trips as f64);
+        stats.insert("avg_trip_duration".into(), self.merchant_trip_stats.avg_trip_duration as f64);
+        stats.insert("total_in_transit_qty".into(), self.merchant_trip_stats.total_in_transit_qty as f64);
+        stats.insert("route_utilization".into(), self.merchant_trip_stats.route_utilization as f64);
+        stats.insert("disruption_replans".into(), self.merchant_trip_stats.disruption_replans as f64);
+        stats.insert("unwind_count".into(), self.merchant_trip_stats.unwind_count as f64);
+        stats.insert("stalled_trip_count".into(), self.merchant_trip_stats.stalled_trip_count as f64);
+        stats.insert("overcommit_count".into(), self.merchant_trip_stats.overcommit_count as f64);
+        Ok(stats)
     }
 }
 

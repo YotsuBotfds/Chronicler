@@ -754,6 +754,13 @@ def execute_run(
             household_stats = []
         bundle["metadata"]["household_stats"] = household_stats
 
+    # M58a: merchant trip stats metadata
+    if agent_bridge is not None:
+        m_trip_stats = getattr(agent_bridge, "merchant_trip_stats", [])
+        if not isinstance(m_trip_stats, list):
+            m_trip_stats = []
+        bundle["metadata"]["merchant_trip_stats"] = m_trip_stats
+
     bundle_path = output_path.parent / "chronicle_bundle.json"
     write_bundle(bundle, bundle_path, world=world)
     print(f"Viewer bundle written to {bundle_path}")

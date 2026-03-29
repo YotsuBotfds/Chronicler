@@ -766,6 +766,8 @@ class AgentBridge:
         self._relationship_stats_history: list = []
         # M57b: Household stats collection (always in agent modes)
         self._household_stats_history: list = []
+        # M58a: Merchant trip stats collection
+        self._merchant_trip_stats_history: list = []
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -811,6 +813,11 @@ class AgentBridge:
         Assumes sync_regions() was already called this turn.
         Does NOT call set_region_state() again.
         """
+        # M58a: Sync merchant route graph before tick
+        from chronicler.economy import build_merchant_route_graph
+        route_batch = build_merchant_route_graph(world)
+        self._sim.set_merchant_route_graph(route_batch)
+
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
@@ -822,6 +829,12 @@ class AgentBridge:
         Use sync_regions() + tick_agents() separately when ecology runs between them.
         """
         self.sync_regions(world)
+
+        # M58a: Sync merchant route graph before tick
+        from chronicler.economy import build_merchant_route_graph
+        route_batch = build_merchant_route_graph(world)
+        self._sim.set_merchant_route_graph(route_batch)
+
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
@@ -841,6 +854,13 @@ class AgentBridge:
         try:
             h_stats = self._sim.get_household_stats()
             self._household_stats_history.append(h_stats)
+        except Exception:
+            pass
+
+        # M58a: merchant trip stats collection
+        try:
+            m_stats = self._sim.get_merchant_trip_stats()
+            self._merchant_trip_stats_history.append(m_stats)
         except Exception:
             pass
 
@@ -1000,6 +1020,11 @@ class AgentBridge:
     def household_stats(self) -> list:
         """M57b: Per-tick household stats history."""
         return self._household_stats_history
+
+    @property
+    def merchant_trip_stats(self) -> list:
+        """M58a: Per-tick merchant trip stats history."""
+        return self._merchant_trip_stats_history
 
     def write_final_sidecar_snapshot(self, world: "WorldState") -> None:
         """Capture the true post-loop state for validation sidecars.
