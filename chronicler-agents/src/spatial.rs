@@ -711,3 +711,10 @@ pub fn newborn_position(
     let y = (parent_pos.1 + jy).clamp(0.0, POS_MAX);
     (x, y)
 }
+
+/// Compute an entry position for a merchant transiting into `to_region` from `from_region`.
+/// TODO(Task 9): Replace placeholder with proper edge-biased position based on
+/// relative region layout. Currently returns center (0.5, 0.5).
+pub fn transit_entry_position(_seed: u64, _to_region: u16, _from_region: u16) -> (f32, f32) {
+    (0.5, 0.5)
+}

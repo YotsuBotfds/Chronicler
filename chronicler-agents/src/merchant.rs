@@ -2,8 +2,12 @@
 
 use std::collections::VecDeque;
 
-use crate::agent::MAX_PATH_LEN;
+use crate::agent::{
+    MAX_PATH_LEN, TRIP_PHASE_IDLE, TRIP_PHASE_LOADING, TRIP_PHASE_TRANSIT, TRIP_GOOD_SLOT_NONE,
+};
 use crate::economy::NUM_GOODS;
+use crate::pool::AgentPool;
+use crate::region::RegionState;
 
 /// Shadow cargo ledger — tracks reservations and in-transit goods
 /// without mutating macro stockpiles. Persistent across turns.
@@ -203,6 +207,209 @@ pub fn trace_path(
     Some((path, hop_count as u8))
 }
 
+// ---------------------------------------------------------------------------
+// Route selection and trip state machine
+// ---------------------------------------------------------------------------
+
+/// Minimum margin sum (origin + dest) for a trip to be worthwhile.
+pub const MIN_TRIP_PROFIT: f32 = 0.05; // [CALIBRATE]
+/// Maximum cargo a single merchant can carry per trip.
+pub const MERCHANT_CARGO_CAP: f32 = 2.0; // [CALIBRATE]
+
+/// A reservation intent collected during parallel evaluation,
+/// applied in deterministic order.
+#[derive(Clone, Debug)]
+pub struct TripIntent {
+    pub agent_slot: usize,
+    pub origin_region: u16,
+    pub dest_region: u16,
+    pub good_slot: u8,
+    pub cargo_qty: f32,
+    pub path: [u16; MAX_PATH_LEN],
+    pub path_len: u8,
+}
+
+/// Evaluate route candidates for an idle merchant at `origin_region`.
+/// Returns a TripIntent if a profitable route with available cargo exists.
+pub fn evaluate_route(
+    agent_slot: usize,
+    agent_id: u32,
+    origin_region: u16,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+) -> Option<TripIntent> {
+    let origin = origin_region as usize;
+    if origin >= regions.len() {
+        return None;
+    }
+
+    let origin_margin = regions[origin].merchant_margin;
+
+    // Score all reachable destinations
+    let mut best_dest: Option<u16> = None;
+    let mut best_score: f32 = MIN_TRIP_PROFIT;
+    let mut best_dest_id_tiebreak: (u16, u32) = (u16::MAX, u32::MAX);
+
+    for (dest_idx, &dist) in path_table.dist.iter().enumerate() {
+        if dist == 0 || dist == u16::MAX {
+            continue;
+        }
+        let score = origin_margin + regions[dest_idx].merchant_margin;
+        let tiebreak = (dest_idx as u16, agent_id);
+        if score > best_score || (score == best_score && tiebreak < best_dest_id_tiebreak) {
+            best_score = score;
+            best_dest = Some(dest_idx as u16);
+            best_dest_id_tiebreak = tiebreak;
+        }
+    }
+
+    let dest = best_dest?;
+
+    // Find best good slot with available cargo
+    let mut best_slot: Option<u8> = None;
+    let mut best_avail: f32 = 0.0;
+    for slot in 0..8u8 {
+        if ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile) {
+            continue;
+        }
+        let avail = ledger.available(origin, slot as usize, &regions[origin].stockpile);
+        if avail > best_avail || (avail == best_avail && best_slot.map_or(true, |s| slot < s)) {
+            best_avail = avail;
+            best_slot = Some(slot);
+        }
+    }
+
+    let good_slot = best_slot.filter(|_| best_avail > 0.0)?;
+    let cargo_qty = best_avail.min(MERCHANT_CARGO_CAP);
+
+    let (path, path_len) = trace_path(path_table, origin_region, dest)?;
+
+    Some(TripIntent {
+        agent_slot,
+        origin_region,
+        dest_region: dest,
+        good_slot,
+        cargo_qty,
+        path,
+        path_len,
+    })
+}
+
+/// Apply a trip intent to the pool and shadow ledger.
+/// Re-checks availability at apply time (two-phase model).
+/// Returns true if the reservation was committed, false if rejected.
+pub fn apply_trip_intent(
+    intent: &TripIntent,
+    pool: &mut AgentPool,
+    ledger: &mut ShadowLedger,
+    regions: &[RegionState],
+    stats: &mut MerchantTripStats,
+) -> bool {
+    let origin = intent.origin_region as usize;
+    let slot = intent.good_slot as usize;
+
+    // Re-check at apply time
+    if ledger.is_overcommitted(origin, slot, &regions[origin].stockpile) {
+        stats.overcommit_count += 1;
+        return false;
+    }
+    let avail = ledger.available(origin, slot, &regions[origin].stockpile);
+    if avail <= 0.0 {
+        stats.overcommit_count += 1;
+        return false;
+    }
+    let qty = avail.min(intent.cargo_qty);
+
+    // Commit reservation
+    ledger.reserve(origin, slot, qty);
+
+    // Update pool fields
+    let s = intent.agent_slot;
+    pool.trip_phase[s] = TRIP_PHASE_LOADING;
+    pool.trip_dest_region[s] = intent.dest_region;
+    pool.trip_origin_region[s] = intent.origin_region;
+    pool.trip_good_slot[s] = intent.good_slot;
+    pool.trip_cargo_qty[s] = qty;
+    pool.trip_turns_elapsed[s] = 0;
+    pool.trip_path[s] = intent.path;
+    pool.trip_path_len[s] = intent.path_len;
+    pool.trip_path_cursor[s] = 0;
+
+    true
+}
+
+/// Advance a Transit merchant one hop along their path.
+/// Updates region and spatial position via transit_entry_position.
+/// Returns the new region, or None if arrived.
+pub fn advance_one_hop(pool: &mut AgentPool, slot: usize, master_seed: &[u8; 32]) -> Option<u16> {
+    let cursor = pool.trip_path_cursor[slot] as usize;
+    let len = pool.trip_path_len[slot] as usize;
+    if cursor >= len {
+        return None; // already at destination
+    }
+
+    let from_region = pool.regions[slot];
+    let next_region = pool.trip_path[slot][cursor];
+    pool.regions[slot] = next_region;
+    pool.trip_path_cursor[slot] += 1;
+    pool.trip_turns_elapsed[slot] += 1;
+
+    // Set spatial position at edge entry point
+    let seed_u64 = u64::from_le_bytes(master_seed[..8].try_into().unwrap());
+    let (x, y) = crate::spatial::transit_entry_position(seed_u64, next_region, from_region);
+    pool.x[slot] = x;
+    pool.y[slot] = y;
+
+    if (pool.trip_path_cursor[slot] as usize) >= len {
+        None // arrived at destination
+    } else {
+        Some(next_region) // still in transit
+    }
+}
+
+/// Transition Loading -> Transit (departure).
+/// Validates next hop first; cancels reservation if invalid.
+pub fn depart_merchant(
+    pool: &mut AgentPool,
+    slot: usize,
+    graph: &RouteGraph,
+    ledger: &mut ShadowLedger,
+) -> bool {
+    let cursor = pool.trip_path_cursor[slot] as usize;
+    let next_hop = pool.trip_path[slot][cursor];
+    let current = pool.regions[slot];
+
+    if !graph.has_edge(current, next_hop) {
+        // Route invalidated before departure — cancel
+        let origin = pool.trip_origin_region[slot] as usize;
+        let good = pool.trip_good_slot[slot] as usize;
+        ledger.cancel_reservation(origin, good, pool.trip_cargo_qty[slot]);
+        reset_trip_fields(pool, slot);
+        return false;
+    }
+
+    // Depart: reserved -> in_transit
+    let origin = pool.trip_origin_region[slot] as usize;
+    let good = pool.trip_good_slot[slot] as usize;
+    ledger.depart(origin, good, pool.trip_cargo_qty[slot]);
+    pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
+    true
+}
+
+/// Reset all trip fields to Idle state.
+pub fn reset_trip_fields(pool: &mut AgentPool, slot: usize) {
+    pool.trip_phase[slot] = TRIP_PHASE_IDLE;
+    pool.trip_dest_region[slot] = 0;
+    pool.trip_origin_region[slot] = 0;
+    pool.trip_good_slot[slot] = TRIP_GOOD_SLOT_NONE;
+    pool.trip_cargo_qty[slot] = 0.0;
+    pool.trip_turns_elapsed[slot] = 0;
+    pool.trip_path[slot] = [u16::MAX; MAX_PATH_LEN];
+    pool.trip_path_len[slot] = 0;
+    pool.trip_path_cursor[slot] = 0;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -382,5 +589,77 @@ mod tests {
         let t2 = bfs_from(&graph, 0);
         assert_eq!(t1.dist, t2.dist);
         assert_eq!(t1.pred, t2.pred);
+    }
+
+    // -------------------------------------------------------------------
+    // Route selection tests
+    // -------------------------------------------------------------------
+
+    fn make_test_regions(n: usize) -> Vec<crate::region::RegionState> {
+        (0..n)
+            .map(|i| {
+                let mut r = crate::region::RegionState::new(i as u16);
+                r.merchant_margin = 0.3;
+                r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+                r
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_evaluate_route_finds_profitable_destination() {
+        let regions = make_test_regions(3);
+        let graph = RouteGraph::from_edges(
+            &[0, 1, 1, 2],
+            &[1, 0, 2, 1],
+            &[false; 4],
+            &[1.0; 4],
+            3,
+        );
+        let table = bfs_from(&graph, 0);
+        let ledger = ShadowLedger::new(3);
+        let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger);
+        assert!(intent.is_some());
+        let intent = intent.unwrap();
+        assert_eq!(intent.origin_region, 0);
+        assert!(intent.dest_region == 1 || intent.dest_region == 2);
+        assert!(intent.cargo_qty > 0.0);
+    }
+
+    #[test]
+    fn test_evaluate_route_no_profitable_route() {
+        let mut regions = make_test_regions(2);
+        regions[0].merchant_margin = 0.0;
+        regions[1].merchant_margin = 0.0;
+        let graph = RouteGraph::from_edges(
+            &[0, 1],
+            &[1, 0],
+            &[false; 2],
+            &[1.0; 2],
+            2,
+        );
+        let table = bfs_from(&graph, 0);
+        let ledger = ShadowLedger::new(2);
+        let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger);
+        assert!(intent.is_none());
+    }
+
+    #[test]
+    fn test_deterministic_tiebreak_by_region_then_agent() {
+        let mut regions = make_test_regions(3);
+        regions[1].merchant_margin = 0.5;
+        regions[2].merchant_margin = 0.5;
+        let graph = RouteGraph::from_edges(
+            &[0, 0, 1, 2],
+            &[1, 2, 0, 0],
+            &[false; 4],
+            &[1.0; 4],
+            3,
+        );
+        let table = bfs_from(&graph, 0);
+        let ledger = ShadowLedger::new(3);
+        let i1 = evaluate_route(0, 100, 0, &regions, &table, &ledger).unwrap();
+        let i2 = evaluate_route(0, 100, 0, &regions, &table, &ledger).unwrap();
+        assert_eq!(i1.dest_region, i2.dest_region);
     }
 }
