@@ -603,6 +603,10 @@ pub fn spatial_drift_step(
         if !pool.is_alive(slot) {
             continue;
         }
+        // M58a: Skip non-idle merchants from spatial drift (on trip)
+        if pool.is_on_trip(slot) {
+            continue;
+        }
         let region = pool.regions[slot] as usize;
         if region >= grids.len() || region >= attractors.len() {
             continue;

@@ -753,7 +753,7 @@ fn test_full_tick_with_spatial_determinism() {
             }
             tick_agents(
                 &mut pool, &regions, &signals, seed, turn,
-                &mut percentiles, &mut grids, &attractors, &mut diag, &[],
+                &mut percentiles, &mut grids, &attractors, &mut diag, &[], None,
             );
         }
         // Collect alive agent (id, x_bits, y_bits) for deterministic comparison

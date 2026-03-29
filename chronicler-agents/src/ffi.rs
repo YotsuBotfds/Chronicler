@@ -2322,7 +2322,7 @@ impl AgentSimulator {
         }
 
         let mut spatial_diag = crate::spatial::SpatialDiagnostics::default();
-        let (events, kin_failures, formation_stats, demo_debug, household_stats) = crate::tick::tick_agents(
+        let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
@@ -2333,6 +2333,7 @@ impl AgentSimulator {
             &self.attractors,
             &mut spatial_diag,
             &self.settlement_grids,  // M56b
+            None,  // M58a: merchant_state wired in Task 8
         );
         self.last_spatial_diag = spatial_diag;
         self.prev_kin_bond_failures = self.kin_bond_failures;
@@ -2340,6 +2341,7 @@ impl AgentSimulator {
         self.formation_stats = formation_stats;
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
+        let _ = merchant_stats; // M58a: consumed in Task 8
 
         // M53: demographic debug counters
         // event_type 0 = death, 5 = birth (from tick.rs AgentEvent)

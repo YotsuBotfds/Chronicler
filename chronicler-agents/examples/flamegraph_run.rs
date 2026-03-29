@@ -98,7 +98,7 @@ fn main() {
             percentiles.resize(pool.capacity(), 0.0);
         }
         let tick_start = Instant::now();
-        let (events, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles, &mut Vec::new(), &[], &mut chronicler_agents::spatial::SpatialDiagnostics::default(), &[]);
+        let (events, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, turn, &mut percentiles, &mut Vec::new(), &[], &mut chronicler_agents::spatial::SpatialDiagnostics::default(), &[], None);
         let tick_elapsed = tick_start.elapsed();
 
         if turn % 100 == 0 || turn == turns - 1 {

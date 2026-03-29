@@ -410,6 +410,107 @@ pub fn reset_trip_fields(pool: &mut AgentPool, slot: usize) {
     pool.trip_path_cursor[slot] = 0;
 }
 
+// ---------------------------------------------------------------------------
+// Full mobility phase orchestration
+// ---------------------------------------------------------------------------
+
+/// Run the full merchant mobility phase. Called at step 0.9 in tick_agents.
+/// Processes: disruption -> departures -> movement -> arrivals -> route eval -> reservations.
+pub fn merchant_mobility_phase(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    graph: &RouteGraph,
+    ledger: &mut ShadowLedger,
+    master_seed: &[u8; 32],
+) -> MerchantTripStats {
+    let mut stats = MerchantTripStats::default();
+    let cap = pool.capacity();
+
+    // Phase a-b: Disruption check + replan/unwind for Transit merchants
+    for slot in 0..cap {
+        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_TRANSIT { continue; }
+        let cursor = pool.trip_path_cursor[slot] as usize;
+        let len = pool.trip_path_len[slot] as usize;
+        if cursor >= len { continue; }
+        let current = pool.regions[slot];
+        let next_hop = pool.trip_path[slot][cursor];
+        if !graph.has_edge(current, next_hop) {
+            let dest = pool.trip_dest_region[slot];
+            let table = bfs_from(graph, current);
+            if let Some((new_path, new_len)) = trace_path(&table, current, dest) {
+                pool.trip_path[slot] = new_path;
+                pool.trip_path_len[slot] = new_len;
+                pool.trip_path_cursor[slot] = 0;
+                stats.disruption_replans += 1;
+            } else {
+                let origin = pool.trip_origin_region[slot] as usize;
+                let good = pool.trip_good_slot[slot] as usize;
+                ledger.unwind(origin, good, pool.trip_cargo_qty[slot]);
+                stats.stalled_trip_count += 1;
+                stats.unwind_count += 1;
+                reset_trip_fields(pool, slot);
+            }
+        }
+    }
+
+    // Phase c: Loading invalidation + departure
+    for slot in 0..cap {
+        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_LOADING { continue; }
+        depart_merchant(pool, slot, graph, ledger);
+    }
+
+    // Phase d-e: Advance Transit merchants + process arrivals
+    let mut arrivals: Vec<usize> = Vec::new();
+    for slot in 0..cap {
+        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_TRANSIT { continue; }
+        if advance_one_hop(pool, slot, master_seed).is_none() {
+            arrivals.push(slot);
+        }
+    }
+    for slot in arrivals {
+        let origin = pool.trip_origin_region[slot] as usize;
+        let dest = pool.trip_dest_region[slot] as usize;
+        let good = pool.trip_good_slot[slot] as usize;
+        let qty = pool.trip_cargo_qty[slot];
+        ledger.arrive(origin, dest, good, qty);
+        let duration = pool.trip_turns_elapsed[slot];
+        stats.completed_trips += 1;
+        stats.avg_trip_duration += duration as f32;
+        reset_trip_fields(pool, slot);
+    }
+    if stats.completed_trips > 0 {
+        stats.avg_trip_duration /= stats.completed_trips as f32;
+    }
+
+    // Phase f-g: Route evaluation for idle merchants + cargo reservation
+    let mut origin_tables: std::collections::HashMap<u16, PathTable> = std::collections::HashMap::new();
+    let mut intents: Vec<TripIntent> = Vec::new();
+    for slot in 0..cap {
+        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE { continue; }
+        if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
+        let origin = pool.regions[slot];
+        let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
+        if let Some(intent) = evaluate_route(slot, pool.ids[slot], origin, regions, table, ledger) {
+            intents.push(intent);
+        }
+    }
+    intents.sort_by_key(|i| (i.origin_region, pool.ids[i.agent_slot]));
+    for intent in &intents {
+        apply_trip_intent(intent, pool, ledger, regions, &mut stats);
+    }
+
+    // Phase h: Collect final diagnostics
+    for slot in 0..cap {
+        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_TRANSIT { continue; }
+        stats.active_trips += 1;
+        stats.total_in_transit_qty += pool.trip_cargo_qty[slot];
+    }
+    if graph.edge_count > 0 {
+        stats.route_utilization = stats.completed_trips as f32 / graph.edge_count as f32;
+    }
+    stats
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
