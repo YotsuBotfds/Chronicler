@@ -1720,8 +1720,12 @@ git commit -m "feat(m59a): wire knowledge phase into tick at 0.95, set merchant 
 
 In `chronicler-agents/src/ffi.rs`, in the `#[pymethods]` impl block, after the `get_merchant_trip_stats` method (find it by searching for `fn get_merchant_trip_stats`), add:
 
+Note: the spec says `KnowledgeStats` struct crosses FFI. The Rust side stores it as a `KnowledgeStats` struct (Task 8). The PyO3 getter converts to `HashMap<String, f64>` for Python consumption, matching the established pattern used by `get_relationship_stats()`, `get_household_stats()`, and `get_merchant_trip_stats()`. This is the spec's intended "flat fixed-width struct through FFI → Python builds per-type dicts" transport path.
+
 ```rust
     /// M59a: Return knowledge stats from last tick as a flat HashMap.
+    /// Rust-side KnowledgeStats struct converted to Python dict, matching
+    /// the established pattern from relationship/household/merchant stats.
     #[pyo3(name = "get_knowledge_stats")]
     pub fn get_knowledge_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
         let mut stats = std::collections::HashMap::new();
@@ -1921,13 +1925,13 @@ git commit -m "feat(m59a): wire knowledge_stats into bundle metadata and analyti
 - Test: `chronicler-agents/tests/test_knowledge.rs`
 - Test: `tests/test_m59a_knowledge.py`
 
-- [ ] **Step 1: Add determinism test to Rust**
+- [ ] **Step 1: Add same-process determinism test to Rust**
 
 Append to `chronicler-agents/tests/test_knowledge.rs`:
 
 ```rust
 #[test]
-fn test_knowledge_phase_deterministic() {
+fn test_knowledge_phase_deterministic_same_process() {
     // Run the same setup twice with the same seed — results must match
     let seed = [42u8; 32];
 
@@ -1965,6 +1969,61 @@ fn test_knowledge_phase_deterministic() {
     assert_eq!(th_a, th_b, "packet state should be identical across runs");
     assert_eq!(int_a, int_b, "intensity state should be identical across runs");
 }
+```
+
+- [ ] **Step 2: Add cross-process determinism test via Python**
+
+Append to `tests/test_m59a_knowledge.py`:
+
+```python
+import subprocess
+import sys
+
+
+def test_knowledge_deterministic_cross_process(tmp_path):
+    """Cross-process determinism: same seed in two separate processes must
+    produce identical knowledge_stats.
+
+    This catches process-local nondeterminism (uninitialized memory, HashMap
+    iteration order, thread scheduling) that same-process reruns miss.
+    """
+    from chronicler.main import execute_run
+
+    bundles = []
+    for run_idx in range(2):
+        run_dir = tmp_path / f"det_run_{run_idx}"
+        run_dir.mkdir()
+        # Run in a subprocess to get true process isolation
+        script = (
+            f"import argparse, json; "
+            f"from chronicler.main import execute_run; "
+            f"args = argparse.Namespace("
+            f"  seed=77, turns=8, civs=2, regions=5,"
+            f"  output=r'{run_dir / 'chronicle.md'}',"
+            f"  state=r'{run_dir / 'state.json'}',"
+            f"  resume=None, reflection_interval=10,"
+            f"  llm_actions=False, scenario=None, pause_every=None,"
+            f"  agents='hybrid', narrator='off', agent_narrative=False,"
+            f"  relationship_stats=False, live=False,"
+            f"  shadow_output=None, validation_sidecar=False,"
+            f"); "
+            f"execute_run(args)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=120,
+        )
+        assert result.returncode == 0, (
+            f"Run {run_idx} failed: {result.stderr[-500:]}"
+        )
+        bundle_path = run_dir / "chronicle_bundle.json"
+        assert bundle_path.exists(), f"Run {run_idx} produced no bundle"
+        bundles.append(json.loads(bundle_path.read_text()))
+
+    k0 = bundles[0].get("metadata", {}).get("knowledge_stats", [])
+    k1 = bundles[1].get("metadata", {}).get("knowledge_stats", [])
+    assert len(k0) > 0, "knowledge_stats should be non-empty in hybrid mode"
+    assert k0 == k1, "knowledge_stats diverged across processes"
 ```
 
 - [ ] **Step 2: Add slot-order independence test**
@@ -2027,12 +2086,8 @@ git commit -m "test(m59a): add determinism and slot-order independence tests"
 
 - [ ] **Step 1: Rebuild the Rust extension**
 
-Run: `cd chronicler-agents && ..\\.venv\\Scripts\\python.exe -m pip install -e . 2>&1 | tail -5`
-
-Or if maturin is available:
-
 Run: `cd chronicler-agents && maturin develop --release`
-Expected: Build succeeds
+Expected: Build succeeds. Use `.venv\\Scripts\\python.exe` to verify the correct venv picks up the rebuilt extension.
 
 - [ ] **Step 2: Run full Rust test suite**
 
@@ -2050,56 +2105,115 @@ Only if fixes were required. Otherwise skip.
 
 ---
 
-## Task 14: Behavioral Inertia Regression Test
+## Task 14: Compatibility + Behavioral Inertia Regression Tests
 
 **Files:**
 - Test: `tests/test_m59a_knowledge.py`
 
-- [ ] **Step 1: Write behavioral inertia test**
+- [ ] **Step 1: Write `--agents=off` compatibility test**
 
 Append to `tests/test_m59a_knowledge.py`:
 
 ```python
+import argparse
+import json
+
+
+def _make_args(tmp_path, seed=42, turns=5, agents="off"):
+    """Build an args namespace matching execute_run's expected shape."""
+    return argparse.Namespace(
+        seed=seed,
+        turns=turns,
+        civs=2,
+        regions=5,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None,
+        reflection_interval=10,
+        llm_actions=False,
+        scenario=None,
+        pause_every=None,
+        agents=agents,
+        narrator="off",
+        agent_narrative=False,
+        relationship_stats=False,
+        live=False,
+        shadow_output=None,
+        validation_sidecar=False,
+    )
+
+
 def test_agents_off_no_knowledge_stats(tmp_path):
     """--agents=off should produce no knowledge_stats in bundle metadata."""
-    import json
-    from chronicler.main import run_simulation
+    from chronicler.main import execute_run
 
-    args = type("Args", (), {
-        "seed": 42,
-        "scenario": "default",
-        "turns": 5,
-        "output": str(tmp_path / "test_output"),
-        "agents": "off",
-        "narrator": "off",
-        "agent_narrative": False,
-        "relationship_stats": False,
-        "live": False,
-        "shadow_output": None,
-        "validation_sidecar": False,
-    })()
+    args = _make_args(tmp_path, agents="off")
+    execute_run(args)
 
-    run_simulation(args)
-
-    bundle_path = tmp_path / "test_output" / "chronicle_bundle.json"
+    bundle_path = tmp_path / "chronicle_bundle.json"
     if bundle_path.exists():
         bundle = json.loads(bundle_path.read_text())
         metadata = bundle.get("metadata", {})
-        # Should not have knowledge_stats at all, or should be empty
         k_stats = metadata.get("knowledge_stats", [])
         assert k_stats == [] or "knowledge_stats" not in metadata
 ```
 
-- [ ] **Step 2: Run test**
+- [ ] **Step 2: Write behavioral inertia regression test**
 
-Run: `pytest tests/test_m59a_knowledge.py::test_agents_off_no_knowledge_stats -v`
-Expected: PASS
+This test verifies that M59a is producer-only in agent mode: same seed produces identical non-knowledge outputs before and after M59a lands. It runs two hybrid simulations with the same seed and checks that all bundle fields except `knowledge_stats` are identical.
 
-- [ ] **Step 3: Commit**
+Append to `tests/test_m59a_knowledge.py`:
+
+```python
+def test_behavioral_inertia_hybrid(tmp_path):
+    """Same seed in hybrid mode: all outputs except knowledge_stats must be identical.
+
+    Verifies M59a is producer-only — packets exist but do not change any
+    agent decision, merchant routing, or demographic outcome.
+    """
+    from chronicler.main import execute_run
+
+    results = []
+    for run_idx in range(2):
+        run_dir = tmp_path / f"run_{run_idx}"
+        run_dir.mkdir()
+        args = _make_args(run_dir, seed=42, turns=10, agents="hybrid")
+        execute_run(args)
+        bundle_path = run_dir / "chronicle_bundle.json"
+        assert bundle_path.exists(), f"Run {run_idx} did not produce a bundle"
+        results.append(json.loads(bundle_path.read_text()))
+
+    b0, b1 = results
+
+    # History snapshots (civ stats, populations, treasury, etc.) must match
+    assert b0["history"] == b1["history"], "history diverged between runs"
+
+    # Events timeline must match
+    assert b0.get("events_timeline") == b1.get("events_timeline"), "events diverged"
+
+    # Metadata fields other than knowledge_stats must match
+    for key in b0.get("metadata", {}):
+        if key == "knowledge_stats":
+            continue
+        assert b0["metadata"][key] == b1["metadata"].get(key), (
+            f"metadata['{key}'] diverged between runs"
+        )
+
+    # knowledge_stats should exist and be non-empty in hybrid mode
+    k0 = b0.get("metadata", {}).get("knowledge_stats", [])
+    assert len(k0) == 10, f"Expected 10 turns of knowledge_stats, got {len(k0)}"
+```
+
+- [ ] **Step 3: Run tests**
+
+Run: `pytest tests/test_m59a_knowledge.py -v`
+Expected: All PASS
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add tests/test_m59a_knowledge.py
-git commit -m "test(m59a): add --agents=off compatibility and behavioral inertia tests"
+git commit -m "test(m59a): add --agents=off compatibility and behavioral inertia regression tests"
 ```
 
 ---
