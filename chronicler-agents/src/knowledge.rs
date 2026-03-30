@@ -1,5 +1,8 @@
 //! M59a: Information packet substrate — types, helpers, knowledge phase.
 
+use crate::agent;
+use crate::pool::AgentPool;
+
 // ---------------------------------------------------------------------------
 // InfoType
 // ---------------------------------------------------------------------------
@@ -167,4 +170,120 @@ pub struct KnowledgeStats {
     pub max_age: u32,
     pub mean_hops: f32,
     pub max_hops: u32,
+}
+
+// ---------------------------------------------------------------------------
+// Admission policy
+// ---------------------------------------------------------------------------
+
+/// Incoming packet candidate for admission into an agent's slots.
+#[derive(Clone, Debug)]
+pub struct PacketCandidate {
+    pub info_type: u8,
+    pub source_region: u16,
+    pub source_turn: u16,
+    pub intensity: u8,
+    pub hop_count: u8,
+}
+
+/// Result of an admission attempt.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AdmitResult {
+    Refreshed,
+    Inserted,
+    Evicted,
+    Dropped,
+}
+
+/// Try to admit a packet into the agent's 4 slots.
+/// Returns the admission outcome.
+pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandidate) -> AdmitResult {
+    let info_type = candidate.info_type;
+    let source_region = candidate.source_region;
+
+    // Step 1: Check for same identity (info_type, source_region)
+    for i in 0..agent::PACKET_SLOTS {
+        let existing_type = unpack_type(pool.pkt_type_and_hops[slot][i]);
+        if existing_type == info_type && pool.pkt_source_region[slot][i] == source_region {
+            // Same identity — compare freshness
+            let existing_turn = pool.pkt_source_turn[slot][i];
+            if candidate.source_turn > existing_turn {
+                // Incoming is newer — refresh in place
+                pool.pkt_type_and_hops[slot][i] = pack_type_hops(info_type, candidate.hop_count);
+                pool.pkt_source_region[slot][i] = source_region;
+                pool.pkt_source_turn[slot][i] = candidate.source_turn;
+                pool.pkt_intensity[slot][i] = candidate.intensity;
+                return AdmitResult::Refreshed;
+            } else if candidate.source_turn == existing_turn {
+                // Same turn — keep higher intensity; if tied, keep lower hop_count
+                let existing_intensity = pool.pkt_intensity[slot][i];
+                let existing_hops = unpack_hops(pool.pkt_type_and_hops[slot][i]);
+                if candidate.intensity > existing_intensity
+                    || (candidate.intensity == existing_intensity && candidate.hop_count < existing_hops)
+                {
+                    pool.pkt_type_and_hops[slot][i] = pack_type_hops(info_type, candidate.hop_count);
+                    pool.pkt_intensity[slot][i] = candidate.intensity;
+                    return AdmitResult::Refreshed;
+                }
+            }
+            // Incoming is older or weaker — drop
+            return AdmitResult::Dropped;
+        }
+    }
+
+    // Step 2: Check for empty slot
+    for i in 0..agent::PACKET_SLOTS {
+        if is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
+            pool.pkt_type_and_hops[slot][i] = pack_type_hops(info_type, candidate.hop_count);
+            pool.pkt_source_region[slot][i] = source_region;
+            pool.pkt_source_turn[slot][i] = candidate.source_turn;
+            pool.pkt_intensity[slot][i] = candidate.intensity;
+            return AdmitResult::Inserted;
+        }
+    }
+
+    // Step 3: All slots full — find lowest-ranked incumbent
+    let incoming_priority = InfoType::from_u8(info_type)
+        .map(|t| t.retention_priority())
+        .unwrap_or(0);
+
+    let mut worst_idx: usize = 0;
+    let mut worst_turn: u16 = pool.pkt_source_turn[slot][0];
+    let mut worst_priority: u8 = InfoType::from_u8(unpack_type(pool.pkt_type_and_hops[slot][0]))
+        .map(|t| t.retention_priority())
+        .unwrap_or(0);
+
+    for i in 1..agent::PACKET_SLOTS {
+        let i_turn = pool.pkt_source_turn[slot][i];
+        let i_priority = InfoType::from_u8(unpack_type(pool.pkt_type_and_hops[slot][i]))
+            .map(|t| t.retention_priority())
+            .unwrap_or(0);
+
+        // Older source_turn = easier to evict
+        // Lower retention priority = easier to evict
+        // Higher slot_index = easier to evict (tie-break)
+        if i_turn < worst_turn
+            || (i_turn == worst_turn && i_priority < worst_priority)
+            || (i_turn == worst_turn && i_priority == worst_priority && i > worst_idx)
+        {
+            worst_idx = i;
+            worst_turn = i_turn;
+            worst_priority = i_priority;
+        }
+    }
+
+    // Admission guard: incoming must outrank the worst incumbent
+    let incoming_outranks = candidate.source_turn > worst_turn
+        || (candidate.source_turn == worst_turn && incoming_priority > worst_priority)
+        || (candidate.source_turn == worst_turn && incoming_priority == worst_priority);
+
+    if incoming_outranks {
+        pool.pkt_type_and_hops[slot][worst_idx] = pack_type_hops(info_type, candidate.hop_count);
+        pool.pkt_source_region[slot][worst_idx] = source_region;
+        pool.pkt_source_turn[slot][worst_idx] = candidate.source_turn;
+        pool.pkt_intensity[slot][worst_idx] = candidate.intensity;
+        return AdmitResult::Evicted;
+    }
+
+    AdmitResult::Dropped
 }
