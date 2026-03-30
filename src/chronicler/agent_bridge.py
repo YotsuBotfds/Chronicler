@@ -719,6 +719,8 @@ class AgentBridge:
         configure_ecology_runtime(self._sim, world)
         # M54b: Wire economy config from tuning overrides
         configure_economy_runtime(self._sim, world)
+        # M58b: Enable hybrid economy mode so tick_economy consumes delivery buffer
+        self._sim.set_hybrid_economy_mode(mode == "hybrid")
         # M54c: Wire politics config from tuning overrides
         from chronicler.politics import configure_politics_runtime
         configure_politics_runtime(self._sim, world)
