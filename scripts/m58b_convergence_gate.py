@@ -76,6 +76,7 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
     volume_ratios: list[float] = []
     food_suff_deltas: list[float] = []
     food_suff_realized_values: list[float] = []
+    food_suff_oracle_values: list[float] = []
     conservation_errors: list[float] = []
     repair_events = 0
 
@@ -124,16 +125,21 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         for region in oracle_food:
             if region in food_suff:
                 food_suff_deltas.append(abs(food_suff[region] - oracle_food[region]))
-        # Also collect realized values for crisis rate calculation.
+        # Collect per-region values for crisis rate delta.
         for region in food_suff:
             food_suff_realized_values.append(food_suff[region])
+        for region in oracle_food:
+            food_suff_oracle_values.append(oracle_food[region])
 
         # --- Conservation ---
+        # Conservation error = clamp_floor_loss / production.
+        # clamp_floor_loss is the actual accounting repair: stockpile went negative and was
+        # clamped to 0. This is the true conservation violation, not in_transit_delta (which
+        # is a legitimate inventory-flow identity term for goods in flight).
         prod = conservation.get("production", 0) or 0
-        in_transit_delta = conservation.get("in_transit_delta")
-        if prod > 0 and in_transit_delta is not None:
-            error = abs(in_transit_delta)
-            conservation_errors.append(error / prod)
+        clamp_floor = conservation.get("clamp_floor_loss", 0) or 0
+        if prod > 0:
+            conservation_errors.append(clamp_floor / prod)
 
         # Repair events
         clamp_loss = conservation.get("clamp_floor_loss")
@@ -188,16 +194,20 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
     else:
         mean_delta = 0.0
 
-    # Crisis rate: percentage of realized food_suff values below 0.8.
-    if food_suff_realized_values:
-        food_arr = np.array(food_suff_realized_values)
-        crisis_rate = float(np.mean(food_arr < 0.8)) * 100  # percentage
+    # Crisis rate delta: |realized_crisis_rate - oracle_crisis_rate| in percentage points.
+    # The spec says "delta of crisis rate (food_suff < 0.8)", not absolute crisis rate.
+    if food_suff_realized_values and food_suff_oracle_values:
+        realized_crisis = float(np.mean(np.array(food_suff_realized_values) < 0.8)) * 100
+        oracle_crisis = float(np.mean(np.array(food_suff_oracle_values) < 0.8)) * 100
+        crisis_rate_delta = abs(realized_crisis - oracle_crisis)
 
-        if crisis_rate > FOOD_CRISIS_DELTA_PP:
+        if crisis_rate_delta > FOOD_CRISIS_DELTA_PP:
             passed = False
-            reasons.append(f"food_crisis_rate={crisis_rate:.1f}pp>{FOOD_CRISIS_DELTA_PP}")
+            reasons.append(f"food_crisis_delta={crisis_rate_delta:.1f}pp>{FOOD_CRISIS_DELTA_PP}")
     else:
-        crisis_rate = 0.0
+        realized_crisis = 0.0
+        oracle_crisis = 0.0
+        crisis_rate_delta = 0.0
 
     # --- Conservation ---
     cons_arr = np.array(conservation_errors) if conservation_errors else np.array([0.0])
@@ -221,7 +231,9 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         "volume_ratio_p10": p10_ratio,
         "volume_ratio_p90": p90_ratio,
         "food_suff_mean_delta": mean_delta,
-        "food_crisis_rate_pp": crisis_rate,
+        "food_crisis_delta_pp": crisis_rate_delta,
+        "food_crisis_realized_pp": realized_crisis,
+        "food_crisis_oracle_pp": oracle_crisis,
         "conservation_error_median": cons_median,
         "conservation_error_p95": cons_p95,
         "repair_events": repair_events,
@@ -240,10 +252,10 @@ def run_gate(results: list[dict], n_seeds: int) -> dict:
     passed_count = sum(1 for r in results if r.get("passed", False))
     pass_rate = passed_count / max(n_seeds, 1)
 
-    # Catastrophic tail: seeds where food crisis exceeds catastrophic threshold
+    # Catastrophic tail: seeds where food crisis DELTA exceeds catastrophic threshold
     catastrophic_count = sum(
         1 for r in results
-        if r.get("food_crisis_rate_pp", 0) > FOOD_CRISIS_CATASTROPHIC_PP
+        if r.get("food_crisis_delta_pp", 0) > FOOD_CRISIS_CATASTROPHIC_PP
     )
     catastrophic_rate = catastrophic_count / max(n_seeds, 1)
 
