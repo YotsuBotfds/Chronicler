@@ -469,6 +469,95 @@ fn test_oracle_shadow_produces_data_in_hybrid_mode() {
     assert_eq!(oracle.len(), 2); // one per region
 }
 
+// ---------------------------------------------------------------------------
+// M58b: Conservation integration tests — three-stream accounting
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_three_stream_conservation() {
+    let mut buf = DeliveryBuffer::new(3);
+    // Merchant departs region 0 with 10 grain
+    buf.record_departure(0, 0, 10.0);
+    // Merchant arrives at region 2 with 10 grain
+    buf.record_arrival(0, 2, 0, 10.0);
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 3);
+
+    // in_transit_delta = departures - arrivals - returns = 10 - 10 - 0 = 0
+    let delta: f32 = (0..3).map(|r| {
+        (0..NUM_GOODS).map(|g| {
+            delivery.departure_debits[r][g] - delivery.arrival_imports[r][g] - delivery.return_credits[r][g]
+        }).sum::<f32>()
+    }).sum();
+    assert!((delta).abs() < 1e-6, "in_transit_delta should be 0 when all trips complete");
+}
+
+#[test]
+fn test_conservation_with_in_transit_goods() {
+    let mut buf = DeliveryBuffer::new(2);
+    // 10 departs, only 7 arrives (3 still in transit)
+    buf.record_departure(0, 0, 10.0);
+    buf.record_arrival(0, 1, 0, 7.0);
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+    let delta: f32 = (0..2).map(|r| {
+        (0..NUM_GOODS).map(|g| {
+            delivery.departure_debits[r][g] - delivery.arrival_imports[r][g] - delivery.return_credits[r][g]
+        }).sum::<f32>()
+    }).sum();
+    // 10 - 7 - 0 = 3 goods still in transit
+    assert!((delta - 3.0).abs() < 1e-6);
+}
+
+#[test]
+fn test_transit_decay_on_arrivals_only() {
+    // Verify that transit decay is applied only to arrivals, not returns
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(2);
+    buf.record_departure(0, 0, 10.0);
+    buf.record_arrival(0, 1, 0, 10.0);
+    buf.record_return(0, 1, 5.0); // return to region 0, slot 1
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+
+    let region_inputs = vec![
+        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 80, 5, 10, 5),
+        test_agent_counts(100, 80, 5, 10, 5),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Transit loss should only be from arrivals (10 * TRANSIT_DECAY[0]), not returns
+    let expected_transit_loss = 10.0 * TRANSIT_DECAY[0];
+    assert!((output.conservation.transit_loss - expected_transit_loss as f64).abs() < 1e-4,
+        "transit loss should be {} but was {}", expected_transit_loss, output.conservation.transit_loss);
+}
+
+#[test]
+fn test_buffer_not_cleared_on_economy_failure() {
+    let mut buf = DeliveryBuffer::new(2);
+    buf.record_departure(0, 0, 10.0);
+    assert_eq!(buf.departure_debits[0][0], 10.0);
+
+    // Simulate: economy tick would fail (we just don't call clear)
+    // Buffer should still have data
+    assert_eq!(buf.departure_debits[0][0], 10.0);
+    assert_eq!(buf.diagnostics.total_departures[0][0], 10.0);
+
+    // Only after explicit clear:
+    buf.clear();
+    assert_eq!(buf.departure_debits[0][0], 0.0);
+    // Diagnostics preserved
+    assert_eq!(buf.diagnostics.total_departures[0][0], 10.0);
+}
+
 #[test]
 fn test_hybrid_stockpile_net_mobility() {
     // Verify that hybrid mode uses net mobility for stockpile updates.
