@@ -365,7 +365,7 @@ Modify `apply_trip_intent()` (~line 302) the same way.
 
 Update `merchant_mobility_phase()` (~line 471) to accept `delivery_buf: Option<&mut DeliveryBuffer>` and pass through.
 
-- [ ] **Step 6: Update all callers to pass None for delivery_buf**
+- [ ] **Step 6: Update all callers to pass delivery_buf through**
 
 In `merchant_mobility_phase()`, pass `delivery_buf.as_deref()` to `evaluate_route` and `delivery_buf.as_deref()` to `apply_trip_intent`.
 
@@ -789,7 +789,14 @@ impl HybridDeliveryInput {
 
 - [ ] **Step 7: Update ffi.rs tick_economy to pass delivery buffer**
 
-In `ffi.rs tick_economy()` (~line 3688), read the delivery buffer from self and pass to core. **Mode gating:** only pass `Some` in hybrid mode. The `AgentSimulator` needs to know its agent mode — add a `hybrid_mode: bool` field set during construction or via a setter called from Python.
+In `ffi.rs tick_economy()` (~line 3688), read the delivery buffer from self and pass to core. **Mode gating:** only pass `Some` in hybrid mode.
+
+**End-to-end hybrid flag plumbing:**
+
+1. Add `hybrid_mode: bool` field to `AgentSimulator` struct (default `false`).
+2. Add PyO3 setter `set_hybrid_mode(&mut self, hybrid: bool)`.
+3. In Python `AgentBridge.__init__()` (`agent_bridge.py:~740`), after `self._sim = AgentSimulator(...)`, call `self._sim.set_hybrid_mode(world.agent_mode == "hybrid")`. The source of truth is `world.agent_mode` (`models.py:706`).
+4. In `tick_economy()`, gate on `self.hybrid_mode`:
 
 ```rust
         // Mode gate: only hybrid mode consumes delivery buffer for stockpile truth.
@@ -1047,13 +1054,38 @@ In `src/chronicler/economy.py` (~line 520):
     })
 ```
 
-- [ ] **Step 4: Update reconstruct_economy_result to read in_transit_delta**
+- [ ] **Step 4: Update reconstruct_economy_result to read in_transit_delta and oracle imports**
 
-In `src/chronicler/economy.py` (~line 1054):
+In `src/chronicler/economy.py` (~line 1054), extend conservation reading:
 
 ```python
     for field_name in ("production", "transit_loss", "consumption", "storage_loss", "cap_overflow", "clamp_floor_loss", "in_transit_delta"):
         result.conservation[field_name] = conservation_batch.column(field_name).to_pylist()[0]
+```
+
+Also add `oracle_imports` field to `EconomyResult`:
+
+```python
+    # M58b: Oracle shadow imports (from observability batch oracle columns)
+    oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)
+```
+
+In `reconstruct_economy_result`, read oracle columns from observability batch if present:
+
+```python
+    # M58b: Oracle shadow imports (nullable columns, zero when no oracle)
+    if "oracle_imports_food" in observability_batch.schema.names:
+        obs_ids = observability_batch.column("region_id").to_pylist()
+        oracle_food = observability_batch.column("oracle_imports_food").to_pylist()
+        oracle_rm = observability_batch.column("oracle_imports_raw_material").to_pylist()
+        oracle_lux = observability_batch.column("oracle_imports_luxury").to_pylist()
+        for i, rid in enumerate(obs_ids):
+            rname = region_names[rid]
+            result.oracle_imports[rname] = {
+                "food": oracle_food[i],
+                "raw_material": oracle_rm[i],
+                "luxury": oracle_lux[i],
+            }
 ```
 
 - [ ] **Step 5: Run test**
@@ -1343,14 +1375,49 @@ Add a method to `AgentBridge`:
 
 ```python
     def _write_economy_sidecar(self, world, economy_result):
-        """Write economy convergence snapshot if sidecar active and sampling conditions met."""
+        """Write economy convergence snapshot if sidecar active and sampling conditions met.
+
+        Payload matches gate requirements from spec Section 4:
+        - oracle_trade_volume_by_category: from observability oracle columns
+        - agent_trade_volume_by_category: from observability realized imports
+        - post_trade_margin_by_region: from region result merchant_margin
+        - food_sufficiency_by_region: from region result food_sufficiency
+        - imports_by_region_by_category: from observability imports columns
+        - conservation: full conservation dict
+        """
         if not self._sidecar or economy_result is None:
             return
         if world.turn < 100 or world.turn % 10 != 0:
             return
-        from chronicler.analytics import extract_conservation_diagnostics
+
+        # Per-region vectors for gate metrics
+        region_names = [r.name for r in world.regions]
         self._sidecar.write_economy_snapshot(world.turn, {
             "turn": world.turn,
+            "oracle_trade_volume_by_category": {
+                rname: economy_result.oracle_imports.get(rname, {"food": 0, "raw_material": 0, "luxury": 0})
+                for rname in region_names
+            },
+            "agent_trade_volume_by_category": {
+                rname: {
+                    "food": economy_result.imports_by_region.get(rname, {}).get("food", 0),
+                    "raw_material": economy_result.imports_by_region.get(rname, {}).get("raw_material", 0),
+                    "luxury": economy_result.imports_by_region.get(rname, {}).get("luxury", 0),
+                }
+                for rname in region_names
+            },
+            "post_trade_margin_by_region": {
+                rname: economy_result.merchant_margins.get(rname, 0.0)
+                for rname in region_names
+            },
+            "food_sufficiency_by_region": {
+                rname: economy_result.food_sufficiency.get(rname, 0.0)
+                for rname in region_names
+            },
+            "imports_by_region_by_category": {
+                rname: economy_result.imports_by_region.get(rname, {})
+                for rname in region_names
+            },
             "conservation": economy_result.conservation,
         })
 ```
