@@ -1803,8 +1803,11 @@ Add a property accessor, after `merchant_trip_stats` property (line 1042-1044):
 In the `reset` method (around line 2085-2086), add after `self._household_stats_history.clear()`:
 
 ```python
+        self._merchant_trip_stats_history.clear()  # fix: was missing from reset()
         self._knowledge_stats_history.clear()
 ```
+
+Note: `_merchant_trip_stats_history.clear()` is a pre-existing bug — it was never included in `reset()`, so batch-mode reuse leaks merchant trip stats across runs. Fixing it here since we're already touching this method.
 
 - [ ] **Step 2: Write failing Python test**
 
