@@ -19,7 +19,7 @@
 | `chronicler-agents/src/merchant.rs` | Modify | `DeliveryBuffer` struct, `DeliveryDiagnostics` struct, wire into `ShadowLedger` event methods, availability guard change |
 | `chronicler-agents/src/economy.rs` | Modify | `tick_economy_core` gains `delivery_buffer` param, hybrid trade ingress, oracle shadow, `in_transit_delta` conservation field |
 | `chronicler-agents/src/ffi.rs` | Modify | `tick_economy()` reads delivery buffer from self, passes to core; `get_delivery_diagnostics()` method; conservation schema extended |
-| `chronicler-agents/src/tick.rs` | No change | Merchant phase already calls `merchant_mobility_phase` which calls ledger methods — buffer wired through ledger |
+| `chronicler-agents/src/tick.rs` | Modify | `tick_agents` signature updated to accept `DeliveryBuffer` in merchant state tuple; passes through to `merchant_mobility_phase` and `conquest_unwind` |
 | `src/chronicler/economy.py` | Modify | `EconomyResult.conservation` dict gains `in_transit_delta` key |
 | `src/chronicler/simulation.py` | Minor | Economy result reconstruction handles new conservation field |
 | `src/chronicler/sidecar.py` | Modify | Economy sidecar section for convergence gate data |
@@ -251,7 +251,9 @@ Modify `ShadowLedger::depart()`, `ShadowLedger::arrive()`, and `ShadowLedger::un
     }
 ```
 
-- [ ] **Step 8: Update all callers of depart/arrive/unwind to pass `None`**
+- [ ] **Step 8: Update all callers of depart/arrive/unwind to pass `None` temporarily**
+
+**Staging note:** This task passes `None` as a compile-gate only. Task 3 will replace all `None` args with `Some(buf)` once the delivery buffer is wired through `merchant_mobility_phase` and `conquest_unwind`. The dispatch notes' rule "None is not valid when buffer exists" applies after Task 3 lands — not during Task 1.
 
 Update every call site in `merchant.rs` that calls `ledger.depart(...)`, `ledger.arrive(...)`, or `ledger.unwind(...)` to add the trailing `None` argument. This includes:
 
@@ -261,6 +263,8 @@ Update every call site in `merchant.rs` that calls `ledger.depart(...)`, `ledger
 - `conquest_unwind()` transit branch (~line 453): `ledger.unwind(origin_idx, good, qty, None);`
 
 Also update all call sites in existing tests in `merchant.rs` `mod tests`.
+
+**Task 3 will change these `None`s to `Some(buf)` — do not leave them as `None` after Task 3.**
 
 - [ ] **Step 9: Run full Rust test suite to verify no regressions**
 
@@ -480,9 +484,9 @@ Add to `chronicler-agents/tests/test_merchant.rs`:
 ```rust
 use chronicler_agents::economy::{
     tick_economy_core, EconomyRegionInput, RegionAgentCounts, TradeRouteInput,
-    EconomyConfig, NUM_GOODS, HybridDeliveryInput,
+    EconomyConfig, NUM_GOODS, TRANSIT_DECAY, HybridDeliveryInput,
 };
-use chronicler_agents::merchant::{DeliveryBuffer, TRANSIT_DECAY};
+use chronicler_agents::merchant::DeliveryBuffer;
 
 #[test]
 fn test_hybrid_economy_consumes_delivery_buffer() {
@@ -963,7 +967,35 @@ Note: The implementation should extract the abstract allocation logic into a hel
 
 - [ ] **Step 5: Serialize oracle data in FFI return**
 
-In `ffi.rs`, add a 6th return batch for oracle data when present, or return the existing 5-tuple with an additional optional batch. The simplest approach: extend the return to 6 batches, with the 6th being empty (0 rows) when oracle is None.
+**Do NOT change the tick_economy return tuple from 5 to 6 batches.** That would break `simulation.py:1495-1499` which unpacks the 5-tuple directly into `reconstruct_economy_result()`. Instead, add oracle columns to the existing observability batch (batch 3). Add three nullable `Float32` columns per category:
+
+- `oracle_imports_food`, `oracle_imports_raw_material`, `oracle_imports_luxury`
+
+These are null/zero when oracle is not active (non-hybrid mode). `reconstruct_economy_result` in Python reads them if present (check column existence), otherwise ignores. No return-shape change, no unpack breakage.
+
+In `ffi.rs`, update the observability batch packing (~line 3765) to include oracle columns:
+
+```rust
+        // Oracle shadow columns (nullable — zero when no oracle)
+        let mut oracle_if = Float32Builder::with_capacity(n_out);
+        let mut oracle_irm = Float32Builder::with_capacity(n_out);
+        let mut oracle_il = Float32Builder::with_capacity(n_out);
+        if let Some(ref oracle_vols) = output.oracle_trade_volume {
+            for ri in 0..n_out {
+                oracle_if.append_value(oracle_vols[ri][0]);  // CAT_FOOD
+                oracle_irm.append_value(oracle_vols[ri][1]); // CAT_RAW_MATERIAL
+                oracle_il.append_value(oracle_vols[ri][2]);  // CAT_LUXURY
+            }
+        } else {
+            for _ in 0..n_out {
+                oracle_if.append_value(0.0);
+                oracle_irm.append_value(0.0);
+                oracle_il.append_value(0.0);
+            }
+        }
+```
+
+Update `economy_observability_schema()` to include the three new columns. Update `reconstruct_economy_result` in Python to read them.
 
 - [ ] **Step 6: Run tests**
 
@@ -1281,7 +1313,7 @@ In `src/chronicler/sidecar.py`, add to `SidecarWriter`:
         return rows
 ```
 
-Add economy consolidation to the existing `finalize()` method.
+Add economy consolidation to the existing `close()` method (`sidecar.py:193`).
 
 - [ ] **Step 2: Add conservation diagnostics extractor to analytics.py**
 
@@ -1305,17 +1337,25 @@ def extract_conservation_diagnostics(economy_result) -> dict[str, float]:
 
 - [ ] **Step 3: Wire sidecar writes into simulation loop**
 
-In `src/chronicler/simulation.py`, after economy result reconstruction, if sidecar is active and `turn >= 100` and `turn % 10 == 0`:
+The sidecar is owned by `AgentBridge` (`self._sidecar`, initialized at `agent_bridge.py:750`). Wire economy sidecar writes into `AgentBridge`'s existing sidecar snapshot path (`agent_bridge.py:979`), not directly in `simulation.py`.
+
+Add a method to `AgentBridge`:
 
 ```python
-        if sidecar_writer and economy_result and world.turn >= 100 and world.turn % 10 == 0:
-            from chronicler.analytics import extract_conservation_diagnostics
-            sidecar_writer.write_economy_snapshot(world.turn, {
-                "turn": world.turn,
-                "conservation": economy_result.conservation,
-                # Oracle data added when oracle shadow is wired
-            })
+    def _write_economy_sidecar(self, world, economy_result):
+        """Write economy convergence snapshot if sidecar active and sampling conditions met."""
+        if not self._sidecar or economy_result is None:
+            return
+        if world.turn < 100 or world.turn % 10 != 0:
+            return
+        from chronicler.analytics import extract_conservation_diagnostics
+        self._sidecar.write_economy_snapshot(world.turn, {
+            "turn": world.turn,
+            "conservation": economy_result.conservation,
+        })
 ```
+
+Call `self._write_economy_sidecar(world, economy_result)` from `set_economy_result()` or from the existing sidecar snapshot block at `agent_bridge.py:979`.
 
 - [ ] **Step 4: Test sidecar writes**
 
@@ -1542,6 +1582,7 @@ When spawning implementation subagents, include in their prompt:
 5. Run the relevant test suite after each task (`cargo nextest run` for Rust, `pytest` for Python). Fix before reporting done.
 6. Check that Python-Rust bridge types match (column counts, field names in Arrow batches).
 7. Do not create files outside the scope specified in the task.
-8. `ShadowLedger::depart/arrive/unwind` now take `Option<&mut DeliveryBuffer>` — pass `Some(buf)` in merchant phase, `None` is not valid when delivery buffer exists.
+8. `ShadowLedger::depart/arrive/unwind` now take `Option<&mut DeliveryBuffer>` — pass `Some(buf)` in merchant phase. After Task 3, `None` is not valid when delivery buffer exists (Task 1 uses `None` temporarily until Task 3 wires the buffer through).
 9. `tick_economy_core` takes `Option<&HybridDeliveryInput>` — existing tests pass `None`, hybrid tests pass `Some`.
 10. `DeliveryBuffer::clear()` preserves diagnostics. Never call `diagnostics` clear.
+11. `TRANSIT_DECAY` in `economy.rs:69` is currently `const` (not `pub`). Task 4 must add `pub` visibility to make it importable from tests and `merchant.rs`.
