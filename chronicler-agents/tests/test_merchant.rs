@@ -2,7 +2,7 @@
 //! Tests multi-turn travel, route disruption unwind, and default stats.
 
 use chronicler_agents::merchant::{
-    merchant_mobility_phase, MerchantTripStats, RouteGraph, ShadowLedger,
+    merchant_mobility_phase, DeliveryBuffer, MerchantTripStats, RouteGraph, ShadowLedger,
 };
 use chronicler_agents::{AgentPool, Occupation, RegionState};
 
@@ -199,6 +199,52 @@ fn test_full_trip_lifecycle() {
         pool.trip_phase[0], TRIP_PHASE_TRANSIT,
         "Merchant should not remain in Transit after completing a 1-hop trip"
     );
+}
+
+#[test]
+fn test_delivery_buffer_records_departure() {
+    let mut buf = DeliveryBuffer::new(3);
+    buf.record_departure(0, 2, 5.0);
+    assert_eq!(buf.departure_debits[0][2], 5.0);
+    // Cumulative diagnostics
+    assert_eq!(buf.diagnostics.total_departures[0][2], 5.0);
+}
+
+#[test]
+fn test_delivery_buffer_records_arrival() {
+    let mut buf = DeliveryBuffer::new(3);
+    buf.record_arrival(0, 1, 2, 7.5);
+    assert_eq!(buf.arrival_imports.len(), 1);
+    assert_eq!(buf.arrival_imports[0].source_region, 0);
+    assert_eq!(buf.arrival_imports[0].dest_region, 1);
+    assert_eq!(buf.arrival_imports[0].good_slot, 2);
+    assert_eq!(buf.arrival_imports[0].qty, 7.5);
+    assert_eq!(buf.diagnostics.total_arrivals[1][2], 7.5);
+}
+
+#[test]
+fn test_delivery_buffer_records_return() {
+    let mut buf = DeliveryBuffer::new(3);
+    buf.record_return(0, 3, 4.0);
+    assert_eq!(buf.return_credits[0][3], 4.0);
+    assert_eq!(buf.diagnostics.total_returns[0][3], 4.0);
+}
+
+#[test]
+fn test_delivery_buffer_clear_preserves_diagnostics() {
+    let mut buf = DeliveryBuffer::new(2);
+    buf.record_departure(0, 0, 5.0);
+    buf.record_arrival(0, 1, 0, 5.0);
+    buf.record_return(0, 1, 3.0);
+    buf.clear();
+    // Drainable streams zeroed
+    assert_eq!(buf.departure_debits[0][0], 0.0);
+    assert!(buf.arrival_imports.is_empty());
+    assert_eq!(buf.return_credits[0][1], 0.0);
+    // Diagnostics preserved
+    assert_eq!(buf.diagnostics.total_departures[0][0], 5.0);
+    assert_eq!(buf.diagnostics.total_arrivals[1][0], 5.0);
+    assert_eq!(buf.diagnostics.total_returns[0][1], 3.0);
 }
 
 #[test]

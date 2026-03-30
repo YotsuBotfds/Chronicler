@@ -50,20 +50,29 @@ impl ShadowLedger {
     }
 
     /// Depart: move from reserved to in_transit_out (Loading → Transit).
-    pub fn depart(&mut self, origin: usize, slot: usize, qty: f32) {
+    pub fn depart(&mut self, origin: usize, slot: usize, qty: f32, delivery_buf: Option<&mut DeliveryBuffer>) {
         self.reserved[origin][slot] = (self.reserved[origin][slot] - qty).max(0.0);
         self.in_transit_out[origin][slot] += qty;
+        if let Some(buf) = delivery_buf {
+            buf.record_departure(origin, slot, qty);
+        }
     }
 
     /// Arrive: move from in_transit_out to pending_delivery (Transit → Idle via Arrived).
-    pub fn arrive(&mut self, origin: usize, dest: usize, slot: usize, qty: f32) {
+    pub fn arrive(&mut self, origin: usize, dest: usize, slot: usize, qty: f32, delivery_buf: Option<&mut DeliveryBuffer>) {
         self.in_transit_out[origin][slot] = (self.in_transit_out[origin][slot] - qty).max(0.0);
         self.pending_delivery[dest][slot] += qty;
+        if let Some(buf) = delivery_buf {
+            buf.record_arrival(origin as u16, dest as u16, slot as u8, qty);
+        }
     }
 
     /// Unwind: return in-transit cargo to origin (disruption).
-    pub fn unwind(&mut self, origin: usize, slot: usize, qty: f32) {
+    pub fn unwind(&mut self, origin: usize, slot: usize, qty: f32, delivery_buf: Option<&mut DeliveryBuffer>) {
         self.in_transit_out[origin][slot] = (self.in_transit_out[origin][slot] - qty).max(0.0);
+        if let Some(buf) = delivery_buf {
+            buf.record_return(origin, slot, qty);
+        }
     }
 
     /// Clear all entries for a conquered region. Call AFTER unwinding impacted trips.
@@ -72,6 +81,105 @@ impl ShadowLedger {
         self.in_transit_out[region] = [0.0; NUM_GOODS];
         // pending_delivery is monotonic — do not clear
     }
+}
+
+/// Cumulative monotonic counters for delivery diagnostics.
+/// Run-lifetime: initialized at AgentSimulator construction, never reset.
+/// Per-turn deltas derived by diffing consecutive reads.
+#[derive(Clone, Debug)]
+pub struct DeliveryDiagnostics {
+    pub total_departures: Vec<[f32; NUM_GOODS]>,
+    pub total_arrivals: Vec<[f32; NUM_GOODS]>,
+    pub total_returns: Vec<[f32; NUM_GOODS]>,
+    pub total_transit_decay: Vec<[f32; NUM_GOODS]>,
+}
+
+impl DeliveryDiagnostics {
+    pub fn new(num_regions: usize) -> Self {
+        Self {
+            total_departures: vec![[0.0; NUM_GOODS]; num_regions],
+            total_arrivals: vec![[0.0; NUM_GOODS]; num_regions],
+            total_returns: vec![[0.0; NUM_GOODS]; num_regions],
+            total_transit_decay: vec![[0.0; NUM_GOODS]; num_regions],
+        }
+    }
+}
+
+/// Drainable delivery buffer — three streams with distinct accounting roles.
+/// Consumed by economy kernel in hybrid mode. Cleared atomically on successful
+/// economy tick. If economy tick fails, buffer preserved for retry.
+#[derive(Clone, Debug)]
+pub struct DeliveryBuffer {
+    /// Per-origin-region departure quantities (negative delta on origin stockpile).
+    pub departure_debits: Vec<[f32; NUM_GOODS]>,
+    /// Per-arrival: (source, dest, good, qty). Provenance required for M43b observability.
+    pub arrival_imports: Vec<ArrivalRecord>,
+    /// Per-origin-region return quantities (positive delta on origin stockpile, full value).
+    pub return_credits: Vec<[f32; NUM_GOODS]>,
+    /// Run-lifetime monotonic counters.
+    pub diagnostics: DeliveryDiagnostics,
+}
+
+/// Single arrival record with source provenance.
+#[derive(Clone, Debug)]
+pub struct ArrivalRecord {
+    pub source_region: u16,
+    pub dest_region: u16,
+    pub good_slot: u8,
+    pub qty: f32,
+}
+
+impl DeliveryBuffer {
+    pub fn new(num_regions: usize) -> Self {
+        Self {
+            departure_debits: vec![[0.0; NUM_GOODS]; num_regions],
+            arrival_imports: Vec::new(),
+            return_credits: vec![[0.0; NUM_GOODS]; num_regions],
+            diagnostics: DeliveryDiagnostics::new(num_regions),
+        }
+    }
+
+    pub fn record_departure(&mut self, origin: usize, slot: usize, qty: f32) {
+        self.departure_debits[origin][slot] += qty;
+        self.diagnostics.total_departures[origin][slot] += qty;
+    }
+
+    pub fn record_arrival(&mut self, source: u16, dest: u16, good_slot: u8, qty: f32) {
+        self.arrival_imports.push(ArrivalRecord {
+            source_region: source,
+            dest_region: dest,
+            good_slot,
+            qty,
+        });
+        self.diagnostics.total_arrivals[dest as usize][good_slot as usize] += qty;
+    }
+
+    pub fn record_return(&mut self, origin: usize, slot: usize, qty: f32) {
+        self.return_credits[origin][slot] += qty;
+        self.diagnostics.total_returns[origin][slot] += qty;
+    }
+
+    /// Clear all drainable streams. Called after successful economy tick consumption,
+    /// or to discard in non-hybrid modes. Diagnostics are NOT cleared (run-lifetime monotonic).
+    pub fn clear(&mut self) {
+        for arr in self.departure_debits.iter_mut() {
+            *arr = [0.0; NUM_GOODS];
+        }
+        self.arrival_imports.clear();
+        for arr in self.return_credits.iter_mut() {
+            *arr = [0.0; NUM_GOODS];
+        }
+    }
+}
+
+/// Loss reason discriminant for future loss tracking (M58b: only transit_decay active).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum LossReason {
+    TransitDecay = 0,
+    Raid = 1,        // dormant — M58b+
+    Disruption = 2,  // dormant — M58b+
+    Spoilage = 3,    // dormant — M58b+
 }
 
 /// Per-turn diagnostics collected during the merchant mobility phase.
@@ -392,7 +500,7 @@ pub fn depart_merchant(
     // Depart: reserved -> in_transit
     let origin = pool.trip_origin_region[slot] as usize;
     let good = pool.trip_good_slot[slot] as usize;
-    ledger.depart(origin, good, pool.trip_cargo_qty[slot]);
+    ledger.depart(origin, good, pool.trip_cargo_qty[slot], None);
     pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
     true
 }
@@ -450,7 +558,7 @@ pub fn conquest_unwind(
                 ledger.cancel_reservation(origin_idx, good, qty);
             }
             TRIP_PHASE_TRANSIT => {
-                ledger.unwind(origin_idx, good, qty);
+                ledger.unwind(origin_idx, good, qty, None);
                 stats.unwind_count += 1;
             }
             _ => {}
@@ -497,7 +605,7 @@ pub fn merchant_mobility_phase(
             } else {
                 let origin = pool.trip_origin_region[slot] as usize;
                 let good = pool.trip_good_slot[slot] as usize;
-                ledger.unwind(origin, good, pool.trip_cargo_qty[slot]);
+                ledger.unwind(origin, good, pool.trip_cargo_qty[slot], None);
                 stats.stalled_trip_count += 1;
                 stats.unwind_count += 1;
                 reset_trip_fields(pool, slot);
@@ -524,7 +632,7 @@ pub fn merchant_mobility_phase(
         let dest = pool.trip_dest_region[slot] as usize;
         let good = pool.trip_good_slot[slot] as usize;
         let qty = pool.trip_cargo_qty[slot];
-        ledger.arrive(origin, dest, good, qty);
+        ledger.arrive(origin, dest, good, qty, None);
         let duration = pool.trip_turns_elapsed[slot];
         stats.completed_trips += 1;
         stats.avg_trip_duration += duration as f32;
@@ -574,7 +682,7 @@ mod tests {
         assert_eq!(ledger.available(0, 0, &stockpile), 10.0);
         ledger.reserve(0, 0, 3.0);
         assert_eq!(ledger.available(0, 0, &stockpile), 7.0);
-        ledger.depart(0, 0, 3.0);
+        ledger.depart(0, 0, 3.0, None);
         assert_eq!(ledger.available(0, 0, &stockpile), 7.0); // reserved→in_transit, same total
     }
 
@@ -583,10 +691,10 @@ mod tests {
         let mut ledger = ShadowLedger::new(2);
         ledger.reserve(0, 0, 5.0);
         assert_eq!(ledger.reserved[0][0], 5.0);
-        ledger.depart(0, 0, 5.0);
+        ledger.depart(0, 0, 5.0, None);
         assert_eq!(ledger.reserved[0][0], 0.0);
         assert_eq!(ledger.in_transit_out[0][0], 5.0);
-        ledger.arrive(0, 1, 0, 5.0);
+        ledger.arrive(0, 1, 0, 5.0, None);
         assert_eq!(ledger.in_transit_out[0][0], 0.0);
         assert_eq!(ledger.pending_delivery[1][0], 5.0);
     }
@@ -595,8 +703,8 @@ mod tests {
     fn test_shadow_ledger_unwind() {
         let mut ledger = ShadowLedger::new(2);
         ledger.reserve(0, 0, 5.0);
-        ledger.depart(0, 0, 5.0);
-        ledger.unwind(0, 0, 5.0);
+        ledger.depart(0, 0, 5.0, None);
+        ledger.unwind(0, 0, 5.0, None);
         assert_eq!(ledger.in_transit_out[0][0], 0.0);
         assert_eq!(ledger.pending_delivery[0][0], 0.0);
     }
@@ -606,7 +714,7 @@ mod tests {
         let mut ledger = ShadowLedger::new(1);
         let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         ledger.reserve(0, 0, 6.0);
-        ledger.depart(0, 0, 6.0);
+        ledger.depart(0, 0, 6.0, None);
         assert!(!ledger.is_overcommitted(0, 0, &stockpile)); // 6 < 10
         ledger.reserve(0, 0, 5.0);
         assert!(ledger.is_overcommitted(0, 0, &stockpile)); // 6+5 = 11 > 10
@@ -625,8 +733,8 @@ mod tests {
         let mut ledger = ShadowLedger::new(2);
         ledger.reserve(0, 0, 5.0);
         ledger.reserve(0, 1, 3.0);
-        ledger.depart(0, 0, 2.0);
-        ledger.arrive(0, 1, 0, 2.0);
+        ledger.depart(0, 0, 2.0, None);
+        ledger.arrive(0, 1, 0, 2.0, None);
         ledger.clear_region(0);
         assert_eq!(ledger.reserved[0], [0.0; NUM_GOODS]);
         assert_eq!(ledger.in_transit_out[0], [0.0; NUM_GOODS]);
@@ -884,7 +992,7 @@ mod tests {
         pool.trip_good_slot[s1] = 0;
         pool.trip_cargo_qty[s1] = 3.0;
         ledger.reserve(1, 0, 3.0);
-        ledger.depart(1, 0, 3.0);
+        ledger.depart(1, 0, 3.0, None);
 
         let mut stats = MerchantTripStats::default();
 
