@@ -771,15 +771,22 @@ pub fn tick_economy_core(
             }
         }
 
-        // Boundary pair counts: count unique inbound pairs per dest.
-        for &(dest_id, _) in &delivery.inbound_pairs {
-            let didx = if (dest_id as usize) < region_id_to_idx.len() {
-                region_id_to_idx[dest_id as usize]
-            } else {
-                usize::MAX
-            };
-            if didx < n_regions {
-                boundary_pair_counts[didx] += 1;
+        // Boundary pair counts: count unique outbound pairs per origin (matches abstract path semantics).
+        {
+            let mut outbound_pairs: Vec<(u16, u16)> = delivery.inbound_pairs.iter()
+                .map(|&(dest, src)| (src, dest))  // flip to (origin, dest)
+                .collect();
+            outbound_pairs.sort();
+            outbound_pairs.dedup();
+            for &(origin_id, _) in &outbound_pairs {
+                let oidx = if (origin_id as usize) < region_id_to_idx.len() {
+                    region_id_to_idx[origin_id as usize]
+                } else {
+                    usize::MAX
+                };
+                if oidx < n_regions {
+                    boundary_pair_counts[oidx] += 1;
+                }
             }
         }
     } else {

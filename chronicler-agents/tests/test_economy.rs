@@ -11,11 +11,12 @@
 //! - exact deterministic outputs across repeated runs
 
 use chronicler_agents::economy::{
-    EconomyConfig, EconomyRegionInput, RegionAgentCounts, TradeRouteInput,
+    EconomyConfig, EconomyRegionInput, HybridDeliveryInput, RegionAgentCounts, TradeRouteInput,
     tick_economy_core, NUM_GOODS,
     SLOT_GRAIN, SLOT_FISH, SLOT_SALT, SLOT_TIMBER, SLOT_ORE, SLOT_BOTANICALS,
     SLOT_PRECIOUS, SLOT_EXOTIC,
 };
+use chronicler_agents::merchant::DeliveryBuffer;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -783,4 +784,55 @@ fn test_multiple_civs_fiscal() {
     assert!((out.civ_results[1].treasury_tax - 10.0).abs() < 0.001);
     // Civ 1: priest_tithe_share = 0.10 * 200 / max(0,1) = 20.0
     assert!((out.civ_results[1].priest_tithe_share - 20.0).abs() < 0.001);
+}
+
+// ---------------------------------------------------------------------------
+// Hybrid trade_route_count semantics
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_hybrid_trade_route_count_matches_abstract_semantics() {
+    // Setup: region 0 exports to regions 1 and 2.
+    // Abstract mode counts outbound routes per origin:
+    //   boundary_pair_counts[0] = 2 (two outbound routes from region 0)
+    //   boundary_pair_counts[1] = 0, boundary_pair_counts[2] = 0
+    // Hybrid mode must match: count outbound pairs per origin, not inbound per dest.
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(3);
+    // Region 0 sends goods to regions 1 and 2.
+    buf.record_departure(0, 0, 5.0);
+    buf.record_arrival(0, 1, 0, 3.0);  // source=0, dest=1, slot=GRAIN
+    buf.record_arrival(0, 2, 0, 2.0);  // source=0, dest=2, slot=GRAIN
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 3);
+
+    let region_inputs = vec![
+        make_region(0, 0, 1.0),
+        make_region(1, 0, 1.0),
+        make_region(2, 0, 1.0),
+    ];
+    let agent_counts = vec![
+        make_agents(100, 80, 5, 10, 5),
+        make_agents(100, 80, 5, 10, 5),
+        make_agents(100, 80, 5, 10, 5),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Region 0 exports to 2 destinations → trade_route_count = 2
+    assert_eq!(
+        output.region_results[0].trade_route_count, 2,
+        "origin region should count outbound partners"
+    );
+    // Regions 1 and 2 have no outbound routes → trade_route_count = 0
+    assert_eq!(
+        output.region_results[1].trade_route_count, 0,
+        "non-exporting region should have 0"
+    );
+    assert_eq!(
+        output.region_results[2].trade_route_count, 0,
+        "non-exporting region should have 0"
+    );
 }
