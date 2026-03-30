@@ -4,7 +4,7 @@
 
 - **Milestone:** M58b
 - **Date:** 2026-03-29
-- **Depends on:** M58a branch `feature/m58a-merchant-mobility`
+- **Depends on:** M58a merged on `main` (merge commit `1f48121`)
 - **Goal:** wire merchant mobility throughput into macro economy truth and validate convergence vs M42-M43 baselines.
 
 M58a shipped the mobility substrate (route graph, pathfinding, trip state, shadow ledger, disruption handling, diagnostics) without mutating macro stockpiles. M58b should keep that substrate stable and add controlled macro integration.
@@ -67,6 +67,7 @@ Result: completed deliveries are visible as throughput but not yet coupled into 
 
 - New PyO3 methods in M58a (`set_merchant_route_graph`, `get_merchant_trip_stats`) require rebuilding/reinstalling the Rust extension.
 - If a stale `.pyd` is loaded, Python tests may fail with `AttributeError` even when source code is correct.
+- Reinstall into the same interpreter used for tests/runs (for example: `python -m pip install -e .\\chronicler-agents --force-reinstall`).
 
 ## M58b Must Own
 

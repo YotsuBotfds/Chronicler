@@ -942,7 +942,7 @@ Current `life_events: u8` uses bits 0-6 (`REBELLION=0, MIGRATION=1, WAR_SURVIVAL
 
 ## Phase 8-9 Horizon
 
-See `chronicler-phase8-9-horizon.md` for brainstorm-level ideas on governance, institutions, cultural traits, and revolution dynamics. Not committed scope.
+See `chronicler-phase8-governance-roadmap.md` for the Phase 8 Governance draft roadmap (M63-M67). Brainstorm-level ideas remain in `chronicler-phase8-9-horizon.md`. Phase 9 Culture milestones (M68-M73) and deferred items are cataloged at the end of the Phase 8 roadmap.
 
 ---
 
