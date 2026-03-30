@@ -3,6 +3,9 @@
 use crate::agent;
 use crate::pool::AgentPool;
 use crate::region::RegionState;
+use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 // ---------------------------------------------------------------------------
 // InfoType
@@ -422,4 +425,194 @@ pub fn observe_packets(
     }
 
     (created, refreshed, created_threat, created_trade, created_religious)
+}
+
+// ---------------------------------------------------------------------------
+// Propagation phase (buffered)
+// ---------------------------------------------------------------------------
+
+/// A buffered packet received during propagation, pending commit.
+#[derive(Clone, Debug)]
+pub struct BufferedReceive {
+    pub receiver_slot: usize,
+    pub candidate: PacketCandidate,
+}
+
+/// Run propagation: each agent tries to share non-empty packets with bonded agents.
+/// Uses the post-observation snapshot. Returns (buffer, transmitted_count, transmitted_threat, transmitted_trade, transmitted_religious).
+///
+/// `slot_lookup` maps agent_id -> slot index for relationship target resolution.
+pub fn propagate_packets(
+    pool: &AgentPool,
+    alive_slots: &[usize],
+    master_seed: &[u8; 32],
+    current_turn: u32,
+    slot_lookup: &std::collections::HashMap<u32, usize>,
+) -> (Vec<BufferedReceive>, u32, u32, u32, u32) {
+    let mut buffer: Vec<BufferedReceive> = Vec::new();
+    let mut transmitted = 0u32;
+    let mut transmitted_threat = 0u32;
+    let mut transmitted_trade = 0u32;
+    let mut transmitted_religious = 0u32;
+
+    for &sender_slot in alive_slots {
+        let rel_count = pool.rel_count[sender_slot] as usize;
+        if rel_count == 0 {
+            continue;
+        }
+
+        for pkt_idx in 0..agent::PACKET_SLOTS {
+            let th = pool.pkt_type_and_hops[sender_slot][pkt_idx];
+            if is_empty_slot(th) {
+                continue;
+            }
+            let info_type = unpack_type(th);
+            let hop_count = unpack_hops(th);
+
+            // hop_count = 31 halts propagation
+            if hop_count >= agent::MAX_HOP_COUNT {
+                continue;
+            }
+
+            let source_region = pool.pkt_source_region[sender_slot][pkt_idx];
+            let source_turn = pool.pkt_source_turn[sender_slot][pkt_idx];
+            let sender_intensity = pool.pkt_intensity[sender_slot][pkt_idx];
+
+            // Collect unique receivers with their best eligible bond
+            let mut best_per_receiver: std::collections::HashMap<usize, (f32, f32, i8, u8)> =
+                std::collections::HashMap::new();
+
+            for rel_idx in 0..rel_count {
+                let target_id = pool.rel_target_ids[sender_slot][rel_idx];
+                let bond_type = pool.rel_bond_types[sender_slot][rel_idx];
+                let sentiment = pool.rel_sentiments[sender_slot][rel_idx];
+
+                if bond_type == crate::relationships::EMPTY_BOND_TYPE {
+                    continue;
+                }
+
+                let weight = match channel_weight(bond_type, info_type) {
+                    Some(w) => w,
+                    None => continue,
+                };
+
+                let receiver_slot = match slot_lookup.get(&target_id) {
+                    Some(&s) if pool.is_alive(s) => s,
+                    _ => continue,
+                };
+
+                let sentiment_factor = (sentiment.max(0) as f32) / 127.0;
+                let chance = base_rate(info_type) * weight * sentiment_factor;
+
+                let entry = best_per_receiver.entry(receiver_slot).or_insert((0.0, 0.0, 0, 255));
+                if chance > entry.0
+                    || (chance == entry.0 && weight > entry.1)
+                    || (chance == entry.0 && weight == entry.1 && sentiment > entry.2)
+                    || (chance == entry.0 && weight == entry.1 && sentiment == entry.2 && bond_type < entry.3)
+                {
+                    *entry = (chance, weight, sentiment, bond_type);
+                }
+            }
+
+            for (&receiver_slot, &(chance, _, _, _)) in &best_per_receiver {
+                if chance <= 0.0 {
+                    continue;
+                }
+
+                let sender_id = pool.ids[sender_slot];
+                let receiver_id = pool.ids[receiver_slot];
+
+                let mut key_seed = *master_seed;
+                let key_hash = {
+                    let mut h: u64 = sender_id as u64;
+                    h = h.wrapping_mul(6364136223846793005).wrapping_add(receiver_id as u64);
+                    h = h.wrapping_mul(6364136223846793005).wrapping_add(info_type as u64);
+                    h = h.wrapping_mul(6364136223846793005).wrapping_add(source_region as u64);
+                    h = h.wrapping_mul(6364136223846793005).wrapping_add(source_turn as u64);
+                    h = h.wrapping_mul(6364136223846793005).wrapping_add(current_turn as u64);
+                    h = h.wrapping_mul(6364136223846793005).wrapping_add(agent::KNOWLEDGE_STREAM_OFFSET);
+                    h
+                };
+                let hash_bytes = key_hash.to_le_bytes();
+                for i in 0..8 {
+                    key_seed[i] ^= hash_bytes[i];
+                }
+                let mut rng = ChaCha8Rng::from_seed(key_seed);
+                let roll: f32 = rng.gen();
+
+                if roll < chance {
+                    let received_intensity = (sender_intensity as f32 * HOP_ATTENUATION) as u8;
+                    if received_intensity == 0 {
+                        continue;
+                    }
+                    buffer.push(BufferedReceive {
+                        receiver_slot,
+                        candidate: PacketCandidate {
+                            info_type,
+                            source_region,
+                            source_turn,
+                            intensity: received_intensity,
+                            hop_count: hop_count + 1,
+                        },
+                    });
+                    transmitted += 1;
+                    match info_type {
+                        1 => transmitted_threat += 1,
+                        2 => transmitted_trade += 1,
+                        3 => transmitted_religious += 1,
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    (buffer, transmitted, transmitted_threat, transmitted_trade, transmitted_religious)
+}
+
+// ---------------------------------------------------------------------------
+// Commit phase
+// ---------------------------------------------------------------------------
+
+/// Dedupe and commit buffered receives. Returns (refreshed, evicted, dropped).
+pub fn commit_buffered(
+    pool: &mut AgentPool,
+    mut buffer: Vec<BufferedReceive>,
+) -> (u32, u32, u32) {
+    let mut refreshed = 0u32;
+    let mut evicted = 0u32;
+    let mut dropped = 0u32;
+
+    if buffer.is_empty() {
+        return (refreshed, evicted, dropped);
+    }
+
+    // Intra-turn merge: sort canonically for thread-stable admission order
+    buffer.sort_by(|a, b| {
+        a.receiver_slot.cmp(&b.receiver_slot)
+            .then(a.candidate.info_type.cmp(&b.candidate.info_type))
+            .then(a.candidate.source_region.cmp(&b.candidate.source_region))
+            .then(b.candidate.source_turn.cmp(&a.candidate.source_turn))
+            .then(b.candidate.intensity.cmp(&a.candidate.intensity))
+            .then(a.candidate.hop_count.cmp(&b.candidate.hop_count))
+    });
+
+    // Dedupe: keep first in each (receiver_slot, info_type, source_region) group
+    buffer.dedup_by(|b, a| {
+        a.receiver_slot == b.receiver_slot
+            && a.candidate.info_type == b.candidate.info_type
+            && a.candidate.source_region == b.candidate.source_region
+    });
+
+    for receive in &buffer {
+        let result = admit_packet(pool, receive.receiver_slot, &receive.candidate);
+        match result {
+            AdmitResult::Refreshed => refreshed += 1,
+            AdmitResult::Evicted => evicted += 1,
+            AdmitResult::Dropped => dropped += 1,
+            AdmitResult::Inserted => {}
+        }
+    }
+
+    (refreshed, evicted, dropped)
 }

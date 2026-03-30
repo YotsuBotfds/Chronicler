@@ -6,6 +6,7 @@ use chronicler_agents::knowledge::{
     channel_weight, decay_rate, decay_packets,
     admit_packet, AdmitResult, PacketCandidate,
     observe_packets,
+    propagate_packets, commit_buffered,
 };
 use chronicler_agents::RegionState;
 use chronicler_agents::relationships::BondType;
@@ -330,4 +331,127 @@ fn test_observe_religious_from_persecution() {
     assert_eq!(created, 1);
     assert_eq!(created_religious, 1);
     assert_eq!(unpack_type(pool.pkt_type_and_hops[slot][0]), InfoType::ReligiousSignal as u8);
+}
+
+// ---------------------------------------------------------------------------
+// Propagation + commit tests
+// ---------------------------------------------------------------------------
+
+/// Helper: set up a relationship bond between two agents.
+fn set_bond(pool: &mut AgentPool, from_slot: usize, to_id: u32, bond_type: u8, sentiment: i8) {
+    let idx = pool.rel_count[from_slot] as usize;
+    pool.rel_target_ids[from_slot][idx] = to_id;
+    pool.rel_bond_types[from_slot][idx] = bond_type;
+    pool.rel_sentiments[from_slot][idx] = sentiment;
+    pool.rel_formed_turns[from_slot][idx] = 0;
+    pool.rel_count[from_slot] += 1;
+}
+
+#[test]
+fn test_propagation_one_hop() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let a_id = pool.ids[a];
+    let b_id = pool.ids[b];
+
+    admit_packet(&mut pool, a, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 5, intensity: 200, hop_count: 0,
+    });
+
+    set_bond(&mut pool, a, b_id, 5, 127); // Kin, max sentiment
+
+    let lookup: std::collections::HashMap<u32, usize> =
+        vec![(a_id, a), (b_id, b)].into_iter().collect();
+
+    let (buffer, transmitted, t_threat, _, _) =
+        propagate_packets(&pool, &[a, b], &[0u8; 32], 6, &lookup);
+
+    assert!(transmitted > 0, "should have transmitted at least one packet");
+    assert!(t_threat > 0, "should have transmitted a threat packet");
+
+    commit_buffered(&mut pool, buffer);
+
+    let b_has_threat = (0..4).any(|i| {
+        unpack_type(pool.pkt_type_and_hops[b][i]) == 1
+            && pool.pkt_source_region[b][i] == 0
+            && unpack_hops(pool.pkt_type_and_hops[b][i]) == 1
+    });
+    assert!(b_has_threat, "B should have received threat packet with hop=1");
+}
+
+#[test]
+fn test_propagation_one_hop_per_turn() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let c = pool.spawn(2, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let a_id = pool.ids[a];
+    let b_id = pool.ids[b];
+    let c_id = pool.ids[c];
+
+    admit_packet(&mut pool, a, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 5, intensity: 200, hop_count: 0,
+    });
+
+    set_bond(&mut pool, a, b_id, 5, 127);
+    set_bond(&mut pool, b, c_id, 5, 127);
+
+    let lookup: std::collections::HashMap<u32, usize> =
+        vec![(a_id, a), (b_id, b), (c_id, c)].into_iter().collect();
+
+    let (buffer, _, _, _, _) = propagate_packets(&pool, &[a, b, c], &[0u8; 32], 6, &lookup);
+    commit_buffered(&mut pool, buffer);
+
+    let b_has = (0..4).any(|i| unpack_type(pool.pkt_type_and_hops[b][i]) == 1);
+    let c_has = (0..4).any(|i| unpack_type(pool.pkt_type_and_hops[c][i]) == 1);
+    assert!(b_has, "B should have the packet after turn 1");
+    assert!(!c_has, "C should NOT have the packet after turn 1 (one-hop-per-turn)");
+}
+
+#[test]
+fn test_hop_count_31_halts_propagation() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let a_id = pool.ids[a];
+    let b_id = pool.ids[b];
+
+    admit_packet(&mut pool, a, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 5, intensity: 200, hop_count: 31,
+    });
+
+    set_bond(&mut pool, a, b_id, 5, 127);
+
+    let lookup: std::collections::HashMap<u32, usize> =
+        vec![(a_id, a), (b_id, b)].into_iter().collect();
+
+    let (buffer, transmitted, _, _, _) = propagate_packets(&pool, &[a, b], &[0u8; 32], 6, &lookup);
+    assert_eq!(transmitted, 0, "should not transmit at max hops");
+    assert!(buffer.is_empty());
+}
+
+#[test]
+fn test_propagation_channel_filtering() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let a_id = pool.ids[a];
+    let b_id = pool.ids[b];
+
+    admit_packet(&mut pool, a, &PacketCandidate {
+        info_type: 3, source_region: 0, source_turn: 5, intensity: 200, hop_count: 0,
+    });
+
+    set_bond(&mut pool, a, b_id, 6, 127); // Friend -- not eligible for religious
+
+    let lookup: std::collections::HashMap<u32, usize> =
+        vec![(a_id, a), (b_id, b)].into_iter().collect();
+
+    let (_, transmitted, _, _, _) = propagate_packets(&pool, &[a, b], &[0u8; 32], 6, &lookup);
+    assert_eq!(transmitted, 0, "Friend bond should not carry religious signal");
 }
