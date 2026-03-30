@@ -52,7 +52,7 @@ pub fn tick_agents(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
-    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger)>,  // M58a
+    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
 ) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
@@ -108,7 +108,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // M58a: Conquest unwind before mobility — cancel trips impacted by controller change
     let mut conquest_unwind_count: u32 = 0;
-    if let Some((_, ref mut ledger)) = merchant_state {
+    if let Some((_, ref mut ledger, ref mut buf)) = merchant_state {
         let conquered: Vec<u16> = regions
             .iter()
             .filter(|r| r.controller_changed_this_turn)
@@ -116,12 +116,12 @@ pub fn tick_agents(
             .collect();
         if !conquered.is_empty() {
             let mut conquest_stats = crate::merchant::MerchantTripStats::default();
-            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats, None);
+            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats, Some(buf));
             conquest_unwind_count = conquest_stats.unwind_count;
         }
     }
-    let mut merchant_stats = if let Some((graph, ref mut ledger)) = merchant_state {
-        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed, None)
+    let mut merchant_stats = if let Some((graph, ref mut ledger, ref mut buf)) = merchant_state {
+        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed, Some(buf))
     } else {
         crate::merchant::MerchantTripStats::default()
     };

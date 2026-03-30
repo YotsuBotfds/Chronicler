@@ -1674,6 +1674,7 @@ pub struct AgentSimulator {
     // M58a: merchant mobility state
     merchant_graph: Option<crate::merchant::RouteGraph>,
     merchant_ledger: Option<crate::merchant::ShadowLedger>,
+    merchant_delivery_buf: Option<crate::merchant::DeliveryBuffer>,
     merchant_trip_stats: crate::merchant::MerchantTripStats,
 }
 
@@ -1717,6 +1718,7 @@ impl AgentSimulator {
             household_stats: crate::household::HouseholdStats::default(),
             merchant_graph: None,
             merchant_ledger: None,
+            merchant_delivery_buf: None,
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
         }
     }
@@ -2316,12 +2318,13 @@ impl AgentSimulator {
 
         let mut spatial_diag = crate::spatial::SpatialDiagnostics::default();
 
-        // M58a: Build merchant_state from graph + ledger if both are present
-        // Use take/put pattern to satisfy borrow checker (need &RouteGraph + &mut ShadowLedger)
+        // M58a: Build merchant_state from graph + ledger + delivery buffer if all present
+        // Use take/put pattern to satisfy borrow checker (need &RouteGraph + &mut ShadowLedger + &mut DeliveryBuffer)
         let merchant_graph_taken = self.merchant_graph.take();
         let mut merchant_ledger_taken = self.merchant_ledger.take();
-        let merchant_state = match (&merchant_graph_taken, &mut merchant_ledger_taken) {
-            (Some(graph), Some(ledger)) => Some((graph, ledger)),
+        let mut merchant_delivery_buf_taken = self.merchant_delivery_buf.take();
+        let merchant_state = match (&merchant_graph_taken, &mut merchant_ledger_taken, &mut merchant_delivery_buf_taken) {
+            (Some(graph), Some(ledger), Some(buf)) => Some((graph, ledger, buf)),
             _ => None,
         };
 
@@ -2339,9 +2342,10 @@ impl AgentSimulator {
             merchant_state,
         );
 
-        // Restore graph and ledger
+        // Restore graph, ledger, and delivery buffer
         self.merchant_graph = merchant_graph_taken;
         self.merchant_ledger = merchant_ledger_taken;
+        self.merchant_delivery_buf = merchant_delivery_buf_taken;
 
         self.last_spatial_diag = spatial_diag;
         self.prev_kin_bond_failures = self.kin_bond_failures;
@@ -3895,6 +3899,7 @@ impl AgentSimulator {
             ));
             if self.merchant_ledger.is_none() {
                 self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(self.regions.len()));
+                self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(self.regions.len()));
             }
             return Ok(());
         }
@@ -3935,9 +3940,10 @@ impl AgentSimulator {
             num_regions,
         ));
 
-        // Initialize ledger on first call
+        // Initialize ledger and delivery buffer on first call
         if self.merchant_ledger.is_none() {
             self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(num_regions));
+            self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(num_regions));
         }
         Ok(())
     }

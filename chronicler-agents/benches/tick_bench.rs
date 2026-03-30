@@ -100,6 +100,7 @@ fn bench_tick_matrix(c: &mut Criterion) {
                         &[],
                         &mut chronicler_agents::spatial::SpatialDiagnostics::default(),
                         &[],  // M56b
+                        None,  // M58a merchant state
                     );
                 },
                 BatchSize::SmallInput,
