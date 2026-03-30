@@ -90,6 +90,13 @@ pub struct AgentPool {
     pub trip_path: Vec<[u16; crate::agent::MAX_PATH_LEN]>,
     pub trip_path_len: Vec<u8>,
     pub trip_path_cursor: Vec<u8>,
+    // M59a: Information packet slots (4 per agent)
+    pub pkt_type_and_hops: Vec<[u8; 4]>,
+    pub pkt_source_region: Vec<[u16; 4]>,
+    pub pkt_source_turn: Vec<[u16; 4]>,
+    pub pkt_intensity: Vec<[u8; 4]>,
+    // M59a: Merchant arrival transient (set by 0.9 merchant mobility, cleared by 0.95 knowledge phase)
+    pub arrived_this_turn: Vec<bool>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -159,6 +166,11 @@ impl AgentPool {
             trip_path: Vec::with_capacity(capacity),
             trip_path_len: Vec::with_capacity(capacity),
             trip_path_cursor: Vec::with_capacity(capacity),
+            pkt_type_and_hops: Vec::with_capacity(capacity),
+            pkt_source_region: Vec::with_capacity(capacity),
+            pkt_source_turn: Vec::with_capacity(capacity),
+            pkt_intensity: Vec::with_capacity(capacity),
+            arrived_this_turn: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -245,6 +257,11 @@ impl AgentPool {
             self.trip_path[slot] = [u16::MAX; crate::agent::MAX_PATH_LEN];
             self.trip_path_len[slot] = 0;
             self.trip_path_cursor[slot] = 0;
+            self.pkt_type_and_hops[slot] = [0; 4];
+            self.pkt_source_region[slot] = [0; 4];
+            self.pkt_source_turn[slot] = [0; 4];
+            self.pkt_intensity[slot] = [0; 4];
+            self.arrived_this_turn[slot] = false;
             self.alive[slot] = true;
             self.count += 1;
             slot
@@ -308,6 +325,11 @@ impl AgentPool {
             self.trip_path.push([u16::MAX; crate::agent::MAX_PATH_LEN]);
             self.trip_path_len.push(0);
             self.trip_path_cursor.push(0);
+            self.pkt_type_and_hops.push([0; 4]);
+            self.pkt_source_region.push([0; 4]);
+            self.pkt_source_turn.push([0; 4]);
+            self.pkt_intensity.push([0; 4]);
+            self.arrived_this_turn.push(false);
             self.alive.push(true);
             self.count += 1;
             slot

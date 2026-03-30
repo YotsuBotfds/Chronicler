@@ -112,6 +112,8 @@ pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 2000;
 pub const SPATIAL_DRIFT_STREAM_OFFSET: u64 = 2001;
 // M58a: Merchant route selection (reserved, not consumed in M58a)
 pub const MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700;
+// M59a: Information packet propagation
+pub const KNOWLEDGE_STREAM_OFFSET: u64 = 1800;
 // M57a: Marriage formation
 pub const MARRIAGE_STREAM_OFFSET: u64 = 1600;  // reserved, not consumed in v1
 pub const MARRIAGE_CADENCE: u32 = 4;            // marriage scan runs every 4th turn per region
@@ -397,6 +399,11 @@ pub const TRIP_PHASE_LOADING: u8 = 1;
 pub const TRIP_PHASE_TRANSIT: u8 = 2;
 pub const TRIP_GOOD_SLOT_NONE: u8 = 255;
 
+// M59a: Packet slot constants
+pub const PACKET_SLOTS: usize = 4;
+pub const PACKET_TYPE_EMPTY: u8 = 0;
+pub const MAX_HOP_COUNT: u8 = 31;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -452,6 +459,7 @@ mod tests {
             SPATIAL_DRIFT_STREAM_OFFSET,     // 2001
             MARRIAGE_STREAM_OFFSET,          // 1600
             MERCHANT_ROUTE_STREAM_OFFSET,    // 1700
+            KNOWLEDGE_STREAM_OFFSET,         // 1800
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {
