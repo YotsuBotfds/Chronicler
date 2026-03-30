@@ -439,6 +439,37 @@ fn test_hybrid_transit_decay_accounting() {
 }
 
 #[test]
+fn test_oracle_shadow_produces_data_in_hybrid_mode() {
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(2);
+    buf.record_departure(0, 0, 10.0);
+    buf.record_arrival(0, 1, 0, 10.0);
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+
+    let region_inputs = vec![
+        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 80, 5, 10, 5),
+        test_agent_counts(100, 80, 5, 10, 5),
+    ];
+    let routes = vec![
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false },
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &routes, &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Oracle shadow should have run abstract allocation
+    assert!(output.oracle_trade_volume.is_some());
+    let oracle = output.oracle_trade_volume.as_ref().unwrap();
+    assert_eq!(oracle.len(), 2); // one per region
+}
+
+#[test]
 fn test_hybrid_stockpile_net_mobility() {
     // Verify that hybrid mode uses net mobility for stockpile updates.
     let config = EconomyConfig::default();

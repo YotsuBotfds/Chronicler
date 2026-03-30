@@ -316,6 +316,9 @@ pub struct EconomyOutput {
     pub observability: Vec<EconomyObservability>,
     pub upstream_sources: Vec<UpstreamSource>,
     pub conservation: ConservationSummary,
+    /// M58b: Oracle shadow — abstract trade volumes per region per category.
+    /// Only populated in hybrid mode (when delivery buffer is provided and routes exist).
+    pub oracle_trade_volume: Option<Vec<[f32; NUM_CATEGORIES]>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +326,7 @@ pub struct EconomyOutput {
 // ---------------------------------------------------------------------------
 
 /// Per-region transient state during economy tick.
+#[derive(Clone)]
 struct RegionWorkState {
     /// Per-category production [food, raw_material, luxury].
     production: [f32; NUM_CATEGORIES],
@@ -345,6 +349,7 @@ struct RegionWorkState {
 }
 
 /// Per-route working data for trade kernel.
+#[derive(Clone)]
 struct RouteWork {
     origin_idx: usize,   // index into region_inputs/work arrays
     dest_idx: usize,     // index into region_inputs/work arrays
@@ -409,6 +414,143 @@ fn compute_transport_cost(
         cost *= WINTER_MODIFIER;
     }
     cost * trade_friction
+}
+
+/// Run the tatonnement pricing equilibrium + route allocation on the given
+/// work state and route set.  Modifies `work[ri].imports`, `work[ri].exports`,
+/// and `work[ri].prices` in place.  `route_works[rw].flow` is populated with
+/// the final-pass flow values.
+///
+/// This is factored out so both the abstract path and the oracle shadow can
+/// call the same allocation logic without duplication.
+fn run_abstract_allocation(
+    work: &mut [RegionWorkState],
+    agent_counts: &[RegionAgentCounts],
+    route_works: &mut [RouteWork],
+    origin_route_ranges: &[(usize, usize)],
+    config: &EconomyConfig,
+) {
+    let n_regions = work.len();
+
+    for _pass in 0..config.tatonnement_max_passes {
+        let prev_prices: Vec<[f32; NUM_CATEGORIES]> = work.iter().map(|w| w.prices).collect();
+
+        for w in work.iter_mut() {
+            w.imports = [0.0; NUM_CATEGORIES];
+            w.exports = [0.0; NUM_CATEGORIES];
+        }
+        for rw in route_works.iter_mut() {
+            rw.flow = [0.0; NUM_CATEGORIES];
+        }
+
+        for ri in 0..n_regions {
+            let (rstart, rend) = origin_route_ranges[ri];
+            if rstart == rend {
+                continue;
+            }
+            let merchant_count = agent_counts[ri].merchant_count;
+            let capacity = merchant_count as f32 * config.carry_per_merchant;
+            if capacity <= 0.0 {
+                continue;
+            }
+
+            let origin_prices = work[ri].prices;
+            let origin_surplus = work[ri].surplus;
+
+            let n_routes = rend - rstart;
+            let mut route_cat_weights: Vec<f32> = vec![0.0; n_routes * NUM_CATEGORIES];
+            let mut cat_total_weights = [0.0f32; NUM_CATEGORIES];
+
+            for (local_i, rw_idx) in (rstart..rend).enumerate() {
+                let dest_idx = route_works[rw_idx].dest_idx;
+                let tc = route_works[rw_idx].transport_cost;
+                let dest_prices = work[dest_idx].prices;
+                for c in 0..NUM_CATEGORIES {
+                    let price_gap = dest_prices[c] - origin_prices[c];
+                    let raw_margin = (price_gap - tc).max(0.0);
+                    let weight = (1.0 + raw_margin).ln();
+                    route_cat_weights[local_i * NUM_CATEGORIES + c] = weight;
+                    cat_total_weights[c] += weight;
+                }
+            }
+
+            let total_weight: f32 = cat_total_weights.iter().sum();
+            if total_weight <= 0.0 {
+                continue;
+            }
+
+            for c in 0..NUM_CATEGORIES {
+                let cat_budget = (cat_total_weights[c] / total_weight) * capacity;
+                let surplus = origin_surplus[c];
+                if cat_budget <= 0.0 || surplus <= 0.0 {
+                    continue;
+                }
+                let cat_w = cat_total_weights[c];
+                if cat_w <= 0.0 {
+                    continue;
+                }
+
+                let mut allocated = 0.0f32;
+                for (local_i, rw_idx) in (rstart..rend).enumerate() {
+                    let w = route_cat_weights[local_i * NUM_CATEGORIES + c];
+                    if w <= 0.0 {
+                        continue;
+                    }
+                    let amount = (w / cat_w) * cat_budget;
+                    route_works[rw_idx].flow[c] = amount;
+                    allocated += amount;
+                }
+
+                if allocated > surplus {
+                    let scale = surplus / allocated;
+                    for rw_idx in rstart..rend {
+                        route_works[rw_idx].flow[c] *= scale;
+                    }
+                }
+            }
+
+            for rw_idx in rstart..rend {
+                let dest_idx = route_works[rw_idx].dest_idx;
+                for c in 0..NUM_CATEGORIES {
+                    let amount = route_works[rw_idx].flow[c];
+                    work[ri].exports[c] += amount;
+                    work[dest_idx].imports[c] += amount;
+                }
+            }
+        }
+
+        for ri in 0..n_regions {
+            let w = &work[ri];
+            let mut new_prices = [0.0f32; NUM_CATEGORIES];
+            for c in 0..NUM_CATEGORIES {
+                let supply = (w.production[c] + w.imports[c]).max(SUPPLY_FLOOR);
+                new_prices[c] = config.base_price * (w.demand[c] / supply);
+            }
+            for c in 0..NUM_CATEGORIES {
+                let old_p = prev_prices[ri][c];
+                if old_p < 0.001 {
+                    work[ri].prices[c] = new_prices[c];
+                    continue;
+                }
+                let ratio = new_prices[c] / old_p;
+                let clamped = ratio.clamp(config.tatonnement_price_clamp_lo, config.tatonnement_price_clamp_hi);
+                work[ri].prices[c] = old_p * (1.0 + config.tatonnement_damping * (clamped - 1.0));
+            }
+        }
+
+        let mut max_delta = 0.0f32;
+        for ri in 0..n_regions {
+            for c in 0..NUM_CATEGORIES {
+                let delta = (work[ri].prices[c] - prev_prices[ri][c]).abs();
+                if delta > max_delta {
+                    max_delta = delta;
+                }
+            }
+        }
+        if max_delta < config.tatonnement_convergence {
+            break;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -519,6 +661,16 @@ pub fn tick_economy_core(
     let mut boundary_pair_counts: Vec<u16> = vec![0u16; n_regions];
     let mut route_works: Vec<RouteWork> = Vec::new();
     let mut origin_route_ranges: Vec<(usize, usize)> = vec![(0, 0); n_regions];
+
+    // M58b: Snapshot work state before hybrid mutations for oracle shadow.
+    // The clone captures Phase A output (production, demand, surplus, prices)
+    // with clean imports/exports, which is exactly the starting state the
+    // abstract allocation expects.
+    let oracle_work_snapshot = if hybrid_delivery.is_some() && !routes.is_empty() {
+        Some(work.clone())
+    } else {
+        None
+    };
 
     if let Some(delivery) = hybrid_delivery {
         // -------------------------------------------------------------------
@@ -678,126 +830,10 @@ pub fn tick_economy_core(
             }
         }
 
-        // Tatonnement loop.
-        for _pass in 0..config.tatonnement_max_passes {
-            let prev_prices: Vec<[f32; NUM_CATEGORIES]> = work.iter().map(|w| w.prices).collect();
-
-            for w in work.iter_mut() {
-                w.imports = [0.0; NUM_CATEGORIES];
-                w.exports = [0.0; NUM_CATEGORIES];
-            }
-            for rw in route_works.iter_mut() {
-                rw.flow = [0.0; NUM_CATEGORIES];
-            }
-
-            for ri in 0..n_regions {
-                let (rstart, rend) = origin_route_ranges[ri];
-                if rstart == rend {
-                    continue;
-                }
-                let merchant_count = agent_counts[ri].merchant_count;
-                let capacity = merchant_count as f32 * config.carry_per_merchant;
-                if capacity <= 0.0 {
-                    continue;
-                }
-
-                let origin_prices = work[ri].prices;
-                let origin_surplus = work[ri].surplus;
-
-                let n_routes = rend - rstart;
-                let mut route_cat_weights: Vec<f32> = vec![0.0; n_routes * NUM_CATEGORIES];
-                let mut cat_total_weights = [0.0f32; NUM_CATEGORIES];
-
-                for (local_i, rw_idx) in (rstart..rend).enumerate() {
-                    let dest_idx = route_works[rw_idx].dest_idx;
-                    let tc = route_works[rw_idx].transport_cost;
-                    let dest_prices = work[dest_idx].prices;
-                    for c in 0..NUM_CATEGORIES {
-                        let price_gap = dest_prices[c] - origin_prices[c];
-                        let raw_margin = (price_gap - tc).max(0.0);
-                        let weight = (1.0 + raw_margin).ln();
-                        route_cat_weights[local_i * NUM_CATEGORIES + c] = weight;
-                        cat_total_weights[c] += weight;
-                    }
-                }
-
-                let total_weight: f32 = cat_total_weights.iter().sum();
-                if total_weight <= 0.0 {
-                    continue;
-                }
-
-                for c in 0..NUM_CATEGORIES {
-                    let cat_budget = (cat_total_weights[c] / total_weight) * capacity;
-                    let surplus = origin_surplus[c];
-                    if cat_budget <= 0.0 || surplus <= 0.0 {
-                        continue;
-                    }
-                    let cat_w = cat_total_weights[c];
-                    if cat_w <= 0.0 {
-                        continue;
-                    }
-
-                    let mut allocated = 0.0f32;
-                    for (local_i, rw_idx) in (rstart..rend).enumerate() {
-                        let w = route_cat_weights[local_i * NUM_CATEGORIES + c];
-                        if w <= 0.0 {
-                            continue;
-                        }
-                        let amount = (w / cat_w) * cat_budget;
-                        route_works[rw_idx].flow[c] = amount;
-                        allocated += amount;
-                    }
-
-                    if allocated > surplus {
-                        let scale = surplus / allocated;
-                        for rw_idx in rstart..rend {
-                            route_works[rw_idx].flow[c] *= scale;
-                        }
-                    }
-                }
-
-                for rw_idx in rstart..rend {
-                    let dest_idx = route_works[rw_idx].dest_idx;
-                    for c in 0..NUM_CATEGORIES {
-                        let amount = route_works[rw_idx].flow[c];
-                        work[ri].exports[c] += amount;
-                        work[dest_idx].imports[c] += amount;
-                    }
-                }
-            }
-
-            for ri in 0..n_regions {
-                let w = &work[ri];
-                let mut new_prices = [0.0f32; NUM_CATEGORIES];
-                for c in 0..NUM_CATEGORIES {
-                    let supply = (w.production[c] + w.imports[c]).max(SUPPLY_FLOOR);
-                    new_prices[c] = config.base_price * (w.demand[c] / supply);
-                }
-                for c in 0..NUM_CATEGORIES {
-                    let old_p = prev_prices[ri][c];
-                    if old_p < 0.001 {
-                        work[ri].prices[c] = new_prices[c];
-                        continue;
-                    }
-                    let ratio = new_prices[c] / old_p;
-                    let clamped = ratio.clamp(config.tatonnement_price_clamp_lo, config.tatonnement_price_clamp_hi);
-                    work[ri].prices[c] = old_p * (1.0 + config.tatonnement_damping * (clamped - 1.0));
-                }
-            }
-
-            let mut max_delta = 0.0f32;
-            for ri in 0..n_regions {
-                for c in 0..NUM_CATEGORIES {
-                    let delta = (work[ri].prices[c] - prev_prices[ri][c]).abs();
-                    if delta > max_delta {
-                        max_delta = delta;
-                    }
-                }
-            }
-            if max_delta < config.tatonnement_convergence {
-                break;
-            }
-        }
+        // Tatonnement loop (delegated to shared helper).
+        run_abstract_allocation(
+            &mut work, agent_counts, &mut route_works, &origin_route_ranges, config,
+        );
 
         // Track inbound sources from final-pass positive flows.
         let mut inbound_pairs: Vec<(u16, u16)> = Vec::new();
@@ -847,6 +883,76 @@ pub fn tick_economy_core(
             per_good_imports[rw.dest_idx][origin_slot] += delivered;
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Oracle shadow: run abstract allocation on cloned work state (hybrid only)
+    // -----------------------------------------------------------------------
+
+    let oracle_trade_volume: Option<Vec<[f32; NUM_CATEGORIES]>> =
+        if let Some(mut shadow_work) = oracle_work_snapshot {
+            // Build route structures for abstract allocation (same logic as abstract path).
+            let mut sorted_routes: Vec<(u16, u16, bool)> = routes
+                .iter()
+                .map(|r| (r.origin_region_id, r.dest_region_id, r.is_river))
+                .collect();
+            sorted_routes.sort_by_key(|&(o, d, _)| (o, d));
+
+            let mut shadow_route_works: Vec<RouteWork> = Vec::with_capacity(sorted_routes.len());
+            for &(origin_id, dest_id, is_river) in &sorted_routes {
+                let oidx = region_id_to_idx[origin_id as usize];
+                let didx = region_id_to_idx[dest_id as usize];
+                if oidx >= n_regions || didx >= n_regions {
+                    continue;
+                }
+                let tc = compute_transport_cost(
+                    region_inputs[oidx].terrain,
+                    region_inputs[didx].terrain,
+                    is_river,
+                    is_winter,
+                    trade_friction,
+                );
+                shadow_route_works.push(RouteWork {
+                    origin_idx: oidx,
+                    dest_idx: didx,
+                    transport_cost: tc,
+                    flow: [0.0; NUM_CATEGORIES],
+                });
+            }
+
+            let mut shadow_origin_ranges: Vec<(usize, usize)> = vec![(0, 0); n_regions];
+            {
+                let mut origin_groups: Vec<(usize, usize, usize)> = Vec::new();
+                if !shadow_route_works.is_empty() {
+                    let mut cur_origin = shadow_route_works[0].origin_idx;
+                    let mut start = 0;
+                    for (i, rw) in shadow_route_works.iter().enumerate() {
+                        if rw.origin_idx != cur_origin {
+                            origin_groups.push((cur_origin, start, i - start));
+                            cur_origin = rw.origin_idx;
+                            start = i;
+                        }
+                    }
+                    origin_groups.push((cur_origin, start, shadow_route_works.len() - start));
+                }
+                for &(oidx, start, count) in &origin_groups {
+                    shadow_origin_ranges[oidx] = (start, start + count);
+                }
+            }
+
+            // Run tatonnement on the shadow state.
+            run_abstract_allocation(
+                &mut shadow_work, agent_counts, &mut shadow_route_works,
+                &shadow_origin_ranges, config,
+            );
+
+            // Collect per-region import totals by category.
+            let vols: Vec<[f32; NUM_CATEGORIES]> = shadow_work.iter()
+                .map(|w| w.imports)
+                .collect();
+            Some(vols)
+        } else {
+            None
+        };
 
     // -----------------------------------------------------------------------
     // Phase C: Post-trade prices
@@ -1148,6 +1254,7 @@ pub fn tick_economy_core(
         observability,
         upstream_sources,
         conservation,
+        oracle_trade_volume,
     }
 }
 

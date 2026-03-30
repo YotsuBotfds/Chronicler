@@ -264,6 +264,10 @@ pub fn economy_observability_schema() -> Schema {
         Field::new("stockpile_luxury", DataType::Float32, false),
         Field::new("import_share", DataType::Float32, false),
         Field::new("trade_dependent", DataType::Boolean, false),
+        // M58b: Oracle shadow columns (null/zero when oracle not active)
+        Field::new("oracle_imports_food", DataType::Float32, true),
+        Field::new("oracle_imports_raw_material", DataType::Float32, true),
+        Field::new("oracle_imports_luxury", DataType::Float32, true),
     ])
 }
 
@@ -3804,6 +3808,10 @@ impl AgentSimulator {
         let mut obs_sl = Float32Builder::with_capacity(n_out);
         let mut obs_is = Float32Builder::with_capacity(n_out);
         let mut obs_td = BooleanBuilder::with_capacity(n_out);
+        // M58b: Oracle shadow columns
+        let mut oracle_if = Float32Builder::with_capacity(n_out);
+        let mut oracle_irm = Float32Builder::with_capacity(n_out);
+        let mut oracle_il = Float32Builder::with_capacity(n_out);
         for obs in &output.observability {
             obs_rid.append_value(obs.region_id);
             obs_if.append_value(obs.imports_food);
@@ -3814,6 +3822,19 @@ impl AgentSimulator {
             obs_sl.append_value(obs.stockpile_luxury);
             obs_is.append_value(obs.import_share);
             obs_td.append_value(obs.trade_dependent);
+        }
+        if let Some(ref oracle_vols) = output.oracle_trade_volume {
+            for ri in 0..n_out {
+                oracle_if.append_value(oracle_vols[ri][0]);  // CAT_FOOD
+                oracle_irm.append_value(oracle_vols[ri][1]); // CAT_RAW_MATERIAL
+                oracle_il.append_value(oracle_vols[ri][2]);  // CAT_LUXURY
+            }
+        } else {
+            for _ in 0..n_out {
+                oracle_if.append_value(0.0);
+                oracle_irm.append_value(0.0);
+                oracle_il.append_value(0.0);
+            }
         }
         let observability_batch = RecordBatch::try_new(
             Arc::new(economy_observability_schema()),
@@ -3827,6 +3848,9 @@ impl AgentSimulator {
                 Arc::new(obs_sl.finish()),
                 Arc::new(obs_is.finish()),
                 Arc::new(obs_td.finish()),
+                Arc::new(oracle_if.finish()),
+                Arc::new(oracle_irm.finish()),
+                Arc::new(oracle_il.finish()),
             ],
         ).map_err(arrow_err)?;
 
