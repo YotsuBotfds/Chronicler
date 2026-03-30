@@ -335,6 +335,8 @@ def _run_seed(seed: int, turns: int, output_dir: Path) -> tuple[int, dict]:
     ]
 
     env = os.environ.copy()
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = "src" if not existing else f"src{os.pathsep}{existing}"
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=env)
         if proc.returncode != 0:
