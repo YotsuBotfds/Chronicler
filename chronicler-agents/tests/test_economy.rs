@@ -816,15 +816,21 @@ fn test_hybrid_trade_route_count_matches_abstract_semantics() {
         make_agents(100, 80, 5, 10, 5),
     ];
 
+    // Routes matching delivery topology: region 0 → 1, region 0 → 2
+    let routes = vec![
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false },
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 2, is_river: false },
+    ];
+
     let output = tick_economy_core(
-        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        &region_inputs, &agent_counts, &routes, &[0.0], &[0],
         1, &config, 1.0, false, Some(&delivery),
     );
 
-    // Region 0 exports to 2 destinations → trade_route_count = 2
+    // Region 0 has 2 outbound routes → trade_route_count = 2
     assert_eq!(
         output.region_results[0].trade_route_count, 2,
-        "origin region should count outbound partners"
+        "origin region should count outbound routes from topology"
     );
     // Regions 1 and 2 have no outbound routes → trade_route_count = 0
     assert_eq!(

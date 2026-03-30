@@ -3745,21 +3745,8 @@ impl AgentSimulator {
             }
         }
 
-        // M58b: Clear delivery buffer after successful economy tick in hybrid mode.
-        if hybrid_delivery.is_some() {
-            if let Some(buf) = self.merchant_delivery_buf.as_mut() {
-                buf.clear();
-            }
-        }
-
-        // Clear delivery buffer after economy tick.
-        // Hybrid: cleared after successful consumption (already done above).
-        // Non-hybrid: clear without applying (prevent unbounded growth).
-        if hybrid_delivery.is_none() {
-            if let Some(buf) = self.merchant_delivery_buf.as_mut() {
-                buf.clear();
-            }
-        }
+        // NOTE: Delivery buffer clearing is deferred until after Arrow packing succeeds.
+        // If packing fails, the buffer is preserved for retry (transactional guarantee).
 
         // --- Pack results into Arrow batches ---
         // 1. Region result batch
@@ -3942,6 +3929,12 @@ impl AgentSimulator {
                 in_transit_delta_arr,
             ],
         ).map_err(arrow_err)?;
+
+        // M58b: Clear delivery buffer AFTER Arrow packing succeeds (transactional guarantee).
+        // If any batch packing above failed via `?`, we exit early and the buffer is preserved.
+        if let Some(buf) = self.merchant_delivery_buf.as_mut() {
+            buf.clear();
+        }
 
         Ok((
             PyRecordBatch::new(region_result_batch),

@@ -671,9 +671,11 @@ pub fn tick_economy_core(
 
     // M58b: Snapshot work state before hybrid mutations for oracle shadow.
     // The clone captures Phase A output (production, demand, surplus, prices)
-    // with clean imports/exports, which is exactly the starting state the
-    // abstract allocation expects.
-    let oracle_work_snapshot = if hybrid_delivery.is_some() && !routes.is_empty() {
+    // with clean imports/exports. Needed even without routes because oracle
+    // food_sufficiency only requires production + demand (from Phase A).
+    // The allocation step is skipped when routes are empty, but food_suff
+    // and margins (zero without routes) are still computed.
+    let oracle_work_snapshot = if hybrid_delivery.is_some() {
         Some(work.clone())
     } else {
         None
@@ -775,22 +777,17 @@ pub fn tick_economy_core(
             }
         }
 
-        // Boundary pair counts: count unique outbound pairs per origin (matches abstract path semantics).
-        {
-            let mut outbound_pairs: Vec<(u16, u16)> = delivery.inbound_pairs.iter()
-                .map(|&(dest, src)| (src, dest))  // flip to (origin, dest)
-                .collect();
-            outbound_pairs.sort();
-            outbound_pairs.dedup();
-            for &(origin_id, _) in &outbound_pairs {
-                let oidx = if (origin_id as usize) < region_id_to_idx.len() {
-                    region_id_to_idx[origin_id as usize]
-                } else {
-                    usize::MAX
-                };
-                if oidx < n_regions {
-                    boundary_pair_counts[oidx] += 1;
-                }
+        // Boundary pair counts: use route topology (same source as abstract path).
+        // This ensures trade_route_count reflects available routes, not realized arrivals,
+        // which can be zero on turns where merchants are in-transit but haven't arrived yet.
+        for r in routes {
+            let oidx = if (r.origin_region_id as usize) < region_id_to_idx.len() {
+                region_id_to_idx[r.origin_region_id as usize]
+            } else {
+                usize::MAX
+            };
+            if oidx < n_regions {
+                boundary_pair_counts[oidx] += 1;
             }
         }
     } else {
