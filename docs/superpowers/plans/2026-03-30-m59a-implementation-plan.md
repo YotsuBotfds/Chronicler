@@ -1812,6 +1812,11 @@ Create `tests/test_m59a_knowledge.py`:
 
 ```python
 """M59a: Knowledge stats integration tests."""
+import argparse
+import json
+import subprocess
+import sys
+
 import pytest
 
 
@@ -1976,10 +1981,6 @@ fn test_knowledge_phase_deterministic_same_process() {
 Append to `tests/test_m59a_knowledge.py`:
 
 ```python
-import subprocess
-import sys
-
-
 def test_knowledge_deterministic_cross_process(tmp_path):
     """Cross-process determinism: same seed in two separate processes must
     produce identical knowledge_stats.
@@ -2115,10 +2116,6 @@ Only if fixes were required. Otherwise skip.
 Append to `tests/test_m59a_knowledge.py`:
 
 ```python
-import argparse
-import json
-
-
 def _make_args(tmp_path, seed=42, turns=5, agents="off"):
     """Build an args namespace matching execute_run's expected shape."""
     return argparse.Namespace(
@@ -2151,25 +2148,108 @@ def test_agents_off_no_knowledge_stats(tmp_path):
     execute_run(args)
 
     bundle_path = tmp_path / "chronicle_bundle.json"
-    if bundle_path.exists():
-        bundle = json.loads(bundle_path.read_text())
-        metadata = bundle.get("metadata", {})
-        k_stats = metadata.get("knowledge_stats", [])
-        assert k_stats == [] or "knowledge_stats" not in metadata
+    assert bundle_path.exists(), "execute_run should produce a bundle"
+    bundle = json.loads(bundle_path.read_text())
+    metadata = bundle.get("metadata", {})
+    k_stats = metadata.get("knowledge_stats", [])
+    assert k_stats == [] or "knowledge_stats" not in metadata
 ```
 
-- [ ] **Step 2: Write behavioral inertia regression test**
+- [ ] **Step 2: Write behavioral inertia regression test (Rust level)**
 
-This test verifies that M59a is producer-only in agent mode: same seed produces identical non-knowledge outputs before and after M59a lands. It runs two hybrid simulations with the same seed and checks that all bundle fields except `knowledge_stats` are identical.
+The approved spec requires verifying that M59a is producer-only: the knowledge phase must not modify any non-packet pool fields. This is tested at the Rust level by snapshotting all decision-relevant fields before and after `knowledge_phase`, and asserting they are unchanged.
+
+Append to `chronicler-agents/tests/test_knowledge.rs`:
+
+```rust
+#[test]
+fn test_knowledge_phase_does_not_modify_non_packet_fields() {
+    // Verify producer-only property: knowledge_phase must not touch any
+    // pool field that feeds into existing systems (satisfaction, decisions,
+    // demographics, merchant routing, relationships, needs, wealth, etc.)
+    let seed = [42u8; 32];
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.arrived_this_turn[b] = true; // will be cleared by knowledge phase
+
+    let b_id = pool.ids[b];
+    set_bond(&mut pool, a, b_id, 5, 100);
+
+    // Set some non-default field values to ensure they survive
+    pool.satisfactions[a] = 0.75;
+    pool.loyalties[a] = 0.6;
+    pool.wealth[a] = 50.0;
+    pool.need_safety[a] = 0.8;
+
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[0].controller_changed_this_turn = true;
+    regions[0].persecution_intensity = 0.5;
+    regions[1].merchant_route_margin = 0.5;
+
+    // Snapshot all non-packet fields before knowledge_phase
+    let sat_before = pool.satisfactions.clone();
+    let loy_before = pool.loyalties.clone();
+    let wealth_before = pool.wealth.clone();
+    let occ_before = pool.occupations.clone();
+    let regions_before = pool.regions.clone();
+    let civ_before = pool.civ_affinities.clone();
+    let ages_before = pool.ages.clone();
+    let needs_before = (
+        pool.need_safety.clone(), pool.need_material.clone(),
+        pool.need_social.clone(), pool.need_spiritual.clone(),
+        pool.need_autonomy.clone(), pool.need_purpose.clone(),
+    );
+    let rel_targets_before = pool.rel_target_ids.clone();
+    let rel_sentiments_before = pool.rel_sentiments.clone();
+    let rel_bonds_before = pool.rel_bond_types.clone();
+    let trip_phase_before = pool.trip_phase.clone();
+    let alive_before = pool.alive.clone();
+
+    // Run knowledge phase (should create/propagate packets but touch nothing else)
+    let stats = knowledge_phase(&mut pool, &regions, &seed, 5);
+
+    // Verify packets were actually created (not a vacuous test)
+    assert!(stats.packets_created > 0, "knowledge_phase should have created packets");
+
+    // Verify ALL non-packet fields are unchanged
+    assert_eq!(pool.satisfactions, sat_before, "satisfactions modified");
+    assert_eq!(pool.loyalties, loy_before, "loyalties modified");
+    assert_eq!(pool.wealth, wealth_before, "wealth modified");
+    assert_eq!(pool.occupations, occ_before, "occupations modified");
+    assert_eq!(pool.regions, regions_before, "regions modified");
+    assert_eq!(pool.civ_affinities, civ_before, "civ_affinities modified");
+    assert_eq!(pool.ages, ages_before, "ages modified");
+    assert_eq!(pool.need_safety, needs_before.0, "need_safety modified");
+    assert_eq!(pool.need_material, needs_before.1, "need_material modified");
+    assert_eq!(pool.need_social, needs_before.2, "need_social modified");
+    assert_eq!(pool.need_spiritual, needs_before.3, "need_spiritual modified");
+    assert_eq!(pool.need_autonomy, needs_before.4, "need_autonomy modified");
+    assert_eq!(pool.need_purpose, needs_before.5, "need_purpose modified");
+    assert_eq!(pool.rel_target_ids, rel_targets_before, "rel_target_ids modified");
+    assert_eq!(pool.rel_sentiments, rel_sentiments_before, "rel_sentiments modified");
+    assert_eq!(pool.rel_bond_types, rel_bonds_before, "rel_bond_types modified");
+    assert_eq!(pool.trip_phase, trip_phase_before, "trip_phase modified");
+    assert_eq!(pool.alive, alive_before, "alive modified");
+
+    // arrived_this_turn IS expected to change (consumed by knowledge phase)
+    assert!(!pool.arrived_this_turn[b], "arrived_this_turn should be cleared");
+}
+```
+
+- [ ] **Step 3: Write Python-level behavioral inertia test**
+
+This complements the Rust test: runs two same-seed hybrid sims and verifies bundle-level determinism plus knowledge_stats presence.
 
 Append to `tests/test_m59a_knowledge.py`:
 
 ```python
-def test_behavioral_inertia_hybrid(tmp_path):
-    """Same seed in hybrid mode: all outputs except knowledge_stats must be identical.
+def test_hybrid_determinism_with_knowledge_stats(tmp_path):
+    """Same seed in hybrid mode: two runs produce identical bundles.
 
-    Verifies M59a is producer-only — packets exist but do not change any
-    agent decision, merchant routing, or demographic outcome.
+    This is a determinism test, not a pre/post comparison. The Rust-level
+    test_knowledge_phase_does_not_modify_non_packet_fields verifies the
+    producer-only property directly.
     """
     from chronicler.main import execute_run
 
@@ -2184,36 +2264,30 @@ def test_behavioral_inertia_hybrid(tmp_path):
         results.append(json.loads(bundle_path.read_text()))
 
     b0, b1 = results
-
-    # History snapshots (civ stats, populations, treasury, etc.) must match
-    assert b0["history"] == b1["history"], "history diverged between runs"
-
-    # Events timeline must match
+    assert b0["history"] == b1["history"], "history diverged"
     assert b0.get("events_timeline") == b1.get("events_timeline"), "events diverged"
 
-    # Metadata fields other than knowledge_stats must match
-    for key in b0.get("metadata", {}):
-        if key == "knowledge_stats":
-            continue
-        assert b0["metadata"][key] == b1["metadata"].get(key), (
-            f"metadata['{key}'] diverged between runs"
-        )
-
-    # knowledge_stats should exist and be non-empty in hybrid mode
     k0 = b0.get("metadata", {}).get("knowledge_stats", [])
+    k1 = b1.get("metadata", {}).get("knowledge_stats", [])
     assert len(k0) == 10, f"Expected 10 turns of knowledge_stats, got {len(k0)}"
+    assert k0 == k1, "knowledge_stats diverged between same-seed runs"
 ```
 
-- [ ] **Step 3: Run tests**
+- [ ] **Step 3: Run Rust tests**
+
+Run: `cd chronicler-agents && cargo nextest run --test test_knowledge -E 'test(test_knowledge_phase_does_not_modify_non_packet_fields)'`
+Expected: PASS
+
+- [ ] **Step 4: Run Python tests**
 
 Run: `pytest tests/test_m59a_knowledge.py -v`
 Expected: All PASS
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tests/test_m59a_knowledge.py
-git commit -m "test(m59a): add --agents=off compatibility and behavioral inertia regression tests"
+git add chronicler-agents/tests/test_knowledge.rs tests/test_m59a_knowledge.py
+git commit -m "test(m59a): add behavioral inertia, --agents=off compat, and hybrid determinism tests"
 ```
 
 ---
