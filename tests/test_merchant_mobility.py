@@ -110,3 +110,11 @@ def test_route_suspension_blocks_intra_civ_edges(sample_world):
     r2.route_suspensions["trade_route"] = 2
     blocked = build_merchant_route_graph(sample_world)
     assert blocked.num_rows == 0, "Intra-civ edges touching suspended regions must be blocked"
+
+
+def test_economy_result_has_in_transit_delta():
+    """EconomyResult.conservation dict includes in_transit_delta key."""
+    from chronicler.economy import EconomyResult
+    result = EconomyResult()
+    assert "in_transit_delta" in result.conservation
+    assert result.conservation["in_transit_delta"] == 0.0

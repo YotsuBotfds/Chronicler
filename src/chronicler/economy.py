@@ -520,6 +520,7 @@ class EconomyResult:
     conservation: dict[str, float] = field(default_factory=lambda: {
         "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
         "storage_loss": 0.0, "cap_overflow": 0.0, "clamp_floor_loss": 0.0,
+        "in_transit_delta": 0.0,
     })
     # M43b: Supply shock detection and trade dependency
     imports_by_region: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -527,6 +528,8 @@ class EconomyResult:
     stockpile_levels: dict[str, dict[str, float]] = field(default_factory=dict)
     import_share: dict[str, float] = field(default_factory=dict)
     trade_dependent: dict[str, bool] = field(default_factory=dict)
+    # M58b: Oracle shadow imports (from observability batch oracle columns)
+    oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 def compute_production(
@@ -1053,6 +1056,23 @@ def reconstruct_economy_result(
     # --- Conservation batch ---
     for field_name in ("production", "transit_loss", "consumption", "storage_loss", "cap_overflow", "clamp_floor_loss"):
         result.conservation[field_name] = conservation_batch.column(field_name).to_pylist()[0]
+    # M58b: in_transit_delta (nullable, absent in pre-M58b batches)
+    if "in_transit_delta" in conservation_batch.schema.names:
+        result.conservation["in_transit_delta"] = conservation_batch.column("in_transit_delta").to_pylist()[0]
+
+    # --- M58b: Oracle shadow imports (nullable columns, zero when no oracle) ---
+    if "oracle_imports_food" in observability_batch.schema.names:
+        obs_ids = observability_batch.column("region_id").to_pylist()
+        oracle_food = observability_batch.column("oracle_imports_food").to_pylist()
+        oracle_rm = observability_batch.column("oracle_imports_raw_material").to_pylist()
+        oracle_lux = observability_batch.column("oracle_imports_luxury").to_pylist()
+        for i, rid in enumerate(obs_ids):
+            rname = region_names[rid]
+            result.oracle_imports[rname] = {
+                "food": oracle_food[i],
+                "raw_material": oracle_rm[i],
+                "luxury": oracle_lux[i],
+            }
 
     return result
 
