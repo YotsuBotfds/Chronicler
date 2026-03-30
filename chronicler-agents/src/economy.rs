@@ -1003,17 +1003,46 @@ pub fn tick_economy_core(
                 }
             }
 
-            // Oracle food sufficiency per region (same formula as realized Step 2).
+            // Oracle food sufficiency: mirror the realized abstract path exactly.
+            // 1. Decompose per-good imports from shadow route_works (using origin's
+            //    primary_good_slot, same as the abstract path at line ~893).
+            // 2. Run Step 1 stockpile lifecycle: stockpile + production - exports + imports.
+            // 3. Derive food_suff from post-lifecycle stockpile.
+            let mut oracle_per_good_imports = vec![[0.0f32; NUM_GOODS]; n_regions];
+            for rw in shadow_route_works.iter() {
+                let origin_slot = shadow_work[rw.origin_idx].primary_good_slot;
+                if origin_slot >= NUM_GOODS { continue; }
+                let origin_cat = shadow_work[rw.origin_idx].primary_category;
+                let shipped = rw.flow[origin_cat];
+                if shipped <= 0.0 { continue; }
+                let delivered = shipped * (1.0 - TRANSIT_DECAY[origin_slot]);
+                oracle_per_good_imports[rw.dest_idx][origin_slot] += delivered;
+            }
+
             let mut food_suff = vec![0.0f32; n_regions];
             for ri in 0..n_regions {
                 let sw = &shadow_work[ri];
                 let food_demand = sw.demand[CAT_FOOD];
-                // Total food = stockpile food goods + oracle food imports.
-                let stockpile_food: f32 = (0..NUM_GOODS)
+
+                // Step 1: stockpile + production - exports + imports.
+                let mut shadow_stockpile = region_inputs[ri].stockpile;
+                let mut per_good_prod = [0.0f32; NUM_GOODS];
+                let mut per_good_exp = [0.0f32; NUM_GOODS];
+                if sw.primary_good_slot < NUM_GOODS {
+                    per_good_prod[sw.primary_good_slot] = sw.production[sw.primary_category];
+                    per_good_exp[sw.primary_good_slot] = sw.exports[sw.primary_category];
+                }
+                for g in 0..NUM_GOODS {
+                    let new_val = shadow_stockpile[g] + per_good_prod[g]
+                        - per_good_exp[g] + oracle_per_good_imports[ri][g];
+                    shadow_stockpile[g] = new_val.max(0.0);
+                }
+
+                // Step 2: food_sufficiency from post-lifecycle stockpile.
+                let total_food: f32 = (0..NUM_GOODS)
                     .filter(|&g| IS_FOOD[g])
-                    .map(|g| region_inputs[ri].stockpile[g])
+                    .map(|g| shadow_stockpile[g])
                     .sum();
-                let total_food = stockpile_food + sw.imports[CAT_FOOD];
                 let denom = food_demand.max(SUPPLY_FLOOR);
                 food_suff[ri] = (total_food / denom).clamp(0.0, 2.0);
             }

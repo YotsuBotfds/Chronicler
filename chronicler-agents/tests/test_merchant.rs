@@ -484,6 +484,56 @@ fn test_oracle_shadow_produces_data_in_hybrid_mode() {
     assert_eq!(oracle.len(), 2); // one per region
 }
 
+#[test]
+fn test_oracle_food_sufficiency_matches_realized_basis() {
+    // When hybrid delivery exactly matches the abstract allocation, oracle and
+    // realized food_sufficiency should use the same stock-flow lifecycle and
+    // produce comparable values (both include production, exports, imports).
+    let config = EconomyConfig::default();
+
+    // Run abstract-only first to get the baseline food_sufficiency.
+    let region_inputs = vec![
+        test_region_input(0, 0, 100, 0, 1.0, [30.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 80, 5, 10, 5),
+        test_agent_counts(100, 80, 5, 10, 5),
+    ];
+    let routes = vec![
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false },
+    ];
+
+    let abstract_output = tick_economy_core(
+        &region_inputs, &agent_counts, &routes, &[0.0], &[0],
+        1, &config, 1.0, false, None,
+    );
+    let abstract_fs_0 = abstract_output.region_results[0].food_sufficiency;
+    let abstract_fs_1 = abstract_output.region_results[1].food_sufficiency;
+
+    // Run hybrid with delivery matching abstract allocation (no trade for simplicity).
+    let buf = DeliveryBuffer::new(2);
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+    let hybrid_output = tick_economy_core(
+        &region_inputs, &agent_counts, &routes, &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Oracle food_suff should match abstract food_suff (same stock-flow basis).
+    let oracle_fs = hybrid_output.oracle_food_sufficiency.as_ref()
+        .expect("oracle_food_sufficiency should be Some in hybrid mode");
+    assert!(
+        (oracle_fs[0] - abstract_fs_0).abs() < 0.01,
+        "oracle food_suff[0]={:.4} should match abstract={:.4}",
+        oracle_fs[0], abstract_fs_0,
+    );
+    assert!(
+        (oracle_fs[1] - abstract_fs_1).abs() < 0.01,
+        "oracle food_suff[1]={:.4} should match abstract={:.4}",
+        oracle_fs[1], abstract_fs_1,
+    );
+}
+
 // ---------------------------------------------------------------------------
 // M58b: Conservation integration tests — three-stream accounting
 // ---------------------------------------------------------------------------
