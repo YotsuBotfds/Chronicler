@@ -298,6 +298,21 @@ fn test_hybrid_overcommitted_uses_departure_debits() {
     assert!(!ledger.is_overcommitted_hybrid(0, 0, &stockpile, &buf));
 }
 
+#[test]
+fn test_non_hybrid_clears_delivery_buffer() {
+    let mut buf = DeliveryBuffer::new(2);
+    buf.record_departure(0, 0, 10.0);
+    buf.record_arrival(0, 1, 0, 10.0);
+    assert!(!buf.arrival_imports.is_empty());
+
+    // Non-hybrid: clear without applying
+    buf.clear();
+    assert!(buf.arrival_imports.is_empty());
+    assert_eq!(buf.departure_debits[0][0], 0.0);
+    // Diagnostics preserved
+    assert_eq!(buf.diagnostics.total_departures[0][0], 10.0);
+}
+
 // ---------------------------------------------------------------------------
 // M58b: Hybrid economy ingress tests
 // ---------------------------------------------------------------------------

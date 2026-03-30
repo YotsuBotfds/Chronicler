@@ -3733,6 +3733,15 @@ impl AgentSimulator {
             }
         }
 
+        // Clear delivery buffer after economy tick.
+        // Hybrid: cleared after successful consumption (already done above).
+        // Non-hybrid: clear without applying (prevent unbounded growth).
+        if hybrid_delivery.is_none() {
+            if let Some(buf) = self.merchant_delivery_buf.as_mut() {
+                buf.clear();
+            }
+        }
+
         // --- Pack results into Arrow batches ---
         // 1. Region result batch
         let n_out = output.region_results.len();
