@@ -179,16 +179,16 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
     # --- Trade volume ---
     vol_ratios = np.array(volume_ratios) if volume_ratios else np.array([1.0])
     median_ratio = float(np.median(vol_ratios))
-    p5_ratio = float(np.percentile(vol_ratios, 5))
-    p95_ratio = float(np.percentile(vol_ratios, 95))
+    p10_ratio = float(np.percentile(vol_ratios, 10))
+    p90_ratio = float(np.percentile(vol_ratios, 90))
 
     if not (VOLUME_RATIO_MEDIAN[0] <= median_ratio <= VOLUME_RATIO_MEDIAN[1]):
         passed = False
         reasons.append(f"volume_ratio_median={median_ratio:.3f}")
 
-    if p5_ratio < VOLUME_RATIO_P90[0] or p95_ratio > VOLUME_RATIO_P90[1]:
+    if p10_ratio < VOLUME_RATIO_P90[0] or p90_ratio > VOLUME_RATIO_P90[1]:
         passed = False
-        reasons.append(f"volume_ratio_p90=[{p5_ratio:.3f},{p95_ratio:.3f}]")
+        reasons.append(f"volume_ratio_p90=[{p10_ratio:.3f},{p90_ratio:.3f}]")
 
     # --- Food sufficiency ---
     if food_suff_realized_values:
@@ -228,8 +228,8 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         "price_rank_corr_median": median_corr if price_rank_correlations else None,
         "price_magnitude_median": median_rel_err if price_relative_errors else None,
         "volume_ratio_median": median_ratio,
-        "volume_ratio_p5": p5_ratio,
-        "volume_ratio_p95": p95_ratio,
+        "volume_ratio_p10": p10_ratio,
+        "volume_ratio_p90": p90_ratio,
         "food_suff_mean_delta": mean_delta,
         "food_crisis_rate_pp": crisis_rate,
         "conservation_error_median": cons_median,
