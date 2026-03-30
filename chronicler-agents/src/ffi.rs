@@ -4021,6 +4021,70 @@ impl AgentSimulator {
         stats.insert("overcommit_count".into(), self.merchant_trip_stats.overcommit_count as f64);
         Ok(stats)
     }
+
+    /// M58b: Non-draining read of cumulative delivery counters.
+    /// Run-lifetime monotonic — per-turn deltas derived by diffing consecutive reads.
+    #[pyo3(name = "get_delivery_diagnostics")]
+    pub fn get_delivery_diagnostics(&self) -> PyResult<PyRecordBatch> {
+        use arrow::array::{UInt16Builder, UInt8Builder, Float32Builder};
+        use crate::economy::NUM_GOODS;
+
+        let buf = match &self.merchant_delivery_buf {
+            Some(b) => &b.diagnostics,
+            None => {
+                // Return empty batch
+                let schema = Arc::new(Schema::new(vec![
+                    Field::new("region_id", DataType::UInt16, false),
+                    Field::new("good_slot", DataType::UInt8, false),
+                    Field::new("total_departures", DataType::Float32, false),
+                    Field::new("total_arrivals", DataType::Float32, false),
+                    Field::new("total_returns", DataType::Float32, false),
+                    Field::new("total_transit_decay", DataType::Float32, false),
+                ]));
+                let batch = RecordBatch::new_empty(schema);
+                return Ok(PyRecordBatch::new(batch));
+            }
+        };
+
+        let n = buf.total_departures.len();
+        let mut rid = UInt16Builder::with_capacity(n * NUM_GOODS);
+        let mut gs = UInt8Builder::with_capacity(n * NUM_GOODS);
+        let mut dep = Float32Builder::with_capacity(n * NUM_GOODS);
+        let mut arr = Float32Builder::with_capacity(n * NUM_GOODS);
+        let mut ret = Float32Builder::with_capacity(n * NUM_GOODS);
+        let mut decay = Float32Builder::with_capacity(n * NUM_GOODS);
+
+        for region in 0..n {
+            for g in 0..NUM_GOODS {
+                rid.append_value(region as u16);
+                gs.append_value(g as u8);
+                dep.append_value(buf.total_departures[region][g]);
+                arr.append_value(buf.total_arrivals[region][g]);
+                ret.append_value(buf.total_returns[region][g]);
+                decay.append_value(buf.total_transit_decay[region][g]);
+            }
+        }
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("region_id", DataType::UInt16, false),
+            Field::new("good_slot", DataType::UInt8, false),
+            Field::new("total_departures", DataType::Float32, false),
+            Field::new("total_arrivals", DataType::Float32, false),
+            Field::new("total_returns", DataType::Float32, false),
+            Field::new("total_transit_decay", DataType::Float32, false),
+        ]));
+
+        let batch = RecordBatch::try_new(schema, vec![
+            Arc::new(rid.finish()),
+            Arc::new(gs.finish()),
+            Arc::new(dep.finish()),
+            Arc::new(arr.finish()),
+            Arc::new(ret.finish()),
+            Arc::new(decay.finish()),
+        ]).map_err(arrow_err)?;
+
+        Ok(PyRecordBatch::new(batch))
+    }
 }
 
 // ---------------------------------------------------------------------------

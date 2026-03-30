@@ -118,3 +118,33 @@ def test_economy_result_has_in_transit_delta():
     result = EconomyResult()
     assert "in_transit_delta" in result.conservation
     assert result.conservation["in_transit_delta"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# M58b: Delivery diagnostics FFI
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sim_fixture():
+    """Minimal AgentSimulator for delivery diagnostics tests."""
+    from chronicler_agents import AgentSimulator
+    return AgentSimulator(num_regions=3, seed=42)
+
+
+def test_get_delivery_diagnostics_returns_batch(sim_fixture):
+    """get_delivery_diagnostics returns an Arrow batch with expected columns."""
+    batch = sim_fixture.get_delivery_diagnostics()
+    assert batch.num_columns == 6
+    assert "total_departures" in batch.schema.names
+    assert "total_arrivals" in batch.schema.names
+    assert "total_returns" in batch.schema.names
+    assert "total_transit_decay" in batch.schema.names
+
+
+def test_get_delivery_diagnostics_empty_without_buffer(sim_fixture):
+    """Before merchant routes are set, diagnostics returns empty batch."""
+    batch = sim_fixture.get_delivery_diagnostics()
+    # No merchant_delivery_buf initialized yet → empty batch
+    assert batch.num_rows == 0
+    assert batch.num_columns == 6
