@@ -455,3 +455,57 @@ fn test_propagation_channel_filtering() {
     let (_, transmitted, _, _, _) = propagate_packets(&pool, &[a, b], &[0u8; 32], 6, &lookup);
     assert_eq!(transmitted, 0, "Friend bond should not carry religious signal");
 }
+
+// ---------------------------------------------------------------------------
+// Knowledge phase orchestrator tests
+// ---------------------------------------------------------------------------
+
+use chronicler_agents::knowledge::knowledge_phase;
+
+#[test]
+fn test_knowledge_phase_full_cycle() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let b_id = pool.ids[b];
+
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[0].controller_changed_this_turn = true;
+
+    // A -> B: Kin bond
+    set_bond(&mut pool, a, b_id, 5, 127);
+
+    let stats = knowledge_phase(&mut pool, &regions, &[0u8; 32], 5);
+
+    assert!(stats.packets_created > 0, "should have created packets");
+    assert!(stats.live_packet_count > 0, "should have live packets");
+    assert!(stats.agents_with_packets > 0, "should have agents with packets");
+}
+
+#[test]
+fn test_knowledge_phase_clears_arrival_flag() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.arrived_this_turn[a] = true;
+
+    let regions = vec![RegionState::new(0)];
+    knowledge_phase(&mut pool, &regions, &[0u8; 32], 5);
+
+    assert!(!pool.arrived_this_turn[a], "arrived_this_turn should be cleared after knowledge phase");
+}
+
+#[test]
+fn test_knowledge_phase_zero_fill_no_packets() {
+    let mut pool = AgentPool::new(10);
+    pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let regions = vec![RegionState::new(0)];
+    // No triggers — no packets
+    let stats = knowledge_phase(&mut pool, &regions, &[0u8; 32], 5);
+
+    assert_eq!(stats.live_packet_count, 0);
+    assert_eq!(stats.agents_with_packets, 0);
+    assert_eq!(stats.mean_age, 0.0);
+    assert_eq!(stats.max_age, 0);
+}

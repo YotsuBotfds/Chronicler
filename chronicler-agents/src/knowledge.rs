@@ -616,3 +616,102 @@ pub fn commit_buffered(
 
     (refreshed, evicted, dropped)
 }
+
+// ---------------------------------------------------------------------------
+// Knowledge phase orchestrator (tick phase 0.95)
+// ---------------------------------------------------------------------------
+
+/// Run the full knowledge phase: decay → observe → propagate → commit → stats.
+/// Clears `arrived_this_turn` as the last operation.
+pub fn knowledge_phase(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    master_seed: &[u8; 32],
+    turn: u32,
+) -> KnowledgeStats {
+    let mut stats = KnowledgeStats::default();
+    let current_turn = turn as u16;
+
+    // Collect alive slots
+    let alive_slots: Vec<usize> = (0..pool.capacity())
+        .filter(|&s| pool.is_alive(s))
+        .collect();
+
+    if alive_slots.is_empty() {
+        return stats;
+    }
+
+    // Step 1: Decay + expire
+    stats.packets_expired = decay_packets(pool, &alive_slots);
+
+    // Step 2: Direct observation
+    let (created, refreshed_obs, ct, ctr, cr) =
+        observe_packets(pool, regions, &alive_slots, current_turn);
+    stats.packets_created = created;
+    stats.packets_refreshed = refreshed_obs;
+    stats.created_threat = ct;
+    stats.created_trade = ctr;
+    stats.created_religious = cr;
+
+    // Step 3: Propagation (buffered, reads post-observation snapshot)
+    let slot_lookup: std::collections::HashMap<u32, usize> = alive_slots
+        .iter()
+        .map(|&s| (pool.ids[s], s))
+        .collect();
+
+    let (buffer, transmitted, tt, ttr, tr) =
+        propagate_packets(pool, &alive_slots, master_seed, turn, &slot_lookup);
+    stats.packets_transmitted = transmitted;
+    stats.transmitted_threat = tt;
+    stats.transmitted_trade = ttr;
+    stats.transmitted_religious = tr;
+
+    // Step 4: Commit buffered receives
+    let (commit_refreshed, evicted, dropped) = commit_buffered(pool, buffer);
+    stats.packets_refreshed += commit_refreshed;
+    stats.packets_evicted = evicted;
+    stats.packets_dropped = dropped;
+
+    // Step 5: Compute post-commit live stats
+    let mut total_age: u64 = 0;
+    let mut total_hops: u64 = 0;
+    let mut max_age: u32 = 0;
+    let mut max_hops: u32 = 0;
+    let mut live_count: u32 = 0;
+    let mut agents_with: u32 = 0;
+
+    for &slot in &alive_slots {
+        let mut has_packet = false;
+        for i in 0..agent::PACKET_SLOTS {
+            if !is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
+                has_packet = true;
+                live_count += 1;
+                let age = current_turn.saturating_sub(pool.pkt_source_turn[slot][i]) as u32;
+                let hops = unpack_hops(pool.pkt_type_and_hops[slot][i]) as u32;
+                total_age += age as u64;
+                total_hops += hops as u64;
+                if age > max_age { max_age = age; }
+                if hops > max_hops { max_hops = hops; }
+            }
+        }
+        if has_packet {
+            agents_with += 1;
+        }
+    }
+
+    stats.live_packet_count = live_count;
+    stats.agents_with_packets = agents_with;
+    stats.max_age = max_age;
+    stats.max_hops = max_hops;
+    if live_count > 0 {
+        stats.mean_age = total_age as f32 / live_count as f32;
+        stats.mean_hops = total_hops as f32 / live_count as f32;
+    }
+
+    // Clear arrival flags
+    for &slot in &alive_slots {
+        pool.arrived_this_turn[slot] = false;
+    }
+
+    stats
+}
