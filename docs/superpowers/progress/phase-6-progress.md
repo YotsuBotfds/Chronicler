@@ -2,18 +2,20 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-29 (M58a implementation review + patch pass complete on `feature/m58a-merchant-mobility`; targeted mobility regression tests PASS)
+> **Last updated:** 2026-03-30 (M58b closeout complete on `main`; smoke/full convergence gates PASS)
 
 ---
 
-## Current Focus (2026-03-29)
+## Current Focus (2026-03-30)
 
-- **M58a implementation closeout pass completed on branch `feature/m58a-merchant-mobility`.**
-- **Patched route-suspension gating in `build_merchant_route_graph()`** so endpoint `trade_route` suspensions now block both cross-civ and intra-civ traversal.
-- **Added regression coverage:** `test_route_suspension_blocks_cross_civ_edges` and `test_route_suspension_blocks_intra_civ_edges` in `tests/test_merchant_mobility.py`.
-- **M58b pre-spec handoff drafted:** `docs/superpowers/plans/2026-03-29-m58b-pre-spec-handoff.md`.
-- **M58a closeout full gate (2026-03-29):** ran `200` seeds x `500` turns (`--agents hybrid`, `--validation-sidecar`, `--parallel 24`) at `output/m58a_closeout/full_gate/batch_1`, then validated with `python -m chronicler.validate --oracles all`. Oracle results: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `determinism SKIP` (no duplicate seed pairs), `regression PASS`. Key regression metrics: `satisfaction_mean=0.4518`, `satisfaction_std=0.1439`, `migration_rate_per_agent_turn=0.096218`, `rebellion_rate_per_agent_turn=0.060259`, `gini_in_range_fraction=0.9828`, `occupation_ok=true`.
-- **Operational note:** if Python reports missing PyO3 methods (for example `set_merchant_route_graph`), rebuild extension with `python -m maturin develop --release` in `chronicler-agents/`.
+- **M58b closeout is complete and merged on `main` at `023d61d` (`fix(m58b): close trade convergence gate`).**
+- **Hybrid oracle observability is now fail-fast:** `reconstruct_economy_result(..., require_oracle_shadow=True)` rejects stale-extension schemas instead of silently zero-filling oracle columns.
+- **Merchant planning now respects the oracle planning signal end-to-end:** Python exports `merchant_route_margin`, Rust FFI falls back to realized margin only when the planning column is absent, and merchant routing / market attractors now consume the planning field directly.
+- **Staged convergence gate (2026-03-30):**
+  smoke PASS at `output/m58b_gate_smoke_routefix` with `15/20` passing seeds (`75.0%`), tail guard PASS, conservation PASS.
+  full PASS at `output/m58b_gate_full_routefix` with `154/200` passing seeds (`77.0%`), tail guard PASS, conservation PASS.
+- **Validation run on closeout head:** `cargo test --test test_merchant --test test_spatial --quiet`, `cargo test --test test_economy --quiet`, `pytest -q tests/test_agent_bridge.py tests/test_economy_bridge.py tests/test_m58b_gate.py tests/test_merchant_mobility.py`, and `pytest -q tests/test_oracle_gate.py` all PASS.
+- **Operational note:** use `.venv\\Scripts\\python.exe` consistently when rebuilding/running hybrid validation (`maturin develop --release` in `chronicler-agents/`), or Python may load a stale `chronicler_agents` extension.
 
 ---
 
@@ -34,6 +36,16 @@
   - New tests added for fractional tax carry, clergy win detection, zero-sum normalization handling, fund-instability target ranking, and martyrdom input-shape compatibility.
 
 ## Merged Milestones
+
+### M58b: Trade Integration & Macro Convergence — merged (`023d61d`)
+
+- Hybrid runtime now hard-fails on missing oracle observability columns (`oracle_imports_*`, `oracle_margin`, `oracle_food_sufficiency`) instead of silently falling back to zeros.
+- Oracle planning margin now crosses the Python/Rust boundary explicitly via `merchant_route_margin`; route selection and market attraction consume that planning signal directly, preventing realized-margin feedback from spawning post-oracle trips.
+- Merchant cargo capacity is aligned with the abstract economy budget (`MERCHANT_CARGO_CAP = CARRY_PER_MERCHANT = 1.0`) to remove baked-in realized volume surplus.
+- Gate semantics now treat windows with no trade activity on either side as neutral, while still failing one-sided activity and enforcing the original price/volume/food thresholds when comparison data exists.
+- Canonical closeout artifacts:
+  smoke gate: `output/m58b_gate_smoke_routefix`
+  full gate: `output/m58b_gate_full_routefix`
 
 ### M36: Cultural Identity — merged, sticky flag fixed
 
@@ -647,7 +659,7 @@
 - **Operational tool:** `scripts/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
 - **M55 status:** M55a and M55b are both implemented and gated on the clean merge line. Final canonical artifact: `output/m55b/gate_food007_farmer030_stab280_p24/full_gate/batch_1/validate_all.json`.
 - **Gate recovery note:** The branch-level regression drift was not caused by M55b alone. Final recovery that restored the canonical gate on the accepted M54 runtime line combined (1) age stream staying at `1400`, (2) spatial streams moving to `2000/2001`, (3) `MEMORY_SATISFACTION_WEIGHT=0.05`, (4) `FOOD_SHORTAGE_WEIGHT=0.07`, (5) `FOOD_SCARCITY_FARMER_BONUS=0.30`, and (6) the satisfaction stability bonus denominator moving from `300` to `280`.
-- **Next implementation target:** Start M58b from `docs/superpowers/plans/2026-03-29-m58b-pre-spec-handoff.md`, keeping M58a movement semantics frozen while adding macro stockpile write-back + conservation validation.
+- **Next implementation target:** promote `M57a: Marriage Matching & Lineage Schema` from prep handoff to spec/implementation on the clean post-M58b baseline (`docs/superpowers/plans/2026-03-26-m57a-pre-spec-handoff.md`).
 - **M57a prep (2026-03-26):** Added `docs/superpowers/plans/2026-03-26-m57a-pre-spec-handoff.md` to capture the live post-M56 baseline for `M57a: Marriage Matching & Lineage Schema`, including the Rust-owned formation seam, the single-parent lineage surfaces that must migrate together, and the concrete user questions to resolve before spec freeze.
 - **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
 - **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
