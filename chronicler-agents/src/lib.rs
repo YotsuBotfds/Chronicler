@@ -29,6 +29,7 @@ pub mod sort;
 pub mod economy;
 pub mod politics;
 pub mod merchant;
+pub mod knowledge;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
