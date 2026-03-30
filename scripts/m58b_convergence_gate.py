@@ -79,6 +79,10 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
     food_suff_oracle_values: list[float] = []
     conservation_errors: list[float] = []
     repair_events = 0
+    saw_oracle_trade_activity = False
+    saw_agent_trade_activity = False
+    saw_oracle_price_activity = False
+    saw_agent_price_activity = False
 
     for snap_path in snapshots:
         with open(snap_path) as f:
@@ -91,6 +95,14 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         oracle_margins = snap.get("oracle_margins_by_region", {})
         oracle_food = snap.get("oracle_food_sufficiency_by_region", {})
         conservation = snap.get("conservation", {})
+        if any(v > 0.01 for v in oracle_margins.values()):
+            saw_oracle_price_activity = True
+        if any(v > 0.01 for v in margins.values()):
+            saw_agent_price_activity = True
+        if any(v.get(cat, 0) > 0.01 for v in oracle_vols.values() for cat in ("food", "raw_material", "luxury")):
+            saw_oracle_trade_activity = True
+        if any(v.get(cat, 0) > 0.01 for v in agent_vols.values() for cat in ("food", "raw_material", "luxury")):
+            saw_agent_trade_activity = True
 
         # --- Price gradient: Spearman rank correlation of margin vectors ---
         # Compare oracle vs realized post-trade margins per region.
@@ -159,8 +171,15 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
             passed = False
             reasons.append(f"price_rank_corr={median_corr:.3f}<{PRICE_RANK_CORR_THRESHOLD}")
     else:
-        median_corr = float("nan")
-        # Not enough data to evaluate; not a failure by itself.
+        median_corr = None
+        if saw_oracle_price_activity or saw_agent_price_activity:
+            passed = False
+            if saw_oracle_price_activity and not saw_agent_price_activity:
+                reasons.append("no_realized_price_activity")
+            elif saw_agent_price_activity and not saw_oracle_price_activity:
+                reasons.append("price_activity_without_oracle")
+            else:
+                reasons.append("insufficient_price_rank_data")
 
     if price_relative_errors:
         median_rel_err = float(np.median(price_relative_errors))
@@ -168,21 +187,42 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
             passed = False
             reasons.append(f"price_magnitude={median_rel_err:.3f}>{PRICE_MAGNITUDE_THRESHOLD}")
     else:
-        median_rel_err = float("nan")
+        median_rel_err = None
+        if saw_oracle_price_activity or saw_agent_price_activity:
+            passed = False
+            if saw_oracle_price_activity and not saw_agent_price_activity:
+                reasons.append("no_realized_price_activity")
+            elif saw_agent_price_activity and not saw_oracle_price_activity:
+                reasons.append("price_activity_without_oracle")
+            else:
+                reasons.append("insufficient_price_magnitude_data")
 
     # --- Trade volume ---
-    vol_ratios = np.array(volume_ratios) if volume_ratios else np.array([1.0])
-    median_ratio = float(np.median(vol_ratios))
-    p10_ratio = float(np.percentile(vol_ratios, 10))
-    p90_ratio = float(np.percentile(vol_ratios, 90))
+    if volume_ratios:
+        vol_ratios = np.array(volume_ratios)
+        median_ratio = float(np.median(vol_ratios))
+        p10_ratio = float(np.percentile(vol_ratios, 10))
+        p90_ratio = float(np.percentile(vol_ratios, 90))
 
-    if not (VOLUME_RATIO_MEDIAN[0] <= median_ratio <= VOLUME_RATIO_MEDIAN[1]):
-        passed = False
-        reasons.append(f"volume_ratio_median={median_ratio:.3f}")
+        if not (VOLUME_RATIO_MEDIAN[0] <= median_ratio <= VOLUME_RATIO_MEDIAN[1]):
+            passed = False
+            reasons.append(f"volume_ratio_median={median_ratio:.3f}")
 
-    if p10_ratio < VOLUME_RATIO_P90[0] or p90_ratio > VOLUME_RATIO_P90[1]:
-        passed = False
-        reasons.append(f"volume_ratio_p90=[{p10_ratio:.3f},{p90_ratio:.3f}]")
+        if p10_ratio < VOLUME_RATIO_P90[0] or p90_ratio > VOLUME_RATIO_P90[1]:
+            passed = False
+            reasons.append(f"volume_ratio_p90=[{p10_ratio:.3f},{p90_ratio:.3f}]")
+    else:
+        median_ratio = None
+        p10_ratio = None
+        p90_ratio = None
+        if saw_oracle_trade_activity or saw_agent_trade_activity:
+            passed = False
+            if saw_oracle_trade_activity and not saw_agent_trade_activity:
+                reasons.append("no_realized_volume_activity")
+            elif saw_agent_trade_activity and not saw_oracle_trade_activity:
+                reasons.append("volume_activity_without_oracle")
+            else:
+                reasons.append("insufficient_volume_ratio_data")
 
     # --- Food sufficiency ---
     # Mean delta: oracle vs realized food sufficiency.
@@ -192,7 +232,9 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
             passed = False
             reasons.append(f"food_suff_mean_delta={mean_delta:.3f}>{FOOD_SUFF_MEAN_DELTA}")
     else:
-        mean_delta = 0.0
+        mean_delta = None
+        passed = False
+        reasons.append("insufficient_food_suff_delta_data")
 
     # Crisis rate delta: |realized_crisis_rate - oracle_crisis_rate| in percentage points.
     # The spec says "delta of crisis rate (food_suff < 0.8)", not absolute crisis rate.
@@ -205,9 +247,11 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
             passed = False
             reasons.append(f"food_crisis_delta={crisis_rate_delta:.1f}pp>{FOOD_CRISIS_DELTA_PP}")
     else:
-        realized_crisis = 0.0
-        oracle_crisis = 0.0
-        crisis_rate_delta = 0.0
+        realized_crisis = None
+        oracle_crisis = None
+        crisis_rate_delta = None
+        passed = False
+        reasons.append("insufficient_food_crisis_data")
 
     # --- Conservation ---
     cons_arr = np.array(conservation_errors) if conservation_errors else np.array([0.0])
@@ -239,6 +283,10 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         "repair_events": repair_events,
         "num_snapshots": len(snapshots),
         "num_volume_ratios": len(volume_ratios),
+        "oracle_trade_active": saw_oracle_trade_activity,
+        "agent_trade_active": saw_agent_trade_activity,
+        "oracle_price_active": saw_oracle_price_activity,
+        "agent_price_active": saw_agent_price_activity,
     }
 
 
@@ -255,7 +303,8 @@ def run_gate(results: list[dict], n_seeds: int) -> dict:
     # Catastrophic tail: seeds where food crisis DELTA exceeds catastrophic threshold
     catastrophic_count = sum(
         1 for r in results
-        if r.get("food_crisis_delta_pp", 0) > FOOD_CRISIS_CATASTROPHIC_PP
+        if (r.get("food_crisis_delta_pp") is not None
+            and r.get("food_crisis_delta_pp", 0) > FOOD_CRISIS_CATASTROPHIC_PP)
     )
     catastrophic_rate = catastrophic_count / max(n_seeds, 1)
 

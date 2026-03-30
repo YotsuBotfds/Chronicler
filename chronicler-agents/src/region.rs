@@ -56,6 +56,7 @@ pub struct RegionState {
     pub farmer_income_modifier: f32,
     pub food_sufficiency: f32,
     pub merchant_margin: f32,
+    pub merchant_route_margin: f32,
     pub merchant_trade_income: f32,
     // M48: Per-region transient memory signals (cleared each turn by build_region_batch)
     pub controller_changed_this_turn: bool,
@@ -114,6 +115,7 @@ impl RegionState {
             farmer_income_modifier: 1.0,
             food_sufficiency: 1.0,
             merchant_margin: 0.0,
+            merchant_route_margin: 0.0,
             merchant_trade_income: 0.0,
             controller_changed_this_turn: false,
             war_won_this_turn: false,

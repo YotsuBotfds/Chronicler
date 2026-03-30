@@ -14,18 +14,20 @@ def _write_snapshot(sidecar_dir: Path, turn: int, **overrides) -> None:
     """Write a minimal economy snapshot with sensible defaults."""
     snap = {
         "turn": turn,
-        "oracle_margins_by_region": {"A": 0.5, "B": 0.3},
-        "post_trade_margin_by_region": {"A": 0.5, "B": 0.3},
+        "oracle_margins_by_region": {"A": 0.5, "B": 0.3, "C": 0.2},
+        "post_trade_margin_by_region": {"A": 0.5, "B": 0.3, "C": 0.2},
         "oracle_trade_volume_by_category": {
             "A": {"food": 10, "raw_material": 5, "luxury": 2},
             "B": {"food": 8, "raw_material": 4, "luxury": 1},
+            "C": {"food": 6, "raw_material": 3, "luxury": 1},
         },
         "agent_trade_volume_by_category": {
             "A": {"food": 10, "raw_material": 5, "luxury": 2},
             "B": {"food": 8, "raw_material": 4, "luxury": 1},
+            "C": {"food": 6, "raw_material": 3, "luxury": 1},
         },
-        "oracle_food_sufficiency_by_region": {"A": 1.2, "B": 0.9},
-        "food_sufficiency_by_region": {"A": 1.2, "B": 0.9},
+        "oracle_food_sufficiency_by_region": {"A": 1.2, "B": 0.9, "C": 1.1},
+        "food_sufficiency_by_region": {"A": 1.2, "B": 0.9, "C": 1.1},
         "conservation": {
             "production": 100.0,
             "transit_loss": 1.0,
@@ -63,13 +65,14 @@ def test_food_crisis_uses_delta_not_absolute(tmp_path):
     for t in range(100, 200, 10):
         _write_snapshot(
             tmp_path, t,
-            oracle_food_sufficiency_by_region={"A": 0.5, "B": 0.5},
-            food_sufficiency_by_region={"A": 0.5, "B": 0.5},
+            oracle_food_sufficiency_by_region={"A": 0.5, "B": 0.5, "C": 0.5},
+            food_sufficiency_by_region={"A": 0.5, "B": 0.5, "C": 0.5},
         )
     result = evaluate_seed(tmp_path)
     assert result["food_crisis_delta_pp"] == 0.0, "Delta should be 0 when both have same crisis rate"
     # Should not fail on crisis since delta = 0.
     assert "food_crisis_delta" not in str(result.get("reasons", []))
+    assert result["passed"]
 
 
 def test_conservation_error_uses_clamp_floor_not_in_transit(tmp_path):
@@ -112,3 +115,41 @@ def test_run_gate_catastrophic_tail(tmp_path):
     gate = run_gate(results, 10)
     # 10% catastrophic > 5% threshold → gate fails
     assert not gate["gate_passed"]
+
+
+def test_evaluate_seed_fails_on_missing_price_and_volume_data(tmp_path):
+    """Both-inactive trade windows are neutral rather than hard failures."""
+    for t in range(100, 120, 10):
+        _write_snapshot(
+            tmp_path, t,
+            oracle_margins_by_region={},
+            post_trade_margin_by_region={},
+            oracle_trade_volume_by_category={},
+            agent_trade_volume_by_category={},
+        )
+    result = evaluate_seed(tmp_path)
+    assert result["passed"]
+    assert result["price_rank_corr_median"] is None
+    assert result["price_magnitude_median"] is None
+    assert result["volume_ratio_median"] is None
+
+
+def test_evaluate_seed_fails_on_one_sided_price_and_volume_activity(tmp_path):
+    """One-sided activity must still fail explicitly."""
+    for t in range(100, 120, 10):
+        _write_snapshot(
+            tmp_path, t,
+            oracle_margins_by_region={"A": 0.5, "B": 0.3, "C": 0.2},
+            post_trade_margin_by_region={},
+            oracle_trade_volume_by_category={
+                "A": {"food": 10, "raw_material": 5, "luxury": 2},
+                "B": {"food": 8, "raw_material": 4, "luxury": 1},
+                "C": {"food": 6, "raw_material": 3, "luxury": 1},
+            },
+            agent_trade_volume_by_category={},
+        )
+    result = evaluate_seed(tmp_path)
+    assert not result["passed"]
+    reasons = set(result.get("reasons", []))
+    assert "no_realized_price_activity" in reasons
+    assert any(reason.startswith("volume_ratio_median=") for reason in reasons)

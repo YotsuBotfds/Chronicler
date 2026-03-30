@@ -333,7 +333,9 @@ pub fn trace_path(
 /// Minimum margin sum (origin + dest) for a trip to be worthwhile.
 pub const MIN_TRIP_PROFIT: f32 = 0.05; // [CALIBRATE]
 /// Maximum cargo a single merchant can carry per trip.
-pub const MERCHANT_CARGO_CAP: f32 = 2.0; // [CALIBRATE]
+/// Keep aligned with the abstract economy's per-merchant carry budget so
+/// realized mobility doesn't bake in a systematic volume surplus.
+pub const MERCHANT_CARGO_CAP: f32 = 1.0; // [CALIBRATE]
 
 /// A reservation intent collected during parallel evaluation,
 /// applied in deterministic order.
@@ -365,7 +367,7 @@ pub fn evaluate_route(
         return None;
     }
 
-    let origin_margin = regions[origin].merchant_margin;
+    let origin_margin = regions[origin].merchant_route_margin;
 
     // Score all reachable destinations
     let mut best_dest: Option<u16> = None;
@@ -376,7 +378,8 @@ pub fn evaluate_route(
         if dist == 0 || dist == u16::MAX {
             continue;
         }
-        let score = origin_margin + regions[dest_idx].merchant_margin;
+        let dest_margin = regions[dest_idx].merchant_route_margin;
+        let score = origin_margin + dest_margin;
         let tiebreak = (dest_idx as u16, agent_id);
         if score > best_score || (score == best_score && tiebreak < best_dest_id_tiebreak) {
             best_score = score;

@@ -399,8 +399,9 @@ pub fn update_attractor_weights(attractors: &mut RegionAttractors, region: &Regi
                 (region.population as f32 / cap).min(1.0)
             }
             AttractorType::Market => {
+                let planning_margin = region.merchant_route_margin;
                 let raw = (region.trade_route_count as f32 * 0.3
-                           + region.merchant_margin * 0.7)
+                           + planning_margin * 0.7)
                            .clamp(0.0, 1.0);
                 let prev = attractors.weights[i];
                 prev + crate::agent::MARKET_WEIGHT_ALPHA * (raw - prev)

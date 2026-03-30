@@ -403,6 +403,22 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             [economy_result.merchant_margins.get(r.name, 0.0) if economy_result else 0.0
              for r in world.regions], type=pa.float32(),
         ),
+        # M58b: Route planning reads oracle margin in hybrid mode when available,
+        # while satisfaction keeps using realized merchant_margin.
+        "merchant_route_margin": pa.array(
+            [
+                (
+                    economy_result.oracle_imports.get(r.name, {}).get(
+                        "margin",
+                        economy_result.merchant_margins.get(r.name, 0.0),
+                    )
+                    if economy_result
+                    else 0.0
+                )
+                for r in world.regions
+            ],
+            type=pa.float32(),
+        ),
         "merchant_trade_income": pa.array(
             [economy_result.merchant_trade_incomes.get(r.name, 0.0) if economy_result else 0.0
              for r in world.regions], type=pa.float32(),

@@ -7,6 +7,7 @@ import pyarrow as pa
 import pytest
 from chronicler_agents import AgentSimulator
 from chronicler.agent_bridge import build_region_batch, build_settlement_batch, TERRAIN_MAP, AgentBridge
+from chronicler.economy import EconomyResult
 from chronicler.models import GreatPerson
 from chronicler.sidecar import SidecarWriter
 
@@ -720,6 +721,31 @@ class TestRegionBatchResourceColumns:
         is_cap_vals2 = batch2.column("is_capital").to_pylist()
         assert is_cap_vals2[0] is True
         assert all(v is False for v in is_cap_vals2[1:])
+
+    def test_region_batch_uses_oracle_margin_for_route_planning(self, sample_world):
+        """Hybrid planning margin should follow oracle margin when present."""
+        er = EconomyResult()
+        realized = {}
+        oracle = {}
+        for idx, region in enumerate(sample_world.regions):
+            realized[region.name] = 0.1 + idx * 0.01
+            oracle[region.name] = {"margin": 0.6 + idx * 0.01}
+        # Leave the last region without oracle data to verify realized fallback.
+        oracle.pop(sample_world.regions[-1].name)
+        er.merchant_margins = realized
+        er.oracle_imports = oracle
+
+        batch = build_region_batch(sample_world, er)
+
+        assert "merchant_margin" in batch.schema.names
+        assert "merchant_route_margin" in batch.schema.names
+        assert batch.schema.field("merchant_route_margin").type == pa.float32()
+
+        route_vals = batch.column("merchant_route_margin").to_pylist()
+        margin_vals = batch.column("merchant_margin").to_pylist()
+        assert route_vals[0] == pytest.approx(0.6)
+        assert margin_vals[0] == pytest.approx(0.1)
+        assert route_vals[-1] == pytest.approx(margin_vals[-1])
 
 
 class TestTransientSignalCleanup:

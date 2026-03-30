@@ -407,6 +407,14 @@ def test_reconstruct_economy_result_conservation():
     assert result.conservation["clamp_floor_loss"] == pytest.approx(0.3)
 
 
+def test_reconstruct_economy_result_requires_oracle_columns_when_strict():
+    """Hybrid strict mode fails fast when oracle shadow columns are missing."""
+    world = _make_two_region_world()
+    batches = _make_mock_return_batches(world)  # observability lacks oracle_margin/food_suff
+    with pytest.raises(ValueError, match="missing required oracle observability columns"):
+        reconstruct_economy_result(*batches, world, require_oracle_shadow=True)
+
+
 # ---------------------------------------------------------------------------
 # Task 5: FIXED_GOODS constant
 # ---------------------------------------------------------------------------

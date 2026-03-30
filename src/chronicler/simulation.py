@@ -1498,6 +1498,7 @@ def run_turn(
             )
             economy_result = reconstruct_economy_result(
                 *rust_return, world,
+                require_oracle_shadow=(world.agent_mode == "hybrid"),
             )
             agent_bridge.set_economy_result(economy_result)
 

@@ -1892,6 +1892,9 @@ impl AgentSimulator {
         let merchant_margin_col = rb
             .column_by_name("merchant_margin")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let merchant_route_margin_col = rb
+            .column_by_name("merchant_route_margin")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         let merchant_trade_income_col = rb
             .column_by_name("merchant_trade_income")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -2042,6 +2045,10 @@ impl AgentSimulator {
                     farmer_income_modifier: farmer_income_modifier_col.map_or(1.0, |arr| arr.value(i)),
                     food_sufficiency: food_sufficiency_col.map_or(1.0, |arr| arr.value(i)),
                     merchant_margin: merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
+                    merchant_route_margin: merchant_route_margin_col.map_or(
+                        merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
+                        |arr| arr.value(i),
+                    ),
                     merchant_trade_income: merchant_trade_income_col.map_or(0.0, |arr| arr.value(i)),
                     controller_changed_this_turn: controller_changed_col.map_or(false, |arr| arr.value(i)),
                     war_won_this_turn: war_won_col.map_or(false, |arr| arr.value(i)),
@@ -2224,6 +2231,7 @@ impl AgentSimulator {
                 if let Some(arr) = farmer_income_modifier_col { r.farmer_income_modifier = arr.value(i); }
                 if let Some(arr) = food_sufficiency_col { r.food_sufficiency = arr.value(i); }
                 if let Some(arr) = merchant_margin_col { r.merchant_margin = arr.value(i); }
+                r.merchant_route_margin = merchant_route_margin_col.map_or(r.merchant_margin, |arr| arr.value(i));
                 if let Some(arr) = merchant_trade_income_col { r.merchant_trade_income = arr.value(i); }
                 r.controller_changed_this_turn = controller_changed_col.map_or(false, |arr| arr.value(i));
                 r.war_won_this_turn = war_won_col.map_or(false, |arr| arr.value(i));

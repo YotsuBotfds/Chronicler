@@ -2,7 +2,8 @@
 //! Tests multi-turn travel, route disruption unwind, and default stats.
 
 use chronicler_agents::merchant::{
-    merchant_mobility_phase, DeliveryBuffer, MerchantTripStats, RouteGraph, ShadowLedger,
+    bfs_from, evaluate_route, merchant_mobility_phase, DeliveryBuffer, MerchantTripStats,
+    RouteGraph, ShadowLedger,
 };
 use chronicler_agents::{AgentPool, Occupation, RegionState};
 
@@ -33,6 +34,10 @@ fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
     regions[1].merchant_margin = 0.0;
     regions[2].merchant_margin = 0.0;
     regions[3].merchant_margin = 0.8;
+    regions[0].merchant_route_margin = 0.1;
+    regions[1].merchant_route_margin = 0.0;
+    regions[2].merchant_route_margin = 0.0;
+    regions[3].merchant_route_margin = 0.8;
 
     // Linear bidirectional graph: 0 <-> 1 <-> 2 <-> 3
     let graph = RouteGraph::from_edges(
@@ -161,6 +166,74 @@ fn test_agents_off_default_stats() {
 }
 
 #[test]
+fn test_route_evaluation_uses_planning_margin_signal() {
+    let mut pool = AgentPool::new(10);
+    pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions: Vec<RegionState> = (0..3)
+        .map(|i| {
+            let mut r = RegionState::new(i);
+            r.stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.controller_civ = 0;
+            r
+        })
+        .collect();
+    regions[0].merchant_margin = 0.0;
+    regions[1].merchant_margin = 0.0;
+    regions[2].merchant_margin = 0.0;
+    regions[2].merchant_route_margin = 0.8;
+
+    let graph = RouteGraph::from_edges(
+        &[0, 1, 1, 2],
+        &[1, 0, 2, 1],
+        &[false; 4],
+        &[1.0; 4],
+        3,
+    );
+    let table = bfs_from(&graph, 0);
+    let ledger = ShadowLedger::new(3);
+
+    let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger, None)
+        .expect("route planning should use merchant_route_margin");
+    assert_eq!(intent.dest_region, 2);
+}
+
+#[test]
+fn test_route_evaluation_does_not_fall_back_to_realized_margin_when_planning_margin_is_zero() {
+    let mut pool = AgentPool::new(10);
+    pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions: Vec<RegionState> = (0..2)
+        .map(|i| {
+            let mut r = RegionState::new(i);
+            r.stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.controller_civ = 0;
+            r
+        })
+        .collect();
+    regions[0].merchant_margin = 0.7;
+    regions[1].merchant_margin = 0.7;
+    regions[0].merchant_route_margin = 0.0;
+    regions[1].merchant_route_margin = 0.0;
+
+    let graph = RouteGraph::from_edges(
+        &[0, 1],
+        &[1, 0],
+        &[false; 2],
+        &[1.0; 2],
+        2,
+    );
+    let table = bfs_from(&graph, 0);
+    let ledger = ShadowLedger::new(2);
+
+    let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger, None);
+    assert!(
+        intent.is_none(),
+        "planner should honor zero merchant_route_margin even if realized margin is positive"
+    );
+}
+
+#[test]
 fn test_full_trip_lifecycle() {
     // Verify a merchant can complete a full 1-hop trip: Idle -> Loading -> Transit+Arrive -> Idle.
     let mut pool = AgentPool::new(10);
@@ -171,6 +244,7 @@ fn test_full_trip_lifecycle() {
         .map(|i| {
             let mut r = RegionState::new(i);
             r.merchant_margin = 0.5;
+            r.merchant_route_margin = 0.5;
             r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
             r

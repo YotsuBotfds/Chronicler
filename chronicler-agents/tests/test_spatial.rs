@@ -309,6 +309,25 @@ fn test_attractor_weight_capital_population_ratio() {
 }
 
 #[test]
+fn test_market_attractor_uses_planning_margin_not_realized_margin() {
+    let mut region = RegionState::new(0);
+    region.trade_route_count = 0;
+    region.merchant_margin = 0.9;
+    region.merchant_route_margin = 0.0;
+
+    let mut a = init_attractors(42, 0, &region);
+    update_attractor_weights(&mut a, &region);
+
+    let market_idx = (0..a.count as usize)
+        .find(|&i| a.types[i] == AttractorType::Market)
+        .unwrap();
+    assert!(
+        a.weights[market_idx].abs() < f32::EPSILON,
+        "market weight should ignore realized merchant_margin when planning margin is zero"
+    );
+}
+
+#[test]
 fn test_occupation_affinity_dimensions() {
     assert_eq!(OCCUPATION_AFFINITY.len(), 5);
     for row in &OCCUPATION_AFFINITY {

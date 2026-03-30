@@ -977,6 +977,7 @@ def reconstruct_economy_result(
     upstream_sources_batch,
     conservation_batch,
     world,
+    require_oracle_shadow: bool = False,
 ) -> EconomyResult:
     """Reconstruct a Python EconomyResult from five Rust return batches.
 
@@ -987,6 +988,25 @@ def reconstruct_economy_result(
     result = EconomyResult()
     region_names = [r.name for r in world.regions]
     n_regions = len(region_names)
+
+    # In hybrid mode (M58b), oracle shadow columns are required for convergence
+    # diagnostics. Fail fast on schema mismatch instead of silently zero-filling.
+    if require_oracle_shadow:
+        obs_cols = set(observability_batch.schema.names)
+        required_oracle_cols = {
+            "oracle_imports_food",
+            "oracle_imports_raw_material",
+            "oracle_imports_luxury",
+            "oracle_margin",
+            "oracle_food_sufficiency",
+        }
+        missing = sorted(required_oracle_cols - obs_cols)
+        if missing:
+            raise ValueError(
+                "Hybrid economy missing required oracle observability columns: "
+                f"{missing}. This usually indicates a stale chronicler-agents extension "
+                "binary that does not match the current Rust schema."
+            )
 
     # --- Region result batch → stockpile write-back + signals ---
     rr_ids = region_result_batch.column("region_id").to_pylist()
