@@ -3706,6 +3706,10 @@ impl AgentSimulator {
         }
 
         // --- M58b: Build hybrid delivery input if in hybrid economy mode ---
+        // Note: On the first tick, the delivery buffer is empty (no merchant trips completed yet),
+        // so HybridDeliveryInput will have zero departures/arrivals/returns. The economy kernel
+        // still runs the hybrid code path but with no trade data — effectively producing abstract-
+        // equivalent results. This is the correct cold-start behavior.
         let hybrid_delivery = if self.hybrid_economy_mode {
             self.merchant_delivery_buf.as_ref().map(|buf| {
                 crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions)
