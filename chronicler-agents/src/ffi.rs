@@ -3726,6 +3726,19 @@ impl AgentSimulator {
             hybrid_delivery.as_ref(),
         );
 
+        // M58b: Write transit decay diagnostics back to delivery buffer before clearing.
+        if let Some(ref tdr) = output.transit_decay_by_region {
+            if let Some(buf) = self.merchant_delivery_buf.as_mut() {
+                for (region, decay_per_good) in tdr.iter().enumerate() {
+                    if region < buf.diagnostics.total_transit_decay.len() {
+                        for g in 0..decay_per_good.len() {
+                            buf.diagnostics.total_transit_decay[region][g] += decay_per_good[g];
+                        }
+                    }
+                }
+            }
+        }
+
         // M58b: Clear delivery buffer after successful economy tick in hybrid mode.
         if hybrid_delivery.is_some() {
             if let Some(buf) = self.merchant_delivery_buf.as_mut() {

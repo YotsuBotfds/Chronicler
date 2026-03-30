@@ -615,3 +615,86 @@ fn test_hybrid_stockpile_net_mobility() {
     assert!(r0_grain < 90.0, "Region 0 grain should be reduced by departures: got {}", r0_grain);
     assert!(r1_grain > 10.0, "Region 1 grain should be increased by imports: got {}", r1_grain);
 }
+
+#[test]
+fn test_transit_decay_by_region_populated_in_hybrid() {
+    // Verify that transit_decay_by_region is populated with per-region per-good
+    // decay amounts when running in hybrid mode.
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(2);
+
+    // Ship 100 fish (slot 1, TRANSIT_DECAY = 0.08) from region 0 to region 1.
+    buf.record_departure(0, 1, 100.0);
+    buf.record_arrival(0, 1, 1, 100.0);
+
+    // Also ship 50 grain (slot 0, TRANSIT_DECAY = 0.05) from region 0 to region 1.
+    buf.record_departure(0, 0, 50.0);
+    buf.record_arrival(0, 1, 0, 50.0);
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+
+    let region_inputs = vec![
+        test_region_input(0, 3, 100, 0, 1.0, [0.0; NUM_GOODS]),
+        test_region_input(1, 0, 100, 0, 1.0, [0.0; NUM_GOODS]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 50, 10, 5, 2),
+        test_agent_counts(100, 50, 10, 5, 2),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // transit_decay_by_region should be Some in hybrid mode.
+    let tdr = output.transit_decay_by_region.as_ref()
+        .expect("transit_decay_by_region should be Some in hybrid mode");
+    assert_eq!(tdr.len(), 2);
+
+    // Region 1 receives both shipments — decay should be non-zero.
+    // Fish decay at region 1: 100 * 0.08 = 8.0
+    let fish_decay = tdr[1][1];
+    let expected_fish_decay = 100.0 * TRANSIT_DECAY[1];
+    assert!(
+        (fish_decay - expected_fish_decay).abs() < 0.01,
+        "fish transit decay at region 1: expected {}, got {}",
+        expected_fish_decay, fish_decay
+    );
+
+    // Grain decay at region 1: 50 * 0.05 = 2.5
+    let grain_decay = tdr[1][0];
+    let expected_grain_decay = 50.0 * TRANSIT_DECAY[0];
+    assert!(
+        (grain_decay - expected_grain_decay).abs() < 0.01,
+        "grain transit decay at region 1: expected {}, got {}",
+        expected_grain_decay, grain_decay
+    );
+
+    // Region 0 received nothing — decay should be zero.
+    for g in 0..NUM_GOODS {
+        assert_eq!(tdr[0][g], 0.0, "region 0 should have zero decay for good {}", g);
+    }
+}
+
+#[test]
+fn test_transit_decay_by_region_none_in_abstract() {
+    // Verify that transit_decay_by_region is None when running in abstract mode.
+    let config = EconomyConfig::default();
+    let region_inputs = vec![
+        test_region_input(0, 0, 100, 0, 1.0, [0.0; NUM_GOODS]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 50, 10, 5, 2),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, None,
+    );
+
+    assert!(
+        output.transit_decay_by_region.is_none(),
+        "transit_decay_by_region should be None in abstract mode"
+    );
+}

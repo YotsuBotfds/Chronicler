@@ -319,6 +319,9 @@ pub struct EconomyOutput {
     /// M58b: Oracle shadow — abstract trade volumes per region per category.
     /// Only populated in hybrid mode (when delivery buffer is provided and routes exist).
     pub oracle_trade_volume: Option<Vec<[f32; NUM_CATEGORIES]>>,
+    /// M58b: Per-region per-good transit decay totals from arrival processing.
+    /// Only populated in hybrid mode. Written back to DeliveryBuffer diagnostics by FFI layer.
+    pub transit_decay_by_region: Option<Vec<[f32; NUM_GOODS]>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +675,13 @@ pub fn tick_economy_core(
         None
     };
 
+    // M58b: Per-region per-good transit decay accumulator (hybrid only).
+    let mut transit_decay_by_region: Option<Vec<[f32; NUM_GOODS]>> = if hybrid_delivery.is_some() {
+        Some(vec![[0.0; NUM_GOODS]; n_regions])
+    } else {
+        None
+    };
+
     if let Some(delivery) = hybrid_delivery {
         // -------------------------------------------------------------------
         // Hybrid path: consume delivery buffer
@@ -685,8 +695,12 @@ pub fn tick_economy_core(
                 let shipped = rec.qty;
                 let decay_rate = TRANSIT_DECAY[slot];
                 let delivered = shipped * (1.0 - decay_rate);
-                conservation.transit_loss += (shipped - delivered) as f64;
+                let decay_amount = shipped - delivered;
+                conservation.transit_loss += decay_amount as f64;
                 per_good_imports[dest][slot] += delivered;
+                if let Some(ref mut tdr) = transit_decay_by_region {
+                    tdr[dest][slot] += decay_amount;
+                }
             }
         }
 
@@ -1255,6 +1269,7 @@ pub fn tick_economy_core(
         upstream_sources,
         conservation,
         oracle_trade_volume,
+        transit_decay_by_region,
     }
 }
 
