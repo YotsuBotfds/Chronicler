@@ -76,10 +76,11 @@ def test_economy_result_conservation_has_clamp_floor_loss():
     assert er.conservation["clamp_floor_loss"] == 0.0
 
 
-def test_economy_result_conservation_has_6_fields():
-    """Conservation dict has exactly 6 fields matching the spec."""
+def test_economy_result_conservation_has_7_fields():
+    """Conservation dict has exactly 7 fields matching the spec (M58b added in_transit_delta)."""
     er = EconomyResult()
-    expected = {"production", "transit_loss", "consumption", "storage_loss", "cap_overflow", "clamp_floor_loss"}
+    expected = {"production", "transit_loss", "consumption", "storage_loss",
+                "cap_overflow", "clamp_floor_loss", "in_transit_delta"}
     assert set(er.conservation.keys()) == expected
 
 

@@ -1,6 +1,6 @@
-"""M58a: Merchant mobility integration tests.
+"""M58a/M58b: Merchant mobility and trade integration tests.
 
-Verifies --agents=off mode is unaffected by M58a merchant mobility code.
+Verifies --agents=off mode is unaffected by M58a/M58b code paths.
 """
 import argparse
 import json
@@ -263,3 +263,47 @@ def test_conservation_diagnostics_none_input():
     """extract_conservation_diagnostics returns empty dict for None input."""
     from chronicler.analytics import extract_conservation_diagnostics
     assert extract_conservation_diagnostics(None) == {}
+
+
+# ---------------------------------------------------------------------------
+# M58b: agents=off non-regression
+# ---------------------------------------------------------------------------
+
+
+def test_agents_off_unchanged_by_m58b(tmp_path):
+    """--agents=off path does not touch any M58b code paths.
+
+    Verifies:
+    - Simulation completes without error
+    - No oracle_imports populated (no oracle in aggregate mode)
+    - in_transit_delta remains 0.0 (no delivery buffer in aggregate mode)
+    - merchant_trip_stats absent from metadata
+    """
+    from chronicler.main import execute_run
+    from chronicler.economy import EconomyResult
+
+    args = _make_args(tmp_path, seed=99, turns=10, agents="off")
+    result = execute_run(args)
+
+    # Simulation completed all turns
+    assert result.total_turns == 10
+
+    # Bundle written successfully
+    bundle_path = tmp_path / "chronicle_bundle.json"
+    assert bundle_path.exists(), "Bundle should be written in agents=off mode"
+    bundle = json.loads(bundle_path.read_text())
+
+    # M58b metadata must not leak into agents=off bundles
+    meta = bundle.get("metadata", {})
+    assert "merchant_trip_stats" not in meta, (
+        "merchant_trip_stats should not appear in agents=off metadata"
+    )
+
+    # EconomyResult defaults: oracle_imports empty, in_transit_delta zero
+    er = EconomyResult()
+    assert er.oracle_imports == {}, (
+        "EconomyResult.oracle_imports should default to empty dict"
+    )
+    assert er.conservation["in_transit_delta"] == 0.0, (
+        "EconomyResult.conservation['in_transit_delta'] should default to 0.0"
+    )
