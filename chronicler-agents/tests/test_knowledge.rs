@@ -5,7 +5,9 @@ use chronicler_agents::knowledge::{
     pack_type_hops, unpack_type, unpack_hops, is_empty_slot, InfoType,
     channel_weight, decay_rate, decay_packets,
     admit_packet, AdmitResult, PacketCandidate,
+    observe_packets,
 };
+use chronicler_agents::RegionState;
 use chronicler_agents::relationships::BondType;
 
 #[test]
@@ -247,4 +249,85 @@ fn test_decay_rates_differ_by_type() {
     assert_eq!(pool.pkt_intensity[slot][0], 85);  // 100 - 15 (threat)
     assert_eq!(pool.pkt_intensity[slot][1], 92);  // 100 - 8 (trade)
     assert_eq!(pool.pkt_intensity[slot][2], 95);  // 100 - 5 (religious)
+}
+
+// ---------------------------------------------------------------------------
+// Direct observation tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_observe_threat_from_controller_change() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].controller_changed_this_turn = true;
+
+    let (created, _, created_threat, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(created, 1);
+    assert_eq!(created_threat, 1);
+    assert_eq!(unpack_type(pool.pkt_type_and_hops[slot][0]), InfoType::ThreatWarning as u8);
+    assert_eq!(pool.pkt_intensity[slot][0], 200);
+    assert_eq!(pool.pkt_source_turn[slot][0], 5);
+    assert_eq!(unpack_hops(pool.pkt_type_and_hops[slot][0]), 0);
+}
+
+#[test]
+fn test_observe_threat_uses_max_intensity() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].controller_changed_this_turn = true; // 200
+    regions[0].war_won_this_turn = true;             // 180
+    regions[0].seceded_this_turn = true;             // 150
+
+    observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(pool.pkt_intensity[slot][0], 200);
+}
+
+#[test]
+fn test_observe_trade_requires_arrival_and_margin() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].merchant_route_margin = 0.5;
+
+    // No arrival flag — should not emit
+    let (created, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(created, 0);
+
+    // Set arrival flag
+    pool.arrived_this_turn[slot] = true;
+    let (created, _, _, created_trade, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(created, 1);
+    assert_eq!(created_trade, 1);
+}
+
+#[test]
+fn test_observe_trade_below_margin_threshold_no_packet() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.arrived_this_turn[slot] = true;
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].merchant_route_margin = 0.05; // below 0.10 threshold
+
+    let (created, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(created, 0);
+}
+
+#[test]
+fn test_observe_religious_from_persecution() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].persecution_intensity = 0.5;
+
+    let (created, _, _, _, created_religious) = observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(created, 1);
+    assert_eq!(created_religious, 1);
+    assert_eq!(unpack_type(pool.pkt_type_and_hops[slot][0]), InfoType::ReligiousSignal as u8);
 }

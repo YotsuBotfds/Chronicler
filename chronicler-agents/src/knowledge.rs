@@ -2,6 +2,7 @@
 
 use crate::agent;
 use crate::pool::AgentPool;
+use crate::region::RegionState;
 
 // ---------------------------------------------------------------------------
 // InfoType
@@ -317,4 +318,108 @@ pub fn decay_packets(pool: &mut AgentPool, alive_slots: &[usize]) -> u32 {
         }
     }
     expired
+}
+
+// ---------------------------------------------------------------------------
+// Direct observation phase
+// ---------------------------------------------------------------------------
+
+/// Run direct observation for all alive agents. Each agent checks their
+/// current region's state and their arrival flag to produce/refresh packets.
+/// Returns (created_count, refreshed_count, created_threat, created_trade, created_religious).
+pub fn observe_packets(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    alive_slots: &[usize],
+    current_turn: u16,
+) -> (u32, u32, u32, u32, u32) {
+    let mut created = 0u32;
+    let mut refreshed = 0u32;
+    let mut created_threat = 0u32;
+    let mut created_trade = 0u32;
+    let mut created_religious = 0u32;
+
+    for &slot in alive_slots {
+        let region_idx = pool.regions[slot] as usize;
+        if region_idx >= regions.len() {
+            continue;
+        }
+        let region = &regions[region_idx];
+
+        // --- Threat warning ---
+        let mut threat_intensity: u8 = 0;
+        if region.controller_changed_this_turn {
+            threat_intensity = threat_intensity.max(INTENSITY_CONTROLLER_CHANGED);
+        }
+        if region.war_won_this_turn {
+            threat_intensity = threat_intensity.max(INTENSITY_WAR_WON);
+        }
+        if region.seceded_this_turn {
+            threat_intensity = threat_intensity.max(INTENSITY_SECESSION);
+        }
+        if threat_intensity > 0 {
+            let result = admit_packet(pool, slot, &PacketCandidate {
+                info_type: InfoType::ThreatWarning as u8,
+                source_region: region.region_id,
+                source_turn: current_turn,
+                intensity: threat_intensity,
+                hop_count: 0,
+            });
+            match result {
+                AdmitResult::Inserted => { created += 1; created_threat += 1; }
+                AdmitResult::Refreshed => { refreshed += 1; }
+                _ => {}
+            }
+        }
+
+        // --- Trade opportunity ---
+        if pool.arrived_this_turn[slot] && region.merchant_route_margin > TRADE_MARGIN_THRESHOLD {
+            let scaled = ((region.merchant_route_margin - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0) as u8;
+            let intensity = scaled.max(50).min(230);
+            let result = admit_packet(pool, slot, &PacketCandidate {
+                info_type: InfoType::TradeOpportunity as u8,
+                source_region: region.region_id,
+                source_turn: current_turn,
+                intensity,
+                hop_count: 0,
+            });
+            match result {
+                AdmitResult::Inserted => { created += 1; created_trade += 1; }
+                AdmitResult::Refreshed => { refreshed += 1; }
+                _ => {}
+            }
+        }
+
+        // --- Religious signal ---
+        let mut religious_intensity: u8 = 0;
+        if region.persecution_intensity > 0.0 {
+            let scaled = (region.persecution_intensity * 200.0) as u8;
+            religious_intensity = religious_intensity.max(scaled.max(40).min(200));
+        }
+        if region.conversion_rate > CONVERSION_RATE_THRESHOLD {
+            let scaled = (region.conversion_rate * 300.0) as u8;
+            religious_intensity = religious_intensity.max(scaled.max(40).min(180));
+        }
+        if region.schism_convert_from != region.schism_convert_to
+            && region.schism_convert_from != 255
+        {
+            religious_intensity = religious_intensity.max(INTENSITY_SCHISM);
+        }
+        if religious_intensity > 0 {
+            let result = admit_packet(pool, slot, &PacketCandidate {
+                info_type: InfoType::ReligiousSignal as u8,
+                source_region: region.region_id,
+                source_turn: current_turn,
+                intensity: religious_intensity,
+                hop_count: 0,
+            });
+            match result {
+                AdmitResult::Inserted => { created += 1; created_religious += 1; }
+                AdmitResult::Refreshed => { refreshed += 1; }
+                _ => {}
+            }
+        }
+    }
+
+    (created, refreshed, created_threat, created_trade, created_religious)
 }
