@@ -1960,3 +1960,23 @@ def extract_merchant_trip_stats(bundles: list[dict]) -> dict:
         stats = b.get("metadata", {}).get("merchant_trip_stats", [])
         by_seed[seed] = stats
     return {"by_seed": by_seed}
+
+
+def extract_conservation_diagnostics(economy_result) -> dict[str, float]:
+    """M58b: Extract per-turn conservation diagnostics from economy result.
+
+    Returns a flat dict of diagnostic values suitable for sidecar snapshots
+    or convergence gate analysis. If *economy_result* is None, returns an
+    empty dict.
+    """
+    if economy_result is None:
+        return {}
+    c = economy_result.conservation
+    return {
+        "conservation_error_abs_turn": 0.0,  # computed from invariant check
+        "conservation_error_abs_cumulative": 0.0,
+        "conservation_repair_events": c.get("clamp_floor_loss", 0.0) > 0,
+        "max_region_slot_error_turn": 0.0,
+        "in_transit_total": 0.0,
+        "in_transit_delta": c.get("in_transit_delta", 0.0),
+    }

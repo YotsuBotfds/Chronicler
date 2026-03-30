@@ -978,6 +978,8 @@ class AgentBridge:
             # M53: sidecar snapshot (hybrid mode)
             if self._sidecar and world.turn % 10 == 0:
                 self._write_sidecar_snapshot(world)
+            # M58b: economy sidecar (separate sampling: turn >= 100, every 10 turns)
+            self._write_economy_sidecar(world, self._economy_result)
             return summaries + char_events + death_events + dynasty_events
         elif self._mode == "shadow":
             agent_aggs = self._sim.get_aggregates()
@@ -994,6 +996,8 @@ class AgentBridge:
             # M53: sidecar snapshot (shadow mode)
             if self._sidecar and world.turn % 10 == 0:
                 self._write_sidecar_snapshot(world)
+            # M58b: economy sidecar (separate sampling: turn >= 100, every 10 turns)
+            self._write_economy_sidecar(world, self._economy_result)
             return []
         elif self._mode == "demographics-only":
             world._dead_agents_this_turn = []
@@ -1001,6 +1005,8 @@ class AgentBridge:
             # M53: sidecar snapshot (demographics-only mode)
             if self._sidecar and world.turn % 10 == 0:
                 self._write_sidecar_snapshot(world)
+            # M58b: economy sidecar (separate sampling: turn >= 100, every 10 turns)
+            self._write_economy_sidecar(world, self._economy_result)
             return []
         return []
 
@@ -1240,6 +1246,43 @@ class AgentBridge:
                 self._sidecar.write_community_summary(turn=turn, summary=dict(region_summary))
         except Exception:
             logger.exception("Sidecar community summary: failed to build/write summary")
+
+    def _write_economy_sidecar(self, world, economy_result) -> None:
+        """M58b: Write economy convergence snapshot if sidecar active and sampling conditions met."""
+        if not self._sidecar or economy_result is None:
+            return
+        if world.turn < 100 or world.turn % 10 != 0:
+            return
+
+        region_names = [r.name for r in world.regions]
+        self._sidecar.write_economy_snapshot(world.turn, {
+            "turn": world.turn,
+            "oracle_trade_volume_by_category": {
+                rname: economy_result.oracle_imports.get(rname, {"food": 0, "raw_material": 0, "luxury": 0})
+                for rname in region_names
+            },
+            "agent_trade_volume_by_category": {
+                rname: {
+                    "food": economy_result.imports_by_region.get(rname, {}).get("food", 0),
+                    "raw_material": economy_result.imports_by_region.get(rname, {}).get("raw_material", 0),
+                    "luxury": economy_result.imports_by_region.get(rname, {}).get("luxury", 0),
+                }
+                for rname in region_names
+            },
+            "post_trade_margin_by_region": {
+                rname: economy_result.merchant_margins.get(rname, 0.0)
+                for rname in region_names
+            },
+            "food_sufficiency_by_region": {
+                rname: economy_result.food_sufficiency.get(rname, 0.0)
+                for rname in region_names
+            },
+            "imports_by_region_by_category": {
+                rname: economy_result.imports_by_region.get(rname, {})
+                for rname in region_names
+            },
+            "conservation": economy_result.conservation,
+        })
 
     def _convert_events(self, batch, turn):
         """Convert Arrow events RecordBatch to AgentEventRecord list."""

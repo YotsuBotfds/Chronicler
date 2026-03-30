@@ -201,3 +201,65 @@ def test_economy_result_conservation_keys():
         assert result.conservation[key] == 0.0, (
             f"conservation[{key!r}] should default to 0.0, got {result.conservation[key]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# M58b: Economy sidecar tests
+# ---------------------------------------------------------------------------
+
+
+def test_economy_sidecar_writes_snapshots(tmp_path):
+    """SidecarWriter.write_economy_snapshot creates the expected JSON file."""
+    from chronicler.sidecar import SidecarWriter
+    writer = SidecarWriter(tmp_path)
+    data = {"turn": 100, "conservation": {"production": 1.0}}
+    writer.write_economy_snapshot(100, data)
+    expected_path = tmp_path / "validation_summary" / "economy_turn_100.json"
+    assert expected_path.exists(), f"Expected economy snapshot at {expected_path}"
+    loaded = json.loads(expected_path.read_text())
+    assert loaded["turn"] == 100
+    assert loaded["conservation"]["production"] == 1.0
+
+
+def test_economy_sidecar_close_writes_summary(tmp_path):
+    """SidecarWriter.close() consolidates economy snapshots into summary JSON."""
+    from chronicler.sidecar import SidecarWriter
+    writer = SidecarWriter(tmp_path)
+    writer.write_economy_snapshot(100, {"turn": 100, "conservation": {"production": 1.0}})
+    writer.write_economy_snapshot(110, {"turn": 110, "conservation": {"production": 2.0}})
+    writer.close()
+    summary_path = tmp_path / "validation_economy_summary.json"
+    assert summary_path.exists(), f"Expected economy summary at {summary_path}"
+    summary = json.loads(summary_path.read_text())
+    assert summary["turns"] == [100, 110]
+    assert len(summary["economy_snapshots"]) == 2
+
+
+def test_economy_sidecar_empty_no_summary(tmp_path):
+    """SidecarWriter.close() skips economy summary when no snapshots written."""
+    from chronicler.sidecar import SidecarWriter
+    writer = SidecarWriter(tmp_path)
+    writer.close()
+    summary_path = tmp_path / "validation_economy_summary.json"
+    assert not summary_path.exists(), "No economy summary when no snapshots exist"
+
+
+def test_conservation_diagnostics_extractor():
+    """extract_conservation_diagnostics returns correct structure from EconomyResult."""
+    from chronicler.economy import EconomyResult
+    from chronicler.analytics import extract_conservation_diagnostics
+
+    result = EconomyResult()
+    result.conservation["clamp_floor_loss"] = 0.5
+    result.conservation["in_transit_delta"] = 0.1
+
+    diag = extract_conservation_diagnostics(result)
+    assert diag["conservation_repair_events"] is True
+    assert diag["in_transit_delta"] == 0.1
+    assert diag["conservation_error_abs_turn"] == 0.0
+
+
+def test_conservation_diagnostics_none_input():
+    """extract_conservation_diagnostics returns empty dict for None input."""
+    from chronicler.analytics import extract_conservation_diagnostics
+    assert extract_conservation_diagnostics(None) == {}

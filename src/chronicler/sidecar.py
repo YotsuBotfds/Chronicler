@@ -187,6 +187,25 @@ class SidecarWriter:
         self._community_by_turn[str(turn)] = summary
 
     # ------------------------------------------------------------------
+    # Economy snapshot (M58b)
+    # ------------------------------------------------------------------
+
+    def write_economy_snapshot(self, turn: int, data: dict[str, Any]) -> None:
+        """Write per-turn economy convergence data for M58b gate."""
+        path = self._dir / f"economy_turn_{_turn_str(turn)}.json"
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def _economy_rows(self) -> list[dict[str, Any]]:
+        """Collect economy snapshots for consolidated Arrow output."""
+        rows = []
+        for path in sorted(self._dir.glob("economy_turn_*.json")):
+            with open(path) as f:
+                data = json.load(f)
+                rows.append(data)
+        return rows
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
@@ -194,6 +213,7 @@ class SidecarWriter:
         """Flush and finalise.  All writes are synchronous, so this is a no-op
         kept for API symmetry and future buffering support."""
         self._write_canonical_artifacts()
+        self._write_economy_summary()
 
     def _write_canonical_artifacts(self) -> None:
         self._write_arrow_file(
@@ -266,6 +286,19 @@ class SidecarWriter:
             writer = ipc.new_file(handle, batch.schema)
             writer.write_batch(batch)
             writer.close()
+
+    def _write_economy_summary(self) -> None:
+        """Consolidate economy snapshots into a single JSON summary file."""
+        rows = self._economy_rows()
+        if not rows:
+            return
+        summary = {
+            "turns": [r.get("turn", 0) for r in rows],
+            "economy_snapshots": rows,
+        }
+        (self._base_dir / "validation_economy_summary.json").write_text(
+            json.dumps(summary, separators=(",", ":"))
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -341,3 +374,15 @@ class SidecarReader:
         path = self._dir / f"community_turn_{_turn_str(turn)}.json"
         raw = json.loads(path.read_text())
         return raw["summary"]
+
+    # ------------------------------------------------------------------
+    # Economy snapshot (M58b)
+    # ------------------------------------------------------------------
+
+    def read_economy_snapshot(self, turn: int) -> dict[str, Any]:
+        """Read economy convergence snapshot for *turn*.
+
+        Returns the full snapshot dict (turn, oracle/agent trade volumes, etc.).
+        """
+        path = self._dir / f"economy_turn_{_turn_str(turn)}.json"
+        return json.loads(path.read_text())
