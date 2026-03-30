@@ -116,12 +116,12 @@ pub fn tick_agents(
             .collect();
         if !conquered.is_empty() {
             let mut conquest_stats = crate::merchant::MerchantTripStats::default();
-            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats);
+            crate::merchant::conquest_unwind(pool, ledger, &conquered, &mut conquest_stats, None);
             conquest_unwind_count = conquest_stats.unwind_count;
         }
     }
     let mut merchant_stats = if let Some((graph, ref mut ledger)) = merchant_state {
-        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed)
+        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed, None)
     } else {
         crate::merchant::MerchantTripStats::default()
     };

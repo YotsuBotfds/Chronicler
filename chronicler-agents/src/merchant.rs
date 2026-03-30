@@ -39,6 +39,17 @@ impl ShadowLedger {
         self.reserved[region][slot] + self.in_transit_out[region][slot] > stockpile[slot]
     }
 
+    /// Hybrid-mode availability: uses departure_debits instead of in_transit_out.
+    /// Use when stockpile has already been debited for prior-turn departures.
+    pub fn available_hybrid(&self, region: usize, slot: usize, stockpile: &[f32; NUM_GOODS], delivery_buf: &DeliveryBuffer) -> f32 {
+        (stockpile[slot] - self.reserved[region][slot] - delivery_buf.departure_debits[region][slot]).max(0.0)
+    }
+
+    /// Hybrid-mode overcommitted check.
+    pub fn is_overcommitted_hybrid(&self, region: usize, slot: usize, stockpile: &[f32; NUM_GOODS], delivery_buf: &DeliveryBuffer) -> bool {
+        self.reserved[region][slot] + delivery_buf.departure_debits[region][slot] > stockpile[slot]
+    }
+
     /// Reserve cargo for a Loading merchant.
     pub fn reserve(&mut self, region: usize, slot: usize, qty: f32) {
         self.reserved[region][slot] += qty;
@@ -339,6 +350,7 @@ pub struct TripIntent {
 
 /// Evaluate route candidates for an idle merchant at `origin_region`.
 /// Returns a TripIntent if a profitable route with available cargo exists.
+/// When `delivery_buf` is `Some`, uses hybrid availability (departure_debits).
 pub fn evaluate_route(
     agent_slot: usize,
     agent_id: u32,
@@ -346,6 +358,7 @@ pub fn evaluate_route(
     regions: &[RegionState],
     path_table: &PathTable,
     ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
 ) -> Option<TripIntent> {
     let origin = origin_region as usize;
     if origin >= regions.len() {
@@ -378,10 +391,17 @@ pub fn evaluate_route(
     let mut best_slot: Option<u8> = None;
     let mut best_avail: f32 = 0.0;
     for slot in 0..8u8 {
-        if ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile) {
+        let overcommitted = match delivery_buf {
+            Some(buf) => ledger.is_overcommitted_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
+            None => ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile),
+        };
+        if overcommitted {
             continue;
         }
-        let avail = ledger.available(origin, slot as usize, &regions[origin].stockpile);
+        let avail = match delivery_buf {
+            Some(buf) => ledger.available_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
+            None => ledger.available(origin, slot as usize, &regions[origin].stockpile),
+        };
         if avail > best_avail || (avail == best_avail && best_slot.is_none_or(|s| slot < s)) {
             best_avail = avail;
             best_slot = Some(slot);
@@ -406,6 +426,7 @@ pub fn evaluate_route(
 
 /// Apply a trip intent to the pool and shadow ledger.
 /// Re-checks availability at apply time (two-phase model).
+/// When `delivery_buf` is `Some`, uses hybrid availability (departure_debits).
 /// Returns true if the reservation was committed, false if rejected.
 pub fn apply_trip_intent(
     intent: &TripIntent,
@@ -413,16 +434,24 @@ pub fn apply_trip_intent(
     ledger: &mut ShadowLedger,
     regions: &[RegionState],
     stats: &mut MerchantTripStats,
+    delivery_buf: Option<&DeliveryBuffer>,
 ) -> bool {
     let origin = intent.origin_region as usize;
     let slot = intent.good_slot as usize;
 
     // Re-check at apply time
-    if ledger.is_overcommitted(origin, slot, &regions[origin].stockpile) {
+    let overcommitted = match delivery_buf {
+        Some(buf) => ledger.is_overcommitted_hybrid(origin, slot, &regions[origin].stockpile, buf),
+        None => ledger.is_overcommitted(origin, slot, &regions[origin].stockpile),
+    };
+    if overcommitted {
         stats.overcommit_count += 1;
         return false;
     }
-    let avail = ledger.available(origin, slot, &regions[origin].stockpile);
+    let avail = match delivery_buf {
+        Some(buf) => ledger.available_hybrid(origin, slot, &regions[origin].stockpile, buf),
+        None => ledger.available(origin, slot, &regions[origin].stockpile),
+    };
     if avail <= 0.0 {
         stats.overcommit_count += 1;
         return false;
@@ -483,6 +512,7 @@ pub fn depart_merchant(
     slot: usize,
     graph: &RouteGraph,
     ledger: &mut ShadowLedger,
+    delivery_buf: Option<&mut DeliveryBuffer>,
 ) -> bool {
     let cursor = pool.trip_path_cursor[slot] as usize;
     let next_hop = pool.trip_path[slot][cursor];
@@ -500,7 +530,7 @@ pub fn depart_merchant(
     // Depart: reserved -> in_transit
     let origin = pool.trip_origin_region[slot] as usize;
     let good = pool.trip_good_slot[slot] as usize;
-    ledger.depart(origin, good, pool.trip_cargo_qty[slot], None);
+    ledger.depart(origin, good, pool.trip_cargo_qty[slot], delivery_buf);
     pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
     true
 }
@@ -530,6 +560,7 @@ pub fn conquest_unwind(
     ledger: &mut ShadowLedger,
     conquered_regions: &[u16],
     stats: &mut MerchantTripStats,
+    mut delivery_buf: Option<&mut DeliveryBuffer>,
 ) {
     let conquered_set: std::collections::HashSet<u16> = conquered_regions.iter().copied().collect();
     if conquered_set.is_empty() {
@@ -558,7 +589,7 @@ pub fn conquest_unwind(
                 ledger.cancel_reservation(origin_idx, good, qty);
             }
             TRIP_PHASE_TRANSIT => {
-                ledger.unwind(origin_idx, good, qty, None);
+                ledger.unwind(origin_idx, good, qty, delivery_buf.as_deref_mut());
                 stats.unwind_count += 1;
             }
             _ => {}
@@ -582,6 +613,7 @@ pub fn merchant_mobility_phase(
     graph: &RouteGraph,
     ledger: &mut ShadowLedger,
     master_seed: &[u8; 32],
+    mut delivery_buf: Option<&mut DeliveryBuffer>,
 ) -> MerchantTripStats {
     let mut stats = MerchantTripStats::default();
     let cap = pool.capacity();
@@ -605,7 +637,7 @@ pub fn merchant_mobility_phase(
             } else {
                 let origin = pool.trip_origin_region[slot] as usize;
                 let good = pool.trip_good_slot[slot] as usize;
-                ledger.unwind(origin, good, pool.trip_cargo_qty[slot], None);
+                ledger.unwind(origin, good, pool.trip_cargo_qty[slot], delivery_buf.as_deref_mut());
                 stats.stalled_trip_count += 1;
                 stats.unwind_count += 1;
                 reset_trip_fields(pool, slot);
@@ -616,7 +648,7 @@ pub fn merchant_mobility_phase(
     // Phase c: Loading invalidation + departure
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_LOADING { continue; }
-        depart_merchant(pool, slot, graph, ledger);
+        depart_merchant(pool, slot, graph, ledger, delivery_buf.as_deref_mut());
     }
 
     // Phase d-e: Advance Transit merchants + process arrivals
@@ -632,7 +664,7 @@ pub fn merchant_mobility_phase(
         let dest = pool.trip_dest_region[slot] as usize;
         let good = pool.trip_good_slot[slot] as usize;
         let qty = pool.trip_cargo_qty[slot];
-        ledger.arrive(origin, dest, good, qty, None);
+        ledger.arrive(origin, dest, good, qty, delivery_buf.as_deref_mut());
         let duration = pool.trip_turns_elapsed[slot];
         stats.completed_trips += 1;
         stats.avg_trip_duration += duration as f32;
@@ -650,13 +682,13 @@ pub fn merchant_mobility_phase(
         if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
         let origin = pool.regions[slot];
         let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
-        if let Some(intent) = evaluate_route(slot, pool.ids[slot], origin, regions, table, ledger) {
+        if let Some(intent) = evaluate_route(slot, pool.ids[slot], origin, regions, table, ledger, delivery_buf.as_deref()) {
             intents.push(intent);
         }
     }
     intents.sort_by_key(|i| (i.origin_region, pool.ids[i.agent_slot]));
     for intent in &intents {
-        apply_trip_intent(intent, pool, ledger, regions, &mut stats);
+        apply_trip_intent(intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref());
     }
 
     // Phase h: Collect final diagnostics
@@ -879,7 +911,7 @@ mod tests {
         );
         let table = bfs_from(&graph, 0);
         let ledger = ShadowLedger::new(3);
-        let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger);
+        let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger, None);
         assert!(intent.is_some());
         let intent = intent.unwrap();
         assert_eq!(intent.origin_region, 0);
@@ -901,7 +933,7 @@ mod tests {
         );
         let table = bfs_from(&graph, 0);
         let ledger = ShadowLedger::new(2);
-        let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger);
+        let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger, None);
         assert!(intent.is_none());
     }
 
@@ -919,8 +951,8 @@ mod tests {
         );
         let table = bfs_from(&graph, 0);
         let ledger = ShadowLedger::new(3);
-        let i1 = evaluate_route(0, 100, 0, &regions, &table, &ledger).unwrap();
-        let i2 = evaluate_route(0, 100, 0, &regions, &table, &ledger).unwrap();
+        let i1 = evaluate_route(0, 100, 0, &regions, &table, &ledger, None).unwrap();
+        let i2 = evaluate_route(0, 100, 0, &regions, &table, &ledger, None).unwrap();
         assert_eq!(i1.dest_region, i2.dest_region);
     }
 
@@ -957,7 +989,7 @@ mod tests {
             &[1, 2], &[2, 1], &[false; 2], &[1.0; 2], 3,
         );
 
-        let departed = depart_merchant(&mut pool, s, &graph, &mut ledger);
+        let departed = depart_merchant(&mut pool, s, &graph, &mut ledger, None);
         assert!(!departed);
         assert_eq!(pool.trip_phase[s], TRIP_PHASE_IDLE);
         assert_eq!(ledger.reserved[0][0], 0.0);
@@ -997,14 +1029,14 @@ mod tests {
         let mut stats = MerchantTripStats::default();
 
         // Conquer region 0 — should unwind s0 (Loading, cancel reservation)
-        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats);
+        conquest_unwind(&mut pool, &mut ledger, &[0], &mut stats, None);
         assert_eq!(pool.trip_phase[s0], TRIP_PHASE_IDLE);
         assert_eq!(ledger.reserved[0][0], 0.0);
         // s1 should be unaffected
         assert_eq!(pool.trip_phase[s1], TRIP_PHASE_TRANSIT);
 
         // Conquer region 3 (s1's destination) — should unwind s1
-        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats);
+        conquest_unwind(&mut pool, &mut ledger, &[3], &mut stats, None);
         assert_eq!(pool.trip_phase[s1], TRIP_PHASE_IDLE);
         assert_eq!(stats.unwind_count, 1); // only transit counts toward unwind_count
     }

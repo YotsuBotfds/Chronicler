@@ -52,7 +52,7 @@ fn test_multi_turn_travel() {
     let mut ledger = ShadowLedger::new(4);
 
     // Turn 1: merchant evaluates routes, enters Loading with a multi-hop trip to region 3.
-    let _stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    let _stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(
         pool.trip_phase[0], TRIP_PHASE_LOADING,
         "After turn 1, merchant should be in Loading phase"
@@ -68,7 +68,7 @@ fn test_multi_turn_travel() {
 
     // Turn 2: Loading -> Transit, advance one hop (region 0 -> 1).
     // The path has 3 hops, so the merchant is still in transit after one advance.
-    let _stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    let _stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(
         pool.trip_phase[0], TRIP_PHASE_TRANSIT,
         "After turn 2, merchant should be in Transit phase (2 more hops to go)"
@@ -79,7 +79,7 @@ fn test_multi_turn_travel() {
     );
 
     // Turn 3: advance one more hop (region 1 -> 2).
-    let _stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    let _stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(
         pool.trip_phase[0], TRIP_PHASE_TRANSIT,
         "After turn 3, merchant should still be in Transit (1 more hop to go)"
@@ -87,7 +87,7 @@ fn test_multi_turn_travel() {
     assert_eq!(pool.regions[0], 2, "After two hops, merchant at region 2");
 
     // Turn 4: advance last hop (region 2 -> 3), arrive, trip completed.
-    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(stats.completed_trips, 1, "Trip should complete on turn 4");
     // After arrival + reset, the merchant may immediately plan a new route (Loading)
     // or remain Idle if no profitable return route exists. Either is valid.
@@ -103,11 +103,11 @@ fn test_disruption_unwind() {
     let mut ledger = ShadowLedger::new(4);
 
     // Turn 1: plan route (Idle -> Loading to region 3)
-    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(pool.trip_dest_region[0], 3);
 
     // Turn 2: depart and advance to region 1 (Loading -> Transit)
-    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(pool.trip_phase[0], TRIP_PHASE_TRANSIT);
     assert_eq!(pool.regions[0], 1);
 
@@ -119,7 +119,7 @@ fn test_disruption_unwind() {
         &[1.0; 2],
         4,
     );
-    let stats = merchant_mobility_phase(&mut pool, &regions, &broken_graph, &mut ledger, &[0u8; 32]);
+    let stats = merchant_mobility_phase(&mut pool, &regions, &broken_graph, &mut ledger, &[0u8; 32], None);
 
     // The merchant was at region 1 heading to region 3 via 1->2->3.
     // With edge 1->2 gone, the path is broken. Replan to region 3 also fails (unreachable).
@@ -186,12 +186,12 @@ fn test_full_trip_lifecycle() {
     let mut ledger = ShadowLedger::new(2);
 
     // Turn 1: Idle -> Loading
-    let stats1 = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    let stats1 = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(pool.trip_phase[0], TRIP_PHASE_LOADING);
     assert_eq!(stats1.completed_trips, 0);
 
     // Turn 2: Loading -> Transit -> Arrive (1 hop) -> Idle. Then Idle -> Loading (new route).
-    let stats2 = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32]);
+    let stats2 = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(stats2.completed_trips, 1, "Should record one completed trip");
     // After arrival, the merchant immediately evaluates a return route and enters Loading.
     // trip_phase should be Loading (planning the return trip) or Idle (if no route found).
@@ -254,11 +254,46 @@ fn test_thread_count_determinism() {
     let mut ledger1 = ShadowLedger::new(4);
     let mut ledger2 = ShadowLedger::new(4);
 
-    let stats1 = merchant_mobility_phase(&mut pool1, &regions1, &graph1, &mut ledger1, &[0u8; 32]);
-    let stats2 = merchant_mobility_phase(&mut pool2, &regions2, &graph2, &mut ledger2, &[0u8; 32]);
+    let stats1 = merchant_mobility_phase(&mut pool1, &regions1, &graph1, &mut ledger1, &[0u8; 32], None);
+    let stats2 = merchant_mobility_phase(&mut pool2, &regions2, &graph2, &mut ledger2, &[0u8; 32], None);
 
     assert_eq!(stats1.active_trips, stats2.active_trips);
     assert_eq!(stats1.completed_trips, stats2.completed_trips);
     assert_eq!(stats1.avg_trip_duration, stats2.avg_trip_duration);
     assert_eq!(stats1.total_in_transit_qty, stats2.total_in_transit_qty);
+}
+
+#[test]
+fn test_hybrid_availability_uses_departure_debits() {
+    let mut ledger = ShadowLedger::new(2);
+    let mut buf = DeliveryBuffer::new(2);
+    let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+    // Reserve + depart with delivery buffer
+    ledger.reserve(0, 0, 3.0);
+    ledger.depart(0, 0, 3.0, Some(&mut buf));
+
+    // Hybrid availability: stockpile(10) - reserved(0) - departure_debits(3) = 7
+    assert_eq!(ledger.available_hybrid(0, 0, &stockpile, &buf), 7.0);
+
+    // Old formula would give: stockpile(10) - reserved(0) - in_transit_out(3) = 7
+    // Same result on same turn. Difference appears after economy drain.
+
+    // Simulate economy drain: stockpile debited, departure_debits cleared
+    let debited_stockpile = [7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    buf.clear();
+
+    // Hybrid: stockpile(7) - reserved(0) - departure_debits(0) = 7 ✓
+    assert_eq!(ledger.available_hybrid(0, 0, &debited_stockpile, &buf), 7.0);
+
+    // Old formula would give: stockpile(7) - reserved(0) - in_transit_out(3) = 4 ✗ (double-subtraction)
+    assert_eq!(ledger.available(0, 0, &debited_stockpile), 4.0); // confirms the bug
+}
+
+#[test]
+fn test_hybrid_overcommitted_uses_departure_debits() {
+    let ledger = ShadowLedger::new(2);
+    let buf = DeliveryBuffer::new(2);
+    let stockpile = [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    assert!(!ledger.is_overcommitted_hybrid(0, 0, &stockpile, &buf));
 }
