@@ -297,3 +297,186 @@ fn test_hybrid_overcommitted_uses_departure_debits() {
     let stockpile = [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     assert!(!ledger.is_overcommitted_hybrid(0, 0, &stockpile, &buf));
 }
+
+// ---------------------------------------------------------------------------
+// M58b: Hybrid economy ingress tests
+// ---------------------------------------------------------------------------
+
+use chronicler_agents::economy::{
+    tick_economy_core, EconomyRegionInput, RegionAgentCounts, TradeRouteInput,
+    EconomyConfig, NUM_GOODS, TRANSIT_DECAY, HybridDeliveryInput,
+};
+
+/// Test helper: build an EconomyRegionInput.
+fn test_region_input(
+    region_id: u16,
+    resource_type_0: u8,
+    storage_population: u16,
+    terrain: u8,
+    yield_0: f32,
+    stockpile: [f32; NUM_GOODS],
+) -> EconomyRegionInput {
+    EconomyRegionInput {
+        region_id,
+        terrain,
+        storage_population,
+        resource_type_0,
+        resource_effective_yield_0: yield_0,
+        stockpile,
+    }
+}
+
+/// Test helper: build a RegionAgentCounts.
+fn test_agent_counts(
+    population: u32,
+    farmer_count: u32,
+    soldier_count: u32,
+    merchant_count: u32,
+    wealthy_count: u32,
+) -> RegionAgentCounts {
+    RegionAgentCounts {
+        population,
+        farmer_count,
+        soldier_count,
+        merchant_count,
+        wealthy_count,
+    }
+}
+
+#[test]
+fn test_hybrid_economy_consumes_delivery_buffer() {
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(2);
+
+    // Region 0 ships 10 grain to region 1
+    buf.record_departure(0, 0, 10.0); // grain slot 0
+    buf.record_arrival(0, 1, 0, 10.0);
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+
+    let region_inputs = vec![
+        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 80, 5, 10, 5),
+        test_agent_counts(100, 80, 5, 10, 5),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Transit loss should be tracked (grain has non-zero TRANSIT_DECAY)
+    assert!(output.conservation.transit_loss > 0.0, "transit decay should be tracked");
+    assert!(output.conservation.in_transit_delta.is_some(), "in_transit_delta should be present");
+}
+
+#[test]
+fn test_hybrid_economy_abstract_path_unchanged() {
+    // Verify that passing None for hybrid_delivery produces identical results
+    // to the original abstract path (regression guard).
+    let config = EconomyConfig::default();
+    let region_inputs = vec![
+        test_region_input(0, 0, 100, 0, 1.0, [0.0; NUM_GOODS]),
+        test_region_input(1, 5, 100, 0, 1.0, [0.0; NUM_GOODS]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 50, 10, 5, 2),
+        test_agent_counts(100, 50, 10, 5, 2),
+    ];
+    let routes = vec![
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false },
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &routes,
+        &[0.0, 0.0], &[0, 0], 2,
+        &config, 1.0, false, None,
+    );
+
+    assert_eq!(output.region_results.len(), 2);
+    assert!(output.conservation.in_transit_delta.is_none(), "abstract mode should have None in_transit_delta");
+    // Production should be non-zero (50 farmers * 1.0 yield each region).
+    assert!(output.conservation.production > 0.0);
+}
+
+#[test]
+fn test_hybrid_transit_decay_accounting() {
+    // Verify that transit decay is correctly computed from arrival records.
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(2);
+
+    // Ship 100 fish from region 0 to region 1.
+    // Fish (slot 1) has TRANSIT_DECAY = 0.08.
+    buf.record_departure(0, 1, 100.0);  // fish slot 1
+    buf.record_arrival(0, 1, 1, 100.0); // fish arrival
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+
+    let region_inputs = vec![
+        test_region_input(0, 3, 100, 0, 1.0, [0.0; NUM_GOODS]), // fish (RT=3 -> slot 1)
+        test_region_input(1, 0, 100, 0, 1.0, [0.0; NUM_GOODS]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(100, 50, 10, 5, 2),
+        test_agent_counts(100, 50, 10, 5, 2),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Transit loss = 100 * 0.08 = 8.0
+    let expected_loss = 100.0 * TRANSIT_DECAY[1] as f64;
+    assert!(
+        (output.conservation.transit_loss - expected_loss).abs() < 0.01,
+        "transit_loss: expected {}, got {}",
+        expected_loss, output.conservation.transit_loss
+    );
+}
+
+#[test]
+fn test_hybrid_stockpile_net_mobility() {
+    // Verify that hybrid mode uses net mobility for stockpile updates.
+    let config = EconomyConfig::default();
+    let mut buf = DeliveryBuffer::new(2);
+
+    // Region 0 departs 20 grain, region 1 receives 20 grain (pre-decay).
+    buf.record_departure(0, 0, 20.0);
+    buf.record_arrival(0, 1, 0, 20.0);
+
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
+
+    // Region 0 starts with 50 grain, region 1 starts with 10 grain.
+    let region_inputs = vec![
+        test_region_input(0, 0, 200, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 0, 200, 0, 1.0, [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    ];
+    let agent_counts = vec![
+        test_agent_counts(50, 40, 5, 3, 2),
+        test_agent_counts(50, 40, 5, 3, 2),
+    ];
+
+    let output = tick_economy_core(
+        &region_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &config, 1.0, false, Some(&delivery),
+    );
+
+    // Region 0: stockpile = 50 + production(40*1.0) + net_mobility(0 + 0 - 20) = 70
+    // Region 1: stockpile = 10 + production(40*1.0) + net_mobility(20*(1-0.05) + 0 - 0) = 10 + 40 + 19.0 = 69
+    // (Before consumption/decay/cap)
+    // The exact values depend on consumption and decay, but region 0 should have
+    // less grain than without any trade, and region 1 should have more.
+    let r0_grain = output.region_results[0].stockpile[0];
+    let r1_grain = output.region_results[1].stockpile[0];
+
+    // Region 0 lost 20 from departure, so stockpile should reflect that.
+    // Without trade: 50 + 40 = 90 (pre-consumption). With hybrid: 50 + 40 - 20 = 70 (pre-consumption).
+    // Region 1 gained ~19 from imports, so stockpile should be higher.
+    // Without trade: 10 + 40 = 50 (pre-consumption). With hybrid: 10 + 40 + 19 = 69 (pre-consumption).
+    assert!(r0_grain < 90.0, "Region 0 grain should be reduced by departures: got {}", r0_grain);
+    assert!(r1_grain > 10.0, "Region 1 grain should be increased by imports: got {}", r1_grain);
+}

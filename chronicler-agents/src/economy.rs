@@ -26,7 +26,7 @@ pub const CAT_LUXURY: usize = 2;
 pub const NUM_CATEGORIES: usize = 3;
 
 /// Good slot → category mapping.
-const GOOD_CATEGORY: [usize; NUM_GOODS] = [
+pub const GOOD_CATEGORY: [usize; NUM_GOODS] = [
     CAT_FOOD,         // 0: grain
     CAT_FOOD,         // 1: fish
     CAT_FOOD,         // 2: salt
@@ -66,7 +66,7 @@ const IS_FOOD: [bool; NUM_GOODS] = [
 const TERRAIN_COST: [f32; 6] = [1.0, 2.0, 0.6, 1.3, 1.5, 1.8];
 
 /// Per-good transit decay rate.
-const TRANSIT_DECAY: [f32; NUM_GOODS] = [
+pub const TRANSIT_DECAY: [f32; NUM_GOODS] = [
     0.05, // grain
     0.08, // fish
     0.0,  // salt
@@ -190,6 +190,56 @@ pub struct TradeRouteInput {
 }
 
 // ---------------------------------------------------------------------------
+// M58b: Hybrid delivery input (from merchant mobility DeliveryBuffer)
+// ---------------------------------------------------------------------------
+
+/// Pre-aggregated delivery buffer data for hybrid economy ingress.
+/// Constructed from the merchant mobility DeliveryBuffer, consumed by
+/// `tick_economy_core` in hybrid mode to replace abstract tatonnement trade.
+pub struct HybridDeliveryInput {
+    /// Per-region departure debits (negative delta on origin stockpile).
+    pub departure_debits: Vec<[f32; NUM_GOODS]>,
+    /// Per-region arrival imports aggregated from raw records (pre-transit-decay quantities).
+    /// Transit decay is applied inside `tick_economy_core` when computing `per_good_imports`.
+    pub arrival_imports: Vec<[f32; NUM_GOODS]>,
+    /// Raw arrival records with provenance (for merchant_trade_income derivation).
+    pub arrival_imports_raw: Vec<crate::merchant::ArrivalRecord>,
+    /// Per-region return credits (positive delta on origin stockpile, full value).
+    pub return_credits: Vec<[f32; NUM_GOODS]>,
+    /// Deduplicated (dest_region, source_region) pairs for upstream source output.
+    pub inbound_pairs: Vec<(u16, u16)>,
+}
+
+impl HybridDeliveryInput {
+    /// Build from a merchant mobility `DeliveryBuffer`.
+    ///
+    /// Aggregates per-record arrival imports into per-region arrays and
+    /// extracts unique inbound pairs for upstream source tracking.
+    pub fn from_buffer(buf: &crate::merchant::DeliveryBuffer, num_regions: usize) -> Self {
+        let mut arrival_imports = vec![[0.0f32; NUM_GOODS]; num_regions];
+        let mut inbound_pairs: Vec<(u16, u16)> = Vec::new();
+        for rec in &buf.arrival_imports {
+            let dest = rec.dest_region as usize;
+            let slot = rec.good_slot as usize;
+            if dest < num_regions && slot < NUM_GOODS {
+                arrival_imports[dest][slot] += rec.qty;
+                inbound_pairs.push((rec.dest_region, rec.source_region));
+            }
+        }
+        inbound_pairs.sort();
+        inbound_pairs.dedup();
+
+        Self {
+            departure_debits: buf.departure_debits.clone(),
+            arrival_imports,
+            arrival_imports_raw: buf.arrival_imports.clone(),
+            return_credits: buf.return_credits.clone(),
+            inbound_pairs,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Output structs
 // ---------------------------------------------------------------------------
 
@@ -240,6 +290,9 @@ pub struct ConservationSummary {
     pub storage_loss: f64,
     pub cap_overflow: f64,
     pub clamp_floor_loss: f64,
+    /// M58b: in-flight inventory change = departures - arrivals - returns.
+    /// `Some` in hybrid mode, `None` in abstract mode.
+    pub in_transit_delta: Option<f64>,
 }
 
 impl ConservationSummary {
@@ -251,6 +304,7 @@ impl ConservationSummary {
             storage_loss: 0.0,
             cap_overflow: 0.0,
             clamp_floor_loss: 0.0,
+            in_transit_delta: None,
         }
     }
 }
@@ -375,6 +429,7 @@ pub fn tick_economy_core(
     config: &EconomyConfig,
     trade_friction: f32,
     is_winter: bool,
+    hybrid_delivery: Option<&HybridDeliveryInput>,
 ) -> EconomyOutput {
     let n_regions = region_inputs.len();
     assert_eq!(agent_counts.len(), n_regions, "agent_counts length mismatch");
@@ -449,258 +504,348 @@ pub fn tick_economy_core(
     }
 
     // -----------------------------------------------------------------------
-    // Phase B: Trade kernel (sequential, deterministic)
+    // Phase B: Trade kernel
+    //   Abstract path: tatonnement price equilibrium with route allocation.
+    //   Hybrid path (M58b): consume delivery buffer from merchant mobility.
     // -----------------------------------------------------------------------
 
-    // Build sorted route list and per-origin boundary pair counts.
-    let mut sorted_routes: Vec<(u16, u16, bool)> = routes
-        .iter()
-        .map(|r| (r.origin_region_id, r.dest_region_id, r.is_river))
-        .collect();
-    sorted_routes.sort_by_key(|&(o, d, _)| (o, d));
+    // Shared outputs from Phase B consumed by Phase C and signal derivation.
+    let mut per_good_imports: Vec<[f32; NUM_GOODS]> = vec![[0.0; NUM_GOODS]; n_regions];
+    let mut upstream_sources: Vec<UpstreamSource> = Vec::new();
+    // Per-good net mobility (hybrid only): imports + returns - departures per region.
+    let mut per_good_net_mobility: Vec<[f32; NUM_GOODS]> = vec![[0.0; NUM_GOODS]; n_regions];
 
-    // Boundary pair counts per origin (before zero-flow pruning).
+    // Abstract-path structures (needed for merchant_margin / merchant_trade_income in abstract mode).
     let mut boundary_pair_counts: Vec<u16> = vec![0u16; n_regions];
-    for &(origin_id, _, _) in &sorted_routes {
-        let oidx = region_id_to_idx[origin_id as usize];
-        if oidx < n_regions {
-            boundary_pair_counts[oidx] += 1;
-        }
-    }
+    let mut route_works: Vec<RouteWork> = Vec::new();
+    let mut origin_route_ranges: Vec<(usize, usize)> = vec![(0, 0); n_regions];
 
-    // Build RouteWork entries with transport costs.
-    let mut route_works: Vec<RouteWork> = Vec::with_capacity(sorted_routes.len());
-    for &(origin_id, dest_id, is_river) in &sorted_routes {
-        let oidx = region_id_to_idx[origin_id as usize];
-        let didx = region_id_to_idx[dest_id as usize];
-        if oidx >= n_regions || didx >= n_regions {
-            continue;
-        }
-        let tc = compute_transport_cost(
-            region_inputs[oidx].terrain,
-            region_inputs[didx].terrain,
-            is_river,
-            is_winter,
-            trade_friction,
-        );
-        route_works.push(RouteWork {
-            origin_idx: oidx,
-            dest_idx: didx,
-            transport_cost: tc,
-            flow: [0.0; NUM_CATEGORIES],
-        });
-    }
+    if let Some(delivery) = hybrid_delivery {
+        // -------------------------------------------------------------------
+        // Hybrid path: consume delivery buffer
+        // -------------------------------------------------------------------
 
-    // Group routes by origin index for allocation.
-    // Build an index: for each origin region, a range into route_works.
-    let mut origin_route_ranges: Vec<(usize, usize)> = Vec::new(); // (start, end) per origin
-    {
-        let mut origin_groups: Vec<(usize, usize, usize)> = Vec::new(); // (origin_idx, start, count)
-        if !route_works.is_empty() {
-            let mut cur_origin = route_works[0].origin_idx;
-            let mut start = 0;
-            for (i, rw) in route_works.iter().enumerate() {
-                if rw.origin_idx != cur_origin {
-                    origin_groups.push((cur_origin, start, i - start));
-                    cur_origin = rw.origin_idx;
-                    start = i;
-                }
+        // Apply arrival imports with transit decay.
+        for rec in &delivery.arrival_imports_raw {
+            let dest = rec.dest_region as usize;
+            let slot = rec.good_slot as usize;
+            if dest < n_regions && slot < NUM_GOODS {
+                let shipped = rec.qty;
+                let decay_rate = TRANSIT_DECAY[slot];
+                let delivered = shipped * (1.0 - decay_rate);
+                conservation.transit_loss += (shipped - delivered) as f64;
+                per_good_imports[dest][slot] += delivered;
             }
-            origin_groups.push((cur_origin, start, route_works.len() - start));
         }
 
-        // Store in a flat lookup by region index.
-        origin_route_ranges.resize(n_regions, (0, 0));
-        for &(oidx, start, count) in &origin_groups {
-            origin_route_ranges[oidx] = (start, start + count);
-        }
-    }
-
-    // Tatonnement loop.
-    for _pass in 0..config.tatonnement_max_passes {
-        // Save previous prices for convergence check and damping.
-        let prev_prices: Vec<[f32; NUM_CATEGORIES]> = work.iter().map(|w| w.prices).collect();
-
-        // Re-zero import/export accumulators.
-        for w in work.iter_mut() {
-            w.imports = [0.0; NUM_CATEGORIES];
-            w.exports = [0.0; NUM_CATEGORIES];
-        }
-
-        // Zero route flows.
-        for rw in route_works.iter_mut() {
-            rw.flow = [0.0; NUM_CATEGORIES];
-        }
-
-        // For each origin, allocate trade flow.
+        // Populate category-level imports/exports on work state for price computation.
         for ri in 0..n_regions {
-            let (rstart, rend) = origin_route_ranges[ri];
-            if rstart == rend {
-                continue;
+            // Imports: aggregate per-good imports into categories.
+            for g in 0..NUM_GOODS {
+                let cat = GOOD_CATEGORY[g];
+                work[ri].imports[cat] += per_good_imports[ri][g];
             }
-            let merchant_count = agent_counts[ri].merchant_count;
-            let capacity = merchant_count as f32 * config.carry_per_merchant;
-            if capacity <= 0.0 {
-                continue;
-            }
-
-            let origin_prices = work[ri].prices;
-            let origin_surplus = work[ri].surplus;
-
-            // Compute margin weights per category per route.
-            let n_routes = rend - rstart;
-            // Flatten: route_cat_weights[route_local * NUM_CATEGORIES + cat]
-            let mut route_cat_weights: Vec<f32> = vec![0.0; n_routes * NUM_CATEGORIES];
-            let mut cat_total_weights = [0.0f32; NUM_CATEGORIES];
-
-            for (local_i, rw_idx) in (rstart..rend).enumerate() {
-                let dest_idx = route_works[rw_idx].dest_idx;
-                let tc = route_works[rw_idx].transport_cost;
-                let dest_prices = work[dest_idx].prices;
-                for c in 0..NUM_CATEGORIES {
-                    let price_gap = dest_prices[c] - origin_prices[c];
-                    let raw_margin = (price_gap - tc).max(0.0);
-                    let weight = (1.0 + raw_margin).ln();
-                    route_cat_weights[local_i * NUM_CATEGORIES + c] = weight;
-                    cat_total_weights[c] += weight;
+            // Exports: departure debits aggregated into categories.
+            if ri < delivery.departure_debits.len() {
+                for g in 0..NUM_GOODS {
+                    let cat = GOOD_CATEGORY[g];
+                    work[ri].exports[cat] += delivery.departure_debits[ri][g];
                 }
             }
+        }
 
-            let total_weight: f32 = cat_total_weights.iter().sum();
-            if total_weight <= 0.0 {
+        // Compute in_transit_delta = departures - arrivals - returns.
+        let total_departures: f64 = delivery.departure_debits.iter()
+            .flat_map(|arr| arr.iter())
+            .map(|&v| v as f64)
+            .sum();
+        let total_arrivals_raw: f64 = delivery.arrival_imports_raw.iter()
+            .map(|rec| rec.qty as f64)
+            .sum();
+        let total_returns: f64 = delivery.return_credits.iter()
+            .flat_map(|arr| arr.iter())
+            .map(|&v| v as f64)
+            .sum();
+        conservation.in_transit_delta = Some(total_departures - total_arrivals_raw - total_returns);
+
+        // Build upstream sources from delivery provenance.
+        {
+            let mut ordinal_counter: u16 = 0;
+            let mut last_dest: Option<u16> = None;
+            for &(dest_id, src_id) in &delivery.inbound_pairs {
+                if last_dest != Some(dest_id) {
+                    ordinal_counter = 0;
+                    last_dest = Some(dest_id);
+                }
+                upstream_sources.push(UpstreamSource {
+                    dest_region_id: dest_id,
+                    source_ordinal: ordinal_counter,
+                    source_region_id: src_id,
+                });
+                ordinal_counter += 1;
+            }
+        }
+
+        // Compute per-good net mobility for stockpile update.
+        // net_mobility[ri][g] = imports[ri][g] + return_credits[ri][g] - departure_debits[ri][g]
+        for ri in 0..n_regions {
+            for g in 0..NUM_GOODS {
+                let imports_g = per_good_imports[ri][g];
+                let returns_g = if ri < delivery.return_credits.len() {
+                    delivery.return_credits[ri][g]
+                } else {
+                    0.0
+                };
+                let departures_g = if ri < delivery.departure_debits.len() {
+                    delivery.departure_debits[ri][g]
+                } else {
+                    0.0
+                };
+                per_good_net_mobility[ri][g] = imports_g + returns_g - departures_g;
+            }
+        }
+
+        // Boundary pair counts: count unique inbound pairs per dest.
+        for &(dest_id, _) in &delivery.inbound_pairs {
+            let didx = if (dest_id as usize) < region_id_to_idx.len() {
+                region_id_to_idx[dest_id as usize]
+            } else {
+                usize::MAX
+            };
+            if didx < n_regions {
+                boundary_pair_counts[didx] += 1;
+            }
+        }
+    } else {
+        // -------------------------------------------------------------------
+        // Abstract path: tatonnement trade allocation (unchanged)
+        // -------------------------------------------------------------------
+
+        // Build sorted route list and per-origin boundary pair counts.
+        let mut sorted_routes: Vec<(u16, u16, bool)> = routes
+            .iter()
+            .map(|r| (r.origin_region_id, r.dest_region_id, r.is_river))
+            .collect();
+        sorted_routes.sort_by_key(|&(o, d, _)| (o, d));
+
+        for &(origin_id, _, _) in &sorted_routes {
+            let oidx = region_id_to_idx[origin_id as usize];
+            if oidx < n_regions {
+                boundary_pair_counts[oidx] += 1;
+            }
+        }
+
+        // Build RouteWork entries with transport costs.
+        route_works = Vec::with_capacity(sorted_routes.len());
+        for &(origin_id, dest_id, is_river) in &sorted_routes {
+            let oidx = region_id_to_idx[origin_id as usize];
+            let didx = region_id_to_idx[dest_id as usize];
+            if oidx >= n_regions || didx >= n_regions {
                 continue;
             }
+            let tc = compute_transport_cost(
+                region_inputs[oidx].terrain,
+                region_inputs[didx].terrain,
+                is_river,
+                is_winter,
+                trade_friction,
+            );
+            route_works.push(RouteWork {
+                origin_idx: oidx,
+                dest_idx: didx,
+                transport_cost: tc,
+                flow: [0.0; NUM_CATEGORIES],
+            });
+        }
 
-            // Allocate per category.
-            for c in 0..NUM_CATEGORIES {
-                let cat_budget = (cat_total_weights[c] / total_weight) * capacity;
-                let surplus = origin_surplus[c];
-                if cat_budget <= 0.0 || surplus <= 0.0 {
+        // Group routes by origin index for allocation.
+        {
+            let mut origin_groups: Vec<(usize, usize, usize)> = Vec::new();
+            if !route_works.is_empty() {
+                let mut cur_origin = route_works[0].origin_idx;
+                let mut start = 0;
+                for (i, rw) in route_works.iter().enumerate() {
+                    if rw.origin_idx != cur_origin {
+                        origin_groups.push((cur_origin, start, i - start));
+                        cur_origin = rw.origin_idx;
+                        start = i;
+                    }
+                }
+                origin_groups.push((cur_origin, start, route_works.len() - start));
+            }
+            for &(oidx, start, count) in &origin_groups {
+                origin_route_ranges[oidx] = (start, start + count);
+            }
+        }
+
+        // Tatonnement loop.
+        for _pass in 0..config.tatonnement_max_passes {
+            let prev_prices: Vec<[f32; NUM_CATEGORIES]> = work.iter().map(|w| w.prices).collect();
+
+            for w in work.iter_mut() {
+                w.imports = [0.0; NUM_CATEGORIES];
+                w.exports = [0.0; NUM_CATEGORIES];
+            }
+            for rw in route_works.iter_mut() {
+                rw.flow = [0.0; NUM_CATEGORIES];
+            }
+
+            for ri in 0..n_regions {
+                let (rstart, rend) = origin_route_ranges[ri];
+                if rstart == rend {
                     continue;
                 }
-                let cat_w = cat_total_weights[c];
-                if cat_w <= 0.0 {
+                let merchant_count = agent_counts[ri].merchant_count;
+                let capacity = merchant_count as f32 * config.carry_per_merchant;
+                if capacity <= 0.0 {
                     continue;
                 }
 
-                // Pro-rata allocation within category by route weight.
-                let mut allocated = 0.0f32;
+                let origin_prices = work[ri].prices;
+                let origin_surplus = work[ri].surplus;
+
+                let n_routes = rend - rstart;
+                let mut route_cat_weights: Vec<f32> = vec![0.0; n_routes * NUM_CATEGORIES];
+                let mut cat_total_weights = [0.0f32; NUM_CATEGORIES];
+
                 for (local_i, rw_idx) in (rstart..rend).enumerate() {
-                    let w = route_cat_weights[local_i * NUM_CATEGORIES + c];
-                    if w <= 0.0 {
+                    let dest_idx = route_works[rw_idx].dest_idx;
+                    let tc = route_works[rw_idx].transport_cost;
+                    let dest_prices = work[dest_idx].prices;
+                    for c in 0..NUM_CATEGORIES {
+                        let price_gap = dest_prices[c] - origin_prices[c];
+                        let raw_margin = (price_gap - tc).max(0.0);
+                        let weight = (1.0 + raw_margin).ln();
+                        route_cat_weights[local_i * NUM_CATEGORIES + c] = weight;
+                        cat_total_weights[c] += weight;
+                    }
+                }
+
+                let total_weight: f32 = cat_total_weights.iter().sum();
+                if total_weight <= 0.0 {
+                    continue;
+                }
+
+                for c in 0..NUM_CATEGORIES {
+                    let cat_budget = (cat_total_weights[c] / total_weight) * capacity;
+                    let surplus = origin_surplus[c];
+                    if cat_budget <= 0.0 || surplus <= 0.0 {
                         continue;
                     }
-                    let amount = (w / cat_w) * cat_budget;
-                    route_works[rw_idx].flow[c] = amount;
-                    allocated += amount;
+                    let cat_w = cat_total_weights[c];
+                    if cat_w <= 0.0 {
+                        continue;
+                    }
+
+                    let mut allocated = 0.0f32;
+                    for (local_i, rw_idx) in (rstart..rend).enumerate() {
+                        let w = route_cat_weights[local_i * NUM_CATEGORIES + c];
+                        if w <= 0.0 {
+                            continue;
+                        }
+                        let amount = (w / cat_w) * cat_budget;
+                        route_works[rw_idx].flow[c] = amount;
+                        allocated += amount;
+                    }
+
+                    if allocated > surplus {
+                        let scale = surplus / allocated;
+                        for rw_idx in rstart..rend {
+                            route_works[rw_idx].flow[c] *= scale;
+                        }
+                    }
                 }
 
-                // Scale down if allocated exceeds surplus.
-                if allocated > surplus {
-                    let scale = surplus / allocated;
-                    for rw_idx in rstart..rend {
-                        route_works[rw_idx].flow[c] *= scale;
+                for rw_idx in rstart..rend {
+                    let dest_idx = route_works[rw_idx].dest_idx;
+                    for c in 0..NUM_CATEGORIES {
+                        let amount = route_works[rw_idx].flow[c];
+                        work[ri].exports[c] += amount;
+                        work[dest_idx].imports[c] += amount;
                     }
                 }
             }
 
-            // Accumulate exports/imports from this origin's routes.
-            for rw_idx in rstart..rend {
-                let dest_idx = route_works[rw_idx].dest_idx;
+            for ri in 0..n_regions {
+                let w = &work[ri];
+                let mut new_prices = [0.0f32; NUM_CATEGORIES];
                 for c in 0..NUM_CATEGORIES {
-                    let amount = route_works[rw_idx].flow[c];
-                    work[ri].exports[c] += amount;
-                    work[dest_idx].imports[c] += amount;
+                    let supply = (w.production[c] + w.imports[c]).max(SUPPLY_FLOOR);
+                    new_prices[c] = config.base_price * (w.demand[c] / supply);
+                }
+                for c in 0..NUM_CATEGORIES {
+                    let old_p = prev_prices[ri][c];
+                    if old_p < 0.001 {
+                        work[ri].prices[c] = new_prices[c];
+                        continue;
+                    }
+                    let ratio = new_prices[c] / old_p;
+                    let clamped = ratio.clamp(config.tatonnement_price_clamp_lo, config.tatonnement_price_clamp_hi);
+                    work[ri].prices[c] = old_p * (1.0 + config.tatonnement_damping * (clamped - 1.0));
                 }
             }
-        }
 
-        // Recompute prices from production + imports with damping.
-        for ri in 0..n_regions {
-            let w = &work[ri];
-            let mut new_prices = [0.0f32; NUM_CATEGORIES];
-            for c in 0..NUM_CATEGORIES {
-                let supply = (w.production[c] + w.imports[c]).max(SUPPLY_FLOOR);
-                new_prices[c] = config.base_price * (w.demand[c] / supply);
-            }
-            for c in 0..NUM_CATEGORIES {
-                let old_p = prev_prices[ri][c];
-                if old_p < 0.001 {
-                    work[ri].prices[c] = new_prices[c];
-                    continue;
-                }
-                let ratio = new_prices[c] / old_p;
-                let clamped = ratio.clamp(config.tatonnement_price_clamp_lo, config.tatonnement_price_clamp_hi);
-                work[ri].prices[c] = old_p * (1.0 + config.tatonnement_damping * (clamped - 1.0));
-            }
-        }
-
-        // Convergence check.
-        let mut max_delta = 0.0f32;
-        for ri in 0..n_regions {
-            for c in 0..NUM_CATEGORIES {
-                let delta = (work[ri].prices[c] - prev_prices[ri][c]).abs();
-                if delta > max_delta {
-                    max_delta = delta;
+            let mut max_delta = 0.0f32;
+            for ri in 0..n_regions {
+                for c in 0..NUM_CATEGORIES {
+                    let delta = (work[ri].prices[c] - prev_prices[ri][c]).abs();
+                    if delta > max_delta {
+                        max_delta = delta;
+                    }
                 }
             }
-        }
-        if max_delta < config.tatonnement_convergence {
-            break;
-        }
-    }
-
-    // Track inbound sources from final-pass positive flows.
-    // Collect as (dest_region_id, source_region_id) pairs, deduped.
-    let mut inbound_pairs: Vec<(u16, u16)> = Vec::new();
-    for rw in route_works.iter() {
-        let has_flow = rw.flow.iter().any(|&f| f > 0.0);
-        if has_flow {
-            let dest_id = region_inputs[rw.dest_idx].region_id;
-            let origin_id = region_inputs[rw.origin_idx].region_id;
-            inbound_pairs.push((dest_id, origin_id));
-        }
-    }
-    // Sort and dedup for deterministic output.
-    inbound_pairs.sort();
-    inbound_pairs.dedup();
-
-    // Build upstream_sources output.
-    let mut upstream_sources: Vec<UpstreamSource> = Vec::new();
-    {
-        let mut ordinal_counter: u16 = 0;
-        let mut last_dest: Option<u16> = None;
-        for &(dest_id, src_id) in &inbound_pairs {
-            if last_dest != Some(dest_id) {
-                ordinal_counter = 0;
-                last_dest = Some(dest_id);
+            if max_delta < config.tatonnement_convergence {
+                break;
             }
-            upstream_sources.push(UpstreamSource {
-                dest_region_id: dest_id,
-                source_ordinal: ordinal_counter,
-                source_region_id: src_id,
-            });
-            ordinal_counter += 1;
         }
-    }
 
-    // Per-good import decomposition with transit decay.
-    // Per-route, per-good: only decomposes flows matching the origin's primary resource category.
-    let mut per_good_imports: Vec<[f32; NUM_GOODS]> = vec![[0.0; NUM_GOODS]; n_regions];
-    for rw in route_works.iter() {
-        let origin_slot = work[rw.origin_idx].primary_good_slot;
-        if origin_slot >= NUM_GOODS {
-            continue;
+        // Track inbound sources from final-pass positive flows.
+        let mut inbound_pairs: Vec<(u16, u16)> = Vec::new();
+        for rw in route_works.iter() {
+            let has_flow = rw.flow.iter().any(|&f| f > 0.0);
+            if has_flow {
+                let dest_id = region_inputs[rw.dest_idx].region_id;
+                let origin_id = region_inputs[rw.origin_idx].region_id;
+                inbound_pairs.push((dest_id, origin_id));
+            }
         }
-        let origin_cat = work[rw.origin_idx].primary_category;
-        let shipped = rw.flow[origin_cat];
-        if shipped <= 0.0 {
-            continue;
+        inbound_pairs.sort();
+        inbound_pairs.dedup();
+
+        // Build upstream_sources output.
+        {
+            let mut ordinal_counter: u16 = 0;
+            let mut last_dest: Option<u16> = None;
+            for &(dest_id, src_id) in &inbound_pairs {
+                if last_dest != Some(dest_id) {
+                    ordinal_counter = 0;
+                    last_dest = Some(dest_id);
+                }
+                upstream_sources.push(UpstreamSource {
+                    dest_region_id: dest_id,
+                    source_ordinal: ordinal_counter,
+                    source_region_id: src_id,
+                });
+                ordinal_counter += 1;
+            }
         }
-        let decay_rate = TRANSIT_DECAY[origin_slot];
-        let delivered = shipped * (1.0 - decay_rate);
-        conservation.transit_loss += (shipped - delivered) as f64;
-        per_good_imports[rw.dest_idx][origin_slot] += delivered;
+
+        // Per-good import decomposition with transit decay.
+        for rw in route_works.iter() {
+            let origin_slot = work[rw.origin_idx].primary_good_slot;
+            if origin_slot >= NUM_GOODS {
+                continue;
+            }
+            let origin_cat = work[rw.origin_idx].primary_category;
+            let shipped = rw.flow[origin_cat];
+            if shipped <= 0.0 {
+                continue;
+            }
+            let decay_rate = TRANSIT_DECAY[origin_slot];
+            let delivered = shipped * (1.0 - decay_rate);
+            conservation.transit_loss += (shipped - delivered) as f64;
+            per_good_imports[rw.dest_idx][origin_slot] += delivered;
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -736,11 +881,17 @@ pub fn tick_economy_core(
             per_good_exports[w.primary_good_slot] = w.exports[w.primary_category];
         }
 
-        // Step 1: Accumulate stockpile: old + production - exports + imports per good.
+        // Step 1: Accumulate stockpile.
+        // Hybrid: old + production + net_mobility (imports + returns - departures)
+        // Abstract: old + production - exports + imports
         let mut stockpile = w.stockpile;
         for g in 0..NUM_GOODS {
-            let new_val = stockpile[g] + per_good_production[g] - per_good_exports[g]
-                + per_good_imports[ri][g];
+            let new_val = if hybrid_delivery.is_some() {
+                stockpile[g] + per_good_production[g] + per_good_net_mobility[ri][g]
+            } else {
+                stockpile[g] + per_good_production[g] - per_good_exports[g]
+                    + per_good_imports[ri][g]
+            };
             if new_val < 0.0 {
                 conservation.clamp_floor_loss += (-new_val) as f64;
                 stockpile[g] = 0.0;
@@ -826,37 +977,91 @@ pub fn tick_economy_core(
             config.farmer_income_modifier_floor
         };
 
-        // merchant_margin: normalized avg positive post-trade price delta across outgoing routes.
-        let (rstart, rend) = origin_route_ranges[ri];
-        let route_count = rend - rstart;
-        let merchant_margin = if route_count > 0 {
+        // merchant_margin and merchant_trade_income: mode-dependent derivation.
+        let (merchant_margin, merchant_trade_income) = if let Some(delivery) = hybrid_delivery {
+            // Hybrid path: derive from realized delivery volumes.
+            // merchant_margin: average margin from deliveries sourced from this region.
             let mut total_raw_margin = 0.0f32;
-            for rw_idx in rstart..rend {
-                let dest_idx = route_works[rw_idx].dest_idx;
-                for c in 0..NUM_CATEGORIES {
-                    let delta = post_trade_prices[dest_idx][c] - post_trade_prices[ri][c];
-                    total_raw_margin += delta.max(0.0);
+            let mut delivery_count = 0u32;
+            for rec in &delivery.arrival_imports_raw {
+                if rec.source_region as usize == ri {
+                    let dest = rec.dest_region as usize;
+                    if dest < n_regions {
+                        let g = rec.good_slot as usize;
+                        if g < NUM_GOODS {
+                            let cat = GOOD_CATEGORY[g];
+                            let delta = (post_trade_prices[dest][cat] - post_trade_prices[ri][cat]).max(0.0);
+                            total_raw_margin += delta;
+                            delivery_count += 1;
+                        }
+                    }
                 }
             }
-            let avg = total_raw_margin / route_count as f32;
-            (avg / config.merchant_margin_normalizer).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
+            let margin = if delivery_count > 0 {
+                let avg = total_raw_margin / delivery_count as f32;
+                (avg / config.merchant_margin_normalizer).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
 
-        // merchant_trade_income: route_flow x post-trade margin / merchant_count.
-        let merchant_trade_income = if ac.merchant_count > 0 && route_count > 0 {
-            let mut total_arbitrage = 0.0f32;
-            for rw_idx in rstart..rend {
-                let dest_idx = route_works[rw_idx].dest_idx;
-                for c in 0..NUM_CATEGORIES {
-                    let margin = (post_trade_prices[dest_idx][c] - post_trade_prices[ri][c]).max(0.0);
-                    total_arbitrage += route_works[rw_idx].flow[c] * margin;
+            // merchant_trade_income: total delivered value / merchant_count.
+            let trade_income = if ac.merchant_count > 0 {
+                let mut total_delivered_value = 0.0f32;
+                for rec in &delivery.arrival_imports_raw {
+                    if rec.source_region as usize == ri {
+                        let g = rec.good_slot as usize;
+                        if g < NUM_GOODS {
+                            let dest = rec.dest_region as usize;
+                            if dest < n_regions {
+                                let delivered = rec.qty * (1.0 - TRANSIT_DECAY[g]);
+                                let cat = GOOD_CATEGORY[g];
+                                let margin_val = (post_trade_prices[dest][cat]
+                                    - post_trade_prices[ri][cat]).max(0.0);
+                                total_delivered_value += delivered * margin_val;
+                            }
+                        }
+                    }
                 }
-            }
-            total_arbitrage / ac.merchant_count as f32
+                total_delivered_value / ac.merchant_count as f32
+            } else {
+                0.0
+            };
+
+            (margin, trade_income)
         } else {
-            0.0
+            // Abstract path: existing tatonnement-based derivation.
+            let (rstart, rend) = origin_route_ranges[ri];
+            let route_count = rend - rstart;
+            let margin = if route_count > 0 {
+                let mut total_raw_margin = 0.0f32;
+                for rw_idx in rstart..rend {
+                    let dest_idx = route_works[rw_idx].dest_idx;
+                    for c in 0..NUM_CATEGORIES {
+                        let delta = post_trade_prices[dest_idx][c] - post_trade_prices[ri][c];
+                        total_raw_margin += delta.max(0.0);
+                    }
+                }
+                let avg = total_raw_margin / route_count as f32;
+                (avg / config.merchant_margin_normalizer).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+
+            let trade_income = if ac.merchant_count > 0 && route_count > 0 {
+                let mut total_arbitrage = 0.0f32;
+                for rw_idx in rstart..rend {
+                    let dest_idx = route_works[rw_idx].dest_idx;
+                    for c in 0..NUM_CATEGORIES {
+                        let margin_val = (post_trade_prices[dest_idx][c] - post_trade_prices[ri][c]).max(0.0);
+                        total_arbitrage += route_works[rw_idx].flow[c] * margin_val;
+                    }
+                }
+                total_arbitrage / ac.merchant_count as f32
+            } else {
+                0.0
+            };
+
+            (margin, trade_income)
         };
 
         // trade_route_count = boundary pair count before zero-flow pruning.
@@ -975,7 +1180,7 @@ mod tests {
 
         let out = tick_economy_core(
             &regions, &agents, &[], &[0.0], &[0], 1,
-            &config, 1.0, false,
+            &config, 1.0, false, None,
         );
 
         assert_eq!(out.region_results.len(), 1);

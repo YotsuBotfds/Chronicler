@@ -62,7 +62,7 @@ fn test_single_region_production_and_demand() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0], &[0], 1,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     assert_eq!(out.region_results.len(), 1);
@@ -118,7 +118,7 @@ fn test_conservation_law() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[0.0], &[0], 1,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     let c = &out.conservation;
@@ -160,7 +160,7 @@ fn test_civ_fiscal_outputs() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &merchant_wealth, &priest_count, 1,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     let cr = &out.civ_results[0];
@@ -193,7 +193,7 @@ fn test_civ_fiscal_no_priests() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[200.0], &[0], 1,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     let cr = &out.civ_results[0];
@@ -228,11 +228,11 @@ fn test_salt_preservation() {
 
     let out_no_salt = tick_economy_core(
         &[region_no_salt], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false,
+        &[0.0], &[0], 1, &config, 1.0, false, None,
     );
     let out_with_salt = tick_economy_core(
         &[region_with_salt], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false,
+        &[0.0], &[0], 1, &config, 1.0, false, None,
     );
 
     // With salt, food goods should decay less.
@@ -274,7 +274,7 @@ fn test_stockpile_cap_and_overflow() {
 
     let out = tick_economy_core(
         &[region], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false,
+        &[0.0], &[0], 1, &config, 1.0, false, None,
     );
 
     // After storage decay and capping:
@@ -301,7 +301,7 @@ fn test_clamp_floor_loss_tracking() {
 
     let out = tick_economy_core(
         &[region], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false,
+        &[0.0], &[0], 1, &config, 1.0, false, None,
     );
 
     // With no trade and balanced production, clamp_floor_loss should be 0.
@@ -339,7 +339,7 @@ fn test_two_region_trade_allocation() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     assert_eq!(out.region_results.len(), 2);
@@ -414,7 +414,7 @@ fn test_trade_stable_route_ordering() {
     let out1 = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0, 0.0], &[0, 0, 0], 3,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // Run again with routes in different order.
@@ -441,7 +441,7 @@ fn test_trade_stable_route_ordering() {
     let out2 = tick_economy_core(
         &regions_b, &agents_b, &routes_shuffled,
         &[0.0, 0.0, 0.0], &[0, 0, 0], 3,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // Outputs must be identical regardless of input route ordering.
@@ -480,7 +480,7 @@ fn test_tatonnement_max_passes_respected() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // Should produce valid output even with 1 pass.
@@ -519,14 +519,14 @@ fn test_exact_determinism() {
     let out1 = tick_economy_core(
         &r1, &a1, &rt1,
         &[50.0, 30.0], &[3, 2], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     let (r2, a2, rt2) = build_inputs();
     let out2 = tick_economy_core(
         &r2, &a2, &rt2,
         &[50.0, 30.0], &[3, 2], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // Exact bit-identical comparison.
@@ -578,7 +578,7 @@ fn test_observability_import_timing() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // If grain was traded, region 1 should have food imports.
@@ -618,7 +618,7 @@ fn test_river_trade_increases_flow() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents, &routes_no_river,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // With river.
@@ -634,7 +634,7 @@ fn test_river_trade_increases_flow() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents_b, &routes_river,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // River should reduce transport cost, potentially increasing trade flow.
@@ -656,7 +656,7 @@ fn test_empty_regions() {
     let out = tick_economy_core(
         &[], &[], &[],
         &[], &[], 0,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
     assert!(out.region_results.is_empty());
     assert!(out.civ_results.is_empty());
@@ -673,7 +673,7 @@ fn test_no_farmers_no_production() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[0.0], &[0], 1,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     assert!(
@@ -700,7 +700,7 @@ fn test_winter_increases_transport_cost() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, // not winter
+        &config, 1.0, false, None, // not winter
     );
 
     let agents_b = vec![
@@ -715,7 +715,7 @@ fn test_winter_increases_transport_cost() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents_b, &routes_b,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, true, // winter
+        &config, 1.0, true, None, // winter
     );
 
     // Higher transport cost in winter should mean less effective margin.
@@ -749,7 +749,7 @@ fn test_trade_dependency_detection() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     // Region 1's import_share: food imports / food demand.
@@ -772,7 +772,7 @@ fn test_multiple_civs_fiscal() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[100.0, 200.0], &[3, 0], 2,
-        &config, 1.0, false,
+        &config, 1.0, false, None,
     );
 
     assert_eq!(out.civ_results.len(), 2);

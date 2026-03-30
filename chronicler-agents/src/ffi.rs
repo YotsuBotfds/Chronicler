@@ -283,6 +283,7 @@ pub fn economy_conservation_schema() -> Schema {
         Field::new("storage_loss", DataType::Float64, false),
         Field::new("cap_overflow", DataType::Float64, false),
         Field::new("clamp_floor_loss", DataType::Float64, false),
+        Field::new("in_transit_delta", DataType::Float64, true), // M58b: nullable — None in abstract mode
     ])
 }
 
@@ -1676,6 +1677,8 @@ pub struct AgentSimulator {
     merchant_ledger: Option<crate::merchant::ShadowLedger>,
     merchant_delivery_buf: Option<crate::merchant::DeliveryBuffer>,
     merchant_trip_stats: crate::merchant::MerchantTripStats,
+    /// M58b: when true, economy tick consumes delivery buffer instead of tatonnement.
+    hybrid_economy_mode: bool,
 }
 
 #[pymethods]
@@ -1720,6 +1723,7 @@ impl AgentSimulator {
             merchant_ledger: None,
             merchant_delivery_buf: None,
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
+            hybrid_economy_mode: false,
         }
     }
 
@@ -3494,12 +3498,19 @@ impl AgentSimulator {
         };
     }
 
+    /// M58b: Enable/disable hybrid economy mode.
+    /// When enabled, `tick_economy` consumes the merchant delivery buffer
+    /// instead of running abstract tatonnement trade allocation.
+    pub fn set_hybrid_economy_mode(&mut self, enabled: bool) {
+        self.hybrid_economy_mode = enabled;
+    }
+
     /// Run the economy tick: returns five Arrow batches.
     ///
     /// Python calls this with dedicated economy input batches (NOT build_region_batch).
     /// Rust derives agent counts from the live pool.
     pub fn tick_economy(
-        &self,
+        &mut self,
         region_input_batch: PyRecordBatch,
         trade_route_batch: PyRecordBatch,
         season_id: u8,
@@ -3688,6 +3699,15 @@ impl AgentSimulator {
             }
         }
 
+        // --- M58b: Build hybrid delivery input if in hybrid economy mode ---
+        let hybrid_delivery = if self.hybrid_economy_mode {
+            self.merchant_delivery_buf.as_ref().map(|buf| {
+                crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions)
+            })
+        } else {
+            None
+        };
+
         // --- Call the core ---
         let output = tick_economy_core(
             &region_inputs,
@@ -3699,7 +3719,15 @@ impl AgentSimulator {
             &self.economy_config,
             trade_friction,
             is_winter,
+            hybrid_delivery.as_ref(),
         );
+
+        // M58b: Clear delivery buffer after successful economy tick in hybrid mode.
+        if hybrid_delivery.is_some() {
+            if let Some(buf) = self.merchant_delivery_buf.as_mut() {
+                buf.clear();
+            }
+        }
 
         // --- Pack results into Arrow batches ---
         // 1. Region result batch
@@ -3823,6 +3851,11 @@ impl AgentSimulator {
 
         // 5. Conservation batch
         let c = &output.conservation;
+        // M58b: in_transit_delta is nullable — use Option encoding.
+        let in_transit_delta_arr: Arc<dyn arrow::array::Array> = match c.in_transit_delta {
+            Some(v) => Arc::new(Float64Array::from(vec![Some(v)])),
+            None => Arc::new(Float64Array::from(vec![None::<f64>])),
+        };
         let conservation_batch = RecordBatch::try_new(
             Arc::new(economy_conservation_schema()),
             vec![
@@ -3832,6 +3865,7 @@ impl AgentSimulator {
                 Arc::new(Float64Array::from(vec![c.storage_loss])),
                 Arc::new(Float64Array::from(vec![c.cap_overflow])),
                 Arc::new(Float64Array::from(vec![c.clamp_floor_loss])),
+                in_transit_delta_arr,
             ],
         ).map_err(arrow_err)?;
 
