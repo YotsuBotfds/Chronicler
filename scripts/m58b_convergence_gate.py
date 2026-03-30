@@ -74,6 +74,7 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
     price_rank_correlations: list[float] = []
     price_relative_errors: list[float] = []
     volume_ratios: list[float] = []
+    food_suff_deltas: list[float] = []
     food_suff_realized_values: list[float] = []
     conservation_errors: list[float] = []
     repair_events = 0
@@ -86,38 +87,29 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         agent_vols = snap.get("agent_trade_volume_by_category", {})
         margins = snap.get("post_trade_margin_by_region", {})
         food_suff = snap.get("food_sufficiency_by_region", {})
+        oracle_margins = snap.get("oracle_margins_by_region", {})
+        oracle_food = snap.get("oracle_food_sufficiency_by_region", {})
         conservation = snap.get("conservation", {})
 
-        # --- Price gradient: Spearman rank correlation ---
-        # Compare margin ranking against oracle volume ranking per region.
-        # Regions where oracle has higher total imports should have higher
-        # realized margins (price attracts trade).
-        regions = sorted(set(oracle_vols.keys()) & set(margins.keys()))
-        if len(regions) >= 3:
-            oracle_totals = []
-            agent_totals = []
-            margin_vals = []
-            for r in regions:
-                o_total = sum(oracle_vols.get(r, {}).get(c, 0) for c in ("food", "raw_material", "luxury"))
-                a_total = sum(agent_vols.get(r, {}).get(c, 0) for c in ("food", "raw_material", "luxury"))
-                oracle_totals.append(o_total)
-                agent_totals.append(a_total)
-                margin_vals.append(margins.get(r, 0.0))
+        # --- Price gradient: Spearman rank correlation of margin vectors ---
+        # Compare oracle vs realized post-trade margins per region.
+        common_margin_regions = sorted(set(oracle_margins.keys()) & set(margins.keys()))
+        if len(common_margin_regions) >= 3:
+            oracle_margin_vals = [oracle_margins[r] for r in common_margin_regions]
+            agent_margin_vals = [margins[r] for r in common_margin_regions]
 
-            # Rank correlation: do agent volumes follow the same ranking as oracle volumes?
-            if np.std(oracle_totals) > 1e-9 and np.std(agent_totals) > 1e-9:
-                corr, _ = spearmanr(oracle_totals, agent_totals)
+            if (any(v > 0 for v in oracle_margin_vals)
+                    and any(v > 0 for v in agent_margin_vals)):
+                corr, _ = spearmanr(oracle_margin_vals, agent_margin_vals)
                 if not np.isnan(corr):
                     price_rank_correlations.append(float(corr))
 
-            # Price magnitude: relative error of margin (agent-implied vs oracle-implied)
-            # Use volume-weighted margin proxy: margin * volume ratio deviation
-            for r in regions:
-                o_total = sum(oracle_vols.get(r, {}).get(c, 0) for c in ("food", "raw_material", "luxury"))
-                a_total = sum(agent_vols.get(r, {}).get(c, 0) for c in ("food", "raw_material", "luxury"))
-                margin_val = margins.get(r, 0.0)
-                if abs(margin_val) > 0.01 and o_total > 0.01:
-                    rel_err = abs(a_total - o_total) / o_total
+            # Price magnitude: relative error of margin (agent vs oracle)
+            for r in common_margin_regions:
+                oracle_m = oracle_margins.get(r, 0.0)
+                agent_m = margins.get(r, 0.0)
+                if abs(oracle_m) > 0.01:
+                    rel_err = abs(agent_m - oracle_m) / oracle_m
                     price_relative_errors.append(rel_err)
 
         # --- Trade volume: agent/oracle ratio per category per region ---
@@ -128,17 +120,13 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
                 if oracle_val > 0.01:  # skip negligible trade
                     volume_ratios.append(agent_val / oracle_val)
 
-        # --- Food sufficiency ---
-        # Compare realized food_sufficiency per region.
-        # Oracle food suff is not separately stored; we compute the
-        # oracle-implied food sufficiency from oracle import volumes.
-        # For now, track realized values; crisis rate is computed at seed level.
+        # --- Food sufficiency: oracle vs realized delta ---
+        for region in oracle_food:
+            if region in food_suff:
+                food_suff_deltas.append(abs(food_suff[region] - oracle_food[region]))
+        # Also collect realized values for crisis rate calculation.
         for region in food_suff:
-            suff_val = food_suff[region]
-            food_suff_realized_values.append(suff_val)
-            # Oracle proxy: food sufficiency from oracle's food import volume
-            # would require full production data. Instead, we track deviation
-            # from adequate (1.0) as the spec intends for the "mean delta" check.
+            food_suff_realized_values.append(food_suff[region])
 
         # --- Conservation ---
         prod = conservation.get("production", 0) or 0
@@ -191,22 +179,24 @@ def evaluate_seed(sidecar_dir: Path) -> dict:
         reasons.append(f"volume_ratio_p90=[{p10_ratio:.3f},{p90_ratio:.3f}]")
 
     # --- Food sufficiency ---
-    if food_suff_realized_values:
-        food_arr = np.array(food_suff_realized_values)
-        mean_delta = float(np.mean(np.abs(food_arr - 1.0)))
-        crisis_rate = float(np.mean(food_arr < 0.8)) * 100  # percentage
-
+    # Mean delta: oracle vs realized food sufficiency.
+    if food_suff_deltas:
+        mean_delta = float(np.mean(food_suff_deltas))
         if mean_delta > FOOD_SUFF_MEAN_DELTA:
             passed = False
             reasons.append(f"food_suff_mean_delta={mean_delta:.3f}>{FOOD_SUFF_MEAN_DELTA}")
+    else:
+        mean_delta = 0.0
 
-        # Food crisis delta: we measure realized crisis rate vs baseline 0%
-        # (oracle assumes adequate supply). The delta IS the crisis rate.
+    # Crisis rate: percentage of realized food_suff values below 0.8.
+    if food_suff_realized_values:
+        food_arr = np.array(food_suff_realized_values)
+        crisis_rate = float(np.mean(food_arr < 0.8)) * 100  # percentage
+
         if crisis_rate > FOOD_CRISIS_DELTA_PP:
             passed = False
             reasons.append(f"food_crisis_rate={crisis_rate:.1f}pp>{FOOD_CRISIS_DELTA_PP}")
     else:
-        mean_delta = 0.0
         crisis_rate = 0.0
 
     # --- Conservation ---

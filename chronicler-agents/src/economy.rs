@@ -319,6 +319,10 @@ pub struct EconomyOutput {
     /// M58b: Oracle shadow — abstract trade volumes per region per category.
     /// Only populated in hybrid mode (when delivery buffer is provided and routes exist).
     pub oracle_trade_volume: Option<Vec<[f32; NUM_CATEGORIES]>>,
+    /// M58b: Oracle shadow margins per region (normalized 0-1).
+    pub oracle_margins: Option<Vec<f32>>,
+    /// M58b: Oracle shadow food sufficiency per region (0-2 clamped).
+    pub oracle_food_sufficiency: Option<Vec<f32>>,
     /// M58b: Per-region per-good transit decay totals from arrival processing.
     /// Only populated in hybrid mode. Written back to DeliveryBuffer diagnostics by FFI layer.
     pub transit_decay_by_region: Option<Vec<[f32; NUM_GOODS]>>,
@@ -909,7 +913,8 @@ pub fn tick_economy_core(
     // Oracle shadow: run abstract allocation on cloned work state (hybrid only)
     // -----------------------------------------------------------------------
 
-    let oracle_trade_volume: Option<Vec<[f32; NUM_CATEGORIES]>> =
+    let (oracle_trade_volume, oracle_margins, oracle_food_sufficiency):
+        (Option<Vec<[f32; NUM_CATEGORIES]>>, Option<Vec<f32>>, Option<Vec<f32>>) =
         if let Some(mut shadow_work) = oracle_work_snapshot {
             // Build route structures for abstract allocation (same logic as abstract path).
             let mut sorted_routes: Vec<(u16, u16, bool)> = routes
@@ -970,9 +975,55 @@ pub fn tick_economy_core(
             let vols: Vec<[f32; NUM_CATEGORIES]> = shadow_work.iter()
                 .map(|w| w.imports)
                 .collect();
-            Some(vols)
+
+            // Oracle post-trade prices (same formula as realized Phase C).
+            let mut shadow_post_trade_prices = vec![[0.0f32; NUM_CATEGORIES]; n_regions];
+            for ri in 0..n_regions {
+                let sw = &shadow_work[ri];
+                for c in 0..NUM_CATEGORIES {
+                    let supply = (sw.production[c] + sw.imports[c]).max(SUPPLY_FLOOR);
+                    shadow_post_trade_prices[ri][c] = config.base_price * (sw.demand[c] / supply);
+                }
+            }
+
+            // Oracle margins per region (same formula as realized abstract-path margin).
+            let mut margins = vec![0.0f32; n_regions];
+            for ri in 0..n_regions {
+                let (rstart, rend) = shadow_origin_ranges[ri];
+                let route_count = rend - rstart;
+                if route_count > 0 {
+                    let mut total_raw_margin = 0.0f32;
+                    for rw_idx in rstart..rend {
+                        let dest_idx = shadow_route_works[rw_idx].dest_idx;
+                        for c in 0..NUM_CATEGORIES {
+                            let delta = (shadow_post_trade_prices[dest_idx][c]
+                                - shadow_post_trade_prices[ri][c]).max(0.0);
+                            total_raw_margin += delta;
+                        }
+                    }
+                    let avg = total_raw_margin / route_count as f32;
+                    margins[ri] = (avg / config.merchant_margin_normalizer).clamp(0.0, 1.0);
+                }
+            }
+
+            // Oracle food sufficiency per region (same formula as realized Step 2).
+            let mut food_suff = vec![0.0f32; n_regions];
+            for ri in 0..n_regions {
+                let sw = &shadow_work[ri];
+                let food_demand = sw.demand[CAT_FOOD];
+                // Total food = stockpile food goods + oracle food imports.
+                let stockpile_food: f32 = (0..NUM_GOODS)
+                    .filter(|&g| IS_FOOD[g])
+                    .map(|g| region_inputs[ri].stockpile[g])
+                    .sum();
+                let total_food = stockpile_food + sw.imports[CAT_FOOD];
+                let denom = food_demand.max(SUPPLY_FLOOR);
+                food_suff[ri] = (total_food / denom).clamp(0.0, 2.0);
+            }
+
+            (Some(vols), Some(margins), Some(food_suff))
         } else {
-            None
+            (None, None, None)
         };
 
     // -----------------------------------------------------------------------
@@ -1276,6 +1327,8 @@ pub fn tick_economy_core(
         upstream_sources,
         conservation,
         oracle_trade_volume,
+        oracle_margins,
+        oracle_food_sufficiency,
         transit_decay_by_region,
     }
 }

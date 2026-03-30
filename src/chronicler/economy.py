@@ -1074,6 +1074,18 @@ def reconstruct_economy_result(
                 "luxury": oracle_lux[i],
             }
 
+    # --- M58b: Oracle shadow margins and food sufficiency ---
+    if "oracle_margin" in observability_batch.schema.names:
+        obs_ids = observability_batch.column("region_id").to_pylist()
+        oracle_margins = observability_batch.column("oracle_margin").to_pylist()
+        oracle_food_suff = observability_batch.column("oracle_food_sufficiency").to_pylist()
+        for i, rid in enumerate(obs_ids):
+            rname = region_names[rid]
+            if rname not in result.oracle_imports:
+                result.oracle_imports[rname] = {}
+            result.oracle_imports[rname]["margin"] = oracle_margins[i]
+            result.oracle_imports[rname]["food_sufficiency"] = oracle_food_suff[i]
+
     return result
 
 

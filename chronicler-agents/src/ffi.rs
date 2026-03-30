@@ -268,6 +268,8 @@ pub fn economy_observability_schema() -> Schema {
         Field::new("oracle_imports_food", DataType::Float32, true),
         Field::new("oracle_imports_raw_material", DataType::Float32, true),
         Field::new("oracle_imports_luxury", DataType::Float32, true),
+        Field::new("oracle_margin", DataType::Float32, true),
+        Field::new("oracle_food_sufficiency", DataType::Float32, true),
     ])
 }
 
@@ -3834,6 +3836,8 @@ impl AgentSimulator {
         let mut oracle_if = Float32Builder::with_capacity(n_out);
         let mut oracle_irm = Float32Builder::with_capacity(n_out);
         let mut oracle_il = Float32Builder::with_capacity(n_out);
+        let mut oracle_margin = Float32Builder::with_capacity(n_out);
+        let mut oracle_food_suff = Float32Builder::with_capacity(n_out);
         for obs in &output.observability {
             obs_rid.append_value(obs.region_id);
             obs_if.append_value(obs.imports_food);
@@ -3858,6 +3862,24 @@ impl AgentSimulator {
                 oracle_il.append_value(0.0);
             }
         }
+        if let Some(ref om) = output.oracle_margins {
+            for ri in 0..n_out {
+                oracle_margin.append_value(om[ri]);
+            }
+        } else {
+            for _ in 0..n_out {
+                oracle_margin.append_value(0.0);
+            }
+        }
+        if let Some(ref ofs) = output.oracle_food_sufficiency {
+            for ri in 0..n_out {
+                oracle_food_suff.append_value(ofs[ri]);
+            }
+        } else {
+            for _ in 0..n_out {
+                oracle_food_suff.append_value(0.0);
+            }
+        }
         let observability_batch = RecordBatch::try_new(
             Arc::new(economy_observability_schema()),
             vec![
@@ -3873,6 +3895,8 @@ impl AgentSimulator {
                 Arc::new(oracle_if.finish()),
                 Arc::new(oracle_irm.finish()),
                 Arc::new(oracle_il.finish()),
+                Arc::new(oracle_margin.finish()),
+                Arc::new(oracle_food_suff.finish()),
             ],
         ).map_err(arrow_err)?;
 

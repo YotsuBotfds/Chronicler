@@ -1279,6 +1279,14 @@ class AgentBridge:
                 rname: economy_result.food_sufficiency.get(rname, 0.0)
                 for rname in region_names
             },
+            "oracle_margins_by_region": {
+                rname: economy_result.oracle_imports.get(rname, {}).get("margin", 0.0)
+                for rname in region_names
+            },
+            "oracle_food_sufficiency_by_region": {
+                rname: economy_result.oracle_imports.get(rname, {}).get("food_sufficiency", 0.0)
+                for rname in region_names
+            },
             "imports_by_region_by_category": {
                 rname: economy_result.imports_by_region.get(rname, {})
                 for rname in region_names
