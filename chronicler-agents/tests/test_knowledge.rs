@@ -3,7 +3,7 @@
 use chronicler_agents::{AgentPool, Occupation};
 use chronicler_agents::knowledge::{
     pack_type_hops, unpack_type, unpack_hops, is_empty_slot, InfoType,
-    channel_weight, decay_rate,
+    channel_weight, decay_rate, decay_packets,
     admit_packet, AdmitResult, PacketCandidate,
 };
 use chronicler_agents::relationships::BondType;
@@ -192,4 +192,59 @@ fn test_admission_guard_drops_stale_incoming() {
         info_type: 3, source_region: 99, source_turn: 5, intensity: 250, hop_count: 0,
     });
     assert_eq!(result, AdmitResult::Dropped);
+}
+
+#[test]
+fn test_decay_reduces_intensity() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 1, intensity: 200, hop_count: 0,
+    });
+
+    let expired = decay_packets(&mut pool, &[slot]);
+    assert_eq!(expired, 0);
+    assert_eq!(pool.pkt_intensity[slot][0], 200 - 15); // threat decay = 15
+}
+
+#[test]
+fn test_decay_clears_expired_packet() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    // Insert with low intensity that will expire on first decay
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 1, intensity: 10, hop_count: 0,
+    });
+
+    let expired = decay_packets(&mut pool, &[slot]);
+    assert_eq!(expired, 1);
+    assert!(is_empty_slot(pool.pkt_type_and_hops[slot][0]));
+    assert_eq!(pool.pkt_intensity[slot][0], 0);
+    assert_eq!(pool.pkt_source_region[slot][0], 0);
+    assert_eq!(pool.pkt_source_turn[slot][0], 0);
+}
+
+#[test]
+fn test_decay_rates_differ_by_type() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    // Insert one of each type
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 1, intensity: 100, hop_count: 0,
+    });
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: 2, source_region: 1, source_turn: 1, intensity: 100, hop_count: 0,
+    });
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: 3, source_region: 2, source_turn: 1, intensity: 100, hop_count: 0,
+    });
+
+    decay_packets(&mut pool, &[slot]);
+
+    assert_eq!(pool.pkt_intensity[slot][0], 85);  // 100 - 15 (threat)
+    assert_eq!(pool.pkt_intensity[slot][1], 92);  // 100 - 8 (trade)
+    assert_eq!(pool.pkt_intensity[slot][2], 95);  // 100 - 5 (religious)
 }

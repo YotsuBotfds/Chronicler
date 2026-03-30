@@ -287,3 +287,34 @@ pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandida
 
     AdmitResult::Dropped
 }
+
+// ---------------------------------------------------------------------------
+// Decay phase
+// ---------------------------------------------------------------------------
+
+/// Decay all non-empty packets. Returns the number of packets expired (cleared).
+pub fn decay_packets(pool: &mut AgentPool, alive_slots: &[usize]) -> u32 {
+    let mut expired = 0u32;
+    for &slot in alive_slots {
+        for i in 0..agent::PACKET_SLOTS {
+            let th = pool.pkt_type_and_hops[slot][i];
+            if is_empty_slot(th) {
+                continue;
+            }
+            let info_type = unpack_type(th);
+            let rate = decay_rate(info_type);
+            let intensity = pool.pkt_intensity[slot][i];
+            if intensity <= rate {
+                // Expired — clear slot to all-zero
+                pool.pkt_type_and_hops[slot][i] = 0;
+                pool.pkt_source_region[slot][i] = 0;
+                pool.pkt_source_turn[slot][i] = 0;
+                pool.pkt_intensity[slot][i] = 0;
+                expired += 1;
+            } else {
+                pool.pkt_intensity[slot][i] = intensity - rate;
+            }
+        }
+    }
+    expired
+}
