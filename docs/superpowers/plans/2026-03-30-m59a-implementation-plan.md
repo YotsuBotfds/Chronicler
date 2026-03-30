@@ -1976,27 +1976,84 @@ fn test_knowledge_phase_deterministic_same_process() {
 }
 ```
 
-- [ ] **Step 2: Add cross-process determinism test via Python**
+- [ ] **Step 2: Add Rust-level packet-state equality determinism test**
+
+This directly tests the spec requirement: "same-seed replay produces identical packet state." The Rust test compares the full packet SoA arrays (type_and_hops, source_region, source_turn, intensity) across two independent runs with the same seed and setup.
+
+Append to `chronicler-agents/tests/test_knowledge.rs`:
+
+```rust
+#[test]
+fn test_knowledge_phase_packet_state_deterministic() {
+    // Spec requirement: same-seed replay produces identical PACKET STATE.
+    // Compare all 4 packet SoA arrays, not just stats counters.
+    let seed = [42u8; 32];
+
+    let run = || {
+        let mut pool = AgentPool::new(10);
+        let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let c = pool.spawn(2, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+        let b_id = pool.ids[b];
+        let c_id = pool.ids[c];
+
+        set_bond(&mut pool, a, b_id, 5, 100);
+        set_bond(&mut pool, b, c_id, 6, 80);
+        set_bond(&mut pool, a, c_id, 4, 60); // CoReligionist
+
+        let mut regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
+        regions[0].controller_changed_this_turn = true;
+        regions[0].persecution_intensity = 0.5;
+        regions[1].merchant_route_margin = 0.4;
+
+        // Run 3 turns to exercise multi-hop propagation + decay
+        for t in 1..=3u32 {
+            if t > 1 { regions[0].controller_changed_this_turn = false; }
+            knowledge_phase(&mut pool, &regions, &seed, t);
+        }
+
+        (
+            pool.pkt_type_and_hops.clone(),
+            pool.pkt_source_region.clone(),
+            pool.pkt_source_turn.clone(),
+            pool.pkt_intensity.clone(),
+        )
+    };
+
+    let (th_a, sr_a, st_a, int_a) = run();
+    let (th_b, sr_b, st_b, int_b) = run();
+
+    assert_eq!(th_a, th_b, "pkt_type_and_hops diverged");
+    assert_eq!(sr_a, sr_b, "pkt_source_region diverged");
+    assert_eq!(st_a, st_b, "pkt_source_turn diverged");
+    assert_eq!(int_a, int_b, "pkt_intensity diverged");
+}
+```
+
+- [ ] **Step 3: Add cross-process determinism proxy test via Python**
+
+This is a proxy for cross-process packet-state equivalence: since M59a has no per-agent packet getter, we compare `knowledge_stats` aggregate counters across two subprocess runs. If the aggregate counters match across processes, the underlying packet state is overwhelmingly likely to match (any divergence in packet state would propagate to different counter values).
 
 Append to `tests/test_m59a_knowledge.py`:
 
 ```python
 def test_knowledge_deterministic_cross_process(tmp_path):
-    """Cross-process determinism: same seed in two separate processes must
-    produce identical knowledge_stats.
+    """Cross-process determinism proxy: same seed in two separate processes
+    must produce identical knowledge_stats aggregate counters.
 
-    This catches process-local nondeterminism (uninitialized memory, HashMap
-    iteration order, thread scheduling) that same-process reruns miss.
+    This is a proxy for the spec requirement "same-seed cross-process replay
+    produces identical packet state." Direct packet-state comparison is tested
+    at the Rust level (test_knowledge_phase_packet_state_deterministic).
+    Cross-process testing at the Python level uses aggregate counters since
+    M59a has no per-agent packet getter.
     """
-    from chronicler.main import execute_run
-
     bundles = []
     for run_idx in range(2):
         run_dir = tmp_path / f"det_run_{run_idx}"
         run_dir.mkdir()
-        # Run in a subprocess to get true process isolation
         script = (
-            f"import argparse, json; "
+            f"import argparse; "
             f"from chronicler.main import execute_run; "
             f"args = argparse.Namespace("
             f"  seed=77, turns=8, civs=2, regions=5,"
@@ -2187,23 +2244,63 @@ fn test_knowledge_phase_does_not_modify_non_packet_fields() {
     regions[0].persecution_intensity = 0.5;
     regions[1].merchant_route_margin = 0.5;
 
-    // Snapshot all non-packet fields before knowledge_phase
-    let sat_before = pool.satisfactions.clone();
-    let loy_before = pool.loyalties.clone();
-    let wealth_before = pool.wealth.clone();
-    let occ_before = pool.occupations.clone();
+    // Snapshot ALL non-packet pool fields before knowledge_phase.
+    // Every SoA vec in AgentPool (pool.rs:17-94) except the four pkt_*
+    // arrays and arrived_this_turn must be unchanged after the call.
+    let ids_before = pool.ids.clone();
     let regions_before = pool.regions.clone();
+    let origin_regions_before = pool.origin_regions.clone();
     let civ_before = pool.civ_affinities.clone();
+    let occ_before = pool.occupations.clone();
+    let loy_before = pool.loyalties.clone();
+    let sat_before = pool.satisfactions.clone();
+    let skills_before = pool.skills.clone();
     let ages_before = pool.ages.clone();
-    let needs_before = (
-        pool.need_safety.clone(), pool.need_material.clone(),
-        pool.need_social.clone(), pool.need_spiritual.clone(),
-        pool.need_autonomy.clone(), pool.need_purpose.clone(),
-    );
-    let rel_targets_before = pool.rel_target_ids.clone();
-    let rel_sentiments_before = pool.rel_sentiments.clone();
-    let rel_bonds_before = pool.rel_bond_types.clone();
-    let trip_phase_before = pool.trip_phase.clone();
+    let disp_before = pool.displacement_turns.clone();
+    let life_events_before = pool.life_events.clone();
+    let promo_before = pool.promotion_progress.clone();
+    let bold_before = pool.boldness.clone();
+    let ambi_before = pool.ambition.clone();
+    let loy_trait_before = pool.loyalty_trait.clone();
+    let cv0_before = pool.cultural_value_0.clone();
+    let cv1_before = pool.cultural_value_1.clone();
+    let cv2_before = pool.cultural_value_2.clone();
+    let beliefs_before = pool.beliefs.clone();
+    let p0_before = pool.parent_id_0.clone();
+    let p1_before = pool.parent_id_1.clone();
+    let wealth_before = pool.wealth.clone();
+    let mem_et_before = pool.memory_event_types.clone();
+    let mem_sc_before = pool.memory_source_civs.clone();
+    let mem_t_before = pool.memory_turns.clone();
+    let mem_i_before = pool.memory_intensities.clone();
+    let mem_df_before = pool.memory_decay_factors.clone();
+    let mem_g_before = pool.memory_gates.clone();
+    let mem_c_before = pool.memory_count.clone();
+    let mem_l_before = pool.memory_is_legacy.clone();
+    let ns_before = pool.need_safety.clone();
+    let nm_before = pool.need_material.clone();
+    let nso_before = pool.need_social.clone();
+    let nsp_before = pool.need_spiritual.clone();
+    let na_before = pool.need_autonomy.clone();
+    let np_before = pool.need_purpose.clone();
+    let rt_before = pool.rel_target_ids.clone();
+    let rs_before = pool.rel_sentiments.clone();
+    let rb_before = pool.rel_bond_types.clone();
+    let rf_before = pool.rel_formed_turns.clone();
+    let rc_before = pool.rel_count.clone();
+    let syn_before = pool.synthesis_budget.clone();
+    let x_before = pool.x.clone();
+    let y_before = pool.y.clone();
+    let sid_before = pool.settlement_ids.clone();
+    let tp_before = pool.trip_phase.clone();
+    let tdr_before = pool.trip_dest_region.clone();
+    let tor_before = pool.trip_origin_region.clone();
+    let tgs_before = pool.trip_good_slot.clone();
+    let tcq_before = pool.trip_cargo_qty.clone();
+    let tte_before = pool.trip_turns_elapsed.clone();
+    let tpath_before = pool.trip_path.clone();
+    let tpl_before = pool.trip_path_len.clone();
+    let tpc_before = pool.trip_path_cursor.clone();
     let alive_before = pool.alive.clone();
 
     // Run knowledge phase (should create/propagate packets but touch nothing else)
@@ -2213,23 +2310,60 @@ fn test_knowledge_phase_does_not_modify_non_packet_fields() {
     assert!(stats.packets_created > 0, "knowledge_phase should have created packets");
 
     // Verify ALL non-packet fields are unchanged
-    assert_eq!(pool.satisfactions, sat_before, "satisfactions modified");
-    assert_eq!(pool.loyalties, loy_before, "loyalties modified");
-    assert_eq!(pool.wealth, wealth_before, "wealth modified");
-    assert_eq!(pool.occupations, occ_before, "occupations modified");
+    assert_eq!(pool.ids, ids_before, "ids modified");
     assert_eq!(pool.regions, regions_before, "regions modified");
+    assert_eq!(pool.origin_regions, origin_regions_before, "origin_regions modified");
     assert_eq!(pool.civ_affinities, civ_before, "civ_affinities modified");
+    assert_eq!(pool.occupations, occ_before, "occupations modified");
+    assert_eq!(pool.loyalties, loy_before, "loyalties modified");
+    assert_eq!(pool.satisfactions, sat_before, "satisfactions modified");
+    assert_eq!(pool.skills, skills_before, "skills modified");
     assert_eq!(pool.ages, ages_before, "ages modified");
-    assert_eq!(pool.need_safety, needs_before.0, "need_safety modified");
-    assert_eq!(pool.need_material, needs_before.1, "need_material modified");
-    assert_eq!(pool.need_social, needs_before.2, "need_social modified");
-    assert_eq!(pool.need_spiritual, needs_before.3, "need_spiritual modified");
-    assert_eq!(pool.need_autonomy, needs_before.4, "need_autonomy modified");
-    assert_eq!(pool.need_purpose, needs_before.5, "need_purpose modified");
-    assert_eq!(pool.rel_target_ids, rel_targets_before, "rel_target_ids modified");
-    assert_eq!(pool.rel_sentiments, rel_sentiments_before, "rel_sentiments modified");
-    assert_eq!(pool.rel_bond_types, rel_bonds_before, "rel_bond_types modified");
-    assert_eq!(pool.trip_phase, trip_phase_before, "trip_phase modified");
+    assert_eq!(pool.displacement_turns, disp_before, "displacement_turns modified");
+    assert_eq!(pool.life_events, life_events_before, "life_events modified");
+    assert_eq!(pool.promotion_progress, promo_before, "promotion_progress modified");
+    assert_eq!(pool.boldness, bold_before, "boldness modified");
+    assert_eq!(pool.ambition, ambi_before, "ambition modified");
+    assert_eq!(pool.loyalty_trait, loy_trait_before, "loyalty_trait modified");
+    assert_eq!(pool.cultural_value_0, cv0_before, "cultural_value_0 modified");
+    assert_eq!(pool.cultural_value_1, cv1_before, "cultural_value_1 modified");
+    assert_eq!(pool.cultural_value_2, cv2_before, "cultural_value_2 modified");
+    assert_eq!(pool.beliefs, beliefs_before, "beliefs modified");
+    assert_eq!(pool.parent_id_0, p0_before, "parent_id_0 modified");
+    assert_eq!(pool.parent_id_1, p1_before, "parent_id_1 modified");
+    assert_eq!(pool.wealth, wealth_before, "wealth modified");
+    assert_eq!(pool.memory_event_types, mem_et_before, "memory_event_types modified");
+    assert_eq!(pool.memory_source_civs, mem_sc_before, "memory_source_civs modified");
+    assert_eq!(pool.memory_turns, mem_t_before, "memory_turns modified");
+    assert_eq!(pool.memory_intensities, mem_i_before, "memory_intensities modified");
+    assert_eq!(pool.memory_decay_factors, mem_df_before, "memory_decay_factors modified");
+    assert_eq!(pool.memory_gates, mem_g_before, "memory_gates modified");
+    assert_eq!(pool.memory_count, mem_c_before, "memory_count modified");
+    assert_eq!(pool.memory_is_legacy, mem_l_before, "memory_is_legacy modified");
+    assert_eq!(pool.need_safety, ns_before, "need_safety modified");
+    assert_eq!(pool.need_material, nm_before, "need_material modified");
+    assert_eq!(pool.need_social, nso_before, "need_social modified");
+    assert_eq!(pool.need_spiritual, nsp_before, "need_spiritual modified");
+    assert_eq!(pool.need_autonomy, na_before, "need_autonomy modified");
+    assert_eq!(pool.need_purpose, np_before, "need_purpose modified");
+    assert_eq!(pool.rel_target_ids, rt_before, "rel_target_ids modified");
+    assert_eq!(pool.rel_sentiments, rs_before, "rel_sentiments modified");
+    assert_eq!(pool.rel_bond_types, rb_before, "rel_bond_types modified");
+    assert_eq!(pool.rel_formed_turns, rf_before, "rel_formed_turns modified");
+    assert_eq!(pool.rel_count, rc_before, "rel_count modified");
+    assert_eq!(pool.synthesis_budget, syn_before, "synthesis_budget modified");
+    assert_eq!(pool.x, x_before, "x modified");
+    assert_eq!(pool.y, y_before, "y modified");
+    assert_eq!(pool.settlement_ids, sid_before, "settlement_ids modified");
+    assert_eq!(pool.trip_phase, tp_before, "trip_phase modified");
+    assert_eq!(pool.trip_dest_region, tdr_before, "trip_dest_region modified");
+    assert_eq!(pool.trip_origin_region, tor_before, "trip_origin_region modified");
+    assert_eq!(pool.trip_good_slot, tgs_before, "trip_good_slot modified");
+    assert_eq!(pool.trip_cargo_qty, tcq_before, "trip_cargo_qty modified");
+    assert_eq!(pool.trip_turns_elapsed, tte_before, "trip_turns_elapsed modified");
+    assert_eq!(pool.trip_path, tpath_before, "trip_path modified");
+    assert_eq!(pool.trip_path_len, tpl_before, "trip_path_len modified");
+    assert_eq!(pool.trip_path_cursor, tpc_before, "trip_path_cursor modified");
     assert_eq!(pool.alive, alive_before, "alive modified");
 
     // arrived_this_turn IS expected to change (consumed by knowledge phase)
