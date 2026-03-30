@@ -129,7 +129,7 @@ If multiple threat triggers fire in the same region on the same turn: one packet
 
 | Source | Intensity Basis |
 |--------|----------------|
-| Merchant with `arrived_this_turn` flag | `clamp((merchant_route_margin × 255.0) as u8, 50, 230)` — floor of 50 ensures even marginal routes produce a visible packet; ceiling of 230 leaves headroom below the threat-warning intensity range |
+| Merchant with `arrived_this_turn` flag AND `merchant_route_margin > 0.10` | `clamp(((merchant_route_margin - 0.10) / 0.90 × 230.0) as u8, 50, 230)` — margin threshold of 0.10 prevents zero/marginal arrivals from flooding the network; scale starts above the threshold |
 
 Non-merchant local-market observation deferred from M59a. Merchants are the distinctive cross-region trade information source.
 
@@ -146,8 +146,8 @@ If multiple religious triggers fire in the same region on the same turn: one pac
 **Admission policy (applied per packet):**
 
 1. Same identity `(info_type, source_region)` exists in agent's slots:
-   - Incoming `source_turn` is newer → refresh in place (reset `hop_count = 0` for direct re-observation)
-   - Same `source_turn` → keep higher `intensity`
+   - Incoming `source_turn` is newer → refresh in place: copy incoming `intensity`, `source_turn`, and `hop_count`. For direct re-observation this means `hop_count = 0`; for propagated packets this copies the sender's `hop_count + 1`.
+   - Same `source_turn` → keep higher `intensity`; if intensity ties, keep lower `hop_count`
    - Incoming is older → drop
 2. Empty slot available → insert
 3. All slots full → compare incoming against the lowest-ranked incumbent:
@@ -237,7 +237,9 @@ Each packet type has a distinct social shape:
 
 Bundle metadata time series (`knowledge_stats`), following the existing `relationship_stats` / `household_stats` / `merchant_trip_stats` pattern.
 
-Rust accumulates counters during the knowledge phase, returns them as a flat fixed-width struct through FFI. Python builds per-type dicts and appends to `knowledge_stats` in `agent_bridge.py`.
+**Transport path:** Rust accumulates counters into a `KnowledgeStats` struct during the knowledge phase. `ffi.rs` exposes a `get_knowledge_stats() → KnowledgeStats` method on `AgentSimulator`. `agent_bridge.py` calls this after the tick, converts to a Python dict, and appends to the `knowledge_stats` history list. `main.py` writes that history into bundle metadata. `analytics.py` provides an extractor.
+
+**"No FFI getter" means:** no per-agent packet inspection API (no `get_agent_packets(agent_id)` or similar). The aggregate `KnowledgeStats` struct does cross FFI — that is the intended and only transport path for diagnostics.
 
 ### Per-Turn Metrics
 
