@@ -389,7 +389,23 @@ pub fn observe_packets(
         }
 
         // --- Trade opportunity ---
-        if pool.arrived_this_turn[slot] && region.merchant_route_margin > TRADE_MARGIN_THRESHOLD {
+        // M59b: Broaden to idle/loading merchants (not just arrivals).
+        // Skip transit merchants (intermediate hops) and arrived_this_turn
+        // (arrival path already fires — dedup to prevent dropped-packet noise).
+        let is_merchant = pool.occupations[slot] == crate::agent::Occupation::Merchant as u8;
+        let is_trade_eligible = if pool.arrived_this_turn[slot] {
+            // Arrival path: original M59a behavior
+            true
+        } else if is_merchant
+            && (pool.trip_phase[slot] == crate::agent::TRIP_PHASE_IDLE
+                || pool.trip_phase[slot] == crate::agent::TRIP_PHASE_LOADING)
+        {
+            // M59b: Idle/loading merchant local observation
+            true
+        } else {
+            false
+        };
+        if is_trade_eligible && region.merchant_route_margin > TRADE_MARGIN_THRESHOLD {
             let scaled = ((region.merchant_route_margin - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0).clamp(0.0, 255.0) as u8;
             let intensity = scaled.max(50).min(230);
             let result = admit_packet(pool, slot, &PacketCandidate {

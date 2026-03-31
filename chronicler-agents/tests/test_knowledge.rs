@@ -316,22 +316,22 @@ fn test_observe_threat_uses_max_intensity() {
 }
 
 #[test]
-fn test_observe_trade_requires_arrival_and_margin() {
+fn test_observe_trade_requires_eligible_merchant_and_margin() {
     let mut pool = AgentPool::new(4);
     let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     let mut regions = vec![RegionState::new(0)];
     regions[0].merchant_route_margin = 0.5;
 
-    // No arrival flag — should not emit
-    let (created, _, _, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
-    assert_eq!(created, 0);
-
-    // Set arrival flag
-    pool.arrived_this_turn[slot] = true;
+    // M59b: Idle merchant (no arrival flag) should now observe local trade
     let (created, _, _, _, _, created_trade, _) = observe_packets(&mut pool, &regions, &[slot], 5);
-    assert_eq!(created, 1);
+    assert_eq!(created, 1, "Idle merchant should observe local trade");
     assert_eq!(created_trade, 1);
+
+    // Set arrival flag on a later turn — should refresh the existing packet
+    pool.arrived_this_turn[slot] = true;
+    let (_, refreshed, _, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 6);
+    assert!(refreshed >= 1, "Arrival on newer turn should refresh the existing trade packet");
 }
 
 #[test]
@@ -1023,4 +1023,65 @@ fn test_threat_own_region_excluded() {
 
     // target_region == own_region == 2 → excluded
     assert_eq!(strongest_threat_for_region(&pool, slot, 2, 2), 0.0);
+}
+
+#[test]
+fn test_local_trade_observation_idle_merchant() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0;
+    pool.trip_phase[slot] = 0; // TRIP_PHASE_IDLE
+    pool.arrived_this_turn[slot] = false;
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].merchant_route_margin = 0.50; // above TRADE_MARGIN_THRESHOLD (0.10)
+
+    let (created, _, _, _, _, created_trade, _) =
+        observe_packets(&mut pool, &regions, &[slot], 10);
+
+    assert!(created >= 1, "Idle merchant should observe local trade");
+    assert!(created_trade >= 1, "Should be a trade packet");
+    let has_trade = (0..4).any(|i| {
+        unpack_type(pool.pkt_type_and_hops[slot][i]) == InfoType::TradeOpportunity as u8
+            && pool.pkt_source_region[slot][i] == 0
+    });
+    assert!(has_trade, "Idle merchant should have a trade packet from own region");
+}
+
+#[test]
+fn test_local_trade_observation_skips_transit() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 1;
+    pool.trip_phase[slot] = 2; // TRIP_PHASE_TRANSIT
+    pool.arrived_this_turn[slot] = false;
+
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[1].merchant_route_margin = 0.50;
+
+    let (_created, _, _, _, _, created_trade, _) =
+        observe_packets(&mut pool, &regions, &[slot], 10);
+
+    assert_eq!(created_trade, 0, "Transit merchant should NOT observe local trade");
+}
+
+#[test]
+fn test_local_trade_observation_skips_arrived_this_turn() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0;
+    pool.trip_phase[slot] = 0; // TRIP_PHASE_IDLE (arrived merchants reset to idle)
+    pool.arrived_this_turn[slot] = true; // arrived this turn — arrival path handles it
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].merchant_route_margin = 0.50;
+
+    let (created, _, _, dropped, _, _, _) =
+        observe_packets(&mut pool, &regions, &[slot], 10);
+
+    // Arrival already fires the trade observation. Local observation must not
+    // fire a duplicate that would show up as a Dropped in diagnostics.
+    // We expect exactly 1 created (from arrival path), 0 dropped.
+    assert_eq!(created, 1, "Only arrival path should create the packet");
+    assert_eq!(dropped, 0, "No duplicate admission attempt should be dropped");
 }
