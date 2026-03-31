@@ -509,3 +509,119 @@ fn test_knowledge_phase_zero_fill_no_packets() {
     assert_eq!(stats.mean_age, 0.0);
     assert_eq!(stats.max_age, 0);
 }
+
+// ---------------------------------------------------------------------------
+// Determinism + compatibility tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_knowledge_phase_deterministic_same_process() {
+    let seed = [42u8; 32];
+
+    let run = || {
+        let mut pool = AgentPool::new(10);
+        let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let c = pool.spawn(2, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+        let b_id = pool.ids[b];
+        let c_id = pool.ids[c];
+
+        set_bond(&mut pool, a, b_id, 5, 100);
+        set_bond(&mut pool, b, c_id, 6, 80);
+
+        let mut regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
+        regions[0].controller_changed_this_turn = true;
+        regions[0].persecution_intensity = 0.5;
+
+        let stats1 = knowledge_phase(&mut pool, &regions, &seed, 1);
+        regions[0].controller_changed_this_turn = false;
+        let stats2 = knowledge_phase(&mut pool, &regions, &seed, 2);
+
+        (stats1, stats2, pool.pkt_type_and_hops.clone(), pool.pkt_intensity.clone())
+    };
+
+    let (s1a, s2a, th_a, int_a) = run();
+    let (s1b, s2b, th_b, int_b) = run();
+
+    assert_eq!(s1a.packets_created, s1b.packets_created);
+    assert_eq!(s1a.packets_transmitted, s1b.packets_transmitted);
+    assert_eq!(s2a.packets_transmitted, s2b.packets_transmitted);
+    assert_eq!(th_a, th_b, "packet state should be identical across runs");
+    assert_eq!(int_a, int_b, "intensity state should be identical across runs");
+}
+
+#[test]
+fn test_knowledge_phase_packet_state_deterministic() {
+    let seed = [42u8; 32];
+
+    let run = || {
+        let mut pool = AgentPool::new(10);
+        let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let c = pool.spawn(2, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+        let b_id = pool.ids[b];
+        let c_id = pool.ids[c];
+
+        set_bond(&mut pool, a, b_id, 5, 100);
+        set_bond(&mut pool, b, c_id, 6, 80);
+        set_bond(&mut pool, a, c_id, 4, 60);
+
+        let mut regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
+        regions[0].controller_changed_this_turn = true;
+        regions[0].persecution_intensity = 0.5;
+        regions[1].merchant_route_margin = 0.4;
+
+        for t in 1..=3u32 {
+            if t > 1 { regions[0].controller_changed_this_turn = false; }
+            knowledge_phase(&mut pool, &regions, &seed, t);
+        }
+
+        (
+            pool.pkt_type_and_hops.clone(),
+            pool.pkt_source_region.clone(),
+            pool.pkt_source_turn.clone(),
+            pool.pkt_intensity.clone(),
+        )
+    };
+
+    let (th_a, sr_a, st_a, int_a) = run();
+    let (th_b, sr_b, st_b, int_b) = run();
+
+    assert_eq!(th_a, th_b, "pkt_type_and_hops diverged");
+    assert_eq!(sr_a, sr_b, "pkt_source_region diverged");
+    assert_eq!(st_a, st_b, "pkt_source_turn diverged");
+    assert_eq!(int_a, int_b, "pkt_intensity diverged");
+}
+
+#[test]
+fn test_propagation_independent_of_rel_slot_order() {
+    let seed = [99u8; 32];
+
+    let run = |first_bond: u8, second_bond: u8| {
+        let mut pool = AgentPool::new(10);
+        let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+        let b_id = pool.ids[b];
+
+        admit_packet(&mut pool, a, &PacketCandidate {
+            info_type: 1, source_region: 0, source_turn: 5, intensity: 200, hop_count: 0,
+        });
+
+        set_bond(&mut pool, a, b_id, first_bond, 100);
+        set_bond(&mut pool, a, b_id, second_bond, 100);
+
+        let lookup: std::collections::HashMap<u32, usize> =
+            vec![(pool.ids[a], a), (pool.ids[b], b)].into_iter().collect();
+
+        let (buffer, transmitted, _, _, _) = propagate_packets(&pool, &[a, b], &seed, 6, &lookup);
+        (transmitted, buffer.len())
+    };
+
+    let (t1, b1) = run(5, 6); // Kin first, Friend second
+    let (t2, b2) = run(6, 5); // Friend first, Kin second
+    assert_eq!(t1, t2, "transmitted count should be independent of slot order");
+    assert_eq!(b1, b2, "buffer size should be independent of slot order");
+}
