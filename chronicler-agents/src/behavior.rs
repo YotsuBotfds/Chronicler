@@ -185,20 +185,20 @@ fn best_migration_target_for_agent(
             adj_score += RIVER_MIGRATION_BONUS;
         }
 
-            // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
-            // Baseline includes ALL existing modifiers (region score, polity, river).
-            if adj_score > baseline_best_adj_score {
-                baseline_best_adj_score = adj_score;
-                baseline_best_adj_id = adj as u16;
-            }
+        // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
+        // Baseline includes ALL existing modifiers (region score, polity, river).
+        if adj_score > baseline_best_adj_score {
+            baseline_best_adj_score = adj_score;
+            baseline_best_adj_id = adj as u16;
+        }
 
-            // M59b: Apply threat penalty from held packets (adjacent only, own-region excluded)
-            let threat_strength = crate::knowledge::strongest_threat_for_region(
-                pool, slot, adj as u16, region_id as u16,
-            );
-            if threat_strength > 0.0 {
-                adj_score -= MAX_THREAT_PENALTY * threat_strength;
-            }
+        // M59b: Apply threat penalty from held packets (adjacent only, own-region excluded)
+        let threat_strength = crate::knowledge::strongest_threat_for_region(
+            pool, slot, adj as u16, region_id as u16,
+        );
+        if threat_strength > 0.0 {
+            adj_score -= MAX_THREAT_PENALTY * threat_strength;
+        }
 
         if adj_score > best_adj_score {
             best_adj_score = adj_score;
