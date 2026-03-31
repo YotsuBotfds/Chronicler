@@ -801,16 +801,32 @@ fn best_migration_target_for_agent(
 ) -> (u16, f32, bool) {
 ```
 
-Inside the function, after computing `adj_score` (at ~line 177-178), before the `if adj_score > best_adj_score` comparison, add threat penalty application:
+Inside the function, the threat penalty must be applied **after all existing migration modifiers** (region score, polity alignment, river bonus) but **before the best-target comparison**. The ordering within the adjacency loop body is:
+
+1. `migration_region_score` + `polity_alignment_score` (existing)
+2. `RIVER_MIGRATION_BONUS` (existing, at ~line 179-181)
+3. **Baseline tracking** (new — captures the fully-modified score before threat penalty)
+4. **Threat penalty** (new — only modifier applied after baseline)
+5. Best-target comparison (existing, at ~line 182-185)
+
+Concretely, after the existing river bonus block:
 
 ```rust
-        let adj_score = migration_region_score(&regions[adj], adj_mean, adj_pop)
-            + polity_alignment_score(&regions[region_id], &regions[adj], civ);
+            if regions[region_id].river_mask & regions[adj].river_mask != 0 {
+                adj_score += RIVER_MIGRATION_BONUS;
+            }
 ```
 
-After this, add:
+Add:
 
 ```rust
+            // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
+            // Baseline includes ALL existing modifiers (region score, polity, river).
+            if adj_score > baseline_best_adj_score {
+                baseline_best_adj_score = adj_score;
+                baseline_best_adj_id = adj as u16;
+            }
+
             // M59b: Apply threat penalty from held packets (adjacent only, own-region excluded)
             let threat_strength = crate::knowledge::strongest_threat_for_region(
                 pool, slot, adj as u16, region_id as u16,
@@ -820,29 +836,14 @@ After this, add:
             }
 ```
 
-Note: `adj_score` must be declared `let mut adj_score` for this to work. Change the existing line from `let adj_score` (or `let mut adj_score` if already mutable) accordingly.
+Note: `adj_score` is already `let mut adj_score` (the river bonus mutates it).
 
-Then, track baseline and post-penalty best targets. Replace the current best-tracking and return logic:
-
-At the start of the function (after `let mut best_adj_id = region_id as u16;`), add:
+At the start of the function (after `let mut best_adj_id = region_id as u16;`), add the baseline trackers:
 
 ```rust
     let mut baseline_best_adj_id = region_id as u16;
     let mut baseline_best_adj_score = own_score;
 ```
-
-In the adjacency loop, before applying threat penalty, track the baseline:
-
-```rust
-            // M59b: Track baseline (pre-penalty) best for diagnostic comparison
-            let pre_penalty_score = adj_score; // before threat penalty
-            if pre_penalty_score > baseline_best_adj_score {
-                baseline_best_adj_score = pre_penalty_score;
-                baseline_best_adj_id = adj as u16;
-            }
-```
-
-Then apply the threat penalty after the baseline tracking.
 
 At the return, compute the changed flag:
 
@@ -1113,7 +1114,20 @@ fn test_own_region_threat_not_applied() {
 fn test_non_adjacent_threat_not_applied() {
     let (mut pool, regions) = setup_migration_world();
 
-    // Threat for region 99 (not adjacent to region 0) — should not change behavior
+    use chronicler_agents::behavior::{compute_region_stats, evaluate_region_decisions};
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+    let signals = peaceful_signals(3);
+    let stats = compute_region_stats(&pool, &regions, &signals);
+    let id_to_slot = std::collections::HashMap::from([(pool.ids[0], 0usize)]);
+
+    // Baseline: run decisions with no threat packets
+    let mut rng_base = ChaCha8Rng::from_seed([0u8; 32]);
+    let (pending_base, threat_base) = evaluate_region_decisions(
+        &pool, &[0], &regions, &regions[0], &stats, 0, &mut rng_base, &id_to_slot,
+    );
+
+    // Now add a threat for region 99 (not adjacent to region 0)
     admit_packet(&mut pool, 0, &PacketCandidate {
         info_type: InfoType::ThreatWarning as u8,
         source_region: 99,
@@ -1122,20 +1136,20 @@ fn test_non_adjacent_threat_not_applied() {
         hop_count: 0,
     });
 
-    // Run the full decision path and verify the threat counter is 0
-    use chronicler_agents::behavior::{compute_region_stats, evaluate_region_decisions};
-    let signals = peaceful_signals(3);
-    let stats = compute_region_stats(&pool, &regions, &signals);
-
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha8Rng;
-    let id_to_slot = std::collections::HashMap::from([(pool.ids[0], 0usize)]);
-    let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
-    let (_, threat_count) = evaluate_region_decisions(
-        &pool, &[0], &regions, &regions[0], &stats, 0, &mut rng, &id_to_slot,
+    // Re-run with same seed — decisions must be identical
+    let mut rng_test = ChaCha8Rng::from_seed([0u8; 32]);
+    let (pending_test, threat_test) = evaluate_region_decisions(
+        &pool, &[0], &regions, &regions[0], &stats, 0, &mut rng_test, &id_to_slot,
     );
 
-    assert_eq!(threat_count, 0, "Non-adjacent threat must not change migration target");
+    assert_eq!(threat_test, 0, "Non-adjacent threat must not change migration target");
+    assert_eq!(threat_base, threat_test, "Threat counter unchanged");
+    assert_eq!(pending_base.migrations.len(), pending_test.migrations.len(),
+        "Same number of migrations");
+    if !pending_base.migrations.is_empty() {
+        assert_eq!(pending_base.migrations[0].2, pending_test.migrations[0].2,
+            "Migration target must be identical with or without non-adjacent threat");
+    }
 }
 
 #[test]
