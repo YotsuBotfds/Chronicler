@@ -48,7 +48,11 @@ Let agents act on propagated information. Merchants plan routes from learned tra
 
 **1. Local trade observation**
 
-Broaden merchant direct observation: idle or loading merchants (`trip_phase` = `TRIP_PHASE_IDLE` or `TRIP_PHASE_LOADING`) refresh a `trade_opportunity` packet from their current region's live truth (Rust-local `RegionState`), using the existing trade threshold from `knowledge.rs`. In-transit merchants (`TRIP_PHASE_TRANSIT`) do **not** observe local trade at intermediate hops. This supplements (does not replace) the existing arrival-based refresh from M59a. Merchant-only — no other occupation produces local trade packets.
+Broaden merchant direct observation: idle or loading merchants (`trip_phase` = `TRIP_PHASE_IDLE` or `TRIP_PHASE_LOADING`) refresh a `trade_opportunity` packet from their current region's live truth (Rust-local `RegionState`), using the existing trade threshold from `knowledge.rs`. In-transit merchants (`TRIP_PHASE_TRANSIT`) do **not** observe local trade at intermediate hops.
+
+**Arrival deduplication:** A merchant that arrived this turn (`arrived_this_turn` set) already produces a trade packet via the existing M59a arrival-based path. Local trade observation must skip merchants with `arrived_this_turn` set to avoid a duplicate admission attempt on the same region, which would be dropped by the admission dedup rules and create misleading `packets_dropped` noise. Result: exactly one trade-observation admission attempt per merchant per source region per turn.
+
+This supplements (does not replace) the existing arrival-based refresh from M59a. Merchant-only — no other occupation produces local trade packets.
 
 **2. Packet-gated destination selection**
 
