@@ -130,7 +130,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
-    let knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
+    let mut knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
@@ -219,7 +219,7 @@ pub fn tick_agents(
             })
             .collect()
     };
-    let _migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
+    let migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
     let pending_decisions: Vec<_> = pending_decisions_with_threat
         .into_iter().map(|(pd, _)| pd).collect();
 
@@ -924,6 +924,12 @@ pub fn tick_agents(
     formation_stats.same_civ_marriages = marriage_stats.same_civ_marriages;
     formation_stats.cross_faith_marriages = marriage_stats.cross_faith_marriages;
     formation_stats.same_faith_marriages = marriage_stats.same_faith_marriages;
+
+    // M59b: Merge consumer counters into knowledge_stats
+    knowledge_stats.merchant_plans_packet_driven = merchant_stats.plans_packet_driven;
+    knowledge_stats.merchant_plans_bootstrap = merchant_stats.plans_bootstrap;
+    knowledge_stats.merchant_no_usable_packets = merchant_stats.no_usable_packets;
+    knowledge_stats.migration_choices_changed_by_threat = migration_threat_changed;
 
     (events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats)
 }

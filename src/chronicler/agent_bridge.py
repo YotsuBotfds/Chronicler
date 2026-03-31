@@ -895,6 +895,10 @@ class AgentBridge:
                 "agents_with_packets",
                 "max_age",
                 "max_hops",
+                "merchant_plans_packet_driven",
+                "merchant_plans_bootstrap",
+                "merchant_no_usable_packets",
+                "migration_choices_changed_by_threat",
             }
             normalized_k_stats = {}
             for key, value in k_stats.items():

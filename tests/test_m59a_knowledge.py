@@ -155,3 +155,32 @@ def test_hybrid_determinism_with_knowledge_stats(tmp_path):
     assert "transmitted_by_type" in k0[0], "bundle knowledge_stats should include transmitted_by_type"
     assert "created_threat" not in k0[0], "per-type counters should be nested in created_by_type"
     assert "transmitted_threat" not in k0[0], "per-type counters should be nested in transmitted_by_type"
+
+
+def test_m59b_consumer_counters_in_knowledge_stats():
+    """Verify M59b consumer counters are present in knowledge_stats."""
+    from chronicler.analytics import extract_knowledge_stats
+
+    bundles = [{
+        "metadata": {
+            "seed": 42,
+            "knowledge_stats": [
+                {
+                    "packets_created": 5,
+                    "live_packet_count": 3,
+                    "created_by_type": {"threat": 4, "trade": 1, "religious": 0},
+                    "transmitted_by_type": {"threat": 2, "trade": 0, "religious": 1},
+                    "merchant_plans_packet_driven": 3,
+                    "merchant_plans_bootstrap": 1,
+                    "merchant_no_usable_packets": 1,
+                    "migration_choices_changed_by_threat": 2,
+                },
+            ],
+        }
+    }]
+    result = extract_knowledge_stats(bundles)
+    turn_data = result["by_seed"][42][0]
+    assert turn_data["merchant_plans_packet_driven"] == 3
+    assert turn_data["merchant_plans_bootstrap"] == 1
+    assert turn_data["merchant_no_usable_packets"] == 1
+    assert turn_data["migration_choices_changed_by_threat"] == 2

@@ -4098,6 +4098,11 @@ impl AgentSimulator {
         stats.insert("max_age".into(), self.knowledge_stats.max_age as f64);
         stats.insert("mean_hops".into(), self.knowledge_stats.mean_hops as f64);
         stats.insert("max_hops".into(), self.knowledge_stats.max_hops as f64);
+        // M59b: Consumer counters
+        stats.insert("merchant_plans_packet_driven".into(), self.knowledge_stats.merchant_plans_packet_driven as f64);
+        stats.insert("merchant_plans_bootstrap".into(), self.knowledge_stats.merchant_plans_bootstrap as f64);
+        stats.insert("merchant_no_usable_packets".into(), self.knowledge_stats.merchant_no_usable_packets as f64);
+        stats.insert("migration_choices_changed_by_threat".into(), self.knowledge_stats.migration_choices_changed_by_threat as f64);
         Ok(stats)
     }
 
