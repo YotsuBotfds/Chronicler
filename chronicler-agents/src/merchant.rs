@@ -205,6 +205,10 @@ pub struct MerchantTripStats {
     pub unwind_count: u32,
     pub stalled_trip_count: u32,
     pub overcommit_count: u32,
+    // M59b: Packet-driven planning counters
+    pub plans_packet_driven: u32,
+    pub plans_bootstrap: u32,
+    pub no_usable_packets: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +429,118 @@ pub fn evaluate_route(
         path,
         path_len,
     })
+}
+
+/// M59b: Packet-gated route evaluation. When usable nonlocal trade packets
+/// exist (after reachability filtering), only packet-known destinations are
+/// candidates. Falls back to oracle (evaluate_route) when usable set is empty.
+///
+/// Returns (Option<TripIntent>, had_usable_packets: bool).
+/// Counter increments happen in merchant_mobility_phase AFTER apply_trip_intent
+/// succeeds, not here — "successful plan" means surviving reservation.
+pub fn evaluate_route_packet_aware(
+    agent_slot: usize,
+    agent_id: u32,
+    origin_region: u16,
+    pool: &AgentPool,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+) -> (Option<TripIntent>, bool) {
+    let origin = origin_region as usize;
+    if origin >= regions.len() {
+        return (None, false);
+    }
+
+    // Collect usable nonlocal trade packets
+    let raw_packets = crate::knowledge::usable_trade_packets(pool, agent_slot, origin_region);
+
+    // Reachability filter: only keep packets whose source_region is reachable
+    let reachable_packets: Vec<(u16, f32)> = raw_packets
+        .into_iter()
+        .filter(|&(src_region, _)| {
+            let idx = src_region as usize;
+            idx < path_table.dist.len()
+                && path_table.dist[idx] != 0
+                && path_table.dist[idx] != u16::MAX
+        })
+        .collect();
+
+    if reachable_packets.is_empty() {
+        // Bootstrap fallback: no usable packets, use oracle planner
+        let intent = evaluate_route(
+            agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf,
+        );
+        return (intent, false); // false = no usable packets
+    }
+
+    // Packet-gated planning: score only packet-known destinations
+    let origin_margin = regions[origin].merchant_route_margin;
+    let mut best_dest: Option<u16> = None;
+    let mut best_score: f32 = MIN_TRIP_PROFIT;
+    let mut best_dest_id_tiebreak: (u16, u32) = (u16::MAX, u32::MAX);
+
+    for &(src_region, packet_strength) in &reachable_packets {
+        let score = origin_margin + packet_strength;
+        let tiebreak = (src_region, agent_id);
+        if score > best_score || (score == best_score && tiebreak < best_dest_id_tiebreak) {
+            best_score = score;
+            best_dest = Some(src_region);
+            best_dest_id_tiebreak = tiebreak;
+        }
+    }
+
+    let dest = match best_dest {
+        Some(d) => d,
+        None => {
+            // All packet-gated destinations below MIN_TRIP_PROFIT.
+            // Do NOT fall back to oracle — anti-omniscience rule.
+            return (None, true);
+        }
+    };
+
+    // Find best good slot with available cargo (same logic as evaluate_route)
+    let mut best_slot: Option<u8> = None;
+    let mut best_avail: f32 = 0.0;
+    for slot in 0..8u8 {
+        let overcommitted = match delivery_buf {
+            Some(buf) => ledger.is_overcommitted_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
+            None => ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile),
+        };
+        if overcommitted {
+            continue;
+        }
+        let avail = match delivery_buf {
+            Some(buf) => ledger.available_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
+            None => ledger.available(origin, slot as usize, &regions[origin].stockpile),
+        };
+        if avail > best_avail || (avail == best_avail && best_slot.is_none_or(|s| slot < s)) {
+            best_avail = avail;
+            best_slot = Some(slot);
+        }
+    }
+
+    let good_slot = match best_slot.filter(|_| best_avail > 0.0) {
+        Some(g) => g,
+        None => return (None, true),
+    };
+    let cargo_qty = best_avail.min(MERCHANT_CARGO_CAP);
+
+    let (path, path_len) = match trace_path(path_table, origin_region, dest) {
+        Some(p) => p,
+        None => return (None, true),
+    };
+
+    (Some(TripIntent {
+        agent_slot,
+        origin_region,
+        dest_region: dest,
+        good_slot,
+        cargo_qty,
+        path,
+        path_len,
+    }), true) // true = had usable packets
 }
 
 /// Apply a trip intent to the pool and shadow ledger.
@@ -679,20 +795,35 @@ pub fn merchant_mobility_phase(
     }
 
     // Phase f-g: Route evaluation for idle merchants + cargo reservation
+    // M59b: Use packet-aware route evaluation (packet-gated with bootstrap fallback)
     let mut origin_tables: std::collections::HashMap<u16, PathTable> = std::collections::HashMap::new();
-    let mut intents: Vec<TripIntent> = Vec::new();
+    let mut intents: Vec<(TripIntent, bool)> = Vec::new(); // (intent, had_usable_packets)
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE { continue; }
         if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
         let origin = pool.regions[slot];
         let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
-        if let Some(intent) = evaluate_route(slot, pool.ids[slot], origin, regions, table, ledger, delivery_buf.as_deref()) {
-            intents.push(intent);
+        let (intent, had_packets) = evaluate_route_packet_aware(
+            slot, pool.ids[slot], origin, pool, regions, table, ledger,
+            delivery_buf.as_deref(),
+        );
+        if !had_packets {
+            stats.no_usable_packets += 1;
+        }
+        if let Some(i) = intent {
+            intents.push((i, had_packets));
         }
     }
-    intents.sort_by_key(|i| (i.origin_region, pool.ids[i.agent_slot]));
-    for intent in &intents {
-        apply_trip_intent(intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref());
+    intents.sort_by_key(|(i, _)| (i.origin_region, pool.ids[i.agent_slot]));
+    for (intent, had_packets) in &intents {
+        let applied = apply_trip_intent(intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref());
+        if applied {
+            if *had_packets {
+                stats.plans_packet_driven += 1;
+            } else {
+                stats.plans_bootstrap += 1;
+            }
+        }
     }
 
     // Phase h: Collect final diagnostics
@@ -897,6 +1028,7 @@ mod tests {
             .map(|i| {
                 let mut r = crate::region::RegionState::new(i as u16);
                 r.merchant_margin = 0.3;
+                r.merchant_route_margin = 0.3;
                 r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
                 r
             })
@@ -927,7 +1059,9 @@ mod tests {
     fn test_evaluate_route_no_profitable_route() {
         let mut regions = make_test_regions(2);
         regions[0].merchant_margin = 0.0;
+        regions[0].merchant_route_margin = 0.0;
         regions[1].merchant_margin = 0.0;
+        regions[1].merchant_route_margin = 0.0;
         let graph = RouteGraph::from_edges(
             &[0, 1],
             &[1, 0],
@@ -945,7 +1079,9 @@ mod tests {
     fn test_deterministic_tiebreak_by_region_then_agent() {
         let mut regions = make_test_regions(3);
         regions[1].merchant_margin = 0.5;
+        regions[1].merchant_route_margin = 0.5;
         regions[2].merchant_margin = 0.5;
+        regions[2].merchant_route_margin = 0.5;
         let graph = RouteGraph::from_edges(
             &[0, 0, 1, 2],
             &[1, 2, 0, 0],

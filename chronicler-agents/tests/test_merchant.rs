@@ -2,8 +2,11 @@
 //! Tests multi-turn travel, route disruption unwind, and default stats.
 
 use chronicler_agents::merchant::{
-    bfs_from, evaluate_route, merchant_mobility_phase, DeliveryBuffer, MerchantTripStats,
-    RouteGraph, ShadowLedger,
+    bfs_from, evaluate_route, evaluate_route_packet_aware, merchant_mobility_phase,
+    DeliveryBuffer, MerchantTripStats, RouteGraph, ShadowLedger,
+};
+use chronicler_agents::knowledge::{
+    admit_packet, PacketCandidate, InfoType,
 };
 use chronicler_agents::{AgentPool, Occupation, RegionState};
 
@@ -821,4 +824,149 @@ fn test_transit_decay_by_region_none_in_abstract() {
         output.transit_decay_by_region.is_none(),
         "transit_decay_by_region should be None in abstract mode"
     );
+}
+
+// ---------------------------------------------------------------------------
+// M59b: Packet-gated merchant route evaluation tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_packet_gated_routing_uses_packet_destinations() {
+    let (mut pool, regions, graph) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+
+    admit_packet(&mut pool, 0, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 1,
+    });
+
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+
+    assert!(intent.is_some(), "Should find a route");
+    assert!(had_packets, "Should report had usable packets");
+    let intent = intent.unwrap();
+    assert_eq!(intent.dest_region, 2, "Should route to packet-known region 2, not oracle-best region 3");
+}
+
+#[test]
+fn test_bootstrap_when_no_usable_packets() {
+    let (pool, regions, graph) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+
+    assert!(intent.is_some(), "Bootstrap should find oracle route");
+    assert!(!had_packets, "Should report no usable packets");
+    let intent = intent.unwrap();
+    assert_eq!(intent.dest_region, 3, "Bootstrap oracle should pick region 3 (highest margin)");
+}
+
+#[test]
+fn test_anti_omniscience_no_fallback_when_packets_exist_but_unprofitable() {
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+
+    regions[0].merchant_route_margin = 0.0;
+
+    admit_packet(&mut pool, 0, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 1,
+        source_turn: 5,
+        intensity: 1,
+        hop_count: 3,
+    });
+
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+
+    assert!(intent.is_none(), "Must NOT fall back to oracle when usable packets exist but are unprofitable");
+    assert!(had_packets, "Had packets but they were unprofitable");
+}
+
+#[test]
+fn test_bootstrap_when_packet_destination_unreachable() {
+    let (mut pool, regions, graph) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+
+    admit_packet(&mut pool, 0, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 99,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 1,
+    });
+
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+
+    assert!(intent.is_some());
+    assert!(!had_packets, "Unreachable packets don't count as usable");
+    assert_eq!(intent.unwrap().dest_region, 3, "Should fall back to oracle");
+}
+
+#[test]
+fn test_counter_increments_after_successful_apply() {
+    let (mut pool, regions, graph) = setup_linear_world();
+    let mut ledger = ShadowLedger::new(4);
+
+    admit_packet(&mut pool, 0, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 1,
+    });
+
+    let stats = merchant_mobility_phase(
+        &mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None,
+    );
+
+    assert_eq!(stats.plans_packet_driven, 1, "Counter increments after successful apply");
+    assert_eq!(stats.plans_bootstrap, 0, "packet_driven and bootstrap are mutually exclusive");
+}
+
+#[test]
+fn test_no_usable_packets_increments_even_when_bootstrap_fails() {
+    let mut pool = AgentPool::new(10);
+    pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let mut regions: Vec<RegionState> = (0..4)
+        .map(|i| {
+            let mut r = RegionState::new(i);
+            r.stockpile = [0.0; 8];
+            r.controller_civ = 0;
+            r
+        })
+        .collect();
+    regions[0].merchant_route_margin = 0.1;
+    regions[3].merchant_route_margin = 0.8;
+
+    let graph = RouteGraph::from_edges(
+        &[0, 1, 1, 2, 2, 3],
+        &[1, 0, 2, 1, 3, 2],
+        &[false; 6],
+        &[1.0; 6],
+        4,
+    );
+    let mut ledger = ShadowLedger::new(4);
+
+    let stats = merchant_mobility_phase(
+        &mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None,
+    );
+
+    assert_eq!(stats.no_usable_packets, 1, "Should still count the empty packet set");
+    assert_eq!(stats.plans_bootstrap, 0, "No successful plan when apply fails");
 }
