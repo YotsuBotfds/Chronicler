@@ -908,3 +908,22 @@ def test_black_market_checks_all_regions():
         f"Expected treasury {expected} (self-trade +{self_trade_delta}, "
         f"black market +{black_market_delta}), got {civ_a.treasury}"
     )
+
+
+def test_conquest_conversion_clears_each_turn_off_mode(make_world):
+    """M-AF1 #14: conquest_conversion_active must clear each turn regardless of mode."""
+    world = make_world(2)
+    world.agent_mode = "off"
+    # Manually set the flag on a region
+    world.regions[0].conquest_conversion_active = True
+
+    # Run one turn in off-mode
+    run_turn(
+        world,
+        action_selector=lambda c, w: ActionType.DEVELOP,
+        narrator=lambda *a, **kw: "narration",
+        seed=42,
+    )
+
+    assert not getattr(world.regions[0], 'conquest_conversion_active', False), \
+        "conquest_conversion_active should be cleared after turn in off-mode"

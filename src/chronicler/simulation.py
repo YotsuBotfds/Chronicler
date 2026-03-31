@@ -1453,6 +1453,10 @@ def run_turn(
 
     prune_inactive_wars(world)
 
+    # M-AF1 #14: Clear transient conquest conversion flags unconditionally
+    for r in world.regions:
+        r.conquest_conversion_active = False
+
     # Phase 1: Environment
     turn_events.extend(phase_environment(world, seed=seed, acc=acc))
 
