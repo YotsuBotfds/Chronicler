@@ -30,12 +30,21 @@ This draft is intentionally pre-M61b: it locks shape and compatibility rules, no
 - Versioning and compatibility policy
 - Loader diagnostics contract
 - Contract-test fixture matrix
+- Tauri shell scaffold with IPC command surface placeholder for manifest open / summary load / layer query
+- Legacy single-artifact adapter export and browser-loader smoke path
 
 ### Out of scope (M62a)
 
 - Final chunk-size tuning and LOD thresholds (M62b)
 - Final panel payload wiring (M62c)
 - View-layer UX polish
+- Detail-layer format choice (Arrow IPC is the likely path but deferred until M61b fixtures confirm it)
+
+### Execution alignment with the Phase 7.5 roadmap
+
+- The Tauri shell work in M62a is intentionally shallow: it proves the local-host boundary, app boot path, and placeholder IPC surface. It is not the full Rust query/data plane, which belongs to M62b.
+- The browser fallback remains intentionally narrow in Phase 7.5: live mode plus legacy single-artifact bundle viewing. Full layered Bundle v2 browsing is not required outside Tauri.
+- Detail-layer encoding remains open until accepted M61b fixtures confirm the right tradeoff. M62a locks the manifest/layer contract, not the final binary payload choice.
 
 ---
 
@@ -195,6 +204,12 @@ M62a merge gate should include fixture-driven tests for:
    - unknown layer kind
    - malformed manifest
    - schema-version mismatch
+7. Legacy single-artifact adapter smoke:
+   - adapter export produces a valid single-artifact bundle
+   - browser loader can open the adapter output
+8. Tauri shell scaffold smoke:
+   - shell boots against the existing Vite/React app
+   - placeholder manifest open / summary load / layer query commands are invokable against fixture data
 
 ---
 
@@ -204,6 +219,7 @@ M62a merge gate should include fixture-driven tests for:
 2. Final layer split boundaries for high-cardinality detail payloads.
 3. Required-vs-optional designation for each Phase 7 export surface from accepted fixtures.
 4. Hard thresholds for chunk sizing and prefetch hints (M62b handoff input).
+5. Final query granularity and cache/index strategy for the Rust/Tauri data plane (M62b handoff input).
 
 ---
 
@@ -212,4 +228,5 @@ M62a merge gate should include fixture-driven tests for:
 1. Manifest-first contract shape and terminology lock.
 2. Stable-ID policy and namespace reservation baseline.
 3. Typed diagnostics vocabulary for loader behavior.
-4. Fixture/test matrix outline for M62a merge gate.
+4. Fixture/test matrix outline for M62a merge gate, including browser fallback smoke.
+5. M62a scope alignment with the roadmap: contract/test work plus shallow Tauri shell scaffold, while the full Rust query plane stays in M62b.

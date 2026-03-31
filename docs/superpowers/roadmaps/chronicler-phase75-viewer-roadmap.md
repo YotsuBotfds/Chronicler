@@ -1,40 +1,128 @@
-# Chronicler Phase 7.5 - Viewer & Bundle Compatibility
+# Chronicler Phase 7.5 - Viewer and Bundle Compatibility
 
-> **Status:** Draft (Dormant until M61b freeze gate is green)
+> **Status:** Draft (dormant until the M61b freeze gate is green)
 >
-> **Phase 7 prerequisite:** M61b lands and freezes the core simulation outputs for Phase 7.
+> **Last planning refresh:** 2026-03-30
 >
-> **Extracted from:** `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md` during the 2026-03-20 viability revision, to keep the main Phase 7 roadmap focused on simulation milestones through M61b.
+> **Phase 7 prerequisite:** M61b lands and freezes the core Phase 7 export surfaces.
 >
-> **Structural principle:** Stable export contracts before rich panels. The viewer should target durable simulation outputs, not chase a moving schema while Phase 7 systems are still settling.
+> **Extracted from:** `docs/superpowers/roadmaps/chronicler-phase7-roadmap.md` during the 2026-03-20 viability revision, then refreshed on 2026-03-30 with explicit implementation guidance.
 >
-> **Current state:** `viewer/` is deprecated for net-new feature work. Only break/fix maintenance is in scope until this roadmap is reactivated.
+> **Structural principle:** Stable export contracts before rich panels. Phase 7.5 is a data-contract and rendering-architecture project first, and a UI polish project second.
 >
-> **When to pick this back up:** Once M61b is complete, use this document as the working roadmap for viewer implementation and refinement.
+> **Current state:** `viewer/` remains break/fix only until this roadmap is reactivated.
 
 ## Why Phase 7.5 Exists
 
-Core Phase 7 is now explicitly the simulation program: memory, needs, relationships, space, settlements, trade, information, campaigns, and the scale/determinism validation needed to trust them. Viewer work is different in kind. It is not just presentation polish. It is a data-contract and rendering-architecture problem.
+Core Phase 7 is the simulation program: memory, needs, relationships, space, settlements, trade, information, campaigns, and the scale/determinism validation needed to trust them. Viewer work is different in kind. The current viewer can inspect legacy bundle outputs, but the next wave of requirements changes the problem:
 
-The current viewer can load and inspect bundle outputs, but the next wave of requirements changes the problem:
-
-- large Phase 7 bundles rather than relatively small snapshots,
-- agent-level or settlement-level drill-down rather than only aggregate summaries,
-- stable IDs and schema layering so future phases do not require another viewer rewrite,
-- and deferred Phase 3-6 viewer backlog that still needs a proper home.
+- Phase 7 bundles are larger and more layered than the current single-file snapshots.
+- Inspection needs shift from civ summaries to settlement-, character-, route-, and campaign-level drill-down.
+- Stable IDs and schema layering are needed so future phases can attach new panels and overlays without another rewrite.
+- Deferred Phase 3-6 viewer backlog still needs a home, but should land only after the data plane is stable.
 
 Separating Phase 7.5 creates a clean handoff:
 
 - **Phase 7** proves the simulation and freezes the export contract.
-- **Phase 7.5** designs and builds the long-lived viewer/data plane against that stable target.
+- **Phase 7.5** builds the long-lived viewer/data plane against that stable target.
+
+## Planning Lock (2026-03-30)
+
+The sections below capture the current implementation recommendation. This is not a "begin coding now" instruction; Phase 7.5 is still gated on M61b acceptance. It is the planning default that future agents should use once the gate opens.
+
+### Canonical product shape
+
+- **Primary client:** Tauri 2 desktop application.
+- **Why:** Phase 7.5 needs native filesystem access, layered bundle loading, and good non-coder ergonomics for local runs. Designing around a browser-only file API adds friction right where the product is weakest.
+- **Packaging stance:** Tauri is the canonical client, not a late wrapper around a browser-first design.
+- **Browser fallback:** keep the browser path for live mode and legacy single-artifact bundle viewing. Full Bundle v2 browsing is not required outside Tauri in Phase 7.5.
+
+### Frontend stack lock
+
+- **Framework:** React 19 + Vite + TypeScript.
+- **Keep:** current live-mode infrastructure, current panel/component investment, and current chart stack where it still fits.
+- **Do not rewrite by default:** Svelte, Solid, Rust-native GUI stacks, and game-engine UIs are out unless Phase 7.5 benchmarking proves a hard blocker.
+
+### Rendering stack lock
+
+- **Map/spatial surface:** PixiJS v8.
+- **Charts/dashboards:** Recharts stays for standard charts and dashboard panels.
+- **Small graph views:** continue using lightweight graph tooling where needed; do not force PixiJS to own every visualization.
+- **Rationale:** the world view is primarily a 2D synthetic-coordinate rendering problem, not a geospatial web-map problem and not a full 3D scene problem.
+
+### Data-plane lock
+
+- **Primary data plane:** Rust-side processing inside the Tauri app.
+- **Rust owns:** filesystem access, manifest parsing, layer discovery, detail-layer parsing and decoding, indexing, cache policy, and query/slice endpoints.
+- **Frontend owns:** viewport state, panel state, map rendering, timeline interaction, chart rendering, and live-mode UX.
+- **Important constraint:** do not parse large bundle layers in the webview and then hand giant blobs to React. The frontend should request small turn/viewport/entity windows from Rust.
+
+### Open measurement gate
+
+- **React vs Solid:** treat this as a benchmark gate, not a planning argument.
+- Build a scrub/overlay benchmark against a representative 500-turn fixture during M62b.
+- If React is within 30 ms of Solid for the critical scrub path, keep React.
+- If React misses the target by more than 50 ms on the critical interaction path, a Solid port becomes a valid M62b rewrite decision.
+- Until that benchmark exists, React remains the default.
+
+## Starting Point on `main`
+
+This is the baseline Phase 7.5 should assume when reactivated:
+
+- `viewer/` is already a React 19 + Vite + TypeScript app.
+- `viewer/` already supports live mode over WebSocket.
+- `viewer/` already has bundle-v2 manifest detection and fixture scaffolding, but layered loading is intentionally inactive.
+- Existing charts/panels are useful salvage, but the map/data plane should be treated as a rewrite surface.
+
+Implication: Phase 7.5 is not a greenfield UI. It is a targeted architecture pivot:
+
+- keep the frontend shell and working live-mode path,
+- replace the map substrate,
+- add a Tauri shell and Rust viewer-core,
+- and migrate bundle loading away from browser-side monolithic parsing.
+
+## Architecture Boundaries
+
+Future agents should preserve this split unless there is a concrete, measured reason to change it.
+
+### Python ownership
+
+- Bundle v2 export contract and stable-ID production
+- Legacy single-artifact adapter export for compatibility
+- Live-mode server and simulation orchestration
+- Fixture generation for viewer testing
+
+### Rust/Tauri ownership
+
+- App shell, installer, and local filesystem access
+- Manifest loading, required/optional layer validation, diagnostics
+- Detail-layer parsing/decoding, indexing, and caching
+- Query-oriented IPC for viewport, turn-window, entity, and overlay requests
+- Optional pre-aggregation for hot viewer paths
+
+### Frontend ownership
+
+- Window/layout/navigation state
+- Timeline scrubber and playback UX
+- PixiJS map scene and overlay toggles
+- Character/civ/settlement/campaign panels
+- Recharts dashboards and supporting controls
+- Live-mode rendering over the existing WebSocket path
+
+### Explicit non-goals for Phase 7.5
+
+- Full browser parity for layered local bundle browsing
+- Native desktop UI rewrite in egui, Qt, SwiftUI, Flutter, etc.
+- Replacing React before benchmark evidence exists
+- Heavy browser-only data infrastructure if the Tauri data plane already solves the problem
 
 ## Milestone Map
 
 | # | Milestone | Depends On | Est. Days | Goal |
 |---|-----------|------------|-----------|------|
-| M62a | Export Contracts & Bundle v2 | M61b | 3-4 | Stable IDs, chunkable bundle structure, summary/detail layers, versioning policy |
-| M62b | Viewer Data Plane & Spatial Foundations | M62a | 4-5 | Chunked/tiled loading, level-of-detail rules, timeline virtualization, spatial foundations |
-| M62c | Entity, Trade & Network Panels | M62b | 4-5 | Rich inspection panels, diagnostics, backlog integration, domain-specific affordances |
+| M62a | Export Contracts and Bundle v2 | M61b | 3-4 | Stable IDs, manifest-first contract, summary/detail split, compatibility policy, Tauri shell + loader skeleton |
+| M62b | Viewer Data Plane and Spatial Foundations | M62a | 4-5 | Query-driven Rust data plane, PixiJS map foundation, timeline virtualization, level-of-detail rules, benchmark gate |
+| M62c | Entity, Trade and Network Panels | M62b | 4-5 | Rich inspection panels, diagnostics, backlog integration, domain-specific affordances |
 
 **Phase 7.5 estimate:** 11-14 days across 3 milestones/sub-milestones.
 
@@ -45,99 +133,173 @@ Phase 7.5 starts only when all conditions below are true:
 - M61b canonical validation run is complete and accepted.
 - Export surfaces needed by M62a are frozen for the current cycle (no pending schema-breaking PRs).
 - At least one full-scale reference bundle from the accepted M61b run is available for fixture-driven viewer work.
-- Ownership is explicitly assigned for Bundle v2 contract, viewer data plane, and panel layer work.
+- Ownership is explicitly assigned for Bundle v2 contract, Rust/Tauri data plane, and panel-layer work.
 
-## Pre-Activation Assets (2026-03-24)
+## Pre-Activation Assets
 
-The following doc-level assets are prepared ahead of M61b so M62a can start quickly once the reactivation gate is green:
+The following assets are partially scaffolded and should be treated as the starting handoff into M62a (see the prep plan checklist for remaining items):
 
 - Bundle v2 contract draft: `docs/superpowers/specs/2026-03-24-m62a-bundle-v2-contract-design.md`
 - M62a pre-activation execution plan/checklist: `docs/superpowers/plans/2026-03-24-m62a-preactivation-prep.md`
-- Dormant implementation notes for typed loader/fixture/test scaffolding exist in local prep work, but that viewer-side code is intentionally not merged to `main` until Phase 7.5 is reactivated.
+- M62b pre-activation execution plan/checklist: `docs/superpowers/plans/2026-03-30-m62b-preactivation-prep.md`
+- Dormant viewer-side manifest fixtures and type scaffolding under `viewer/src/__fixtures__/bundle_v2/` and `viewer/src/lib/bundleV2.ts`
 
-Scope note: this is pre-activation scaffolding only. Phase 7.5 remains dormant until M61b acceptance. On `main`, the checked-in prep is doc-first: contract and activation planning are ready, while loader/fixture code stays deferred until activation.
+Scope note: this is doc-first and scaffold-first preparation only. Net-new Phase 7.5 feature work still waits for M61b acceptance.
 
-## M62a: Export Contracts & Bundle v2
+## What Stays, What Changes, What Is New
 
-**Goal:** Replace the implicit "one giant bundle blob" assumption with a versioned contract designed for long-term compatibility and selective loading.
+| Category | Stays | Changes | New |
+|----------|-------|---------|-----|
+| Shell | - | Browser-only viewer -> Tauri 2 | `src-tauri/` app shell and IPC surface |
+| Framework | React 19 + Vite + TypeScript | - | - |
+| Map | - | Current SVG/d3-force-oriented world view -> PixiJS world surface | PixiJS map foundation and scene model |
+| Charts | Recharts and existing chart patterns | - | Additional metric families for M62c |
+| Panels | Chronicle/event/dashboard investment where still relevant | Panel set grows around Phase 7 systems | New character/settlement/campaign/diagnostic panels |
+| Live mode | Existing WebSocket live connection path | Minimal adaptation only | Tauri host path for local app delivery |
+| Bundle loading | Existing bundle-v2 terminology/types where useful | Browser-side monolithic loader -> Rust/Tauri query layer | Rust manifest parser, diagnostics, cache/index layer |
+| Data processing | - | Browser-side heavy parsing is removed from the primary path | Query-oriented Rust viewer-core |
+
+## Visual Direction From Current Inspiration
+
+The current image set should be treated as moodboard input, not as a locked UI spec. It is still useful because it converges on a recognizable viewer shape and visual language that fits the Phase 7.5 goals.
+
+### Primary visual direction
+
+- **Primary mode:** dark cartographic analytics workspace.
+- **Use case fit:** best match for diagnostics, trade, campaign, knowledge, and multi-overlay inspection.
+- **Core feel:** subdued terrain, restrained metallic accents, bright data overlays, and dense-but-structured inspection panels.
+- **Map status:** the map remains the hero surface. Panels support the map; they do not replace it.
+
+### Secondary visual direction
+
+- **Secondary mode:** lighter parchment/archive presentation.
+- **Use case fit:** static chronicle browsing, presentation screenshots, and an eventual "archive" or "atlas" view.
+- **Scope note:** this is optional polish, not a Phase 7.5 blocker. The primary implementation target remains the dark analytics workspace.
+
+### Layout guidance
+
+The mockups consistently point toward one durable layout:
+
+- **Top rail:** world/run metadata, live/archive state, timeline scrubber, and major event markers.
+- **Left rail:** chronicle surface, grouped/filterable event log, search/filter tools, and mode/layer controls.
+- **Center canvas:** map-first workspace with overlays, route/front/fog rendering, and hover/click inspection affordances.
+- **Right rail:** inspector panel for civ/character/route/army/settlement detail.
+- **Modal/detail sheets:** high-density character or campaign dossiers can open as focused overlays without replacing the main workspace.
+
+This should be treated as the default shell for M62b/M62c unless benchmarking or usability testing gives a concrete reason to deviate.
+
+### Reusable interaction patterns worth carrying forward
+
+- top timeline with era bands, event markers, and causal-link cues
+- explicit civ selection from both map interaction and a persistent selector control
+- inspector cards with small, high-value mini visualizations instead of large dashboard walls
+- map annotation chips for armies, routes, and other active entities
+- fog/awareness rendered as soft regional gradients, not hard binary masks
+- hover preview -> click to pin -> inspect in right rail
+- explicit layer toggles for diagnostics instead of hiding important overlays behind deep menus
+- "actual vs perceived/stale" comparisons as first-class trade and knowledge diagnostics
+- grouped/collapsible event rows so repetitive mechanical events do not swamp the left rail
+
+### Panel design guidance
+
+- Character detail should read like a dossier, not a game-RPG stats page.
+- Campaign and trade views should feel like operational maps with analytical sidebars.
+- Civ and settlement panels should prioritize composition, pressure, and trend summaries over raw field dumps.
+- One panel should not try to show every graph at once; summaries first, deeper drill-down on demand.
+- Right-rail inspectors should prefer tabs or collapsible sections when density climbs past a single-screen overview.
+
+### Narrative and event-log guidance
+
+- The viewer must preserve Chronicler's narrative identity, not just its analytics surface.
+- Chronicle entries, era reflections, and gap summaries need an explicit home in the main shell.
+- The chronicle surface can share the left rail with the event log via tabs, or appear as a toggleable companion panel, but it should not be buried behind secondary navigation.
+- Event logs need first-class filtering by type/entity/civ/turn range and should support grouped summaries for repetitive bursts such as settlement foundings, migrations, or repeated skirmishes.
+- The viewer should make it easy to move between narrative and mechanics: click from chronicle entry to turn, from turn to map, and from map selection back to related chronicle context.
+
+### Map styling guidance
+
+- terrain and borders should be quiet enough that route/front/knowledge overlays remain legible
+- use glow selectively for active flows, fronts, or selected entities; avoid making the whole map neon
+- labels should reveal by zoom and context; do not render every entity name at once
+- region fills, route lines, fog, and diagnostic heatmaps need a shared color grammar so overlays can coexist
+
+### Anti-patterns to avoid
+
+Do not cargo-cult the mockups literally. Several common mockup failures should be avoided on purpose:
+
+- unreadably small microcharts or inspector text
+- too many simultaneous labels, arcs, and glow effects
+- fake "everything visible at once" density that falls apart in real data
+- decorative chrome that competes with the map
+- mode-specific one-off layouts that prevent reuse across trade/campaign/knowledge/character inspection
+
+## M62a: Export Contracts and Bundle v2
+
+**Goal:** Replace the implicit "one giant bundle blob" assumption with a versioned manifest-first contract designed for long-term compatibility and selective loading.
 
 ### Required deliverables
 
 - Stable IDs for agents, named characters, civs, regions, settlements, dynasties, households, routes, armies, artifacts, factions, and faiths
 - Bundle versioning policy with explicit backward-compat expectations
 - Summary-vs-detail layer split
-- Chunkable spatial payload design
-- Manifest shape for multi-part exports if needed
+- Chunkable spatial/detail payload design
+- Manifest shape for multi-part exports
 - Compatibility story for archive/batch workflows that still want a simple artifact
-- Typed timeline/event payload shape that can carry character, civ, settlement, route, and army history without custom schema rewrites
+- Typed timeline/event payloads that can carry character, civ, settlement, route, and army history without custom schema rewrites
 - Generic metric/overlay registry so future phases can add new dashboards and map layers without changing the base loader contract
-- Reserved namespace policy for future Phase 8-9 entities such as institutions, cultural traits, prestige goods, patronage edges, and revolt clusters
+- Tauri shell scaffold with command surface placeholder for manifest open / summary load / layer query
 
-### Bundle v2 direction
-
-Move from a single monolithic export toward a manifest-plus-layers model:
-
-- summary snapshots for archive/batch workflows,
-- chunkable spatial/detail layers for viewer drill-down,
-- stable IDs so later phases can add panels without rewriting the base schema,
-- and generic timeline/metric/network shapes so Phase 8-9 can plug in new systems rather than fork the viewer architecture.
-
-### Future-proofing rules
-
-- Treat entity identity, timelines, metrics, overlays, and networks as first-class contract layers rather than one-off panel payloads.
-- Keep panel composition data-driven where possible so a new entity type can reuse cards, charts, timelines, and edge lists.
-- Prefer typed extension points over opaque blobs: the viewer should know how to load a new overlay or metric family without hardcoding each future milestone.
-
-### Bundle packaging decision (planning lock)
+### Packaging decision (planning lock)
 
 | Option | Backward compatibility | Selective loading | Long-term schema evolution | Complexity | Planning decision |
 |--------|-------------------------|-------------------|----------------------------|------------|-------------------|
 | Monolithic JSON + optional chunks | Strong near-term | Weak-medium | Medium | Lower | Fallback only |
 | Manifest-first (summary + layered detail payloads) | Medium (needs adapter) | Strong | Strong | Medium | **Default** |
 
-**Planning default:** Bundle v2 is manifest-first, with summary/detail layers split into explicit payload families.
+**Planning default:** Bundle v2 is manifest-first, with explicit payload families.
 
-**Compatibility fallback:** Keep a legacy "single artifact" export path as an adapter for archive/batch workflows during migration. The adapter is compatibility glue, not the primary contract.
+**Compatibility fallback:** keep a legacy single-artifact export path as migration glue for archive/batch workflows and browser fallback.
 
-### Bundle contract test suite (M62a merge gate)
+### Contract rules
 
-M62a should land with fixture-driven contract tests, not only ad hoc viewer checks.
+- Treat entity identity, timelines, metrics, overlays, and networks as first-class layers, not one-off panel payloads.
+- Cross-layer joins must use stable IDs only.
+- Reserve namespaces now for likely Phase 8-9 families such as institutions, cultural traits, prestige goods, patronage edges, revolt clusters, and diplomacy belief records.
+- Loader diagnostics must be typed and actionable; missing required layers fail fast.
 
-- Golden fixture bundles for small, medium, and large runs (including one M61b-scale fixture).
-- Schema snapshot tests for manifest, entity IDs, timeline events, metric families, overlays, and network layers.
-- Backward-compat tests: N-1 loader compatibility for additive changes.
-- Determinism tests: same input run exports identical manifest/entity IDs and stable ordering.
-- Negative tests: missing chunk, unknown layer kind, and malformed manifest diagnostics are explicit and actionable.
+### M62a merge gate
 
-**Versioning rule (Bundle v2):**
+- Golden fixture bundles for small, medium, and large runs (including one accepted M61b-scale fixture)
+- Schema snapshot tests for manifest, IDs, timeline events, metric families, overlays, and network layers
+- N-1 compatibility tests for additive changes
+- Determinism checks on manifest/entity-ID stability
+- Negative tests for missing layer, unknown layer kind, malformed manifest, and schema-version mismatch
+- Legacy single-artifact adapter export produces valid output and browser loader can open it (browser fallback smoke test)
 
-- `MAJOR`: incompatible schema change.
-- `MINOR`: additive backward-compatible fields/layers.
-- `PATCH`: doc-only or non-structural clarifications.
-
-## M62b: Viewer Data Plane & Spatial Foundations
+## M62b: Viewer Data Plane and Spatial Foundations
 
 **Goal:** Build the scalable loading/rendering substrate before adding feature-rich panels.
 
 ### Core responsibilities
 
-- Chunked or tiled loading
-- Level-of-detail rules
+- Query-driven Rust data plane inside Tauri
+- Manifest open, summary load, and slice-fetch IPC surface
+- Cache/index policy for hot timeline, entity, and overlay paths
 - Timeline virtualization
-- Spatial map foundations
+- Level-of-detail rules
+- PixiJS world/map foundation
 - Settlement overlays
 - Regional knowledge/fog overlays
 - Settlement precursor and attractor overlays where useful for diagnostics
-- Trade route rendering
-- Army march rendering
+- Trade-route rendering
+- Army-march rendering
 - Asabiya heatmap
 - Frontier/core and influence overlays
-- Data plumbing for large bundles
 - Generic layer toggles for current and future map-backed systems
 
 ### Scope guard
 
-M62b is where the viewer becomes capable of handling Phase 7 scale. It should not get buried under panel polish. If schedule pressure appears, protect the data plane and spatial loading rules first.
+M62b is where the viewer becomes capable of handling Phase 7 scale. If schedule pressure appears, protect the query model, spatial loading rules, and map foundation first. Do not burn this milestone on panel polish.
 
 ### Data-plane performance budgets (draft merge gates)
 
@@ -145,63 +307,80 @@ These are practical budgets for M62b/M62c acceptance on modern desktop hardware:
 
 | Metric | Budget (p95 unless noted) |
 |--------|----------------------------|
-| Manifest parse + summary load | <= 2.0s |
-| First map paint after bundle open | <= 1.0s after summary load |
-| Turn scrub latency (timeline drag) | <= 120ms |
-| Overlay toggle latency | <= 150ms |
-| Entity panel open latency (character/settlement/civ) | <= 200ms |
-| Region-level drilldown (agent/settlement detail fetch) | <= 300ms |
-| Peak browser memory on large fixture | <= 2.5GB |
-| Hard failure threshold | no full-tab freeze > 3s |
+| Manifest parse + summary load | <= 2.0 s |
+| First map paint after bundle open | <= 1.0 s after summary load |
+| Turn scrub latency | <= 120 ms |
+| Overlay toggle latency | <= 150 ms |
+| Entity panel open latency | <= 200 ms |
+| Region-level drilldown fetch | <= 300 ms |
+| Peak webview memory on large fixture | <= 2.5 GB |
+| Hard failure threshold | no freeze > 3 s |
 
-## M62c: Entity, Trade & Network Panels
+### Benchmark gate
+
+M62b should include a targeted benchmark fixture and interaction trace:
+
+- representative 500-turn scrub path
+- representative overlay toggle path
+- representative entity-panel open path
+
+Use this benchmark to confirm whether React stays or whether the Solid fallback becomes worth its migration cost.
+
+## M62c: Entity, Trade and Network Panels
 
 **Goal:** Add the domain-specific inspection tools that make Phase 7 systems understandable to humans.
 
 ### Target panels and affordances
 
+- Chronicle/narrative surface: chronicle entries, era reflections, gap summaries, and jump-to-turn affordances
+- Event log surface: grouped mechanical events, filters, collapse/expand behavior, and jump-to-entity/turn affordances
 - Character detail panel: memory timeline, needs radar, relationship graph
 - Settlement detail panel: founding, growth, infrastructure state, pull factors, and notable residents
 - Civ detail panel: factions, faith/culture composition, wealth/trade diagnostics, asabiya, and dynastic links
-- Dynasty/household affordances: spouse/child links, legacy memory context, succession order, and inter-civ marriage ties
+- Dynasty/household affordances: spouse/child links, legacy-memory context, succession order, and inter-civ marriage ties
 - Artifact display on character and civ panels
-- Mule character indicator with memory-that-warped-them and active window countdown
-- Trade diagnostics: route profitability, stale vs current price views, in-transit goods, and merchant plans
+- Mule indicator with memory-that-warped-them and active-window countdown
+- Trade diagnostics: route profitability, stale-vs-current price views, in-transit goods, and merchant plans
 - Knowledge diagnostics: familiarity, staleness, source channel, and confidence for cross-region information
 - Army/campaign diagnostics: composition, morale, supply, target rationale, march history, and battle outcomes
-- Cohort and social-network affordances: community summaries, strong-tie clusters, and grievance-rich group inspection
+- Cohort/community affordances: strong-tie clusters and grievance-rich group inspection
 
 ### Backlog integration rule
 
-The deferred Phase 3-6 viewer backlog belongs here, after Bundle v2 and the spatial loading/data-plane work exist.
+The deferred Phase 3-6 viewer backlog belongs here, after Bundle v2 and the M62b data plane exist.
+
+### Shell interaction requirements
+
+- Civ selection must be explicit and fast: map click, persistent selector, and turn-synchronized inspector state should all be valid entry points.
+- Region/route/army clicks should update the right rail predictably instead of spawning inconsistent one-off panels.
+- The main shell should support narrative-first and analytics-first workflows without changing the underlying layout model.
 
 ## Phase 7.5 Component Envelope
 
 These are the user-facing capabilities the full Phase 7.5 build should support:
 
-- Spatial agent map (zoomable from region-level to agent-level)
-- Settlement overlay (city boundaries, population, character)
-- Settlement detail panel with founding/growth/infrastructure context
+- Chronicle surface with chronicle entries, era reflections, gap summaries, and turn-linked navigation
+- Grouped/filterable event log that remains usable on long runs with repetitive mechanical output
+- Spatial map with zoom from region-level to settlement-level and, where feasible, agent-detail drill-down
+- Settlement overlay and settlement detail panel
 - Civ detail panel with economy/faction/faith/culture/asabiya summaries
-- Trade route visualization (merchant paths, goods flow)
-- Route and market diagnostics (profitability, stale price beliefs, goods in transit)
-- Army march visualization (troop movement, supply lines)
-- Army/campaign panel (morale, supply, target, battle ledger)
-- Character detail panel: memory timeline, needs radar, relationship graph
-- Dynasty and household explorer (lineage, marriages, succession, diplomatic ties)
+- Trade-route visualization and route/market diagnostics
+- Army-march visualization and campaign panel
+- Character detail panel with memory timeline, needs view, and relationship graph
+- Dynasty and household explorer
 - Artifact display on character and civ panels
-- Mule character indicator (distinctive marker on character panel, memory-that-warped-them displayed, active window countdown)
-- Knowledge/familiarity overlay with freshness or fog semantics
-- Asabiya heatmap overlay (per-region, frontier vs. interior shading)
+- Knowledge/familiarity overlay with freshness/fog semantics
+- Asabiya heatmap overlay
 - Cohort/community inspection for relationship clusters and trauma-bonded groups
-- Validation/diagnostic mode for settlement, trade, and scale-pattern oracles
+- Validation/diagnostic mode for settlement, trade, determinism, and scale-pattern oracles
 
 ## Phase 7 Coverage Checklist
 
-This is the minimum Phase 7 inspection surface the viewer should cover. Not every item needs a bespoke top-level panel, but every system should be inspectable through some combination of panel, overlay, timeline, or diagnostic view.
+This is the minimum inspection surface the viewer should cover. Not every item needs a top-level panel, but every major Phase 7 system must be inspectable through some combination of panel, overlay, timeline, or diagnostic view.
 
 | Phase 7 system | Minimum viewer surface |
 |----------------|------------------------|
+| Chronicle / curator outputs | Chronicle entries, era reflections, gap summaries, and mechanics-to-narrative cross-links |
 | M48 memory | Character memory timeline, source tags, intensity, recency, and legacy-memory marking |
 | M49 needs | Character needs breakdown/radar and "what is driving decisions right now" summary |
 | M50 relationships | Relationship graph, strongest ties, bond type, sentiment drift, and cohort/community summaries |
@@ -212,8 +391,8 @@ This is the minimum Phase 7 inspection surface the viewer should cover. Not ever
 | M57 households and dynastic diplomacy | Household links, marriages, children, dynastic alliances, and inter-civ relationship context |
 | M58 trade logistics and pricing | Route maps, merchant plans, reserved goods, goods in transit, route profit, and stale-vs-current price context |
 | M59 information propagation | Knowledge freshness/familiarity, source channel, confidence/staleness, and regional fog/awareness overlays |
-| M60 campaigns and battle resolution | Army composition, march path, morale, supply, war target rationale, and battle/casualty summaries |
-| M61 validation and pattern oracles | Diagnostic mode for settlement plausibility, trade baseline comparisons, cohort scaling, determinism/perf summaries |
+| M60 campaigns and battle resolution | Army composition, march path, morale, supply, war-target rationale, and battle/casualty summaries |
+| M61 validation and pattern oracles | Diagnostic mode for settlement plausibility, trade baseline comparisons, cohort scaling, and determinism/perf summaries |
 
 ## Deferred Backlog To Fold Into M62c
 
@@ -243,7 +422,7 @@ This is the minimum Phase 7 inspection surface the viewer should cover. Not ever
 | RegionMap | Seasonal indicator (spring/summer/autumn/winter badge) | M34 |
 | RegionMap | River overlay (blue lines connecting river-adjacent regions) | M35 |
 | RegionMap | Disease severity heatmap layer (toggle) | M35 |
-| RegionMap | Trade flow arrows (goods type + volume along routes) | M42-M43 |
+| RegionMap | Trade-flow arrows (goods type + volume along routes) | M42-M43 |
 
 ### Phase 6 society (from dropped M46)
 
@@ -252,7 +431,7 @@ This is the minimum Phase 7 inspection surface the viewer should cover. Not ever
 | CharacterPanel | Personality radar chart (3 axes: boldness, ambition, loyalty) | M33 |
 | CharacterPanel | Character arc timeline (horizontal, key events marked) | M45 |
 | CharacterPanel | Family tree (vertical, max 3 generations) | M39 |
-| CharacterPanel | Social network (d3-force mini-graph, relationships to other named chars) | M40 |
+| CharacterPanel | Social network (mini graph, relationships to other named chars) | M40 |
 | CharacterPanel | Religious identity + faith icon | M37-M38 |
 | RegionMap | Cultural identity overlay (color by dominant cultural values) | M36 |
 | RegionMap | Religious majority overlay (color by dominant faith) | M37 |
@@ -263,20 +442,16 @@ This is the minimum Phase 7 inspection surface the viewer should cover. Not ever
 
 ## Bundle Surface Expected From Phase 7
 
-Bundle v2 should be able to expose at least:
+Bundle v2 should expose at least:
 
-- named characters with personality, dynasty, faith, arc type, relationships, memory, needs, mule flags, utility overrides, and legacy-memory context
+- named characters with personality, dynasty, faith, arc type, relationships, memory, needs, Mule flags, utility overrides, and legacy-memory context
 - civs and regions as stable first-class entities
 - dynasties, households, marriages, and succession-order data
-- agent wealth distribution
 - faction composition and influence data
-- cultural map
-- religious map
-- goods economy
+- cultural and religious map layers
+- wealth distribution and goods economy surfaces
 - trade routes, price-belief bands, and transit/reservation state
-- resource map
-- spatial data
-- settlement data
+- resource, settlement, and spatial surfaces
 - regional knowledge/familiarity/staleness data
 - army, campaign, and battle-summary data
 - regional asabiya
@@ -287,35 +462,46 @@ This is the target contract envelope. Delivery should follow the manifest-first 
 
 ## Phase 8-9 Compatibility Hooks
 
-The Phase 7.5 viewer should not implement Phase 8-9 early, but it should leave clean attachment points for them:
+Phase 7.5 should not implement Phase 8-9 early, but it should leave clean attachment points for them:
 
-- **Entity namespaces:** reserve IDs and manifest sections for institutions, ruler-legitimacy records, cultural traits, prestige goods, patronage edges, revolt clusters, and diplomacy beliefs.
-- **Generic dashboards:** civ/region/entity cards should already support pluggable metric groups so PSI, legitimacy, institutional cost, or trait composition can slot in later.
-- **Generic network substrate:** the same network viewer used for relationships should be able to render patronage, faction, alliance, and revolt-spread edges.
-- **Generic timeline/event ledger:** a shared event model should support institution enactment, ambition completion, trait adoption, embargoes, and revolutionary outbreaks without redesign.
-- **Overlay registry:** map layers should be extensible enough to add institutional reach, cultural trait concentration, prestige-good routes, and revolt heat without replacing the map stack.
-- **Panel composition hooks:** character, settlement, civ, and future institution panels should support optional section injection rather than hardcoded one-off layouts.
+- reserve entity namespaces and manifest sections for institutions, ruler-legitimacy records, cultural traits, prestige goods, patronage edges, revolt clusters, and diplomacy beliefs
+- keep civ/region/entity cards pluggable enough that PSI, legitimacy, institutional cost, or trait composition can slot in later
+- keep the network substrate generic enough to render patronage, faction, alliance, and revolt-spread edges
+- keep the event ledger generic enough to support institution enactment, ambition completion, trait adoption, embargoes, and revolutionary outbreaks without redesign
+- keep the overlay registry extensible enough to add institutional reach, cultural trait concentration, prestige-good routes, and revolt heat without replacing the map stack
+
+## Future Extension (Not Phase 7.5 Scope)
+
+If later phases need both Tauri and browser clients to support rich layered bundle browsing, a shared Rust `viewer-core` compiled to both native and WASM is a valid follow-on direction. That is not an M62a/M62b requirement and should not block the Tauri-first plan.
 
 ## Estimated Implementation Footprint
 
-~7500-10500 lines across TypeScript, schema, and export-plumbing work. The point of Phase 7.5 is to make large-bundle loading and versioned compatibility explicit before agent-level inspection is promised.
+Planning estimate: roughly 7,500-11,500 lines across TypeScript, Rust/Tauri, schema, and export-plumbing work. The point of Phase 7.5 is to make large-bundle loading and versioned compatibility explicit before agent-level inspection is promised.
 
 ## Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Viewer scope balloons because bundle loading remains monolithic | High | Protect M62a and M62b. Stable IDs, Bundle v2, and chunking/LOD decisions come before rich panels. |
+| Viewer scope balloons because bundle loading remains monolithic | High | Protect M62a and M62b. Stable IDs, Bundle v2, Tauri data-plane boundaries, and query slicing come before rich panels. |
 | Backlog UI work crowds out the data plane | High | Defer Phase 3-6 backlog integration to M62c only. |
-| Viewer over-focuses on characters and underexposes civ/settlement/knowledge/campaign diagnostics | High | Use the Phase 7 coverage checklist as a contract. Every major Phase 7 system must have an inspection surface, even if not a bespoke panel. |
+| Rust/Tauri data plane degrades into giant JSON IPC blobs | High | Keep IPC query-oriented. Frontend requests turn/viewport/entity windows, not full detail layers. |
+| Viewer over-focuses on characters and underexposes civ/settlement/knowledge/campaign diagnostics | High | Use the Phase 7 coverage checklist as a contract. Every major Phase 7 system needs an inspection surface. |
 | Schema churn from Phase 8 forces another rewrite | Medium | Stable IDs, manifest/layer split, and versioning policy land in M62a before panel work. |
 | Agent-level rendering promises exceed practical performance | Medium | Use level-of-detail rules and chunked loading; do not require all-agent rendering at all zoom levels. |
+| React overhead becomes the dominant scrub bottleneck | Medium | Run the explicit M62b benchmark gate before considering a framework rewrite. |
 
 ## Iteration Hook
 
-This document is meant to be improved once `M61b` is done and the team is ready to build the viewer. At that point, replace the high-level Bundle v2 direction with a concrete schema and loading plan based on the actual Phase 7 export surfaces that landed.
+This document is meant to be tightened again once M61b is accepted and the team is ready to build the viewer. At that point:
 
-Reactivation trigger for status change from "Dormant" to "Active":
+- replace provisional layer details with the actual accepted export surfaces
+- lock the concrete IPC/query contract for the Rust/Tauri data plane
+- confirm the React benchmark result
+- assign named owners for M62a, M62b, and M62c
 
-- M61b accepted.
-- Bundle fixtures checked in.
-- M62a owner assigned and kickoff date set.
+Reactivation trigger for status change from `Dormant` to `Active`:
+
+- M61b accepted
+- Bundle fixtures checked in
+- M62a owner assigned
+- Kickoff date set

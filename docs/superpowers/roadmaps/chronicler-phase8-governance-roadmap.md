@@ -38,7 +38,7 @@ Phase 8 introduces the structures that sit between individual agents and civiliz
 | M65a | Elite Position Tracking & EMP | M53 (wealth_tick) | 2-3 |
 | M65b | PSI Formula & Secular Cycle | M65a, M64 | 3-4 |
 | M66a | Legitimacy & Political Capital | M39 (dynasty), M53 | 2-3 |
-| M66b | Ruler Ambitions & Event Chains | M66a, M48 (memory) | 2-3 |
+| M66b | Ruler Ambitions & Event Chains | M66a | 2-3 |
 | M67 | Governance Tuning Pass | M63-M66, M61b | 4-6 |
 
 **Core Phase 8 estimate:** 24-34 days across 8 milestones/sub-milestones. No contingency buffer.
@@ -55,6 +55,21 @@ Phase 8 introduces the structures that sit between individual agents and civiliz
 | 2 (post-M63b, pre-M61b) | M64, M65a (parallel start) | Partial |
 | 3 (post-M64 + M65a) | M65b | Sequential |
 | 4 (post-M61b + M65b + M66b) | M67 | Gate (sequential) |
+
+---
+
+## Execution Ownership & Turn Ordering (Pre-Lock)
+
+Phase 8 touches systems that already cross the Python/Rust boundary. Before implementation starts, treat this table as the planning default:
+
+| Surface | Owner | Timing | Rule |
+|---------|-------|--------|------|
+| Phase 10 politics resolution (secession, capital loss, federation, restoration) | Rust politics pass with Python oracle parity | Early Phase 10 | Same-turn Python governance state does **not** retroactively alter this pass. Anything consumed here must be exported as a lagged signal from the prior turn. |
+| Institution proposal / repeal | Python | Late Phase 10, after Rust politics pass and after `tick_factions()` | Enact/repeal effects begin on turn N+1. |
+| Commons modifiers | Python writes per-region state; Rust ecology consumes it | Before Phase 9 ecology tick | Do not mutate global `EcologyConfig` per civ. |
+| Elite metrics and EMP | Python | Late Phase 10 from post-agent snapshot plus GreatPerson overlay | Store civ-level outputs; do not add a per-agent Rust field in v1. |
+| PSI | Python | End of Phase 10 | Export lagged PSI / crisis state to next-turn consumers. |
+| Legitimacy / political capital | Python | Late Phase 10 after institution + ambition resolution | Constrains turn N+1 governance, not same-turn Rust politics. |
 
 ---
 
@@ -116,16 +131,18 @@ Add to `Civilization`:
 institutions: list[InstitutionState] = []  # max 3 active
 ```
 
-**Max 3 active institutions per civ.** Forces tradeoffs — a civ cannot have both MILITARY_ACCLAMATION and REPUBLICAN_VIRTUE, both FREE_TRADE and HOLY_INQUISITION. The constraint creates faction conflict over the scarce institutional slots.
+**Max 3 active institutions per civ.** This creates scarcity, but scarcity alone is not enough to encode ideological conflict. Phase 8 v1 therefore adds an explicit `INSTITUTION_CONFLICTS` lookup (symmetric conflict pairs / regime families) so examples like `REPUBLICAN_VIRTUE` vs `DIVINE_RIGHT` and `FREE_TRADE` vs `HOLY_INQUISITION` are mechanically illegal rather than merely unlikely.
 
 ### Mechanism
 
-**Proposal (Phase 10, after `tick_factions()`):**
-1. Identify dominant faction (influence > 0.35).
-2. Check if an aligned institution is not already active.
-3. Roll proposal against `INSTITUTION_PROPOSAL_PROBABILITY` `[CALIBRATE]`.
-4. Block if opposing faction has influence > 0.30 (Victoria 3 adaptation: angry faction 1.5x stall weight, neutral 0.5x).
-5. If not blocked, enact institution. Set `legitimacy = 1.0`, compute `enforcement_cost` from institution type and civ state.
+**Proposal / repeal resolution (late Phase 10):**
+1. Run the Rust politics pass / Python oracle parity first.
+2. Run `tick_factions()`.
+3. Identify dominant faction (influence > 0.35).
+4. Build an ordered candidate list of aligned institutions that are not already active and are not blocked by `INSTITUTION_CONFLICTS`.
+5. Sort candidates by enum index for determinism, then roll proposal against `INSTITUTION_PROPOSAL_PROBABILITY` `[CALIBRATE]`.
+6. Block if opposing faction has influence > 0.30 (Victoria 3 adaptation: angry faction 1.5x stall weight, neutral 0.5x).
+7. If enacted, set `legitimacy = 1.0` and compute `enforcement_cost` from institution type and civ state. New institutions affect turn N+1 consumers; they do not retroactively modify the same turn's politics pass.
 
 **Enforcement cost computation:**
 - Per-region cost: `FRONTIER_GARRISONS`, `CONSCRIPTION`, `COMMONS_MANAGEMENT`
@@ -133,36 +150,45 @@ institutions: list[InstitutionState] = []  # max 3 active
 - Flat cost: `EDUCATION`, `WRITTEN_LAW`, `PATRONAGE_SYSTEM`, others
 
 **Legitimacy erosion:**
-- Each turn: if treasury cannot fully pay enforcement cost, `legitimacy -= LEGITIMACY_EROSION_RATE` `[CALIBRATE]`.
-- If treasury pays in full: `legitimacy` recovers slowly toward 1.0 (`+LEGITIMACY_RECOVERY_RATE` per turn `[CALIBRATE]`).
+- Each turn: if the institution funding step cannot fully cover enforcement cost, `legitimacy -= LEGITIMACY_EROSION_RATE` `[CALIBRATE]`.
+- If the institution funding step covers cost in full: `legitimacy` recovers slowly toward 1.0 (`+LEGITIMACY_RECOVERY_RATE` per turn `[CALIBRATE]`).
 - If `legitimacy < 0.05`: institution auto-repealed (collapse from neglect).
+
+To make this computable, `apply_governing_costs()` must record per-civ bookkeeping before treasury mutation:
+- `last_base_governing_cost`
+- `last_institution_enforcement_cost`
+- `last_institution_funding_ratio`
+
+Legitimacy erosion/recovery uses `last_institution_funding_ratio`, not post-hoc inspection of whether treasury later went negative.
 
 **Repeal:**
 - Opposing faction reaching influence > 0.40 can force repeal of an aligned-enemy institution.
 - Repeal costs political capital (M66a) when available; before M66a, repeal is free but gated on faction threshold.
 
-**Graduated sanctions (Ostrom):**
-- Per-agent `institution_violation_count: u8` in Rust pool (+1 byte/agent).
-- Violation count is per-institution type, not global.
-- Sanction severity = `f(violation_count)`: warning -> fine -> temporary exclusion -> permanent exclusion.
-- First warning is often sufficient (Ostrom finding); communities that jump to harsh punishment destabilize faster.
+**Graduated sanctions (Ostrom, Phase 8 v1 scope):**
+- Per-agent `commons_violation_tier: u8` in Rust pool (+1 byte/agent).
+- Scope is `COMMONS_MANAGEMENT` only in Phase 8 v1. General per-institution sanction state is deferred until a broader institution consumer exists.
+- Tier progression = warning -> fine -> temporary exclusion -> permanent exclusion.
+- Tier decays back toward compliance after sustained non-violation. First warning is often sufficient; communities that jump to harsh punishment destabilize faster.
 
 ### Integration Points
 
 - **`politics.py`**: `apply_governing_costs()` (lines 58-86) — each active institution adds to per-region cost baseline.
 - **`factions.py`**: `tick_factions()` — proposal/repeal checks added after faction influence updates in Phase 10.
-- **`models.py`**: New `InstitutionType` enum, `InstitutionState` model, `institutions` field on `Civilization`.
-- **`accumulator.py`**: Institution enactment/repeal routed as `keep` category (applies in all modes).
+- **`models.py`**: New `InstitutionType` enum, `InstitutionState` model, `institutions` field on `Civilization`, and `INSTITUTION_CONFLICTS` lookup.
+- **Structural mutation rule**: Institution enact/repeal mutates `civ.institutions` directly in late Phase 10. Do **not** route list mutations through `StatAccumulator`; only downstream numeric effects use existing `keep` / `signal` categories.
+- **`politics.py` / politics civ input batch**: Export lagged institutional legitimacy and enforcement burden to next-turn Rust politics consumers. Do not add these to agent-tick `CivSignals` unless a non-politics Rust consumer appears later.
 
 ### Gate
 
 - 16 institution types defined with enforcement cost formulas.
 - Propose/repeal lifecycle functional across 200-seed, 500-turn runs.
 - Institutions form, persist, and collapse at reasonable rates (~1-3 active per civ at steady state).
+- Conflict matrix prevents illegal institution pairings.
 - Enforcement cost correctly drains treasury via governing cost framework.
 - Legitimacy erodes when unenforced and recovers when funded.
-- Graduated sanctions track per-agent violation counts.
-- No regression in Phase 6/7 calibrated behaviors with `--agents=off`.
+- Commons sanctions tier tracks and resets correctly across multi-turn tests.
+- No regression in governing-cost and faction flows in both hybrid and `--agents=off` paths.
 
 ### Constants
 
@@ -193,7 +219,7 @@ institutions: list[InstitutionState] = []  # max 3 active
 
 ### Goal
 
-Wire institution modifiers into action weights, satisfaction, and governing costs. Resolve the 2.5x action weight cap problem (REVIEW B-5) — the cap was designed for 3 multiplicative contributors (traditions, tech focus, factions); Phase 7 added Mule (4th), institutions would be 5th. Adding contributors without revising the cap silently nerfs existing systems.
+Wire institution modifiers into action weights, satisfaction, and governing costs. Resolve the 2.5x action weight cap problem (REVIEW B-5) with an explicit action-weight pipeline refactor: contributor buckets are computed separately, clamped separately, then combined under the existing repo-wide global cap. This is not just "one more modifier."
 
 ### Depends On
 
@@ -220,7 +246,7 @@ Each institution contributes multiplicative modifiers to specific ActionTypes. E
 
 **Weight cap revision (resolves REVIEW B-5):**
 
-Per-system contribution ceilings applied *before* multiplication into the combined weight:
+Refactor the action-weight pipeline into named contributor buckets. Per-system contribution ceilings are applied *before* multiplication into the combined weight:
 
 | System | Max Contribution | Source |
 |--------|-----------------|--------|
@@ -231,7 +257,13 @@ Per-system contribution ceilings applied *before* multiplication into the combin
 | Institutions | 1.5x | **New** — sum of institutional modifiers clamped |
 | Mule | Existing utility_overrides with 0.1x floor | (existing) |
 
-**Revised global cap: 3.5x** (up from 2.5x). The per-system ceilings prevent any single system from dominating. The global cap provides a hard safety net. The proportional rescale fires only when the product of per-system-clamped contributions exceeds 3.5x.
+**Global cap remains 2.5x** (repo contract). The implementation sequence is:
+1. Compute bucket multipliers for trait, situational, faction, tech focus, institutions, and Mule separately.
+2. Clamp each bucket to its ceiling.
+3. Multiply clamped buckets into the combined weight.
+4. Apply the existing max-weight rescale safety net only if the combined result still exceeds 2.5x.
+
+This preserves the current "cap by max weight" safety property while making new contributors explicit and inspectable. Phase 8 v1 does **not** raise the global ceiling; if M67 later shows the ceiling itself is wrong, that requires an explicit repo-level contract change.
 
 **Satisfaction effects:**
 - `CONSCRIPTION`: farmer satisfaction penalty (guards context, not ecological)
@@ -244,19 +276,20 @@ Institution enforcement costs are additive to existing governing costs in `apply
 
 ### Integration Points
 
-- **`action_engine.py`**: Insert institutional modifiers after faction modifiers (line ~864) but before holy war bonus. Apply per-system 1.5x ceiling before combining.
-- **`action_engine.py`**: Update combined weight cap from 2.5x to 3.5x. Add per-system ceilings for all 6 contributor categories.
-- **`politics.py`**: `apply_governing_costs()` — add institutional enforcement cost sum.
+- **`action_engine.py`**: Materialize named contributor buckets, insert institutional modifiers after faction modifiers but before holy war / raider additive bonuses, and clamp each bucket before combination.
+- **`action_engine.py`**: Preserve the combined `2.5x` cap while making contributor buckets explicit and inspectable.
+- **`politics.py`**: `apply_governing_costs()` — add institutional enforcement cost sum and persist per-civ governing-cost / funding bookkeeping for M63 legitimacy and M65b SFD.
 - **`simulation.py`**: Wire institution satisfaction effects into appropriate accumulator categories.
 
 ### Gate
 
 - All 16 institution types have defined action weight modifier tables.
 - Per-system contribution ceilings prevent any single system from dominating action weights.
-- Revised 3.5x global cap passes 200-seed regression (action distributions remain reasonable).
+- Pre-existing action distributions remain directionally intact when institutions are inactive.
+- Existing 2.5x global cap still passes 200-seed regression once contributor buckets are made explicit.
 - Institutional satisfaction effects correctly route through the 0.40 non-ecological penalty cap.
 - Institutional enforcement costs drain treasury via governing cost framework.
-- `--agents=off` produces no regression in Phase 4 output.
+- Hybrid and `--agents=off` runs show no material regression in action selection when governance inputs are neutral.
 - No single institution creates a degenerate attractor (e.g., permanent war state).
 
 ### Constants
@@ -264,7 +297,7 @@ Institution enforcement costs are additive to existing governing costs in `apply
 | Constant | Role | Target Range |
 |----------|------|-------------|
 | `INSTITUTION_WEIGHT_CEILING` | Max combined institutional modifier per ActionType | 1.5x |
-| `REVISED_GLOBAL_WEIGHT_CAP` | New combined weight cap (all systems) | 3.5x |
+| `GLOBAL_WEIGHT_CAP` | Combined weight cap (all systems, unchanged) | 2.5x |
 | `TRAIT_WEIGHT_CEILING` | Max trait contribution | 2.0x |
 | `FACTION_WEIGHT_CEILING` | Max faction contribution | 1.5x |
 | `TECH_FOCUS_WEIGHT_CEILING` | Max tech focus contribution | 1.5x |
@@ -292,38 +325,39 @@ Add per-region exploitation rate vs sustainable yield with lag-then-crash dynami
 
 Extend `RegionState` in Rust:
 ```rust
-pub exploitation_rate: f32,     // current extraction rate
-pub commons_health: f32,        // 0.0-1.0, derived from soil/water/forest
-pub kappa_extraction: f32,      // elite extraction multiplier for this region
-pub commons_managed: bool,      // COMMONS_MANAGEMENT institution active
+pub exploitation_rate: f32,         // current extraction rate
+pub commons_health: f32,            // 0.0-1.0, derived from soil/water/forest
+pub kappa_extraction: f32,          // wealth-driven extraction multiplier for this region
+pub commons_managed: bool,          // COMMONS_MANAGEMENT institution active
+pub commons_streak_extension: u8,   // per-region extension over global ecology defaults
+pub commons_pressure_extension: f32 // per-region extension over global ecology defaults
 ```
 
-Extend `EcologyConfig` (or equivalent per-region config):
-```rust
-pub overextraction_streak_limit: u16,   // default 35, raised by COMMONS_MANAGEMENT
-pub soil_pressure_threshold: f32,       // default from EcologyConfig, raised by COMMONS_MANAGEMENT
-```
+Do **not** mutate global `EcologyConfig` per civ in v1. Python writes per-region commons state before the ecology tick; Rust ecology consumes those region fields.
 
 ### Mechanism
 
 **Exploitation rate computation:**
 ```
-exploitation_rate = base_extraction × farmer_count × (1 + miner_count × MINE_EXTRACT_MULTIPLIER)
+exploitation_rate = base_extraction × lagged_farmer_count × (1 + lagged_miner_count × MINE_EXTRACT_MULTIPLIER)
                   × (1 + kappa_extraction)
 ```
 
 Where `kappa_extraction` is the critical HANDY coupling:
 ```
-kappa_extraction = KAPPA_BASE × mean_elite_wealth_in_region / KAPPA_WEALTH_SCALE
+kappa_extraction = KAPPA_BASE × lagged_mean_top_decile_wealth_in_region / KAPPA_WEALTH_SCALE
 ```
 
-Elite agents extract more from the commons proportional to their wealth. This drives the Type-C dual collapse: inequality amplifies ecological crisis.
+Top-decile regional wealth is the Phase 8 v1 proxy for elite extraction pressure. Because Phase 9 ecology runs **before** the current turn's agent tick, all three region inputs above are one-turn-lagged aggregates derived from the **previous** turn's post-agent snapshot. This keeps M64 consistent with the live turn order while still producing the HANDY-style inequality coupling.
 
 **COMMONS_MANAGEMENT institutional modifier:**
-When active, modifies per-region ecology config:
-- `overextraction_streak_limit` raised by `COMMONS_STREAK_EXTENSION` (slower degradation)
-- `soil_pressure_threshold` raised by `COMMONS_PRESSURE_EXTENSION` (higher pop before pressure kicks in)
-- Graduated sanctions reduce individual agent exploitation rate (via `institution_violation_count` from M63a)
+When active, Python writes per-region commons fields before Phase 9:
+- `commons_managed = True`
+- `commons_streak_extension = COMMONS_STREAK_EXTENSION`
+- `commons_pressure_extension = COMMONS_PRESSURE_EXTENSION`
+- Graduated sanctions reduce individual exploitation only through `commons_violation_tier` from M63a
+
+Rust ecology reads those fields per region. No civ-level institution may alter the global ecology config shared by other civs.
 
 **Lag-then-crash dynamics:**
 The existing ecology substrate already has the lag-then-crash half-built:
@@ -339,8 +373,9 @@ Variable-yield resources (climate-affected agriculture) stress institutions diff
 ### Integration Points
 
 - **`ecology.rs`**: `tick_depletion_feedback()` (lines 396-452) — add kappa_extraction field to RegionState, modify depletion computation.
-- **`economy.py`**: Exploitation rate feeds into farmer income and food sufficiency calculations.
-- **`simulation.py`**: Wire COMMONS_MANAGEMENT institutional modifier into ecology config before Phase 9 tick.
+- **Economy turn-order rule**: Commons degradation affects the economy indirectly on later turns via `resource_effective_yield`, capacity, and stockpiles. Do **not** try to thread same-turn Phase 9 ecology outputs back into Phase 2 economy calculations.
+- **`agent_bridge.py` / `build_region_batch()`**: Write cached lagged per-region commons fields before Rust ecology consumes them.
+- **`simulation.py`**: After the agent tick, compute/store per-region lagged commons inputs for turn N+1; before Phase 9, populate the region batch from that cache. Do not mutate shared `EcologyConfig` per civ.
 - **`accumulator.py`**: Commons events (overshoot, collapse, recovery) routed as `keep` category.
 
 ### Gate
@@ -348,10 +383,12 @@ Variable-yield resources (climate-affected agriculture) stress institutions diff
 - Exploitation rate correctly scales with farmer count, miner count, and elite wealth (kappa coupling).
 - Without COMMONS_MANAGEMENT, ~90%+ of civs over-extract at some point during 500-turn runs (GovSim calibration target).
 - With COMMONS_MANAGEMENT, sustainable equilibrium at ~60-80% of carrying capacity with moderate inequality (HANDY target).
-- COMMONS_MANAGEMENT institutional modifier correctly extends streak limits and pressure thresholds.
+- COMMONS_MANAGEMENT modifies only managed regions; no cross-civ / cross-turn leakage.
 - Kappa coupling creates visible divergence between high-inequality and low-inequality civs in resource depletion rates.
 - Climate cycle volatility interacts with institutional stability independently of yield decline.
 - No regression in existing ecology behavior when no institutions are active.
+- Lagged region counts / wealth source is explicit and deterministic; no same-turn dependency on snapshot capture exists.
+- Multi-turn integration tests prove commons fields reset when the institution is absent.
 
 ### Constants
 
@@ -377,34 +414,31 @@ Variable-yield resources (climate-affected agriculture) stress institutions diff
 
 ### Goal
 
-Define elite positions based on civ size and institutional count, classify agents as commoners/elites/frustrated aspirants, track the conspicuous consumption ratchet within EMP (Elite Mobilization Potential). Piggybacks on the existing `wealth_tick()` per-civ sort — zero additional iteration cost for elite classification.
+Define elite offices, qualifier counts, frustrated aspirants, and the conspicuous consumption ratchet within EMP (Elite Mobilization Potential). M65a is Python-owned in v1: compute elite metrics from the post-agent snapshot plus GreatPerson overlay, then store lagged civ-level outputs for M65b. Do not add a new per-agent Rust field until M67 proves it is necessary.
 
 ### Depends On
 
 - M53 (validated wealth_tick, Gini computation)
-- Existing `wealth_tick()` sort in `tick.rs`
+- Existing post-tick agent snapshot surface and GreatPerson roster
 
 ### Storage / Data Model
 
-New per-agent field in Rust pool:
-```rust
-pub elite_status: u8,  // 0=commoner, 1=elite, 2=frustrated_aspirant
-```
-+1 byte/agent. At 1M agents: 1MB.
-
 New per-civ fields (Python-side, on `Civilization` or transient):
 ```python
-elite_positions: int          # max(2, population // 100)
-elite_count: int              # agents meeting elite criteria
+elite_positions: int
+elite_qualifier_count: int
+elite_office_holder_count: int
 frustrated_aspirant_count: int
-conspicuous_consumption_index: float  # ratchets upward during elite overproduction
-emp: float                    # Elite Mobilization Potential
+conspicuous_consumption_index: float
+emp: float
 ```
+
+No new per-agent Rust field in v1. If per-agent elite status becomes necessary for viewer/debug surfaces, add it only after M67 proves the civ-level metrics are stable.
 
 ### Mechanism
 
-**Elite definition (must be locked in spec):**
-An agent qualifies as elite if ANY of:
+**Elite qualifier definition (must be locked in spec):**
+An agent qualifies for elite competition if ANY of:
 - `wealth_percentile > 0.90` within their civ
 - Occupation in {Merchant, Scholar, Priest} AND skill >= 0.8
 - GreatPerson status
@@ -413,49 +447,53 @@ An agent qualifies as elite if ANY of:
 ```
 elite_positions = max(2, civ_population / 100)
 ```
-Scales with civ size. Institutions that expand bureaucracy could increase positions (enrichment).
+Scales with civ size. Institutions that expand bureaucracy can increase positions later as an enrichment.
 
-**Classification (in `wealth_tick()`):**
-1. During the existing per-civ wealth sort, compute wealth percentile cutoffs.
-2. For each agent: evaluate elite criteria. Count total qualifying agents.
-3. Rank qualifying agents by wealth. Top `elite_positions` agents get `elite_status = 1`.
-4. Remaining qualifying agents with `satisfaction < 0.3` get `elite_status = 2` (frustrated aspirant).
-5. All others: `elite_status = 0`.
+**Classification (late Phase 10, Python):**
+1. Read the post-agent snapshot after the Rust tick.
+2. Group agents by civ; compute wealth percentiles from snapshot wealth values.
+3. Evaluate qualifier rules from wealth, occupation, skill, and current satisfaction.
+4. Overlay active GreatPersons as qualifiers even if their backing agent is absent from the snapshot.
+5. Rank qualifiers by wealth (deterministic tie-break on `agent_id`, with stable synthetic keys for GreatPersons).
+6. Top `elite_positions` qualifiers become **office holders**.
+7. Qualifiers who do not hold office and have `satisfaction < 0.3` become **frustrated aspirants**.
 
-**Frustrated aspirant:** An agent who *qualifies* for elite status but cannot attain it AND is dissatisfied. These are the firebrands of Turchin's secular cycle — educated, capable, with no outlet for their ambition.
+**Frustrated aspirant:** A qualifier who cannot attain office and is dissatisfied. These are the firebrands of Turchin's secular cycle - educated, capable, and blocked.
 
 **Conspicuous consumption ratchet:**
-```
-consumption_pressure = elite_count / max(elite_positions, 1)
-conspicuous_consumption_index += RATCHET_UP_RATE * max(0, consumption_pressure - 1.0)
+```text
+qualifier_pressure = elite_qualifier_count / max(elite_positions, 1)
+conspicuous_consumption_index += RATCHET_UP_RATE * max(0, qualifier_pressure - 1.0)
 conspicuous_consumption_index -= RATCHET_DOWN_RATE  # slow decay
 conspicuous_consumption_index = clamp(conspicuous_consumption_index, 0.0, RATCHET_CAP)
 ```
 
-The ratchet only goes up fast during elite overproduction (consumption_pressure > 1.0) and decays slowly. This asymmetry (fast rise, slow fall) is the key positive feedback: intra-elite competition drives up the cost of maintaining elite status, creating more frustrated aspirants, which amplifies competition further.
+The ratchet rises during elite overproduction and decays slowly. This asymmetry is the key positive feedback: intra-elite competition raises the cost of staying elite, which creates more frustrated aspirants.
 
 **EMP computation:**
-```
-EMP = (elite_count / max(elite_positions, 1)) * conspicuous_consumption_index
+```text
+aspirant_pressure = frustrated_aspirant_count / max(elite_positions, 1)
+EMP = aspirant_pressure * conspicuous_consumption_index
 ```
 
 Stored on civ as transient one-turn-lagged signal (same pattern as Gini).
 
 ### Integration Points
 
-- **`tick.rs`**: `wealth_tick()` — piggyback elite classification on existing per-civ sort. Zero extra iteration.
-- **`ffi.rs`**: Export `elite_status` in agent snapshot Arrow batch. Export `emp`, `elite_count`, `frustrated_aspirant_count` in per-civ signals.
+- **`simulation.py`**: Compute qualifier counts, office-holder counts, frustrated aspirants, ratchet, and EMP from `world._agent_snapshot` after the agent tick.
 - **`models.py`**: New fields on `Civilization` for elite tracking.
-- **`simulation.py`**: Compute and store EMP after agent tick in Phase 10.
+- **`analytics.py`**: Land elite qualifier / office-holder / aspirant series extraction as part of the milestone, not as an M67 enrichment.
+- **FFI rule**: No new Rust bridge surface is required in v1. If a later milestone needs EMP in Rust, politics consumers should receive it via the politics civ input batch, not agent-tick `CivSignals`.
 
 ### Gate
 
-- Elite classification produces reasonable distributions (5-15% of agents qualify as elite in most civs).
-- Frustrated aspirant count rises when elite_count exceeds elite_positions AND those surplus agents have low satisfaction.
+- Qualifiers, office holders, and frustrated aspirants are tracked as distinct counts.
+- Elite qualification produces reasonable distributions (5-15% of agents qualify in most civs).
+- Frustrated aspirant count rises when qualifier count exceeds elite_positions and those surplus qualifiers have low satisfaction.
 - Conspicuous consumption ratchet rises during overproduction and decays slowly during equilibrium.
-- EMP correctly reflects the product of elite surplus and consumption pressure.
-- Zero additional iteration cost — classification piggybacks on existing wealth_tick sort.
-- No regression in wealth_tick behavior or Gini computation.
+- EMP reflects frustrated aspirant pressure, not raw qualifier count.
+- Runtime remains within planned envelope; no "zero extra iteration" claim is required.
+- No regression in wealth / snapshot behavior or Gini computation.
 
 ### Constants
 
@@ -480,13 +518,13 @@ Stored on civ as transient one-turn-lagged signal (same pattern as Gini).
 
 ### Goal
 
-Implement the Political Stress Indicator (PSI) as the product of three sub-indices — MMP (Mass Mobilization Potential), EMP (Elite Mobilization Potential, from M65a), and SFD (State Fiscal Distress) — computed in Phase 10 with one-turn lag. PSI drives the 200-300 turn secular cycle: expansion, stagflation, crisis, depression, recovery. Implement the exponent-ready form from day one: `PSI = MMP^a * EMP^b * SFD^c` with defaults `a=b=c=1.0`.
+Implement the Political Stress Indicator (PSI) as the product of three sub-indices - MMP (Mass Mobilization Potential), EMP (Elite Mobilization Potential, from M65a), and SFD (State Fiscal Distress) - computed as a Python-owned civ metric at the end of Phase 10 and exported as a lagged CivSignal on the next turn. PSI should drive an endogenous secular cycle from slow stocks and feedbacks; do not add a crisis-only oscillator in core scope.
 
 ### Depends On
 
 - M65a (EMP computation, elite classification)
 - M64 (commons present for ecological amplifier calibration)
-- Phase 7 extractors: `median_agent_wealth`, `urbanization_rate`, `youth_bulge_fraction`
+- Phase 7 extractors: `median_agent_wealth`, `mean_agent_wealth`, `urbanization_rate`, `youth_bulge_fraction`
 
 ### Storage / Data Model
 
@@ -502,52 +540,59 @@ _psi_crisis: bool = False    # True when PSI exceeds crisis threshold
 ### Mechanism
 
 **MMP (Mass Mobilization Potential):**
-```
-relative_wage = median_agent_wealth / max(gdp_per_capita_proxy, 1)
+```text
+relative_wage = median_agent_wealth / max(mean_agent_wealth, 1)
 MMP = (1 / max(relative_wage, 0.01)) * urbanization_rate * youth_bulge_fraction
 ```
-- `relative_wage`: median wealth / GDP per capita. Inverted — low wages = high mobilization.
+- `relative_wage`: median wealth / mean wealth. Inverted - low wages relative to average prosperity increase mobilization.
 - `urbanization_rate`: fraction of agents in settlements (M56, or population density proxy pre-M56).
 - `youth_bulge_fraction`: fraction of agents aged 15-30 (from demographics age distribution).
 
 **EMP (Elite Mobilization Potential):** From M65a.
 
 **SFD (State Fiscal Distress):**
+```text
+fiscal_ratio = last_governing_cost / max(treasury, 1)
+institutional_burden = 1.0 + enforcement_cost_ratio * (1 - institutional_legitimacy)
+SFD = fiscal_ratio * institutional_burden
 ```
-fiscal_ratio = governing_cost / max(treasury, 1)
-SFD = fiscal_ratio * (1 - institutional_legitimacy)
+`state_debt` does not exist yet - `last_governing_cost / treasury` is the proxy. `last_governing_cost`, `institutional_legitimacy`, and `enforcement_cost_ratio` come from M63 bookkeeping. If no institutions, `enforcement_cost_ratio = 0.0`, so the institutional term is neutral rather than maximally distressing.
+
+**Smoothing:**
+Before composing PSI, smooth MMP / EMP / SFD with a short EMA:
+```text
+smoothed_x = lerp(previous_smoothed_x, raw_x, PSI_SMOOTHING_ALPHA)
 ```
-`state_debt` doesn't exist yet — `governing_cost / treasury` is the proxy. `institutional_legitimacy` is the mean legitimacy of active institutions (from M63a). If no institutions, `institutional_legitimacy = 0.0` (maximum distress contribution from legitimacy term).
+This keeps PSI from chattering on single-turn noise while preserving secular-cycle timescales.
 
 **PSI composite:**
 ```
 PSI = MMP^a * EMP^b * SFD^c    (defaults a=b=c=1.0)
 ```
 
-The exponent-ready form allows M67 to soften or amplify individual sub-indices without restructuring the formula. If the three sub-indices don't naturally co-occur (the multiplicative form's calibration cliff), exponents < 1.0 prevent any single near-zero factor from collapsing the whole indicator.
+The exponent-ready form allows M67 to soften or amplify individual sub-indices without restructuring the formula. If the three sub-indices do not naturally co-occur (the multiplicative form's calibration cliff), exponents < 1.0 prevent any single near-zero factor from collapsing the whole indicator.
 
-**Turn loop placement:** Phase 10 (Consequences), after `tick_factions()`. PSI from turn N affects Phases 2-3 of turn N+1 as a one-turn-lagged signal — same pattern as `AgentBridge._gini_by_civ`.
+**Turn loop placement:** End of Phase 10, after the Rust politics pass, after `tick_factions()`, and after elite / legitimacy updates. PSI from turn N affects turn N+1 consumers as a one-turn-lagged signal - same pattern as `AgentBridge._gini_by_civ`.
 
 **Crisis threshold crossing:**
 When `PSI > PSI_CRISIS_THRESHOLD` `[CALIBRATE]`, set `_psi_crisis = True`. Crisis state triggers:
-- Increased secession probability in `politics.py`
+- Increased secession probability in the next turn's Rust politics pass
 - Increased revolt susceptibility (consumed by M70 in Phase 9)
 - Named event generation (`psi_crisis` event type)
 - Fiscal crisis cascades through enforcement failure (M63 link)
 
 **Secular cycle emergence:**
 The cycle is NOT an exogenous clock. It emerges from timescale mismatch:
-- **Positive loop (fast, ~30-60 turns):** Labor oversupply -> wage decline -> elite income rises -> elite overproduction -> conspicuous consumption ratchet -> PSI rises -> crisis
-- **Negative loop (slow, ~100-200 turns):** Instability -> population decline -> labor scarcity -> wage recovery -> new integrative phase
+- **Positive loop (fast, ~30-60 turns):** labor oversupply -> wage decline -> elite competition intensifies -> conspicuous consumption ratchet rises -> frustrated aspirants grow -> PSI rises -> crisis
+- **Negative loop (slow, ~100-200 turns):** instability -> population decline -> labor scarcity -> wage recovery -> fiscal relief -> new integrative phase
 
 The conspicuous consumption ratchet (M65a) creates asymmetry: slow rise, fast crash, slow recovery. This matches the historical secular cycle shape.
 
-**Nested sub-cycle:** 40-60 turn violence sub-cycle ("fathers and sons" generational dynamics) manifests only during disintegrative phases (when `_psi_crisis = True`). Periodic violence spikes within the crisis period. Implementation: modulated secession/revolt probability with a secondary oscillator active only during crisis.
-
 ### Integration Points
 
-- **`simulation.py`**: Phase 10 — compute MMP, SFD, PSI after `tick_factions()` and agent tick. Store on civ as one-turn-lagged transient.
-- **`politics.py`**: PSI crisis state feeds into secession probability, governing cost spiral.
+- **`simulation.py`**: End of Phase 10 - compute raw sub-indices, smooth them, then store PSI as a lagged transient.
+- **`politics.py` / Rust politics civ input batch**: Export lagged PSI / crisis state into next-turn Rust politics consumers.
+- **`politics.py` and Rust politics**: Consume identical civ-level crisis state on the next turn via the politics civ input batch / context; do not rely on same-turn Python ordering.
 - **`accumulator.py`**: PSI crisis crossing generates `guard-shock` signal.
 - **`curator.py`**: New event types: `psi_crisis`, `psi_recovery`, `secular_cycle_peak`, `secular_cycle_trough`, `elite_overproduction`, `conspicuous_consumption_ratchet`, `fiscal_crisis`.
 - **`narrative.py`**: New `secular_cycle_context` narrator context block (~60-80 lines) — PSI sub-indices, cycle phase, elite ratio, wage trend.
@@ -556,7 +601,7 @@ The conspicuous consumption ratchet (M65a) creates asymmetry: slow rise, fast cr
 
 - PSI correctly computes as the product of three sub-indices with configurable exponents.
 - One-turn lag correctly implemented (turn N PSI affects turn N+1).
-- PSI crisis crossing triggers named events and increased instability.
+- PSI crisis crossing triggers named events and next-turn instability consumers on both Rust and `--agents=off` paths.
 - In 200-seed, 500-turn runs: PSI crisis seeds show crisis outcomes within 10-40 turns in >= 65% of those seeds (M67 draft gate, validated here directionally).
 - Secular cycle emergence visible in long runs (200+ turns): expansion/crisis phases detectable in PSI time series.
 - Conspicuous consumption ratchet timescale is asymmetric (rises faster than it falls).
@@ -572,13 +617,13 @@ The conspicuous consumption ratchet (M65a) creates asymmetry: slow rise, fast cr
 | `PSI_CRISIS_THRESHOLD` | PSI value triggering crisis state | `[CALIBRATE]` |
 | `PSI_RECOVERY_THRESHOLD` | PSI value below which crisis ends | `[CALIBRATE]` |
 | `CRISIS_SECESSION_MULTIPLIER` | Secession probability multiplier during PSI crisis | `[CALIBRATE]` |
-| `SUBCYCLE_PERIOD` | Nested violence sub-cycle period (turns) | 40-60 |
-| `SUBCYCLE_AMPLITUDE` | Violence spike magnitude during sub-cycle | `[CALIBRATE]` |
-| `GDP_PER_CAPITA_PROXY` | Wealth proxy for relative wage computation | `[CALIBRATE]` |
+| `PSI_SMOOTHING_ALPHA` | EMA smoothing factor for MMP / EMP / SFD | `[CALIBRATE]` |
 
 ### Enrichments
 
 > **Analytical pre-validation:** Before M65b implementation, run an analytical model of the three sub-indices using Phase 7 M61 output data to determine whether the multiplicative form is viable. If sub-indices don't naturally co-occur, pre-configure exponents < 1.0.
+
+> **Nested violence sub-cycle:** If M67 still under-produces intra-crisis violence after the base PSI model is validated, add a secondary 40-60 turn modulation layer as a post-M67 enrichment. Do not use it to prove the secular cycle in v1.
 
 > **PSI dashboard viewer component:** Three-panel display (MMP/EMP/SFD time series, composite PSI with crisis bands, secular cycle phase indicator). Highest-complexity new viewer component. Deferred to M73.
 
@@ -607,13 +652,15 @@ political_capital: float = 0.0     # accumulated, spent on governance
 legitimacy_sources: dict[str, float] = {}  # breakdown for narration
 ```
 
+Phase 8 v1 keeps legitimacy on a normalized **0.0-1.0** scale. Old World point values are inspiration only and must be converted into normalized deltas before use.
+
 ### Mechanism
 
 **Political capital generation:**
 ```
 political_capital_per_turn = POLITICAL_CAPITAL_BASE + ruler_legitimacy * LEGITIMACY_TO_CAPITAL_RATE
 ```
-Old World reference: +0.1 per legitimacy point. Typical mid-simulation: 0.5-1.5 political capital per turn.
+With normalized legitimacy, `LEGITIMACY_TO_CAPITAL_RATE` is "capital per full-scale legitimacy." The base term remains the main dial; legitimacy is the modifier on top.
 
 **Political capital spending:**
 Everything costs political capital from the single shared budget:
@@ -622,9 +669,9 @@ Everything costs political capital from the single shared budget:
 |--------|------|
 | Enact institution | 0.10 |
 | Suppress secession | 0.20 |
-| Diplomatic overture | 0.05 |
-| Move army (per region) | 0.02 |
 | Force repeal of institution | 0.15 |
+| Diplomatic overture | 0.05 (only if a discrete spend hook is added) |
+| Move army (per region) | 0.02 (placeholder; no dedicated movement spend hook exists today) |
 
 Low-capital rulers cannot afford expensive governance actions. This creates the "weak ruler" dynamic where a ruler with low legitimacy enters a spiral: can't enact institutions -> institutions lapse -> legitimacy falls further -> less capital.
 
@@ -655,19 +702,20 @@ On ruler succession (existing mechanics in `politics.py`), new ruler starts with
 
 ### Integration Points
 
-- **`politics.py`**: Succession events trigger legitimacy reset. Political capital check gates governance actions.
-- **`simulation.py`**: Legitimacy/capital computation in Phase 3 (Politics) or Phase 10.
+- **`politics.py`**: Succession events trigger legitimacy reset inputs.
+- **`simulation.py`**: Compute legitimacy / political capital in late Phase 10 after institution and ambition resolution.
 - **`models.py`**: New fields on `Civilization`.
-- **`accumulator.py`**: Legitimacy changes routed as `keep` category.
-- **`ffi.rs`**: Export `ruler_legitimacy` and `political_capital` in CivSignals for Rust consumption.
+- **Mutation rule**: In Phase 8 v1, mutate `ruler_legitimacy` and `political_capital` directly in late Phase 10. Do not route them through `StatAccumulator` unless explicit bounds / unbounded handling are added for those fields.
+- **`politics.py` / Rust politics civ input batch**: Export lagged `ruler_legitimacy` and `political_capital` for next-turn Rust politics consumption.
 
 ### Gate
 
-- Political capital correctly gates governance actions.
+- Political capital correctly gates the Phase 8 v1 governance consumers (institution enact/repeal and secession suppression).
 - Legitimacy sources compute correctly (dynasty, institutions, victories, factions).
 - Succession correctly resets legitimacy with dynasty inheritance decay.
 - Low-legitimacy rulers have visibly constrained governance capability.
 - Political capital accumulation rate scales with legitimacy.
+- Ordering is explicit: legitimacy / capital changes affect turn N+1 governance, not the same turn's early Phase 10 politics pass.
 - No regression in existing succession mechanics.
 
 ### Constants
@@ -675,7 +723,7 @@ On ruler succession (existing mechanics in `politics.py`), new ruler starts with
 | Constant | Role | Target Range |
 |----------|------|-------------|
 | `POLITICAL_CAPITAL_BASE` | Base per-turn capital generation | `[CALIBRATE]` |
-| `LEGITIMACY_TO_CAPITAL_RATE` | Capital per legitimacy point per turn | 0.1 (Old World) |
+| `LEGITIMACY_TO_CAPITAL_RATE` | Capital per full normalized legitimacy per turn | 0.1 (starting point) |
 | `LEGITIMACY_BASE` | Starting legitimacy for new rulers | 0.5 |
 | `VICTORY_LEGITIMACY_BONUS` | Per successful war/conquest | `[CALIBRATE]` |
 | `DEFEAT_LEGITIMACY_PENALTY` | Per failed war/lost territory | `[CALIBRATE]` |
@@ -689,7 +737,7 @@ On ruler succession (existing mechanics in `politics.py`), new ruler starts with
 
 ### Enrichments
 
-> **Old World-style cognomen system:** Ruler achievements earn cognomens ("the Great", "the Conqueror", "the Pious") with specific legitimacy values. Cognomens decay through inheritance. Max cognomen bonus: +100 legitimacy ("The Great" — Old World value). Creates dynasty narrative arcs.
+> **Old World-style cognomen system:** Ruler achievements earn cognomens ("the Great", "the Conqueror", "the Pious") with specific legitimacy values. Cognomens decay through inheritance. In Phase 8 v1, convert these to normalized bonuses on the `0.0-1.0` legitimacy scale rather than literal `+100`-style point awards.
 
 ---
 
@@ -697,24 +745,23 @@ On ruler succession (existing mechanics in `politics.py`), new ruler starts with
 
 ### Goal
 
-Generate 2-3 randomized ambitions at ruler accession, filtered by civ state. Ambition completion raises legitimacy; failure erodes it. Wire into M48's memory system for loosely-coupled event chain prerequisites (Old World's "memory -> requirement -> event" pattern). Every reign becomes a narrative arc without scripting.
+Generate 2-3 randomized ambitions at ruler accession, filtered by civ state. Ambition completion raises legitimacy; failure erodes it. Core Phase 8 uses civ-level `ruler_event_tags` for event-chain prerequisites so every reign becomes a narrative arc without requiring a new GreatPerson memory substrate.
 
 ### Depends On
 
 - M66a (legitimacy and political capital)
-- M48 (agent memory system for event chain prerequisites)
 
 ### Storage / Data Model
 
 ```python
 class AmbitionType(str, Enum):
     CONQUER_REGION = "conquer_region"          # military state high -> eligible
-    BUILD_WONDER = "build_wonder"              # treasury > threshold -> eligible
+    BUILD_MONUMENT = "build_monument"          # temple/infrastructure build since generation
     ESTABLISH_TRADE = "establish_trade"        # trade routes exist -> eligible
     RELIGIOUS_CONVERSION = "religious_conversion"  # clergy influence high -> eligible
     EXPAND_TERRITORY = "expand_territory"      # frontier regions -> eligible
-    PATRON_OF_ARTS = "patron_of_arts"          # cultural faction influence -> eligible
-    DIPLOMATIC_TRIUMPH = "diplomatic_triumph"  # multiple diplomatic contacts -> eligible
+    PATRON_OF_ARTS = "patron_of_arts"          # cultural_work / invest_culture since generation
+    DIPLOMATIC_TRIUMPH = "diplomatic_triumph"  # deferred unless a concrete completion predicate is specified
 
 
 class Ambition(BaseModel):
@@ -732,6 +779,7 @@ class Ambition(BaseModel):
 Add to `Civilization`:
 ```python
 ruler_ambitions: list[Ambition] = []  # 2-3 active per ruler
+ruler_event_tags: list[str] = []      # compact civ-level prerequisite tags for curator/event chains
 ```
 
 ### Mechanism
@@ -743,43 +791,47 @@ ruler_ambitions: list[Ambition] = []  # 2-3 active per ruler
 4. Set deadline: `current_turn + randint(AMBITION_MIN_DURATION, AMBITION_MAX_DURATION)`.
 5. Set target where applicable (e.g., specific region to conquer, specific civ to establish trade with).
 
-**Completion check (Phase 10):**
+**Completion check (late Phase 10):**
 Each turn, check active ambitions against civ state:
 - `CONQUER_REGION`: target region in civ.regions?
-- `BUILD_WONDER`: temple/infrastructure built since generation?
+- `BUILD_MONUMENT`: temple/infrastructure built since generation?
 - `ESTABLISH_TRADE`: active trade route with target?
-- etc.
+- `RELIGIOUS_CONVERSION`: conversion delta or belief-share threshold achieved in target region / civ?
+- `PATRON_OF_ARTS`: `cultural_work` or `invest_culture` event since generation?
 
-On completion: `+AMBITION_COMPLETION_LEGITIMACY` to ruler legitimacy (Old World: +10), generate `ambition_fulfilled` named event. Write completion memory to ruler's M48 memory buffer.
+V1 scope rule: only generate ambitions whose completion predicates are backed by existing sim surfaces. If `DIPLOMATIC_TRIUMPH` lacks a concrete completion predicate at implementation time, exclude it from the generated pool rather than shipping an uncompletable ambition.
+
+On completion: `+AMBITION_COMPLETION_LEGITIMACY` to ruler legitimacy (normalized-scale target: `+0.10`), generate `ambition_fulfilled`, and append deterministic civ-level tags such as `ambition_completed_conquer_region`.
 
 **Failure (deadline reached without completion):**
-`-AMBITION_FAILURE_LEGITIMACY` (Old World: -5), generate `ambition_failed` named event. Write failure memory to ruler's buffer.
+`-AMBITION_FAILURE_LEGITIMACY` (normalized-scale target: `-0.05`), generate `ambition_failed`, and append deterministic civ-level tags such as `ambition_failed_establish_trade`.
 
-**Event memory chains (Old World adaptation):**
-Add `memory_tags: set[str]` to GreatPerson memories (M48). Event templates specify `requires_memory_tags` and `grants_memory_tags`.
+**Event-chain coupling (Phase 8 v1):**
+Curator / event templates consume civ-level `ruler_event_tags` from recent reign history rather than generic GreatPerson memory tags.
 
 Example chain:
-1. Ruler offends a foreign leader at a diplomatic event -> grants tag `"offended_by_{civ_name}"`
-2. Years later, offended leader's heir accedes -> event checks for `"offended_by_{civ_name}"` + `"{civ_name}_new_ruler"` -> triggers diplomatic crisis event
+1. Ruler offends a foreign leader at a diplomatic event -> append tag `"offended_foreign_power"`
+2. Years later, a new ruler accedes -> append tag `"new_ruler"`
+3. Curator sees both tags in the recent window -> triggers diplomatic crisis event
 
-The coupling is loose — events grant and require *tags*, not specific prior events. This scales: different event writers can create compatible prerequisites without coordination.
+The coupling stays loose - events grant and require tags, not specific prior events. If a ruler is agent-backed and has an `agent_id`, mirroring the same tags into M48 memory is an optional enrichment, not a correctness requirement.
 
 ### Integration Points
 
 - **`simulation.py`**: Phase 10 — ambition completion checks after action resolution.
 - **`politics.py`**: Ruler succession triggers ambition generation.
-- **`curator.py`**: `ambition_fulfilled` and `ambition_failed` as high-priority named events. Memory tag prerequisites for event chain generation.
+- **`curator.py`**: `ambition_fulfilled` and `ambition_failed` as high-priority named events. `ruler_event_tags` drive event-chain prerequisites.
 - **`narrative.py`**: New `ruler_context` narrator context block (~40-50 lines) — legitimacy, political capital, active ambitions, recent events.
-- **`models.py`**: New `AmbitionType` enum, `Ambition` model, `ruler_ambitions` field on `Civilization`.
+- **`models.py`**: New `AmbitionType` enum, `Ambition` model, `ruler_ambitions`, and `ruler_event_tags` on `Civilization`.
 
 ### Gate
 
 - 2-3 ambitions generated at each ruler accession, filtered by civ state.
 - Ambitions complete when conditions met, fail at deadline.
-- Legitimacy correctly updated on completion (+10) and failure (-5).
-- Memory tags written on ambition events.
-- At least one event chain fires from memory tag prerequisites in 200-seed, 500-turn runs.
-- Ambition generation does not produce nonsensical targets (landlocked civ getting naval ambitions, etc.).
+- Legitimacy correctly updated on completion (`+0.10`) and failure (`-0.05`) on the normalized scale.
+- Civ-level ruler event tags written on ambition and accession events.
+- At least one event chain fires from `ruler_event_tags` in 200-seed, 500-turn runs.
+- Ambition generation does not produce nonsensical targets or ambitions that lack a live implementation hook.
 - No regression in existing succession mechanics.
 
 ### Constants
@@ -789,16 +841,18 @@ The coupling is loose — events grant and require *tags*, not specific prior ev
 | `AMBITIONS_PER_RULER` | Number of ambitions at accession | 2-3 |
 | `AMBITION_MIN_DURATION` | Minimum turns before deadline | 20 |
 | `AMBITION_MAX_DURATION` | Maximum turns before deadline | 40 |
-| `AMBITION_COMPLETION_LEGITIMACY` | Legitimacy bonus on completion | +10 (Old World) |
-| `AMBITION_FAILURE_LEGITIMACY` | Legitimacy penalty on failure | -5 (Old World) |
+| `AMBITION_COMPLETION_LEGITIMACY` | Legitimacy bonus on completion | +0.10 (normalized) |
+| `AMBITION_FAILURE_LEGITIMACY` | Legitimacy penalty on failure | -0.05 (normalized) |
 | `AMBITION_MILITARY_WEIGHT` | Weight for military ambitions if ruler is military | `[CALIBRATE]` |
 | `AMBITION_CULTURAL_WEIGHT` | Weight for cultural ambitions if ruler is cultural | `[CALIBRATE]` |
 
 ### Enrichments
 
+> **M48 mirroring:** If the active ruler is backed by an agent-derived GreatPerson, mirror selected `ruler_event_tags` into M48 memory for richer narrative callbacks. Optional - not part of the core gate.
+
 > **DF-inspired villain emergence:** A frustrated elite (M65a) with a grudge memory (M48), high wealth, and faction alignment could become an active conspirator — recruiting bridge agents into a plot to capture an institution or destabilize a rival. Not a scripted arc: the system state produces the plot. Likely a curator enhancement rather than a new simulation system.
 
-> **Extended event chain vocabulary:** More memory tags and event templates covering dynastic grudges, trade disputes, religious conflicts, cultural clashes. Each new tag pair is a potential multi-turn narrative arc.
+> **Extended event chain vocabulary:** More civ-level event tags and templates covering dynastic grudges, trade disputes, religious conflicts, and cultural clashes. Each new tag pair is a potential multi-turn narrative arc.
 
 ---
 
@@ -806,7 +860,7 @@ The coupling is loose — events grant and require *tags*, not specific prior ev
 
 ### Goal
 
-Calibrate M63-M66 systems and validate emergent governance behavior across 200-seed runs. This is the GATE MILESTONE: secular cycle must emerge, PSI must predict crisis, institutions must exhibit all three Maudet regimes (frozen, fluctuating, complex cycling), and the ratchet/reset timescale must balance so secular cycles recover rather than one-way collapse.
+Calibrate M63-M66 systems and validate emergent governance behavior across 200-seed runs. This is the GATE MILESTONE: secular cycle must emerge, PSI must predict crisis, institutions must exhibit all three Maudet regimes (frozen, fluctuating, complex cycling), and the ratchet/reset timescale must balance so secular cycles recover rather than one-way collapse. M67 also owns the diagnostics and classifier definitions needed to measure those claims; no gate may rely on narrative interpretation alone.
 
 ### Depends On
 
@@ -818,7 +872,15 @@ Calibrate M63-M66 systems and validate emergent governance behavior across 200-s
 
 ### Mechanism
 
-**Method:** Same as M47/M53 — 200-seed x 500-turn runs, metric extraction, constant adjustment.
+**Method:** Same as M47/M53 - 200-seed x 500-turn runs, metric extraction, constant adjustment.
+
+**Ship measurement first (part of M67, not enrichment):**
+- `extract_governance_metrics()` in `analytics.py`: institution counts, institution tenure, enact / repeal rates, legitimacy / political-capital distributions, commons overshoot / collapse markers, elite qualifier / office-holder / aspirant counts, MMP / EMP / SFD / PSI time series.
+- Pre-registered regime classifiers:
+  - **Frozen / stable:** <= 1 institution change per 100 turns and mean active count >= 1.
+  - **Highly fluctuating:** mean institution tenure < 10 turns with repeated enact / repeal churn.
+  - **Complex cycling:** repeated regime shifts with mean tenure between the two extremes and at least 2 distinct institutional configurations.
+- Transient-reset matrix: every one-turn signal added in M63-M66 must have an integration test proving reset after consumption.
 
 **Validation targets:**
 
@@ -839,7 +901,7 @@ Calibrate M63-M66 systems and validate emergent governance behavior across 200-s
   - **Complex cycling:** Institutions structure and destructure in irregular waves (narratively richest).
 
 *Legitimacy and ambitions:*
-- Political capital constraints visibly affect governance capability in low-legitimacy periods.
+- Bottom-legitimacy quartile shows lower governance-action success than top-legitimacy quartile in >= 70% of seeds.
 - Ambition completion/failure generates named events at reasonable rates.
 - Dynasty legitimacy decay (1/n) produces visible multi-generational arcs.
 
@@ -851,7 +913,7 @@ Calibrate M63-M66 systems and validate emergent governance behavior across 200-s
 
 *Regression:*
 - No regression in Phase 6/7 calibrated behaviors.
-- `--agents=off` produces bit-identical Phase 4 output.
+- Rust politics path and `--agents=off` oracle path match when governance inputs are neutral.
 
 ### Gate
 
@@ -861,9 +923,10 @@ Calibrate M63-M66 systems and validate emergent governance behavior across 200-s
 | Co-occurrence integrity | All three PSI sub-indices exceed threshold in same 20-turn window for >= 50% |
 | Secular-cycle recovery | >= 60% of crisis seeds show recovery within 120 turns |
 | Institutional regime reachability | All 3 regimes (frozen/fluctuating/cycling) in >= 10% of runs |
-| Legitimacy constraint | Low-legitimacy periods produce measurably different governance rates |
+| Legitimacy constraint | Bottom-legitimacy quartile has lower governance-action success than top quartile in >= 70% of seeds |
 | Degenerate condition guards | All 4 guards verified functional |
 | Runtime budget | Combined M63-M66 additions within planned envelope (+5-9% total) |
+| Transient reset coverage | Every new one-turn signal from M63-M66 has an integration test proving reset after consumption |
 | Regression | No regression in Phase 6/7 calibrated behaviors |
 
 ### Constants Tuned
@@ -882,8 +945,6 @@ All `[CALIBRATE]` constants from M63-M66, plus:
 
 ### Enrichments
 
-> **Governance diagnostics in analytics:** PSI distribution histograms, regime frequency counts, cycle timing measurements, crisis-to-outcome lag distributions. Add to `analytics.py` BatchAnalytics for automated validation.
-
 > **Oracle shadow model:** Run Turchin's analytical secular cycle model in parallel with Chronicler's PSI, compare trajectories. Useful for identifying when Chronicler's emergent behavior diverges from the analytical prediction and why.
 
 ---
@@ -894,12 +955,12 @@ All `[CALIBRATE]` constants from M63-M66, plus:
 |----------------|----------------------|-------------------|
 | Institutions (M63) | Factions (M22/M38), treasury (Phase 2), agent occupations, governing costs (`politics.py`) | M47 (tuning validates factions) |
 | Commons (M64) | Ecology (Phase 9 turn loop), Rust ecology migration, spatial positioning | M54a (Rust ecology), M55a (spatial substrate) |
-| Elite dynamics (M65) | Wealth distribution (M41 Gini), GreatPerson count, dynasty tracking, `wealth_tick()` sort | M39 (dynasties), M41 (wealth), M53 (depth tuning) |
-| PSI computation (M65b) | `median_agent_wealth`, `urbanization_rate`, `youth_bulge_fraction` from Phase 7 extractors | M61b (scale validation exposes PSI input quantities) |
+| Elite dynamics (M65) | Wealth distribution (M41 Gini), GreatPerson count, dynasty tracking, post-agent snapshot surface | M39 (dynasties), M41 (wealth), M53 (depth tuning) |
+| PSI computation (M65b) | `median_agent_wealth`, `mean_agent_wealth`, `urbanization_rate`, `youth_bulge_fraction` from Phase 7 extractors | M61b (scale validation exposes PSI input quantities) |
 | Legitimacy (M66) | Dynasty system, Mule system, artifacts, succession/governing cost mechanics | M39 (dynasties), M48 (Mule), M52 (artifacts) |
-| Ruler ambitions (M66b) | Agent memory ring buffer for event chain prerequisites | M48 (agent memory) |
+| Ruler ambitions (M66b) | Succession hooks, curator event prerequisites, legitimacy state | M66a |
 
-**Phase 7 extractor requirement:** M61b's extractor suite must compute and expose `median_agent_wealth` (for relative wage), `urbanization_rate` (from M56 settlements), and `youth_bulge_fraction` (from demographics age distribution). These are cheap to extract and prevent a data gap at Phase 8 start. `state_debt` does not exist yet — Phase 8 M65/M66 introduces a proxy.
+**Phase 7 extractor requirement:** M61b's extractor suite must compute and expose `median_agent_wealth`, `mean_agent_wealth`, `urbanization_rate` (from M56 settlements), and `youth_bulge_fraction` (from demographics age distribution). These are cheap to extract and prevent a data gap at Phase 8 start. `state_debt` does not exist yet - Phase 8 M65/M66 introduces a proxy.
 
 ---
 
@@ -910,9 +971,9 @@ Four milestones have **zero dependency on the Phase 7 scale track** (M54-M61) an
 | Milestone | Prerequisites (all Phase 6) | Why It Can Start Early |
 |-----------|----------------------------|----------------------|
 | M63a — Institution Data Model | Factions + treasury from Phase 6 | Data model and lifecycle mechanics operate at civ level, no agent-scale dependency |
-| M63b — Effects & Cap Revision | M63a | Resolves REVIEW B-5 (2.5x cap) before more modifiers are added — front-loading prevents silent nerfs |
+| M63b — Effects & Cap Revision | M63a | Resolves REVIEW B-5 (2.5x cap) before more modifiers are added by making contributor buckets explicit without changing the repo-wide cap |
 | M66a — Legitimacy & Political Capital | M39 (dynasty), existing succession in `politics.py` | Hooks existing succession mechanics, no spatial or scale dependency |
-| M66b — Ruler Ambitions & Event Chains | M66a, M48 (agent memory) | Hooks M48 memory for event chain prerequisites, no scale dependency |
+| M66b — Ruler Ambitions & Event Chains | M66a | Civ-level ambition tags and curator prerequisites are Python-side, no scale dependency |
 
 **Recommended early start:** M63a → M63b → M66a → M66b in parallel with Phase 7 scale track. Front-loads ~12-16 days of governance work without blocking on anything. M64 and M65 must wait for M54a (Rust ecology) and M61b (scale validation) respectively.
 
@@ -933,7 +994,7 @@ M47 (Phase 6 tuning)
   |                                                                |
   +-> M66a (Legitimacy) <- M39 (Dynasty)                          |
        |                                                          |
-       +-> M66b (Ambitions) <- M48 (Memory)                      |
+       +-> M66b (Ambitions)                                      |
                                                                   |
 M61b (Scale Validation) -----------------------------------------+
   |
@@ -955,16 +1016,16 @@ Critical path: `M63a -> M63b -> M64 -> M65a -> M65b` then blocked on `M61b -> M6
 
 | # | Decision | Planning Default | Lock By | Rationale |
 |---|----------|------------------|---------|-----------|
-| D1 | Action-weight cap mechanics with institutions | Per-system contribution ceilings (trait 2.0x, situational 2.5x, faction 1.5x, tech 1.5x, institutions 1.5x, Mule per existing). Revised global cap: 3.5x | M63b spec | 2.5x cap designed for 3 contributors. Phase 7 adds Mule (4th), institutions (5th). Without revision, new contributors silently nerf existing systems (REVIEW B-5) |
-| D2 | Institution scope | Per-civ first (ties to faction power); per-region for COMMONS_MANAGEMENT only | M63a spec | Per-region institutions add O(regions x institutions) complexity; per-civ is sufficient for faction dynamics |
+| D1 | Action-weight cap mechanics with institutions | Per-system contribution ceilings (trait 2.0x, situational 2.5x, faction 1.5x, tech 1.5x, institutions 1.5x, Mule per existing). Global cap stays `2.5x` in v1. | M63b spec | 2.5x cap designed for 3 contributors. Phase 7 adds Mule (4th), institutions (5th). Bucket ceilings make contributors explicit without violating the current repo contract |
+| D2 | Institution scope | Per-civ first (ties to faction power); COMMONS_MANAGEMENT writes per-region state only and never mutates global `EcologyConfig` | M63a spec | Per-region institutions add O(regions x institutions) complexity; per-civ is sufficient for most faction dynamics |
 | D3 | Max active institutions per civ | 3 (forces tradeoffs) | M63a spec | Higher counts reduce tension between faction-aligned institutions |
-| D4 | Elite definition | Wealth percentile > 0.90 within civ OR high-skill occupation (merchant/scholar/priest skill >= 0.8) OR GreatPerson. Positions = `max(2, pop/100)`. Frustrated aspirant = qualifies but no position AND satisfaction < 0.3 | M65a spec | Formal definition required for EMP. Must be locked before any elite-consuming system |
-| D5 | State debt proxy | `governing_cost / max(treasury, 1)` ratio for SFD until M66 introduces explicit debt tracking | M65b spec | `state_debt` doesn't exist. Proxy is cheap, directionally correct, upgradeable |
+| D4 | Elite definition | Separate qualifier count, office-holder count, and frustrated aspirants. Qualifier = top wealth percentile OR high-skill occupation OR GreatPerson. Positions = `max(2, pop/100)`. M65a v1 is Python snapshot-owned. | M65a spec | EMP needs precise semantics; raw qualifier count is not the same thing as blocked elite pressure |
+| D5 | Fiscal distress proxy | `SFD = fiscal_ratio * (1 + enforcement_cost_ratio * (1 - institutional_legitimacy))` | M65b spec | `state_debt` doesn't exist. No-institution polities should be neutral, not maximally distressed |
 | D6 | PSI formula interface | Implement exponent-ready form: `PSI = MMP^a * EMP^b * SFD^c` with defaults `a=b=c=1.0` | M65b spec | Avoids post-M67 rework if pure multiplicative doesn't work. Configurable exponents provide escape hatch |
-| D7 | The κ coupling (HANDY model) | `elite_extraction_rate = base_rate * f(wealth_percentile)` | M64 spec | Without this, Type-C dual collapse (inequality + overdepletion) cannot emerge |
-| D8 | PSI input extractors | `median_agent_wealth`, `urbanization_rate`, `youth_bulge_fraction` as required Phase 7 extractor outputs | M63 kickoff | Prevents data gap at Phase 8 start. Cheap to extract in M61b |
-| D9 | Institutional enforcement costs | Map onto existing `apply_governing_costs()` in `politics.py`. Each institution adds to per-region cost baseline | M63a spec | Reuses existing fiscal framework. Enforcement failure from treasury collapse creates natural institutional decay |
-| D10 | Political capital as single shared budget | `political_capital_per_turn = base + legitimacy * 0.1`. Spend on: enact (-0.1), suppress (-0.2), diplomatic (-0.05), move army (-0.02/region) | M66a spec | Old World's key insight: everything competes for the same pool. Low-capital rulers can barely govern |
+| D7 | The κ coupling (HANDY model) | `kappa_extraction = base_rate * f(lagged regional top-decile wealth)` | M64 spec | Without this, Type-C dual collapse (inequality + overdepletion) cannot emerge |
+| D8 | PSI input extractors | `median_agent_wealth`, `mean_agent_wealth`, `urbanization_rate`, `youth_bulge_fraction` as required Phase 7 extractor outputs | M63 kickoff | Prevents data gap at Phase 8 start. Cheap to extract in M61b |
+| D9 | Institutional enforcement costs | Map onto existing `apply_governing_costs()` in Python, then export lagged burden / legitimacy through the politics civ input batch on the next turn | M63a spec | Reuses existing fiscal framework while respecting current turn ordering and the live Rust politics bridge |
+| D10 | Political capital as single shared budget | `political_capital_per_turn = base + legitimacy * rate` on normalized legitimacy. Spend on: enact (-0.1), suppress (-0.2), diplomatic (-0.05), move army (-0.02/region). Budget computed late Phase 10 and applied on turn N+1. | M66a spec | Old World's key insight: everything competes for the same pool. Low-capital rulers can barely govern |
 
 ---
 
@@ -973,11 +1034,10 @@ Critical path: `M63a -> M63b -> M64 -> M65a -> M65b` then blocked on `M61b -> M6
 | System | Bytes/agent | At 50K | At 500K | At 1M |
 |--------|-------------|--------|---------|-------|
 | Phase 7 baseline | 242 | 12.1MB | 121MB | 242MB |
-| Institution violation count (M63) | 1 | 0.05MB | 0.5MB | 1MB |
-| Elite status (M65) | 1 | 0.05MB | 0.5MB | 1MB |
-| **Phase 8 total** | **244** | **12.2MB** | **122MB** | **244MB** |
+| Commons violation tier (M63/M64) | 1 | 0.05MB | 0.5MB | 1MB |
+| **Phase 8 total** | **243** | **12.15MB** | **121.5MB** | **243MB** |
 
-244MB at 1M agents. 192GB DDR5 provides ~787x headroom. Phase 8 per-agent additions are negligible — governance operates primarily at civ/region level. PSI, institutional legitimacy, political capital, and ruler ambitions are per-civ fields (Python-side), not per-agent.
+243MB at 1M agents. 192GB DDR5 provides ~790x headroom. Phase 8 per-agent additions are negligible - governance operates primarily at civ / region level. Elite metrics, PSI, institutional legitimacy, political capital, and ruler ambitions are civ-level Python state in v1.
 
 ---
 
@@ -989,7 +1049,7 @@ Critical path: `M63a -> M63b -> M64 -> M65a -> M65b` then blocked on `M61b -> M6
 |-----------|-----------|-------------------|----------|
 | M63 Institutions | O(civs x institutions) | +1% to +3% | Negligible — not O(agents) |
 | M64 Commons | O(regions) | +0.5% to +1% | Per-region exploitation extends existing ecology tick |
-| M65a Elite/EMP | O(agents) + O(civs) | +1% to +2% | Piggybacks on existing `wealth_tick()` sort — zero extra iteration |
+| M65a Elite/EMP | O(snapshot agents) + O(civs) | +1% to +2% | Python snapshot scan after agent tick; no new Rust per-agent field in v1 |
 | M65b PSI | O(civs) | +0.5% to +1% | Three multiplications per civ |
 | M66 Legitimacy/Ambitions | O(civs + ruler events) | +0.5% to +1% | Per-civ computation, low frequency events |
 | M67 Tuning Pass | Validation/oracles | No new steady-state | Oracle overhead is profiling-only |
@@ -1009,7 +1069,7 @@ Phase 8's scaling risks begin in Phase 9 (M68 cultural traits at O(agents x 8 tr
 | `LEGITIMACY_EROSION_RATE` | M63a | M67 | `[CALIBRATE]` |
 | `LEGITIMACY_RECOVERY_RATE` | M63a | M67 | `[CALIBRATE]` |
 | `INSTITUTION_WEIGHT_CEILING` | M63b | M67 | 1.5x |
-| `REVISED_GLOBAL_WEIGHT_CAP` | M63b | M67 | 3.5x |
+| `GLOBAL_WEIGHT_CAP` | M63b | M67 | 2.5x |
 | `REFORM_PRESSURE_INFLUENCE_THRESHOLD` | M63b | M67 | 0.70 |
 | `REFORM_PRESSURE_DURATION_THRESHOLD` | M63b | M67 | 30 turns |
 | `KAPPA_BASE` | M64 | M67 | `[CALIBRATE]` |
@@ -1019,11 +1079,12 @@ Phase 8's scaling risks begin in Phase 9 (M68 cultural traits at O(agents x 8 tr
 | `RATCHET_UP_RATE` | M65a | M67 | `[CALIBRATE]` |
 | `RATCHET_DOWN_RATE` | M65a | M67 | `[CALIBRATE]` |
 | `PSI_EXPONENT_MMP` / `EMP` / `SFD` | M65b | M67 | 1.0 |
+| `PSI_SMOOTHING_ALPHA` | M65b | M67 | `[CALIBRATE]` |
 | `PSI_CRISIS_THRESHOLD` | M65b | M67 | `[CALIBRATE]` |
 | `POLITICAL_CAPITAL_BASE` | M66a | M67 | `[CALIBRATE]` |
-| `LEGITIMACY_TO_CAPITAL_RATE` | M66a | M67 | 0.1 (Old World) |
-| `AMBITION_COMPLETION_LEGITIMACY` | M66b | M67 | +10 (Old World) |
-| `AMBITION_FAILURE_LEGITIMACY` | M66b | M67 | -5 (Old World) |
+| `LEGITIMACY_TO_CAPITAL_RATE` | M66a | M67 | 0.1 (starting point) |
+| `AMBITION_COMPLETION_LEGITIMACY` | M66b | M67 | +0.10 (normalized) |
+| `AMBITION_FAILURE_LEGITIMACY` | M66b | M67 | -0.05 (normalized) |
 | `COGNOMEN_DECAY_FACTOR` | M66a | M67 | 1/n |
 
 ~24 new constants. All deferred to M67 governance tuning pass. Constants with game design reference values have starting defaults; others are `[CALIBRATE]`.
@@ -1035,7 +1096,7 @@ Phase 8's scaling risks begin in Phase 9 (M68 cultural traits at O(agents x 8 tr
 Phase 8 inherits all Phase 7 determinism rules. Phase 8 additions:
 
 - **Institutional proposal ordering.** When multiple factions qualify to propose in the same turn, sort by `(faction_index, institution_type_index)` — never by faction influence (floating-point ties) or Python dict iteration order.
-- **Elite classification stability.** Elite status derived from `wealth_tick()` sort must produce identical classification regardless of thread count. Tie-breaking on wealth percentile boundaries uses `agent_id` as secondary key.
+- **Elite classification stability.** Snapshot-derived qualifier and office-holder classification must produce identical output regardless of thread count. Tie-breaking on wealth percentile boundaries uses `agent_id` as secondary key.
 - **PSI one-turn lag.** PSI from turn N feeds Phases 2-3 of turn N+1. Store explicitly (like `_gini_by_civ`), not recomputed from stale state. Clear transient PSI buffers before the return in Phase 10.
 - **Political capital spending order.** When multiple actions compete for the same budget in a turn, resolution follows fixed priority (enact > suppress > diplomatic > military movement), not arrival order or floating-point comparison.
 - **Ambition generation determinism.** Use reserved RNG stream (`LEGITIMACY_AMBITION_OFFSET`), not the civ-level action RNG. Sort candidates by enum index before selection.
@@ -1055,7 +1116,7 @@ Phase 8 inherits all Phase 7 determinism rules. Phase 8 additions:
 | R7 | Permanent revolt province — conquered, culturally distant regions loop | Medium | Forced assimilation as institutional option. Depopulation as natural brake |
 | R8 | Calibration cascade across tuning passes (M47→M53→M67) | Medium | Constant-locking: M47/M53 constants cannot be re-tuned in M67 without explicit approval |
 | R9 | Soil floor permanent famine cycling | Medium | Region abandonment mechanic (M64 enrichment). COMMONS_MANAGEMENT extends recovery |
-| R10 | Phase 7→8 elite concept bridge gap | Low | Elite classification piggybacks on `wealth_tick()` sort (D4). M61b extractors provide PSI inputs (D8) |
+| R10 | Phase 7→8 elite concept bridge gap | Low | M65a stays snapshot-derived in Python v1. M61b extractors provide PSI inputs (D8) |
 
 ---
 
@@ -1103,7 +1164,7 @@ These are the kinds of chronicles Phase 8 should produce:
 |-----------------|--------|-----------|
 | 1000 | `ELITE_DYNAMICS_OFFSET` | M65 |
 | 1200 | `INSTITUTION_VIOLATION_OFFSET` | M63 |
-| 1600 | `LEGITIMACY_AMBITION_OFFSET` | M66 |
+| 1900 | `LEGITIMACY_AMBITION_OFFSET` | M66 |
 
 Standard formula: per-civ systems use `civ_id * 1000 + turn + OFFSET`.
 
@@ -1111,7 +1172,9 @@ Standard formula: per-civ systems use `civ_id * 1000 + turn + OFFSET`.
 
 ## FFI Signal Flow (Phase 8 Additions)
 
-### Python -> Rust (CivSignals extensions)
+### Python -> Rust (politics civ input batch extensions)
+
+These fields extend the dedicated Phase 10 Rust politics input surface. They are **not** agent-tick `CivSignals` fields in Phase 8 v1.
 
 ```rust
 // M63
@@ -1120,14 +1183,19 @@ pub institutional_legitimacy: f32,      // 0.0-1.0, mean of active institutions
 pub enforcement_cost_ratio: f32,        // total enforcement cost / treasury
 
 // M65
-pub elite_positions: u16,
-pub conspicuous_consumption_index: f32,
+pub emp: f32,                           // lagged 1 turn
 pub psi: f32,                           // lagged 1 turn
+pub psi_crisis: bool,                   // lagged crisis state
 
 // M66
 pub ruler_legitimacy: f32,
 pub political_capital: f32,
 ```
+
+### Python -> Rust (agent-tick `CivSignals`)
+
+- None required for M63-M66 in v1.
+- If a later non-politics Rust consumer needs these signals, add them separately rather than overloading the politics path assumptions.
 
 ### Python -> Rust (RegionState extensions)
 
@@ -1137,13 +1205,16 @@ pub exploitation_rate: f32,
 pub commons_health: f32,
 pub kappa_extraction: f32,
 pub commons_managed: bool,
+pub commons_streak_extension: u8,
+pub commons_pressure_extension: f32,
 ```
+
+These M64 region fields are populated from cached one-turn-lagged per-region aggregates because ecology runs before the current turn's agent tick.
 
 ### Rust -> Python (new output columns)
 
-- `elite_status: u8` in agent snapshot
-- `emp`, `elite_count`, `frustrated_aspirant_count` per-civ aggregates
-- All follow existing optional-column pattern with `map_or` defaults — backward compatible.
+- None required for M65a v1. Elite metrics are derived from the existing post-agent snapshot plus GreatPerson overlay.
+- If per-agent elite status becomes necessary after M67, add it later via the existing optional-column pattern with `map_or` defaults.
 
 ---
 
