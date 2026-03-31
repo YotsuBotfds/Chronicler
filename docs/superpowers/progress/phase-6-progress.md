@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-30 (`M59a` merged on `main`; `M59b` pre-spec handoff added)
+> **Last updated:** 2026-03-30 (`M59b` merged on `main` at `d9baf0a`)
 
 ---
 
@@ -19,7 +19,15 @@
 - **`M59a` is now merged on `main` at `f4df802` (`fix(m59a): harden admission and diagnostics`).**
 - **Merged `M59a` scope:** packet slots now live on `AgentPool`, the knowledge phase runs at `0.95`, merchants emit trade packets on arrival, and bundle metadata now carries `knowledge_stats` with per-type created/transmitted counters plus live age / hop summaries.
 - **`M59a` validation on merge head:** after rebuilding the extension with `maturin develop --release`, `cargo test --test test_knowledge --test test_merchant --quiet` PASS and `pytest -q tests/test_m59a_knowledge.py tests/test_agent_bridge.py::TestBridgeResetAndEventFallback::test_reset_clears_gini_and_cached_state tests/test_merchant_mobility.py` PASS.
-- **Next target staged:** `docs/superpowers/plans/2026-03-30-m59b-pre-spec-handoff.md` now captures the live post-`M59a` baseline for `M59b: Perception-Coupled Behavior`, including the merchant bootstrap problem, the packet-layout constraints that make loyalty coupling non-trivial, and the recommended question set for spec freeze.
+- **`M59b` is now merged on `main` at `d9baf0a` (`style(m59b): fix indentation in threat penalty block`).**
+- **Merged `M59b` scope:** merchants use packet-gated route planning (trade packets gate cross-region destination candidates, with counted oracle bootstrap fallback for empty usable sets). Migration avoids threatened adjacent destinations via threat-packet penalties. Four consumer diagnostics counters on `KnowledgeStats` (`merchant_plans_packet_driven`, `merchant_plans_bootstrap`, `merchant_no_usable_packets`, `migration_choices_changed_by_threat`) plumbed through tick.rs → ffi.rs → Python normalization. Local trade observation broadened to idle/loading merchants with arrival-turn dedup. Anti-omniscience enforced: no oracle fallback when packets exist but are unprofitable.
+- **`M59b` validation on merge head:** 762 Rust tests pass (2 skipped), 2242 Python tests pass (4 skipped). `--agents=off` verified to emit no knowledge metadata. Phoebe-equivalent review completed with no blocking findings.
+- **Deferred from `M59b` (by design):** loyalty coupling (requires `source_civ` on packets), religious signal consumers (producer-only), packet layout expansion. These belong in future milestones with deliberate provenance semantics.
+- **Residual polish:** no dedicated `TRIP_PHASE_LOADING` unit test for local trade observation (idle and transit are covered; loading path is structurally identical to idle in the `is_trade_eligible` branch).
+- **Next targets:** M44 (API narration), M45 (Character Arcs), M47 (Tuning Pass) per CLAUDE.md.
+- **Phase 7.5 roadmap refresh landed (doc-only planning lock):** `docs/superpowers/roadmaps/chronicler-phase75-viewer-roadmap.md` now records the current implementation recommendation for when viewer work reactivates after `M61b`: Tauri 2 as the canonical client, React 19 retained unless M62b benchmarks prove otherwise, PixiJS for the map surface, and a Rust/Tauri query-oriented data plane instead of browser-side heavy bundle parsing.
+- **Phase 7.5 still remains dormant until `M61b` freeze:** the roadmap refresh is guidance only. Remaining follow-up stays the same: accepted large fixture, frozen export surface, named owners for `M62a/M62b/M62c`, and the React-vs-Solid benchmark gate during `M62b` rather than as a pre-activation blocker.
+- **Linked Phase 7.5 execution docs tightened:** `docs/superpowers/specs/2026-03-24-m62a-bundle-v2-contract-design.md` and `docs/superpowers/plans/2026-03-24-m62a-preactivation-prep.md` now align with the roadmap's Tauri-first, browser-fallback-limited interpretation of `M62a`, and `docs/superpowers/plans/2026-03-30-m62b-preactivation-prep.md` now captures the intended `M62b` execution model, merge gate, and benchmark-driven React-vs-Solid decision path.
 
 ---
 
@@ -40,6 +48,17 @@
   - New tests added for fractional tax carry, clergy win detection, zero-sum normalization handling, fund-instability target ranking, and martyrdom input-shape compatibility.
 
 ## Merged Milestones
+
+### M59b: Perception-Coupled Behavior — merged (`d9baf0a`)
+
+- Packet-gated merchant route planning: when usable nonlocal trade packets exist, only packet-known destinations are candidates. Oracle fallback fires only when the usable set is empty (bootstrap).
+- Anti-omniscience: when packets exist but all gated destinations score below `MIN_TRIP_PROFIT`, the merchant does NOT fall back to oracle.
+- Consumer scoring uses `pkt_intensity / 255.0` directly — no second decay layer (M59a substrate already decays per turn and attenuates per hop).
+- Local trade observation broadened to idle/loading merchants (not just arrivals), with `arrived_this_turn` dedup to prevent dropped-packet diagnostic noise. Transit merchants excluded.
+- Threat-aware migration: `MAX_THREAT_PENALTY` (0.20) × packet strength penalizes adjacent migration targets. Strongest-packet-wins (no stacking). Own-region and non-adjacent threats excluded. No urgency effect.
+- Four consumer diagnostics counters on `KnowledgeStats`, accumulated across merchant mobility phase (0.9) and behavior decisions, merged in `tick.rs`, exposed via `ffi.rs::get_knowledge_stats()`, normalized in Python `agent_bridge.py`.
+- Deferred: loyalty coupling (needs `source_civ`), religious signal consumers, packet layout expansion.
+- Test counts: 762 Rust, 2242 Python. 18+ new M59b-specific tests covering routing, bootstrap, anti-omniscience, threat penalties, determinism, slot-order independence, divergence from oracle, local observation seeding, and `--agents=off` negative test.
 
 ### M58b: Trade Integration & Macro Convergence — merged (`023d61d`)
 
