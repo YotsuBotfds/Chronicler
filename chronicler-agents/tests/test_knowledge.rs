@@ -1085,3 +1085,34 @@ fn test_local_trade_observation_skips_arrived_this_turn() {
     assert_eq!(created, 1, "Only arrival path should create the packet");
     assert_eq!(dropped, 0, "No duplicate admission attempt should be dropped");
 }
+
+// ---------------------------------------------------------------------------
+// M59b: Slot-order independence test (Task 7)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_usable_trade_packets_slot_order_independent() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0;
+
+    for region in 1..=4u16 {
+        admit_packet(&mut pool, slot, &PacketCandidate {
+            info_type: InfoType::TradeOpportunity as u8,
+            source_region: region,
+            source_turn: 5,
+            intensity: (50 * region as u8).min(250),
+            hop_count: 0,
+        });
+    }
+
+    let result = usable_trade_packets(&pool, slot, 0);
+    assert_eq!(result.len(), 4);
+
+    let mut sorted = result.clone();
+    sorted.sort_by_key(|(r, _)| *r);
+    assert_eq!(sorted[0].0, 1);
+    assert_eq!(sorted[1].0, 2);
+    assert_eq!(sorted[2].0, 3);
+    assert_eq!(sorted[3].0, 4);
+}

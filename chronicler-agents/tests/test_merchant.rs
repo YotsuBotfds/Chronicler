@@ -970,3 +970,124 @@ fn test_no_usable_packets_increments_even_when_bootstrap_fails() {
     assert_eq!(stats.no_usable_packets, 1, "Should still count the empty packet set");
     assert_eq!(stats.plans_bootstrap, 0, "No successful plan when apply fails");
 }
+
+// ---------------------------------------------------------------------------
+// M59b: Integration smoke tests (Task 6)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_packet_aware_merchant_no_deadlock_20_turns() {
+    let (mut pool, regions, graph) = setup_linear_world();
+    let mut ledger = ShadowLedger::new(4);
+
+    let mut total_completed = 0u32;
+    let mut total_bootstrap = 0u32;
+    let mut total_packet_driven = 0u32;
+
+    for turn in 0..20u32 {
+        let mut buf = DeliveryBuffer::new(4);
+        let stats = merchant_mobility_phase(
+            &mut pool, &regions, &graph, &mut ledger, &[turn as u8; 32], Some(&mut buf),
+        );
+        total_completed += stats.completed_trips;
+        total_bootstrap += stats.plans_bootstrap;
+        total_packet_driven += stats.plans_packet_driven;
+
+        let _k = chronicler_agents::knowledge::knowledge_phase(
+            &mut pool, &regions, &[turn as u8; 32], turn,
+        );
+    }
+
+    assert!(total_completed > 0, "Merchant must complete at least one trip in 20 turns");
+    assert!(total_bootstrap > 0, "Bootstrap should fire when no packets exist");
+}
+
+#[test]
+fn test_packet_aware_diverges_from_oracle() {
+    let (mut pool, regions, graph) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+
+    admit_packet(&mut pool, 0, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 1,
+    });
+
+    let (packet_intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+    let oracle_intent = evaluate_route(
+        0, pool.ids[0], 0, &regions, &table, &ledger, None,
+    );
+
+    assert!(had_packets, "Should have usable packets");
+    assert!(packet_intent.is_some(), "Packet route should succeed");
+    assert!(oracle_intent.is_some(), "Oracle route should succeed");
+    assert_ne!(
+        packet_intent.unwrap().dest_region,
+        oracle_intent.unwrap().dest_region,
+        "Packet-aware merchant must diverge from oracle route (region 2 vs region 3)"
+    );
+}
+
+#[test]
+fn test_local_observation_seeds_packet_network() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0;
+    pool.trip_phase[slot] = 0; // TRIP_PHASE_IDLE
+    pool.arrived_this_turn[slot] = false;
+
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[0].merchant_route_margin = 0.50;
+
+    let pre_check = chronicler_agents::knowledge::usable_trade_packets(&pool, slot, 99);
+    assert!(pre_check.is_empty() || pre_check.iter().all(|(r, _)| *r == 0),
+        "Should have no nonlocal packets before observation");
+
+    let stats = chronicler_agents::knowledge::knowledge_phase(
+        &mut pool, &regions, &[0u8; 32], 1,
+    );
+
+    assert!(stats.packets_created > 0, "Local observation should create a trade packet");
+    assert!(stats.created_trade > 0, "Created packet should be trade type");
+}
+
+// ---------------------------------------------------------------------------
+// M59b: Determinism tests (Task 7)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_packet_gated_routing_deterministic_same_seed() {
+    let (mut pool1, regions, graph) = setup_linear_world();
+    let (mut pool2, _, _) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+
+    for pool in [&mut pool1, &mut pool2] {
+        admit_packet(pool, 0, &PacketCandidate {
+            info_type: InfoType::TradeOpportunity as u8,
+            source_region: 2,
+            source_turn: 5,
+            intensity: 200,
+            hop_count: 1,
+        });
+    }
+
+    let table = bfs_from(&graph, 0);
+
+    let (intent1, had1) = evaluate_route_packet_aware(
+        0, pool1.ids[0], 0, &pool1, &regions, &table, &ledger, None,
+    );
+    let (intent2, had2) = evaluate_route_packet_aware(
+        0, pool2.ids[0], 0, &pool2, &regions, &table, &ledger, None,
+    );
+
+    assert_eq!(had1, had2, "Same packets → same had_packets flag");
+    assert_eq!(intent1.is_some(), intent2.is_some());
+    if let (Some(i1), Some(i2)) = (intent1, intent2) {
+        assert_eq!(i1.dest_region, i2.dest_region, "Same packets → same destination");
+    }
+}
