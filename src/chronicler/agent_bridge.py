@@ -773,6 +773,8 @@ class AgentBridge:
         self._household_stats_history: list = []
         # M58a: Merchant trip stats collection
         self._merchant_trip_stats_history: list = []
+        # M59a: Knowledge stats collection (always in agent modes)
+        self._knowledge_stats_history: list = []
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -868,6 +870,13 @@ class AgentBridge:
             self._merchant_trip_stats_history.append(m_stats)
         except Exception:
             pass
+
+        # M59a: knowledge stats collection
+        try:
+            k_stats = self._sim.get_knowledge_stats()
+            self._knowledge_stats_history.append(k_stats)
+        except Exception:
+            logger.exception("Failed to collect knowledge stats from Rust tick")
 
         if self._mode == "hybrid":
             self._write_back(world)
@@ -1042,6 +1051,11 @@ class AgentBridge:
     def merchant_trip_stats(self) -> list:
         """M58a: Per-tick merchant trip stats history."""
         return self._merchant_trip_stats_history
+
+    @property
+    def knowledge_stats(self) -> list:
+        """M59a: Per-tick knowledge stats history."""
+        return self._knowledge_stats_history
 
     def write_final_sidecar_snapshot(self, world: "WorldState") -> None:
         """Capture the true post-loop state for validation sidecars.
@@ -2084,6 +2098,8 @@ class AgentBridge:
         self._economy_result = None
         self._relationship_stats_history.clear()
         self._household_stats_history.clear()
+        self._merchant_trip_stats_history.clear()  # fix: was missing from reset()
+        self._knowledge_stats_history.clear()
 
     def close(self) -> None:
         if self._shadow_logger:
