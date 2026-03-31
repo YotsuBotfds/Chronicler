@@ -107,8 +107,8 @@ def test_governing_cost_three_regions_compact():
     civ = world.civilizations[0]
     # treasury: (3-2)*2 + 2*(1*2) = 2+4 = 6
     assert civ.treasury == 100 - 6
-    # stability: K_GOVERNING_COST default is 0.5; int(0.5) = 0, so no stability drain
-    assert civ.stability == 50
+    # stability: K_GOVERNING_COST=0.5, distances 1+1=2, cost = int(2*0.5*1.0) = 1
+    assert civ.stability == 49
 
 
 def test_governing_cost_distant_regions_cost_more():
@@ -118,8 +118,27 @@ def test_governing_cost_distant_regions_cost_more():
     civ = world.civilizations[0]
     # treasury: (4-2)*2 + (1*2 + 2*2 + 3*2) = 4 + 12 = 16
     assert civ.treasury == 100 - 16
-    # stability: K_GOVERNING_COST default is 0.5; int(0.5) = 0, so no stability drain
-    assert civ.stability == 50
+    # stability: K_GOVERNING_COST=0.5, distances 1+2+3=6, cost = int(6*0.5*1.0) = 3
+    assert civ.stability == 47
+
+
+# --- M-AF1 #6: governing cost stability truncation fix ---
+
+def test_governing_cost_stability_nonzero():
+    """M-AF1 #6: governing cost stability should be nonzero for distant regions."""
+    adj = {"A": ["B"], "B": ["A", "C"], "C": ["B", "D"], "D": ["C"]}
+    world = _make_world_with_regions(["A", "B", "C", "D"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 80
+
+    apply_governing_costs(world)
+
+    # With default K_GOVERNING_COST=0.5 and distances 1+2+3=6,
+    # stability_cost = 6 * 0.5 = 3.0, int(3.0 * 1.0) = 3
+    # stability should decrease (not stay at 80)
+    assert civ.stability < 80, (
+        f"Governing cost stability should be nonzero but stability stayed at {civ.stability}"
+    )
 
 
 # --- Task 6: check_capital_loss ---

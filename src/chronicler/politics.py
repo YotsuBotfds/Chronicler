@@ -65,7 +65,7 @@ def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
         treasury_cost = (region_count - 2) * 2
 
         stability_cost = 0
-        gov_cost_per_dist = int(get_override(world, K_GOVERNING_COST, 0.5))
+        gov_cost_per_dist = get_override(world, K_GOVERNING_COST, 0.5)
         for region_name in civ.regions:
             if region_name == civ.capital_region:
                 continue
