@@ -412,7 +412,9 @@ Add after `evaluate_route` (~line 428) in `merchant.rs`:
 /// exist (after reachability filtering), only packet-known destinations are
 /// candidates. Falls back to oracle (evaluate_route) when usable set is empty.
 ///
-/// Returns (Option<TripIntent>, used_packets: bool).
+/// Returns (Option<TripIntent>, had_usable_packets: bool).
+/// Counter increments happen in merchant_mobility_phase AFTER apply_trip_intent
+/// succeeds, not here — "successful plan" means surviving reservation.
 pub fn evaluate_route_packet_aware(
     agent_slot: usize,
     agent_id: u32,
@@ -422,11 +424,10 @@ pub fn evaluate_route_packet_aware(
     path_table: &PathTable,
     ledger: &ShadowLedger,
     delivery_buf: Option<&DeliveryBuffer>,
-    stats: &mut MerchantTripStats,
-) -> Option<TripIntent> {
+) -> (Option<TripIntent>, bool) {
     let origin = origin_region as usize;
     if origin >= regions.len() {
-        return None;
+        return (None, false);
     }
 
     // Collect usable nonlocal trade packets
@@ -445,14 +446,10 @@ pub fn evaluate_route_packet_aware(
 
     if reachable_packets.is_empty() {
         // Bootstrap fallback: no usable packets, use oracle planner
-        stats.no_usable_packets += 1;
         let intent = evaluate_route(
             agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf,
         );
-        if intent.is_some() {
-            stats.plans_bootstrap += 1;
-        }
-        return intent;
+        return (intent, false); // false = no usable packets
     }
 
     // Packet-gated planning: score only packet-known destinations
@@ -476,7 +473,7 @@ pub fn evaluate_route_packet_aware(
         None => {
             // All packet-gated destinations below MIN_TRIP_PROFIT.
             // Do NOT fall back to oracle — anti-omniscience rule.
-            return None;
+            return (None, true);
         }
     };
 
@@ -501,14 +498,18 @@ pub fn evaluate_route_packet_aware(
         }
     }
 
-    let good_slot = best_slot.filter(|_| best_avail > 0.0)?;
+    let good_slot = match best_slot.filter(|_| best_avail > 0.0) {
+        Some(g) => g,
+        None => return (None, true),
+    };
     let cargo_qty = best_avail.min(MERCHANT_CARGO_CAP);
 
-    let (path, path_len) = trace_path(path_table, origin_region, dest)?;
+    let (path, path_len) = match trace_path(path_table, origin_region, dest) {
+        Some(p) => p,
+        None => return (None, true),
+    };
 
-    stats.plans_packet_driven += 1;
-
-    Some(TripIntent {
+    (Some(TripIntent {
         agent_slot,
         origin_region,
         dest_region: dest,
@@ -516,7 +517,7 @@ pub fn evaluate_route_packet_aware(
         cargo_qty,
         path,
         path_len,
-    })
+    }), true) // true = had usable packets
 }
 ```
 
@@ -545,20 +546,37 @@ With:
     // Phase f-g: Route evaluation for idle merchants + cargo reservation
     // M59b: Use packet-aware route evaluation (packet-gated with bootstrap fallback)
     let mut origin_tables: std::collections::HashMap<u16, PathTable> = std::collections::HashMap::new();
-    let mut intents: Vec<TripIntent> = Vec::new();
+    let mut intents: Vec<(TripIntent, bool)> = Vec::new(); // (intent, had_usable_packets)
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE { continue; }
         if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
         let origin = pool.regions[slot];
         let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
-        if let Some(intent) = evaluate_route_packet_aware(
+        let (intent, had_packets) = evaluate_route_packet_aware(
             slot, pool.ids[slot], origin, pool, regions, table, ledger,
-            delivery_buf.as_deref(), &mut stats,
-        ) {
-            intents.push(intent);
+            delivery_buf.as_deref(),
+        );
+        if !had_packets {
+            stats.no_usable_packets += 1;
+        }
+        if let Some(i) = intent {
+            intents.push((i, had_packets));
+        }
+    }
+    intents.sort_by_key(|(i, _)| (i.origin_region, pool.ids[i.agent_slot]));
+    for (intent, had_packets) in &intents {
+        let applied = apply_trip_intent(intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref());
+        if applied {
+            if *had_packets {
+                stats.plans_packet_driven += 1;
+            } else {
+                stats.plans_bootstrap += 1;
+            }
         }
     }
 ```
+
+Note: this replaces BOTH the evaluation loop AND the existing apply loop (the original `intents.sort_by_key` + `apply_trip_intent` lines). The counter increments now happen only after `apply_trip_intent` returns `true` (successful reservation commit).
 
 - [ ] **Step 4: Write tests for packet-gated routing**
 
@@ -575,7 +593,6 @@ fn test_packet_gated_routing_uses_packet_destinations() {
     let (mut pool, regions, graph) = setup_linear_world();
     let ledger = ShadowLedger::new(4);
     let table = bfs_from(&graph, 0);
-    let mut stats = MerchantTripStats::default();
 
     // Give the merchant a trade packet for region 2 (not region 3 which is the oracle best)
     admit_packet(&mut pool, 0, &PacketCandidate {
@@ -586,16 +603,14 @@ fn test_packet_gated_routing_uses_packet_destinations() {
         hop_count: 1,
     });
 
-    let intent = evaluate_route_packet_aware(
-        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None, &mut stats,
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
     );
 
     assert!(intent.is_some(), "Should find a route");
+    assert!(had_packets, "Should report had usable packets");
     let intent = intent.unwrap();
     assert_eq!(intent.dest_region, 2, "Should route to packet-known region 2, not oracle-best region 3");
-    assert_eq!(stats.plans_packet_driven, 1);
-    assert_eq!(stats.plans_bootstrap, 0);
-    assert_eq!(stats.no_usable_packets, 0);
 }
 
 #[test]
@@ -603,19 +618,16 @@ fn test_bootstrap_when_no_usable_packets() {
     let (pool, regions, graph) = setup_linear_world();
     let ledger = ShadowLedger::new(4);
     let table = bfs_from(&graph, 0);
-    let mut stats = MerchantTripStats::default();
 
     // No packets — should fall back to oracle
-    let intent = evaluate_route_packet_aware(
-        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None, &mut stats,
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
     );
 
     assert!(intent.is_some(), "Bootstrap should find oracle route");
+    assert!(!had_packets, "Should report no usable packets");
     let intent = intent.unwrap();
     assert_eq!(intent.dest_region, 3, "Bootstrap oracle should pick region 3 (highest margin)");
-    assert_eq!(stats.plans_packet_driven, 0);
-    assert_eq!(stats.plans_bootstrap, 1);
-    assert_eq!(stats.no_usable_packets, 1);
 }
 
 #[test]
@@ -623,7 +635,6 @@ fn test_anti_omniscience_no_fallback_when_packets_exist_but_unprofitable() {
     let (mut pool, mut regions, graph) = setup_linear_world();
     let ledger = ShadowLedger::new(4);
     let table = bfs_from(&graph, 0);
-    let mut stats = MerchantTripStats::default();
 
     // Set origin margin very low so packet score < MIN_TRIP_PROFIT
     regions[0].merchant_route_margin = 0.0;
@@ -637,14 +648,12 @@ fn test_anti_omniscience_no_fallback_when_packets_exist_but_unprofitable() {
         hop_count: 3,
     });
 
-    let intent = evaluate_route_packet_aware(
-        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None, &mut stats,
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
     );
 
     assert!(intent.is_none(), "Must NOT fall back to oracle when usable packets exist but are unprofitable");
-    assert_eq!(stats.plans_packet_driven, 0);
-    assert_eq!(stats.plans_bootstrap, 0);
-    assert_eq!(stats.no_usable_packets, 0);
+    assert!(had_packets, "Had packets but they were unprofitable");
 }
 
 #[test]
@@ -652,7 +661,6 @@ fn test_bootstrap_when_packet_destination_unreachable() {
     let (mut pool, regions, graph) = setup_linear_world();
     let ledger = ShadowLedger::new(4);
     let table = bfs_from(&graph, 0);
-    let mut stats = MerchantTripStats::default();
 
     // Give merchant a packet for region 99 (does not exist in graph)
     admit_packet(&mut pool, 0, &PacketCandidate {
@@ -663,25 +671,24 @@ fn test_bootstrap_when_packet_destination_unreachable() {
         hop_count: 1,
     });
 
-    let intent = evaluate_route_packet_aware(
-        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None, &mut stats,
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
     );
 
     // Unreachable packet filtered out → empty usable set → bootstrap
     assert!(intent.is_some());
+    assert!(!had_packets, "Unreachable packets don't count as usable");
     assert_eq!(intent.unwrap().dest_region, 3, "Should fall back to oracle");
-    assert_eq!(stats.no_usable_packets, 1);
-    assert_eq!(stats.plans_bootstrap, 1);
 }
 
 #[test]
-fn test_packet_driven_and_bootstrap_mutually_exclusive() {
+fn test_counter_increments_after_successful_apply() {
+    // Counters increment in merchant_mobility_phase after apply_trip_intent succeeds.
+    // Test via the full mobility phase, not evaluate_route_packet_aware directly.
     let (mut pool, regions, graph) = setup_linear_world();
-    let ledger = ShadowLedger::new(4);
-    let table = bfs_from(&graph, 0);
-    let mut stats = MerchantTripStats::default();
+    let mut ledger = ShadowLedger::new(4);
 
-    // With packet → packet-driven
+    // With packet: should get plans_packet_driven after successful apply
     admit_packet(&mut pool, 0, &PacketCandidate {
         info_type: InfoType::TradeOpportunity as u8,
         source_region: 2,
@@ -689,14 +696,13 @@ fn test_packet_driven_and_bootstrap_mutually_exclusive() {
         intensity: 200,
         hop_count: 1,
     });
-    let _ = evaluate_route_packet_aware(
-        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None, &mut stats,
+
+    let stats = merchant_mobility_phase(
+        &mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None,
     );
 
-    assert_eq!(stats.plans_packet_driven, 1);
-    assert_eq!(stats.plans_bootstrap, 0);
-    assert!(stats.plans_packet_driven > 0 && stats.plans_bootstrap == 0,
-        "packet_driven and bootstrap must be mutually exclusive");
+    assert_eq!(stats.plans_packet_driven, 1, "Counter increments after successful apply");
+    assert_eq!(stats.plans_bootstrap, 0, "packet_driven and bootstrap are mutually exclusive");
 }
 
 #[test]
@@ -724,16 +730,16 @@ fn test_no_usable_packets_increments_even_when_bootstrap_fails() {
         &[1.0; 6],
         4,
     );
-    let ledger = ShadowLedger::new(4);
-    let table = bfs_from(&graph, 0);
-    let mut stats = MerchantTripStats::default();
+    let mut ledger = ShadowLedger::new(4);
 
-    let intent = evaluate_route_packet_aware(
-        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None, &mut stats,
+    // Run through full mobility phase — no cargo means apply fails
+    let stats = merchant_mobility_phase(
+        &mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None,
     );
 
-    assert!(intent.is_none(), "No cargo → no intent");
     assert_eq!(stats.no_usable_packets, 1, "Should still count the empty packet set");
+    // Bootstrap found a route but apply failed (no cargo) → plans_bootstrap stays 0
+    assert_eq!(stats.plans_bootstrap, 0, "No successful plan when apply fails");
 }
 ```
 
@@ -868,6 +874,40 @@ To:
 ```
 
 In `compute_region_stats` (~line 353-396), there's a second call site that computes region-level migration opportunity. This one does NOT use per-agent packets (it's a region-level aggregate), so it should keep using the original non-packet logic. The threat penalty is per-agent, applied only in `best_migration_target_for_agent`. No change needed here.
+
+**Internal test wrapper** at `behavior.rs:784`: the `eval_region_decisions` helper in `#[cfg(test)]` wraps `evaluate_region_decisions`. Update to destructure the new `(PendingDecisions, u32)` return:
+
+```rust
+    fn eval_region_decisions(
+        pool: &AgentPool,
+        slots: &[usize],
+        regions: &[RegionState],
+        stats: &RegionStats,
+        region_id: usize,
+        rng: &mut rand_chacha::ChaCha8Rng,
+    ) -> PendingDecisions {
+        let (pd, _threat_count) = super::evaluate_region_decisions(
+            pool,
+            slots,
+            regions,
+            &regions[region_id],
+            stats,
+            region_id,
+            rng,
+            &std::collections::HashMap::new(),
+        );
+        pd
+    }
+```
+
+**Direct `best_migration_target_for_agent` caller** at `behavior.rs:1192`: update the destructuring from `let (target, opportunity)` to `let (target, opportunity, _threat_changed)`:
+
+```rust
+        let (target, opportunity, _threat_changed) =
+            best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
+```
+
+Grep for all callers to confirm no others are missed: `grep -n "best_migration_target_for_agent\|eval_region_decisions\|evaluate_region_decisions" chronicler-agents/src/behavior.rs`
 
 - [ ] **Step 4: Add counter accumulation to `evaluate_region_decisions`**
 
@@ -1073,7 +1113,7 @@ fn test_own_region_threat_not_applied() {
 fn test_non_adjacent_threat_not_applied() {
     let (mut pool, regions) = setup_migration_world();
 
-    // Threat for region 99 (not adjacent) — should not affect anything
+    // Threat for region 99 (not adjacent to region 0) — should not change behavior
     admit_packet(&mut pool, 0, &PacketCandidate {
         info_type: InfoType::ThreatWarning as u8,
         source_region: 99,
@@ -1082,18 +1122,20 @@ fn test_non_adjacent_threat_not_applied() {
         hop_count: 0,
     });
 
-    use chronicler_agents::knowledge::strongest_threat_for_region;
-    // Region 99 is not in the adjacency mask, so even if the query returns
-    // a strength, it won't be applied because the migration loop only
-    // iterates adjacent regions (bits in adjacency_mask).
-    // The query itself still returns a value if the packet exists:
-    let strength = strongest_threat_for_region(&pool, 0, 99, 0);
-    // This proves the query works — but the migration loop never queries
-    // region 99 because it's not in adjacency_mask. The adjacency constraint
-    // is structural, not in the query helper.
-    assert!(strength > 0.0, "Query returns strength for the packet");
-    // The actual test is that non-adjacent threats don't change behavior —
-    // verified by the fact that the migration loop only iterates adjacency_mask bits.
+    // Run the full decision path and verify the threat counter is 0
+    use chronicler_agents::behavior::{compute_region_stats, evaluate_region_decisions};
+    let signals = peaceful_signals(3);
+    let stats = compute_region_stats(&pool, &regions, &signals);
+
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+    let id_to_slot = std::collections::HashMap::from([(pool.ids[0], 0usize)]);
+    let mut rng = ChaCha8Rng::from_seed([0u8; 32]);
+    let (_, threat_count) = evaluate_region_decisions(
+        &pool, &[0], &regions, &regions[0], &stats, 0, &mut rng, &id_to_slot,
+    );
+
+    assert_eq!(threat_count, 0, "Non-adjacent threat must not change migration target");
 }
 
 #[test]
@@ -1306,16 +1348,91 @@ fn test_packet_aware_merchant_no_deadlock_20_turns() {
 }
 ```
 
-- [ ] **Step 2: Run test**
+- [ ] **Step 2: Write divergence integration test**
 
-Run: `cargo nextest run -p chronicler-agents --test test_merchant -- test_packet_aware_merchant_no_deadlock`
-Expected: PASS — trade activity remains nonzero across 20 turns.
+Add to `chronicler-agents/tests/test_merchant.rs`:
 
-- [ ] **Step 3: Commit**
+```rust
+#[test]
+fn test_packet_aware_diverges_from_oracle() {
+    // When a merchant has packets, their route choice should differ from
+    // what the oracle would have picked (proving packets actually matter).
+    let (mut pool, regions, graph) = setup_linear_world();
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+
+    // Oracle best: region 3 (highest margin). Give packet for region 2 only.
+    admit_packet(&mut pool, 0, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 1,
+    });
+
+    // Packet-aware route
+    let (packet_intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+    // Oracle route (for comparison)
+    let oracle_intent = evaluate_route(
+        0, pool.ids[0], 0, &regions, &table, &ledger, None,
+    );
+
+    assert!(had_packets, "Should have usable packets");
+    assert!(packet_intent.is_some(), "Packet route should succeed");
+    assert!(oracle_intent.is_some(), "Oracle route should succeed");
+    assert_ne!(
+        packet_intent.unwrap().dest_region,
+        oracle_intent.unwrap().dest_region,
+        "Packet-aware merchant must diverge from oracle route (region 2 vs region 3)"
+    );
+}
+```
+
+- [ ] **Step 3: Write local observation seeding test**
+
+Add to `chronicler-agents/tests/test_merchant.rs`:
+
+```rust
+#[test]
+fn test_local_observation_seeds_packet_network() {
+    // An idle merchant in a trade-active region should produce a trade packet
+    // via local observation (without needing an arrival).
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0;
+    pool.trip_phase[slot] = 0; // TRIP_PHASE_IDLE
+    pool.arrived_this_turn[slot] = false; // NOT an arrival — just idle
+
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[0].merchant_route_margin = 0.50; // above TRADE_MARGIN_THRESHOLD
+
+    // Verify no packets before
+    let pre_check = chronicler_agents::knowledge::usable_trade_packets(&pool, slot, 99);
+    assert!(pre_check.is_empty() || pre_check.iter().all(|(r, _)| *r == 0),
+        "Should have no nonlocal packets before observation");
+
+    // Run knowledge phase — should produce local trade packet
+    let stats = chronicler_agents::knowledge::knowledge_phase(
+        &mut pool, &regions, &[0u8; 32], 1,
+    );
+
+    assert!(stats.packets_created > 0, "Local observation should create a trade packet");
+    assert!(stats.created_trade > 0, "Created packet should be trade type");
+}
+```
+
+- [ ] **Step 4: Run all integration tests**
+
+Run: `cargo nextest run -p chronicler-agents --test test_merchant`
+Expected: All PASS including no-deadlock, divergence, and seeding tests.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add chronicler-agents/tests/test_merchant.rs
-git commit -m "test(m59b): add 20-turn no-deadlock smoke test for packet-aware merchants"
+git commit -m "test(m59b): add integration tests for no-deadlock, divergence, and local observation seeding"
 ```
 
 ---
@@ -1387,22 +1504,19 @@ fn test_packet_gated_routing_deterministic_same_seed() {
     }
 
     let table = bfs_from(&graph, 0);
-    let mut stats1 = MerchantTripStats::default();
-    let mut stats2 = MerchantTripStats::default();
 
-    let intent1 = evaluate_route_packet_aware(
-        0, pool1.ids[0], 0, &pool1, &regions, &table, &ledger, None, &mut stats1,
+    let (intent1, had1) = evaluate_route_packet_aware(
+        0, pool1.ids[0], 0, &pool1, &regions, &table, &ledger, None,
     );
-    let intent2 = evaluate_route_packet_aware(
-        0, pool2.ids[0], 0, &pool2, &regions, &table, &ledger, None, &mut stats2,
+    let (intent2, had2) = evaluate_route_packet_aware(
+        0, pool2.ids[0], 0, &pool2, &regions, &table, &ledger, None,
     );
 
+    assert_eq!(had1, had2, "Same packets → same had_packets flag");
     assert_eq!(intent1.is_some(), intent2.is_some());
     if let (Some(i1), Some(i2)) = (intent1, intent2) {
         assert_eq!(i1.dest_region, i2.dest_region, "Same packets → same destination");
     }
-    assert_eq!(stats1.plans_packet_driven, stats2.plans_packet_driven);
-    assert_eq!(stats1.plans_bootstrap, stats2.plans_bootstrap);
 }
 ```
 
@@ -1490,6 +1604,9 @@ git commit -m "test(m59b): add agents-off negative test and final verification"
 | Score = origin_margin + packet_strength, no second decay | Task 3 |
 | Bootstrap fallback when usable set empty | Task 3 |
 | Anti-omniscience: no fallback when packets exist but unprofitable | Task 3 (test_anti_omniscience) |
+| Counters increment only after successful apply_trip_intent | Task 3 (test_counter_increments_after_successful_apply) |
+| Packet-aware merchants diverge from oracle | Task 6 (test_packet_aware_diverges_from_oracle) |
+| Local trade observation seeds packet network | Task 6 (test_local_observation_seeds_packet_network) |
 | Local trade observation for idle/loading merchants | Task 2 |
 | Arrival dedup (skip when arrived_this_turn) | Task 2 |
 | Transit merchants excluded from local observation | Task 2 |
