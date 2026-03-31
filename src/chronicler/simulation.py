@@ -308,7 +308,6 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
                             civ.treasury += 1  # 30% of normal trade (2), min 1
                             civ.stability = clamp(civ.stability - int(3 * mult), STAT_FLOOR["stability"], 100)
                         break  # Only one black market route per civ per turn
-            break  # Only check first controlled region for simplicity
 
     # 5. Ongoing war costs: -3/turn per active war
     # In accumulator mode, track projected treasury per civ so zero-crossing

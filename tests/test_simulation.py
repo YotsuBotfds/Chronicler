@@ -830,3 +830,81 @@ class TestExtinctionReset:
         reset_war_frequency_on_extinction(civ)
         assert civ.war_weariness == 15.0
         assert civ.peace_momentum == 10.0
+
+
+def test_black_market_checks_all_regions():
+    """M-AF1 #16: black market should scan all controlled regions, not just first."""
+    from chronicler.models import Relationship
+
+    # Civ A is embargoed with Civ B.  Civ A controls Region A and Region B.
+    # Region A is only adjacent to Region B (same controller -- no smuggling).
+    # Region B is adjacent to Region C (controlled by Civ C, NOT embargoed).
+    # The black market route is Region B -> Region C.  With the bug, only
+    # Region A was scanned, so the route was never found.
+    civ_a = Civilization(
+        name="Civ A", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50,
+        leader=Leader(name="Leader A", trait="cautious", reign_start=0),
+        regions=["Region A", "Region B"],
+    )
+    civ_b = Civilization(
+        name="Civ B", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50,
+        leader=Leader(name="Leader B", trait="cautious", reign_start=0),
+        regions=[],
+    )
+    civ_c = Civilization(
+        name="Civ C", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50,
+        leader=Leader(name="Leader C", trait="cautious", reign_start=0),
+        regions=["Region C"],
+    )
+    region_a = Region(
+        name="Region A", terrain="plains", carrying_capacity=60,
+        resources="fertile", controller="Civ A",
+    )
+    region_b = Region(
+        name="Region B", terrain="plains", carrying_capacity=60,
+        resources="fertile", controller="Civ A",
+    )
+    region_c = Region(
+        name="Region C", terrain="plains", carrying_capacity=60,
+        resources="fertile", controller="Civ C",
+    )
+    region_a.adjacencies = ["Region B"]
+    region_b.adjacencies = ["Region A", "Region C"]
+    region_c.adjacencies = ["Region B"]
+
+    world = WorldState(
+        name="Test", seed=42, turn=5,
+        regions=[region_a, region_b, region_c],
+        civilizations=[civ_a, civ_b, civ_c],
+        relationships={
+            "Civ A": {
+                "Civ B": Relationship(disposition=Disposition.SUSPICIOUS),
+                "Civ C": Relationship(disposition=Disposition.SUSPICIOUS),
+            },
+            "Civ B": {
+                "Civ A": Relationship(disposition=Disposition.SUSPICIOUS),
+                "Civ C": Relationship(disposition=Disposition.SUSPICIOUS),
+            },
+            "Civ C": {
+                "Civ A": Relationship(disposition=Disposition.SUSPICIOUS),
+                "Civ B": Relationship(disposition=Disposition.SUSPICIOUS),
+            },
+        },
+    )
+    world.embargoes = [("Civ A", "Civ B")]
+
+    treasury_before = civ_a.treasury
+    apply_automatic_effects(world)
+
+    # Self-trade: +3 (Civ A controls both adjacent Region A and Region B).
+    # Black market: +1 (Region B -> Region C, Civ C not embargoed).
+    black_market_delta = 1
+    self_trade_delta = 3
+    expected = treasury_before + self_trade_delta + black_market_delta
+    assert civ_a.treasury == expected, (
+        f"Expected treasury {expected} (self-trade +{self_trade_delta}, "
+        f"black market +{black_market_delta}), got {civ_a.treasury}"
+    )
