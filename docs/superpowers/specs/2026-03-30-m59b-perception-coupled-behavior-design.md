@@ -48,7 +48,7 @@ Let agents act on propagated information. Merchants plan routes from learned tra
 
 **1. Local trade observation**
 
-Broaden merchant direct observation: merchants in a region refresh a `trade_opportunity` packet from their current region's live truth (Rust-local `RegionState`), using the existing trade threshold from `knowledge.rs`. This supplements (does not replace) the existing arrival-based refresh from M59a. Merchant-only — no other occupation produces local trade packets.
+Broaden merchant direct observation: idle or loading merchants (`trip_phase` = `TRIP_PHASE_IDLE` or `TRIP_PHASE_LOADING`) refresh a `trade_opportunity` packet from their current region's live truth (Rust-local `RegionState`), using the existing trade threshold from `knowledge.rs`. In-transit merchants (`TRIP_PHASE_TRANSIT`) do **not** observe local trade at intermediate hops. This supplements (does not replace) the existing arrival-based refresh from M59a. Merchant-only — no other occupation produces local trade packets.
 
 **2. Packet-gated destination selection**
 
@@ -66,11 +66,19 @@ Packets pointing at unreachable destinations (blocked by war, embargo, suspensio
 
 **4. Destination scoring**
 
-- **Origin attractiveness:** live current-region truth (immediate, as always).
-- **Destination attractiveness:** `pkt_intensity as f32 / 255.0` directly.
+Scoring formula (additive, matching the live oracle planner shape):
+
+```
+packet_strength = pkt_intensity as f32 / 255.0
+score = origin_margin + packet_strength
+```
+
+- **`origin_margin`:** live current-region `merchant_route_margin` (immediate, as always).
+- **`packet_strength`:** `pkt_intensity as f32 / 255.0` — the destination's attractiveness as encoded in the packet.
+- **Threshold:** `MIN_TRIP_PROFIT` remains the floor. A candidate is viable only if `score > MIN_TRIP_PROFIT` (or `score > best_score` with the existing tiebreak).
 - **No second decay layer.** Consumer scoring uses current `pkt_intensity` directly. The M59a substrate already decays intensity per turn and attenuates per hop — M59b does not re-apply age or hop penalties.
 - **Route topology:** remains perfect-known. The merchant knows *how* to get there; the packet tells them *whether it's worth going*.
-- **Tie-breaks:** existing deterministic merchant planning logic.
+- **Tie-breaks:** existing deterministic `(dest_idx, agent_id)` logic.
 
 **5. Bootstrap fallback**
 
@@ -124,6 +132,13 @@ Threat packets sourced from the agent's own region are not applied here. Own-reg
 
 All new counters extend the existing `KnowledgeStats` struct in `knowledge.rs`. They flow through the same inline normalization block in `agent_bridge.py` into bundle metadata. No new metadata family.
 
+**Plumbing:** The four consumer counters are accumulated outside the knowledge phase:
+
+- `merchant_plans_packet_driven`, `merchant_plans_bootstrap`, and `merchant_no_usable_packets` are accumulated during `merchant_mobility_phase` (phase 0.9), which runs **before** `knowledge_phase` (phase 0.95).
+- `migration_choices_changed_by_threat` is accumulated during behavior/migration decisions, which run **after** the knowledge phase.
+
+`tick.rs` must merge these consumer counters into the final `KnowledgeStats` returned from the tick. The merge point is in `tick.rs` after all contributing phases complete. `ffi.rs::get_knowledge_stats()` must enumerate the 4 new fields explicitly.
+
 ### New counters (4)
 
 | Counter | Incremented when | Semantics |
@@ -166,7 +181,8 @@ All M59a counters (created, refresh, transmit, expire, evict, drop, per-type cou
 | `chronicler-agents/src/knowledge.rs` | Packet query helpers for consumer code; local trade observation broadening; 4 new diagnostic counter fields on `KnowledgeStats` |
 | `chronicler-agents/src/merchant.rs` | Replace destination oracle scan with packet-gated candidate selection; bootstrap fallback policy; diagnostic counter increments |
 | `chronicler-agents/src/behavior.rs` | Threat penalty on adjacent migration targets; diagnostic counter increment |
-| `chronicler-agents/src/ffi.rs` | Only if new diagnostic counters cross the bridge (likely: extend existing Arrow column set) |
+| `chronicler-agents/src/tick.rs` | Merge consumer counters from merchant mobility and behavior phases into `KnowledgeStats` |
+| `chronicler-agents/src/ffi.rs` | `get_knowledge_stats()` enumerates 4 new counter fields |
 | `chronicler-agents/tests/test_knowledge.rs` | Consumer-facing packet determinism and bootstrap tests |
 | `chronicler-agents/tests/test_merchant.rs` | Route-planning regressions, packet-gated behavior |
 
@@ -190,6 +206,7 @@ All M59a counters (created, refresh, transmit, expire, evict, drop, per-type cou
 - Merchant with usable trade packets chooses only packet-known destinations (deterministic)
 - Merchant with no usable packets hits bootstrap fallback (deterministic, counter increments)
 - Merchant with packets pointing at unreachable destinations falls through to bootstrap
+- Merchant with non-empty usable packet set but all packet-gated destinations below `MIN_TRIP_PROFIT` does **not** fall back to oracle (anti-omniscience)
 - `merchant_no_usable_packets` increments even when bootstrap still fails to produce a plan
 - `merchant_plans_packet_driven` and `merchant_plans_bootstrap` are mutually exclusive for a given planning attempt
 - Threat penalty changes best adjacent migration target (deterministic, counter increments)
