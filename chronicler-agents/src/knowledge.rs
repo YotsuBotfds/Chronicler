@@ -377,7 +377,7 @@ pub fn observe_packets(
 
         // --- Trade opportunity ---
         if pool.arrived_this_turn[slot] && region.merchant_route_margin > TRADE_MARGIN_THRESHOLD {
-            let scaled = ((region.merchant_route_margin - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0) as u8;
+            let scaled = ((region.merchant_route_margin - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0).clamp(0.0, 255.0) as u8;
             let intensity = scaled.max(50).min(230);
             let result = admit_packet(pool, slot, &PacketCandidate {
                 info_type: InfoType::TradeOpportunity as u8,
@@ -396,11 +396,11 @@ pub fn observe_packets(
         // --- Religious signal ---
         let mut religious_intensity: u8 = 0;
         if region.persecution_intensity > 0.0 {
-            let scaled = (region.persecution_intensity * 200.0) as u8;
+            let scaled = (region.persecution_intensity * 200.0).clamp(0.0, 255.0) as u8;
             religious_intensity = religious_intensity.max(scaled.max(40).min(200));
         }
         if region.conversion_rate > CONVERSION_RATE_THRESHOLD {
-            let scaled = (region.conversion_rate * 300.0) as u8;
+            let scaled = (region.conversion_rate * 300.0).clamp(0.0, 255.0) as u8;
             religious_intensity = religious_intensity.max(scaled.max(40).min(180));
         }
         if region.schism_convert_from != region.schism_convert_to
