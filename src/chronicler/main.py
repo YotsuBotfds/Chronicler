@@ -1102,7 +1102,7 @@ def main() -> None:
             from google import genai  # noqa: F401
         except ImportError:
             print("Error: --narrator gemini requires the google-genai package. "
-                  "Install with: pip install google-genai", file=sys.stderr)
+                  "Install with: pip install -e \".[gemini]\"", file=sys.stderr)
             sys.exit(1)
         import os
         if "GOOGLE_API_KEY" not in os.environ:

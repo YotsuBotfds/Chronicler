@@ -150,7 +150,7 @@ class AnthropicClient:
 class GeminiClient:
     """Google Gemini SDK client for Gemini API calls.
 
-    Optional — requires `pip install google-genai`.
+    Optional — requires `pip install -e ".[gemini]"` or `pip install google-genai`.
     """
 
     def __init__(self, client: Any, model: str = "gemini-2.5-pro"):
