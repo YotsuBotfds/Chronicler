@@ -4076,6 +4076,31 @@ impl AgentSimulator {
         Ok(stats)
     }
 
+    /// M59a: Return knowledge stats from last tick as a flat HashMap.
+    #[pyo3(name = "get_knowledge_stats")]
+    pub fn get_knowledge_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
+        let mut stats = std::collections::HashMap::new();
+        stats.insert("packets_created".into(), self.knowledge_stats.packets_created as f64);
+        stats.insert("packets_refreshed".into(), self.knowledge_stats.packets_refreshed as f64);
+        stats.insert("packets_transmitted".into(), self.knowledge_stats.packets_transmitted as f64);
+        stats.insert("packets_expired".into(), self.knowledge_stats.packets_expired as f64);
+        stats.insert("packets_evicted".into(), self.knowledge_stats.packets_evicted as f64);
+        stats.insert("packets_dropped".into(), self.knowledge_stats.packets_dropped as f64);
+        stats.insert("live_packet_count".into(), self.knowledge_stats.live_packet_count as f64);
+        stats.insert("agents_with_packets".into(), self.knowledge_stats.agents_with_packets as f64);
+        stats.insert("created_threat".into(), self.knowledge_stats.created_threat as f64);
+        stats.insert("created_trade".into(), self.knowledge_stats.created_trade as f64);
+        stats.insert("created_religious".into(), self.knowledge_stats.created_religious as f64);
+        stats.insert("transmitted_threat".into(), self.knowledge_stats.transmitted_threat as f64);
+        stats.insert("transmitted_trade".into(), self.knowledge_stats.transmitted_trade as f64);
+        stats.insert("transmitted_religious".into(), self.knowledge_stats.transmitted_religious as f64);
+        stats.insert("mean_age".into(), self.knowledge_stats.mean_age as f64);
+        stats.insert("max_age".into(), self.knowledge_stats.max_age as f64);
+        stats.insert("mean_hops".into(), self.knowledge_stats.mean_hops as f64);
+        stats.insert("max_hops".into(), self.knowledge_stats.max_hops as f64);
+        Ok(stats)
+    }
+
     /// M58b: Non-draining read of cumulative delivery counters.
     /// Run-lifetime monotonic — per-turn deltas derived by diffing consecutive reads.
     #[pyo3(name = "get_delivery_diagnostics")]
