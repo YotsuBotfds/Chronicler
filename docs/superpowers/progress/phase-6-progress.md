@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-30 (M58b closeout complete on `main`; smoke/full convergence gates PASS)
+> **Last updated:** 2026-03-30 (`M59a` merged on `main`; `M59b` pre-spec handoff added)
 
 ---
 
@@ -16,8 +16,10 @@
   full PASS at `output/m58b_gate_full_routefix` with `154/200` passing seeds (`77.0%`), tail guard PASS, conservation PASS.
 - **Validation run on closeout head:** `cargo test --test test_merchant --test test_spatial --quiet`, `cargo test --test test_economy --quiet`, `pytest -q tests/test_agent_bridge.py tests/test_economy_bridge.py tests/test_m58b_gate.py tests/test_merchant_mobility.py`, and `pytest -q tests/test_oracle_gate.py` all PASS.
 - **Operational note:** use `.venv\\Scripts\\python.exe` consistently when rebuilding/running hybrid validation (`maturin develop --release` in `chronicler-agents/`), or Python may load a stale `chronicler_agents` extension.
-- **M59a branch hardening on `feat/m59a-information-packets` (unmerged):** post-review fixes landed for equal-rank full-table packet admission (same-turn/same-priority incoming packets now drop instead of evicting incumbents), direct-observation diagnostics (evictions/drops now count correctly in `knowledge_stats`), and Python bundle shaping (`created_by_type` / `transmitted_by_type` now emit as nested dicts instead of leaked flat FFI keys).
-- **M59a validation after hardening:** after rebuilding the extension with `maturin develop --release`, `cargo test --test test_knowledge --test test_merchant --quiet` PASS and `pytest -q tests/test_m59a_knowledge.py tests/test_agent_bridge.py::TestBridgeResetAndEventFallback::test_reset_clears_gini_and_cached_state tests/test_merchant_mobility.py` PASS.
+- **`M59a` is now merged on `main` at `f4df802` (`fix(m59a): harden admission and diagnostics`).**
+- **Merged `M59a` scope:** packet slots now live on `AgentPool`, the knowledge phase runs at `0.95`, merchants emit trade packets on arrival, and bundle metadata now carries `knowledge_stats` with per-type created/transmitted counters plus live age / hop summaries.
+- **`M59a` validation on merge head:** after rebuilding the extension with `maturin develop --release`, `cargo test --test test_knowledge --test test_merchant --quiet` PASS and `pytest -q tests/test_m59a_knowledge.py tests/test_agent_bridge.py::TestBridgeResetAndEventFallback::test_reset_clears_gini_and_cached_state tests/test_merchant_mobility.py` PASS.
+- **Next target staged:** `docs/superpowers/plans/2026-03-30-m59b-pre-spec-handoff.md` now captures the live post-`M59a` baseline for `M59b: Perception-Coupled Behavior`, including the merchant bootstrap problem, the packet-layout constraints that make loyalty coupling non-trivial, and the recommended question set for spec freeze.
 
 ---
 
@@ -661,8 +663,9 @@
 - **Operational tool:** `scripts/m54_baseline_adjudication.py` is the source-of-truth comparator for candidate vs controls; keep its output artifact with every post-M54 migration closeout.
 - **M55 status:** M55a and M55b are both implemented and gated on the clean merge line. Final canonical artifact: `output/m55b/gate_food007_farmer030_stab280_p24/full_gate/batch_1/validate_all.json`.
 - **Gate recovery note:** The branch-level regression drift was not caused by M55b alone. Final recovery that restored the canonical gate on the accepted M54 runtime line combined (1) age stream staying at `1400`, (2) spatial streams moving to `2000/2001`, (3) `MEMORY_SATISFACTION_WEIGHT=0.05`, (4) `FOOD_SHORTAGE_WEIGHT=0.07`, (5) `FOOD_SCARCITY_FARMER_BONUS=0.30`, and (6) the satisfaction stability bonus denominator moving from `300` to `280`.
-- **Next implementation target:** promote `M59a: Information Packets & Diffusion` from prep handoff to spec/implementation on the clean post-`M58b` baseline (`docs/superpowers/plans/2026-03-30-m59a-pre-spec-handoff.md`).
-- **M59a prep (2026-03-30):** Added `docs/superpowers/plans/2026-03-30-m59a-pre-spec-handoff.md` to capture the live post-`M58b` baseline for `M59a`, including the Rust-owned relationship / spatial / merchant seams, the legacy fog / `M24` surfaces that should not dictate the new design, the `1800` RNG reservation, the 4-slot / 24-bytes-per-agent budget expectation, and the concrete user questions to resolve before spec freeze.
+- **`M59a` status:** merged on the clean line. Canonical design doc: `docs/superpowers/specs/2026-03-30-m59a-information-packets-design.md`. Canonical implementation plan: `docs/superpowers/plans/2026-03-30-m59a-implementation-plan.md`.
+- **Next implementation target:** promote `M59b: Perception-Coupled Behavior` from pre-spec handoff to spec/implementation on the clean post-`M59a` baseline (`docs/superpowers/plans/2026-03-30-m59b-pre-spec-handoff.md`).
+- **M59b prep (2026-03-30):** Added `docs/superpowers/plans/2026-03-30-m59b-pre-spec-handoff.md` to capture the live post-`M59a` baseline for `M59b`, including the still-perfect-info merchant planner in `merchant.rs`, the still-local-only migration / loyalty logic in `behavior.rs`, the merchant bootstrap problem if route planning becomes packet-gated, and the recommended defaults for scoping merchants, migration, loyalty, and diagnostics.
 - **Phase 8 roadmap alignment (2026-03-30):** Reviewed and tightened `docs/superpowers/roadmaps/chronicler-phase8-governance-roadmap.md` against the live repo contracts. The draft now keeps the global action-weight cap at `2.5x`, routes Phase 8 Rust-politics inputs through the dedicated politics civ batch rather than agent-tick `CivSignals`, keeps legitimacy on a normalized `0.0-1.0` scale, moves the ambition RNG reservation off the existing `1600` marriage slot, and makes M64 commons inputs explicitly one-turn lagged because ecology runs before the current turn's agent tick.
 - **Scale baseline:** Preserve `tuning/codex_m53_secession_threshold25.yaml` and `output/m53/codex_m53_secession_threshold25_full/batch_1/validate_report.json` as the reference pass profile.
 - **If depth tuning is reopened later:** treat it as post-M53 follow-on work and rerun the canonical gate against this baseline rather than reverting milestone status.
