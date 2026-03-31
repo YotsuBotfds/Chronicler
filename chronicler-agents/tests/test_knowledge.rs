@@ -198,6 +198,33 @@ fn test_admission_guard_drops_stale_incoming() {
 }
 
 #[test]
+fn test_admission_guard_drops_equal_rank_incoming() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    for i in 0..4u16 {
+        admit_packet(&mut pool, slot, &PacketCandidate {
+            info_type: InfoType::TradeOpportunity as u8,
+            source_region: i,
+            source_turn: 20,
+            intensity: 120,
+            hop_count: 0,
+        });
+    }
+
+    let before_regions = pool.pkt_source_region[slot];
+    let result = admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 99,
+        source_turn: 20,
+        intensity: 180,
+        hop_count: 0,
+    });
+    assert_eq!(result, AdmitResult::Dropped);
+    assert_eq!(pool.pkt_source_region[slot], before_regions, "equal-rank incoming should not evict");
+}
+
+#[test]
 fn test_decay_reduces_intensity() {
     let mut pool = AgentPool::new(4);
     let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
@@ -264,7 +291,7 @@ fn test_observe_threat_from_controller_change() {
     let mut regions = vec![RegionState::new(0)];
     regions[0].controller_changed_this_turn = true;
 
-    let (created, _, created_threat, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    let (created, _, _, _, created_threat, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
     assert_eq!(created, 1);
     assert_eq!(created_threat, 1);
     assert_eq!(unpack_type(pool.pkt_type_and_hops[slot][0]), InfoType::ThreatWarning as u8);
@@ -296,12 +323,12 @@ fn test_observe_trade_requires_arrival_and_margin() {
     regions[0].merchant_route_margin = 0.5;
 
     // No arrival flag — should not emit
-    let (created, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    let (created, _, _, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
     assert_eq!(created, 0);
 
     // Set arrival flag
     pool.arrived_this_turn[slot] = true;
-    let (created, _, _, created_trade, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    let (created, _, _, _, _, created_trade, _) = observe_packets(&mut pool, &regions, &[slot], 5);
     assert_eq!(created, 1);
     assert_eq!(created_trade, 1);
 }
@@ -315,7 +342,7 @@ fn test_observe_trade_below_margin_threshold_no_packet() {
     let mut regions = vec![RegionState::new(0)];
     regions[0].merchant_route_margin = 0.05; // below 0.10 threshold
 
-    let (created, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
+    let (created, _, _, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
     assert_eq!(created, 0);
 }
 
@@ -327,10 +354,75 @@ fn test_observe_religious_from_persecution() {
     let mut regions = vec![RegionState::new(0)];
     regions[0].persecution_intensity = 0.5;
 
-    let (created, _, _, _, created_religious) = observe_packets(&mut pool, &regions, &[slot], 5);
+    let (created, _, _, _, _, _, created_religious) = observe_packets(&mut pool, &regions, &[slot], 5);
     assert_eq!(created, 1);
     assert_eq!(created_religious, 1);
     assert_eq!(unpack_type(pool.pkt_type_and_hops[slot][0]), InfoType::ReligiousSignal as u8);
+}
+
+#[test]
+fn test_observe_eviction_counts_as_created_and_evicted() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    for i in 0..4u16 {
+        admit_packet(&mut pool, slot, &PacketCandidate {
+            info_type: InfoType::ReligiousSignal as u8,
+            source_region: i,
+            source_turn: 5,
+            intensity: 100,
+            hop_count: 0,
+        });
+    }
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].controller_changed_this_turn = true;
+
+    let (created, refreshed, evicted, dropped, created_threat, _, _) =
+        observe_packets(&mut pool, &regions, &[slot], 10);
+
+    assert_eq!(created, 1);
+    assert_eq!(refreshed, 0);
+    assert_eq!(evicted, 1);
+    assert_eq!(dropped, 0);
+    assert_eq!(created_threat, 1);
+    assert!(
+        (0..4).any(|i| {
+            unpack_type(pool.pkt_type_and_hops[slot][i]) == InfoType::ThreatWarning as u8
+                && pool.pkt_source_region[slot][i] == 0
+                && pool.pkt_source_turn[slot][i] == 10
+        }),
+        "freshly observed threat should replace the stalest incumbent",
+    );
+}
+
+#[test]
+fn test_observe_drop_counts_when_full_and_not_better() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.arrived_this_turn[slot] = true;
+
+    for i in 0..4u16 {
+        admit_packet(&mut pool, slot, &PacketCandidate {
+            info_type: InfoType::ThreatWarning as u8,
+            source_region: i,
+            source_turn: 20,
+            intensity: 200,
+            hop_count: 0,
+        });
+    }
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].merchant_route_margin = 0.5;
+
+    let (created, refreshed, evicted, dropped, _, created_trade, _) =
+        observe_packets(&mut pool, &regions, &[slot], 20);
+
+    assert_eq!(created, 0);
+    assert_eq!(refreshed, 0);
+    assert_eq!(evicted, 0);
+    assert_eq!(dropped, 1);
+    assert_eq!(created_trade, 0);
 }
 
 // ---------------------------------------------------------------------------

@@ -874,7 +874,34 @@ class AgentBridge:
         # M59a: knowledge stats collection
         try:
             k_stats = self._sim.get_knowledge_stats()
-            self._knowledge_stats_history.append(k_stats)
+            created_by_type = {
+                "threat": int(k_stats.pop("created_threat", 0)),
+                "trade": int(k_stats.pop("created_trade", 0)),
+                "religious": int(k_stats.pop("created_religious", 0)),
+            }
+            transmitted_by_type = {
+                "threat": int(k_stats.pop("transmitted_threat", 0)),
+                "trade": int(k_stats.pop("transmitted_trade", 0)),
+                "religious": int(k_stats.pop("transmitted_religious", 0)),
+            }
+            int_keys = {
+                "packets_created",
+                "packets_refreshed",
+                "packets_transmitted",
+                "packets_expired",
+                "packets_evicted",
+                "packets_dropped",
+                "live_packet_count",
+                "agents_with_packets",
+                "max_age",
+                "max_hops",
+            }
+            normalized_k_stats = {}
+            for key, value in k_stats.items():
+                normalized_k_stats[key] = int(value) if key in int_keys else float(value)
+            normalized_k_stats["created_by_type"] = created_by_type
+            normalized_k_stats["transmitted_by_type"] = transmitted_by_type
+            self._knowledge_stats_history.append(normalized_k_stats)
         except Exception:
             logger.exception("Failed to collect knowledge stats from Rust tick")
 

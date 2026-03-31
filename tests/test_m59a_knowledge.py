@@ -30,14 +30,25 @@ def test_extract_knowledge_stats_with_data():
         "metadata": {
             "seed": 42,
             "knowledge_stats": [
-                {"packets_created": 5, "live_packet_count": 3},
-                {"packets_created": 2, "live_packet_count": 4},
+                {
+                    "packets_created": 5,
+                    "live_packet_count": 3,
+                    "created_by_type": {"threat": 4, "trade": 1, "religious": 0},
+                    "transmitted_by_type": {"threat": 2, "trade": 0, "religious": 1},
+                },
+                {
+                    "packets_created": 2,
+                    "live_packet_count": 4,
+                    "created_by_type": {"threat": 1, "trade": 1, "religious": 0},
+                    "transmitted_by_type": {"threat": 0, "trade": 1, "religious": 0},
+                },
             ],
         }
     }]
     result = extract_knowledge_stats(bundles)
     assert len(result["by_seed"][42]) == 2
     assert result["by_seed"][42][0]["packets_created"] == 5
+    assert result["by_seed"][42][0]["created_by_type"]["threat"] == 4
 
 
 def test_knowledge_deterministic_cross_process(tmp_path):
@@ -140,3 +151,7 @@ def test_hybrid_determinism_with_knowledge_stats(tmp_path):
     k1 = b1.get("metadata", {}).get("knowledge_stats", [])
     assert len(k0) == 10, f"Expected 10 turns of knowledge_stats, got {len(k0)}"
     assert k0 == k1, "knowledge_stats diverged between same-seed runs"
+    assert "created_by_type" in k0[0], "bundle knowledge_stats should include created_by_type"
+    assert "transmitted_by_type" in k0[0], "bundle knowledge_stats should include transmitted_by_type"
+    assert "created_threat" not in k0[0], "per-type counters should be nested in created_by_type"
+    assert "transmitted_threat" not in k0[0], "per-type counters should be nested in transmitted_by_type"

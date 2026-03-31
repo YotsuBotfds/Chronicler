@@ -904,6 +904,8 @@ class TestBridgeResetAndEventFallback:
         bridge._economy_result = object()
         bridge._relationship_stats_history = [{"turn": 1}]
         bridge._household_stats_history = [{"turn": 1}]
+        bridge._merchant_trip_stats_history = [{"turn": 1}]
+        bridge._knowledge_stats_history = [{"turn": 1}]
 
         bridge.reset()
 
@@ -912,6 +914,8 @@ class TestBridgeResetAndEventFallback:
         assert bridge._economy_result is None
         assert bridge._relationship_stats_history == []
         assert bridge._household_stats_history == []
+        assert bridge._merchant_trip_stats_history == []
+        assert bridge._knowledge_stats_history == []
         bridge.close()
 
     def test_convert_events_unknown_type_is_safe(self, sample_world):

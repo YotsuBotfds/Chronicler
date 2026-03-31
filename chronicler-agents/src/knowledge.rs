@@ -278,8 +278,7 @@ pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandida
 
     // Admission guard: incoming must outrank the worst incumbent
     let incoming_outranks = candidate.source_turn > worst_turn
-        || (candidate.source_turn == worst_turn && incoming_priority > worst_priority)
-        || (candidate.source_turn == worst_turn && incoming_priority == worst_priority);
+        || (candidate.source_turn == worst_turn && incoming_priority > worst_priority);
 
     if incoming_outranks {
         pool.pkt_type_and_hops[slot][worst_idx] = pack_type_hops(info_type, candidate.hop_count);
@@ -329,15 +328,19 @@ pub fn decay_packets(pool: &mut AgentPool, alive_slots: &[usize]) -> u32 {
 
 /// Run direct observation for all alive agents. Each agent checks their
 /// current region's state and their arrival flag to produce/refresh packets.
-/// Returns (created_count, refreshed_count, created_threat, created_trade, created_religious).
+/// Returns
+/// (created_count, refreshed_count, evicted_count, dropped_count,
+///  created_threat, created_trade, created_religious).
 pub fn observe_packets(
     pool: &mut AgentPool,
     regions: &[RegionState],
     alive_slots: &[usize],
     current_turn: u16,
-) -> (u32, u32, u32, u32, u32) {
+) -> (u32, u32, u32, u32, u32, u32, u32) {
     let mut created = 0u32;
     let mut refreshed = 0u32;
+    let mut evicted = 0u32;
+    let mut dropped = 0u32;
     let mut created_threat = 0u32;
     let mut created_trade = 0u32;
     let mut created_religious = 0u32;
@@ -371,7 +374,12 @@ pub fn observe_packets(
             match result {
                 AdmitResult::Inserted => { created += 1; created_threat += 1; }
                 AdmitResult::Refreshed => { refreshed += 1; }
-                _ => {}
+                AdmitResult::Evicted => {
+                    created += 1;
+                    evicted += 1;
+                    created_threat += 1;
+                }
+                AdmitResult::Dropped => { dropped += 1; }
             }
         }
 
@@ -389,7 +397,12 @@ pub fn observe_packets(
             match result {
                 AdmitResult::Inserted => { created += 1; created_trade += 1; }
                 AdmitResult::Refreshed => { refreshed += 1; }
-                _ => {}
+                AdmitResult::Evicted => {
+                    created += 1;
+                    evicted += 1;
+                    created_trade += 1;
+                }
+                AdmitResult::Dropped => { dropped += 1; }
             }
         }
 
@@ -419,12 +432,25 @@ pub fn observe_packets(
             match result {
                 AdmitResult::Inserted => { created += 1; created_religious += 1; }
                 AdmitResult::Refreshed => { refreshed += 1; }
-                _ => {}
+                AdmitResult::Evicted => {
+                    created += 1;
+                    evicted += 1;
+                    created_religious += 1;
+                }
+                AdmitResult::Dropped => { dropped += 1; }
             }
         }
     }
 
-    (created, refreshed, created_threat, created_trade, created_religious)
+    (
+        created,
+        refreshed,
+        evicted,
+        dropped,
+        created_threat,
+        created_trade,
+        created_religious,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -645,10 +671,12 @@ pub fn knowledge_phase(
     stats.packets_expired = decay_packets(pool, &alive_slots);
 
     // Step 2: Direct observation
-    let (created, refreshed_obs, ct, ctr, cr) =
+    let (created, refreshed_obs, evicted_obs, dropped_obs, ct, ctr, cr) =
         observe_packets(pool, regions, &alive_slots, current_turn);
     stats.packets_created = created;
     stats.packets_refreshed = refreshed_obs;
+    stats.packets_evicted = evicted_obs;
+    stats.packets_dropped = dropped_obs;
     stats.created_threat = ct;
     stats.created_trade = ctr;
     stats.created_religious = cr;
@@ -669,8 +697,8 @@ pub fn knowledge_phase(
     // Step 4: Commit buffered receives
     let (commit_refreshed, evicted, dropped) = commit_buffered(pool, buffer);
     stats.packets_refreshed += commit_refreshed;
-    stats.packets_evicted = evicted;
-    stats.packets_dropped = dropped;
+    stats.packets_evicted += evicted;
+    stats.packets_dropped += dropped;
 
     // Step 5: Compute post-commit live stats
     let mut total_age: u64 = 0;
