@@ -53,7 +53,7 @@ pub fn tick_agents(
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
     mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
-) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats) {
+) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats) {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -126,6 +126,11 @@ pub fn tick_agents(
         crate::merchant::MerchantTripStats::default()
     };
     merchant_stats.unwind_count += conquest_unwind_count;
+
+    // -----------------------------------------------------------------------
+    // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
+    // -----------------------------------------------------------------------
+    let knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
@@ -917,7 +922,7 @@ pub fn tick_agents(
     formation_stats.cross_faith_marriages = marriage_stats.cross_faith_marriages;
     formation_stats.same_faith_marriages = marriage_stats.same_faith_marriages;
 
-    (events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats)
+    (events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats)
 }
 
 // ---------------------------------------------------------------------------
@@ -1435,7 +1440,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 42;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+        let (events, _, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
         assert!(pool.alive_count() < 500);
         assert!(pool.alive_count() > 0);
         // Should have death events
@@ -1507,8 +1512,8 @@ mod tests {
         for turn in 0..5 {
             if pa.len() < pool_a.capacity() { pa.resize(pool_a.capacity(), 0.0); }
             if pb.len() < pool_b.capacity() { pb.resize(pool_b.capacity(), 0.0); }
-            let (ea, _, _, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
-            let (eb, _, _, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+            let (ea, _, _, _, _, _, _) = tick_agents(&mut pool_a, &regions, &signals, seed, turn, &mut pa, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+            let (eb, _, _, _, _, _, _) = tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
             events_a_total += ea.len();
             events_b_total += eb.len();
         }
@@ -1542,7 +1547,7 @@ mod tests {
         let mut seed = [0u8; 32];
         seed[0] = 55;
         let mut percentiles = vec![0.0f32; pool.capacity()];
-        let (events, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+        let (events, _, _, _, _, _, _) = tick_agents(&mut pool, &regions, &signals, seed, 0, &mut percentiles, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
 
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert!(

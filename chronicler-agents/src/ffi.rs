@@ -1683,6 +1683,7 @@ pub struct AgentSimulator {
     merchant_ledger: Option<crate::merchant::ShadowLedger>,
     merchant_delivery_buf: Option<crate::merchant::DeliveryBuffer>,
     merchant_trip_stats: crate::merchant::MerchantTripStats,
+    knowledge_stats: crate::knowledge::KnowledgeStats,
     /// M58b: when true, economy tick consumes delivery buffer instead of tatonnement.
     hybrid_economy_mode: bool,
 }
@@ -1729,6 +1730,7 @@ impl AgentSimulator {
             merchant_ledger: None,
             merchant_delivery_buf: None,
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
+            knowledge_stats: crate::knowledge::KnowledgeStats::default(),
             hybrid_economy_mode: false,
         }
     }
@@ -2346,7 +2348,7 @@ impl AgentSimulator {
             _ => None,
         };
 
-        let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats) = crate::tick::tick_agents(
+        let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) = crate::tick::tick_agents(
             &mut self.pool,
             &self.regions,
             &signals,
@@ -2372,6 +2374,7 @@ impl AgentSimulator {
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
         self.merchant_trip_stats = merchant_stats;
+        self.knowledge_stats = knowledge_stats;
 
         // M53: demographic debug counters
         // event_type 0 = death, 5 = birth (from tick.rs AgentEvent)

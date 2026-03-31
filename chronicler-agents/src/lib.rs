@@ -105,6 +105,12 @@ pub use agent::{URBAN_MATERIAL_SATISFACTION_BONUS, URBAN_SAFETY_SATISFACTION_PEN
 pub use household::{HouseholdStats, InheritanceEvent, TransferType, household_death_transfer, consolidate_household_migrations};
 #[doc(hidden)]
 pub use agent::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
+#[doc(hidden)]
+pub use knowledge::{InfoType, KnowledgeStats, knowledge_phase, pack_type_hops, unpack_type, unpack_hops, is_empty_slot};
+#[doc(hidden)]
+pub use knowledge::{channel_weight, decay_rate, base_rate, admit_packet, AdmitResult, PacketCandidate};
+#[doc(hidden)]
+pub use knowledge::{observe_packets, propagate_packets, commit_buffered, decay_packets};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

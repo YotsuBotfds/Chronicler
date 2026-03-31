@@ -671,6 +671,7 @@ pub fn merchant_mobility_phase(
         let duration = pool.trip_turns_elapsed[slot];
         stats.completed_trips += 1;
         stats.avg_trip_duration += duration as f32;
+        pool.arrived_this_turn[slot] = true;
         reset_trip_fields(pool, slot);
     }
     if stats.completed_trips > 0 {
