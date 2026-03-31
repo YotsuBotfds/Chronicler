@@ -1962,6 +1962,19 @@ def extract_merchant_trip_stats(bundles: list[dict]) -> dict:
     return {"by_seed": by_seed}
 
 
+def extract_knowledge_stats(bundles: list[dict]) -> dict:
+    """M59a: Per-seed knowledge stats time series.
+
+    Returns ``{'by_seed': {seed: [per-turn-dict, ...]}}``.
+    """
+    by_seed: dict[int, list] = {}
+    for b in bundles:
+        seed = b.get("metadata", {}).get("seed", 0)
+        stats = b.get("metadata", {}).get("knowledge_stats", [])
+        by_seed[seed] = stats
+    return {"by_seed": by_seed}
+
+
 def extract_conservation_diagnostics(economy_result) -> dict[str, float]:
     """M58b: Extract per-turn conservation diagnostics from economy result.
 
