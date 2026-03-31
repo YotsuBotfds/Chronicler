@@ -625,3 +625,220 @@ fn test_propagation_independent_of_rel_slot_order() {
     assert_eq!(t1, t2, "transmitted count should be independent of slot order");
     assert_eq!(b1, b2, "buffer size should be independent of slot order");
 }
+
+// ---------------------------------------------------------------------------
+// Behavioral inertia: knowledge_phase must not modify non-packet fields
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_knowledge_phase_does_not_modify_non_packet_fields() {
+    let seed = [42u8; 32];
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.arrived_this_turn[b] = true;
+
+    let b_id = pool.ids[b];
+    set_bond(&mut pool, a, b_id, 5, 100);
+
+    pool.satisfactions[a] = 0.75;
+    pool.loyalties[a] = 0.6;
+    pool.wealth[a] = 50.0;
+    pool.need_safety[a] = 0.8;
+
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[0].controller_changed_this_turn = true;
+    regions[0].persecution_intensity = 0.5;
+    regions[1].merchant_route_margin = 0.5;
+
+    // Snapshot ALL non-packet pool fields before knowledge_phase
+    let ids_before = pool.ids.clone();
+    let regions_before = pool.regions.clone();
+    let origin_regions_before = pool.origin_regions.clone();
+    let civ_before = pool.civ_affinities.clone();
+    let occ_before = pool.occupations.clone();
+    let loy_before = pool.loyalties.clone();
+    let sat_before = pool.satisfactions.clone();
+    let skills_before = pool.skills.clone();
+    let ages_before = pool.ages.clone();
+    let disp_before = pool.displacement_turns.clone();
+    let life_events_before = pool.life_events.clone();
+    let promo_before = pool.promotion_progress.clone();
+    let bold_before = pool.boldness.clone();
+    let ambi_before = pool.ambition.clone();
+    let loy_trait_before = pool.loyalty_trait.clone();
+    let cv0_before = pool.cultural_value_0.clone();
+    let cv1_before = pool.cultural_value_1.clone();
+    let cv2_before = pool.cultural_value_2.clone();
+    let beliefs_before = pool.beliefs.clone();
+    let p0_before = pool.parent_id_0.clone();
+    let p1_before = pool.parent_id_1.clone();
+    let wealth_before = pool.wealth.clone();
+    let mem_et_before = pool.memory_event_types.clone();
+    let mem_sc_before = pool.memory_source_civs.clone();
+    let mem_t_before = pool.memory_turns.clone();
+    let mem_i_before = pool.memory_intensities.clone();
+    let mem_df_before = pool.memory_decay_factors.clone();
+    let mem_g_before = pool.memory_gates.clone();
+    let mem_c_before = pool.memory_count.clone();
+    let mem_l_before = pool.memory_is_legacy.clone();
+    let ns_before = pool.need_safety.clone();
+    let nm_before = pool.need_material.clone();
+    let nso_before = pool.need_social.clone();
+    let nsp_before = pool.need_spiritual.clone();
+    let na_before = pool.need_autonomy.clone();
+    let np_before = pool.need_purpose.clone();
+    let rt_before = pool.rel_target_ids.clone();
+    let rs_before = pool.rel_sentiments.clone();
+    let rb_before = pool.rel_bond_types.clone();
+    let rf_before = pool.rel_formed_turns.clone();
+    let rc_before = pool.rel_count.clone();
+    let syn_before = pool.synthesis_budget.clone();
+    let x_before = pool.x.clone();
+    let y_before = pool.y.clone();
+    let sid_before = pool.settlement_ids.clone();
+    let tp_before = pool.trip_phase.clone();
+    let tdr_before = pool.trip_dest_region.clone();
+    let tor_before = pool.trip_origin_region.clone();
+    let tgs_before = pool.trip_good_slot.clone();
+    let tcq_before = pool.trip_cargo_qty.clone();
+    let tte_before = pool.trip_turns_elapsed.clone();
+    let tpath_before = pool.trip_path.clone();
+    let tpl_before = pool.trip_path_len.clone();
+    let tpc_before = pool.trip_path_cursor.clone();
+    let alive_before = pool.alive.clone();
+
+    let stats = knowledge_phase(&mut pool, &regions, &seed, 5);
+
+    assert!(stats.packets_created > 0, "knowledge_phase should have created packets");
+
+    // Verify ALL non-packet fields are unchanged
+    assert_eq!(pool.ids, ids_before, "ids modified");
+    assert_eq!(pool.regions, regions_before, "regions modified");
+    assert_eq!(pool.origin_regions, origin_regions_before, "origin_regions modified");
+    assert_eq!(pool.civ_affinities, civ_before, "civ_affinities modified");
+    assert_eq!(pool.occupations, occ_before, "occupations modified");
+    assert_eq!(pool.loyalties, loy_before, "loyalties modified");
+    assert_eq!(pool.satisfactions, sat_before, "satisfactions modified");
+    assert_eq!(pool.skills, skills_before, "skills modified");
+    assert_eq!(pool.ages, ages_before, "ages modified");
+    assert_eq!(pool.displacement_turns, disp_before, "displacement_turns modified");
+    assert_eq!(pool.life_events, life_events_before, "life_events modified");
+    assert_eq!(pool.promotion_progress, promo_before, "promotion_progress modified");
+    assert_eq!(pool.boldness, bold_before, "boldness modified");
+    assert_eq!(pool.ambition, ambi_before, "ambition modified");
+    assert_eq!(pool.loyalty_trait, loy_trait_before, "loyalty_trait modified");
+    assert_eq!(pool.cultural_value_0, cv0_before, "cultural_value_0 modified");
+    assert_eq!(pool.cultural_value_1, cv1_before, "cultural_value_1 modified");
+    assert_eq!(pool.cultural_value_2, cv2_before, "cultural_value_2 modified");
+    assert_eq!(pool.beliefs, beliefs_before, "beliefs modified");
+    assert_eq!(pool.parent_id_0, p0_before, "parent_id_0 modified");
+    assert_eq!(pool.parent_id_1, p1_before, "parent_id_1 modified");
+    assert_eq!(pool.wealth, wealth_before, "wealth modified");
+    assert_eq!(pool.memory_event_types, mem_et_before, "memory_event_types modified");
+    assert_eq!(pool.memory_source_civs, mem_sc_before, "memory_source_civs modified");
+    assert_eq!(pool.memory_turns, mem_t_before, "memory_turns modified");
+    assert_eq!(pool.memory_intensities, mem_i_before, "memory_intensities modified");
+    assert_eq!(pool.memory_decay_factors, mem_df_before, "memory_decay_factors modified");
+    assert_eq!(pool.memory_gates, mem_g_before, "memory_gates modified");
+    assert_eq!(pool.memory_count, mem_c_before, "memory_count modified");
+    assert_eq!(pool.memory_is_legacy, mem_l_before, "memory_is_legacy modified");
+    assert_eq!(pool.need_safety, ns_before, "need_safety modified");
+    assert_eq!(pool.need_material, nm_before, "need_material modified");
+    assert_eq!(pool.need_social, nso_before, "need_social modified");
+    assert_eq!(pool.need_spiritual, nsp_before, "need_spiritual modified");
+    assert_eq!(pool.need_autonomy, na_before, "need_autonomy modified");
+    assert_eq!(pool.need_purpose, np_before, "need_purpose modified");
+    assert_eq!(pool.rel_target_ids, rt_before, "rel_target_ids modified");
+    assert_eq!(pool.rel_sentiments, rs_before, "rel_sentiments modified");
+    assert_eq!(pool.rel_bond_types, rb_before, "rel_bond_types modified");
+    assert_eq!(pool.rel_formed_turns, rf_before, "rel_formed_turns modified");
+    assert_eq!(pool.rel_count, rc_before, "rel_count modified");
+    assert_eq!(pool.synthesis_budget, syn_before, "synthesis_budget modified");
+    assert_eq!(pool.x, x_before, "x modified");
+    assert_eq!(pool.y, y_before, "y modified");
+    assert_eq!(pool.settlement_ids, sid_before, "settlement_ids modified");
+    assert_eq!(pool.trip_phase, tp_before, "trip_phase modified");
+    assert_eq!(pool.trip_dest_region, tdr_before, "trip_dest_region modified");
+    assert_eq!(pool.trip_origin_region, tor_before, "trip_origin_region modified");
+    assert_eq!(pool.trip_good_slot, tgs_before, "trip_good_slot modified");
+    assert_eq!(pool.trip_cargo_qty, tcq_before, "trip_cargo_qty modified");
+    assert_eq!(pool.trip_turns_elapsed, tte_before, "trip_turns_elapsed modified");
+    assert_eq!(pool.trip_path, tpath_before, "trip_path modified");
+    assert_eq!(pool.trip_path_len, tpl_before, "trip_path_len modified");
+    assert_eq!(pool.trip_path_cursor, tpc_before, "trip_path_cursor modified");
+    assert_eq!(pool.alive, alive_before, "alive modified");
+
+    // arrived_this_turn IS expected to change (consumed by knowledge phase)
+    assert!(!pool.arrived_this_turn[b], "arrived_this_turn should be cleared");
+}
+
+// ---------------------------------------------------------------------------
+// Multi-turn chain diffusion
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_multi_turn_chain_diffusion() {
+    let seed = [7u8; 32];
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let c = pool.spawn(2, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let d = pool.spawn(3, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+
+    let _a_id = pool.ids[a];
+    let b_id = pool.ids[b];
+    let c_id = pool.ids[c];
+    let d_id = pool.ids[d];
+
+    set_bond(&mut pool, a, b_id, 5, 127);
+    set_bond(&mut pool, b, c_id, 5, 127);
+    set_bond(&mut pool, c, d_id, 5, 127);
+
+    let mut regions: Vec<RegionState> = (0..4).map(|i| RegionState::new(i)).collect();
+    regions[0].controller_changed_this_turn = true;
+
+    let _s1 = knowledge_phase(&mut pool, &regions, &seed, 1);
+    regions[0].controller_changed_this_turn = false;
+
+    let a_pkt = (0..4).find(|&i| unpack_type(pool.pkt_type_and_hops[a][i]) == 1);
+    assert!(a_pkt.is_some(), "A should have threat packet");
+    assert_eq!(pool.pkt_source_turn[a][a_pkt.unwrap()], 1);
+    assert_eq!(unpack_hops(pool.pkt_type_and_hops[a][a_pkt.unwrap()]), 0);
+
+    let _s2 = knowledge_phase(&mut pool, &regions, &seed, 2);
+    let _s3 = knowledge_phase(&mut pool, &regions, &seed, 3);
+    let _s4 = knowledge_phase(&mut pool, &regions, &seed, 4);
+
+    for agent_slot in [b, c, d] {
+        for i in 0..4 {
+            if unpack_type(pool.pkt_type_and_hops[agent_slot][i]) == 1 {
+                assert_eq!(
+                    pool.pkt_source_turn[agent_slot][i], 1,
+                    "source_turn should be preserved through propagation"
+                );
+                assert!(
+                    unpack_hops(pool.pkt_type_and_hops[agent_slot][i]) > 0,
+                    "propagated packets should have hop_count > 0"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_arrival_flag_consumed_by_knowledge_phase() {
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.arrived_this_turn[a] = true;
+
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].merchant_route_margin = 0.5;
+
+    let stats = knowledge_phase(&mut pool, &regions, &[0u8; 32], 1);
+    assert!(!pool.arrived_this_turn[a], "flag should be cleared");
+    assert!(stats.packets_created > 0, "should have created trade packet");
+
+    let stats2 = knowledge_phase(&mut pool, &regions, &[0u8; 32], 2);
+    assert_eq!(stats2.created_trade, 0, "no arrival = no new trade packet");
+}
