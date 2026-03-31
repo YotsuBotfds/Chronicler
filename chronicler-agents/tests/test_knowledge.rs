@@ -7,6 +7,7 @@ use chronicler_agents::knowledge::{
     admit_packet, AdmitResult, PacketCandidate,
     observe_packets,
     propagate_packets, commit_buffered,
+    usable_trade_packets, strongest_threat_for_region,
 };
 use chronicler_agents::RegionState;
 use chronicler_agents::relationships::BondType;
@@ -933,4 +934,93 @@ fn test_arrival_flag_consumed_by_knowledge_phase() {
 
     let stats2 = knowledge_phase(&mut pool, &regions, &[0u8; 32], 2);
     assert_eq!(stats2.created_trade, 0, "no arrival = no new trade packet");
+}
+
+// ---------------------------------------------------------------------------
+// M59b: Packet query helper tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_usable_trade_packets_filters_correctly() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0; // current region = 0
+
+    // Slot 0: trade packet from region 1 (usable)
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 1,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 1,
+    });
+    // Slot 1: trade packet from region 0 (local — excluded)
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::TradeOpportunity as u8,
+        source_region: 0,
+        source_turn: 5,
+        intensity: 180,
+        hop_count: 0,
+    });
+    // Slot 2: threat packet from region 2 (wrong type — excluded)
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::ThreatWarning as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 150,
+        hop_count: 0,
+    });
+
+    let result = usable_trade_packets(&pool, slot, 0);
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].0, 1); // source_region
+    assert!((result[0].1 - 200.0 / 255.0).abs() < 0.01); // packet_strength
+}
+
+#[test]
+fn test_strongest_threat_for_region() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 0;
+
+    // Two threat packets for region 2 with different intensities
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::ThreatWarning as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 100,
+        hop_count: 1,
+    });
+    // Same identity — will refresh if newer/stronger
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::ThreatWarning as u8,
+        source_region: 2,
+        source_turn: 6,
+        intensity: 180,
+        hop_count: 0,
+    });
+
+    let strength = strongest_threat_for_region(&pool, slot, 2, 0);
+    assert!((strength - 180.0 / 255.0).abs() < 0.01);
+
+    // No threat for region 3
+    assert_eq!(strongest_threat_for_region(&pool, slot, 3, 0), 0.0);
+}
+
+#[test]
+fn test_threat_own_region_excluded() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    pool.regions[slot] = 2;
+
+    admit_packet(&mut pool, slot, &PacketCandidate {
+        info_type: InfoType::ThreatWarning as u8,
+        source_region: 2,
+        source_turn: 5,
+        intensity: 200,
+        hop_count: 0,
+    });
+
+    // target_region == own_region == 2 → excluded
+    assert_eq!(strongest_threat_for_region(&pool, slot, 2, 2), 0.0);
 }

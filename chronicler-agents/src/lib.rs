@@ -111,6 +111,8 @@ pub use knowledge::{InfoType, KnowledgeStats, knowledge_phase, pack_type_hops, u
 pub use knowledge::{channel_weight, decay_rate, base_rate, admit_packet, AdmitResult, PacketCandidate};
 #[doc(hidden)]
 pub use knowledge::{observe_packets, propagate_packets, commit_buffered, decay_packets};
+#[doc(hidden)]
+pub use knowledge::{usable_trade_packets, strongest_threat_for_region};
 
 // jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
 // Performance benchmarks run on WSL/Linux where jemalloc is active.

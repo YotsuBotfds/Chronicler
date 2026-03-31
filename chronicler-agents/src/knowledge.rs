@@ -174,6 +174,11 @@ pub struct KnowledgeStats {
     pub max_age: u32,
     pub mean_hops: f32,
     pub max_hops: u32,
+    // M59b: Consumer counters (accumulated outside knowledge_phase, merged in tick.rs)
+    pub merchant_plans_packet_driven: u32,
+    pub merchant_plans_bootstrap: u32,
+    pub merchant_no_usable_packets: u32,
+    pub migration_choices_changed_by_threat: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -641,6 +646,77 @@ pub fn commit_buffered(
     }
 
     (refreshed, evicted, dropped)
+}
+
+// ---------------------------------------------------------------------------
+// M59b: Packet query helpers
+// ---------------------------------------------------------------------------
+
+/// M59b: Collect usable nonlocal trade_opportunity packets for a merchant.
+/// Returns vec of (source_region, packet_strength) for packets where:
+/// - info_type == TradeOpportunity
+/// - intensity > 0
+/// - source_region != current_region
+/// Caller is responsible for reachability filtering.
+pub fn usable_trade_packets(
+    pool: &AgentPool,
+    slot: usize,
+    current_region: u16,
+) -> Vec<(u16, f32)> {
+    let mut results = Vec::new();
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if is_empty_slot(th) {
+            continue;
+        }
+        if unpack_type(th) != InfoType::TradeOpportunity as u8 {
+            continue;
+        }
+        let intensity = pool.pkt_intensity[slot][i];
+        if intensity == 0 {
+            continue;
+        }
+        let source_region = pool.pkt_source_region[slot][i];
+        if source_region == current_region {
+            continue;
+        }
+        results.push((source_region, intensity as f32 / 255.0));
+    }
+    results
+}
+
+/// M59b: Find the strongest threat_warning packet targeting `target_region`.
+/// Returns the packet strength (intensity / 255.0) of the strongest match,
+/// or 0.0 if no matching threat packet is held.
+/// Excludes packets sourced from the agent's own region.
+pub fn strongest_threat_for_region(
+    pool: &AgentPool,
+    slot: usize,
+    target_region: u16,
+    own_region: u16,
+) -> f32 {
+    let mut best: f32 = 0.0;
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if is_empty_slot(th) {
+            continue;
+        }
+        if unpack_type(th) != InfoType::ThreatWarning as u8 {
+            continue;
+        }
+        let source_region = pool.pkt_source_region[slot][i];
+        if source_region != target_region {
+            continue;
+        }
+        if source_region == own_region {
+            continue;
+        }
+        let strength = pool.pkt_intensity[slot][i] as f32 / 255.0;
+        if strength > best {
+            best = strength;
+        }
+    }
+    best
 }
 
 // ---------------------------------------------------------------------------
