@@ -46,6 +46,8 @@ const MIGRATION_SELF_RULE_BONUS: f32 = 0.0;
 const HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT: f32 = 1.20;
 /// Flat risk-aversion factor for partnered households with pooled wealth.
 const HOUSEHOLD_MIGRATION_MARRIED_FACTOR: f32 = 0.88;
+/// M59b: Maximum penalty applied to adjacent migration target from a threat packet.
+const MAX_THREAT_PENALTY: f32 = 0.20;
 
 // ---------------------------------------------------------------------------
 // Helpers — smoothstep, gumbel_argmax
@@ -129,13 +131,14 @@ fn region_population_count(stats: &RegionStats, region_id: usize) -> usize {
     stats.occupation_supply[region_id].iter().sum()
 }
 
+/// Returns (best_target, migration_opportunity, choices_changed_by_threat).
 fn best_migration_target_for_agent(
     pool: &AgentPool,
     regions: &[RegionState],
     stats: &RegionStats,
     region_id: usize,
     slot: usize,
-) -> (u16, f32) {
+) -> (u16, f32, bool) {
     let civ = pool.civ_affinity(slot);
     let own_pop = region_population_count(stats, region_id);
     let own_cap = regions[region_id].carrying_capacity.max(1) as f32;
@@ -146,6 +149,8 @@ fn best_migration_target_for_agent(
 
     let mut best_adj_score = own_score;
     let mut best_adj_id = region_id as u16;
+    let mut baseline_best_adj_id = region_id as u16;
+    let mut baseline_best_adj_score = own_score;
     for bit in 0..32u32 {
         if regions[region_id].adjacency_mask & (1 << bit) == 0 {
             continue;
@@ -179,13 +184,30 @@ fn best_migration_target_for_agent(
         if regions[region_id].river_mask & regions[adj].river_mask != 0 {
             adj_score += RIVER_MIGRATION_BONUS;
         }
+
+            // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
+            // Baseline includes ALL existing modifiers (region score, polity, river).
+            if adj_score > baseline_best_adj_score {
+                baseline_best_adj_score = adj_score;
+                baseline_best_adj_id = adj as u16;
+            }
+
+            // M59b: Apply threat penalty from held packets (adjacent only, own-region excluded)
+            let threat_strength = crate::knowledge::strongest_threat_for_region(
+                pool, slot, adj as u16, region_id as u16,
+            );
+            if threat_strength > 0.0 {
+                adj_score -= MAX_THREAT_PENALTY * threat_strength;
+            }
+
         if adj_score > best_adj_score {
             best_adj_score = adj_score;
             best_adj_id = adj as u16;
         }
     }
 
-    (best_adj_id, (best_adj_score - own_score).max(0.0))
+    let threat_changed = best_adj_id != baseline_best_adj_id;
+    (best_adj_id, (best_adj_score - own_score).max(0.0), threat_changed)
 }
 
 fn switch_utility(
@@ -456,8 +478,9 @@ pub fn evaluate_region_decisions(
     region_id: usize,
     rng: &mut ChaCha8Rng,
     id_to_slot: &std::collections::HashMap<u32, usize>,  // M57b
-) -> PendingDecisions {
+) -> (PendingDecisions, u32) {
     let mut pending = PendingDecisions::new();
+    let mut threat_changed_count: u32 = 0;
 
     for &slot in slots {
         if !pool.is_alive(slot) {
@@ -478,11 +501,14 @@ pub fn evaluate_region_decisions(
         let ambi = pool.ambition(slot);
         let ltrait = pool.loyalty_trait(slot);
         let is_displaced = pool.displacement_turns(slot) > 0;
-        let (best_migration_target, migration_opportunity) = if is_displaced {
-            (region_id as u16, 0.0)
+        let (best_migration_target, migration_opportunity, threat_changed) = if is_displaced {
+            (region_id as u16, 0.0, false)
         } else {
             best_migration_target_for_agent(pool, regions, stats, region_id, slot)
         };
+        if threat_changed {
+            threat_changed_count += 1;
+        }
 
         // Compute utilities: utility fn -> personality modifier -> NEG_INFINITY gate
         // Modifier MUST be applied BEFORE the gate. 0.0 * modifier = 0.0 -> gated to NEG_INFINITY.
@@ -625,7 +651,7 @@ pub fn evaluate_region_decisions(
         }
     }
 
-    pending
+    (pending, threat_changed_count)
 }
 
 // ---------------------------------------------------------------------------
@@ -789,7 +815,7 @@ mod tests {
         region_id: usize,
         rng: &mut rand_chacha::ChaCha8Rng,
     ) -> PendingDecisions {
-        super::evaluate_region_decisions(
+        let (pd, _threat_count) = super::evaluate_region_decisions(
             pool,
             slots,
             regions,
@@ -798,7 +824,8 @@ mod tests {
             region_id,
             rng,
             &std::collections::HashMap::new(),  // M57b: no household effect in unit tests
-        )
+        );
+        pd
     }
 
     #[test]
@@ -1189,7 +1216,7 @@ mod tests {
             "region-level targeting should still favor the slightly happier foreign-ruled region",
         );
 
-        let (target, opportunity) =
+        let (target, opportunity, _threat_changed) =
             best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
         assert_eq!(
             target, 1,

@@ -194,7 +194,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     let region_groups = pool.partition_by_region(num_regions as u16);
 
-    let pending_decisions: Vec<_> = {
+    let pending_decisions_with_threat: Vec<_> = {
         let pool_ref = &*pool;
         let stats_ref = &stats;
         let id_to_slot_ref = &pre_decision_id_to_slot;  // M57b
@@ -219,6 +219,9 @@ pub fn tick_agents(
             })
             .collect()
     };
+    let _migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
+    let pending_decisions: Vec<_> = pending_decisions_with_threat
+        .into_iter().map(|(pd, _)| pd).collect();
 
     // -----------------------------------------------------------------------
     // M57b: Household migration consolidation (post-decision, pre-apply)
