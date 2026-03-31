@@ -129,6 +129,30 @@ def test_agents_off_no_knowledge_stats(tmp_path):
     assert k_stats == [] or "knowledge_stats" not in metadata
 
 
+def test_agents_off_no_consumer_counters(tmp_path):
+    """When --agents=off, no knowledge_stats should appear in metadata."""
+    out_dir = tmp_path / "off_test"
+    out_dir.mkdir()
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "chronicler.main",
+            "--seed", "42", "--turns", "5", "--agents", "off",
+            "--output", str(out_dir / "chronicle.md"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, f"Run failed: {result.stderr}"
+    bundle_path = out_dir / "chronicle_bundle.json"
+    assert bundle_path.exists()
+    with open(bundle_path) as f:
+        bundle = json.load(f)
+    metadata = bundle.get("metadata", {})
+    assert "knowledge_stats" not in metadata, \
+        "knowledge_stats should not be present when --agents=off"
+
+
 def test_hybrid_determinism_with_knowledge_stats(tmp_path):
     """Same seed in hybrid mode: two runs produce identical bundles."""
     from chronicler.main import execute_run
