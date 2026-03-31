@@ -1552,7 +1552,6 @@ git commit -m "test(m59b): add determinism and slot-order independence tests"
 
 **Files:**
 - Modify: `tests/test_m59a_knowledge.py`
-- Modify: `tests/test_agent_bridge.py`
 
 ### Substeps
 
