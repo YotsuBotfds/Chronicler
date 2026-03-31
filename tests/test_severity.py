@@ -156,6 +156,91 @@ class TestSeverityAtExilePretender:
         assert origin.stability == max(50 - expected_drain, 0)
 
 
+class TestSeverityAtPlagueSite:
+    """M-AF1 #9: plague stability drain must scale with severity."""
+
+    def test_plague_stability_uses_severity_multiplier(self, make_world):
+        """Plague stability drain should be raw_drain * severity multiplier."""
+        world = make_world(num_civs=2)
+        civ = world.civilizations[0]
+        civ.stability = 80
+        civ.civ_stress = 15
+
+        mult = get_severity_multiplier(civ, world)
+        assert mult > 1.0, f"Test setup: severity multiplier should be > 1.0, got {mult}"
+
+        raw_drain = 3  # default K_PLAGUE_STABILITY
+        pre_stability = civ.stability
+
+        # Force plague to fire with probability 1.0
+        world.event_probabilities = {"plague": 1.0}
+
+        from chronicler.simulation import phase_environment
+        phase_environment(world, seed=42, acc=None)
+
+        # Verify plague actually fired (stability should have decreased)
+        assert civ.stability < pre_stability, "Plague event did not fire"
+
+        actual_drain = pre_stability - civ.stability
+        expected_min_drain = int(raw_drain * mult)
+        assert actual_drain >= expected_min_drain, \
+            f"Plague drain should be >= {expected_min_drain} (raw {raw_drain} * mult {mult:.2f}), got {actual_drain}"
+
+
+class TestSeverityAtWarBankruptcy:
+    """M-AF1 #9: war bankruptcy stability drain must scale with severity."""
+
+    def test_war_bankruptcy_stability_uses_severity_multiplier(self, make_world):
+        """War bankruptcy stability drain should be raw_drain * severity multiplier."""
+        world = make_world(num_civs=2)
+        civ = world.civilizations[0]
+        other = world.civilizations[1]
+        civ.stability = 80
+        civ.treasury = 2  # Will go to -1 after -3 war cost -> triggers bankruptcy drain
+        civ.civ_stress = 20  # High stress for strong multiplier
+        world.active_wars = [(civ.name, other.name)]
+
+        mult = get_severity_multiplier(civ, world)
+        assert mult > 1.0, f"Test setup: severity multiplier should be > 1.0, got {mult}"
+
+        raw_drain = 2  # default K_WAR_COST_STABILITY
+        expected_drain = int(raw_drain * mult)
+        assert expected_drain > raw_drain, \
+            f"Test setup: int({raw_drain} * {mult}) must exceed {raw_drain}"
+
+        pre_stability = civ.stability
+
+        from chronicler.simulation import apply_automatic_effects
+        apply_automatic_effects(world)
+
+        actual_drain = pre_stability - civ.stability
+        assert actual_drain >= expected_drain, \
+            f"War bankruptcy drain should be >= {expected_drain} (raw {raw_drain} * mult {mult:.2f}), got {actual_drain}"
+
+    def test_war_bankruptcy_stability_direct_mode(self, make_world):
+        """War bankruptcy drain scales with severity in direct (non-acc) mode."""
+        world = make_world(num_civs=2)
+        civ = world.civilizations[0]
+        other = world.civilizations[1]
+        civ.stability = 80
+        civ.treasury = 2
+        civ.civ_stress = 20
+        world.active_wars = [(civ.name, other.name)]
+
+        mult = get_severity_multiplier(civ, world)
+        raw_drain = 2
+        expected_drain = int(raw_drain * mult)
+
+        pre_stability = civ.stability
+
+        from chronicler.simulation import apply_automatic_effects
+        apply_automatic_effects(world, acc=None)
+
+        actual_drain = pre_stability - civ.stability
+        assert actual_drain >= expected_drain, \
+            f"Direct-mode war bankruptcy drain should be >= {expected_drain}, got {actual_drain}"
+
+
 class TestSeverityMultiplierBasics:
     """Basic sanity checks for the severity multiplier itself."""
 

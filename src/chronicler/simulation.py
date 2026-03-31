@@ -165,7 +165,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
                     civ_regions = [r for r in world.regions if r.controller == civ.name]
                     distribute_pop_loss(civ_regions, int(10 * mult))
                     sync_civ_population(civ, world)
-                drain = int(get_override(world, K_PLAGUE_STABILITY, 3))
+                drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
                 if acc is not None:
                     acc.add(civ_idx, civ, "stability", -drain, "signal")
                 else:
@@ -317,17 +317,18 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
         for civ_name in war:
             c = get_civ(world, civ_name)
             if c:
+                war_mult = get_severity_multiplier(c, world)
                 if acc is not None:
                     c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
                     pending_war_treasury[c.name] = pending_war_treasury.get(c.name, c.treasury) - 3
                     acc.add(c_idx, c, "treasury", -3, "keep")
                     if pending_war_treasury[c.name] <= 0:
-                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
+                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2) * war_mult)
                         acc.add(c_idx, c, "stability", -drain, "signal")
                 else:
                     c.treasury -= 3
                     if c.treasury <= 0:
-                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2))
+                        drain = int(get_override(world, K_WAR_COST_STABILITY, 2) * war_mult)
                         c.stability = clamp(c.stability - drain, STAT_FLOOR["stability"], 100)
 
     # 6. Mercenary system
