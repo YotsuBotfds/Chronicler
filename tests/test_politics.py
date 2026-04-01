@@ -1153,3 +1153,63 @@ def test_federation_defense_triggers(make_world):
         for pair in [(a, b) for a, b in world.active_wars]
     )
     assert ally_at_war, f"Federation ally should have entered war. Active wars: {world.active_wars}"
+
+
+# --- M-AF1 #15: Vassalization wiring ---
+
+def test_decisive_war_can_vassalize(make_world):
+    """M-AF1 #15: decisive war should sometimes produce vassals via existing chooser."""
+    world = make_world(2)
+    attacker = world.civilizations[0]
+    defender = world.civilizations[1]
+
+    # Set up adjacencies so intelligence system can perceive defender
+    world.regions[0].adjacencies = [world.regions[1].name]
+    world.regions[1].adjacencies = [world.regions[0].name]
+
+    # Make attacker overwhelmingly stronger for decisive victory
+    attacker.military = 90
+    defender.military = 10
+
+    # Set up hostile relationship for WAR target selection
+    from chronicler.models import Disposition
+    world.relationships[attacker.name][defender.name].disposition = Disposition.HOSTILE
+
+    # Force vassalization branch: stability > 40 + cautious trait (threshold=0.8)
+    attacker.stability = 60
+    attacker.leader.trait = "cautious"
+
+    # Try multiple seeds to find one where the RNG forces vassalization
+    from chronicler.models import ActionType, VassalRelation
+    from chronicler.action_engine import resolve_action
+
+    vassalized = False
+    for seed in range(200):
+        # Reset state each iteration
+        world.seed = seed
+        world.turn = 1
+        world.vassal_relations = []
+        world.active_wars = []
+        world.war_start_turns = {}
+        defender.regions = [world.regions[1].name]
+        world.regions[1].controller = defender.name
+        attacker.regions = [world.regions[0].name]
+        world.regions[0].controller = attacker.name
+        attacker.military = 90
+        defender.military = 10
+
+        resolve_action(attacker, ActionType.WAR, world)
+
+        if any(v.overlord == attacker.name and v.vassal == defender.name
+               for v in world.vassal_relations):
+            vassalized = True
+            # M-AF1: vassalization must NOT leave the pair in active_wars
+            war_pairs = [(a, b) for a, b in world.active_wars]
+            assert not any(
+                (attacker.name in pair and defender.name in pair) for pair in war_pairs
+            ), f"Vassalized pair should not be in active_wars, got {world.active_wars}"
+            # Defender should retain their region (no absorption)
+            assert defender.regions, "Defender should retain regions after vassalization"
+            break
+
+    assert vassalized, "Decisive war with cautious trait should produce vassalization in 200 seeds"

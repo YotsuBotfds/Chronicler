@@ -308,16 +308,21 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
     defender = get_civ(world, target_name)
     if defender:
         result = resolve_war(civ, defender, world, seed=world.turn, acc=acc)
-        # Track active war (both orderings)
+        # Track active war (both orderings) — skip if vassalized (M-AF1 #15)
         pair = (civ.name, target_name)
         pair_rev = (target_name, civ.name)
-        if pair not in world.active_wars and pair_rev not in world.active_wars:
+        just_vassalized = any(
+            v.overlord == civ.name and v.vassal == target_name
+            for v in world.vassal_relations
+        )
+        if not just_vassalized and pair not in world.active_wars and pair_rev not in world.active_wars:
             world.active_wars.append(pair)
-        # M-AF1 #4: Stamp war start turn
-        from chronicler.politics import war_key
-        wk = war_key(civ.name, target_name)
-        if wk not in world.war_start_turns:
-            world.war_start_turns[wk] = world.turn
+        # M-AF1 #4: Stamp war start turn (skip if vassalized — already cleared)
+        if not just_vassalized:
+            from chronicler.politics import war_key
+            wk = war_key(civ.name, target_name)
+            if wk not in world.war_start_turns:
+                world.war_start_turns[wk] = world.turn
         # M-AF1 #5: Federation mutual defense
         from chronicler.politics import trigger_federation_defense
         fed_events = trigger_federation_defense(civ.name, target_name, world)
@@ -532,6 +537,26 @@ def resolve_war(
     stalemate_mil_loss = int(get_override(world, K_WAR_STALEMATE_MILITARY_LOSS, 10))
     war_stab_loss = int(get_override(world, K_WAR_STABILITY_LOSS, 10))
     if att_power > def_power * decisive_ratio:
+        # M-AF1 #15: Check vassalization before absorption
+        from chronicler.politics import choose_vassalize_or_absorb, resolve_vassalization
+        if choose_vassalize_or_absorb(attacker, defender, world):
+            # Vassalize: create VassalRelation, skip region transfer entirely
+            vassal_events = resolve_vassalization(attacker, defender, world)
+            world.events_timeline.extend(vassal_events)
+            # Still apply military losses and stability drain
+            mult = get_severity_multiplier(defender, world)
+            if acc is not None:
+                att_idx = civ_index(world, attacker.name)
+                def_idx = civ_index(world, defender.name)
+                acc.add(att_idx, attacker, "military", -winner_mil_loss, "guard-action")
+                acc.add(def_idx, defender, "military", -loser_mil_loss, "guard-action")
+                acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "signal")
+            else:
+                attacker.military = clamp(attacker.military - winner_mil_loss, STAT_FLOOR["military"], 100)
+                defender.military = clamp(defender.military - loser_mil_loss, STAT_FLOOR["military"], 100)
+                defender.stability = clamp(defender.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
+            return WarResult("attacker_wins", contested.name if contested else None)
+        # Otherwise: existing absorption path runs unchanged
         if contested:
             contested.controller = attacker.name
             # M48: Transient memory signals — conquest and victory

@@ -291,6 +291,7 @@ class TestWarResolution:
         defender = engine_world.civilizations[1]
         attacker.military = 100
         defender.military = 10
+        attacker.stability = 40  # Ensure absorption path (vassalization requires >40)
         engine_world.agent_mode = "hybrid"
         bridge = _FakeBridge()
         engine_world._agent_bridge = bridge
