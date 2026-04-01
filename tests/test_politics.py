@@ -1118,3 +1118,38 @@ def test_twilight_absorption_hybrid_calls_bridge_transition():
     assert kwargs["absorber_civ_id"] == 0
     assert kwargs["losing_civ_id"] == 1
     assert kwargs["world"] is world
+
+
+# --- M-AF1 #5: Federation mutual defense ---
+
+def test_federation_defense_triggers(make_world):
+    """M-AF1 #5: attacking a federation member should pull allies into war."""
+    world = make_world(3)
+    attacker = world.civilizations[0]
+    defender = world.civilizations[1]
+    ally = world.civilizations[2]
+    # Set up adjacencies so attacker can perceive defender (intelligence system)
+    world.regions[0].adjacencies = [world.regions[1].name]
+    world.regions[1].adjacencies = [world.regions[0].name]
+    # Set up federation between defender and ally
+    from chronicler.models import Federation
+    world.federations = [Federation(name="Alliance", members=[defender.name, ally.name], founded_turn=1)]
+    # Set up hostile relationship for WAR
+    from chronicler.models import Disposition
+    world.relationships[attacker.name][defender.name].disposition = Disposition.HOSTILE
+    world.relationships[defender.name][attacker.name].disposition = Disposition.HOSTILE
+    attacker.military = 80
+    defender.military = 30
+    ally.military = 40
+    world.turn = 1
+
+    from chronicler.models import ActionType
+    from chronicler.action_engine import resolve_action
+    resolve_action(attacker, ActionType.WAR, world)
+
+    # Ally should now be at war with attacker
+    ally_at_war = any(
+        (attacker.name in pair and ally.name in pair)
+        for pair in [(a, b) for a, b in world.active_wars]
+    )
+    assert ally_at_war, f"Federation ally should have entered war. Active wars: {world.active_wars}"
