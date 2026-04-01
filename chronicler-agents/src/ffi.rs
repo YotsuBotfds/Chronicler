@@ -136,6 +136,7 @@ pub fn promotions_schema() -> Schema {
         Field::new("personality_label", DataType::Utf8, true),
         Field::new("parent_id_0", DataType::UInt32, false),
         Field::new("parent_id_1", DataType::UInt32, false),
+        Field::new("civ_id", DataType::UInt8, false),
     ])
 }
 
@@ -2422,6 +2423,7 @@ impl AgentSimulator {
         let mut label_col = StringBuilder::with_capacity(n, n * 16);
         let mut parent_id_0_col = UInt32Builder::with_capacity(n);
         let mut parent_id_1_col = UInt32Builder::with_capacity(n);
+        let mut civ_id_col = UInt8Builder::with_capacity(n);
 
         for &(slot, role, trigger) in &candidates {
             let agent_id = self.pool.id(slot);
@@ -2447,6 +2449,7 @@ impl AgentSimulator {
             }
             parent_id_0_col.append_value(self.pool.parent_id_0[slot]);
             parent_id_1_col.append_value(self.pool.parent_id_1[slot]);
+            civ_id_col.append_value(self.pool.civ_affinity(slot));
 
             // Register in the Rust-side registry.
             // origin_civ_id = current civ at promotion time (best available;
@@ -2482,6 +2485,7 @@ impl AgentSimulator {
                 Arc::new(label_col.finish()) as _,
                 Arc::new(parent_id_0_col.finish()) as _,
                 Arc::new(parent_id_1_col.finish()) as _,
+                Arc::new(civ_id_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;

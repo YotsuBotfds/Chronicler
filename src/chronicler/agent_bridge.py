@@ -1415,14 +1415,30 @@ class AgentBridge:
                 elif switch_count >= 3:
                     role = "scientist"
 
-            # Pick civ — use origin_region's controller
-            civ = world.civilizations[0]
+            # M-AF1 #8: authoritative civ from Rust agent pool
+            civ_id = batch.column("civ_id")[i].as_py()
+            if civ_id < len(world.civilizations):
+                civ = world.civilizations[civ_id]
+            else:
+                # Fallback: region controller (should not happen)
+                civ = world.civilizations[0]
+                if origin_region < len(world.regions):
+                    controller = world.regions[origin_region].controller
+                    if controller:
+                        for c in world.civilizations:
+                            if c.name == controller:
+                                civ = c
+                                break
+
+            # Best-effort origin_civilization from region controller
+            # (may differ from civ if agent migrated)
+            origin_civ = civ
             if origin_region < len(world.regions):
                 controller = world.regions[origin_region].controller
                 if controller:
                     for c in world.civilizations:
                         if c.name == controller:
-                            civ = c
+                            origin_civ = c
                             break
 
             rng = random.Random(world.seed + world.turn + agent_id)
@@ -1434,7 +1450,7 @@ class AgentBridge:
                 role=role,
                 trait=trait,
                 civilization=civ.name,
-                origin_civilization=civ.name,
+                origin_civilization=origin_civ.name,
                 born_turn=world.turn,
                 source="agent",
                 agent_id=agent_id,

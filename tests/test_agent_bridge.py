@@ -1096,3 +1096,79 @@ def test_build_settlement_batch_overflow_guard():
     world.next_settlement_id = 65536
     with pytest.raises(ValueError, match="65535"):
         build_settlement_batch(world)
+
+
+class TestPromotionsCivIdentity:
+    """M-AF1 #8: promotions batch carries authoritative civ_id from Rust pool."""
+
+    def test_civ_id_column_present_in_promotions_schema(self):
+        """The promotions batch schema includes civ_id after the Rust change."""
+        sim = AgentSimulator(num_regions=2, seed=42)
+        sim.set_region_state(_make_region_batch(num_regions=2, capacity=30))
+        batch = sim.get_promotions()
+        assert "civ_id" in batch.schema.names
+
+    def test_authoritative_civ_id_overrides_region_controller(self, sample_world):
+        """Agent whose civ_id differs from origin_region controller gets correct civ."""
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+
+        # Build a synthetic promotions batch where the agent belongs to civ 1
+        # (Dorrathi Clans, index 1) but origin_region is 0 (Verdant Plains,
+        # controlled by Kethani Empire, index 0).
+        fake_batch = pa.record_batch({
+            "agent_id": pa.array([999], type=pa.uint32()),
+            "role": pa.array([0], type=pa.uint8()),        # general
+            "trigger": pa.array([0], type=pa.uint8()),      # skill
+            "skill": pa.array([0.9], type=pa.float32()),
+            "life_events": pa.array([3], type=pa.uint8()),
+            "origin_region": pa.array([0], type=pa.uint16()),  # region 0 = Verdant Plains (Kethani)
+            "boldness": pa.array([0.5], type=pa.float32()),
+            "ambition": pa.array([0.5], type=pa.float32()),
+            "loyalty_trait": pa.array([0.5], type=pa.float32()),
+            "personality_label": pa.array(["balanced"], type=pa.utf8()),
+            "parent_id_0": pa.array([0], type=pa.uint32()),
+            "parent_id_1": pa.array([0], type=pa.uint32()),
+            "civ_id": pa.array([1], type=pa.uint8()),       # civ 1 = Dorrathi Clans
+        })
+
+        created = bridge._process_promotions(fake_batch, sample_world)
+        assert len(created) == 1
+        gp = created[0]
+
+        # civilization = authoritative civ_id (Dorrathi Clans)
+        assert gp.civilization == "Dorrathi Clans"
+
+        # origin_civilization = region controller (Kethani Empire)
+        assert gp.origin_civilization == "Kethani Empire"
+
+        # GP appended to the correct civ's great_persons list
+        dorrathi = sample_world.civilizations[1]
+        assert gp in dorrathi.great_persons
+
+    def test_civ_id_fallback_when_out_of_range(self, sample_world):
+        """If civ_id exceeds civilizations list, falls back to region controller."""
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+
+        fake_batch = pa.record_batch({
+            "agent_id": pa.array([888], type=pa.uint32()),
+            "role": pa.array([1], type=pa.uint8()),        # merchant
+            "trigger": pa.array([0], type=pa.uint8()),
+            "skill": pa.array([0.8], type=pa.float32()),
+            "life_events": pa.array([2], type=pa.uint8()),
+            "origin_region": pa.array([1], type=pa.uint16()),  # region 1 = Iron Peaks (Dorrathi)
+            "boldness": pa.array([0.4], type=pa.float32()),
+            "ambition": pa.array([0.6], type=pa.float32()),
+            "loyalty_trait": pa.array([0.3], type=pa.float32()),
+            "personality_label": pa.array([None], type=pa.utf8()),
+            "parent_id_0": pa.array([0], type=pa.uint32()),
+            "parent_id_1": pa.array([0], type=pa.uint32()),
+            "civ_id": pa.array([255], type=pa.uint8()),    # out of range
+        })
+
+        created = bridge._process_promotions(fake_batch, sample_world)
+        assert len(created) == 1
+        gp = created[0]
+
+        # Falls back to region controller: Dorrathi Clans
+        assert gp.civilization == "Dorrathi Clans"
+        assert gp.origin_civilization == "Dorrathi Clans"
