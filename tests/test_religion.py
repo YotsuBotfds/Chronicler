@@ -522,3 +522,58 @@ def test_martyrdom_boosts_minority_faith_in_persecuted_region(make_world):
 
     assert region.martyrdom_boost == pytest.approx(MARTYRDOM_BOOST_PER_EVENT, abs=1e-9), \
         f"Minority-faith death in persecuted region should boost martyrdom, got {region.martyrdom_boost}"
+
+
+# ---------------------------------------------------------------------------
+# M-AF1 #10: Schism conversion fields round-trip through bridge
+# ---------------------------------------------------------------------------
+
+def test_schism_fields_in_region_batch(make_world):
+    """Schism conversion fields survive the Python→Arrow bridge round-trip.
+
+    When fire_schism sets schism_convert_from/to on a region, build_region_batch
+    must include those values in the Arrow RecordBatch so the Rust conversion_tick
+    can consume them.
+    """
+    from chronicler.agent_bridge import build_region_batch
+
+    world = make_world(1)
+    region = world.regions[0]
+
+    # Simulate what fire_schism does: set schism conversion fields
+    region.schism_convert_from = 2
+    region.schism_convert_to = 5
+
+    batch = build_region_batch(world)
+
+    # Verify the columns exist and carry the correct values
+    from_col = batch.column("schism_convert_from")
+    to_col = batch.column("schism_convert_to")
+
+    assert from_col[0].as_py() == 2, \
+        f"schism_convert_from should be 2, got {from_col[0].as_py()}"
+    assert to_col[0].as_py() == 5, \
+        f"schism_convert_to should be 5, got {to_col[0].as_py()}"
+
+    # After build_region_batch, transient signals should be cleared
+    assert region.schism_convert_from == 0xFF, \
+        f"schism_convert_from should be cleared to 0xFF after build, got {region.schism_convert_from}"
+    assert region.schism_convert_to == 0xFF, \
+        f"schism_convert_to should be cleared to 0xFF after build, got {region.schism_convert_to}"
+
+
+def test_schism_fields_default_sentinel(make_world):
+    """When no schism is active, region batch carries 0xFF sentinel values."""
+    from chronicler.agent_bridge import build_region_batch
+
+    world = make_world(1)
+    # Don't set schism fields — they default to 0xFF
+    batch = build_region_batch(world)
+
+    from_col = batch.column("schism_convert_from")
+    to_col = batch.column("schism_convert_to")
+
+    assert from_col[0].as_py() == 0xFF, \
+        f"schism_convert_from default should be 0xFF, got {from_col[0].as_py()}"
+    assert to_col[0].as_py() == 0xFF, \
+        f"schism_convert_to default should be 0xFF, got {to_col[0].as_py()}"

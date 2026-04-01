@@ -112,6 +112,8 @@ pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 2000;
 pub const SPATIAL_DRIFT_STREAM_OFFSET: u64 = 2001;
 // M58a: Merchant route selection (reserved, not consumed in M58a)
 pub const MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700;
+// M-AF1: Schism-driven conversion (separate stream from natural conversion)
+pub const SCHISM_CONVERSION_STREAM_OFFSET: u64 = 1000;
 // M59a: Information packet propagation
 pub const KNOWLEDGE_STREAM_OFFSET: u64 = 1800;
 // M57a: Marriage formation
@@ -185,6 +187,7 @@ pub const RELIGIOUS_MISMATCH_WEIGHT: f32 = 0.05;  // [CALIBRATE] M47c: 0.10→0.
 pub const SUSCEPTIBILITY_THRESHOLD: f32 = 0.4;  // satisfaction below this → 2× conversion
 pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
 pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability
+pub const SCHISM_CONVERSION_RATE: f32 = 0.25;    // [CALIBRATE] schism-driven belief flip per agent per turn
 
 // M38b: Persecution
 pub const PERSECUTION_SAT_WEIGHT: f32 = 0.09;  // [CALIBRATE] M57 tuning: ease minority satisfaction drag while rebellion containment is enforced by decision gating.
@@ -452,6 +455,7 @@ mod tests {
             PERSONALITY_STREAM_OFFSET,
             GOODS_ALLOC_STREAM_OFFSET,
             MEMORY_STREAM_OFFSET,
+            SCHISM_CONVERSION_STREAM_OFFSET, // 1000
             MULE_STREAM_OFFSET,
             RELATIONSHIP_STREAM_OFFSET,
             INITIAL_AGE_STREAM_OFFSET,       // 1400
