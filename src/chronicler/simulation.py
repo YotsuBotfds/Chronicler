@@ -760,6 +760,8 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
             civ.military = clamp(civ.military - int(10 * mult), STAT_FLOOR["military"], 100)
     elif event_type == "discovery":
         if acc is not None:
+            # M-AF1 #1: positive guard-shock → positive shock signal → boosts
+            # agent satisfaction (shock_pen is ADDED in compute_satisfaction).
             acc.add(civ_idx, civ, "culture", 10, "guard-shock")
             acc.add(civ_idx, civ, "economy", 10, "guard-shock")
         else:
@@ -769,6 +771,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_RELIGIOUS_MOVEMENT_STABILITY, 4))
         if acc is not None:
+            # M-AF1 #1: positive culture boost via guard-shock (see discovery comment).
             acc.add(civ_idx, civ, "culture", 10, "guard-shock")
             acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
         else:
@@ -776,6 +779,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
             civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
     elif event_type == "cultural_renaissance":
         if acc is not None:
+            # M-AF1 #1: positive guard-shock → boosts satisfaction (see discovery comment).
             acc.add(civ_idx, civ, "culture", 20, "guard-shock")
             acc.add(civ_idx, civ, "stability", 10, "guard-shock")
         else:
@@ -1255,6 +1259,7 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
                 )
                 world.named_events.append(ne)
                 # M16a: Cultural works enhancement
+                # M-AF1 #1: positive guard-shock → boosts satisfaction (see discovery comment).
                 if acc is not None:
                     acc.add(civ_idx, civ, "culture", 5, "guard-shock")
                     acc.add(civ_idx, civ, "prestige", 2, "keep")

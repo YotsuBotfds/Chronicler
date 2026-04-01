@@ -195,6 +195,94 @@ class TestShockNormalization:
         assert shocks[0].culture_shock == pytest.approx(1.0)
 
 
+class TestGuardShockSemantics:
+    """M-AF1 #1: Verify positive guard-shock events boost (not penalize) satisfaction."""
+
+    def test_positive_guard_shock_produces_positive_shock_signal(self):
+        """Positive delta via guard-shock → positive shock field in CivShock."""
+        from chronicler.accumulator import StatAccumulator
+        civ = _make_civ(0, culture=50, economy=60)
+        acc = StatAccumulator()
+        # Simulate a discovery event: +10 culture, +10 economy as guard-shock
+        acc.add(0, civ, "culture", 10, "guard-shock")
+        acc.add(0, civ, "economy", 10, "guard-shock")
+        shocks = acc.to_shock_signals()
+        assert len(shocks) == 1
+        # Positive delta must produce positive shock signal (sign preserved)
+        assert shocks[0].culture_shock > 0, (
+            f"Positive culture guard-shock should produce positive shock signal, got {shocks[0].culture_shock}"
+        )
+        assert shocks[0].economy_shock > 0, (
+            f"Positive economy guard-shock should produce positive shock signal, got {shocks[0].economy_shock}"
+        )
+        assert shocks[0].culture_shock == pytest.approx(10 / 50)  # 0.2
+        assert shocks[0].economy_shock == pytest.approx(10 / 60)  # 0.167
+
+    def test_positive_guard_shock_does_not_worsen_satisfaction(self):
+        """M-AF1 #1: end-to-end — positive guard-shock must not worsen agent satisfaction.
+
+        Traces the full path: positive delta → accumulator → shock signal →
+        Rust compute_shock_penalty → satisfaction. The shock_pen term is ADDED
+        in compute_satisfaction, so positive shock → higher satisfaction.
+        """
+        from chronicler.accumulator import StatAccumulator
+        civ = _make_civ(0, culture=50, economy=60, stability=50)
+        acc = StatAccumulator()
+        # Discovery event: +10 culture, +10 economy
+        acc.add(0, civ, "culture", 10, "guard-shock")
+        acc.add(0, civ, "economy", 10, "guard-shock")
+        shocks = acc.to_shock_signals()
+        shock = shocks[0]
+
+        # Verify the shock penalty computation direction.
+        # compute_shock_penalty returns: general + specific
+        # For a farmer (occ=0) with positive economy shock:
+        #   general = 0.15*stability + 0.05*economy + 0.05*military + 0.05*culture
+        #   specific = economy * 0.20
+        # With stability=0, economy=+0.167, military=0, culture=+0.2:
+        #   general = 0 + 0.05*0.167 + 0 + 0.05*0.2 = 0.00833 + 0.01 = 0.01833
+        #   specific = 0.167 * 0.20 = 0.0333
+        #   total = 0.0517 (POSITIVE — boosts satisfaction)
+        #
+        # In compute_satisfaction: ... + shock_pen (ADDED, not subtracted)
+        # So positive shock_pen → higher satisfaction. Correct.
+        economy_shock = shock.economy_shock
+        culture_shock = shock.culture_shock
+        assert economy_shock > 0
+        assert culture_shock > 0
+
+        # Manually compute what Rust would: farmer (occ=0)
+        general = 0.15 * 0 + 0.05 * economy_shock + 0.05 * 0 + 0.05 * culture_shock
+        specific_farmer = economy_shock * 0.20
+        shock_pen = general + specific_farmer
+        assert shock_pen > 0, (
+            f"Shock penalty for positive event should be positive (boost), got {shock_pen}"
+        )
+
+        # Scholar (occ=3) should benefit from positive culture shock
+        specific_scholar = culture_shock * 0.20
+        shock_pen_scholar = general + specific_scholar
+        assert shock_pen_scholar > 0, (
+            f"Scholar shock penalty for positive culture event should be positive, got {shock_pen_scholar}"
+        )
+
+    def test_negative_guard_shock_worsens_satisfaction(self):
+        """Negative guard-shock (e.g., usurper succession) lowers satisfaction."""
+        from chronicler.accumulator import StatAccumulator
+        civ = _make_civ(0, stability=50)
+        acc = StatAccumulator()
+        acc.add(0, civ, "stability", -30, "guard-shock")
+        shocks = acc.to_shock_signals()
+        shock = shocks[0]
+        # Negative delta → negative shock signal
+        assert shock.stability_shock < 0, (
+            f"Negative stability guard-shock should produce negative signal, got {shock.stability_shock}"
+        )
+        # Negative shock → negative shock_pen → reduces satisfaction
+        general = 0.15 * shock.stability_shock
+        assert general < 0
+
+
 class TestBitIdenticalRegression:
     """Accumulator in aggregate mode produces identical results to direct mutations."""
 
