@@ -945,6 +945,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
             compute_majority_belief, compute_civ_majority_faith,
             compute_conversion_signals, decay_conquest_boosts,
             compute_persecution, compute_martyrdom_boosts,
+            decay_martyrdom_boosts,
         )
         majority_beliefs = compute_majority_belief(_snap)
         civ_majority_with_ratio = compute_civ_majority_faith(_snap)
@@ -965,6 +966,9 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
 
         # Build civ lookup for conversion signal computation
         civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
+
+        # M-AF1 #11: Decay existing martyrdom boost before conversion signals consume it
+        decay_martyrdom_boosts(world.regions)
 
         # Compute conversion signals (reads conquest_conversion_active one-shot)
         signals = compute_conversion_signals(

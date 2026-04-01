@@ -19,6 +19,7 @@ from chronicler.religion import (
     compute_civ_majority_faith,
     compute_conversion_signals,
     compute_martyrdom_boosts,
+    decay_martyrdom_boosts,
     decay_conquest_boosts,
     BASE_CONVERSION_RATE,
     CONQUEST_BOOST_RATE,
@@ -453,3 +454,20 @@ class TestRegressionM37:
             assert all(d in (-1, 0, 1) for d in belief.doctrines), (
                 f"Faith {i} has out-of-range doctrine: {belief.doctrines}"
             )
+
+
+# ---------------------------------------------------------------------------
+# M-AF1 #11: Martyrdom boost decay
+# ---------------------------------------------------------------------------
+
+def test_martyrdom_boost_decays(make_world):
+    """M-AF1 #11: martyrdom boost should decay over turns."""
+    world = make_world(2)
+    # Set a martyrdom boost on a region
+    world.regions[0].martyrdom_boost = 0.15
+    world.regions[0].controller = world.civilizations[0].name
+
+    decay_martyrdom_boosts(world.regions)
+
+    assert world.regions[0].martyrdom_boost < 0.15, \
+        f"Martyrdom boost should have decayed, got {world.regions[0].martyrdom_boost}"
