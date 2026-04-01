@@ -166,7 +166,7 @@ def _update_ecology_counters(world: WorldState) -> None:
             region.low_forest_turns += 1
         else:
             region.low_forest_turns = 0
-        if region.ecology.forest_cover > 0.7 and region.population < 5:
+        if region.ecology.forest_cover > 0.35 and region.population < 5:
             region.forest_regrowth_turns += 1
         else:
             region.forest_regrowth_turns = 0
