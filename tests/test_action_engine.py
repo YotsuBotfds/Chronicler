@@ -448,3 +448,27 @@ class TestWarFrequencyIntegration:
         engine = ActionEngine(engine_world)
         weights = engine.compute_weights(civ)
         assert weights[ActionType.WAR] > 0, "WAR should never be zero from weariness alone"
+
+
+class TestResolvedActionBookkeeping:
+    """M-AF1 #3: action_history and action_counts should record the resolved action, not the selected one."""
+
+    def test_war_fallback_records_develop_in_history(self, engine_world):
+        """WAR falling back to DEVELOP should record 'develop' in history and counts."""
+        from chronicler.simulation import phase_action
+
+        civ = engine_world.civilizations[0]
+        # No hostile/suspicious target -- WAR will fall back to DEVELOP
+        for name, rel in engine_world.relationships.get(civ.name, {}).items():
+            rel.disposition = Disposition.FRIENDLY
+
+        engine_world.action_history[civ.name] = []
+        civ.action_counts = {}
+
+        phase_action(engine_world, action_selector=lambda c, w: ActionType.WAR)
+
+        # History and counts should record "develop", not "war"
+        assert engine_world.action_history[civ.name][-1] == "develop", \
+            f"Expected 'develop' in history, got {engine_world.action_history[civ.name][-1]}"
+        assert civ.action_counts.get("develop", 0) > 0, "develop should be counted"
+        assert civ.action_counts.get("war", 0) == 0, "war should NOT be counted when it fell back"

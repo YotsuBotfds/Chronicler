@@ -571,14 +571,16 @@ def phase_action(
                         halved = before + (after - before) // 2
                         setattr(civ, stat, max(halved, STAT_FLOOR.get(stat, 0)))
 
-        # Track action in history (for streak breaker)
+        # M-AF1 #3: Record the resolved action, not the selected action
+        _action_values = {a.value for a in ActionType}
+        resolved_action = event.event_type if event.event_type in _action_values else action.value
         history = world.action_history.setdefault(civ.name, [])
-        history.append(action.value)
+        history.append(resolved_action)
         if len(history) > 5:
             world.action_history[civ.name] = history[-5:]
 
         # Track action counts (for trait evolution)
-        civ.action_counts[action.value] = civ.action_counts.get(action.value, 0) + 1
+        civ.action_counts[resolved_action] = civ.action_counts.get(resolved_action, 0) + 1
 
         # M52: Mule artifact on action success
         from chronicler.artifacts import emit_mule_artifact_intent
