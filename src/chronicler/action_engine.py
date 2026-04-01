@@ -251,6 +251,9 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
                 w for w in world.active_wars
                 if not ({civ.name, worst_name} == {w[0], w[1]})
             ]
+            # M-AF1 #4: Clean up war start turn
+            from chronicler.politics import war_key
+            world.war_start_turns.pop(war_key(civ.name, worst_name), None)
         # Generate named treaty for significant upgrades (requires CLASSICAL+ era)
         if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED) and _era_at_least(civ.tech_era, TechEra.CLASSICAL):
             treaty_name = generate_treaty_name(civ.name, worst_name, world, seed=world.seed)
@@ -310,6 +313,11 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
         pair_rev = (target_name, civ.name)
         if pair not in world.active_wars and pair_rev not in world.active_wars:
             world.active_wars.append(pair)
+        # M-AF1 #4: Stamp war start turn
+        from chronicler.politics import war_key
+        wk = war_key(civ.name, target_name)
+        if wk not in world.war_start_turns:
+            world.war_start_turns[wk] = world.turn
         # Generate named battle for decisive outcomes
         if result.outcome in ("attacker_wins", "defender_wins"):
             battle_region = None

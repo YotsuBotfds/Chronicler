@@ -509,3 +509,57 @@ class TestTradeRouteCheck:
         assert event.event_type == "trade", \
             f"Expected 'trade' with active route, got '{event.event_type}'"
         assert "traded with" in event.description
+
+
+class TestWarStartTurns:
+    """M-AF1 #4: war_start_turns must be stamped on war resolution and cleaned on war end."""
+
+    def test_war_stamps_war_start_turns(self, engine_world):
+        """Resolving a WAR action should populate war_start_turns."""
+        engine_world.turn = 10
+        civ = engine_world.civilizations[0]
+        civ.military = 80  # strong attacker
+        # Adjacency needed so intelligence accuracy > 0 (perceived stat != None)
+        engine_world.regions[0].adjacencies = ["Region C"]
+        engine_world.regions[2].adjacencies = ["Region A"]
+
+        resolve_action(civ, ActionType.WAR, engine_world)
+
+        assert len(engine_world.war_start_turns) > 0, \
+            "war_start_turns should be populated after WAR resolution"
+        from chronicler.politics import war_key
+        key = war_key("Civ A", "Civ B")
+        assert engine_world.war_start_turns.get(key) == 10, \
+            f"Expected war start turn 10, got {engine_world.war_start_turns.get(key)}"
+
+    def test_diplomacy_cleans_war_start_turns(self, engine_world):
+        """Diplomacy reaching FRIENDLY should clean war_start_turns."""
+        from chronicler.politics import war_key
+        key = war_key("Civ A", "Civ B")
+        engine_world.war_start_turns[key] = 5
+        engine_world.active_wars.append(("Civ A", "Civ B"))
+        # Set disposition to NEUTRAL so one upgrade reaches FRIENDLY (triggers cleanup)
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+
+        resolve_action(engine_world.civilizations[0], ActionType.DIPLOMACY, engine_world)
+
+        assert key not in engine_world.war_start_turns, \
+            "war_start_turns should be cleaned after diplomacy resolves war"
+
+    def test_war_does_not_overwrite_existing_start_turn(self, engine_world):
+        """A second WAR action against the same target should not overwrite the start turn."""
+        from chronicler.politics import war_key
+        key = war_key("Civ A", "Civ B")
+        engine_world.war_start_turns[key] = 3
+        engine_world.turn = 10
+        civ = engine_world.civilizations[0]
+        civ.military = 80
+        # Adjacency needed so intelligence accuracy > 0
+        engine_world.regions[0].adjacencies = ["Region C"]
+        engine_world.regions[2].adjacencies = ["Region A"]
+
+        resolve_action(civ, ActionType.WAR, engine_world)
+
+        assert engine_world.war_start_turns[key] == 3, \
+            "war_start_turns should preserve the original start turn, not overwrite"
