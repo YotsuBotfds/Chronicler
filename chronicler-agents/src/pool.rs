@@ -717,6 +717,21 @@ impl AgentPool {
             a.loyalty_sum += self.loyalties[slot] as f64;
         }
 
+        // M-AF1 #7: Emit zero-rows for civs that control regions but have no
+        // alive agents.  This prevents Python _write_back from skipping a civ
+        // (leaving stale stats from the previous turn).
+        for &civ_id in civ_capacity.keys() {
+            accums.entry(civ_id).or_insert(CivAccum {
+                population: 0,
+                soldier_skill_sum: 0.0,
+                merchant_skill_sum: 0.0,
+                scholar_skill_sum: 0.0,
+                priest_skill_sum: 0.0,
+                satisfaction_sum: 0.0,
+                loyalty_sum: 0.0,
+            });
+        }
+
         // Sort by civ_id for deterministic output.
         let mut sorted: Vec<u8> = accums.keys().copied().collect();
         sorted.sort();
@@ -1116,6 +1131,107 @@ mod tests {
         assert_eq!(populations.value(0), 2);
         assert_eq!(civ_ids.value(1), 1);
         assert_eq!(populations.value(1), 3);
+    }
+
+    #[test]
+    fn test_compute_aggregates_zero_agents_with_controlled_region() {
+        // M-AF1 #7: A civ controls a region but has zero alive agents.
+        // compute_aggregates must emit a zero-row for that civ.
+        use arrow::array::{UInt16Array, UInt32Array};
+        use crate::region::RegionState;
+
+        let pool = AgentPool::new(4); // No agents spawned at all.
+
+        // Region 0 is controlled by civ 0, but pool has no alive agents.
+        let mut region = RegionState::new(0);
+        region.carrying_capacity = 60;
+        region.controller_civ = 0;
+
+        let batch = pool
+            .compute_aggregates(&[region])
+            .expect("compute_aggregates failed");
+
+        // Must have exactly one row for civ 0.
+        assert_eq!(batch.num_rows(), 1);
+
+        let civ_ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        assert_eq!(civ_ids.value(0), 0);
+
+        let populations = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        assert_eq!(populations.value(0), 0);
+
+        // All metric columns should be zero.
+        for col_idx in 2..=5 {
+            let col = batch
+                .column(col_idx)
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap();
+            assert_eq!(col.value(0), 0, "col {} should be zero", col_idx);
+        }
+    }
+
+    #[test]
+    fn test_compute_aggregates_mixed_zero_and_populated_civs() {
+        // M-AF1 #7: civ 0 has agents, civ 1 controls a region but has no agents.
+        // Both must appear in the output.
+        use arrow::array::{UInt16Array, UInt32Array};
+        use crate::region::RegionState;
+
+        let mut pool = AgentPool::new(8);
+        // Spawn 2 agents for civ 0 in region 0.
+        pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.spawn(0, 0, Occupation::Soldier, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+
+        let mut region_0 = RegionState::new(0);
+        region_0.carrying_capacity = 60;
+        region_0.controller_civ = 0;
+
+        // Region 1 controlled by civ 1 -- no agents.
+        let mut region_1 = RegionState::new(1);
+        region_1.carrying_capacity = 40;
+        region_1.controller_civ = 1;
+
+        let batch = pool
+            .compute_aggregates(&[region_0, region_1])
+            .expect("compute_aggregates failed");
+
+        assert_eq!(batch.num_rows(), 2);
+
+        let civ_ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt16Array>()
+            .unwrap();
+        let populations = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+
+        assert_eq!(civ_ids.value(0), 0);
+        assert_eq!(populations.value(0), 2); // civ 0 has 2 agents
+
+        assert_eq!(civ_ids.value(1), 1);
+        assert_eq!(populations.value(1), 0); // civ 1 has zero agents
+
+        // civ 1's metrics should all be zero.
+        for col_idx in 2..=5 {
+            let col = batch
+                .column(col_idx)
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap();
+            assert_eq!(col.value(1), 0, "civ 1 col {} should be zero", col_idx);
+        }
     }
 
     #[test]

@@ -327,6 +327,56 @@ class TestDemographicsOnlyIntegration:
         assert primary.culture == 34
         assert primary.stability == 45
 
+    def test_writeback_zeroes_stats_for_zero_agent_civ(self, sample_world):
+        """M-AF1 #7: civ with regions but zero agents gets zeroed guard stats."""
+        # Fake sim returns a zero-row for civ 1 (Dorrathi Clans) — no agents alive.
+        # Civ 0 (Kethani Empire) has normal stats.
+        class _FakeSim:
+            def get_aggregates(self):
+                return pa.record_batch({
+                    "civ_id": pa.array([0, 1], type=pa.uint16()),
+                    "population": pa.array([15, 0], type=pa.uint32()),
+                    "military": pa.array([20, 0], type=pa.uint32()),
+                    "economy": pa.array([30, 0], type=pa.uint32()),
+                    "culture": pa.array([40, 0], type=pa.uint32()),
+                    "stability": pa.array([50, 0], type=pa.uint32()),
+                })
+
+            def get_region_populations(self):
+                return pa.record_batch({
+                    "region_id": pa.array([0, 1, 2, 3, 4], type=pa.uint16()),
+                    "alive_count": pa.array([8, 0, 7, 0, 0], type=pa.uint32()),
+                })
+
+        # Set up: civ 0 controls regions 0 and 2, civ 1 controls region 1.
+        primary = sample_world.civilizations[0]   # Kethani Empire
+        secondary = sample_world.civilizations[1]  # Dorrathi Clans
+        sample_world.regions[0].controller = primary.name
+        sample_world.regions[1].controller = secondary.name
+        sample_world.regions[2].controller = primary.name
+
+        # Give secondary stale high stats that should be zeroed by write-back.
+        secondary.military = 70
+        secondary.economy = 60
+        secondary.culture = 50
+        secondary.stability = 40
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        bridge._sim = _FakeSim()
+        bridge._write_back(sample_world)
+
+        # Primary civ should have its stats from the aggregate row.
+        assert primary.military == 20
+        assert primary.economy == 30
+        assert primary.culture == 40
+        assert primary.stability == 50
+
+        # Secondary civ (zero agents) should have zeroed stats, not stale values.
+        assert secondary.military == 0
+        assert secondary.economy == 0
+        assert secondary.culture == 0
+        assert secondary.stability == 0
+
 
 class TestSecessionTransitions:
     def test_realign_region_agents_to_civ_moves_only_matching_region_agents(self, sample_world):
