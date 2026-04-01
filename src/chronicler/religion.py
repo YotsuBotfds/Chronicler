@@ -559,12 +559,16 @@ def compute_martyrdom_boosts(
     regions: list[Region],
     dead_agents: "list[dict | object] | None",
 ) -> None:
-    """Add martyrdom boost to regions where persecuted agents died this turn.
+    """Add martyrdom boost to regions where persecuted minority-faith agents died.
+
+    Only deaths that meet BOTH conditions count as martyrdoms:
+      1. The region has active persecution (persecution_intensity > 0).
+      2. The dead agent's belief differs from the region's majority faith.
 
     Args:
         regions:     List of Region objects.
         dead_agents: List of dicts with 'region_idx' (int) and 'belief' (int) keys,
-                     or None / empty list if no persecution deaths occurred.
+                     or None / empty list if no deaths occurred.
     """
     if not dead_agents:
         return
@@ -572,10 +576,12 @@ def compute_martyrdom_boosts(
     for agent in dead_agents:
         if isinstance(agent, dict):
             region_idx = agent.get("region_idx", agent.get("region"))
+            belief = agent.get("belief")
         else:
             region_idx = getattr(agent, "region_idx", None)
             if region_idx is None:
                 region_idx = getattr(agent, "region", None)
+            belief = getattr(agent, "belief", None)
         if region_idx is None:
             continue
         try:
@@ -585,6 +591,13 @@ def compute_martyrdom_boosts(
         if region_idx_int < 0 or region_idx_int >= len(regions):
             continue
         region = regions[region_idx_int]
+
+        # M-AF1 #12: Only minority-faith deaths in persecuted regions count
+        if region.persecution_intensity <= 0:
+            continue
+        if belief is None or belief == region.majority_belief:
+            continue
+
         region.martyrdom_boost = min(
             MARTYRDOM_BOOST_CAP,
             region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,

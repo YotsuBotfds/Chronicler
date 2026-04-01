@@ -219,18 +219,24 @@ class TestMartyrdomBoost:
 
     def test_boost_set_on_persecution_deaths(self):
         region = _make_region("r0")
+        # M-AF1 #12: Region must be persecuted and death must be minority-faith
+        region.persecution_intensity = 0.5
+        region.majority_belief = 0  # Majority is belief 0
         assert region.martyrdom_boost == 0.0
 
-        dead_agents = [{"region_idx": 0, "belief": 1}]
+        dead_agents = [{"region_idx": 0, "belief": 1}]  # Minority faith
         compute_martyrdom_boosts([region], dead_agents)
 
         assert region.martyrdom_boost == pytest.approx(MARTYRDOM_BOOST_PER_EVENT, abs=1e-9)
 
     def test_boost_stacks_to_cap(self):
         region = _make_region("r0")
+        # M-AF1 #12: Region must be persecuted and death must be minority-faith
+        region.persecution_intensity = 0.5
+        region.majority_belief = 0  # Majority is belief 0
         # Each call adds MARTYRDOM_BOOST_PER_EVENT; cap is MARTYRDOM_BOOST_CAP
         calls_needed = int(MARTYRDOM_BOOST_CAP / MARTYRDOM_BOOST_PER_EVENT) + 5  # overshoot
-        dead_agents = [{"region_idx": 0, "belief": 1}]
+        dead_agents = [{"region_idx": 0, "belief": 1}]  # Minority faith
 
         for _ in range(calls_needed):
             compute_martyrdom_boosts([region], dead_agents)

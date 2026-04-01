@@ -24,6 +24,7 @@ from chronicler.religion import (
     BASE_CONVERSION_RATE,
     CONQUEST_BOOST_RATE,
     CONQUEST_BOOST_DURATION,
+    MARTYRDOM_BOOST_PER_EVENT,
 )
 from chronicler.models import (
     AgentEventRecord,
@@ -72,19 +73,13 @@ def _make_belief(faith_id: int, doctrines: list[int] | None = None) -> Belief:
     return Belief(faith_id=faith_id, name=f"Faith{faith_id}", civ_origin=faith_id, doctrines=doctrines)
 
 
-def test_compute_martyrdom_boosts_accepts_agent_event_records():
+def test_compute_martyrdom_boosts_accepts_dict_records():
+    """compute_martyrdom_boosts accepts dict records with region_idx and belief keys."""
     region = _make_region(name="R0")
-    dead = [
-        AgentEventRecord(
-            turn=1,
-            agent_id=10,
-            event_type="death",
-            region=0,
-            target_region=0,
-            civ_affinity=0,
-            occupation=0,
-        )
-    ]
+    # M-AF1 #12: Region must be persecuted and death must be minority-faith
+    region.persecution_intensity = 0.5
+    region.majority_belief = 0  # Majority is belief 0
+    dead = [{"region_idx": 0, "belief": 1}]  # Minority faith death
     compute_martyrdom_boosts([region], dead)
     assert region.martyrdom_boost > 0.0
 
@@ -471,3 +466,59 @@ def test_martyrdom_boost_decays(make_world):
 
     assert world.regions[0].martyrdom_boost < 0.15, \
         f"Martyrdom boost should have decayed, got {world.regions[0].martyrdom_boost}"
+
+
+# ---------------------------------------------------------------------------
+# M-AF1 #12: Martyrdom death filtering
+# ---------------------------------------------------------------------------
+
+def test_martyrdom_ignores_non_persecuted_deaths(make_world):
+    """M-AF1 #12: deaths in non-persecuted regions should not boost martyrdom."""
+    world = make_world(2)
+    region = world.regions[0]
+    region.controller = world.civilizations[0].name
+    region.martyrdom_boost = 0.0
+    region.majority_belief = 0
+    # Region is NOT persecuted
+    region.persecution_intensity = 0.0
+
+    dead_agents = [{"region_idx": 0, "belief": 1}]  # Minority faith, but no persecution
+
+    compute_martyrdom_boosts(world.regions, dead_agents)
+
+    assert region.martyrdom_boost == 0.0, \
+        f"Martyrdom should not increase in non-persecuted region, got {region.martyrdom_boost}"
+
+
+def test_martyrdom_ignores_majority_faith_deaths(make_world):
+    """M-AF1 #12: majority-faith deaths in persecuted regions should not boost martyrdom."""
+    world = make_world(2)
+    region = world.regions[0]
+    region.controller = world.civilizations[0].name
+    region.martyrdom_boost = 0.0
+    region.persecution_intensity = 0.5  # Active persecution
+    region.majority_belief = 1          # Majority is belief 1
+
+    dead_agents = [{"region_idx": 0, "belief": 1}]  # Same as majority — not a martyr
+
+    compute_martyrdom_boosts(world.regions, dead_agents)
+
+    assert region.martyrdom_boost == 0.0, \
+        f"Majority-faith deaths should not boost martyrdom, got {region.martyrdom_boost}"
+
+
+def test_martyrdom_boosts_minority_faith_in_persecuted_region(make_world):
+    """M-AF1 #12: minority-faith deaths in persecuted regions SHOULD boost martyrdom."""
+    world = make_world(2)
+    region = world.regions[0]
+    region.controller = world.civilizations[0].name
+    region.martyrdom_boost = 0.0
+    region.persecution_intensity = 0.5  # Active persecution
+    region.majority_belief = 0          # Majority is belief 0
+
+    dead_agents = [{"region_idx": 0, "belief": 1}]  # Minority faith — genuine martyr
+
+    compute_martyrdom_boosts(world.regions, dead_agents)
+
+    assert region.martyrdom_boost == pytest.approx(MARTYRDOM_BOOST_PER_EVENT, abs=1e-9), \
+        f"Minority-faith death in persecuted region should boost martyrdom, got {region.martyrdom_boost}"
