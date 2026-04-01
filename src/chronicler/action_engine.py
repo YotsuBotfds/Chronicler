@@ -205,6 +205,13 @@ def _resolve_trade_action(civ: Civilization, world: WorldState, acc=None) -> Eve
                 best_partner = get_civ(world, other_name)
 
     if best_partner and best_disp >= 2:  # At least neutral
+        # M-AF1 #2: Verify an active trade route exists between these civs
+        from chronicler.resources import get_active_trade_routes
+        routes = get_active_trade_routes(world)
+        civ_pair = tuple(sorted([civ.name, best_partner.name]))
+        if civ_pair not in set(routes):
+            # No route — fall back to develop resolution
+            return _resolve_develop(civ, world, acc=acc)
         resolve_trade(civ, best_partner, world, acc=acc)
         return Event(
             turn=world.turn, event_type="trade", actors=[civ.name, best_partner.name],

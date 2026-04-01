@@ -472,3 +472,40 @@ class TestResolvedActionBookkeeping:
             f"Expected 'develop' in history, got {engine_world.action_history[civ.name][-1]}"
         assert civ.action_counts.get("develop", 0) > 0, "develop should be counted"
         assert civ.action_counts.get("war", 0) == 0, "war should NOT be counted when it fell back"
+
+
+class TestTradeRouteCheck:
+    """M-AF1 #2: TRADE should require an active trade route."""
+
+    def test_trade_requires_active_route(self, engine_world):
+        """TRADE should fall back to develop when no trade route exists."""
+        civ = engine_world.civilizations[0]
+        # Set disposition to NEUTRAL so the partner check passes
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        # Remove all adjacencies so no trade route can exist
+        for r in engine_world.regions:
+            r.adjacencies = []
+
+        pre_treasury = civ.treasury
+        event = resolve_action(civ, ActionType.TRADE, engine_world)
+
+        # Without a route, trade should fall back to develop
+        assert event.event_type == "develop", \
+            f"Expected 'develop' fallback, got '{event.event_type}'"
+
+    def test_trade_works_with_active_route(self, engine_world):
+        """TRADE should succeed when an active trade route exists."""
+        civ = engine_world.civilizations[0]
+        # Set disposition to NEUTRAL so the partner check passes
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        # Create adjacency so a trade route exists
+        engine_world.regions[0].adjacencies = ["Region C"]  # Civ A's region adjacent to Civ B's
+        engine_world.regions[2].adjacencies = ["Region A"]  # Civ B's region adjacent to Civ A's
+
+        event = resolve_action(civ, ActionType.TRADE, engine_world)
+
+        assert event.event_type == "trade", \
+            f"Expected 'trade' with active route, got '{event.event_type}'"
+        assert "traded with" in event.description
