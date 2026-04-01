@@ -323,10 +323,11 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
             wk = war_key(civ.name, target_name)
             if wk not in world.war_start_turns:
                 world.war_start_turns[wk] = world.turn
-        # M-AF1 #5: Federation mutual defense
-        from chronicler.politics import trigger_federation_defense
-        fed_events = trigger_federation_defense(civ.name, target_name, world)
-        world.events_timeline.extend(fed_events)
+        # M-AF1 #5: Federation mutual defense (skip if vassalized — no war to join)
+        if not just_vassalized:
+            from chronicler.politics import trigger_federation_defense
+            fed_events = trigger_federation_defense(civ.name, target_name, world)
+            world.events_timeline.extend(fed_events)
         # Generate named battle for decisive outcomes
         if result.outcome in ("attacker_wins", "defender_wins"):
             battle_region = None
