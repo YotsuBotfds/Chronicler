@@ -2,11 +2,11 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-03-30 (`M59b` merged on `main` at `d9baf0a`)
+> **Last updated:** 2026-04-01 (`M-AF1` on branch `m-af1-runtime-correctness` at `effc67f`; 200-seed gate passed)
 
 ---
 
-## Current Focus (2026-03-30)
+## Current Focus (2026-03-31)
 
 - **M58b closeout is complete and merged on `main` at `023d61d` (`fix(m58b): close trade convergence gate`).**
 - **Hybrid oracle observability is now fail-fast:** `reconstruct_economy_result(..., require_oracle_shadow=True)` rejects stale-extension schemas instead of silently zero-filling oracle columns.
@@ -28,6 +28,16 @@
 - **Phase 7.5 roadmap refresh landed (doc-only planning lock):** `docs/superpowers/roadmaps/chronicler-phase75-viewer-roadmap.md` now records the current implementation recommendation for when viewer work reactivates after `M61b`: Tauri 2 as the canonical client, React 19 retained unless M62b benchmarks prove otherwise, PixiJS for the map surface, and a Rust/Tauri query-oriented data plane instead of browser-side heavy bundle parsing.
 - **Phase 7.5 still remains dormant until `M61b` freeze:** the roadmap refresh is guidance only. Remaining follow-up stays the same: accepted large fixture, frozen export surface, named owners for `M62a/M62b/M62c`, and the React-vs-Solid benchmark gate during `M62b` rather than as a pre-activation blocker.
 - **Linked Phase 7.5 execution docs tightened:** `docs/superpowers/specs/2026-03-24-m62a-bundle-v2-contract-design.md` and `docs/superpowers/plans/2026-03-24-m62a-preactivation-prep.md` now align with the roadmap's Tauri-first, browser-fallback-limited interpretation of `M62a`, and `docs/superpowers/plans/2026-03-30-m62b-preactivation-prep.md` now captures the intended `M62b` execution model, merge gate, and benchmark-driven React-vs-Solid decision path.
+- **Phase 7.5 design synthesis folded into docs (doc-only):** the 2026-03-31 mockup pass is now reflected in the roadmap and prep/spec docs as execution guidance: one reusable shell anchored by Overview, dark cartographic analytics as the primary mode, Character/Trade/Campaign treated as shell variants instead of bespoke layouts, and explicit contract pressure on header/timeline/chronicle/inspector data families.
+- **Phase 7.5 entry-flow guidance added (doc-only):** the roadmap now explicitly treats setup/lobby, batch/interestingness ranking, and direct run-to-viewer handoff as part of the intended product front door, rather than assuming Phase 7.5 starts only after a user manually opens an existing bundle.
+- **Standalone GPT-5 Phase 7.5 prototype pass added (recording/demo only):** `prototype/gpt5/` now contains a self-contained HTML/CSS/JS viewer prototype with one reusable shell spanning setup, run progress, overview, character detail, trade diagnostics, campaign/validation, and batch-ranking handoff, plus autoplay/manual walkthrough controls for browser capture.
+- **Prototype scope note:** this pass is intentionally front-end only and does not integrate with the dormant React viewer runtime, bundle v2 loading, or the planned Tauri/Rust data plane.
+- **Prototype follow-up still open:** if this shell direction is accepted, the visual/system decisions need to be ported into the actual `viewer/` milestone track once M61b reactivates Phase 7.5 implementation.
+- **Phase 7.5 viewer implementation pass started in the real React app (2026-03-31):** `viewer/src/components/phase75/` now holds a first reusable shell that keeps one app family across `Setup`, `Progress`, `Overview`, `Character`, `Trade`, `Campaign`, and `Batch Lab`, with the map-first center canvas, top metadata header, timeline rail, chronicle/event left rail, validation ribbon, and right inspector wired as shared primitives rather than per-mode layout forks.
+- **Phase 7.5 batch/front-door handoff is now partially live in the runtime:** `viewer/src/App.tsx` routes setup/live/batch/viewer surfaces through the shared shell, `src/chronicler/analytics.py` now emits ranked `run_summaries` in batch reports (`report_schema_version=2`), and `src/chronicler/live.py` now supports `batch_load_bundle` so Batch Lab can open a ranked result directly into the viewer shell without a separate page.
+- **Focused validation on the implementation pass:** `python -m pytest tests/test_analytics.py tests/test_live_integration.py` PASS (`43 passed`), and `npm run build` PASS in `viewer/`.
+- **Still intentionally unfinished in this pass:** shell polish/motion, lighter archive presentation, chunk-splitting/perf cleanup, and the deeper Tauri/Rust Phase 7.5 data-plane work remain deferred; this is a cohesion/flow implementation pass, not the final production polish pass.
+- **Gotcha for follow-up work:** Batch Lab `tech_advancement_count` summaries are intentionally derived from actual advancement event names (`tech_advancement`, legacy `tech_advance`) rather than any `tech*` event, so later summary refinements should preserve that semantic or rename the metric.
 
 ---
 
@@ -48,6 +58,16 @@
   - New tests added for fractional tax carry, clergy win detection, zero-sum normalization handling, fund-instability target ranking, and martyrdom input-shape compatibility.
 
 ## Merged Milestones
+
+### M-AF1: Runtime Correctness & Safety — merged (`effc67f`)
+
+- 17 runtime correctness bugs fixed from dual-model audit (GPT-5 + Opus 4.6).
+- 18 commits on `m-af1-runtime-correctness` branch.
+- Python fixes: governing cost truncation (#6), black market region scan (#16), conquest_conversion_active clearing (#14), severity multiplier gaps (#9), resolved-action bookkeeping (#3), TRADE route check (#2), war_start_turns population (#4), federation defense wiring (#5), martyrdom decay (#11), martyrdom filtering (#12), rewilding threshold (#13), guard-shock verification (#1), vassalization wiring (#15), federation/vassalization interaction fix.
+- Rust fixes: schism conversion wiring (#10), zero-agent writeback (#7), promotions civ_id (#8), replace_social_edges safety (#17).
+- 200-seed regression gate PASS: 0 crashes, directional shifts all expected (pop -15%, mil -5%, econ -3%, culture -4%, stability -0.4%, treasury -4.5%). Dead civs unchanged (608 vs 608).
+- Test counts: Python 2270 passed / 1 failed (M36 threshold, pre-existing) / 4 skipped. Rust 769 passed / 0 failed / 2 ignored.
+- Behavior shift note: `docs/superpowers/audits/m-af1-behavior-shift-note.md`
 
 ### M59b: Perception-Coupled Behavior — merged (`d9baf0a`)
 
