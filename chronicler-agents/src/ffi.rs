@@ -2637,10 +2637,30 @@ impl AgentSimulator {
         let mut incoming: std::collections::HashSet<(u32, u32, u8)> = std::collections::HashSet::new();
         let mut incoming_turns: std::collections::HashMap<(u32, u32, u8), u16> = std::collections::HashMap::new();
         if batch.num_rows() > 0 {
-            let a_col = batch.column(0).as_any().downcast_ref::<arrow::array::UInt32Array>().unwrap();
-            let b_col = batch.column(1).as_any().downcast_ref::<arrow::array::UInt32Array>().unwrap();
-            let r_col = batch.column(2).as_any().downcast_ref::<arrow::array::UInt8Array>().unwrap();
-            let t_col = batch.column(3).as_any().downcast_ref::<arrow::array::UInt16Array>().unwrap();
+            let a_col = batch
+                .column_by_name("agent_a")
+                .ok_or_else(|| PyValueError::new_err("missing column 'agent_a' in social edges batch"))?
+                .as_any()
+                .downcast_ref::<arrow::array::UInt32Array>()
+                .ok_or_else(|| PyValueError::new_err("column 'agent_a' is not UInt32"))?;
+            let b_col = batch
+                .column_by_name("agent_b")
+                .ok_or_else(|| PyValueError::new_err("missing column 'agent_b' in social edges batch"))?
+                .as_any()
+                .downcast_ref::<arrow::array::UInt32Array>()
+                .ok_or_else(|| PyValueError::new_err("column 'agent_b' is not UInt32"))?;
+            let r_col = batch
+                .column_by_name("relationship")
+                .ok_or_else(|| PyValueError::new_err("missing column 'relationship' in social edges batch"))?
+                .as_any()
+                .downcast_ref::<arrow::array::UInt8Array>()
+                .ok_or_else(|| PyValueError::new_err("column 'relationship' is not UInt8"))?;
+            let t_col = batch
+                .column_by_name("formed_turn")
+                .ok_or_else(|| PyValueError::new_err("missing column 'formed_turn' in social edges batch"))?
+                .as_any()
+                .downcast_ref::<arrow::array::UInt16Array>()
+                .ok_or_else(|| PyValueError::new_err("column 'formed_turn' is not UInt16"))?;
             for i in 0..batch.num_rows() {
                 let a = a_col.value(i);
                 let b = b_col.value(i);
