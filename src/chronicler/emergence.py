@@ -307,8 +307,9 @@ def tick_pandemic(world: WorldState, acc=None) -> list[Event]:
         civ = next((c for c in world.civilizations if c.name == civ_name), None)
         if civ is None:
             continue
-        pop_loss = min(severity * 3, 12)
-        eco_loss = min(severity * 2, 8)
+        sev_mult = get_severity_multiplier(civ, world)
+        pop_loss = round(min(severity * 3, 12) * sev_mult)
+        eco_loss = round(min(severity * 2, 8) * sev_mult)
         pandemic_region_names = {p.region_name for p in world.pandemic_state}
         affected_regions = [
             r for r in world.regions

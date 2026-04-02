@@ -481,7 +481,8 @@ mod tests {
             0, 0.8, 0.7, 80, 0.0, 0.8, false, false, false, false, 0, 0.0,
             &CivShock::default(), 0.0,
         );
-        // base = 0.78, stability = 80/300 = 0.267, total = 1.047 → clamped to 1.0
+        // base = 0.4 + 0.8*0.3 + 0.7*0.2 = 0.78, stability = 80/200 = 0.40,
+        // total = 1.18 → clamped to 1.0
         assert!((sat - 1.0).abs() < 0.01);
     }
 
@@ -501,8 +502,8 @@ mod tests {
             1, 0.5, 0.5, 60, 0.0, 0.9, false, false, true, false, 0, 0.6,
             &CivShock::default(), 0.0,
         );
-        // base=0.68, stability=60/300=0.20, faction=0.05 → 0.93
-        assert!(sat > 0.90 && sat <= 1.0);
+        // base = 0.5 + 0.6*0.3 = 0.68, stability = 60/200 = 0.30, faction = 0.05 → 1.03 → clamped to 1.0
+        assert!((sat - 1.0).abs() < 0.01);
     }
 
     #[test]
@@ -521,8 +522,8 @@ mod tests {
             3, 0.5, 0.5, 50, 0.0, 0.8, false, false, true, false, 0, 0.5,
             &CivShock::default(), 0.0,
         );
-        // base=0.6, stability=50/300=0.167, faction=0.05 → 0.817
-        assert!(sat > 0.75 && sat <= 1.0);
+        // base = 0.5 + 0.5*0.2 = 0.60, stability = 50/200 = 0.25, faction = 0.05 → 0.90
+        assert!((sat - 0.90).abs() < 0.02);
     }
 
     #[test]

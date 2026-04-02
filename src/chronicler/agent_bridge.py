@@ -967,9 +967,9 @@ class AgentBridge:
                         }
                     self._wealth_stats = stats
             except Exception:
+                # Preserve prior Gini/wealth values on failure — one bad turn
+                # must not wipe accumulated history (H-18 audit fix).
                 self.displacement_by_region = {}
-                self._gini_by_civ = {}
-                self._wealth_stats = {}
                 logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
 
             raw_events = self._convert_events(agent_events, world.turn)
@@ -1392,7 +1392,10 @@ class AgentBridge:
             role_id = batch.column("role")[i].as_py()
             trigger = batch.column("trigger")[i].as_py()
             origin_region = batch.column("origin_region")[i].as_py()
-            role = ROLE_MAP[role_id]
+            role = ROLE_MAP.get(role_id)
+            if role is None:
+                logger.warning("Unknown role_id %d for agent %d, skipping promotion", role_id, agent_id)
+                continue
 
             # Python-side bypass: check event history for displacement / migrant / versatility
             if trigger == 0:  # skill-based — check if a bypass applies

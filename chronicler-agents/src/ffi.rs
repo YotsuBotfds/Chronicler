@@ -2273,7 +2273,12 @@ impl AgentSimulator {
         }
         // M55a: Spatial attractor init (once) + weight update (every call)
         if !self.spatial_initialized && self.initialized {
-            let world_seed = u64::from_le_bytes(self.master_seed[0..8].try_into().unwrap());
+            let world_seed = u64::from_le_bytes(
+                self.master_seed[0..8].try_into()
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(
+                        format!("master_seed slice conversion failed: {e}")
+                    ))?
+            );
             self.attractors = (0..self.regions.len())
                 .map(|i| crate::spatial::init_attractors(world_seed, i as u16, &self.regions[i]))
                 .collect();

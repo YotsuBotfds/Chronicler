@@ -225,6 +225,48 @@ class TestBundleAssembly:
         assert bundle["named_events"][0]["name"] == "Battle of Iron Peaks"
 
 
+class TestArcSummaryIsolation:
+    """Audit C-13: LLM-generated arc_summary must not persist into bundle."""
+
+    def test_arc_summary_stripped_from_bundle(self, sample_world):
+        from chronicler.models import GreatPerson
+        gp = GreatPerson(
+            name="Kiran", role="general", trait="bold",
+            civilization="Kethani Empire", origin_civilization="Kethani Empire",
+            born_turn=5, source="agent", agent_id=42,
+            arc_summary="LLM generated text that should not persist.",
+        )
+        sample_world.civilizations[0].great_persons.append(gp)
+        bundle = assemble_bundle(
+            world=sample_world, history=[], chronicle_entries=[],
+            era_reflections={}, sim_model="m", narrative_model="m",
+            interestingness_score=None,
+        )
+        ws = bundle["world_state"]
+        for civ_data in ws["civilizations"]:
+            for gp_data in civ_data.get("great_persons", []):
+                assert "arc_summary" not in gp_data, \
+                    "arc_summary must not appear in bundle world_state"
+
+    def test_arc_summary_preserved_on_live_object(self, sample_world):
+        """In-memory GP objects retain arc_summary for narration use."""
+        from chronicler.models import GreatPerson
+        gp = GreatPerson(
+            name="Kiran", role="general", trait="bold",
+            civilization="Kethani Empire", origin_civilization="Kethani Empire",
+            born_turn=5, source="agent", agent_id=42,
+            arc_summary="LLM generated text.",
+        )
+        sample_world.civilizations[0].great_persons.append(gp)
+        # Bundle assembly should not mutate the live object
+        assemble_bundle(
+            world=sample_world, history=[], chronicle_entries=[],
+            era_reflections={}, sim_model="m", narrative_model="m",
+            interestingness_score=None,
+        )
+        assert gp.arc_summary == "LLM generated text."
+
+
 class TestWriteBundle:
     def test_write_bundle_creates_file(self, tmp_path):
         bundle = {"world_state": {}, "metadata": {"seed": 42}}
