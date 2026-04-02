@@ -385,25 +385,46 @@ FOCUS_EFFECTS: dict[TechFocus, FocusEffect] = {
 
 
 def apply_focus_effects(civ: Civilization, focus: TechFocus) -> None:
-    """Apply stat modifiers from *focus*, set active_focus, and record in history."""
+    """Apply stat modifiers from *focus*, set active_focus, and record in history.
+
+    H-17: Tracks the actual applied delta (after clamping) in
+    civ._focus_applied_deltas so remove_focus_effects can reverse exactly
+    the amount that was added, avoiding baseline undershoot.
+    """
     effect = FOCUS_EFFECTS[focus]
+    if not hasattr(civ, '_focus_applied_deltas'):
+        civ._focus_applied_deltas = {}
+    applied: dict[str, int] = {}
     for stat, mod in effect.stat_modifiers.items():
         floor = STAT_FLOOR.get(stat, 0)
         high = 1000 if stat == "population" else 100
         current = getattr(civ, stat)
-        setattr(civ, stat, clamp(current + mod, floor, high))
+        new_val = clamp(current + mod, floor, high)
+        applied[stat] = new_val - current
+        setattr(civ, stat, new_val)
+    civ._focus_applied_deltas[focus.value] = applied
     civ.active_focus = focus.value
     civ.tech_focuses.append(focus.value)
 
 
 def remove_focus_effects(civ: Civilization, focus: TechFocus) -> None:
-    """Remove (subtract) stat modifiers from *focus*."""
+    """Remove (subtract) stat modifiers from *focus*.
+
+    H-17: Uses the tracked applied deltas to reverse exactly what was added,
+    preventing undershoot when the original application was capped.
+    """
+    # Use tracked deltas if available, fall back to raw modifiers
+    applied = getattr(civ, '_focus_applied_deltas', {}).get(focus.value, None)
     effect = FOCUS_EFFECTS[focus]
     for stat, mod in effect.stat_modifiers.items():
         floor = STAT_FLOOR.get(stat, 0)
         high = 1000 if stat == "population" else 100
         current = getattr(civ, stat)
-        setattr(civ, stat, clamp(current - mod, floor, high))
+        actual_delta = applied[stat] if applied and stat in applied else mod
+        setattr(civ, stat, clamp(current - actual_delta, floor, high))
+    # Clean up tracked deltas
+    if hasattr(civ, '_focus_applied_deltas') and focus.value in civ._focus_applied_deltas:
+        del civ._focus_applied_deltas[focus.value]
 
 
 def get_focus_weight_modifiers(civ: Civilization) -> dict[ActionType, float]:

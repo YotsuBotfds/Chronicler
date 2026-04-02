@@ -131,8 +131,13 @@ def assign_resources(regions: list[Region], seed: int) -> None:
         region.specialized_resources = resources
 
 
-def get_active_trade_routes(world: WorldState) -> list[tuple[str, str]]:
-    """Cross-civ trade routes — direct adjacency, neutral+ disposition, no embargo."""
+def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> list[tuple[str, str]]:
+    """Cross-civ trade routes — direct adjacency, neutral+ disposition, no embargo.
+
+    H-6: Pure query by default. Set emit_events=True at the dedicated point
+    in the turn loop (Phase 2) to emit capability events. All other callers
+    (intelligence, snapshots, action engine) get a side-effect-free read.
+    """
     routes: set[tuple[str, str]] = set()
     embargo_set = {(a, b) for a, b in world.embargoes} | {(b, a) for a, b in world.embargoes}
     for r1 in world.regions:
@@ -189,13 +194,15 @@ def get_active_trade_routes(world: WorldState) -> list[tuple[str, str]]:
                     if DISP_ORDER.get(rel_ab.disposition.value, 0) >= 2 and DISP_ORDER.get(rel_ba.disposition.value, 0) >= 2:
                         routes.add(pair)
                         capability_fired.add((r1.controller, focus))
-    # Emit capability events for navigation/railways
-    for civ_name, focus in capability_fired:
-        world.events_timeline.append(Event(
-            turn=world.turn, event_type=f"capability_{focus}",
-            actors=[civ_name], description=f"{civ_name} {focus} extends trade routes",
-            importance=1,
-        ))
+
+    # H-6: Only emit capability events when explicitly requested (Phase 2 call site)
+    if emit_events:
+        for civ_name, focus in capability_fired:
+            world.events_timeline.append(Event(
+                turn=world.turn, event_type=f"capability_{focus}",
+                actors=[civ_name], description=f"{civ_name} {focus} extends trade routes",
+                importance=1,
+            ))
 
     # Federation members get trade routes regardless of adjacency
     for fed in world.federations:

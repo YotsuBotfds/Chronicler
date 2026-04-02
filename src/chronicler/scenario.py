@@ -447,6 +447,23 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
                     region.resource_base_yields[slot] = RESOURCE_BASE[ResourceType.FISH] * (1.0 + variance)
                     break
 
+    # --- H-23: Post-apply consistency restoration ---
+    # Clamp ecology to terrain caps (scenario ecology overrides may violate them)
+    from chronicler.ecology import clamp_ecology as _clamp_eco
+    for region in world.regions:
+        _clamp_eco(region)
+
+    # Verify capital_region is owned; fix if not
+    for civ in world.civilizations:
+        if civ.capital_region and civ.capital_region not in civ.regions:
+            civ.capital_region = civ.regions[0] if civ.regions else None
+
+    # Sync population from region sums (scenario may override population
+    # without matching region populations)
+    sync_civ_population(world.civilizations[0], world)  # triggers import
+    for civ in world.civilizations:
+        sync_civ_population(civ, world)
+
     # --- Post-apply validation ---
     civ_names = {c.name for c in world.civilizations}
 

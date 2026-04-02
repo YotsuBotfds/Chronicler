@@ -47,6 +47,15 @@ def run_batch(
         tuning_overrides = load_tuning(Path(args.tuning))
 
     if args.parallel:
+        # H-24: Parallel batch mode cannot use LLM clients (connections can't
+        # cross process boundaries). Fail loudly if narration was requested
+        # instead of silently falling back to _DummyClient.
+        if not getattr(args, 'simulate_only', True):
+            raise ValueError(
+                "--batch --parallel requires --simulate-only. "
+                "Parallel workers cannot share LLM connections. "
+                "Use sequential batch mode for narrated runs."
+            )
         workers = args.parallel if isinstance(args.parallel, int) and args.parallel > 1 else max(1, multiprocessing.cpu_count() - 1)
         run_args = []
         for i in range(count):
@@ -105,7 +114,12 @@ def run_batch(
 
 
 def _run_single_no_llm(args: argparse.Namespace, scenario_config: Any = None) -> RunResult:
-    """Worker function for parallel batch (no LLM clients — deterministic only)."""
+    """Worker function for parallel batch (no LLM clients — deterministic only).
+
+    H-24: Parallel workers cannot share LLM client connections across processes.
+    This function is only correct for simulate_only runs. The guard in
+    run_batch() ensures narrated runs never reach here.
+    """
     from chronicler.main import execute_run
     return execute_run(args, scenario_config=scenario_config)
 

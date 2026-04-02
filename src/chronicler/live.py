@@ -271,7 +271,47 @@ class LiveServer:
                             }))
                         continue
 
+                    # H-25: Load a bundle file and populate _init_data for narration
+                    if msg_type == "load_bundle":
+                        bundle_path = msg.get("path", "")
+                        try:
+                            resolved = Path(bundle_path).resolve()
+                            allowed = Path("output").resolve()
+                            if not resolved.is_relative_to(allowed):
+                                raise ValueError(f"Path must be within output/: {bundle_path}")
+                            bundle = json.loads(resolved.read_text(encoding="utf-8"))
+                            # Populate _init_data so narrate_range works
+                            self._init_data = {
+                                "type": "init",
+                                "world_state": bundle.get("world_state", {}),
+                                "history": bundle.get("history", []),
+                                "events_timeline": bundle.get("events_timeline", []),
+                                "named_events": bundle.get("named_events", []),
+                                "chronicle_entries": bundle.get("chronicle_entries", {}),
+                                "metadata": bundle.get("metadata", {}),
+                                "current_turn": bundle.get("metadata", {}).get("turns", 0),
+                            }
+                            await websocket.send(json.dumps({
+                                "type": "bundle_loaded",
+                                "turns": len(bundle.get("history", [])),
+                            }))
+                        except Exception as exc:
+                            await websocket.send(json.dumps({
+                                "type": "error",
+                                "message": f"Failed to load bundle: {exc}",
+                            }))
+                        continue
+
                     if msg_type == "narrate_range":
+                        # H-25: Guard against missing _init_data (no sim run yet)
+                        if self._init_data is None:
+                            await websocket.send(json.dumps({
+                                "type": "error",
+                                "message": "No simulation data available for narration. "
+                                           "Start a simulation first.",
+                            }))
+                            continue
+
                         start_turn = msg.get("start_turn")
                         end_turn = msg.get("end_turn")
                         await websocket.send(json.dumps({
@@ -324,8 +364,11 @@ class LiveServer:
 
                     self.command_queue.put(msg)
 
-            except Exception:
-                pass
+            except Exception as exc:
+                # H-26: Log disconnect explicitly instead of silently swallowing
+                import logging
+                logger = logging.getLogger("chronicler.live")
+                logger.info("Client disconnected: %s", exc)
             finally:
                 async with client_lock:
                     client_ws = None
@@ -356,7 +399,12 @@ class LiveServer:
                                 try:
                                     await client_ws.send(json.dumps(snapshot))
                                 except Exception:
-                                    pass
+                                    # H-26: Log dropped messages on disconnect
+                                    import logging
+                                    logging.getLogger("chronicler.live").warning(
+                                        "Dropped snapshot (type=%s, turn=%s) — client disconnected",
+                                        snapshot.get("type"), snapshot.get("turn"),
+                                    )
                 except queue.Empty:
                     pass
 
@@ -375,7 +423,12 @@ class LiveServer:
                                 try:
                                     await client_ws.send(json.dumps(status))
                                 except Exception:
-                                    pass
+                                    # H-26: Log dropped status on disconnect
+                                    import logging
+                                    logging.getLogger("chronicler.live").warning(
+                                        "Dropped status (type=%s) — client disconnected",
+                                        status.get("type"),
+                                    )
                 except queue.Empty:
                     pass
 

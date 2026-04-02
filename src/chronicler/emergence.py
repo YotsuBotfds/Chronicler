@@ -703,7 +703,14 @@ def tick_terrain_succession(world: WorldState) -> list[Event]:
 
 
 def _apply_transition(region: Region, rule) -> None:
-    """Apply a terrain transition to a region."""
+    """Apply a terrain transition to a region.
+
+    H-15: After changing terrain, clamp ecology values to the new terrain's
+    TERRAIN_ECOLOGY_CAPS to prevent values exceeding the target caps
+    (e.g., forest_cover=0.7 on plains where cap=0.40).
+    """
+    from chronicler.ecology import clamp_ecology
+
     if rule.from_terrain == "forest" and rule.to_terrain == "plains":
         region.terrain = "plains"
         region.carrying_capacity = min(100, region.carrying_capacity + 20)
@@ -715,6 +722,9 @@ def _apply_transition(region: Region, rule) -> None:
         region.carrying_capacity = max(1, region.carrying_capacity - 10)
         region.ecology.forest_cover = 0.7
         region.forest_regrowth_turns = 0
+
+    # H-15: Clamp all ecology values to the NEW terrain's caps
+    clamp_ecology(region)
 
 
 # ---------------------------------------------------------------------------
