@@ -17,7 +17,6 @@ mod tick;
 pub mod named_characters;
 pub mod culture_tick;
 pub mod conversion_tick;
-pub mod social;
 pub mod memory;
 pub mod needs;
 pub mod relationships;
@@ -71,8 +70,6 @@ pub use tick::{tick_agents, AgentEvent, DemographicDebug};
 pub use tick::{assign_settlement_ids, build_settlement_grids};
 #[doc(hidden)]
 pub use named_characters::{CharacterRole, NamedCharacterRegistry};
-#[doc(hidden)]
-pub use social::{RelationshipType, SocialEdge, SocialGraph};
 #[doc(hidden)]
 pub use memory::{
     MemoryEventType, MemoryIntent, MemoryUtilityModifiers, MEMORY_SLOTS,

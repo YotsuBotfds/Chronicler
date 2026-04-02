@@ -38,7 +38,6 @@ DOCTRINE_BIAS_RANDOM_CHANCE = 0.20
 _PRIEST_OCCUPATION = 4
 
 # M38b: Persecution
-PERSECUTION_SAT_PENALTY = 0.15       # max penalty (scaled by intensity)
 PERSECUTION_REBEL_BOOST = 0.30       # max rebel utility boost
 PERSECUTION_MIGRATE_BOOST = 0.20     # max migrate utility boost
 MASS_MIGRATION_THRESHOLD = 0.15      # ratio of persecuted agents to trigger event
