@@ -109,7 +109,18 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
 
       ws.onmessage = (e) => {
         if (unmounted) return;
-        const msg = JSON.parse(e.data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let msg: any;
+        try {
+          msg = JSON.parse(e.data);
+        } catch {
+          console.warn("WebSocket: received non-JSON message, ignoring");
+          return;
+        }
+        if (typeof msg !== "object" || msg === null || typeof msg.type !== "string") {
+          console.warn("WebSocket: message missing 'type' field, ignoring", msg);
+          return;
+        }
 
         switch (msg.type) {
           case "init":
