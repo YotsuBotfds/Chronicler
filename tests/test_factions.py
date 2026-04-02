@@ -128,6 +128,24 @@ class TestCoreHelpers:
     def test_focus_faction_map_covers_all_focuses(self):
         assert len(FOCUS_FACTION_MAP) == 15
 
+    def test_clergy_alignment_reachable_from_zealous_trait(self):
+        """H-27 regression: clergy must be reachable via leader traits."""
+        leader = Leader(name="Test", trait="zealous", reign_start=0)
+        fs = FactionState()
+        fs.influence[FactionType.CLERGY] = 0.40
+        alignment = get_leader_faction_alignment(leader, fs)
+        assert alignment == pytest.approx(0.40), (
+            "zealous trait should align with clergy faction"
+        )
+
+    def test_all_four_factions_reachable_from_traits(self):
+        """H-27 regression: every FactionType must appear in TRAIT_FACTION_MAP values."""
+        reachable = set(TRAIT_FACTION_MAP.values())
+        for ft in FactionType:
+            assert ft in reachable, (
+                f"{ft} is not reachable from any leader trait in TRAIT_FACTION_MAP"
+            )
+
 
 def _make_world(turn: int = 10, events: list[Event] | None = None) -> WorldState:
     """Minimal WorldState for testing."""

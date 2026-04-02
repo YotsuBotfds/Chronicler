@@ -45,7 +45,7 @@ TRAIT_FACTION_MAP: dict[str, FactionType] = {
     "calculating": FactionType.MERCHANT,
     "shrewd": FactionType.MERCHANT,
     "visionary": FactionType.CULTURAL,
-    "zealous": FactionType.CULTURAL,
+    "zealous": FactionType.CLERGY,  # H-27: was CULTURAL — zealous is the natural clergy trait
 }
 
 FOCUS_FACTION_MAP: dict[str, FactionType] = {

@@ -449,3 +449,54 @@ class TestFireSchism:
 
         result = fire_schism(region, 99, registry, civ, current_turn=1, civ_origin=0)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# H-13 regression: zero-follower faiths must not survive schism
+# ---------------------------------------------------------------------------
+
+class TestZeroFollowerSchismRollback:
+    """Schisms must not produce faiths with zero followers."""
+
+    def test_schism_rolled_back_when_no_minority_followers(self):
+        """If snapshot data shows no minority followers for the region,
+        the schism faith is removed and no event is created."""
+        region = _make_region("r0")
+        civ = _make_civ("CivA", faith_id=0, region_names=["r0"])
+
+        registry = [_make_belief(0), _make_belief(1)]
+        original_len = len(registry)
+
+        # ALL agents hold the majority belief — no minority followers
+        agents = [
+            {"id": i, "region": 0, "civ": 0, "occupation": 0, "belief": 0}
+            for i in range(10)
+        ]
+        snap = _make_snapshot(agents)
+
+        events = detect_schisms([region], [civ], registry, snap, current_turn=1)
+
+        # No schism event should fire
+        assert events == [], f"Expected no schism events, got {events}"
+        # Registry must not have grown
+        assert len(registry) == original_len
+
+    def test_schism_preserved_when_minority_followers_exist(self):
+        """Normal case: minority followers exist, schism fires and sticks."""
+        region = _make_region("r0")
+        civ = _make_civ("CivA", faith_id=0, region_names=["r0"])
+
+        registry = [_make_belief(0), _make_belief(1)]
+
+        # 6 majority + 4 minority → ratio 0.40, above SCHISM_MINORITY_THRESHOLD
+        agents = (
+            [{"id": i, "region": 0, "civ": 0, "occupation": 0, "belief": 0}
+             for i in range(6)]
+            + [{"id": 6 + i, "region": 0, "civ": 0, "occupation": 0, "belief": 1}
+               for i in range(4)]
+        )
+        snap = _make_snapshot(agents)
+
+        events = detect_schisms([region], [civ], registry, snap, current_turn=1)
+        assert len(events) == 1
+        assert len(registry) == 3  # new faith added

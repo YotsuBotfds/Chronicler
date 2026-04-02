@@ -188,9 +188,11 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     } else {
         0.0
     };
-    // M38b: Persecution penalty
+    // M38b: Persecution penalty — skip for BELIEF_NONE agents (no faith to persecute)
     let mut penalty = 0.0f32;
-    if inp.agent_belief != inp.majority_belief {
+    if inp.agent_belief != crate::agent::BELIEF_NONE
+        && inp.agent_belief != inp.majority_belief
+    {
         penalty += crate::agent::PERSECUTION_SAT_WEIGHT * inp.persecution_intensity;
     }
     // M38a: temple priest bonus — faith-blind (Decision 6)
@@ -425,6 +427,51 @@ mod m37_tests {
         assert!((pen - 0.25).abs() < 0.001);
         let pen_capped = apply_penalty_cap(0.15 + 0.10 + 0.20);
         assert!((pen_capped - 0.40).abs() < 0.001);
+    }
+
+    /// C-7 regression: BELIEF_NONE agents must not receive persecution penalties.
+    #[test]
+    fn test_belief_none_no_persecution_penalty() {
+        // Agent with BELIEF_NONE and a real majority belief — should get NO persecution penalty
+        let sat_none_belief = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: crate::agent::BELIEF_NONE,
+            majority_belief: 3,
+            persecution_intensity: 1.0,  // max persecution
+            ..m37_base_inputs()
+        });
+        // Agent with matching belief (also no persecution)
+        let sat_matching = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: 3,
+            majority_belief: 3,
+            persecution_intensity: 1.0,
+            ..m37_base_inputs()
+        });
+        // Both should have the same satisfaction (no persecution penalty)
+        assert!((sat_none_belief - sat_matching).abs() < 0.001,
+            "BELIEF_NONE agent should not receive persecution penalty; \
+             sat_none={}, sat_match={}", sat_none_belief, sat_matching);
+    }
+
+    /// C-7 regression: real minority belief DOES receive persecution penalty.
+    #[test]
+    fn test_real_minority_belief_gets_persecution_penalty() {
+        let sat_minority = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: 5,
+            majority_belief: 3,
+            persecution_intensity: 1.0,
+            ..m37_base_inputs()
+        });
+        let sat_majority = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_belief: 3,
+            majority_belief: 3,
+            persecution_intensity: 1.0,
+            ..m37_base_inputs()
+        });
+        let expected_diff = crate::agent::PERSECUTION_SAT_WEIGHT * 1.0
+            + crate::agent::RELIGIOUS_MISMATCH_WEIGHT;
+        assert!((sat_majority - sat_minority - expected_diff).abs() < 0.001,
+            "Real minority belief should receive both persecution and religious mismatch penalties; \
+             diff={}, expected={}", sat_majority - sat_minority, expected_diff);
     }
 }
 
