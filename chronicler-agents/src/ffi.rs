@@ -92,7 +92,7 @@ pub fn snapshot_schema() -> Schema {
 /// Schema for `get_aggregates()` — per-civ stats.
 pub fn aggregates_schema() -> Schema {
     Schema::new(vec![
-        Field::new("civ_id", DataType::UInt16, false),
+        Field::new("civ_id", DataType::UInt8, false),  // M-5: standardized to UInt8 (civ_id is u8 throughout)
         Field::new("population", DataType::UInt32, false),
         Field::new("military", DataType::UInt32, false),
         Field::new("economy", DataType::UInt32, false),
@@ -148,19 +148,8 @@ pub fn social_edges_schema() -> Schema {
     ])
 }
 
-/// Schema for `set_region_state()` input.
-#[allow(dead_code)]
-pub fn region_state_schema() -> Schema {
-    Schema::new(vec![
-        Field::new("region_id", DataType::UInt16, false),
-        Field::new("terrain", DataType::UInt8, false),
-        Field::new("carrying_capacity", DataType::UInt16, false),
-        Field::new("population", DataType::UInt16, false),
-        Field::new("soil", DataType::Float32, false),
-        Field::new("water", DataType::Float32, false),
-        Field::new("forest_cover", DataType::Float32, false),
-    ])
-}
+// region_state_schema removed (M-7 audit): was dead code suppressed with #[allow(dead_code)].
+// set_region_state() parses columns by name, not by schema match.
 
 // ---------------------------------------------------------------------------
 // Ecology return schemas

@@ -10,6 +10,13 @@ const FOOD_SHORTAGE_WEIGHT: f32 = 0.07;  // [CALIBRATE] integrated M54+M55 close
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
 const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.36;  // [CALIBRATE] M57 tuning: strengthen scarcity reallocation toward farming to stabilize food sufficiency.
 
+// M-2 audit: Named constants for satisfaction formula terms
+const WAR_PENALTY_CIV: f32 = 0.08;        // [CALIBRATE] M47c: 0.15->0.08 (whole-civ at-war penalty)
+const WAR_PENALTY_CONTESTED: f32 = 0.05;  // [CALIBRATE] M47c: 0.10->0.05 (region contested penalty)
+const FACTION_ALIGNMENT_BONUS: f32 = 0.05; // bonus when occupation matches dominant faction
+const DISPLACEMENT_PENALTY: f32 = 0.10;    // penalty for displaced agents
+const MEMORY_POSITIVE_CAP_FRACTION: f32 = 0.50; // good memories can reduce at most 50% of accumulated penalty
+
 /// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7
 fn is_food(rtype: u8) -> bool {
     matches!(rtype, 0 | 2 | 3 | 7)
@@ -115,16 +122,17 @@ pub fn compute_satisfaction(
     let overcrowding_raw = (pop_over_capacity - 1.0) * crate::agent::OVERCROWDING_WEIGHT;
     let overcrowding = overcrowding_raw.clamp(0.0, crate::agent::OVERCROWDING_PENALTY_CAP);
 
-    let war_pen = 0.08 * civ_at_war as i32 as f32   // [CALIBRATE] M47c: 0.15→0.08 (whole-civ penalty too harsh)
-                + 0.05 * region_contested as i32 as f32;  // [CALIBRATE] M47c: 0.10→0.05
+    let war_pen = WAR_PENALTY_CIV * civ_at_war as i32 as f32
+                + WAR_PENALTY_CONTESTED * region_contested as i32 as f32;
 
-    let faction_bonus = 0.05 * occ_matches_faction as i32 as f32;
+    let faction_bonus = FACTION_ALIGNMENT_BONUS * occ_matches_faction as i32 as f32;
 
-    let displacement_pen = 0.10 * is_displaced as i32 as f32;
+    let displacement_pen = DISPLACEMENT_PENALTY * is_displaced as i32 as f32;
 
-    let shock_pen = compute_shock_penalty(occupation, shock);
+    // shock_effect can be positive (good shock) or negative (bad shock) — not strictly a penalty
+    let shock_effect = compute_shock_penalty(occupation, shock);
 
-    (base + stability_bonus + ds_bonus - overcrowding - war_pen + faction_bonus - displacement_pen + shock_pen)
+    (base + stability_bonus + ds_bonus - overcrowding - war_pen + faction_bonus - displacement_pen + shock_effect)
         .clamp(0.0, 1.0)
 }
 
@@ -219,14 +227,17 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     // M48: Memory penalty — 5th priority (lowest), takes whatever budget remains.
     // memory_score is in satisfaction-space (positive=good, negative=bad).
     // Convert to penalty-space by negation: bad memories → positive penalty addition.
+    let accumulated_penalty = three_term + urban_safety_clamped + class_tension_clamped;
     let memory_penalty = if inp.memory_score < 0.0 {
         // Bad memories: add penalty, clamped to remaining budget
-        (-inp.memory_score).min((crate::agent::PENALTY_CAP - three_term - urban_safety_clamped - class_tension_clamped).max(0.0))
+        (-inp.memory_score).min((crate::agent::PENALTY_CAP - accumulated_penalty).max(0.0))
     } else {
-        // Good memories: reduce penalty (negative penalty addition)
-        -inp.memory_score
+        // Good memories: reduce penalty, but cap at 50% of accumulated penalty
+        // so memories cannot fully erase persecution/cultural/class penalties (M-6 audit)
+        let max_reduction = accumulated_penalty * MEMORY_POSITIVE_CAP_FRACTION;
+        -(inp.memory_score.min(max_reduction))
     };
-    let total_non_eco_penalty = (three_term + urban_safety_clamped + class_tension_clamped + memory_penalty)
+    let total_non_eco_penalty = (accumulated_penalty + memory_penalty)
         .min(crate::agent::PENALTY_CAP)
         .max(0.0); // positive memories cannot create net bonus
     // M42: Food sufficiency penalty — material condition, outside social penalty cap
@@ -696,5 +707,100 @@ mod m41_tests {
             - (0.15 + crate::agent::RELIGIOUS_MISMATCH_WEIGHT + crate::agent::PERSECUTION_SAT_WEIGHT * 1.0);
         assert!((sat_no_class - sat - remaining_budget).abs() < 0.001,
             "Class tension should equal remaining budget ({}) under cap", remaining_budget);
+    }
+}
+
+#[cfg(test)]
+mod audit_tests {
+    use super::*;
+    use crate::signals::CivShock;
+
+    fn audit_base_inputs() -> SatisfactionInputs {
+        SatisfactionInputs {
+            occupation: 0, soil: 0.5, water: 0.5, civ_stability: 50,
+            demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
+            civ_at_war: false, region_contested: false, occ_matches_faction: false,
+            is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+            shock: CivShock::default(),
+            agent_values: [0, 1, 2], controller_values: [0, 1, 2],
+            agent_belief: 0xFF, majority_belief: 0xFF,
+            has_temple: false, persecution_intensity: 0.0,
+            gini_coefficient: 0.0, wealth_percentile: 0.5,
+            food_sufficiency: 1.0, merchant_margin: 0.0,
+            memory_score: 0.0,
+            is_urban: false,
+        }
+    }
+
+    // M-6: Good memories can reduce but not fully eliminate penalties
+    #[test]
+    fn test_positive_memory_capped_at_half_penalty() {
+        // Cultural distance = 2 (two mismatches) -> penalty = 0.10
+        let sat_no_memory = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [4, 3, 2], controller_values: [4, 0, 1],
+            memory_score: 0.0,
+            ..audit_base_inputs()
+        });
+        let sat_big_memory = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [4, 3, 2], controller_values: [4, 0, 1],
+            memory_score: 1.0,  // huge positive memory
+            ..audit_base_inputs()
+        });
+        let sat_no_penalty = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [0, 1, 2], controller_values: [0, 1, 2],
+            memory_score: 0.0,
+            ..audit_base_inputs()
+        });
+        // With 50% cap: memory reduces 0.10 penalty by at most 0.05
+        // So sat_big_memory should be 0.05 below sat_no_penalty
+        let residual = sat_no_penalty - sat_big_memory;
+        assert!(residual > 0.04 && residual < 0.06,
+            "Positive memory should leave ~50%% of cultural penalty: residual={}", residual);
+        // And better than no memory
+        assert!(sat_big_memory > sat_no_memory,
+            "Positive memory should still improve satisfaction: big={}, none={}",
+            sat_big_memory, sat_no_memory);
+    }
+
+    // M-6: Zero penalty means positive memory has no penalty-reduction effect
+    #[test]
+    fn test_positive_memory_no_bonus_without_penalty() {
+        let sat_base = compute_satisfaction_with_culture(&SatisfactionInputs {
+            memory_score: 0.0,
+            ..audit_base_inputs()
+        });
+        let sat_pos = compute_satisfaction_with_culture(&SatisfactionInputs {
+            memory_score: 0.5,
+            ..audit_base_inputs()
+        });
+        // No penalty to reduce -> positive memory does nothing
+        assert!((sat_base - sat_pos).abs() < 0.001,
+            "Positive memory with no penalty should not grant bonus: base={}, pos={}",
+            sat_base, sat_pos);
+    }
+
+    // M-1: shock_effect can be positive (good shock)
+    #[test]
+    fn test_positive_shock_improves_satisfaction() {
+        let sat_no_shock = compute_satisfaction(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &CivShock::default(), 0.0,
+        );
+        let sat_good_shock = compute_satisfaction(
+            0, 0.5, 0.5, 50, 0.0, 0.8, false, false, false, false, 0, 0.0,
+            &CivShock { stability: 0.5, economy: 0.5, military: 0.0, culture: 0.0 }, 0.0,
+        );
+        assert!(sat_good_shock > sat_no_shock,
+            "Positive shock should improve satisfaction: good={}, none={}",
+            sat_good_shock, sat_no_shock);
+    }
+
+    // M-2: Named constants produce same values as old magic numbers
+    #[test]
+    fn test_named_constants_match_original_values() {
+        assert_eq!(WAR_PENALTY_CIV, 0.08);
+        assert_eq!(WAR_PENALTY_CONTESTED, 0.05);
+        assert_eq!(FACTION_ALIGNMENT_BONUS, 0.05);
+        assert_eq!(DISPLACEMENT_PENALTY, 0.10);
     }
 }

@@ -73,7 +73,7 @@ pub const W_MIGRATE_OPP: f32 = 1.10;
 pub const W_SWITCH: f32 = 0.45;
 pub const MIGRATE_HYSTERESIS: f32 = 0.18;
 // Derived from Phase 5 constants for use in utility functions:
-pub const SWITCH_OVERSUPPLY_THRESH: f32 = 1.0 / OCCUPATION_SWITCH_OVERSUPPLY; // 2.0
+pub const SWITCH_OVERSUPPLY_THRESH: f32 = 1.0 / OCCUPATION_SWITCH_OVERSUPPLY; // 1.0 (since OCCUPATION_SWITCH_OVERSUPPLY=1.0)
 pub const SWITCH_UNDERSUPPLY_FACTOR: f32 = OCCUPATION_SWITCH_UNDERSUPPLY; // 1.5
 
 // Personality multipliers (M33) [CALIBRATE: M47]
@@ -107,9 +107,10 @@ pub const RELATIONSHIP_STREAM_OFFSET: u64 = 1100;
 // Restored to its pre-M55a stream so the long-run demographic calibration
 // remains comparable to the established M53/M54 gates.
 pub const INITIAL_AGE_STREAM_OFFSET: u64 = 1400;
-// M55a: Spatial position and drift RNG streams
+// M55a: Spatial position RNG stream
 pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 2000;
-pub const SPATIAL_DRIFT_STREAM_OFFSET: u64 = 2001;
+// Note: SPATIAL_DRIFT_STREAM_OFFSET (2001) removed — spatial drift is deterministic
+// (attractor-based), not RNG-driven. Offset 2001 is retired; do not reuse.
 // M58a: Merchant route selection (reserved, not consumed in M58a)
 pub const MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700;
 // M59a: Information packet propagation
@@ -456,7 +457,6 @@ mod tests {
             RELATIONSHIP_STREAM_OFFSET,
             INITIAL_AGE_STREAM_OFFSET,       // 1400
             SPATIAL_POSITION_STREAM_OFFSET,  // 2000
-            SPATIAL_DRIFT_STREAM_OFFSET,     // 2001
             MARRIAGE_STREAM_OFFSET,          // 1600
             MERCHANT_ROUTE_STREAM_OFFSET,    // 1700
             KNOWLEDGE_STREAM_OFFSET,         // 1800

@@ -364,11 +364,14 @@ pub fn tick_agents(
     }
 
     // -----------------------------------------------------------------------
-    // M48: Battle + Victory intents (soldiers in contested regions)
+    // M48: Battle + Victory + Conquest + Secession intents
+    // H-30: Single partition reused for all pre-demographics memory intents.
     // -----------------------------------------------------------------------
     {
-        let region_groups_battle = pool.partition_by_region(num_regions as u16);
-        for (region_id, slots) in region_groups_battle.iter().enumerate() {
+        let region_groups_intents = pool.partition_by_region(num_regions as u16);
+
+        // Battle + Victory intents (soldiers in contested regions)
+        for (region_id, slots) in region_groups_intents.iter().enumerate() {
             let is_contested = region_id < signals.contested_regions.len()
                 && signals.contested_regions[region_id];
             if !is_contested {
@@ -381,7 +384,6 @@ pub fn tick_agents(
                 let is_soldier = pool.occupations[slot]
                     == crate::agent::Occupation::Soldier as u8;
                 if is_soldier {
-                    // Battle intent for soldiers in contested regions
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: slot,
                         expected_agent_id: pool.ids[slot],
@@ -391,7 +393,6 @@ pub fn tick_agents(
                         is_legacy: false,
                         decay_factor_override: None,
                     });
-                    // Victory intent if this region's war was won
                     if region_id < regions.len() && regions[region_id].war_won_this_turn {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
@@ -406,22 +407,14 @@ pub fn tick_agents(
                 }
             }
         }
-    }
 
-    // -----------------------------------------------------------------------
-    // M48: Conquest + Secession intents (region-wide signals)
-    // -----------------------------------------------------------------------
-    {
-        let region_groups_signal = pool.partition_by_region(num_regions as u16);
-        for (region_id, slots) in region_groups_signal.iter().enumerate() {
+        // Conquest + Secession intents (region-wide signals)
+        for (region_id, slots) in region_groups_intents.iter().enumerate() {
             if region_id >= regions.len() {
                 continue;
             }
             let region = &regions[region_id];
             if region.controller_changed_this_turn {
-                // source_civ = the conquering civ (new controller), NOT the agent's own civ.
-                // This enables side differentiation: agents whose civ matches the conqueror
-                // get STAY boost (garrison instinct), others get MIGRATE (displacement).
                 let conquering_civ = region.controller_civ;
                 for &slot in slots {
                     if pool.is_alive(slot) {
@@ -461,8 +454,11 @@ pub fn tick_agents(
     // Re-partition after migrations may have moved agents.
     let region_groups = pool.partition_by_region(num_regions as u16);
 
+    // H-29: Build O(1) civ lookup for demographics phase
+    let demo_civ_idx = signals.build_index();
     let demo_results: Vec<(DemographicsPending, RegionDemoDebug)> = {
         let pool_ref = &*pool;
+        let civ_idx_ref = &demo_civ_idx;
         region_groups
             .par_iter()
             .enumerate()
@@ -477,6 +473,7 @@ pub fn tick_agents(
                     slots,
                     &regions[region_id],
                     signals,
+                    civ_idx_ref,
                     region_id,
                     &mut rng,
                     master_seed,
@@ -738,15 +735,16 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 5.1 M50b: Death cleanup sweep — remove bonds to this tick's dead agents
     // -----------------------------------------------------------------------
-    // M57b: Reuse precomputed full_dead_ids
+    // M-9: Compute post-demographics alive list once, reuse for death cleanup,
+    // memory gate clearing, formation scan, and marriage scan.
+    let post_alive: Vec<usize> = (0..pool.capacity())
+        .filter(|&s| pool.is_alive(s))
+        .collect();
     let dead_ids = &full_dead_ids;
     let mut death_dissolved_count: u32 = 0;
     if !dead_ids.is_empty() {
-        let alive_slots_post_demo: Vec<usize> = (0..pool.capacity())
-            .filter(|&s| pool.is_alive(s))
-            .collect();
         let (dissolution_events, removed) =
-            crate::formation::death_cleanup_sweep(pool, &alive_slots_post_demo, dead_ids, turn);
+            crate::formation::death_cleanup_sweep(pool, &post_alive, dead_ids, turn);
         events.extend(dissolution_events);
         death_dissolved_count = removed;
     }
@@ -757,14 +755,17 @@ pub fn tick_agents(
     assign_settlement_ids(pool, settlement_grids);
 
     // -----------------------------------------------------------------------
-    // 6. Cultural drift (M36)
+    // 6. Cultural drift (M36) + 7. Conversion (M37) + post-conversion intents
+    // H-29: Use CivSignalsIndex for O(1) lookups.
+    // H-30: Single partition for culture, conversion, and intent scan
+    //       (no agent moves between these phases).
     // -----------------------------------------------------------------------
+    let post_demo_partition = pool.partition_by_region(num_regions as u16);
+    let post_demo_civ_idx = signals.build_index();
     {
-        let region_groups = pool.partition_by_region(num_regions as u16);
-        for (region_id, slots) in region_groups.iter().enumerate() {
+        for (region_id, slots) in post_demo_partition.iter().enumerate() {
             if !slots.is_empty() {
-                let drift_mult = signals.civs.iter()
-                    .find(|c| c.civ_id == regions[region_id].controller_civ)
+                let drift_mult = post_demo_civ_idx.get(signals, regions[region_id].controller_civ)
                     .map(|c| c.cultural_drift_multiplier)
                     .unwrap_or(1.0);
                 crate::culture_tick::culture_tick(
@@ -775,21 +776,15 @@ pub fn tick_agents(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Stage 7: Conversion (M37)
-    // Note: reuses stage 6's partition pattern. No agents move between stages 6-7.
-    // -----------------------------------------------------------------------
     // M48: Snapshot LIFE_EVENT_CONVERSION bits BEFORE conversion_tick runs,
     // so we can detect which agents are NEWLY converted this tick.
     let pre_conversion_bits: Vec<bool> = (0..pool.capacity())
         .map(|s| pool.life_events[s] & crate::agent::LIFE_EVENT_CONVERSION != 0)
         .collect();
     {
-        let region_groups = pool.partition_by_region(num_regions as u16);
-        for (region_id, slots) in region_groups.iter().enumerate() {
+        for (region_id, slots) in post_demo_partition.iter().enumerate() {
             if !slots.is_empty() {
-                let religion_mult = signals.civs.iter()
-                    .find(|c| c.civ_id == regions[region_id].controller_civ)
+                let religion_mult = post_demo_civ_idx.get(signals, regions[region_id].controller_civ)
                     .map(|c| c.religion_intensity_multiplier)
                     .unwrap_or(1.0);
                 crate::conversion_tick::conversion_tick(
@@ -800,12 +795,9 @@ pub fn tick_agents(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // M48: Conversion + Persecution intents (after conversion tick)
-    // -----------------------------------------------------------------------
+    // Conversion + Persecution intents (after conversion tick)
     {
-        let region_groups_conv = pool.partition_by_region(num_regions as u16);
-        for (region_id, slots) in region_groups_conv.iter().enumerate() {
+        for (region_id, slots) in post_demo_partition.iter().enumerate() {
             if region_id >= regions.len() {
                 continue;
             }
@@ -819,7 +811,6 @@ pub fn tick_agents(
                     && !pre_conversion_bits[slot]
                     && (pool.life_events[slot] & crate::agent::LIFE_EVENT_CONVERSION != 0);
                 if newly_converted {
-                    // Intensity: +50 voluntary, -50 if conquest conversion active
                     let intensity = if region.conquest_conversion_active {
                         -(crate::agent::CONVERSION_DEFAULT_INTENSITY.unsigned_abs() as i8)
                     } else {
@@ -877,11 +868,7 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // M48: Gate clearing + consolidated memory write
     // -----------------------------------------------------------------------
-    // Rebuild post-demographics alive list (Critical Plan Issue #1: must use
-    // post-demographics slots, not tick-start `alive_slots` snapshot).
-    let post_alive: Vec<usize> = (0..pool.capacity())
-        .filter(|&s| pool.is_alive(s))
-        .collect();
+    // M-9: Reuses post_alive computed at death cleanup (line ~740).
     {
         crate::memory::clear_memory_gates(
             pool,
@@ -947,6 +934,7 @@ pub fn wealth_tick(
     wealth_percentiles: &mut [f32],
 ) {
     // --- Step 1: Accumulation + Decay ---
+    let civ_idx = signals.build_index();  // H-29: O(1) civ lookup
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) { continue; }
 
@@ -956,9 +944,7 @@ pub fn wealth_tick(
         let occ = pool.occupations[slot];
         let civ = pool.civ_affinities[slot];
 
-        // Note: O(n) lookup per agent. If benchmarks show this matters, pre-build
-        // a [Option<&CivSignals>; 256] lookup array before the loop.
-        let civ_sig = signals.civs.iter().find(|c| c.civ_id == civ);
+        let civ_sig = civ_idx.get(signals, civ);
         let at_war = civ_sig.map_or(false, |c| c.is_at_war);
         let conquered = civ_sig.map_or(false, |c| c.conquered_this_turn);
 
@@ -995,10 +981,9 @@ pub fn wealth_tick(
     }
 
     // --- Step 2: Per-civ percentile ranking ---
-    // Note: HashMap allocates per tick. With <16 civs this is fast, but if
-    // benchmarks show allocation pressure, refactor to a reusable [Vec; 256].
-    let mut civ_groups: std::collections::HashMap<u8, Vec<(usize, f32)>> =
-        std::collections::HashMap::new();
+    // BTreeMap ensures deterministic iteration order by civ_id (H-31 audit).
+    let mut civ_groups: std::collections::BTreeMap<u8, Vec<(usize, f32)>> =
+        std::collections::BTreeMap::new();
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) { continue; }
         let civ = pool.civ_affinities[slot];
@@ -1027,10 +1012,14 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
     let num_regions = regions.len();
     let region_groups = pool.partition_by_region(num_regions as u16);
 
+    // H-29: O(1) civ lookup index
+    let civ_idx = signals.build_index();
+
     // Compute satisfaction per-region in parallel.
     // Collect (slot, sat) pairs — avoids unsafe mutable aliasing on pool.satisfactions.
     let updates: Vec<Vec<(usize, f32)>> = {
         let pool_ref = &*pool;
+        let civ_idx_ref = &civ_idx;
         region_groups
             .par_iter()
             .enumerate()
@@ -1044,12 +1033,9 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                     .iter()
                     .map(|&slot| {
                         let occ = pool_ref.occupation(slot);
-                        let civ = pool_ref.civ_affinity(slot) as usize;
+                        let civ = pool_ref.civ_affinity(slot);
 
-                        let civ_sig = signals
-                            .civs
-                            .iter()
-                            .find(|c| c.civ_id as usize == civ);
+                        let civ_sig = civ_idx_ref.get(signals, civ);
 
                         let civ_stability = civ_sig.map_or(50, |c| c.stability);
                         let civ_at_war = civ_sig.map_or(false, |c| c.is_at_war);
@@ -1098,7 +1084,7 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                             None => 0.0,
                         };
 
-                        let shock = signals.shock_for_civ(pool_ref.civ_affinity(slot));
+                        let shock = signals.shock_for_civ_indexed(pool_ref.civ_affinity(slot), civ_idx_ref);
                         let gini = civ_sig.map_or(0.0, |c| c.gini_coefficient);
                         let wealth_pct = wealth_percentiles[slot];
 
@@ -1213,6 +1199,7 @@ fn tick_region_demographics(
     slots: &[usize],
     region: &RegionState,
     signals: &TickSignals,
+    civ_idx: &crate::signals::CivSignalsIndex,  // H-29: O(1) civ lookup
     region_id: usize,
     rng: &mut ChaCha8Rng,
     master_seed: [u8; 32],
@@ -1245,14 +1232,11 @@ fn tick_region_demographics(
     for &slot in slots {
         let age = pool.age(slot);
         let occ = pool.occupation(slot);
-        let civ = pool.civ_affinity(slot) as usize;
+        let civ = pool.civ_affinity(slot);
         let sat = pool.satisfaction(slot);
 
-        // Is this a soldier at war?
-        let civ_at_war = signals
-            .civs
-            .iter()
-            .find(|c| c.civ_id as usize == civ)
+        // Is this a soldier at war? (H-29: O(1) lookup)
+        let civ_at_war = civ_idx.get(signals, civ)
             .map_or(false, |c| c.is_at_war);
         let is_soldier_at_war = occ == 1 && civ_at_war;
 

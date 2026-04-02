@@ -336,10 +336,22 @@ impl AgentPool {
         }
     }
 
-    /// Kill an agent by slot. Decrements live count and returns slot to free-list.
+    /// Kill an agent by slot. Zeros key fields, decrements live count, and
+    /// returns slot to free-list. Zeroing prevents stale data from leaking
+    /// if dead slots are accidentally accessed before reuse.
     pub fn kill(&mut self, slot: usize) {
         if self.is_alive(slot) {
             self.set_dead(slot);
+            // Zero out key fields to prevent stale data leaks (M-4 audit)
+            self.wealth[slot] = 0.0;
+            self.satisfactions[slot] = 0.0;
+            self.loyalties[slot] = 0.0;
+            self.beliefs[slot] = crate::agent::BELIEF_NONE;
+            self.occupations[slot] = 0;
+            self.civ_affinities[slot] = 255;
+            self.life_events[slot] = 0;
+            self.displacement_turns[slot] = 0;
+            self.promotion_progress[slot] = 0;
             self.count -= 1;
             self.free_slots.push(slot);
         }
@@ -722,7 +734,7 @@ impl AgentPool {
         sorted.sort();
 
         let n = sorted.len();
-        let mut civ_ids = UInt16Builder::with_capacity(n);
+        let mut civ_ids = UInt8Builder::with_capacity(n);  // M-5: standardized to UInt8
         let mut populations = UInt32Builder::with_capacity(n);
         let mut military_b = UInt32Builder::with_capacity(n);
         let mut economy_b = UInt32Builder::with_capacity(n);
@@ -733,7 +745,7 @@ impl AgentPool {
             let a = &accums[&civ];
             let cap = civ_capacity.get(&civ).copied().unwrap_or(0.0);
 
-            civ_ids.append_value(civ as u16);
+            civ_ids.append_value(civ);
             populations.append_value(a.population);
 
             if cap > 0.0 && a.population > 0 {
@@ -948,7 +960,7 @@ mod tests {
 
     #[test]
     fn test_compute_aggregates_no_controlled_regions() {
-        use arrow::array::{UInt16Array, UInt32Array};
+        use arrow::array::{UInt32Array};
         use crate::region::RegionState;
 
         let mut pool = AgentPool::new(8);
@@ -971,10 +983,11 @@ mod tests {
         assert_eq!(schema.field(2).name(), "military");
         assert_eq!(schema.field(5).name(), "stability");
 
+        // M-5: civ_id standardized to UInt8
         let civ_ids = batch
             .column(0)
             .as_any()
-            .downcast_ref::<UInt16Array>()
+            .downcast_ref::<arrow::array::UInt8Array>()
             .unwrap();
         assert_eq!(civ_ids.value(0), 0);
         assert_eq!(civ_ids.value(1), 1);
@@ -1077,7 +1090,7 @@ mod tests {
 
     #[test]
     fn test_compute_aggregates_groups_controlled_regions_under_controller() {
-        use arrow::array::{UInt16Array, UInt32Array};
+        use arrow::array::UInt32Array;
         use crate::region::RegionState;
 
         let mut pool = AgentPool::new(8);
@@ -1100,10 +1113,11 @@ mod tests {
             .compute_aggregates(&[region_0, region_1])
             .expect("compute_aggregates failed");
 
+        // M-5: civ_id standardized to UInt8
         let civ_ids = batch
             .column(0)
             .as_any()
-            .downcast_ref::<UInt16Array>()
+            .downcast_ref::<arrow::array::UInt8Array>()
             .unwrap();
         let populations = batch
             .column(1)
@@ -1385,5 +1399,33 @@ mod tests {
         assert_eq!(s1, s0); // reused slot
         assert_eq!(pool.parent_id_0(s1), crate::agent::PARENT_NONE);
         assert_eq!(pool.parent_id_1(s1), crate::agent::PARENT_NONE);
+    }
+
+    // M-4 audit: kill() zeros key fields to prevent stale data leaks
+    #[test]
+    fn test_kill_zeros_fields() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Merchant, 25, 0.0, 0.0, 0.0, 0, 1, 2, 3);
+        // Set some non-zero state
+        pool.wealth[slot] = 42.0;
+        pool.set_satisfaction(slot, 0.8);
+        pool.set_loyalty(slot, 0.9);
+        pool.life_events[slot] = 0xFF;
+        pool.promotion_progress[slot] = 10;
+        pool.set_displacement_turns(slot, 5);
+
+        pool.kill(slot);
+
+        // All key fields should be zeroed
+        assert!(!pool.is_alive(slot));
+        assert_eq!(pool.wealth[slot], 0.0);
+        assert_eq!(pool.satisfaction(slot), 0.0);
+        assert_eq!(pool.loyalty(slot), 0.0);
+        assert_eq!(pool.beliefs[slot], crate::agent::BELIEF_NONE);
+        assert_eq!(pool.occupations[slot], 0);
+        assert_eq!(pool.civ_affinities[slot], 255);
+        assert_eq!(pool.life_events[slot], 0);
+        assert_eq!(pool.displacement_turns(slot), 0);
+        assert_eq!(pool.promotion_progress[slot], 0);
     }
 }

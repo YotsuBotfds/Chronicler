@@ -174,12 +174,53 @@ pub struct CivShock {
     pub culture: f32,
 }
 
+/// O(1) civ_id-to-index lookup table built once per tick (H-29 audit).
+/// Maps civ_id (u8) to index in TickSignals.civs. None = civ not present.
+pub struct CivSignalsIndex {
+    table: [Option<usize>; 256],
+}
+
+impl CivSignalsIndex {
+    /// Build from a TickSignals reference. O(n) where n = number of civs.
+    pub fn build(signals: &TickSignals) -> Self {
+        let mut table = [None; 256];
+        for (idx, cs) in signals.civs.iter().enumerate() {
+            table[cs.civ_id as usize] = Some(idx);
+        }
+        CivSignalsIndex { table }
+    }
+
+    /// O(1) lookup of CivSignals by civ_id.
+    #[inline]
+    pub fn get<'a>(&self, signals: &'a TickSignals, civ_id: u8) -> Option<&'a CivSignals> {
+        self.table[civ_id as usize].map(|idx| &signals.civs[idx])
+    }
+}
+
 impl TickSignals {
+    /// Build an O(1) index for civ_id lookups. Call once per tick, then use
+    /// `index.get(signals, civ_id)` in hot loops instead of linear scan.
+    pub fn build_index(&self) -> CivSignalsIndex {
+        CivSignalsIndex::build(self)
+    }
+
     /// Look up the shock components for the given civ, defaulting to zeros.
     pub fn shock_for_civ(&self, civ_id: u8) -> CivShock {
         self.civs
             .iter()
             .find(|c| c.civ_id == civ_id)
+            .map(|c| CivShock {
+                stability: c.shock_stability,
+                economy: c.shock_economy,
+                military: c.shock_military,
+                culture: c.shock_culture,
+            })
+            .unwrap_or_default()
+    }
+
+    /// O(1) shock lookup using pre-built index.
+    pub fn shock_for_civ_indexed(&self, civ_id: u8, idx: &CivSignalsIndex) -> CivShock {
+        idx.get(self, civ_id)
             .map(|c| CivShock {
                 stability: c.shock_stability,
                 economy: c.shock_economy,
@@ -415,5 +456,32 @@ mod tests {
         assert_eq!(shock.economy, 0.0);
         let demand = ts.demand_shifts_for_civ(99);
         assert_eq!(demand, [0.0; 5]);
+    }
+
+    // H-29 regression: CivSignalsIndex O(1) lookup produces same results as linear scan
+    #[test]
+    fn test_civ_signals_index_parity() {
+        let batch = make_civ_batch();
+        let civs = parse_civ_signals(&batch).unwrap();
+        let ts = TickSignals { civs, contested_regions: vec![] };
+        let idx = ts.build_index();
+
+        // Existing civs: indexed lookup matches linear scan
+        for civ_id in [0u8, 1] {
+            let linear = ts.shock_for_civ(civ_id);
+            let indexed = ts.shock_for_civ_indexed(civ_id, &idx);
+            assert_eq!(linear.stability, indexed.stability);
+            assert_eq!(linear.economy, indexed.economy);
+
+            let linear_sig = ts.civs.iter().find(|c| c.civ_id == civ_id);
+            let indexed_sig = idx.get(&ts, civ_id);
+            assert_eq!(linear_sig.map(|c| c.stability), indexed_sig.map(|c| c.stability));
+            assert_eq!(linear_sig.map(|c| c.is_at_war), indexed_sig.map(|c| c.is_at_war));
+        }
+
+        // Missing civ: indexed lookup returns None / default
+        assert!(idx.get(&ts, 99).is_none());
+        let missing_shock = ts.shock_for_civ_indexed(99, &idx);
+        assert_eq!(missing_shock.stability, 0.0);
     }
 }
