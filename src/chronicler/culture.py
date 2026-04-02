@@ -368,7 +368,7 @@ def check_cultural_victories(world: WorldState) -> None:
     for civ in world.civilizations:
         if len(civ.regions) == 0:
             continue
-        others_combined = sum(c.culture for c in world.civilizations if c != civ)
+        others_combined = sum(c.culture for c in world.civilizations if c != civ and c.regions)
         if civ.culture > others_combined:
             if not any(
                 ne.event_type == "cultural_hegemony" and civ.name in ne.actors
@@ -383,9 +383,9 @@ def check_cultural_victories(world: WorldState) -> None:
                     importance=9,
                 ))
 
-    all_civ_names = {c.name for c in world.civilizations}
+    all_civ_names = {c.name for c in world.civilizations if c.regions}
     for movement in world.movements:
-        if set(movement.adherents.keys()) == all_civ_names:
+        if all_civ_names and set(movement.adherents.keys()) >= all_civ_names:
             if not any(
                 ne.event_type == "universal_enlightenment"
                 and movement.id in ne.description

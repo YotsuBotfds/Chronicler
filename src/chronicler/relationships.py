@@ -137,7 +137,7 @@ def check_mentorship_formation(world: WorldState, existing_edges: list[tuple]) -
                 continue
             candidates.append(gp)
 
-    candidates.sort(key=lambda gp: gp.born_turn)
+    candidates.sort(key=lambda gp: (gp.born_turn, gp.agent_id or 0))
     paired = set()
     for i, senior in enumerate(candidates):
         if senior.agent_id in paired:
@@ -375,11 +375,17 @@ def tick_hostages(world: WorldState) -> list[GreatPerson]:
             gp.hostage_turns += 1
             if gp.hostage_turns >= 10 and gp.cultural_identity != civ.name:
                 gp.cultural_identity = civ.name
+            # Free hostage if origin civ is extinct (no regions) — retire in place
+            origin = next((c for c in world.civilizations if c.name == gp.origin_civilization), None)
+            if origin is None or not origin.regions:
+                gp.is_hostage = False
+                gp.captured_by = None
+                gp.civilization = civ.name
+                released.append(gp)
+                continue
             if gp.hostage_turns >= 15:
-                origin = next((c for c in world.civilizations if c.name == gp.origin_civilization), None)
-                if origin:
-                    release_hostage(gp, civ, origin, world)
-                    released.append(gp)
+                release_hostage(gp, civ, origin, world)
+                released.append(gp)
     return released
 
 

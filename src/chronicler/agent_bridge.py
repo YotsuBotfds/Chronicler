@@ -2092,6 +2092,7 @@ class AgentBridge:
                 continue
             civ = world.civilizations[civ_id]
             if len(civ.regions) == 0:
+                civ.population = 0
                 continue
             civ.population = int(controlled_population_by_civ.get(civ.name, 0))
             if civ.population < 1:

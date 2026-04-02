@@ -481,6 +481,8 @@ def collect_tribute(world: WorldState, acc=None) -> list[Event]:
         overlord = civ_map.get(vr.overlord)
         if vassal is None or overlord is None:
             continue
+        if not vassal.regions or not overlord.regions:
+            continue
         perceived_econ = get_perceived_stat(overlord, vassal, "economy", world)
         # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
         # If this fires, compute_accuracy has a bug.
@@ -606,6 +608,8 @@ def check_federation_formation(world: WorldState) -> list[Event]:
     checked_pairs: set[tuple[str, str]] = set()
 
     for civ_a in world.civilizations:
+        if not civ_a.regions:
+            continue
         if _is_vassal(civ_a.name, world):
             continue
         rels_a = world.relationships.get(civ_a.name, {})
@@ -622,6 +626,9 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             if rel_ba is None or rel_ba.allied_turns < fed_turns_req:
                 continue
             if _is_vassal(civ_b_name, world):
+                continue
+            civ_b = next((c for c in world.civilizations if c.name == civ_b_name), None)
+            if civ_b is None or not civ_b.regions:
                 continue
 
             fed_a = _civ_in_federation(civ_a.name, world)
@@ -1320,6 +1327,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                     if rn in region_map_u:
                         region_map_u[rn].controller = best_absorber_u.name
                 civ.regions = []
+                civ.capital_region = None
                 from chronicler.simulation import reset_war_frequency_on_extinction
                 reset_war_frequency_on_extinction(civ)
                 # M52: Artifact lifecycle intent for twilight absorption
@@ -1394,6 +1402,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
             if rn in region_map:
                 region_map[rn].controller = best_absorber.name
         civ.regions = []
+        civ.capital_region = None
         from chronicler.simulation import reset_war_frequency_on_extinction
         reset_war_frequency_on_extinction(civ)
         # M52: Artifact lifecycle intent for twilight absorption
@@ -2411,6 +2420,7 @@ def _apply_civ_op(world: WorldState, payload: dict, new_civ_map: dict,
                 if rn in region_map:
                     region_map[rn].controller = tgt_civ.name
             src_civ.regions = []
+            src_civ.capital_region = None
             from chronicler.simulation import reset_war_frequency_on_extinction
             reset_war_frequency_on_extinction(src_civ)
             sync_civ_population(tgt_civ, world)
