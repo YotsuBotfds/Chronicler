@@ -236,3 +236,57 @@ class TestDualParentDynastyResolution:
         child = _make_gp(20, "Tala", parent_id_0=999, parent_id_1=11)
         events = registry.check_promotion(child, named_agents, gp_map)
         assert child.dynasty_id == dynasty_id
+
+
+# ---------------------------------------------------------------------------
+# C-5 regression: Missing GP in gp_map must not crash
+# ---------------------------------------------------------------------------
+
+class TestMissingGpMapEntries:
+    """Audit C-5: check_extinctions / check_splits must tolerate pruned agent IDs."""
+
+    def test_extinction_skips_missing_gp_gracefully(self):
+        """Dynasty with a member absent from gp_map should still detect extinction."""
+        registry = DynastyRegistry()
+        parent = _make_gp(10, "Kiran")
+        child = _make_gp(20, "Tala", parent_id_0=10)
+        named_agents = {10: "Kiran"}
+        gp_map = {10: parent, 20: child}
+        registry.check_promotion(child, named_agents, gp_map)
+        parent.alive = False
+        child.alive = False
+        # Remove child from gp_map (simulates pruning)
+        pruned_gp_map = {10: parent}
+        # Must not KeyError — missing member treated as dead
+        events = registry.check_extinctions(pruned_gp_map, turn=100)
+        assert len(events) == 1
+        assert events[0].event_type == "dynasty_extinct"
+
+    def test_extinction_not_triggered_when_known_member_alive(self):
+        """Pruned member + alive member = no extinction."""
+        registry = DynastyRegistry()
+        parent = _make_gp(10, "Kiran")
+        child = _make_gp(20, "Tala", parent_id_0=10)
+        named_agents = {10: "Kiran"}
+        gp_map = {10: parent, 20: child}
+        registry.check_promotion(child, named_agents, gp_map)
+        parent.alive = False
+        # child still alive, but remove parent from map
+        pruned_gp_map = {20: child}
+        events = registry.check_extinctions(pruned_gp_map, turn=100)
+        assert len(events) == 0
+
+    def test_split_skips_missing_gp_gracefully(self):
+        """check_splits must not crash when a member is absent from gp_map."""
+        registry = DynastyRegistry()
+        parent = _make_gp(10, "Kiran", civ="Ashara")
+        child = _make_gp(20, "Tala", parent_id_0=10, civ="Verath")
+        named_agents = {10: "Kiran"}
+        gp_map = {10: parent, 20: child}
+        registry.check_promotion(child, named_agents, gp_map)
+        # Remove one member from the map
+        pruned_gp_map = {10: parent}
+        # Must not KeyError
+        events = registry.check_splits(pruned_gp_map, turn=100)
+        # Only parent is known → single civ → no split
+        assert len(events) == 0

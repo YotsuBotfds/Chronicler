@@ -1172,3 +1172,52 @@ class TestPromotionsCivIdentity:
         # Falls back to region controller: Dorrathi Clans
         assert gp.civilization == "Dorrathi Clans"
         assert gp.origin_civilization == "Dorrathi Clans"
+
+
+# ---------------------------------------------------------------------------
+# Audit H-18: Gini lag preserves prior values on exception
+# ---------------------------------------------------------------------------
+
+class TestGiniPreservation:
+    """H-18: _gini_by_civ and _wealth_stats must survive snapshot failures."""
+
+    def test_gini_preserved_on_exception(self, sample_world):
+        bridge = AgentBridge(sample_world)
+        # Seed with prior Gini data
+        bridge._gini_by_civ = {0: 0.35, 1: 0.42}
+        bridge._wealth_stats = {0: {"gini": 0.35}}
+        prior_gini = dict(bridge._gini_by_civ)
+        prior_stats = dict(bridge._wealth_stats)
+        # Inject a broken snapshot that will cause an exception
+        # by setting _sim to None (tick will fail)
+        bridge._sim = None
+        try:
+            bridge.tick(sample_world)
+        except Exception:
+            pass
+        # Gini and wealth stats must be preserved (not reset to {})
+        assert bridge._gini_by_civ == prior_gini
+        assert bridge._wealth_stats == prior_stats
+
+
+# ---------------------------------------------------------------------------
+# Audit H-19: Unknown role_id in promotions
+# ---------------------------------------------------------------------------
+
+class TestPromotionRoleGuard:
+    """H-19: Unknown role_id must not crash promotions."""
+
+    def test_unknown_role_id_skipped(self, sample_world):
+        bridge = AgentBridge(sample_world)
+        # Create a fake promotions batch with an invalid role_id
+        batch = pa.record_batch({
+            "agent_id": pa.array([999], type=pa.uint32()),
+            "parent_id_0": pa.array([0], type=pa.uint32()),
+            "parent_id_1": pa.array([0], type=pa.uint32()),
+            "role": pa.array([99], type=pa.uint8()),  # invalid role_id
+            "trigger": pa.array([0], type=pa.uint8()),
+            "origin_region": pa.array([0], type=pa.uint16()),
+        })
+        # Must not crash — unknown role skipped
+        created = bridge._process_promotions(batch, sample_world)
+        assert len(created) == 0

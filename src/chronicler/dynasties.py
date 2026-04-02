@@ -104,7 +104,10 @@ class DynastyRegistry:
         for dynasty in self.dynasties:
             if dynasty.extinct:
                 continue
-            if all(not gp_map[mid].alive for mid in dynasty.members):
+            if all(
+                (gp := gp_map.get(mid)) is None or not gp.alive
+                for mid in dynasty.members
+            ):
                 dynasty.extinct = True
                 events.append(Event(
                     turn=turn,
@@ -122,9 +125,9 @@ class DynastyRegistry:
             if dynasty.split_detected or dynasty.extinct:
                 continue
             living_civs = {
-                gp_map[mid].civilization
+                gp.civilization
                 for mid in dynasty.members
-                if gp_map[mid].alive
+                if (gp := gp_map.get(mid)) is not None and gp.alive
             }
             if len(living_civs) > 1:
                 dynasty.split_detected = True

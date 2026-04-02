@@ -19,6 +19,18 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _strip_llm_fields(world_dict: dict) -> dict:
+    """Remove LLM-generated fields from world state to prevent narration→state feedback.
+
+    arc_summary is written by _update_arc_summary() from LLM output during narration.
+    It must not persist into the authoritative bundle (M18 LLM isolation contract).
+    """
+    for civ in world_dict.get("civilizations", []):
+        for gp in civ.get("great_persons", []):
+            gp.pop("arc_summary", None)
+    return world_dict
+
+
 def assemble_bundle(
     world: WorldState,
     history: list[TurnSnapshot],
@@ -31,7 +43,7 @@ def assemble_bundle(
 ) -> dict[str, Any]:
     """Assemble all run data into a single dict for the viewer bundle."""
     return {
-        "world_state": json.loads(world.model_dump_json()),
+        "world_state": _strip_llm_fields(json.loads(world.model_dump_json())),
         "history": [json.loads(s.model_dump_json()) for s in history],
         "events_timeline": [
             json.loads(e.model_dump_json()) for e in world.events_timeline

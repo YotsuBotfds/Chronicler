@@ -205,8 +205,12 @@ pub fn upsert_directed(
             true
         }
         SlotResolution::EvictSlot(idx) => {
-            // find_evictable guarantees the candidate is non-protected
-            write_rel(pool, src_slot, idx, target_id, sentiment, bond_type, formed_turn);
+            // find_evictable guarantees the candidate is non-protected.
+            // swap_remove first to properly decrement rel_count, then write new bond.
+            swap_remove_rel(pool, src_slot, idx);
+            let new_idx = pool.rel_count[src_slot] as usize;
+            write_rel(pool, src_slot, new_idx, target_id, sentiment, bond_type, formed_turn);
+            pool.rel_count[src_slot] += 1;
             true
         }
         SlotResolution::NoSlot => false,
@@ -248,7 +252,12 @@ fn commit_resolved(
             pool.rel_count[slot] += 1;
         }
         SlotResolution::EvictSlot(idx) => {
-            write_rel(pool, slot, idx, target_id, sentiment, bond_type, formed_turn);
+            // Properly decrement rel_count by removing evicted bond first,
+            // then write new bond at the end and re-increment.
+            swap_remove_rel(pool, slot, idx);
+            let new_idx = pool.rel_count[slot] as usize;
+            write_rel(pool, slot, new_idx, target_id, sentiment, bond_type, formed_turn);
+            pool.rel_count[slot] += 1;
         }
         SlotResolution::NoSlot => unreachable!("checked before commit"),
     }
@@ -723,5 +732,67 @@ mod tests {
         upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 127, 1);
         drift_relationships(&mut pool, 1);
         assert_eq!(pool.rel_sentiments[a][0], 127); // clamped, not overflow
+    }
+
+    // --- Audit C-8: EvictSlot must maintain correct rel_count ---
+
+    #[test]
+    fn test_evict_slot_maintains_rel_count_directed() {
+        // Fill all 8 slots with non-protected bonds, then upsert a 9th target.
+        // The eviction must leave rel_count == 8 (not 9 or 7).
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        for i in 0..8u32 {
+            write_rel(&mut pool, a, i as usize, 100 + i, (10 + i) as i8, BondType::Friend as u8, 1);
+        }
+        pool.rel_count[a] = 8;
+        let new_target = pool.ids[slots[1]];
+        let ok = upsert_directed(&mut pool, a, new_target, BondType::Rival as u8, -40, 20);
+        assert!(ok, "upsert should succeed via eviction");
+        assert_eq!(pool.rel_count[a], 8, "rel_count must stay at 8 after eviction+write");
+        // The new bond must be findable
+        assert!(find_relationship(&pool, a, new_target, BondType::Rival as u8).is_some());
+    }
+
+    #[test]
+    fn test_evict_slot_maintains_rel_count_symmetric() {
+        // Fill both sides with 8 non-protected bonds, then upsert_symmetric.
+        // rel_count should remain 8 on both sides after eviction.
+        let (mut pool, slots) = setup_pool(2);
+        let a = slots[0];
+        let b = slots[1];
+        for i in 0..8u32 {
+            write_rel(&mut pool, a, i as usize, 200 + i, (10 + i) as i8, BondType::Friend as u8, 1);
+            write_rel(&mut pool, b, i as usize, 300 + i, (10 + i) as i8, BondType::Friend as u8, 1);
+        }
+        pool.rel_count[a] = 8;
+        pool.rel_count[b] = 8;
+        let ok = upsert_symmetric(&mut pool, a, b, BondType::Rival as u8, -30, 25);
+        assert!(ok, "upsert_symmetric should succeed via eviction on both sides");
+        assert_eq!(pool.rel_count[a], 8, "a's rel_count must stay at 8 after eviction");
+        assert_eq!(pool.rel_count[b], 8, "b's rel_count must stay at 8 after eviction");
+        // Both sides must have the new bond
+        let id_b = pool.ids[b];
+        let id_a = pool.ids[a];
+        assert!(find_relationship(&pool, a, id_b, BondType::Rival as u8).is_some());
+        assert!(find_relationship(&pool, b, id_a, BondType::Rival as u8).is_some());
+    }
+
+    #[test]
+    fn test_evict_slot_does_not_corrupt_after_multiple_evictions() {
+        // Repeatedly evict and verify rel_count stays consistent.
+        let (mut pool, slots) = setup_pool(1);
+        let a = slots[0];
+        // Fill 8 slots
+        for i in 0..8u32 {
+            write_rel(&mut pool, a, i as usize, 100 + i, 10, BondType::Friend as u8, 1);
+        }
+        pool.rel_count[a] = 8;
+        // Evict 3 times via upsert_directed with different targets
+        for round in 0..3u32 {
+            let ok = upsert_directed(&mut pool, a, 500 + round, BondType::Grudge as u8, -20, 30 + round as u16);
+            assert!(ok, "round {round} upsert should succeed");
+            assert_eq!(pool.rel_count[a], 8, "rel_count must stay at 8 after round {round}");
+        }
     }
 }

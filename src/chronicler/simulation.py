@@ -1297,7 +1297,9 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
                     civ,
                     seed=world.seed + world.turn + civ_idx,
                 )
-                _art_region = civ.capital_region or civ.regions[0]
+                _art_region = civ.capital_region or (civ.regions[0] if civ.regions else None)
+                if _art_region is None:
+                    continue
                 world._artifact_intents.append(ArtifactIntent(
                     artifact_type=_art_type,
                     trigger="cultural_work",

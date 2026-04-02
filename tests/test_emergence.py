@@ -623,6 +623,42 @@ class TestPandemic:
         assert "D" not in infected_names
 
 
+class TestPandemicSeverityMultiplier:
+    """Audit C-6: Pandemic losses must go through M18 severity multiplier."""
+
+    def test_pandemic_damage_scaled_by_stress(self):
+        """High civ_stress amplifies pandemic damage via get_severity_multiplier."""
+        from chronicler.emergence import tick_pandemic
+        world = _make_world()
+        # Set up a stressed civ — stress=20 → multiplier = 1.0 + (20/20)*0.5 = 1.5
+        civ = _make_civ(population=80, economy=70, regions=["R1"])
+        civ.civ_stress = 20
+        world.civilizations = [civ]
+        r = _make_region(name="R1", controller="TestCiv", population=80)
+        world.regions = [r]
+        world.pandemic_state = [PandemicRegion(region_name="R1", severity=2, turns_remaining=4)]
+        tick_pandemic(world)
+        # Base: pop_loss = min(2*3,12) = 6, eco_loss = min(2*2,8) = 4
+        # With 1.5x multiplier: pop_loss = round(6*1.5) = 9, eco_loss = round(4*1.5) = 6
+        assert civ.population == 80 - 9
+        assert civ.economy == 70 - 6
+
+    def test_pandemic_no_amplification_at_zero_stress(self):
+        """At zero stress the multiplier is 1.0 — legacy behavior unchanged."""
+        from chronicler.emergence import tick_pandemic
+        world = _make_world()
+        civ = _make_civ(population=80, economy=70, regions=["R1"])
+        civ.civ_stress = 0
+        world.civilizations = [civ]
+        r = _make_region(name="R1", controller="TestCiv", population=80)
+        world.regions = [r]
+        world.pandemic_state = [PandemicRegion(region_name="R1", severity=2, turns_remaining=4)]
+        tick_pandemic(world)
+        # Multiplier = 1.0, so base values apply
+        assert civ.population == 80 - 6
+        assert civ.economy == 70 - 4
+
+
 class TestPandemicIntegration:
     def test_pandemic_ticks_during_turn(self):
         from chronicler.simulation import run_turn
