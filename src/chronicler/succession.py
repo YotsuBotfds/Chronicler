@@ -303,6 +303,16 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                 civ.great_persons.remove(gp)
                 world.retired_persons.append(gp)
 
+                # Properly depose the incumbent leader before installing the exile
+                from chronicler.leaders import apply_leader_legacy
+                incumbent = origin.leader
+                incumbent.alive = False
+                legacy_event = apply_leader_legacy(origin, incumbent, world)
+                if legacy_event:
+                    events.append(legacy_event)
+                # Deposed incumbent becomes an exile (if eligible host exists)
+                create_exiled_leader(incumbent, origin, world)
+
                 # M51: Use gp.base_name as throne_name for regnal naming
                 throne_name = getattr(gp, "base_name", None) or strip_title(gp.name)
                 count = origin.regnal_name_counts.get(throne_name, 0)
@@ -318,13 +328,14 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                     succession_type="restoration",
                     throne_name=throne_name,
                     regnal_ordinal=ordinal,
+                    predecessor_name=incumbent.name,
                 )
                 origin.stability = min(origin.stability + 15, 100)
                 events.append(Event(
                     turn=world.turn,
                     event_type="restoration",
                     actors=[origin.name, display_name],
-                    description=f"{display_name} restored to power in {origin.name}.",
+                    description=f"{display_name} restored to power in {origin.name}, deposing {incumbent.name}.",
                     importance=9,
                 ))
     return events

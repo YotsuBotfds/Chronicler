@@ -929,7 +929,7 @@ class ActionEngine:
                         if rel.disposition in ("hostile", "suspicious"):
                             other = next((c for c in self.world.civilizations if c.name == other_name), None)
                             if other and hasattr(other, 'civ_majority_faith') and other.civ_majority_faith != attacker_faith:
-                                weights[ActionType.WAR] += HOLY_WAR_WEIGHT_BONUS
+                                weights[ActionType.WAR] *= HOLY_WAR_WEIGHT_BONUS
                                 break
 
         # M43b: Raider incentive — wealthy adjacent enemy stockpiles attract WAR
@@ -945,11 +945,11 @@ class ActionEngine:
                     for r in adjacent_enemy_regions
                 )
                 if max_adjacent_food > RAIDER_THRESHOLD:
-                    raider_bonus = RAIDER_WAR_WEIGHT * min(
+                    raider_multiplier = 1.0 + RAIDER_WAR_WEIGHT * min(
                         max_adjacent_food / RAIDER_THRESHOLD - 1.0,
                         RAIDER_CAP,
                     )
-                    weights[ActionType.WAR] += raider_bonus
+                    weights[ActionType.WAR] *= raider_multiplier
 
         # M47: Aggression bias multiplier
         from chronicler.tuning import get_multiplier, K_AGGRESSION_BIAS
@@ -968,8 +968,8 @@ class ActionEngine:
             weights[ActionType.DEVELOP] *= 1.0 + civ.peace_momentum / develop_divisor
             weights[ActionType.TRADE] *= 1.0 + civ.peace_momentum / trade_divisor
 
-        # M48: Mule weight modification
-        for gp in civ.great_persons:
+        # M48: Mule weight modification (skip for dead civs — no GP effects)
+        for gp in (civ.great_persons if civ.regions else []):
             if not gp.mule or not gp.active:
                 continue
             for action in ActionType:
@@ -989,10 +989,11 @@ class ActionEngine:
         # M19b: Track max pre-cap weight for analytics
         max_weight = max(weights.values()) if weights else 0
         civ.max_precap_weight = max_weight
-        # M21: Cap combined weight multiplier to prevent dominant action
+        # M21: Cap combined weight multiplier product (not absolute weight)
         weight_cap = get_override(self.world, K_WEIGHT_CAP, 2.5)
-        if max_weight > weight_cap:
-            scale = weight_cap / max_weight
+        max_allowed = base * weight_cap
+        if max_weight > max_allowed:
+            scale = max_allowed / max_weight
             for action in weights:
                 weights[action] *= scale
         return weights

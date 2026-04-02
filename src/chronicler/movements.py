@@ -82,6 +82,8 @@ def _process_spread(world: WorldState) -> None:
         current_adherents = list(movement.adherents.keys())
         for adopter_name in current_adherents:
             for civ in world.civilizations:
+                if not civ.regions:
+                    continue
                 if civ.name == adopter_name or civ.name in movement.adherents:
                     continue
                 rel = world.relationships.get(adopter_name, {}).get(civ.name)
