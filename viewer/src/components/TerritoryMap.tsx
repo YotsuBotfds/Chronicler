@@ -149,6 +149,12 @@ export function TerritoryMap({
     return history[0].region_control;
   }, [history]);
 
+  // Stable reference to region names for edge building (avoids recalc when history grows)
+  const regionNamesKey = useMemo(
+    () => regions.map((r) => r.name).join(","),
+    [regions],
+  );
+
   useEffect(() => {
     const hasPins = regions.some((r) => r.x !== null && r.y !== null);
     const circlePos = !hasPins
@@ -203,7 +209,10 @@ export function TerritoryMap({
 
     setNodes([...newNodes]);
     setLinks(newLinks);
-  }, [regions, history, initialControl]);
+    // Only recalculate layout when graph structure changes (regions or initial control),
+    // not on every turn update when history grows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regionNamesKey, initialControl]);
 
   useEffect(() => {
     if (!currentSnapshot) return;

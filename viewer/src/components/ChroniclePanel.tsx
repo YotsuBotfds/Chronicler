@@ -41,7 +41,7 @@ function NarratedSegment({ entry }: { entry: NewChronicleEntry }) {
           </summary>
           <ul className="mt-1 space-y-0.5 pl-3">
             {entry.events.map((ev, i) => (
-              <li key={i}>
+              <li key={`${ev.turn}-${ev.event_type}-${i}`}>
                 <span className="text-gray-500">T{ev.turn}</span>{" "}
                 {ev.description}
               </li>
@@ -56,7 +56,7 @@ function NarratedSegment({ entry }: { entry: NewChronicleEntry }) {
           </summary>
           <ul className="mt-1 space-y-0.5 pl-3">
             {entry.causal_links.map((link, i) => (
-              <li key={i}>
+              <li key={`${link.cause_turn}-${link.effect_turn}-${link.pattern}-${i}`}>
                 T{link.cause_turn} ({link.cause_event_type}) &rarr; T{link.effect_turn} ({link.effect_event_type}): {link.pattern}
               </li>
             ))}

@@ -52,6 +52,7 @@ def assemble_bundle(
             "narrative_model": narrative_model,
             "scenario_name": getattr(world, "scenario_name", None),
             "interestingness_score": interestingness_score,
+            "bundle_version": 1,
         },
     }
 

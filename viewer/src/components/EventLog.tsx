@@ -84,7 +84,7 @@ export function EventLog({ events, onJumpToTurn }: EventLogProps) {
           <tbody>
             {filtered.map((e, i) => (
               <tr
-                key={i}
+                key={`${e.turn}-${e.event_type}-${i}`}
                 onClick={() => onJumpToTurn(e.turn)}
                 className="cursor-pointer hover:bg-gray-700 text-gray-300"
               >

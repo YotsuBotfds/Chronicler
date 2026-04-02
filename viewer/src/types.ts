@@ -17,7 +17,18 @@ export type Disposition =
   | "friendly"
   | "allied";
 
-export type ActionType = "expand" | "develop" | "trade" | "diplomacy" | "war";
+export type ActionType =
+  | "expand"
+  | "develop"
+  | "trade"
+  | "diplomacy"
+  | "war"
+  | "build"
+  | "embargo"
+  | "move_capital"
+  | "fund_instability"
+  | "explore"
+  | "invest_culture";
 
 // --- Core entities ---
 
@@ -25,10 +36,37 @@ export interface Region {
   name: string;
   terrain: string;
   carrying_capacity: number;
+  population?: number;
   resources: string;
   controller: string | null;
   x: number | null;
   y: number | null;
+  cultural_identity?: string | null;
+  foreign_control_turns?: number;
+  adjacencies?: string[];
+  ecology?: {
+    soil: number;
+    water: number;
+    forest_cover: number;
+  };
+  stockpile?: {
+    goods: Record<string, number>;
+  };
+  infrastructure?: Array<{
+    type: string;
+    builder_civ: string;
+    built_turn: number;
+    active: boolean;
+    faith_id?: number;
+  }>;
+  role?: string;
+  settlements?: Array<{
+    settlement_id: number;
+    name: string;
+    region_name: string;
+    population_estimate: number;
+    status: string;
+  }>;
 }
 
 export interface Leader {
@@ -41,6 +79,12 @@ export interface Leader {
   rival_leader: string | null;
   rival_civ: string | null;
   secondary_trait: string | null;
+}
+
+export interface FactionState {
+  influence: Record<string, number>;
+  power_struggle?: boolean;
+  power_struggle_turns?: number;
 }
 
 export interface Civilization {
@@ -61,6 +105,18 @@ export interface Civilization {
   cultural_milestones: string[];
   action_counts: Record<string, number>;
   leader_name_pool: string[] | null;
+  prestige?: number;
+  capital_region?: string | null;
+  last_income?: number;
+  peak_region_count?: number;
+  decline_turns?: number;
+  traditions?: string[];
+  active_focus?: string | null;
+  factions?: FactionState;
+  war_weariness?: number;
+  peace_momentum?: number;
+  civ_majority_faith?: number;
+  founded_turn?: number;
 }
 
 export interface Relationship {
@@ -99,16 +155,34 @@ export interface CivSnapshot {
   stability: number;
   treasury: number;
   asabiya: number;
+  asabiya_variance?: number;
   tech_era: TechEra;
   trait: string;
   regions: string[];
   leader_name: string;
   alive: boolean;
+  last_income?: number;
+  active_trade_routes?: number;
   is_vassal?: boolean;
   is_fallen_empire?: boolean;
   in_twilight?: boolean;
   federation_name?: string | null;
+  gini?: number;
+  urban_agents?: number;
+  urban_fraction?: number;
+  prestige?: number;
   capital_region?: string | null;
+  great_persons?: Array<Record<string, unknown>>;
+  traditions?: string[];
+  folk_heroes?: Array<Record<string, unknown>>;
+  active_crisis?: boolean;
+  civ_stress?: number;
+  active_focus?: string | null;
+  factions?: FactionState | null;
+  action_counts?: Record<string, number>;
+  last_action?: string | null;
+  war_weariness?: number;
+  peace_momentum?: number;
 }
 
 export interface RelationshipSnapshot {
@@ -120,12 +194,29 @@ export interface TurnSnapshot {
   civ_stats: Record<string, CivSnapshot>;
   region_control: Record<string, string | null>;
   relationships: Record<string, Record<string, RelationshipSnapshot>>;
+  trade_routes?: Array<[string, string]>;
+  active_wars?: Array<[string, string]>;
+  embargoes?: Array<[string, string]>;
+  ecology?: Record<string, Record<string, number>>;
+  mercenary_companies?: Array<Record<string, unknown>>;
   vassal_relations?: Array<Record<string, unknown>>;
   federations?: Array<Record<string, unknown>>;
   proxy_wars?: Array<Record<string, unknown>>;
   exile_modifiers?: Array<Record<string, unknown>>;
   capitals?: Record<string, string>;
   peace_turns?: number;
+  region_cultural_identity?: Record<string, string | null>;
+  movements_summary?: Array<Record<string, unknown>>;
+  stress_index?: number;
+  pandemic_regions?: string[];
+  climate_phase?: string;
+  active_conditions?: Array<Record<string, unknown>>;
+  settlement_count?: number;
+  candidate_count?: number;
+  total_settlement_population?: number;
+  active_settlements?: Array<Record<string, unknown>>;
+  urban_agent_count?: number;
+  urban_fraction?: number;
 }
 
 // --- World state ---
@@ -152,6 +243,8 @@ export interface BundleMetadata {
   narrative_model: string;
   scenario_name: string | null;
   interestingness_score: number | null;
+  bundle_version?: number;
+  narrator_mode?: string;
 }
 
 export interface Bundle {
