@@ -131,7 +131,7 @@ class TestPersecutionGate:
 # ---------------------------------------------------------------------------
 
 class TestIntensityFormula:
-    """intensity = 1.0 * (1.0 - minority_ratio) at various minority fractions."""
+    """intensity = minority_ratio (larger minorities → higher intensity)."""
 
     def _get_intensity(self, minority_count: int, total: int) -> float:
         region = _make_region("r0")
@@ -154,19 +154,33 @@ class TestIntensityFormula:
         return region.persecution_intensity
 
     def test_intensity_at_10_percent(self):
-        # 1 minority out of 10 → ratio = 0.10 → intensity = 0.90
+        # 1 minority out of 10 → ratio = 0.10 → intensity = 0.10
         intensity = self._get_intensity(minority_count=1, total=10)
-        assert intensity == pytest.approx(0.90, abs=1e-9)
+        assert intensity == pytest.approx(0.10, abs=1e-9)
 
     def test_intensity_at_40_percent(self):
-        # 4 minority out of 10 → ratio = 0.40 → intensity = 0.60
+        # 4 minority out of 10 → ratio = 0.40 → intensity = 0.40
         intensity = self._get_intensity(minority_count=4, total=10)
-        assert intensity == pytest.approx(0.60, abs=1e-9)
+        assert intensity == pytest.approx(0.40, abs=1e-9)
 
     def test_intensity_at_50_percent(self):
         # 5 minority out of 10 → ratio = 0.50 → intensity = 0.50
         intensity = self._get_intensity(minority_count=5, total=10)
         assert intensity == pytest.approx(0.50, abs=1e-9)
+
+    def test_intensity_monotonically_increases_with_minority_ratio(self):
+        """B-2 regression: larger minorities must produce higher intensity."""
+        ratios = [0.05, 0.10, 0.20, 0.30, 0.40, 0.50]
+        intensities = []
+        for ratio in ratios:
+            total = 100
+            minority_count = int(ratio * total)
+            intensities.append(self._get_intensity(minority_count, total))
+        for i in range(len(intensities) - 1):
+            assert intensities[i] < intensities[i + 1], (
+                f"Intensity should increase: {ratios[i]} → {intensities[i]}, "
+                f"{ratios[i + 1]} → {intensities[i + 1]}"
+            )
 
 
 # ---------------------------------------------------------------------------
