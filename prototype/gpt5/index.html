@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chronicler Phase 7.5 Viewer Prototype - GPT-5</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="workstation" id="app" data-mode="setup">
+    <div class="ambient-glow ambient-glow-a"></div>
+    <div class="ambient-glow ambient-glow-b"></div>
+
+    <aside class="demo-dock">
+      <div class="dock-badge">GPT-5 Prototype</div>
+      <div class="dock-title">Walkthrough Capture Controls</div>
+      <div class="dock-actions">
+        <button class="dock-button dock-button-primary" id="demo-play">Play Demo</button>
+        <button class="dock-button" id="demo-pause">Pause</button>
+        <button class="dock-button" id="demo-restart">Restart</button>
+      </div>
+      <div class="dock-status">
+        <span class="tiny-label">State</span>
+        <span class="dock-readout" id="demo-state-label">Setup / New World</span>
+      </div>
+      <div class="dock-nav" id="state-jump">
+        <button class="jump-pill active" data-state="setup">Setup</button>
+        <button class="jump-pill" data-state="progress">Run</button>
+        <button class="jump-pill" data-state="overview">Overview</button>
+        <button class="jump-pill" data-state="character">Character</button>
+        <button class="jump-pill" data-state="trade">Trade</button>
+        <button class="jump-pill" data-state="campaign">Campaign</button>
+        <button class="jump-pill" data-state="batch">Batch Lab</button>
+      </div>
+      <div class="dock-hint">Space toggles play and pause. Manual jumps keep all controls live for recording.</div>
+    </aside>
+
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">C</div>
+        <div class="brand-copy">
+          <div class="brand-kicker">Chronicler Phase 7.5 Viewer</div>
+          <div class="brand-title">Aethelgard Reborn</div>
+        </div>
+      </div>
+
+      <nav class="mode-switches" id="mode-switches">
+        <button class="mode-switch active" data-state="overview">Overview</button>
+        <button class="mode-switch" data-state="character">Character Detail</button>
+        <button class="mode-switch" data-state="trade">Trade Diagnostics</button>
+        <button class="mode-switch" data-state="campaign">Campaign &amp; Validation</button>
+        <button class="mode-switch" data-state="batch">Batch Lab</button>
+      </nav>
+
+      <div class="header-meta">
+        <div class="meta-cluster">
+          <span class="meta-label">Scenario</span>
+          <span class="meta-value">Migration Era Decay</span>
+        </div>
+        <div class="meta-cluster">
+          <span class="meta-label">Seed</span>
+          <span class="meta-value mono">4ASF-9B1D-7C6E</span>
+        </div>
+        <div class="meta-cluster">
+          <span class="meta-label">Schema</span>
+          <span class="meta-value mono">v7.5.12</span>
+        </div>
+        <div class="meta-cluster">
+          <span class="meta-label">Turn</span>
+          <span class="meta-value mono" id="turn-readout">3812 / 5000</span>
+        </div>
+        <div class="meta-cluster">
+          <span class="meta-label">Interestingness</span>
+          <span class="meta-value mono" id="interestingness-readout">0.73</span>
+        </div>
+        <div class="meta-cluster">
+          <span class="meta-label">Performance</span>
+          <span class="meta-value mono" id="performance-readout">14.2 ms/turn</span>
+        </div>
+        <span class="mode-badge">ARCHIVE</span>
+      </div>
+    </header>
+
+    <section class="timeline-rail">
+      <div class="flow-ladder" id="flow-ladder">
+        <div class="flow-step active" data-state="setup"><span class="flow-index">01</span><span class="flow-name">Setup</span></div>
+        <div class="flow-step" data-state="progress"><span class="flow-index">02</span><span class="flow-name">Run</span></div>
+        <div class="flow-step" data-state="overview"><span class="flow-index">03</span><span class="flow-name">Overview</span></div>
+        <div class="flow-step" data-state="character"><span class="flow-index">04</span><span class="flow-name">Character</span></div>
+        <div class="flow-step" data-state="trade"><span class="flow-index">05</span><span class="flow-name">Trade</span></div>
+        <div class="flow-step" data-state="campaign"><span class="flow-index">06</span><span class="flow-name">Campaign</span></div>
+        <div class="flow-step" data-state="batch"><span class="flow-index">07</span><span class="flow-name">Batch</span></div>
+      </div>
+
+      <div class="archive-rail">
+        <div class="rail-header">
+          <div>
+            <div class="tiny-label">Archive Timeline</div>
+            <div class="rail-title" id="rail-title">Launch Corridor and Archive Context</div>
+          </div>
+          <div class="rail-metrics">
+            <span class="rail-chip">narrated spans</span>
+            <span class="rail-chip">causal arcs</span>
+            <span class="rail-chip" id="rail-chip-live">turn 3812 pinned</span>
+          </div>
+        </div>
+
+        <div class="turn-track" id="turn-track">
+          <svg class="track-arcs" viewBox="0 0 1000 100" preserveAspectRatio="none">
+            <path d="M 434 78 Q 512 8 592 78" />
+            <path d="M 584 78 Q 688 18 794 78" />
+            <path d="M 720 78 Q 782 32 876 78" />
+          </svg>
+          <div class="era-band" style="left:0%;width:18%;"><span>Foundation</span></div>
+          <div class="era-band" style="left:18%;width:22%;"><span>Expansion</span></div>
+          <div class="era-band" style="left:40%;width:16%;"><span>Golden Age</span></div>
+          <div class="era-band" style="left:56%;width:20%;"><span>Fragmentation</span></div>
+          <div class="era-band era-band-active" style="left:76%;width:24%;"><span>Late Decay</span></div>
+          <div class="narrated-span" style="left:5%;width:11%;"></div>
+          <div class="narrated-span" style="left:22%;width:12%;"></div>
+          <div class="narrated-span" style="left:44%;width:9%;"></div>
+          <div class="narrated-span" style="left:66%;width:8%;"></div>
+          <div class="narrated-span" style="left:80%;width:9%;"></div>
+          <button class="track-marker marker-war" data-turn="612" style="left:12%;" title="First border war"></button>
+          <button class="track-marker marker-culture" data-turn="1270" style="left:25%;" title="Aurelian schools reunified"></button>
+          <button class="track-marker marker-collapse" data-turn="2091" style="left:42%;" title="Great famine"></button>
+          <button class="track-marker marker-war" data-turn="2784" style="left:55%;" title="March succession crisis"></button>
+          <button class="track-marker marker-faith" data-turn="3160" style="left:63%;" title="Schism of Thornwall"></button>
+          <button class="track-marker marker-war" data-turn="3472" style="left:72%;" title="Salt Step invasion"></button>
+          <button class="track-marker marker-collapse" data-turn="3812" style="left:81%;" title="Imperial collapse"></button>
+          <button class="track-marker marker-character" data-turn="3886" style="left:88%;" title="Rise of Eadric"></button>
+          <div class="playhead" id="playhead" style="left:76.24%;"><div class="playhead-label" id="playhead-label">3812</div></div>
+        </div>
+      </div>
+    </section>
+
+    <main class="shell-grid">
+      <aside class="left-rail panel">
+        <div class="rail-tabs">
+          <button class="rail-tab active" data-left-tab="chronicle">Chronicle</button>
+          <button class="rail-tab" data-left-tab="events">Event Log</button>
+        </div>
+        <div class="rail-toolbar">
+          <div class="rail-toolbar-title">
+            <span class="tiny-label">Narrative Context</span>
+            <span class="rail-toolbar-readout" id="left-rail-title">Launch Manifest</span>
+          </div>
+          <div class="toolbar-chips" id="left-toolbar-chips"></div>
+        </div>
+        <div class="rail-scroller" id="left-rail-content"></div>
+        <div class="rail-footer" id="left-rail-footer"></div>
+      </aside>
+
+      <section class="map-column">
+        <div class="viewport-toolbar panel">
+          <div class="viewport-heading">
+            <div class="tiny-label" id="viewport-kicker">Setup Surface</div>
+            <div class="viewport-title" id="viewport-title">Unified shell with launch, archive, and observability modes</div>
+          </div>
+          <div class="toolbar-chips" id="layer-chips">
+            <button class="layer-chip active" data-layer="borders">Borders</button>
+            <button class="layer-chip active" data-layer="settlements">Settlements</button>
+            <button class="layer-chip active" data-layer="chronicle">Chronicle Links</button>
+            <button class="layer-chip" data-layer="trade">Trade</button>
+            <button class="layer-chip" data-layer="campaign">Campaign</button>
+            <button class="layer-chip" data-layer="fog">Knowledge Fog</button>
+            <button class="layer-chip" data-layer="asabiya">Asabiya</button>
+          </div>
+        </div>
+
+        <div class="map-stage panel">
+          <div class="map-surface">
+            <div class="map-texture"></div>
+            <svg id="atlas-map" viewBox="0 0 1000 700" aria-label="Aethelgard map">
+              <defs>
+                <linearGradient id="tradeFlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#6a552a" />
+                  <stop offset="50%" stop-color="#d0ad69" />
+                  <stop offset="100%" stop-color="#7c6335" />
+                </linearGradient>
+                <linearGradient id="campaignFlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#4d1f1c" />
+                  <stop offset="50%" stop-color="#9e5a53" />
+                  <stop offset="100%" stop-color="#5b2622" />
+                </linearGradient>
+                <filter id="softGlow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"></feGaussianBlur>
+                  <feMerge><feMergeNode in="coloredBlur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+                </filter>
+              </defs>
+
+              <g class="contours">
+                <path d="M 42 112 C 220 48 420 72 642 112 S 918 138 980 112" />
+                <path d="M 36 184 C 214 120 436 132 626 170 S 904 212 970 184" />
+                <path d="M 26 256 C 210 196 408 224 606 268 S 886 304 970 274" />
+                <path d="M 18 330 C 170 296 372 304 586 348 S 870 398 958 362" />
+                <path d="M 24 424 C 164 402 344 410 556 452 S 814 496 942 470" />
+                <path d="M 40 520 C 204 500 370 494 566 534 S 826 584 968 548" />
+              </g>
+              <g class="rivers">
+                <path d="M 240 90 C 280 156 286 214 328 286 S 372 454 422 586" />
+                <path d="M 580 118 C 624 168 650 230 656 278 S 714 406 790 498" />
+              </g>
+              <g class="regions">
+                <path class="region region-thornwall" data-region="thornwall" d="M 138 136 L 246 102 L 328 132 L 306 232 L 212 262 L 144 222 Z"></path>
+                <path class="region region-greyfen" data-region="greyfen" d="M 306 132 L 442 108 L 540 156 L 492 268 L 356 286 L 306 232 Z"></path>
+                <path class="region region-kestrel" data-region="kestrel" d="M 540 156 L 678 132 L 798 184 L 734 296 L 562 296 L 492 268 Z"></path>
+                <path class="region region-aurelian" data-region="aurelian" d="M 144 222 L 212 262 L 198 392 L 110 420 L 48 306 L 86 234 Z"></path>
+                <path class="region region-hollowmere" data-region="hollowmere" d="M 212 262 L 356 286 L 382 414 L 256 456 L 198 392 Z"></path>
+                <path class="region region-lastorchard" data-region="lastorchard" d="M 356 286 L 562 296 L 554 430 L 382 414 Z"></path>
+                <path class="region region-saltstep" data-region="saltstep" d="M 562 296 L 734 296 L 852 352 L 788 488 L 554 430 Z"></path>
+                <path class="region region-saintsvale" data-region="saintsvale" d="M 110 420 L 256 456 L 238 594 L 106 632 L 52 516 Z"></path>
+                <path class="region region-ashspine" data-region="ashspine" d="M 256 456 L 554 430 L 528 610 L 286 628 L 238 594 Z"></path>
+                <path class="region region-redsalt" data-region="redsalt" d="M 554 430 L 788 488 L 934 564 L 860 658 L 528 610 Z"></path>
+              </g>
+              <g class="frontiers">
+                <path d="M 140 220 L 316 230" />
+                <path d="M 320 232 L 496 268" />
+                <path d="M 494 268 L 734 296" />
+                <path d="M 354 286 L 382 414" />
+                <path d="M 554 430 L 790 490" />
+              </g>
+              <g class="trade-routes" id="trade-routes">
+                <path class="trade-route" data-route="amber-loop" d="M 338 248 C 452 234 566 216 704 220" />
+                <path class="trade-route" data-route="grain-road" d="M 340 316 C 420 330 500 344 612 364" />
+                <path class="trade-route" data-route="orchard-salt" d="M 404 452 C 522 444 624 470 760 536" />
+                <text class="route-label" x="472" y="212">Amber Corridor</text>
+                <text class="route-label" x="458" y="352">Greyfen Grain Road</text>
+                <text class="route-label" x="606" y="518">Orchard Salt Loop</text>
+              </g>
+              <g class="campaign-lines" id="campaign-lines">
+                <path class="supply-line" d="M 698 244 C 722 296 732 340 742 382" />
+                <path class="campaign-route" d="M 706 252 C 724 304 752 342 768 384 S 792 446 820 514" />
+                <path class="campaign-front" d="M 618 338 C 686 312 742 312 814 338" />
+                <circle class="battle-site" cx="770" cy="384" r="10"></circle>
+                <circle class="battle-site" cx="826" cy="518" r="8"></circle>
+              </g>
+              <g class="fog-layer" id="fog-layer"><path d="M 638 122 L 934 208 L 970 666 L 612 666 L 574 332 Z"></path></g>
+              <g class="asabiya-layer" id="asabiya-layer">
+                <circle cx="234" cy="212" r="94"></circle>
+                <circle cx="398" cy="360" r="82"></circle>
+                <circle cx="718" cy="346" r="112"></circle>
+              </g>
+              <g class="settlements" id="settlements">
+                <g class="settlement" data-region="thornwall" transform="translate(234 178)"><circle r="8"></circle><text x="16" y="4">Thornwall</text></g>
+                <g class="settlement" data-region="greyfen" transform="translate(368 236)"><circle r="7"></circle><text x="16" y="4">Greyfen</text></g>
+                <g class="settlement" data-region="kestrel" transform="translate(704 220)"><circle r="8"></circle><text x="16" y="4">Kestrel Port</text></g>
+                <g class="settlement" data-region="aurelian" transform="translate(110 300)"><circle r="6"></circle><text x="16" y="4">Aurelian Gate</text></g>
+                <g class="settlement" data-region="lastorchard" transform="translate(466 360)"><circle r="6"></circle><text x="16" y="4">Last Orchard</text></g>
+                <g class="settlement" data-region="saltstep" transform="translate(734 362)"><circle r="7"></circle><text x="16" y="4">Halewatch</text></g>
+                <g class="settlement" data-region="saintsvale" transform="translate(154 520)"><circle r="6"></circle><text x="16" y="4">Saint's Ford</text></g>
+                <g class="settlement" data-region="redsalt" transform="translate(786 564)"><circle r="8"></circle><text x="16" y="4">Red Salt</text></g>
+              </g>
+              <g class="named-character-marker" id="eadric-marker" transform="translate(404 348)"><polygon points="0,-12 12,0 0,12 -12,0"></polygon><text x="18" y="5">Eadric of Thornwall</text></g>
+              <g class="army-chip" id="army-chip" transform="translate(706 252)"><rect x="-36" y="-14" rx="10" ry="10" width="72" height="28"></rect><text x="0" y="5">III Field</text></g>
+            </svg>
+
+            <div class="hover-card" id="hover-card">
+              <div class="tiny-label">Region Hover</div>
+              <div class="hover-title" id="hover-title">Greyfen Basin</div>
+              <div class="hover-copy" id="hover-copy">Granary hinge with river toll control and elevated merchant familiarity.</div>
+            </div>
+            <div class="zoom-dock">
+              <button class="zoom-button">+</button>
+              <button class="zoom-button">-</button>
+              <button class="zoom-button zoom-fit">Fit</button>
+            </div>
+            <div class="map-legend" id="map-legend">
+              <div class="tiny-label">Legend</div>
+              <div class="legend-row"><span class="legend-swatch legend-civ"></span><span>Civilization control</span></div>
+              <div class="legend-row"><span class="legend-swatch legend-route"></span><span>Trade corridor</span></div>
+              <div class="legend-row"><span class="legend-swatch legend-army"></span><span>Campaign vector</span></div>
+            </div>
+            <div class="validation-ribbon" id="validation-ribbon"></div>
+            <div class="map-overlay" id="map-overlay"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="right-rail panel">
+        <div class="inspector-header">
+          <div class="tiny-label" id="inspector-kicker">Launch Packet</div>
+          <div class="inspector-title" id="inspector-title">Scenario manifest and recorder-ready setup</div>
+          <div class="inspector-subtitle" id="inspector-subtitle">Same shell, same map, same inspector. The launch surface simply occupies them.</div>
+        </div>
+        <div class="inspector-body" id="inspector-body"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

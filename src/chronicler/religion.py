@@ -30,7 +30,7 @@ INSULAR_RESISTANCE = 0.5
 NAMED_PROPHET_MULTIPLIER = 2.0
 CONQUEST_BOOST_RATE = 0.05
 CONQUEST_BOOST_DURATION = 10
-HOLY_WAR_WEIGHT_BONUS = 1.75  # multiplicative (was 0.15 additive on 0.2 base)
+HOLY_WAR_WEIGHT_BONUS = 0.15
 HOLY_WAR_DEFENDER_STABILITY = 5
 DOCTRINE_BIAS_RANDOM_CHANCE = 0.20
 
@@ -38,7 +38,6 @@ DOCTRINE_BIAS_RANDOM_CHANCE = 0.20
 _PRIEST_OCCUPATION = 4
 
 # M38b: Persecution
-# NOTE: Satisfaction penalty owned by Rust (PERSECUTION_SAT_WEIGHT in agent.rs).
 PERSECUTION_REBEL_BOOST = 0.30       # max rebel utility boost
 PERSECUTION_MIGRATE_BOOST = 0.20     # max migrate utility boost
 MASS_MIGRATION_THRESHOLD = 0.15      # ratio of persecuted agents to trigger event
@@ -522,9 +521,7 @@ def compute_persecution(
 
             minority_ratio = minority_count / total
             from chronicler.tuning import get_multiplier as _gm, K_RELIGION_INTENSITY as _KRI
-            # Larger minorities are more threatening → higher persecution intensity.
-            # Scale with minority_ratio, not against it.
-            intensity = minority_ratio * (_gm(world, _KRI) if world else 1.0)
+            intensity = 1.0 * (1.0 - minority_ratio) * (_gm(world, _KRI) if world else 1.0)
             region.persecution_intensity = intensity
 
             # One-shot "Persecution" event per region
@@ -561,16 +558,12 @@ def compute_martyrdom_boosts(
     regions: list[Region],
     dead_agents: "list[dict | object] | None",
 ) -> None:
-    """Add martyrdom boost to regions where persecuted minority-faith agents died.
-
-    Only deaths that meet BOTH conditions count as martyrdoms:
-      1. The region has active persecution (persecution_intensity > 0).
-      2. The dead agent's belief differs from the region's majority faith.
+    """Add martyrdom boost to regions where persecuted agents died this turn.
 
     Args:
         regions:     List of Region objects.
         dead_agents: List of dicts with 'region_idx' (int) and 'belief' (int) keys,
-                     or None / empty list if no deaths occurred.
+                     or None / empty list if no persecution deaths occurred.
     """
     if not dead_agents:
         return
@@ -578,12 +571,10 @@ def compute_martyrdom_boosts(
     for agent in dead_agents:
         if isinstance(agent, dict):
             region_idx = agent.get("region_idx", agent.get("region"))
-            belief = agent.get("belief")
         else:
             region_idx = getattr(agent, "region_idx", None)
             if region_idx is None:
                 region_idx = getattr(agent, "region", None)
-            belief = getattr(agent, "belief", None)
         if region_idx is None:
             continue
         try:
@@ -593,13 +584,6 @@ def compute_martyrdom_boosts(
         if region_idx_int < 0 or region_idx_int >= len(regions):
             continue
         region = regions[region_idx_int]
-
-        # M-AF1 #12: Only minority-faith deaths in persecuted regions count
-        if region.persecution_intensity <= 0:
-            continue
-        if belief is None or belief == region.majority_belief:
-            continue
-
         region.martyrdom_boost = min(
             MARTYRDOM_BOOST_CAP,
             region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,
@@ -858,19 +842,6 @@ def detect_schisms(
             civ_origin=civ_idx,
         )
         if new_belief is None:
-            continue
-
-        # H-13: Verify the new faith has at least one potential follower.
-        # Under stale-order conditions the snapshot may show minority presence
-        # that no longer exists.  Roll back if zero followers would result.
-        counts_for_region = region_belief_counts.get(best_region_idx, Counter())
-        potential_followers = sum(
-            c for fid, c in counts_for_region.items() if fid != majority_faith_id
-        )
-        if potential_followers == 0:
-            belief_registry.remove(new_belief)
-            best_region.schism_convert_from = 0xFF
-            best_region.schism_convert_to = 0xFF
             continue
 
         events.append(Event(

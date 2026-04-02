@@ -14,6 +14,15 @@ Turn phases:
 10. Consequences — emergence, factions, succession, named events, snapshot
 
 The engine is deterministic given a seed. LLM narrates, never decides.
+
+Performance note — Python critical path hotspots (audit batch I, 2026-04-01):
+  Phase 10 (consequences) + settlement detection + economy post-processing all
+  run single-threaded on the Python side, limiting 9950X utilization. These are
+  the primary candidates for future Rust migration:
+    - Phase 10 consequence evaluation (emergence, factions, succession)
+    - Settlement detection (run_settlement_tick)
+    - Economy post-processing (goods production, trade flow, pricing)
+  Tracked as a performance follow-on for the next migration milestone (M60+).
 """
 from __future__ import annotations
 

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chronicler 7.5 — Aethelgard Reborn</title>
+  <meta name="description" content="Chronicler Phase 7.5 Viewer — civilization history exploration and analysis">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ===== STATE: SETUP / NEW WORLD ===== -->
+  <div id="state-setup" class="app-state active">
+    <div class="setup-container">
+      <aside class="setup-sidebar">
+        <div class="setup-logo-area">
+          <h1 class="logo-text">Chronicler</h1>
+          <span class="version-pill">v7.5</span>
+        </div>
+        <nav class="setup-nav">
+          <a class="setup-nav-item active" data-section="new-world">New World</a>
+          <a class="setup-nav-item" data-section="batch-lab" id="nav-batch-lab">Batch Lab</a>
+          <a class="setup-nav-item" data-section="recent">Recent Worlds</a>
+          <a class="setup-nav-item" data-section="settings">Settings</a>
+        </nav>
+        <div class="setup-footer-meta">
+          <div>Schema v7.5.12</div>
+          <div>Engine 4.1.0</div>
+        </div>
+      </aside>
+      <main class="setup-main">
+        <div class="setup-form-area">
+          <h2 class="setup-heading">New World</h2>
+          <div class="setup-form-grid">
+            <div class="form-section">
+              <h3 class="form-section-title">World Configuration</h3>
+              <div class="form-group">
+                <label class="form-label">Scenario</label>
+                <div class="select-wrap">
+                  <select id="input-scenario" class="form-select">
+                    <option selected>Migration Era Decay</option>
+                    <option>Bronze Age Collapse</option>
+                    <option>Renaissance Divergence</option>
+                    <option>Steppe Domination</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Generation</label>
+                <div class="toggle-group">
+                  <button class="toggle-btn active" data-value="procedural">Procedural</button>
+                  <button class="toggle-btn" data-value="scenario">Scenario</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Seed</label>
+                <div class="input-with-action">
+                  <input type="text" class="form-input mono" id="input-seed" value="4ASF-9B1D-7C6E" readonly>
+                  <button class="btn-icon" title="Randomize seed">&#x27F3;</button>
+                </div>
+              </div>
+            </div>
+            <div class="form-section">
+              <h3 class="form-section-title">Scale</h3>
+              <div class="form-group">
+                <label class="form-label">Turns <span class="form-value" id="val-turns">5,000</span></label>
+                <input type="range" class="form-range" id="input-turns" min="500" max="10000" value="5000" step="100">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Civilizations <span class="form-value" id="val-civs">5</span></label>
+                <input type="range" class="form-range" id="input-civs" min="2" max="12" value="5">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Regions <span class="form-value" id="val-regions">24</span></label>
+                <input type="range" class="form-range" id="input-regions" min="8" max="64" value="24">
+              </div>
+            </div>
+            <div class="form-section">
+              <h3 class="form-section-title">Narration</h3>
+              <div class="form-group">
+                <label class="form-label">Narration Mode</label>
+                <div class="toggle-group triple">
+                  <button class="toggle-btn" data-value="off">Off</button>
+                  <button class="toggle-btn active" data-value="local">Local</button>
+                  <button class="toggle-btn" data-value="api">API</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="setup-actions">
+            <button class="btn-secondary">Import Bundle</button>
+            <button class="btn-primary" id="btn-run-world">
+              <span class="btn-icon-left">&#9654;</span> Run World
+            </button>
+          </div>
+        </div>
+        <div class="setup-preview">
+          <canvas id="setup-preview-map" width="440" height="320"></canvas>
+          <div class="scenario-description">
+            <h4 class="scenario-title">Migration Era Decay</h4>
+            <p class="scenario-text">Five civilizations contest a fragmenting continent as environmental pressure drives mass migration and political collapse. Trade networks strain under competing loyalties while border regions face cascading instability.</p>
+            <div class="scenario-tags">
+              <span class="tag">Ecological Pressure</span>
+              <span class="tag">Migration</span>
+              <span class="tag">Trade Disruption</span>
+              <span class="tag">Political Fragmentation</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== STATE: RUN PROGRESS ===== -->
+  <div id="state-progress" class="app-state">
+    <div class="progress-container">
+      <div class="progress-header">
+        <h1 class="logo-text">Chronicler</h1>
+        <span class="version-pill">v7.5</span>
+      </div>
+      <div class="progress-card">
+        <h2 class="progress-title">Simulating World</h2>
+        <div class="progress-world-name">Aethelgard Reborn</div>
+        <div class="progress-meta-row">
+          <span class="progress-meta-item">Seed: <strong>4ASF-9B1D-7C6E</strong></span>
+          <span class="progress-meta-item">Scenario: <strong>Migration Era Decay</strong></span>
+          <span class="progress-meta-item">Civilizations: <strong>5</strong></span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar">
+            <div class="progress-bar-fill" id="sim-progress-fill"></div>
+          </div>
+          <div class="progress-stats">
+            <span id="progress-turn">Turn 0 / 5,000</span>
+            <span id="progress-speed">&mdash; ms/turn</span>
+          </div>
+        </div>
+        <div class="progress-indicators">
+          <div class="progress-indicator">
+            <div class="indicator-label">Simulation</div>
+            <div class="indicator-status running" id="ind-sim">Running</div>
+          </div>
+          <div class="progress-indicator">
+            <div class="indicator-label">Narration</div>
+            <div class="indicator-status pending" id="ind-narr">Pending</div>
+          </div>
+          <div class="progress-indicator">
+            <div class="indicator-label">Bundle</div>
+            <div class="indicator-status pending" id="ind-bundle">Pending</div>
+          </div>
+          <div class="progress-indicator">
+            <div class="indicator-label">Interestingness</div>
+            <div class="indicator-value" id="ind-interest">&mdash;</div>
+          </div>
+        </div>
+        <div class="progress-log" id="progress-log">
+          <div class="log-line">Initializing world state&hellip;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STATE: MAIN VIEWER SHELL ===== -->
+  <div id="state-viewer" class="app-state">
+    <!-- Header -->
+    <header id="viewer-header">
+      <div class="header-section header-left">
+        <span class="header-logo">Chronicler</span>
+        <span class="header-divider"></span>
+        <span class="header-world">Aethelgard Reborn</span>
+        <span class="header-scenario">Migration Era Decay</span>
+      </div>
+      <div class="header-section header-center">
+        <div class="mode-tabs" id="mode-tabs">
+          <button class="mode-tab active" data-mode="overview">Overview</button>
+          <button class="mode-tab" data-mode="character">Character</button>
+          <button class="mode-tab" data-mode="trade">Trade</button>
+          <button class="mode-tab" data-mode="campaign">Campaign</button>
+        </div>
+      </div>
+      <div class="header-section header-right">
+        <div class="header-meta">
+          <span class="meta-item">Seed <strong class="mono">4ASF-9B1D-7C6E</strong></span>
+          <span class="meta-divider"></span>
+          <span class="meta-item">Schema <strong>v7.5.12</strong></span>
+          <span class="meta-divider"></span>
+          <span class="meta-item perf"><span class="perf-dot"></span><strong>14.2</strong> ms/turn</span>
+        </div>
+        <span class="mode-badge">ARCHIVE</span>
+      </div>
+    </header>
+
+    <!-- Validation Ribbon (Campaign mode) -->
+    <div id="validation-ribbon" class="validation-ribbon hidden">
+      <div class="val-check pass"><span class="val-icon">&#10003;</span><span class="val-label">Determinism</span></div>
+      <div class="val-check pass"><span class="val-icon">&#10003;</span><span class="val-label">Perf Baseline</span></div>
+      <div class="val-check warn"><span class="val-icon">!</span><span class="val-label">Trade Baseline</span></div>
+      <div class="val-check pass"><span class="val-icon">&#10003;</span><span class="val-label">Settlement Plausibility</span></div>
+      <div class="val-check oracle"><span class="val-icon">&#9672;</span><span class="val-label">Pattern Oracle</span><span class="val-value">0.91</span></div>
+    </div>
+
+    <!-- Timeline Rail -->
+    <div id="timeline-rail">
+      <div class="timeline-container">
+        <div class="timeline-track" id="timeline-track">
+          <div class="timeline-eras">
+            <div class="era" style="left:0%;width:10%"><span>Founding</span></div>
+            <div class="era" style="left:10%;width:14%"><span>Early Expansion</span></div>
+            <div class="era" style="left:24%;width:16%"><span>Golden Age</span></div>
+            <div class="era" style="left:40%;width:20%"><span>Age of Conflict</span></div>
+            <div class="era" style="left:60%;width:24%"><span>Migration Decay</span></div>
+            <div class="era" style="left:84%;width:16%"><span>Late Period</span></div>
+          </div>
+          <div class="timeline-events" id="timeline-events"></div>
+          <div class="timeline-narrated" id="timeline-narrated"></div>
+          <div class="timeline-playhead" id="timeline-playhead" style="left:76.24%">
+            <div class="playhead-line"></div>
+            <div class="playhead-label">T3812</div>
+          </div>
+        </div>
+        <div class="timeline-labels">
+          <span>0</span><span>1000</span><span>2000</span><span>3000</span><span>4000</span><span>5000</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workspace -->
+    <div id="workspace">
+      <div id="left-rail">
+        <div class="rail-tabs">
+          <button class="rail-tab active" data-tab="chronicle">Chronicle</button>
+          <button class="rail-tab" data-tab="events">Event Log</button>
+        </div>
+        <div class="rail-content" id="left-rail-content"></div>
+      </div>
+      <div id="map-viewport">
+        <canvas id="main-map"></canvas>
+        <div class="map-controls">
+          <button class="map-ctrl" id="map-zoom-in" title="Zoom In">+</button>
+          <button class="map-ctrl" id="map-zoom-out" title="Zoom Out">&minus;</button>
+          <button class="map-ctrl" id="map-reset" title="Reset View">&#8962;</button>
+        </div>
+        <div class="map-legend" id="map-legend"></div>
+        <div class="map-overlays" id="map-overlays"></div>
+        <div class="map-hover-card" id="map-hover-card"></div>
+      </div>
+      <div id="right-rail">
+        <div class="inspector" id="inspector"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STATE: BATCH LAB ===== -->
+  <div id="state-batch" class="app-state">
+    <div class="setup-container">
+      <aside class="setup-sidebar">
+        <div class="setup-logo-area">
+          <h1 class="logo-text">Chronicler</h1>
+          <span class="version-pill">v7.5</span>
+        </div>
+        <nav class="setup-nav">
+          <a class="setup-nav-item" data-section="new-world" id="batch-nav-new">New World</a>
+          <a class="setup-nav-item active" data-section="batch-lab">Batch Lab</a>
+          <a class="setup-nav-item" data-section="recent">Recent Worlds</a>
+          <a class="setup-nav-item" data-section="settings">Settings</a>
+        </nav>
+        <div class="setup-footer-meta">
+          <div>Schema v7.5.12</div>
+          <div>Engine 4.1.0</div>
+        </div>
+      </aside>
+      <main class="batch-main">
+        <div class="batch-header-bar">
+          <h2 class="setup-heading">Batch Lab</h2>
+          <div class="batch-summary">
+            <span class="batch-stat">200 seeds completed</span>
+            <span class="batch-stat">Scenario: <strong>Migration Era Decay</strong></span>
+            <span class="batch-stat">Avg Interestingness: <strong>0.51</strong></span>
+          </div>
+        </div>
+        <div class="batch-toolbar">
+          <div class="batch-filters">
+            <button class="filter-chip active">All</button>
+            <button class="filter-chip">Wars &ge; 3</button>
+            <button class="filter-chip">Collapses</button>
+            <button class="filter-chip">Anomalies</button>
+          </div>
+          <button class="btn-secondary btn-sm">Compare Selected</button>
+        </div>
+        <div class="batch-table-wrap">
+          <table class="batch-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Seed</th>
+                <th>Score</th>
+                <th>Wars</th>
+                <th>Collapses</th>
+                <th>Named Events</th>
+                <th>Tech Mv.</th>
+                <th>Anomalies</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="batch-table-body"></tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== DEMO CONTROLS ===== -->
+  <div id="demo-controls">
+    <button class="demo-btn" id="btn-auto-demo" title="Play automated walkthrough">&#9654; Demo</button>
+    <button class="demo-btn" id="btn-pause-demo" title="Pause demo" style="display:none">&#9646;&#9646; Pause</button>
+    <div class="demo-jumps" id="demo-jumps">
+      <button class="jump-btn" data-jump="setup">Setup</button>
+      <button class="jump-btn" data-jump="progress">Progress</button>
+      <button class="jump-btn" data-jump="overview">Overview</button>
+      <button class="jump-btn" data-jump="character">Character</button>
+      <button class="jump-btn" data-jump="trade">Trade</button>
+      <button class="jump-btn" data-jump="campaign">Campaign</button>
+      <button class="jump-btn" data-jump="batch">Batch</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
