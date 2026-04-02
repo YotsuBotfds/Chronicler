@@ -64,6 +64,7 @@ The following still needs explicit prep work:
 - [ ] Add a diagnostic envelope type that can be reused by browser and Tauri paths.
 - [ ] Define the compatibility adapter interface for legacy single-artifact exports.
 - [ ] Add browser-loader smoke coverage for the legacy adapter output.
+- [ ] Add a small shell-consumer checklist so `summary`/`timeline` fixtures explicitly prove the header + scrubber + chronicle/event-log open path the M62b shell expects.
 
 ### Workstream C: Tauri Shell Scaffold
 

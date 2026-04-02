@@ -983,7 +983,35 @@ class TestBridgeResetAndEventFallback:
 
         assert len(records) == 1
         assert records[0].event_type == "unknown_255"
+        assert records[0].belief is None
         bridge.close()
+
+    def test_convert_events_preserves_belief_when_present(self, sample_world):
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        batch = pa.record_batch({
+            "agent_id": pa.array([7], type=pa.uint32()),
+            "event_type": pa.array([0], type=pa.uint8()),
+            "region": pa.array([1], type=pa.uint16()),
+            "target_region": pa.array([0], type=pa.uint16()),
+            "civ_affinity": pa.array([2], type=pa.uint16()),
+            "occupation": pa.array([4], type=pa.uint8()),
+            "belief": pa.array([3], type=pa.uint8()),
+        })
+
+        records = bridge._convert_events(batch, turn=9)
+
+        assert len(records) == 1
+        assert records[0].event_type == "death"
+        assert records[0].belief == 3
+        bridge.close()
+
+    def test_tick_event_schema_includes_belief(self):
+        sim = AgentSimulator(num_regions=1, seed=42)
+        sim.set_region_state(_make_region_batch(num_regions=1, capacity=10))
+
+        events = sim.tick(1, _make_dummy_signals(num_civs=1))
+
+        assert "belief" in events.schema.names
 
 
 class TestPythonDeterminism:

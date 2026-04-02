@@ -46,6 +46,17 @@ This draft is intentionally pre-M61b: it locks shape and compatibility rules, no
 - The browser fallback remains intentionally narrow in Phase 7.5: live mode plus legacy single-artifact bundle viewing. Full layered Bundle v2 browsing is not required outside Tauri.
 - Detail-layer encoding remains open until accepted M61b fixtures confirm the right tradeoff. M62a locks the manifest/layer contract, not the final binary payload choice.
 
+### Consumer-pressure points from the current design synthesis
+
+The 2026-03-31 viewer mockup pass does **not** lock visual implementation details for M62a, but it does clarify which contract surfaces the shell will depend on from day one:
+
+- header/run metadata for world name, scenario, seed, schema version, current turn, total turns, mode, and high-level run metrics
+- timeline metadata for era boundaries, major event markers, narrated-vs-mechanical segmentation, and optional causal-link references
+- chronicle/event-log payloads that can support left-rail narrative and filtered mechanical log views without ad hoc panel-specific schemas
+- overlay and inspector-oriented data families so the map-first shell can select an entity on the canvas and populate the right rail through stable-ID joins
+
+M62a should therefore protect these shell-driving families in the contract vocabulary even while deeper payload shape stays deferred to accepted M61b fixtures.
+
 ---
 
 ## 3. Contract Layers
@@ -63,6 +74,17 @@ Bundle v2 uses explicit payload families referenced by a manifest.
 | `detail` | High-cardinality detail slices (agent/settlement/campaign) | deep drilldown paths |
 
 Rule: panel payloads compose from contract layers; panels do not define one-off schema roots.
+
+### Shell-driving summary requirements
+
+Even before deep detail layers are finalized, the accepted contract should be able to open a Phase 7.5 shell without custom wiring. At minimum, the `summary` + `timeline` families should be capable of supplying:
+
+- top-shell run metadata
+- era-band and timeline-marker metadata
+- chronicle/era-reflection/gap-summary anchors or typed references
+- enough civ/region/entity summary state to populate a first-pass right rail after selection
+
+This is still a contract concern, not a final UI-schema freeze: the point is to avoid designing Bundle v2 as a data lake with no obvious shell-level open path.
 
 ---
 

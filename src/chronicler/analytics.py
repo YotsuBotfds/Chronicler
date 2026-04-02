@@ -31,8 +31,8 @@ ERA_FOCUSES_MAP: dict[str, list[str]] = {
 }
 
 
-def load_bundles(batch_dir: Path) -> list[dict]:
-    """Glob batch_dir/*/chronicle_bundle.json, deserialize, return list.
+def load_bundle_records(batch_dir: Path) -> list[tuple[Path, dict]]:
+    """Glob batch_dir/*/chronicle_bundle.json and return ``(path, bundle)`` pairs.
 
     Raises ValueError if fewer than 2 bundles found (distributions require
     multiple runs). If bundles have different total_turns, checkpoint clamping
@@ -44,11 +44,16 @@ def load_bundles(batch_dir: Path) -> list[dict]:
             f"Analytics requires at least 2 bundles; fewer than 2 found "
             f"({len(bundle_paths)}) in {batch_dir}"
         )
-    bundles = []
+    records = []
     for p in bundle_paths:
         with open(p) as f:
-            bundles.append(json.load(f))
-    return bundles
+            records.append((p, json.load(f)))
+    return records
+
+
+def load_bundles(batch_dir: Path) -> list[dict]:
+    """Glob batch_dir/*/chronicle_bundle.json, deserialize, return list."""
+    return [bundle for _, bundle in load_bundle_records(batch_dir)]
 
 
 # --- Distribution helpers ---
@@ -92,6 +97,82 @@ def _snapshot_at_turn(bundle: dict, turn: int) -> dict | None:
     return None
 
 
+def compute_run_summaries(records: list[tuple[Path, dict]]) -> list[dict]:
+    """Build per-run summaries ranked by interestingness for Batch Lab browsing."""
+    summaries: list[dict] = []
+
+    for bundle_path, bundle in records:
+        history = bundle.get("history", [])
+        last_snap = history[-1] if history else {}
+        civ_stats = last_snap.get("civ_stats", {})
+        metadata = bundle.get("metadata", {})
+        all_events = bundle.get("events_timeline", []) + bundle.get("named_events", [])
+
+        dominant_faction = ""
+        if civ_stats:
+            dominant_faction = max(
+                civ_stats.items(),
+                key=lambda item: sum(
+                    float(item[1].get(stat, 0) or 0)
+                    for stat in ("population", "military", "economy", "culture", "stability")
+                ),
+            )[0]
+
+        war_count = sum(1 for e in all_events if e.get("event_type") == "war")
+        collapse_count = sum(
+            1
+            for e in all_events
+            if e.get("event_type") in {"twilight_absorption", "capital_collapse"}
+            or "collapse" in str(e.get("event_type", ""))
+        )
+        tech_advancement_count = sum(
+            1
+            for e in all_events
+            if e.get("event_type") in {"tech_advancement", "tech_advance"}
+        )
+        major_event_count = sum(1 for e in all_events if int(e.get("importance", 0) or 0) >= 7)
+        alive_count = sum(1 for civ in civ_stats.values() if civ.get("alive", True))
+        low_stability = any(float(civ.get("stability", 0) or 0) <= 1 for civ in civ_stats.values())
+        advanced_eras = {"industrial", "information"}
+
+        signal_flags: list[str] = []
+        if major_event_count >= 5:
+            signal_flags.append("event-dense")
+        if war_count >= 3:
+            signal_flags.append("war-heavy")
+        if collapse_count > 0:
+            signal_flags.append("collapse-risk")
+        if low_stability:
+            signal_flags.append("instability")
+        if any(civ.get("tech_era") in advanced_eras for civ in civ_stats.values()):
+            signal_flags.append("late-tech")
+        if civ_stats and alive_count <= max(1, len(civ_stats) // 2):
+            signal_flags.append("fractured")
+
+        summaries.append({
+            "rank": 0,
+            "seed": metadata.get("seed"),
+            "interestingness_score": metadata.get("interestingness_score"),
+            "dominant_faction": dominant_faction,
+            "war_count": war_count,
+            "collapse_count": collapse_count,
+            "named_event_count": len(bundle.get("named_events", [])),
+            "tech_advancement_count": tech_advancement_count,
+            "major_event_count": major_event_count,
+            "signal_flags": signal_flags[:4],
+            "bundle_path": str(bundle_path),
+        })
+
+    summaries.sort(
+        key=lambda summary: float(summary.get("interestingness_score") or -1),
+        reverse=True,
+    )
+    for rank, summary in enumerate(summaries, start=1):
+        summary["rank"] = rank
+
+    return summaries
+
+
 # --- Extractors ---
 
 def extract_stability(
@@ -133,6 +214,8 @@ def extract_stability(
 
 def _firing_rate(bundles: list[dict], event_type: str) -> float:
     """Fraction of runs where event_type appears at least once (events + named_events)."""
+    if not bundles:
+        return 0.0
     count = sum(
         1 for b in bundles
         if any(e["event_type"] == event_type for e in b.get("events_timeline", []))
@@ -1185,7 +1268,8 @@ def generate_report(
     checkpoints: list[int] | None = None,
 ) -> dict:
     """Load bundles, run all extractors, run anomaly checks, return composite report."""
-    bundles = load_bundles(batch_dir)
+    records = load_bundle_records(batch_dir)
+    bundles = [bundle for _, bundle in records]
     max_turn = _min_total_turns(bundles) - 1
     cps = _clamp_checkpoints(checkpoints, max_turn)
 
@@ -1197,7 +1281,7 @@ def generate_report(
         "checkpoints": cps,
         "timestamp": datetime.now().isoformat(),
         "version": "post-M18",
-        "report_schema_version": 1,
+        "report_schema_version": 2,
         "tuning_file": None,
     }
 
@@ -1257,6 +1341,7 @@ def generate_report(
         "bond_health": bond_health,
         "era_signals": era_signals,
         "legacy_chains": legacy_chains,
+        "run_summaries": compute_run_summaries(records),
     }
 
     report["anomalies"] = detect_anomalies(report)

@@ -57,6 +57,55 @@ class LiveServer:
         with self._speed_lock:
             self._speed = max(0.1, value)
 
+    @staticmethod
+    def _is_int(value: Any) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    @staticmethod
+    def _is_number(value: Any) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    def _validate_batch_config(self, config: dict) -> str | None:
+        for field in ("seed_start", "seed_count", "turns"):
+            if field not in config:
+                continue
+            value = config.get(field)
+            if not self._is_int(value) or value <= 0:
+                return f"batch_start config '{field}' must be a positive integer"
+
+        if "simulate_only" in config and not isinstance(config.get("simulate_only"), bool):
+            return "batch_start config 'simulate_only' must be a boolean"
+
+        if "parallel" in config:
+            value = config.get("parallel")
+            if not isinstance(value, bool):
+                if not self._is_int(value) or value <= 0:
+                    return "batch_start config 'parallel' must be a boolean or positive integer"
+
+        if "workers" in config:
+            value = config.get("workers")
+            if value is not None and (not self._is_int(value) or value <= 0):
+                return "batch_start config 'workers' must be a positive integer or null"
+
+        if "tuning_overrides" in config:
+            value = config.get("tuning_overrides")
+            if value is not None:
+                if not isinstance(value, dict):
+                    return "batch_start config 'tuning_overrides' must be an object or null"
+                for key, override in value.items():
+                    if not isinstance(key, str):
+                        return "batch_start config 'tuning_overrides' keys must be strings"
+                    if not self._is_number(override):
+                        return "batch_start config 'tuning_overrides' values must be numbers"
+
+        return None
+
+    async def _send_error(self, websocket, message: str) -> None:
+        await websocket.send(json.dumps({
+            "type": "error",
+            "message": message,
+        }))
+
     def start(self) -> None:
         """Start the WebSocket server in a daemon thread."""
         ready = threading.Event()
@@ -73,6 +122,20 @@ class LiveServer:
         """Handle a start command. Returns an error dict if rejected, None on success."""
         if self._server_state != "lobby":
             return {"type": "error", "message": "Simulation already running"}
+        for field in ("turns", "civs", "regions"):
+            value = msg.get(field)
+            if not self._is_int(value) or value <= 0:
+                return {"type": "error", "message": f"Start field '{field}' must be a positive integer"}
+        seed = msg.get("seed")
+        if seed is not None and not self._is_int(seed):
+            return {"type": "error", "message": "Start field 'seed' must be an integer or null"}
+        for field in ("scenario", "sim_model", "narrative_model"):
+            value = msg.get(field)
+            if value is not None and not isinstance(value, str):
+                return {"type": "error", "message": f"Start field '{field}' must be a string or null"}
+        resume_state = msg.get("resume_state")
+        if resume_state is not None and not isinstance(resume_state, dict):
+            return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
         self._start_params = msg
         self._server_state = "running"
         self.start_event.set()
@@ -84,6 +147,11 @@ class LiveServer:
             return {"type": "batch_error", "message": "Batch already running"}
 
         config = msg.get("config", {})
+        if not isinstance(config, dict):
+            return {"type": "batch_error", "message": "batch_start config must be an object"}
+        config_error = self._validate_batch_config(config)
+        if config_error is not None:
+            return {"type": "batch_error", "message": config_error}
         self._batch_cancel_event.clear()
 
         def _batch_worker():
@@ -119,21 +187,21 @@ class LiveServer:
                 seed_range=None,
             )
 
-            workers = config.get("workers")
-            if workers and workers > 0:
-                args.parallel = workers
-
-            tuning_dict = config.get("tuning_overrides") or None
-
-            def on_progress(completed: int, total: int, current_seed: int):
-                self.snapshot_queue.put({
-                    "type": "batch_progress",
-                    "completed": completed,
-                    "total": total,
-                    "current_seed": current_seed,
-                })
-
             try:
+                workers = config.get("workers")
+                if workers:
+                    args.parallel = workers
+
+                tuning_dict = config.get("tuning_overrides") or None
+
+                def on_progress(completed: int, total: int, current_seed: int):
+                    self.snapshot_queue.put({
+                        "type": "batch_progress",
+                        "completed": completed,
+                        "total": total,
+                        "current_seed": current_seed,
+                    })
+
                 batch_dir = run_batch(
                     args,
                     progress_cb=on_progress,
@@ -217,17 +285,25 @@ class LiveServer:
                     try:
                         msg = json.loads(raw_msg)
                     except json.JSONDecodeError:
-                        await websocket.send(json.dumps({
-                            "type": "error",
-                            "message": "Invalid JSON",
-                        }))
+                        await self._send_error(websocket, "Invalid JSON")
+                        continue
+
+                    if not isinstance(msg, dict):
+                        await self._send_error(websocket, "Live messages must be JSON objects")
                         continue
 
                     msg_type = msg.get("type")
+                    if not isinstance(msg_type, str) or not msg_type:
+                        await self._send_error(websocket, "Live messages must include a string 'type'")
+                        continue
 
                     # speed and quit are always accepted
                     if msg_type == "speed":
-                        self.speed = float(msg.get("value", 1.0))
+                        value = msg.get("value", 1.0)
+                        if not self._is_number(value):
+                            await self._send_error(websocket, "speed.value must be a number")
+                            continue
+                        self.speed = float(value)
                         continue
 
                     if msg_type == "quit":
@@ -254,6 +330,9 @@ class LiveServer:
 
                     if msg_type == "batch_load_report":
                         report_path = msg.get("path", "")
+                        if not isinstance(report_path, str):
+                            await self._send_error(websocket, "batch_load_report.path must be a string")
+                            continue
                         try:
                             resolved = Path(report_path).resolve()
                             allowed = Path("output").resolve()
@@ -272,15 +351,18 @@ class LiveServer:
                         continue
 
                     # H-25: Load a bundle file and populate _init_data for narration
-                    if msg_type == "load_bundle":
+                    if msg_type == "batch_load_bundle":
                         bundle_path = msg.get("path", "")
+                        if not isinstance(bundle_path, str):
+                            await self._send_error(websocket, "batch_load_bundle.path must be a string")
+                            continue
                         try:
                             resolved = Path(bundle_path).resolve()
                             allowed = Path("output").resolve()
                             if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {bundle_path}")
                             bundle = json.loads(resolved.read_text(encoding="utf-8"))
-                            # Populate _init_data so narrate_range works
+                            # H-25: Populate _init_data so narrate_range works
                             self._init_data = {
                                 "type": "init",
                                 "world_state": bundle.get("world_state", {}),
@@ -293,11 +375,13 @@ class LiveServer:
                             }
                             await websocket.send(json.dumps({
                                 "type": "bundle_loaded",
+                                "bundle": bundle,
+                                "path": str(resolved),
                                 "turns": len(bundle.get("history", [])),
                             }))
                         except Exception as exc:
                             await websocket.send(json.dumps({
-                                "type": "error",
+                                "type": "batch_error",
                                 "message": f"Failed to load bundle: {exc}",
                             }))
                         continue
@@ -314,6 +398,31 @@ class LiveServer:
 
                         start_turn = msg.get("start_turn")
                         end_turn = msg.get("end_turn")
+                        if not self._is_int(start_turn) or not self._is_int(end_turn):
+                            await self._send_error(websocket, "narrate_range.start_turn and end_turn must be integers")
+                            continue
+                        if start_turn > end_turn:
+                            await self._send_error(websocket, "narrate_range start_turn must be <= end_turn")
+                            continue
+                        if not self._init_data:
+                            await self._send_error(websocket, "narrate_range requires initialized history")
+                            continue
+                        history_turns = [
+                            snap.get("turn")
+                            for snap in self._init_data.get("history", [])
+                            if isinstance(snap, dict) and self._is_int(snap.get("turn"))
+                        ]
+                        if not history_turns:
+                            await self._send_error(websocket, "narrate_range requires history turns")
+                            continue
+                        min_turn = min(history_turns)
+                        max_turn = max(history_turns)
+                        if start_turn < min_turn or end_turn > max_turn:
+                            await self._send_error(
+                                websocket,
+                                f"narrate_range must stay within available turns {min_turn}-{max_turn}",
+                            )
+                            continue
                         await websocket.send(json.dumps({
                             "type": "narration_started",
                             "start_turn": start_turn,
@@ -369,6 +478,10 @@ class LiveServer:
                 import logging
                 logger = logging.getLogger("chronicler.live")
                 logger.info("Client disconnected: %s", exc)
+                try:
+                    await self._send_error(websocket, f"Unhandled live message error: {exc}")
+                except Exception:
+                    pass
             finally:
                 async with client_lock:
                     client_ws = None

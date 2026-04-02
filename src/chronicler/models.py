@@ -623,6 +623,7 @@ class AgentEventRecord:
     target_region: int
     civ_affinity: int
     occupation: int
+    belief: int | None = None
 
 
 @dataclass

@@ -30,7 +30,7 @@ INSULAR_RESISTANCE = 0.5
 NAMED_PROPHET_MULTIPLIER = 2.0
 CONQUEST_BOOST_RATE = 0.05
 CONQUEST_BOOST_DURATION = 10
-HOLY_WAR_WEIGHT_BONUS = 0.15
+HOLY_WAR_WEIGHT_BONUS = 1.75
 HOLY_WAR_DEFENDER_STABILITY = 5
 DOCTRINE_BIAS_RANDOM_CHANCE = 0.20
 
@@ -521,7 +521,7 @@ def compute_persecution(
 
             minority_ratio = minority_count / total
             from chronicler.tuning import get_multiplier as _gm, K_RELIGION_INTENSITY as _KRI
-            intensity = 1.0 * (1.0 - minority_ratio) * (_gm(world, _KRI) if world else 1.0)
+            intensity = minority_ratio * (_gm(world, _KRI) if world else 1.0)
             region.persecution_intensity = intensity
 
             # One-shot "Persecution" event per region
@@ -584,6 +584,16 @@ def compute_martyrdom_boosts(
         if region_idx_int < 0 or region_idx_int >= len(regions):
             continue
         region = regions[region_idx_int]
+        # Only boost martyrdom in regions with active persecution
+        if region.persecution_intensity <= 0.0:
+            continue
+        # Only minority-faith deaths trigger martyrdom
+        if isinstance(agent, dict):
+            belief = agent.get("belief", 0xFF)
+        else:
+            belief = getattr(agent, "belief", 0xFF)
+        if belief == region.majority_belief or belief == 0xFF:
+            continue
         region.martyrdom_boost = min(
             MARTYRDOM_BOOST_CAP,
             region.martyrdom_boost + MARTYRDOM_BOOST_PER_EVENT,

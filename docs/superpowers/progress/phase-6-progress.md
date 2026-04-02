@@ -2,12 +2,25 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-04-01 (`M-AF1` on branch `m-af1-runtime-correctness` at `effc67f`; 200-seed gate passed)
+> **Last updated:** 2026-04-01 (`M-AF2`/scoped `M-AF3` closed cleanly; post-audit validation/live follow-ups landed)
 
 ---
 
 ## Current Focus (2026-03-31)
 
+- **`M-AF2` tooling trust closeout is complete in the working tree.**
+  Hidden legacy `test/` coverage was migrated into canonical `tests/` files and the hidden root was removed. `chronicler.validate` now rejects unknown oracle requests, fails closed on missing required Arrow dependencies, emits explicit `SKIP` reasons, and returns non-zero on invalid/dependency/runtime-error cases. `main.py` now rejects inert flag combinations, logs LLM fallback warnings, and emits canonical `narrative_*_tokens` metadata while preserving deprecated `api_*` aliases. `viewer/src/__fixtures__/sample_bundle.json` was regenerated and Python-side fixture drift checks now gate the legacy viewer contract.
+- **`M-AF2` viewer/live trust hardening is verified.**
+  `viewer/package.json` now exposes `npm test`, the current viewer lint surface is clean, and `src/chronicler/live.py` now rejects malformed root messages, validates command payload types, and checks `narrate_range` ordering/bounds with structured error responses. Verified commands: `npm test`, `npm run lint`, and `pytest -q tests/test_live.py tests/test_live_integration.py`.
+- **Scoped `M-AF3` validate split is complete.**
+  `src/chronicler/validate.py` is now a public CLI façade plus backwards-compatible re-export surface, `src/chronicler/validation_io.py` owns bundle/sidecar loading + dependency preflight, and `src/chronicler/validation_oracles.py` owns oracle algorithms + per-oracle runners. Plan record: `docs/superpowers/plans/2026-04-01-m-af3-validate-structural-split.md`.
+- **Focused post-split verification is green.**
+  `pytest -q tests/test_validate.py tests/test_analytics.py tests/test_shadow_oracle.py tests/test_main.py tests/test_bundle.py tests/test_agent_bridge_legacy_migration.py tests/test_curator_legacy_migration.py tests/test_narrative_legacy_migration.py tests/test_infrastructure_legacy_migration.py tests/test_live.py tests/test_live_integration.py` PASS.
+- **Repo-level note:** full discovered `pytest -q` now resolves to `2308 passed, 4 skipped`.
+- **M36 regression harness follow-up is closed.**
+  `tests/test_m36_regression.py` was the last red discovered Python test, but the failure was a stale cross-mode assertion rather than a new runtime regression: the test still compared hybrid treasury against `--agents=off` treasury after the post-M54b off-mode economy freeze, and its Rust-extension stub logic was order-dependent. The harness now prefers the real extension when available, mirrors the production off-mode ecology/politics runtime wiring, binds the hybrid bridge to the same world instance being advanced, and compares cross-mode stability instead of treasury.
+- **Post-audit trust follow-ups are closed.**
+  `chronicler.validate` now errors on nonexistent batch paths instead of reporting `SKIP/no_bundles`, `validation_io` only raises missing-`pyarrow` dependency errors for `needs` / `cohort` when Arrow sidecars are the actual blocker, and `live.py` now validates nested `batch_start` config fields up front so malformed payloads return structured `batch_error` responses instead of crashing the batch thread before its exception handler.
 - **M58b closeout is complete and merged on `main` at `023d61d` (`fix(m58b): close trade convergence gate`).**
 - **Hybrid oracle observability is now fail-fast:** `reconstruct_economy_result(..., require_oracle_shadow=True)` rejects stale-extension schemas instead of silently zero-filling oracle columns.
 - **Merchant planning now respects the oracle planning signal end-to-end:** Python exports `merchant_route_margin`, Rust FFI falls back to realized margin only when the planning column is absent, and merchant routing / market attractors now consume the planning field directly.
@@ -16,6 +29,8 @@
   full PASS at `output/m58b_gate_full_routefix` with `154/200` passing seeds (`77.0%`), tail guard PASS, conservation PASS.
 - **Validation run on closeout head:** `cargo test --test test_merchant --test test_spatial --quiet`, `cargo test --test test_economy --quiet`, `pytest -q tests/test_agent_bridge.py tests/test_economy_bridge.py tests/test_m58b_gate.py tests/test_merchant_mobility.py`, and `pytest -q tests/test_oracle_gate.py` all PASS.
 - **Operational note:** use `.venv\\Scripts\\python.exe` consistently when rebuilding/running hybrid validation (`maturin develop --release` in `chronicler-agents/`), or Python may load a stale `chronicler_agents` extension.
+- **Post-gate `M-AF1` follow-up in working tree:** agent-event `belief` now survives the Rust `tick()` event batch, Python `AgentEventRecord`, and `agent_events.arrow` sidecar, which restores martyrdom filtering on real death events instead of only dict-shaped test fixtures.
+- **Focused follow-up validation:** rebuilt the extension with `.venv\\Scripts\\python.exe -m maturin develop --release`, then ran `pytest -q tests/test_agent_bridge.py tests/test_religion.py tests/test_bundle.py`, `pytest -q tests/test_persecution.py`, and `cargo test --quiet` in `chronicler-agents/`; all PASS.
 - **`M59a` is now merged on `main` at `f4df802` (`fix(m59a): harden admission and diagnostics`).**
 - **Merged `M59a` scope:** packet slots now live on `AgentPool`, the knowledge phase runs at `0.95`, merchants emit trade packets on arrival, and bundle metadata now carries `knowledge_stats` with per-type created/transmitted counters plus live age / hop summaries.
 - **`M59a` validation on merge head:** after rebuilding the extension with `maturin develop --release`, `cargo test --test test_knowledge --test test_merchant --quiet` PASS and `pytest -q tests/test_m59a_knowledge.py tests/test_agent_bridge.py::TestBridgeResetAndEventFallback::test_reset_clears_gini_and_cached_state tests/test_merchant_mobility.py` PASS.
@@ -36,6 +51,7 @@
 - **Phase 7.5 viewer implementation pass started in the real React app (2026-03-31):** `viewer/src/components/phase75/` now holds a first reusable shell that keeps one app family across `Setup`, `Progress`, `Overview`, `Character`, `Trade`, `Campaign`, and `Batch Lab`, with the map-first center canvas, top metadata header, timeline rail, chronicle/event left rail, validation ribbon, and right inspector wired as shared primitives rather than per-mode layout forks.
 - **Phase 7.5 batch/front-door handoff is now partially live in the runtime:** `viewer/src/App.tsx` routes setup/live/batch/viewer surfaces through the shared shell, `src/chronicler/analytics.py` now emits ranked `run_summaries` in batch reports (`report_schema_version=2`), and `src/chronicler/live.py` now supports `batch_load_bundle` so Batch Lab can open a ranked result directly into the viewer shell without a separate page.
 - **Focused validation on the implementation pass:** `python -m pytest tests/test_analytics.py tests/test_live_integration.py` PASS (`43 passed`), and `npm run build` PASS in `viewer/`.
+- **M-AF2 viewer trust hardening landed:** `viewer/package.json` now exposes `npm test`, the current viewer lint surface is clean, and `src/chronicler/live.py` now rejects malformed root messages, validates command payload types, and checks `narrate_range` ordering/bounds. Focused live-mode pytest coverage is green.
 - **Still intentionally unfinished in this pass:** shell polish/motion, lighter archive presentation, chunk-splitting/perf cleanup, and the deeper Tauri/Rust Phase 7.5 data-plane work remain deferred; this is a cohesion/flow implementation pass, not the final production polish pass.
 - **Gotcha for follow-up work:** Batch Lab `tech_advancement_count` summaries are intentionally derived from actual advancement event names (`tech_advancement`, legacy `tech_advance`) rather than any `tech*` event, so later summary refinements should preserve that semantic or rename the metric.
 

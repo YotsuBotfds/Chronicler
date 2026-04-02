@@ -16,10 +16,11 @@ class OracleResult:
     ks_p: float
     ad_p: float
     alpha: float
+    reason: str | None = None
 
     @property
     def passed(self) -> bool:
-        return self.ks_p > self.alpha and self.ad_p > self.alpha
+        return self.reason is None and self.ks_p > self.alpha and self.ad_p > self.alpha
 
 
 @dataclass
@@ -28,10 +29,11 @@ class CorrelationResult:
     metric2: str
     turn: int
     delta: float
+    reason: str | None = None
 
     @property
     def passed(self) -> bool:
-        return self.delta < 0.15
+        return self.reason is None and self.delta < 0.15
 
 
 @dataclass
@@ -84,8 +86,35 @@ def _anderson_pvalue(samples: list[np.ndarray]) -> tuple[float, float]:
         return float(result.statistic), float(result.pvalue)
     except TypeError:
         result = anderson_ksamp(samples)
-        pvalue = getattr(result, "pvalue", result.significance_level)
+        if hasattr(result, "pvalue"):
+            pvalue = result.pvalue
+        elif hasattr(result, "significance_level"):
+            pvalue = result.significance_level
+        else:
+            raise TypeError("anderson_ksamp returned a result without pvalue/significance_level")
         return float(result.statistic), float(pvalue)
+
+
+def _correlation_result(
+    metric1: str,
+    metric2: str,
+    turn: int,
+    lhs_a: np.ndarray,
+    lhs_b: np.ndarray,
+    rhs_a: np.ndarray,
+    rhs_b: np.ndarray,
+) -> CorrelationResult:
+    if np.std(lhs_a) == 0 or np.std(lhs_b) == 0:
+        return CorrelationResult(metric1, metric2, turn, float("inf"), reason="degenerate_agent_correlation")
+    if np.std(rhs_a) == 0 or np.std(rhs_b) == 0:
+        return CorrelationResult(metric1, metric2, turn, float("inf"), reason="degenerate_aggregate_correlation")
+
+    agent_corr = float(np.corrcoef(lhs_a, lhs_b)[0, 1])
+    agg_corr = float(np.corrcoef(rhs_a, rhs_b)[0, 1])
+    corr_delta = abs(agent_corr - agg_corr)
+    if not np.isfinite(corr_delta):
+        return CorrelationResult(metric1, metric2, turn, float("inf"), reason="non_finite_correlation_delta")
+    return CorrelationResult(metric1, metric2, turn, corr_delta)
 
 
 def compare_distributions(data: dict) -> OracleReport:
@@ -106,9 +135,22 @@ def compare_distributions(data: dict) -> OracleReport:
             agg_vals = extract_at_turn(data, f"agg_{metric}", turn)
             if len(agent_vals) < 2 or len(agg_vals) < 2:
                 continue
-            ks_stat, ks_p = ks_2samp(agent_vals, agg_vals)
-            ad_stat, ad_p = _anderson_pvalue([agent_vals, agg_vals])
-            results.append(OracleResult(metric, turn, ks_stat, ks_p, ad_p, bonferroni_alpha))
+            try:
+                ks_stat, ks_p = ks_2samp(agent_vals, agg_vals)
+                ad_stat, ad_p = _anderson_pvalue([agent_vals, agg_vals])
+                results.append(OracleResult(metric, turn, ks_stat, ks_p, ad_p, bonferroni_alpha))
+            except ValueError as exc:
+                results.append(
+                    OracleResult(
+                        metric,
+                        turn,
+                        float("inf"),
+                        0.0,
+                        0.0,
+                        bonferroni_alpha,
+                        reason=f"distribution_error:{type(exc).__name__}",
+                    )
+                )
 
     correlation_checks = [("military", "economy"), ("culture", "stability")]
     for m1, m2 in correlation_checks:
@@ -119,11 +161,9 @@ def compare_distributions(data: dict) -> OracleReport:
             agg_m2 = extract_at_turn(data, f"agg_{m2}", turn)
             if len(agent_m1) < 3 or len(agg_m1) < 3:
                 continue
-            corr_delta = abs(
-                np.corrcoef(agent_m1, agent_m2)[0, 1]
-                - np.corrcoef(agg_m1, agg_m2)[0, 1]
+            results.append(
+                _correlation_result(m1, m2, turn, agent_m1, agent_m2, agg_m1, agg_m2)
             )
-            results.append(CorrelationResult(m1, m2, turn, corr_delta))
 
     return OracleReport(results)
 

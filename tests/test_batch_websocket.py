@@ -165,6 +165,26 @@ class TestBatchWebSocket:
         assert len(error_msgs) == 1
         assert "Test failure" in error_msgs[0]["message"]
 
+    def test_batch_start_rejects_invalid_worker_type(self):
+        server = LiveServer(port=0)
+
+        msg = {
+            "type": "batch_start",
+            "config": {
+                "seed_start": 1,
+                "seed_count": 2,
+                "turns": 3,
+                "workers": "bad",
+            },
+        }
+
+        result = server._handle_batch_start(msg)
+
+        assert result is not None
+        assert result["type"] == "batch_error"
+        assert "workers" in result["message"]
+        assert server._batch_thread is None
+
     def test_tuning_overrides_passed_through(self):
         """Tuning overrides from config reach run_batch as dict."""
         server = LiveServer(port=0)

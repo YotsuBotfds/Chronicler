@@ -417,6 +417,7 @@ export interface BatchReport {
   general: Record<string, unknown>;
   event_firing_rates: Record<string, number>;
   anomalies: AnomalyFlag[];
+  run_summaries?: BatchRunSummary[];
 }
 
 export interface PercentileData {
@@ -433,6 +434,20 @@ export interface AnomalyFlag {
   name: string;
   severity: "CRITICAL" | "WARNING" | "INFO";
   detail: string;
+}
+
+export interface BatchRunSummary {
+  rank: number;
+  seed: number | null;
+  interestingness_score: number | null;
+  dominant_faction: string;
+  war_count: number;
+  collapse_count: number;
+  named_event_count: number;
+  tech_advancement_count: number;
+  major_event_count: number;
+  signal_flags: string[];
+  bundle_path: string;
 }
 
 export type BundleChronicle =

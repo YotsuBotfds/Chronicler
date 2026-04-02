@@ -917,6 +917,7 @@ def _apply_civ_op(world: WorldState, payload: dict, new_civ_map: dict,
                 if rn in region_map:
                     region_map[rn].controller = tgt_civ.name
             src_civ.regions = []
+            src_civ.capital_region = None  # H-7: clear dangling capital reference
             from chronicler.simulation import reset_war_frequency_on_extinction
             reset_war_frequency_on_extinction(src_civ)
             sync_civ_population(tgt_civ, world)

@@ -1151,7 +1151,7 @@ mod tests {
     fn test_compute_aggregates_zero_agents_with_controlled_region() {
         // M-AF1 #7: A civ controls a region but has zero alive agents.
         // compute_aggregates must emit a zero-row for that civ.
-        use arrow::array::{UInt16Array, UInt32Array};
+        use arrow::array::{UInt32Array, UInt8Array};
         use crate::region::RegionState;
 
         let pool = AgentPool::new(4); // No agents spawned at all.
@@ -1171,7 +1171,7 @@ mod tests {
         let civ_ids = batch
             .column(0)
             .as_any()
-            .downcast_ref::<UInt16Array>()
+            .downcast_ref::<UInt8Array>()
             .unwrap();
         assert_eq!(civ_ids.value(0), 0);
 
@@ -1197,7 +1197,7 @@ mod tests {
     fn test_compute_aggregates_mixed_zero_and_populated_civs() {
         // M-AF1 #7: civ 0 has agents, civ 1 controls a region but has no agents.
         // Both must appear in the output.
-        use arrow::array::{UInt16Array, UInt32Array};
+        use arrow::array::{UInt32Array, UInt8Array};
         use crate::region::RegionState;
 
         let mut pool = AgentPool::new(8);
@@ -1223,7 +1223,7 @@ mod tests {
         let civ_ids = batch
             .column(0)
             .as_any()
-            .downcast_ref::<UInt16Array>()
+            .downcast_ref::<UInt8Array>()
             .unwrap();
         let populations = batch
             .column(1)

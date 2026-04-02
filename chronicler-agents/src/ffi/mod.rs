@@ -683,7 +683,10 @@ impl AgentSimulator {
         }
         // M55a: Spatial attractor init (once) + weight update (every call)
         if !self.spatial_initialized && self.initialized {
-            let world_seed = u64::from_le_bytes(self.master_seed[0..8].try_into().unwrap());
+            let world_seed = u64::from_le_bytes(
+                self.master_seed[0..8].try_into()
+                    .map_err(|e| PyValueError::new_err(format!("Invalid master_seed slice: {e}")))?
+            );
             self.attractors = (0..self.regions.len())
                 .map(|i| crate::spatial::init_attractors(world_seed, i as u16, &self.regions[i]))
                 .collect();
@@ -832,6 +835,7 @@ impl AgentSimulator {
         let mut label_col = StringBuilder::with_capacity(n, n * 16);
         let mut parent_id_0_col = UInt32Builder::with_capacity(n);
         let mut parent_id_1_col = UInt32Builder::with_capacity(n);
+        let mut civ_id_col = UInt8Builder::with_capacity(n);
 
         for &(slot, role, trigger) in &candidates {
             let agent_id = self.pool.id(slot);
@@ -857,6 +861,7 @@ impl AgentSimulator {
             }
             parent_id_0_col.append_value(self.pool.parent_id_0[slot]);
             parent_id_1_col.append_value(self.pool.parent_id_1[slot]);
+            civ_id_col.append_value(self.pool.civ_affinity(slot));
 
             // Register in the Rust-side registry.
             // origin_civ_id = current civ at promotion time (best available;
@@ -892,6 +897,7 @@ impl AgentSimulator {
                 Arc::new(label_col.finish()) as _,
                 Arc::new(parent_id_0_col.finish()) as _,
                 Arc::new(parent_id_1_col.finish()) as _,
+                Arc::new(civ_id_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;

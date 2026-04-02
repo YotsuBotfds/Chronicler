@@ -481,6 +481,8 @@ def collect_tribute(world: WorldState, acc=None) -> list[Event]:
         overlord = civ_map.get(vr.overlord)
         if vassal is None or overlord is None:
             continue
+        if not vassal.regions or not overlord.regions:  # H-8: skip dead civs
+            continue
         perceived_econ = get_perceived_stat(overlord, vassal, "economy", world)
         # NOTE: None should be unreachable — vassal/overlord grants +0.5 accuracy.
         # If this fires, compute_accuracy has a bug.
@@ -606,6 +608,8 @@ def check_federation_formation(world: WorldState) -> list[Event]:
     checked_pairs: set[tuple[str, str]] = set()
 
     for civ_a in world.civilizations:
+        if not civ_a.regions:  # H-8: skip dead civs
+            continue
         if _is_vassal(civ_a.name, world):
             continue
         rels_a = world.relationships.get(civ_a.name, {})
@@ -618,6 +622,9 @@ def check_federation_formation(world: WorldState) -> list[Event]:
                 continue
             checked_pairs.add(pair)
 
+            civ_b = next((c for c in world.civilizations if c.name == civ_b_name), None)
+            if civ_b is not None and not civ_b.regions:  # H-8: skip dead civ_b
+                continue
             rel_ba = world.relationships.get(civ_b_name, {}).get(civ_a.name)
             if rel_ba is None or rel_ba.allied_turns < fed_turns_req:
                 continue
@@ -1320,6 +1327,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                     if rn in region_map_u:
                         region_map_u[rn].controller = best_absorber_u.name
                 civ.regions = []
+                civ.capital_region = None  # H-7: clear dangling capital reference
                 from chronicler.simulation import reset_war_frequency_on_extinction
                 reset_war_frequency_on_extinction(civ)
                 # M52: Artifact lifecycle intent for twilight absorption
@@ -1394,6 +1402,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
             if rn in region_map:
                 region_map[rn].controller = best_absorber.name
         civ.regions = []
+        civ.capital_region = None  # H-7: clear dangling capital reference
         from chronicler.simulation import reset_war_frequency_on_extinction
         reset_war_frequency_on_extinction(civ)
         # M52: Artifact lifecycle intent for twilight absorption
@@ -1607,4 +1616,5 @@ from chronicler.politics_bridge import (  # noqa: F401, E402
     _dict_to_proxy_war_batch,
     _dict_to_exile_batch,
     _build_region_input_with_eff_cap,
+    _apply_civ_op,
 )

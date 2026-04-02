@@ -71,7 +71,12 @@ def _make_bundle(seed: int, turns: int = 10, num_civs: int = 2) -> dict:
         if t == 9 and seed % 5 == 0:
             events.append({"turn": t, "event_type": "secession", "actors": ["Civ0"], "description": "secession"})
     return {
-        "metadata": {"seed": seed, "total_turns": turns, "generated_at": "2026-01-01T00:00:00"},
+        "metadata": {
+            "seed": seed,
+            "total_turns": turns,
+            "generated_at": "2026-01-01T00:00:00",
+            "interestingness_score": float(seed * 10),
+        },
         "history": history,
         "events_timeline": events,
         "named_events": [],
@@ -253,6 +258,11 @@ class TestGeneralExtractor:
 
 
 class TestEventFiringRates:
+    def test_firing_rate_empty_input_returns_zero(self):
+        from chronicler.analytics import _firing_rate
+
+        assert _firing_rate([], "war") == 0.0
+
     def test_discovers_event_types_from_data(self, tmp_path):
         from chronicler.analytics import load_bundles, compute_event_firing_rates
         batch_dir = _write_batch(tmp_path, num_runs=5)
@@ -298,14 +308,64 @@ class TestReportAssembly:
         assert "politics" in report
         assert "event_firing_rates" in report
         assert "anomalies" in report
+        assert "run_summaries" in report
         assert report["metadata"]["runs"] == 5
-        assert report["metadata"]["report_schema_version"] == 1
+        assert report["metadata"]["report_schema_version"] == 2
 
     def test_generate_report_respects_checkpoints(self, tmp_path):
         from chronicler.analytics import generate_report
         batch_dir = _write_batch(tmp_path, num_runs=3, turns=10)
         report = generate_report(batch_dir, checkpoints=[5])
         assert "5" in report["stability"]["percentiles_by_turn"]
+
+    def test_generate_report_ranks_run_summaries_by_interestingness(self, tmp_path):
+        from chronicler.analytics import generate_report
+
+        batch_dir = tmp_path / "batch_ranked"
+        batch_dir.mkdir()
+
+        low_bundle = _make_bundle(seed=11, turns=10)
+        low_bundle["metadata"]["interestingness_score"] = 12.5
+
+        high_bundle = _make_bundle(seed=22, turns=10)
+        high_bundle["metadata"]["interestingness_score"] = 87.0
+        high_bundle["history"][-1]["civ_stats"]["Civ0"]["tech_era"] = "industrial"
+        high_bundle["history"][-1]["civ_stats"]["Civ1"]["stability"] = 1
+        high_bundle["events_timeline"].extend([
+            {"turn": 8, "event_type": "war", "actors": ["Civ0", "Civ1"], "description": "war 2", "importance": 8},
+            {"turn": 9, "event_type": "war", "actors": ["Civ0", "Civ1"], "description": "war 3", "importance": 8},
+            {"turn": 9, "event_type": "tech_advancement", "actors": ["Civ0"], "description": "advance", "importance": 7},
+        ])
+        high_bundle["named_events"] = [
+            {
+                "turn": 9,
+                "name": "Empire Breaks",
+                "event_type": "capital_collapse",
+                "actors": ["Civ1"],
+                "region": None,
+                "description": "collapse",
+                "importance": 9,
+            },
+        ]
+
+        for run_name, bundle in (("seed_11", low_bundle), ("seed_22", high_bundle)):
+            run_dir = batch_dir / run_name
+            run_dir.mkdir()
+            (run_dir / "chronicle_bundle.json").write_text(json.dumps(bundle))
+
+        report = generate_report(batch_dir)
+        summaries = report["run_summaries"]
+
+        assert [summary["seed"] for summary in summaries] == [22, 11]
+        assert [summary["rank"] for summary in summaries] == [1, 2]
+        assert summaries[0]["war_count"] == 3
+        assert summaries[0]["collapse_count"] == 1
+        assert summaries[0]["tech_advancement_count"] == 2
+        assert summaries[0]["named_event_count"] == 1
+        assert "war-heavy" in summaries[0]["signal_flags"]
+        assert "collapse-risk" in summaries[0]["signal_flags"]
+        assert "instability" in summaries[0]["signal_flags"]
+        assert "late-tech" in summaries[0]["signal_flags"]
 
 
 class TestTextFormatter:

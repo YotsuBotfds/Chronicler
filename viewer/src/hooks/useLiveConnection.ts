@@ -20,6 +20,7 @@ interface LiveConnectionState {
   lobbyInit: LobbyInit | null;
   sendStart: (params: Omit<StartCommand, "type">) => void;
   sendNarrateRange: (startTurn: number, endTurn: number) => void;
+  loadBatchBundle: (path: string) => void;
   batch: BatchConnectionState;
   wsRef: React.RefObject<WebSocket | null>;
 }
@@ -40,8 +41,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
   const reconnectDelayRef = useRef(1000);
   const serverStateRef = useRef<ServerState>("connecting");
   const batch = useBatchConnection(wsRef);
-  const batchHandleRef = useRef(batch.handleMessage);
-  batchHandleRef.current = batch.handleMessage;
+  const handleBatchMessage = batch.handleMessage;
 
   const sendCommand = useCallback((cmd: Command) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -70,6 +70,15 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
         type: "narrate_range",
         start_turn: startTurn,
         end_turn: endTurn,
+      }));
+    }
+  }, []);
+
+  const loadBatchBundle = useCallback((path: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "batch_load_bundle",
+        path,
       }));
     }
   }, []);
@@ -246,6 +255,11 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             setPauseContext(null);
             break;
 
+          case "bundle_loaded":
+            setBundle(msg.bundle as Bundle);
+            setError(null);
+            break;
+
           case "error":
             setError(msg.message);
             // Revert to lobby if we were in "starting" state
@@ -260,7 +274,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
           case "batch_cancelled":
           case "batch_error":
           case "batch_report_loaded":
-            batchHandleRef.current(msg);
+            handleBatchMessage(msg);
             break;
         }
       };
@@ -273,7 +287,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
-  }, [wsUrl]);
+  }, [wsUrl, handleBatchMessage]);
 
   return {
     bundle,
@@ -290,6 +304,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     lobbyInit,
     sendStart,
     sendNarrateRange,
+    loadBatchBundle,
     batch,
     wsRef,
   };

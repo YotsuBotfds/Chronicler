@@ -34,6 +34,7 @@ pub struct AgentEvent {
     pub target_region: u16,
     pub civ_affinity: u8,
     pub occupation: u8,
+    pub belief: u8,
     pub turn: u32,
 }
 
@@ -254,6 +255,7 @@ pub fn tick_agents(
                 target_region: 0,
                 civ_affinity: pool.civ_affinity(slot),
                 occupation: pool.occupation(slot),
+                belief: pool.beliefs[slot],
                 turn,
             });
         }
@@ -270,6 +272,7 @@ pub fn tick_agents(
                 target_region: to,
                 civ_affinity: pool.civ_affinity(slot),
                 occupation: pool.occupation(slot),
+                belief: pool.beliefs[slot],
                 turn,
             });
         }
@@ -292,6 +295,7 @@ pub fn tick_agents(
                 target_region: 0,
                 civ_affinity: pool.civ_affinity(slot),
                 occupation: pool.occupation(slot),
+                belief: pool.beliefs[slot],
                 turn,
             });
             let _ = old_occ; // suppress unused warning
@@ -309,6 +313,7 @@ pub fn tick_agents(
                 target_region: 0,
                 civ_affinity: new_civ,
                 occupation: pool.occupation(slot),
+                belief: pool.beliefs[slot],
                 turn,
             });
         }
@@ -574,6 +579,7 @@ pub fn tick_agents(
                 target_region: 0,
                 civ_affinity: pool.civ_affinity(slot),
                 occupation: pool.occupation(slot),
+                belief: pool.beliefs[slot],
                 turn,
             });
 
@@ -703,6 +709,7 @@ pub fn tick_agents(
                 target_region: 0,
                 civ_affinity: birth.civ,
                 occupation: crate::agent::Occupation::Farmer as u8,
+                belief: birth.belief,
                 turn,
             });
 

@@ -1358,6 +1358,7 @@ class AgentBridge:
     def _convert_events(self, batch, turn):
         """Convert Arrow events RecordBatch to AgentEventRecord list."""
         records = []
+        belief_col = batch.column("belief") if "belief" in batch.schema.names else None
         for i in range(batch.num_rows):
             event_type_code = batch.column("event_type")[i].as_py()
             records.append(AgentEventRecord(
@@ -1368,6 +1369,7 @@ class AgentBridge:
                 target_region=batch.column("target_region")[i].as_py(),
                 civ_affinity=batch.column("civ_affinity")[i].as_py(),
                 occupation=batch.column("occupation")[i].as_py(),
+                belief=belief_col[i].as_py() if belief_col is not None else None,
             ))
         return records
 

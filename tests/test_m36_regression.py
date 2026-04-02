@@ -10,18 +10,18 @@ import statistics
 from collections import Counter
 from unittest.mock import MagicMock
 
-# Stub out the Rust extension so tests run without a compiled wheel
-if "chronicler_agents" not in sys.modules:
-    sys.modules["chronicler_agents"] = MagicMock()
+# Prefer the real Rust extension when available; fall back to a stub so the
+# pure-Python portions of this suite still import cleanly on machines without it.
+try:
+    import chronicler_agents as _ca
+except Exception:
+    _ca = MagicMock()
+    sys.modules.setdefault("chronicler_agents", _ca)
 
 import pytest
 import pyarrow as pa
 
-try:
-    import chronicler_agents as _ca
-    _AGENTS_AVAILABLE = not isinstance(_ca, MagicMock)
-except Exception:
-    _AGENTS_AVAILABLE = False
+_AGENTS_AVAILABLE = not isinstance(_ca, MagicMock)
 
 
 SEEDS = range(200)
@@ -37,21 +37,18 @@ _AGENTS_SKIP = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_world(seed: int, turns: int = 50, agent_mode: str | None = None,
-                agent_bridge=None):
-    """Create and advance a world for the given seed.
-
-    Returns (world, agent_bridge).  agent_bridge is None unless the caller
-    passes one in (Rust extension required).
-    """
-    from chronicler.world_gen import generate_world
+def _advance_world(
+    world,
+    seed: int,
+    turns: int = 50,
+    *,
+    agent_bridge=None,
+    ecology_runtime=None,
+    politics_runtime=None,
+):
+    """Advance an already-created world for the given number of turns."""
     from chronicler.simulation import run_turn
     from chronicler.action_engine import ActionEngine
-
-    world = generate_world(seed=seed, num_civs=3)
-
-    if agent_mode is not None:
-        world.agent_mode = agent_mode
 
     def _action_selector(civ, w, _seed=seed):
         engine = ActionEngine(w)
@@ -67,9 +64,56 @@ def _make_world(seed: int, turns: int = 50, agent_mode: str | None = None,
             narrator=_narrator,
             seed=seed + i,
             agent_bridge=agent_bridge,
+            ecology_runtime=ecology_runtime,
+            politics_runtime=politics_runtime,
         )
 
     return world, agent_bridge
+
+
+def _make_world(seed: int, turns: int = 50, agent_mode: str | None = None,
+                agent_bridge=None):
+    """Create and advance a world for the given seed.
+
+    Returns (world, agent_bridge).  agent_bridge is None unless the caller
+    passes one in (Rust extension required).
+    """
+    from chronicler.world_gen import generate_world
+
+    world = generate_world(seed=seed, num_civs=3)
+
+    if agent_mode is not None:
+        world.agent_mode = agent_mode
+
+    return _advance_world(world, seed, turns, agent_bridge=agent_bridge)
+
+
+def _make_world_with_off_mode_runtimes(seed: int, turns: int = 50):
+    """Mirror the current production off-mode wiring for regression comparisons."""
+    from chronicler.main import _create_ecology_runtime, _create_politics_runtime
+    from chronicler.world_gen import generate_world
+
+    world = generate_world(seed=seed, num_civs=3)
+    ecology_runtime = _create_ecology_runtime(world)
+    politics_runtime = _create_politics_runtime(world)
+    return _advance_world(
+        world,
+        seed,
+        turns,
+        ecology_runtime=ecology_runtime,
+        politics_runtime=politics_runtime,
+    )
+
+
+def _make_hybrid_world(seed: int, turns: int = 50):
+    """Run a hybrid world with a bridge bound to the same world instance."""
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.world_gen import generate_world
+
+    world = generate_world(seed=seed, num_civs=3)
+    world.agent_mode = "hybrid"
+    bridge = AgentBridge(world, mode="hybrid")
+    return _advance_world(world, seed, turns, agent_bridge=bridge)
 
 
 def _make_snapshot(agents: list[dict]) -> pa.RecordBatch:
@@ -189,10 +233,11 @@ class TestAssimilationTiming:
 class TestEconomyRegression:
     """M36 satisfaction penalty should not cause economy/stability collapse.
 
-    Since hybrid mode requires Rust, we compare agents=off (baseline) against
-    itself with agent_mode explicitly set to None, verifying that economy and
-    stability statistics remain in a reasonable range.  The hybrid comparison
-    is gated behind _AGENTS_SKIP.
+    Post-M54b, treasury is no longer comparable across modes because the
+    production --agents=off runtime intentionally leaves the goods economy
+    disabled while hybrid mode routes through the Rust economy + merchant-tax
+    path. Keep the off-mode sanity checks, and use stability (not treasury) as
+    the cross-mode non-collapse signal for hybrid.
     """
 
     @pytest.mark.slow
@@ -214,45 +259,42 @@ class TestEconomyRegression:
 
     @pytest.mark.slow
     @_AGENTS_SKIP
-    def test_economy_same_order_of_magnitude_hybrid(self):
-        """Hybrid mode mean treasury stays in the same order of magnitude as baseline."""
-        from chronicler.agent_bridge import AgentBridge
-
+    def test_stability_same_order_of_magnitude_hybrid(self):
+        """Hybrid mode stability stays in the same rough band as production off-mode."""
         seeds = range(5)
-        baselines: list[float] = []
-        hybrid_vals: list[float] = []
+        baseline_stabilities: list[float] = []
+        hybrid_stabilities: list[float] = []
 
         for seed in seeds:
-            # Baseline: agents=off
-            world_base, _ = _make_world(seed=seed, turns=50, agent_mode=None)
+            # Baseline: current production off-mode wiring (ecology/politics
+            # runtimes enabled, goods economy still intentionally frozen).
+            world_base, _ = _make_world_with_off_mode_runtimes(seed=seed, turns=50)
             living_base = [c for c in world_base.civilizations if c.population > 0]
             if living_base:
-                baselines.append(sum(c.treasury for c in living_base) / len(living_base))
+                baseline_stabilities.append(
+                    sum(c.stability for c in living_base) / len(living_base)
+                )
 
-            # M36: hybrid mode
-            world_h = __import__("chronicler.world_gen", fromlist=["generate_world"]).generate_world(
-                seed=seed, num_civs=3
-            )
-            world_h.agent_mode = "hybrid"
-            bridge = AgentBridge(world_h, mode="hybrid")
-            world_h2, _ = _make_world(seed=seed, turns=50, agent_mode="hybrid",
-                                      agent_bridge=bridge)
-            living_h = [c for c in world_h2.civilizations if c.population > 0]
+            # Hybrid: bind the bridge to the same world instance we advance.
+            world_h, _ = _make_hybrid_world(seed=seed, turns=50)
+            living_h = [c for c in world_h.civilizations if c.population > 0]
             if living_h:
-                hybrid_vals.append(sum(c.treasury for c in living_h) / len(living_h))
+                hybrid_stabilities.append(
+                    sum(c.stability for c in living_h) / len(living_h)
+                )
 
-        if not baselines or not hybrid_vals:
+        if not baseline_stabilities or not hybrid_stabilities:
             pytest.skip("No living civilizations to compare")
 
-        mean_base = statistics.mean(baselines)
-        mean_hyb = statistics.mean(hybrid_vals)
+        mean_base = statistics.mean(baseline_stabilities)
+        mean_hyb = statistics.mean(hybrid_stabilities)
         if mean_base == 0:
-            pytest.skip("Baseline treasury is zero; ratio comparison is not meaningful")
+            pytest.skip("Baseline stability is zero; ratio comparison is not meaningful")
 
         ratio = mean_hyb / mean_base
-        assert 0.5 <= ratio <= 2.0, (
-            f"Hybrid treasury={mean_hyb:.1f} vs baseline={mean_base:.1f} "
-            f"(ratio {ratio:.2f}) left the expected same-order-of-magnitude band [0.5, 2.0]"
+        assert 0.5 <= ratio <= 1.5, (
+            f"Hybrid stability={mean_hyb:.1f} vs production off-mode baseline={mean_base:.1f} "
+            f"(ratio {ratio:.2f}) left the expected non-collapse band [0.5, 1.5]"
         )
 
 

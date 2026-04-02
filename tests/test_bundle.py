@@ -1,6 +1,7 @@
 """Tests for snapshot models and bundle assembly."""
 import argparse
 import json
+from pathlib import Path
 import pytest
 from chronicler.models import (
     CivSnapshot, RelationshipSnapshot, TurnSnapshot, TechEra, Region,
@@ -10,6 +11,32 @@ from chronicler.scenario import RegionOverride, ScenarioConfig, apply_scenario
 from chronicler.models import WorldState, Leader, Civilization, Relationship, Disposition
 from chronicler.bundle import assemble_bundle, write_bundle, write_agent_events_arrow, HAS_ARROW
 from chronicler.models import ChronicleEntry, NarrativeRole
+
+VIEWER_SAMPLE_BUNDLE = Path("viewer/src/__fixtures__/sample_bundle.json")
+VIEWER_REQUIRED_TOP_LEVEL_KEYS = {
+    "world_state",
+    "history",
+    "events_timeline",
+    "named_events",
+    "chronicle_entries",
+    "era_reflections",
+    "metadata",
+}
+VIEWER_REQUIRED_METADATA_KEYS = {
+    "seed",
+    "total_turns",
+    "generated_at",
+    "sim_model",
+    "narrative_model",
+    "scenario_name",
+    "interestingness_score",
+}
+VIEWER_REQUIRED_HISTORY_KEYS = {
+    "turn",
+    "civ_stats",
+    "region_control",
+    "relationships",
+}
 
 
 def _entry(turn, narrative):
@@ -267,6 +294,37 @@ class TestArcSummaryIsolation:
         assert gp.arc_summary == "LLM generated text."
 
 
+class TestViewerFixtureContract:
+    def test_sample_bundle_fixture_has_required_viewer_contract(self):
+        fixture = json.loads(VIEWER_SAMPLE_BUNDLE.read_text(encoding="utf-8"))
+
+        assert VIEWER_REQUIRED_TOP_LEVEL_KEYS.issubset(fixture.keys())
+        assert VIEWER_REQUIRED_METADATA_KEYS.issubset(fixture["metadata"].keys())
+        assert fixture["history"]
+        assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(fixture["history"][0].keys())
+
+    def test_sample_bundle_fixture_matches_generated_legacy_contract(self, tmp_path):
+        from chronicler.main import execute_run
+
+        args = argparse.Namespace(
+            seed=42, turns=10, civs=4, regions=8,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+        )
+        execute_run(args)
+
+        fixture = json.loads(VIEWER_SAMPLE_BUNDLE.read_text(encoding="utf-8"))
+        generated = json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+
+        assert VIEWER_REQUIRED_TOP_LEVEL_KEYS.issubset(generated.keys())
+        assert VIEWER_REQUIRED_METADATA_KEYS.issubset(generated["metadata"].keys())
+        assert VIEWER_REQUIRED_METADATA_KEYS.issubset(fixture["metadata"].keys())
+        assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(generated["history"][0].keys())
+        assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(fixture["history"][0].keys())
+
+
 class TestWriteBundle:
     def test_write_bundle_creates_file(self, tmp_path):
         bundle = {"world_state": {}, "metadata": {"seed": 42}}
@@ -372,9 +430,9 @@ class TestAgentEventsSerialization:
     def _make_events(self):
         return [
             AgentEventRecord(turn=1, agent_id=42, event_type="migration",
-                             region=3, target_region=7, civ_affinity=0, occupation=0),
+                             region=3, target_region=7, civ_affinity=0, occupation=0, belief=2),
             AgentEventRecord(turn=1, agent_id=99, event_type="death",
-                             region=5, target_region=0, civ_affinity=1, occupation=1),
+                             region=5, target_region=0, civ_affinity=1, occupation=1, belief=None),
         ]
 
     def test_no_arrow_file_when_events_empty(self, sample_world, tmp_path):
@@ -423,6 +481,7 @@ class TestAgentEventsSerialization:
         assert table.column("target_region").to_pylist() == [7, 0]
         assert table.column("civ_affinity").to_pylist() == [0, 1]
         assert table.column("occupation").to_pylist() == [0, 1]
+        assert table.column("belief").to_pylist() == [2, None]
 
     @pytest.mark.skipif(not HAS_ARROW, reason="pyarrow not installed")
     def test_write_bundle_writes_arrow_sidecar(self, sample_world, tmp_path):
@@ -454,6 +513,7 @@ class TestAgentEventsSerialization:
         assert schema.field("target_region").type == pa.uint16()
         assert schema.field("civ_affinity").type == pa.uint16()
         assert schema.field("occupation").type == pa.uint8()
+        assert schema.field("belief").type == pa.uint8()
 
 
 try:

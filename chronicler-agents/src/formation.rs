@@ -401,6 +401,7 @@ pub fn death_cleanup_sweep(
                     target_region: bond_type as u16,
                     civ_affinity: pool.civ_affinities[slot],
                     occupation: pool.occupations[slot],
+                    belief: pool.beliefs[slot],
                     turn,
                 });
                 crate::relationships::swap_remove_rel(pool, slot, i);

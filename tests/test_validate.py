@@ -1,4 +1,19 @@
 import json
+import pytest
+
+
+def _write_minimal_bundle(seed_dir, seed: int = 42, total_turns: int = 20):
+    seed_dir.mkdir()
+    bundle = {
+        "metadata": {"generated_at": "2026-04-01T00:00:00Z", "seed": seed, "total_turns": total_turns},
+        "world_state": {},
+        "history": [],
+        "events_timeline": [],
+        "named_events": [],
+        "chronicle_entries": [],
+        "era_reflections": {},
+    }
+    (seed_dir / "chronicle_bundle.json").write_text(json.dumps(bundle), encoding="utf-8")
 
 
 def test_determinism_scrubbed_comparison():
@@ -831,3 +846,150 @@ def test_run_regression_summary_skips_bundle_gini_when_final_sidecar_is_empty():
     result = run_regression_summary([run_with_gini, run_without_measurable_gini])
 
     assert result["gini_in_range_fraction"] == 1.0
+
+
+def test_run_oracles_rejects_unknown_names(tmp_path):
+    from chronicler.validate import ValidationRequestError, run_oracles
+
+    with pytest.raises(ValidationRequestError, match="unknown_oracles"):
+        run_oracles(tmp_path, ["bogus"])
+
+
+def test_run_oracles_needs_skip_includes_reason_when_sidecars_absent(tmp_path):
+    from chronicler.validate import run_oracles
+
+    seed_dir = tmp_path / "seed_42"
+    _write_minimal_bundle(seed_dir)
+
+    report = run_oracles(tmp_path, ["needs"])
+
+    assert report["results"]["needs"]["status"] == "SKIP"
+    assert report["results"]["needs"]["reason"] == "no_needs_sidecars"
+
+
+def test_run_oracles_regression_skips_when_agent_events_sidecar_missing(tmp_path):
+    from chronicler.validate import run_oracles
+
+    seed_dir = tmp_path / "seed_42"
+    _write_minimal_bundle(seed_dir)
+
+    report = run_oracles(tmp_path, ["regression"])
+
+    assert report["results"]["regression"]["status"] == "SKIP"
+    assert report["results"]["regression"]["reason"] == "incomplete_agent_event_inputs"
+
+
+def test_validate_main_returns_nonzero_for_unknown_oracle(tmp_path, capsys):
+    from chronicler.validate import main
+
+    exit_code = main(["--batch-dir", str(tmp_path), "--oracles", "bogus"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "unknown_oracles" in payload["reason"]
+
+
+def test_validate_main_returns_nonzero_for_missing_batch_path(tmp_path, capsys):
+    from chronicler.validate import main
+
+    missing = tmp_path / "missing_batch"
+    exit_code = main(["--batch-dir", str(missing), "--oracles", "needs"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "batch path does not exist" in payload["reason"]
+
+
+def test_validate_main_returns_nonzero_when_pyarrow_missing_for_required_arrow_input(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    from chronicler import validate
+
+    seed_dir = tmp_path / "seed_42"
+    _write_minimal_bundle(seed_dir)
+    (seed_dir / "agent_events.arrow").write_bytes(b"not-a-real-arrow-file")
+
+    monkeypatch.setattr("chronicler.validation_io._has_pyarrow", lambda: False)
+
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", "regression"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "regression oracle requires pyarrow" in payload["reason"]
+
+
+@pytest.mark.parametrize(
+    ("oracle_name", "expected_reason"),
+    [
+        ("needs", "no_needs_sidecars"),
+        ("cohort", "no_community_seed_pairs"),
+    ],
+)
+def test_validate_main_skips_when_pyarrow_missing_but_oracle_has_no_other_inputs(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    oracle_name,
+    expected_reason,
+):
+    from chronicler import validate
+
+    seed_dir = tmp_path / "seed_42"
+    _write_minimal_bundle(seed_dir)
+    (seed_dir / "agent_events.arrow").write_bytes(b"not-a-real-arrow-file")
+
+    monkeypatch.setattr("chronicler.validation_io._has_pyarrow", lambda: False)
+    monkeypatch.setattr("chronicler.validation_io._load_agent_events", lambda _seed_dir: [])
+
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", oracle_name])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert payload["results"][oracle_name]["status"] == "SKIP"
+    assert payload["results"][oracle_name]["reason"] == expected_reason
+
+
+@pytest.mark.parametrize(
+    ("oracle_name", "required_files", "expected_phrase"),
+    [
+        ("needs", ["validation_needs.arrow", "agent_events.arrow"], "needs oracle requires pyarrow"),
+        (
+            "cohort",
+            ["validation_relationships.arrow", "validation_needs.arrow", "agent_events.arrow"],
+            "cohort oracle requires pyarrow",
+        ),
+    ],
+)
+def test_validate_main_returns_nonzero_when_pyarrow_missing_for_required_oracle_inputs(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    oracle_name,
+    required_files,
+    expected_phrase,
+):
+    from chronicler import validate
+
+    seed_dir = tmp_path / "seed_42"
+    _write_minimal_bundle(seed_dir)
+    for filename in required_files:
+        (seed_dir / filename).write_bytes(b"not-a-real-arrow-file")
+
+    monkeypatch.setattr("chronicler.validation_io._has_pyarrow", lambda: False)
+
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", oracle_name])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert expected_phrase in payload["reason"]

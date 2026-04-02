@@ -24,6 +24,37 @@ M62b is the substrate milestone. It should make the Phase 7.5 viewer capable of 
 - Browser fallback remains limited to live mode plus legacy single-artifact bundle viewing.
 - M62b is where the real query model, cache/index policy, spatial foundation, and benchmark gate land.
 
+## Shell and Design-System Lock From The 2026-03-31 Mockup Pass
+
+M62b should treat the recent Phase 7.5 mockup pass as a **provisional shell decision**, not just inspiration. The mockups converged on a usable common frame:
+
+- compact metadata header
+- dedicated timeline/scrubber rail directly below the header
+- left narrative/event rail
+- map-first center canvas
+- persistent right inspector rail
+
+This is now the planning-default shell for M62b/M62c. Do not design the substrate around separate bespoke layouts for Overview, Character, Trade, and Campaign.
+
+### Primary implementation takeaway
+
+- **Overview** is the anchor shell and should define the reusable frame.
+- **Character** should keep the same shell while swapping in denser dossier modules.
+- **Trade** and **Campaign** should feel like operational modes of the same map workspace, not separate products.
+
+### Provisional visual-system lock
+
+The design work also converged on a consistent visual language that implementation should preserve at the component level:
+
+- charcoal/slate app chrome
+- muted brass/gold dividers
+- restrained cyan interaction state
+- subdued dark-parchment terrain treatment
+- editorial serif headings plus compact sans-serif data labels
+- compact inspector cards and mini-charts instead of giant dashboard panes
+
+This is not a demand for exact pixel-perfect mockup fidelity. It is a warning against needless visual drift while the shell is being built.
+
 ---
 
 ## Required Inputs From M62a
@@ -58,6 +89,9 @@ If any of the above is still unsettled, M62b risks designing the data plane arou
 - [ ] Support explicit civ selection from both map interaction and a persistent selector control.
 - [ ] Ensure region/route/army clicks update the right rail predictably.
 - [ ] Keep left-rail narrative/event shell structure in place even if M62c fills in richer content later.
+- [ ] Build the shell as reusable primitives so Character, Trade, and Campaign reuse the same frame rather than branching into one-off layouts.
+- [ ] Keep the center map visually dominant even in Character mode; deep-dive modules can dock or overlay, but should not erase shell continuity.
+- [ ] Preserve the dark analytics workspace as the primary mode; defer any lighter archive/presentation mode to later polish.
 
 ### Workstream C: Performance and Benchmark Gate
 
@@ -72,6 +106,7 @@ If any of the above is still unsettled, M62b risks designing the data plane arou
 - [ ] Define which overlays can coexist and which are mutually exclusive for readability.
 - [ ] Ensure the map color grammar lets territory, flows, fog, and diagnostics coexist without turning into noise.
 - [ ] Keep agent-detail drill-down conditional and zoom-gated; do not promise full all-agent rendering at every zoom level.
+- [ ] Explicitly reserve distinct overlay grammar for territory/base map, trade flows, campaign fronts, and knowledge/fog so the four canonical screen modes can share one map renderer cleanly.
 
 ### Workstream E: Compatibility and Handoff
 
@@ -102,6 +137,7 @@ If any of the above is still unsettled, M62b risks designing the data plane arou
 - [ ] Inspector state stays synchronized with selection and turn changes
 - [ ] Query responses remain slice-sized and do not regress into giant JSON IPC payloads
 - [ ] Left-rail shell supports chronicle/event/tool navigation even if M62c still owns richer content
+- [ ] Overview, Character, Trade, and Campaign can all be expressed as variants of the same shell without layout forks
 - [ ] M62c handoff notes are written down
 
 ---
@@ -115,6 +151,7 @@ If any of the above is still unsettled, M62b risks designing the data plane arou
 | React performance arguments become ideological | Can trigger premature framework churn | Use the explicit benchmark trace before changing frameworks |
 | Narrative shell gets postponed because M62b is "data plane only" | Leaves the left rail structurally wrong for M62c | Land shell structure now, richer content later |
 | Overlay combinations become unreadable | Makes the map impressive in screenshots but unusable in practice | Define coexistence and LOD rules as first-class work |
+| Character or campaign views drift into bespoke layouts | Breaks product cohesion and multiplies component cost | Treat Overview as the shell anchor and reuse it across modes |
 
 ---
 

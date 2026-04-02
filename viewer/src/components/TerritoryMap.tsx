@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   forceSimulation,
   forceLink,
@@ -136,8 +136,6 @@ export function TerritoryMap({
   onToggleRelationships,
 }: TerritoryMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [nodes, setNodes] = useState<MapNode[]>([]);
-  const [links, setLinks] = useState<MapLink[]>([]);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const WIDTH = 500;
@@ -162,7 +160,9 @@ export function TerritoryMap({
       : null;
 
     const newNodes: MapNode[] = regions.map((r) => {
-      let x: number, y: number, pinned: boolean;
+      let x: number;
+      let y: number;
+      let pinned: boolean;
       if (r.x !== null && r.y !== null) {
         x = r.x * WIDTH;
         y = r.y * HEIGHT;
@@ -180,7 +180,7 @@ export function TerritoryMap({
       return {
         id: r.name,
         region: r,
-        controller: initialControl[r.name] ?? r.controller,
+        controller: currentSnapshot?.region_control[r.name] ?? initialControl[r.name] ?? r.controller,
         x,
         y,
         fx: pinned ? x : undefined,
@@ -189,16 +189,9 @@ export function TerritoryMap({
       };
     });
 
-    const edgeData = buildEdges(regions, history, initialControl);
-    const newLinks: MapLink[] = edgeData.map((e) => ({
-      id: `${e.source}--${e.target}`,
-      source: e.source,
-      target: e.target,
-    }));
-
     if (!hasPins && !circlePos) {
       const sim = forceSimulation<MapNode>(newNodes)
-        .force("link", forceLink<MapNode, MapLink>(newLinks).id((d) => d.id).distance(80))
+        .force("link", forceLink<MapNode, MapLink>([]).id((d) => d.id).distance(80))
         .force("charge", forceManyBody().strength(-200))
         .force("center", forceCenter(WIDTH / 2, HEIGHT / 2))
         .force("collide", forceCollide(30))
@@ -214,15 +207,14 @@ export function TerritoryMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regionNamesKey, initialControl]);
 
-  useEffect(() => {
-    if (!currentSnapshot) return;
-    setNodes((prev) =>
-      prev.map((n) => ({
-        ...n,
-        controller: currentSnapshot.region_control[n.id] ?? null,
-      })),
-    );
-  }, [currentSnapshot]);
+  const links = useMemo(() => {
+    const edgeData = buildEdges(regions, history, initialControl);
+    return edgeData.map((e) => ({
+      id: `${e.source}--${e.target}`,
+      source: e.source,
+      target: e.target,
+    }));
+  }, [regions, history, initialControl]);
 
   const nodeMap = useMemo(() => {
     const m = new Map<string, MapNode>();

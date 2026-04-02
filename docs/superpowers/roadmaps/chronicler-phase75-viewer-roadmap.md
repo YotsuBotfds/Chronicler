@@ -116,6 +116,57 @@ Future agents should preserve this split unless there is a concrete, measured re
 - Replacing React before benchmark evidence exists
 - Heavy browser-only data infrastructure if the Tauri data plane already solves the problem
 
+## Entry Flow and Product Front Door
+
+Phase 7.5 should not assume users arrive only by opening an already-exported bundle from disk. The product direction is stronger if the viewer becomes the front door for setup, execution, and inspection.
+
+### Preferred entry points
+
+- **New World:** configure scenario/world options, seed, turn count, and narration mode, then launch directly into a run.
+- **Batch Lab:** run many seeds, rank results by interestingness, compare reports, and open selected runs in the full viewer.
+- **Open Existing:** open an already-exported bundle directly for inspection.
+
+### Why this belongs in the viewer plan
+
+- The current codebase already has useful setup-lobby and batch-run surfaces that can be evolved instead of discarded.
+- A Tauri-first local app is a better place than the CLI for non-coder workflows such as "generate a world and inspect it immediately."
+- Interestingness-ranked batch workflows are part of Chronicler's value proposition, not just a developer-only auxiliary tool.
+
+### Product-flow planning default
+
+Treat setup, execution, and viewing as one continuous application flow:
+
+1. configure a world or batch job
+2. run it
+3. surface progress/status
+4. auto-open the resulting bundle/report in the viewer
+
+The happy path should not require users to manually hunt for output files after a run finishes.
+
+### Single-run guidance
+
+- The single-run setup surface should evolve from the current setup lobby rather than being replaced gratuitously.
+- "Narration mode" should be a first-class run choice, with the UX phrased around behavior (`Off`, `Local`, `API`) rather than exposing raw implementation details where possible.
+- On successful completion, the app should move straight into the main viewer shell for the generated run.
+
+### Batch guidance
+
+- Batch mode should evolve from the current batch-run and batch-report tooling rather than becoming a separate sidecar product.
+- Batch results should be rankable and browsable by interestingness, with at least seed, score, major event counts, and anomaly signals visible in the ranked view.
+- Users should be able to open a selected run in the full viewer from the ranked list.
+- Side-by-side comparison remains valuable, but should sit behind the ranked-results workflow rather than replacing it.
+- A future "narrate top N runs" workflow is a plausible extension, but it is not required for initial Phase 7.5 scope.
+
+### Implementation posture
+
+This does **not** mean Phase 7.5 must finish every setup/batch polish feature before the viewer ships. It does mean the roadmap should preserve a clean path for:
+
+- setup/lobby integration into the Tauri shell
+- batch execution visibility and report ranking
+- direct handoff from completed run -> viewer open state
+
+These should be treated as product-integration affordances that strengthen the viewer, not as unrelated tooling.
+
 ## Milestone Map
 
 | # | Milestone | Depends On | Est. Days | Goal |
@@ -163,6 +214,17 @@ Scope note: this is doc-first and scaffold-first preparation only. Net-new Phase
 
 The current image set should be treated as moodboard input, not as a locked UI spec. It is still useful because it converges on a recognizable viewer shape and visual language that fits the Phase 7.5 goals.
 
+### 2026-03-31 design synthesis
+
+A focused mockup pass on 2026-03-31 produced a more coherent provisional shell than the earlier loose inspiration set. Treat the result as **execution guidance for M62b/M62c**, not as final pixel-perfect art direction:
+
+- the strongest outputs converged on one reusable shell instead of per-mode one-off layouts
+- **Overview** is the anchor view and should define the shell reused by Character, Trade, and Campaign
+- **Trade** and **Campaign** validated the dark analytics workspace especially well
+- **Character** validated the required content modules, but also showed the main failure mode to avoid: drifting into an editorial dossier that no longer feels like the same app shell
+
+The main lesson: Phase 7.5 should implement **one durable product shell with multiple inspection modes**, not four bespoke screen families.
+
 ### Primary visual direction
 
 - **Primary mode:** dark cartographic analytics workspace.
@@ -188,6 +250,31 @@ The mockups consistently point toward one durable layout:
 
 This should be treated as the default shell for M62b/M62c unless benchmarking or usability testing gives a concrete reason to deviate.
 
+### Provisional shell lock from the 2026-03-31 mockup pass
+
+Until real implementation pressure proves otherwise, use the following as the default shell model:
+
+- **Header:** compact top metadata bar with world/run identity, schema version, current turn, performance, and live/archive state
+- **Timeline rail:** a dedicated scrubber directly under the header with era bands, major event markers, and optional causal-link cues
+- **Left rail:** chronicle/event/navigation surface; narrow enough to preserve map space, rich enough to keep narrative context first-class
+- **Center canvas:** map-first workspace with subdued cartographic terrain, quiet borders, and overlay-first interaction
+- **Right rail:** persistent inspector for civ/character/settlement/route/army detail with compact cards and small high-value charts
+
+Treat these as reusable shell primitives rather than mode-specific layout inventions. Character, Trade, and Campaign should all read as variants of the same application frame.
+
+### Provisional design-system lock from the 2026-03-31 mockup pass
+
+These visual decisions have now appeared consistently enough to guide implementation:
+
+- charcoal/slate chrome as the default app frame
+- muted brass/gold dividers and emphasis lines
+- restrained cyan for interaction state and selected overlays
+- dark parchment / subdued cartographic terrain as the main map treatment
+- editorial serif headings paired with compact sans-serif data labels
+- card-heavy inspectors with compact graphs instead of oversized dashboard canvases
+
+This should be read as a **product-shell direction**, not as a demand for exact colors or pixel values from the mockups.
+
 ### Reusable interaction patterns worth carrying forward
 
 - top timeline with era bands, event markers, and causal-link cues
@@ -207,6 +294,18 @@ This should be treated as the default shell for M62b/M62c unless benchmarking or
 - Civ and settlement panels should prioritize composition, pressure, and trend summaries over raw field dumps.
 - One panel should not try to show every graph at once; summaries first, deeper drill-down on demand.
 - Right-rail inspectors should prefer tabs or collapsible sections when density climbs past a single-screen overview.
+- Preserve shell continuity across modes. A character-focused screen can become denser, but it should still look like the same app as Overview rather than a separate poster-like artifact.
+
+### Canonical screen archetypes from the mockup pass
+
+The design work now gives M62b/M62c four concrete inspection archetypes to plan around:
+
+- **Overview / Strategic Command:** map-first civ/region shell and the canonical layout anchor
+- **Character Detail / Great-Person Deep-Dive:** memory, needs, relationships, dynasty, artifact provenance, movement, and Mule state
+- **Trade Diagnostics / Logistics Observability:** route profitability, stale-vs-current beliefs, in-transit goods, market pressure, and role diagnostics
+- **Campaign and Validation / Military Intelligence:** fronts, marches, supply, battle summary, knowledge freshness, asabiya, and oracle/validation affordances
+
+These archetypes should drive reusable panel and overlay design rather than separate vertical products.
 
 ### Narrative and event-log guidance
 
@@ -232,6 +331,7 @@ Do not cargo-cult the mockups literally. Several common mockup failures should b
 - fake "everything visible at once" density that falls apart in real data
 - decorative chrome that competes with the map
 - mode-specific one-off layouts that prevent reuse across trade/campaign/knowledge/character inspection
+- oversized editorial title treatments that consume too much vertical space in what should be a software shell
 
 ## M62a: Export Contracts and Bundle v2
 

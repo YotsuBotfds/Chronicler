@@ -29,6 +29,60 @@ def _make_args(tmp_path, turns=5, pause_every=None):
     )
 
 
+def _make_running_init_data():
+    return {
+        "type": "init",
+        "state": "running",
+        "total_turns": 3,
+        "pause_every": 10,
+        "current_turn": 3,
+        "world_state": {
+            "name": "Validation World",
+            "seed": 42,
+            "turn": 3,
+            "regions": [],
+            "civilizations": [],
+            "relationships": {},
+            "events_timeline": [],
+            "named_events": [],
+            "scenario_name": None,
+        },
+        "history": [
+            {"turn": 1},
+            {"turn": 2},
+            {"turn": 3},
+        ],
+        "chronicle_entries": {},
+        "events_timeline": [],
+        "named_events": [],
+        "era_reflections": {},
+        "metadata": {
+            "seed": 42,
+            "total_turns": 3,
+            "generated_at": "2026-04-01T00:00:00",
+            "sim_model": "sim-test",
+            "narrative_model": "narr-test",
+            "scenario_name": None,
+            "interestingness_score": None,
+        },
+    }
+
+
+@pytest.fixture
+def running_live_server():
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    server._server_state = "running"
+    server._init_data = _make_running_init_data()
+    server.start()
+
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
 @pytest.fixture
 def live_env(tmp_path):
     """Set up a LiveServer with a running simulation in a background thread.
@@ -375,3 +429,153 @@ async def test_single_client_enforcement(live_env):
             assert "already connected" in msg["message"].lower()
 
         env.server.quit_event.set()
+
+
+@pytest.mark.asyncio
+async def test_batch_load_bundle_round_trip(tmp_path, monkeypatch):
+    """Client can load a batch result bundle directly into the viewer session."""
+    from chronicler.live import LiveServer
+
+    monkeypatch.chdir(tmp_path)
+    bundle_dir = tmp_path / "output" / "batch_gui_test" / "seed_101"
+    bundle_dir.mkdir(parents=True)
+    bundle_path = bundle_dir / "chronicle_bundle.json"
+    bundle_path.write_text(json.dumps({
+        "world_state": {
+            "name": "Batch World",
+            "seed": 101,
+            "turn": 12,
+            "regions": [],
+            "civilizations": [],
+            "relationships": {},
+            "events_timeline": [],
+            "named_events": [],
+            "scenario_name": None,
+        },
+        "history": [],
+        "events_timeline": [],
+        "named_events": [],
+        "chronicle_entries": {},
+        "era_reflections": {},
+        "metadata": {
+            "seed": 101,
+            "total_turns": 12,
+            "generated_at": "2026-03-31T00:00:00",
+            "sim_model": "sim-test",
+            "narrative_model": "narr-test",
+            "scenario_name": None,
+            "interestingness_score": 64.0,
+        },
+    }))
+
+    server = LiveServer(port=0)
+    server.start()
+
+    try:
+        async with ws_client.connect(f"ws://localhost:{server._actual_port}") as ws:
+            await ws.send(json.dumps({
+                "type": "batch_load_bundle",
+                "path": str(bundle_path),
+            }))
+
+            raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            msg = json.loads(raw)
+
+        assert msg["type"] == "bundle_loaded"
+        assert msg["path"] == str(bundle_path.resolve())
+        assert msg["bundle"]["metadata"]["seed"] == 101
+        assert msg["bundle"]["world_state"]["name"] == "Batch World"
+    finally:
+        server.stop()
+
+
+@pytest.mark.asyncio
+async def test_rejects_non_object_and_bad_narrate_range(running_live_server):
+    """Malformed live messages get explicit errors instead of disappearing."""
+    async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+        init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+        init_msg = json.loads(init_raw)
+        assert init_msg["state"] == "running"
+
+        await ws.send(json.dumps([]))
+        root_error = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert root_error["type"] == "error"
+        assert "JSON objects" in root_error["message"]
+
+        await ws.send(json.dumps({
+            "type": "narrate_range",
+            "start_turn": 3,
+            "end_turn": 2,
+        }))
+        order_error = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert order_error["type"] == "error"
+        assert "start_turn" in order_error["message"]
+
+        await ws.send(json.dumps({
+            "type": "narrate_range",
+            "start_turn": 0,
+            "end_turn": 2,
+        }))
+        bounds_error = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert bounds_error["type"] == "error"
+        assert "available turns" in bounds_error["message"]
+
+
+@pytest.mark.asyncio
+async def test_start_and_batch_path_type_validation():
+    """Start and batch loading reject malformed payload types."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    server._lobby_init = {
+        "type": "init",
+        "state": "lobby",
+        "scenarios": [],
+        "models": [],
+        "defaults": {"turns": 50, "civs": 4, "regions": 8, "seed": None},
+    }
+    server.start()
+
+    try:
+        async with ws_client.connect(f"ws://localhost:{server._actual_port}") as ws:
+            lobby_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            lobby_msg = json.loads(lobby_raw)
+            assert lobby_msg["state"] == "lobby"
+
+            await ws.send(json.dumps({
+                "type": "start",
+                "scenario": None,
+                "turns": "bad",
+                "seed": 42,
+                "civs": 2,
+                "regions": 3,
+                "sim_model": "sim",
+                "narrative_model": "narr",
+                "resume_state": None,
+            }))
+            start_error = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+            assert start_error["type"] == "error"
+            assert "turns" in start_error["message"]
+
+            await ws.send(json.dumps({
+                "type": "batch_load_bundle",
+                "path": 123,
+            }))
+            path_error = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+            assert path_error["type"] == "error"
+            assert "path" in path_error["message"]
+
+            await ws.send(json.dumps({
+                "type": "batch_start",
+                "config": {
+                    "seed_start": 1,
+                    "seed_count": 2,
+                    "turns": 3,
+                    "workers": "bad",
+                },
+            }))
+            batch_error = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+            assert batch_error["type"] == "batch_error"
+            assert "workers" in batch_error["message"]
+    finally:
+        server.stop()

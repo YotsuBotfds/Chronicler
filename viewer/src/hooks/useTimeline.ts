@@ -6,16 +6,21 @@ interface TimelineOptions {
 
 export function useTimeline(maxTurn: number, options?: TimelineOptions) {
   const liveMode = options?.liveMode ?? false;
-  const [currentTurn, setCurrentTurn] = useState(liveMode ? maxTurn : 1);
+  const [storedTurn, setStoredTurn] = useState(liveMode ? maxTurn : 1);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [followMode, setFollowMode] = useState(liveMode);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const effectiveFollowMode = liveMode && (followMode || storedTurn >= maxTurn);
+  const currentTurn = effectiveFollowMode
+    ? maxTurn
+    : Math.max(1, Math.min(storedTurn, maxTurn));
+
   const seek = useCallback(
     (turn: number) => {
       const clamped = Math.max(1, Math.min(turn, maxTurn));
-      setCurrentTurn(clamped);
+      setStoredTurn(clamped);
       if (liveMode) {
         setFollowMode(clamped >= maxTurn);
       }
@@ -25,13 +30,6 @@ export function useTimeline(maxTurn: number, options?: TimelineOptions) {
 
   const play = useCallback(() => setPlaying(true), []);
   const pause = useCallback(() => setPlaying(false), []);
-
-  // Follow mode: auto-advance when maxTurn increases
-  useEffect(() => {
-    if (followMode && liveMode) {
-      setCurrentTurn(maxTurn);
-    }
-  }, [followMode, liveMode, maxTurn]);
 
   useEffect(() => {
     if (!playing) {
@@ -43,7 +41,7 @@ export function useTimeline(maxTurn: number, options?: TimelineOptions) {
     }
 
     intervalRef.current = setInterval(() => {
-      setCurrentTurn((prev) => {
+      setStoredTurn((prev) => {
         const next = prev + 1;
         if (next > maxTurn) {
           setPlaying(false);
@@ -61,5 +59,15 @@ export function useTimeline(maxTurn: number, options?: TimelineOptions) {
     };
   }, [playing, speed, maxTurn]);
 
-  return { currentTurn, playing, speed, seek, play, pause, setSpeed, followMode, setFollowMode };
+  return {
+    currentTurn,
+    playing,
+    speed,
+    seek,
+    play,
+    pause,
+    setSpeed,
+    followMode: effectiveFollowMode,
+    setFollowMode,
+  };
 }

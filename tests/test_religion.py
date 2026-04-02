@@ -84,6 +84,29 @@ def test_compute_martyrdom_boosts_accepts_dict_records():
     assert region.martyrdom_boost > 0.0
 
 
+def test_compute_martyrdom_boosts_accepts_agent_event_records():
+    """Runtime-shaped AgentEventRecord deaths preserve belief for martyrdom filtering."""
+    region = _make_region(name="R0")
+    region.persecution_intensity = 0.5
+    region.majority_belief = 0
+    dead = [
+        AgentEventRecord(
+            turn=1,
+            agent_id=1,
+            event_type="death",
+            region=0,
+            target_region=0,
+            civ_affinity=0,
+            occupation=4,
+            belief=1,
+        )
+    ]
+
+    compute_martyrdom_boosts([region], dead)
+
+    assert region.martyrdom_boost > 0.0
+
+
 # ---------------------------------------------------------------------------
 # TestDoctrineGeneration
 # ---------------------------------------------------------------------------

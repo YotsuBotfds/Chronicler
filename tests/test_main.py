@@ -1,6 +1,7 @@
 """Tests for the main entry point — end-to-end with mocked LLM."""
 import argparse
 import json
+import logging
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
@@ -324,6 +325,54 @@ class TestExecuteRun:
         assert first_snapshot["civ_stats"][dead_civ.name]["alive"] is False
 
 
+def test_goal_enrichment_failure_logs_warning(tmp_path, caplog):
+    from chronicler.main import execute_run
+
+    caplog.set_level(logging.WARNING)
+    args = argparse.Namespace(
+        seed=42, turns=1, civs=2, regions=4,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None,
+    )
+    sim_client = MagicMock(model="test-sim")
+    narrative_client = MagicMock(model="test-narr")
+    narrative_client.complete.return_value = "Turn text."
+
+    with patch("chronicler.main.enrich_with_llm", side_effect=RuntimeError("LLM offline")):
+        execute_run(args, sim_client=sim_client, narrative_client=narrative_client)
+
+    assert any(
+        "LLM goal enrichment failed" in record.message and "proceeding with empty goals" in record.message
+        for record in caplog.records
+    )
+
+
+def test_llm_action_fallback_logs_civ_and_turn(tmp_path, caplog):
+    from chronicler.main import execute_run
+
+    caplog.set_level(logging.WARNING)
+    args = argparse.Namespace(
+        seed=42, turns=1, civs=2, regions=4,
+        output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=10,
+        llm_actions=True, scenario=None, pause_every=None,
+    )
+    sim_client = MagicMock(model="test-sim")
+    narrative_client = MagicMock(model="test-narr")
+    narrative_client.complete.return_value = "Turn text."
+
+    with patch("chronicler.main.NarrativeEngine.select_action", side_effect=RuntimeError("selector down")):
+        execute_run(args, sim_client=sim_client, narrative_client=narrative_client)
+
+    assert any(
+        "LLM action selection failed for civ=" in record.message and "turn=" in record.message
+        for record in caplog.records
+    )
+
+
 class TestNewCLIFlags:
     def test_batch_flag(self):
         from chronicler.main import _build_parser
@@ -440,6 +489,28 @@ def test_analyze_flag_parses():
     parser = _build_parser()
     args = parser.parse_args(["--analyze", "/some/path"])
     assert args.analyze == "/some/path"
+
+
+def test_narrative_voice_flag_rejected():
+    parser = _build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--narrative-voice", "epic"])
+
+
+def test_compare_without_analyze_rejected():
+    from chronicler.main import main
+
+    with patch("sys.argv", ["chronicler", "--compare", "baseline.json"]):
+        with pytest.raises(SystemExit):
+            main()
+
+
+def test_narrate_output_without_narrate_rejected():
+    from chronicler.main import main
+
+    with patch("sys.argv", ["chronicler", "--narrate-output", "narrated.json"]):
+        with pytest.raises(SystemExit):
+            main()
 
 
 class TestAgentsFlag:
@@ -744,8 +815,12 @@ class TestApiNarrationIntegration:
         # Metadata has narrator_mode and token counts
         meta = bundle["metadata"]
         assert meta["narrator_mode"] == "api"
+        assert meta["narrative_input_tokens"] > 0
+        assert meta["narrative_output_tokens"] > 0
         assert "api_input_tokens" in meta
         assert "api_output_tokens" in meta
+        assert meta["api_input_tokens"] == meta["narrative_input_tokens"]
+        assert meta["api_output_tokens"] == meta["narrative_output_tokens"]
         assert meta["api_input_tokens"] > 0
 
         # Era reflections should be empty (gated off in API mode)
@@ -816,6 +891,10 @@ class TestApiNarrationIntegration:
         # Check output metadata
         output = json.loads(narrate_output.read_text())
         assert output["metadata"]["narrator_mode"] == "api"
+        assert output["metadata"]["narrative_input_tokens"] > 0
+        assert output["metadata"]["narrative_output_tokens"] > 0
+        assert output["metadata"]["api_input_tokens"] == output["metadata"]["narrative_input_tokens"]
+        assert output["metadata"]["api_output_tokens"] == output["metadata"]["narrative_output_tokens"]
         assert output["metadata"]["api_input_tokens"] > 0
         assert output["metadata"]["api_output_tokens"] > 0
 

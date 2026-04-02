@@ -8,7 +8,7 @@ import pytest
 from chronicler.shadow import SHADOW_SCHEMA
 from chronicler.shadow_oracle import (
     shadow_oracle_report, load_shadow_data, extract_at_turn, OracleReport,
-    compare_distributions,
+    compare_distributions, _anderson_pvalue,
 )
 
 
@@ -134,3 +134,36 @@ class TestCompareDistributions:
         pop_results = [r for r in report.results
                        if hasattr(r, "metric") and r.metric == "population"]
         assert any(not r.passed for r in pop_results)
+
+    def test_identical_value_vectors_fail_correlation_honestly(self):
+        data = {
+            "turn": [100, 100, 100, 250, 250, 250, 500, 500, 500],
+            "agent_population": [50] * 9,
+            "agg_population": [50] * 9,
+            "agent_military": [10] * 9,
+            "agg_military": [10] * 9,
+            "agent_economy": [20] * 9,
+            "agg_economy": [20] * 9,
+            "agent_culture": [30] * 9,
+            "agg_culture": [30] * 9,
+            "agent_stability": [40] * 9,
+            "agg_stability": [40] * 9,
+        }
+
+        report = compare_distributions(data)
+        correlation_results = [r for r in report.results if hasattr(r, "metric1")]
+
+        assert correlation_results
+        assert all(not r.passed for r in correlation_results)
+        assert any(r.reason == "degenerate_agent_correlation" for r in correlation_results)
+        assert report.correlation_passed is False
+
+
+def test_anderson_pvalue_raises_on_unexpected_result_shape(monkeypatch):
+    class BadResult:
+        statistic = 1.0
+
+    monkeypatch.setattr("chronicler.shadow_oracle.anderson_ksamp", lambda samples: BadResult())
+
+    with pytest.raises(TypeError, match="pvalue/significance_level"):
+        _anderson_pvalue([np.array([1.0, 2.0]), np.array([1.0, 2.0])])

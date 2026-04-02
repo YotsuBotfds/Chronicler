@@ -38,7 +38,7 @@ pub fn snapshot_schema() -> Schema {
 /// Schema for `get_aggregates()` — per-civ stats.
 pub fn aggregates_schema() -> Schema {
     Schema::new(vec![
-        Field::new("civ_id", DataType::UInt16, false),
+        Field::new("civ_id", DataType::UInt8, false),
         Field::new("population", DataType::UInt32, false),
         Field::new("military", DataType::UInt32, false),
         Field::new("economy", DataType::UInt32, false),
@@ -64,6 +64,7 @@ pub fn events_schema() -> Schema {
         Field::new("target_region", DataType::UInt16, false),
         Field::new("civ_affinity", DataType::UInt16, false),
         Field::new("occupation", DataType::UInt8, false),
+        Field::new("belief", DataType::UInt8, false),
         Field::new("turn", DataType::UInt32, false),
     ])
 }
@@ -82,6 +83,7 @@ pub fn promotions_schema() -> Schema {
         Field::new("personality_label", DataType::Utf8, true),
         Field::new("parent_id_0", DataType::UInt32, false),
         Field::new("parent_id_1", DataType::UInt32, false),
+        Field::new("civ_id", DataType::UInt8, false),
     ])
 }
 

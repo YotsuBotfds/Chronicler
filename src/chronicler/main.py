@@ -8,6 +8,7 @@ Default: fully local inference via LM Studio. No API key required.
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -23,6 +24,19 @@ from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
 def _tracks_tokens(client: Any) -> bool:
     """Check if an LLM client tracks token usage (API clients)."""
     return hasattr(client, "total_input_tokens") and isinstance(client.total_input_tokens, int)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _set_narrative_token_metadata(metadata: dict[str, Any], client: Any) -> None:
+    """Populate canonical narrative token fields plus deprecated aliases."""
+    if not _tracks_tokens(client):
+        return
+    metadata["narrative_input_tokens"] = client.total_input_tokens
+    metadata["narrative_output_tokens"] = client.total_output_tokens
+    metadata["api_input_tokens"] = client.total_input_tokens
+    metadata["api_output_tokens"] = client.total_output_tokens
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, SettlementSummary, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
@@ -193,7 +207,11 @@ def execute_run(
         if sim_client:
             try:
                 enrich_with_llm(world, sim_client)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "LLM goal enrichment failed: %s; proceeding with empty goals",
+                    exc,
+                )
                 pass  # Goals remain empty on failure — non-fatal
 
     # Apply tuning overrides to world state
@@ -298,7 +316,14 @@ def execute_run(
                     eligible = _engine.get_eligible_actions(civ)
                     if action in eligible:
                         return action
-                except Exception:
+                except Exception as exc:
+                    logger.warning(
+                        "LLM action selection failed for civ=%s turn=%s: %s; "
+                        "falling back to deterministic selector",
+                        civ.name,
+                        world.turn,
+                        exc,
+                    )
                     pass
                 return _engine.select_action(civ, seed=world.seed)
         else:
@@ -739,9 +764,7 @@ def execute_run(
     )
     # M44: narrator provenance metadata
     bundle["metadata"]["narrator_mode"] = _narrator_mode
-    if _tracks_tokens(_narr):
-        bundle["metadata"]["api_input_tokens"] = _narr.total_input_tokens
-        bundle["metadata"]["api_output_tokens"] = _narr.total_output_tokens
+    _set_narrative_token_metadata(bundle["metadata"], _narr)
 
     # M53: relationship stats metadata
     if agent_bridge is not None and agent_bridge._collect_rel_stats:
@@ -888,9 +911,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--preset", type=str, default=None,
                         choices=["pangaea", "archipelago", "golden-age", "dark-age", "ice-age", "silk-road"],
                         help="Preset parameter bundle (values don't override explicit flags)")
-    parser.add_argument("--narrative-voice", type=str, default=None,
-                        choices=["chronicle", "epic", "academic", "journalistic", "mythic"],
-                        help="Narrative voice preset for LLM narration")
     # --- M20a narration pipeline flags ---
     parser.add_argument("--narrate", type=Path, default=None,
                         help="Narrate a simulate-only bundle")
@@ -1008,9 +1028,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
 
     # M44: narrator provenance
     result["metadata"]["narrator_mode"] = getattr(args, "narrator", "local")
-    if _tracks_tokens(narrative_client):
-        result["metadata"]["api_input_tokens"] = narrative_client.total_input_tokens
-        result["metadata"]["api_output_tokens"] = narrative_client.total_output_tokens
+    _set_narrative_token_metadata(result["metadata"], narrative_client)
 
     with open(output_path, "w", encoding="utf-8") as f:
         _json.dump(result, f, indent=2, ensure_ascii=False)
@@ -1022,6 +1040,11 @@ def main() -> None:
     """CLI entry point."""
     parser = _build_parser()
     args = parser.parse_args()
+
+    if getattr(args, "compare", None) and not getattr(args, "analyze", None):
+        parser.error("--compare requires --analyze")
+    if getattr(args, "narrate_output", None) and not getattr(args, "narrate", None):
+        parser.error("--narrate-output requires --narrate")
 
     # --- Mutual exclusion validation ---
     mode_flags = []
