@@ -988,7 +988,8 @@ class NarrativeEngine:
         gini_by_civ: dict[int, float] | None = None,
         # M43b: Economy result for trade dependency and shock narration
         economy_result=None,
-        # M45: Arc summary follow-up (API mode only)
+        # M45: Legacy parameter retained for call-site compatibility.
+        # Narration must not mutate live GreatPerson state from LLM output.
         gp_by_name: dict | None = None,
         # M52: World state for artifact context in prompts
         world=None,
@@ -1214,6 +1215,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         moments: list[NarrativeMoment],
         prepared: list[dict],
         on_progress: Callable[[int, int, float | None], None] | None = None,
+        # Retained for signature compatibility with existing call sites.
         gp_by_name: dict | None = None,
     ) -> list[ChronicleEntry]:
         """Narrate moments sequentially — for local and Gemini clients."""
@@ -1248,42 +1250,6 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
 
             previous_prose = narrative
-
-            # M45: Arc summary follow-up (API mode only)
-            if (agent_ctx is not None
-                    and self._is_api_client()
-                    and gp_by_name):
-                known_names = {c["name"] for c in agent_ctx.named_characters}
-                for ev in moment.events:
-                    for actor in ev.actors:
-                        if actor in gp_by_name:
-                            known_names.add(actor)
-                matched = [n for n in known_names if n in narrative]
-                if matched:
-                    try:
-                        summary_prompt = (
-                            "Based on the following passage, write exactly one sentence "
-                            "summarizing each named character's role. "
-                            "Only reference events described in the passage.\n\n"
-                            f"Characters: {', '.join(matched)}\n"
-                            f"Passage: {narrative}\n\n"
-                            "Respond as:\n"
-                            + "\n".join(f"{n}: [sentence]" for n in matched)
-                        )
-                        summary_response = self.narrative_client.complete(summary_prompt)
-                        for name in matched:
-                            prefix = f"{name}: "
-                            for line in summary_response.split("\n"):
-                                if line.startswith(prefix):
-                                    sentence = line[len(prefix):].strip()
-                                    if sentence and name in gp_by_name:
-                                        _update_arc_summary(gp_by_name[name], sentence)
-                                    break
-                    except Exception:
-                        logger.warning(
-                            "Arc summary follow-up failed for moment %d, skipping",
-                            moment.anchor_turn,
-                        )
 
             entry = ChronicleEntry(
                 turn=moment.anchor_turn,

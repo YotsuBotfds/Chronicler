@@ -261,6 +261,68 @@ def test_narrate_batch_warns_on_first_failure(caplog):
     assert "API error" in caplog.text or "narration failed" in caplog.text.lower()
 
 
+def test_narrate_batch_does_not_mutate_live_arc_summary(sample_world):
+    """Narration must not write LLM-generated summaries back onto live GP objects."""
+    from chronicler.models import GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot
+
+    gp = GreatPerson(
+        name="Kiran",
+        role="general",
+        trait="bold",
+        civilization="Kethani Empire",
+        origin_civilization="Kethani Empire",
+        born_turn=5,
+        source="agent",
+        agent_id=42,
+        arc_summary="Earlier deeds remained in memory.",
+    )
+
+    mock_client = MagicMock()
+    mock_client.complete.side_effect = [
+        "Kiran led the armies through the mountain pass.",
+        "Kiran: Led the armies through the mountain pass.",
+    ]
+    mock_client.model = "test"
+
+    engine = NarrativeEngine(
+        sim_client=MagicMock(model="test"),
+        narrative_client=mock_client,
+    )
+    engine._is_api_client = lambda: True
+
+    moment = NarrativeMoment(
+        events=[Event(
+            event_type="campaign",
+            description="Kiran led the armies through the mountain pass.",
+            actors=["Kiran", "Kethani Empire"],
+            importance=8,
+            turn=10,
+            source="agent",
+        )],
+        named_events=[],
+        turn_range=(10, 10),
+        anchor_turn=10,
+        score=8.0,
+        narrative_role=NarrativeRole.CLIMAX,
+        causal_links=[],
+        bonus_applied=0.0,
+    )
+    history = [TurnSnapshot(turn=10, civ_stats={}, region_control={}, relationships={})]
+
+    entries = engine.narrate_batch(
+        [moment],
+        history,
+        [],
+        great_persons=[gp],
+        gp_by_name={"Kiran": gp},
+        world=sample_world,
+    )
+
+    assert len(entries) == 1
+    assert gp.arc_summary == "Earlier deeds remained in memory."
+    assert mock_client.complete.call_count == 1
+
+
 def test_agent_context_has_urban_fields():
     """AgentContext includes urbanization fields when populated."""
     from chronicler.models import AgentContext, SettlementSummary

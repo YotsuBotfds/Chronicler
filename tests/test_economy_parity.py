@@ -207,7 +207,7 @@ def test_conservation_with_clamp_floor_loss():
 # ---------------------------------------------------------------------------
 
 def test_oracle_conservation_complete():
-    """compute_economy() conservation dict has all 7 spec-mandated fields (M58b added in_transit_delta)."""
+    """compute_economy() conservation dict matches the full runtime schema."""
     world = _make_parity_world()
     agents = [(0, 0, 0.0, 0)] * 25 + [(1, 0, 0.0, 1)] * 15
     snapshot = _make_snapshot(world, agents)
@@ -215,7 +215,7 @@ def test_oracle_conservation_complete():
 
     expected_keys = {"production", "transit_loss", "consumption",
                      "storage_loss", "cap_overflow", "clamp_floor_loss",
-                     "in_transit_delta"}
+                     "in_transit_delta", "treasury_tax", "treasury_tithe"}
     assert set(result.conservation.keys()) == expected_keys
 
 

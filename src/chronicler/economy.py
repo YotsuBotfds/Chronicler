@@ -619,6 +619,39 @@ def decompose_trade_routes(
     return pairs
 
 
+def filter_goods_trade_routes(
+    world,
+    active_trade_routes: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    """Keep only civ-level routes that have at least one adjacent region boundary.
+
+    Some systems model longer-range connectivity (navigation, railways,
+    federations), but the goods economy and treasury trade income must stay
+    aligned with boundary-pair goods flow.
+    """
+    if not active_trade_routes:
+        return []
+
+    region_map = {r.name: r for r in world.regions}
+    civ_lookup: dict[str, set[str]] = {}
+    for civ in world.civilizations:
+        if len(civ.regions) > 0:
+            civ_lookup[civ.name] = set(civ.regions)
+
+    filtered: list[tuple[str, str]] = []
+    for civ_a_name, civ_b_name in active_trade_routes:
+        a_regions = civ_lookup.get(civ_a_name)
+        b_regions = civ_lookup.get(civ_b_name)
+        if not a_regions or not b_regions:
+            continue
+        if (
+            decompose_trade_routes(a_regions, b_regions, region_map)
+            or decompose_trade_routes(b_regions, a_regions, region_map)
+        ):
+            filtered.append((civ_a_name, civ_b_name))
+    return filtered
+
+
 def allocate_trade_flow(
     outbound_routes: list[tuple[str, str]],
     origin_prices: dict[str, float],
@@ -826,6 +859,7 @@ def build_economy_trade_route_batch(world, active_trade_routes=None) -> "pa.Reco
     if active_trade_routes is None:
         from chronicler.resources import get_active_trade_routes
         active_trade_routes = get_active_trade_routes(world)
+    active_trade_routes = filter_goods_trade_routes(world, active_trade_routes)
 
     region_map = {r.name: r for r in world.regions}
     region_idx_map = {r.name: i for i, r in enumerate(world.regions)}
@@ -1149,6 +1183,7 @@ def compute_economy(
     if active_trade_routes is None:
         from chronicler.resources import get_active_trade_routes
         active_trade_routes = get_active_trade_routes(world)
+    active_trade_routes = filter_goods_trade_routes(world, active_trade_routes)
 
     result = EconomyResult()
     regions = world.regions

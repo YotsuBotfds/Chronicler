@@ -359,6 +359,25 @@ class TestRunTurn:
         assert hasattr(sample_world, "_economy_result")
         assert sample_world._economy_result is None
 
+    def test_agent_snapshot_failures_are_logged(self, sample_world, caplog):
+        from chronicler.simulation import _capture_agent_snapshot
+
+        class _BrokenSim:
+            @staticmethod
+            def get_snapshot():
+                raise RuntimeError("snapshot failed")
+
+        class _Bridge:
+            _sim = _BrokenSim()
+
+        sample_world._agent_snapshot = "sentinel"
+
+        with caplog.at_level("ERROR"):
+            _capture_agent_snapshot(sample_world, _Bridge())
+
+        assert sample_world._agent_snapshot is None
+        assert "Failed to fetch agent snapshot for Phase 10 consumers" in caplog.text
+
     def test_collapse_events_passed_to_narrator(self, sample_world):
         """Narrator must receive collapse events (critical fix: was previously missed)."""
         # Force a collapse for the first civ

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, Component, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, Component, type ReactNode } from "react";
 import { useBundle } from "./hooks/useBundle";
 import { useLiveConnection } from "./hooks/useLiveConnection";
 import { useTimeline } from "./hooks/useTimeline";

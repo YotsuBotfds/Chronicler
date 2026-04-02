@@ -109,6 +109,21 @@ class TestPythonRoundTrip:
         with pytest.raises((RuntimeError, ValueError), match="set_region_state"):
             sim.tick(0, _make_dummy_signals())
 
+    def test_replace_social_edges_rejects_type_mismatch(self):
+        sim = AgentSimulator(num_regions=1, seed=42)
+        bad_batch = pa.record_batch(
+            [
+                pa.array([1], type=pa.uint32()),
+                pa.array([2], type=pa.uint32()),
+                pa.array([1], type=pa.uint16()),
+                pa.array([5], type=pa.uint16()),
+            ],
+            names=["agent_a", "agent_b", "relationship", "formed_turn"],
+        )
+
+        with pytest.raises((RuntimeError, ValueError), match="relationship"):
+            sim.replace_social_edges(bad_batch)
+
 
 class TestTickBehavior:
     """Tests that depend on the real tick implementation. Runnable after Task 12."""
@@ -1226,6 +1241,33 @@ class TestGiniPreservation:
         # Gini and wealth stats must be preserved (not reset to {})
         assert bridge._gini_by_civ == prior_gini
         assert bridge._wealth_stats == prior_stats
+
+
+class TestSnapshotMetrics:
+    """Snapshot-derived bridge metrics should update outside hybrid mode too."""
+
+    def test_refresh_snapshot_metrics_populates_gini_and_displacement(self, sample_world):
+        class _FakeSim:
+            @staticmethod
+            def get_snapshot():
+                return pa.record_batch({
+                    "region": pa.array([0, 0, 1, 1], type=pa.uint16()),
+                    "displacement_turn": pa.array([0, 1, 0, 0], type=pa.uint16()),
+                    "wealth": pa.array([0.0, 10.0, 5.0, 5.0], type=pa.float32()),
+                    "civ_affinity": pa.array([0, 0, 1, 1], type=pa.uint16()),
+                    "occupation": pa.array([0, 1, 2, 2], type=pa.uint8()),
+                })
+
+        bridge = AgentBridge(sample_world, mode="shadow")
+        sample_world.regions[0].controller = sample_world.civilizations[0].name
+        sample_world.regions[1].controller = sample_world.civilizations[1].name
+        bridge._sim = _FakeSim()
+
+        bridge._refresh_snapshot_metrics(sample_world)
+
+        assert bridge.displacement_by_region[0] == pytest.approx(0.5)
+        assert bridge._gini_by_civ[0] > 0.0
+        assert bridge._gini_by_civ[1] == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------

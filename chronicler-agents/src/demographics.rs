@@ -8,6 +8,7 @@ const CROWDING_STRESS_WEIGHT: f32 = 0.30;
 const CROWDING_STRESS_CAP: f32 = 0.60;
 const FERTILITY_CROWDING_SOFT_START: f32 = 1.10;
 const FERTILITY_CROWDING_ZERO: f32 = 2.50;
+const FERTILITY_SATISFACTION_RAMP: f32 = 0.10;
 
 #[inline]
 pub fn population_pressure(region: &RegionState) -> f32 {
@@ -87,7 +88,12 @@ pub fn fertility_rate_with_pressure(
     } else {
         0.0
     };
-    let sat_gate = (satisfaction > FERTILITY_SATISFACTION_THRESHOLD) as i32 as f32;
+    // Smooth the satisfaction gate so fertility does not cliff-drop at a
+    // single threshold, which otherwise creates cohort spikes when satisfaction
+    // oscillates around the tuning point.
+    let sat_gate = ((satisfaction - (FERTILITY_SATISFACTION_THRESHOLD - FERTILITY_SATISFACTION_RAMP))
+        / FERTILITY_SATISFACTION_RAMP)
+        .clamp(0.0, 1.0);
     let base = if occupation == 0 { FERTILITY_BASE_FARMER } else { FERTILITY_BASE_OTHER };
     let ecology_mod = 0.5 + soil * 0.5;
     let crowding_mod = crowding_fertility_modifier(pop_over_capacity);
@@ -166,6 +172,17 @@ mod tests {
         r.population = 150;
         let expected = 1.0 + ((2.5 - 1.0) * CROWDING_STRESS_WEIGHT).min(CROWDING_STRESS_CAP);
         assert!((ecological_stress(&r) - expected).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_fertility_satisfaction_gate_ramps_smoothly() {
+        let low = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.11, 0, 1.0, 1.0);
+        let mid = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.05, 0, 1.0, 1.0);
+        let high = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD + 0.01, 0, 1.0, 1.0);
+
+        assert_eq!(low, 0.0);
+        assert!(mid > 0.0 && mid < high);
+        assert!(high > 0.0);
     }
 
     #[test]
@@ -254,10 +271,12 @@ mod tests {
 
     #[test]
     fn test_fertility_low_satisfaction() {
-        // Keep this test tied to the live threshold constant instead of stale literals.
+        let below_ramp = FERTILITY_SATISFACTION_THRESHOLD - FERTILITY_SATISFACTION_RAMP - 0.01;
+        let mid_ramp = FERTILITY_SATISFACTION_THRESHOLD - FERTILITY_SATISFACTION_RAMP / 2.0;
         let gate = FERTILITY_SATISFACTION_THRESHOLD;
-        assert!(fertility_rate(25, gate, 0, 0.8) == 0.0);
-        assert!(fertility_rate(25, gate + 0.01, 0, 0.8) > 0.0);
+        assert_eq!(fertility_rate(25, below_ramp, 0, 0.8), 0.0);
+        assert!(fertility_rate(25, mid_ramp, 0, 0.8) > 0.0);
+        assert!(fertility_rate(25, gate, 0, 0.8) > fertility_rate(25, mid_ramp, 0, 0.8));
     }
 
     #[test]

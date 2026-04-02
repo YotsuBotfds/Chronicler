@@ -307,7 +307,8 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
 
     defender = get_civ(world, target_name)
     if defender:
-        result = resolve_war(civ, defender, world, seed=world.turn, acc=acc)
+        war_seed = stable_hash_int("war", world.seed, world.turn, civ.name, defender.name)
+        result = resolve_war(civ, defender, world, seed=war_seed, acc=acc)
         # Track active war (both orderings) — skip if vassalized (M-AF1 #15)
         pair = (civ.name, target_name)
         pair_rev = (target_name, civ.name)
@@ -523,6 +524,7 @@ def resolve_war(
     # War costs treasury regardless of outcome
     att_war_cost = int(get_override(world, K_WAR_ATTACKER_TREASURY_COST, 20))
     def_war_cost = int(get_override(world, K_WAR_DEFENDER_TREASURY_COST, 10))
+    att_idx = def_idx = None
     if acc is not None:
         att_idx = civ_index(world, attacker.name)
         def_idx = civ_index(world, defender.name)
@@ -547,8 +549,6 @@ def resolve_war(
             # Still apply military losses and stability drain
             mult = get_severity_multiplier(defender, world)
             if acc is not None:
-                att_idx = civ_index(world, attacker.name)
-                def_idx = civ_index(world, defender.name)
                 acc.add(att_idx, attacker, "military", -winner_mil_loss, "guard-action")
                 acc.add(def_idx, defender, "military", -loser_mil_loss, "guard-action")
                 acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "signal")

@@ -58,8 +58,10 @@ DEMAND_SCALE_FACTOR = 1.0
 
 
 def normalize_shock(delta: float, stat: float) -> float:
-    """Normalize a raw stat delta to a shock value in [-1.0, +1.0].
-    delta is a positive number representing the magnitude subtracted.
+    """Normalize a punitive stat delta to a negative shock in [-1.0, 0.0].
+
+    `delta` is the magnitude of a loss. Use direct `CivShock` fields for
+    positive boosts instead of this helper.
     """
     return max(-1.0, min(1.0, -abs(delta) / max(stat, 1)))
 

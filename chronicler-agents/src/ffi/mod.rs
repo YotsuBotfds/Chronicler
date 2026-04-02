@@ -42,6 +42,17 @@ use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::politics::PoliticsConfig;
 
+fn require_batch_column<'a, T: 'static>(
+    batch: &'a RecordBatch,
+    idx: usize,
+    name: &str,
+) -> PyResult<&'a T> {
+    batch.columns()
+        .get(idx)
+        .and_then(|column| column.as_any().downcast_ref::<T>())
+        .ok_or_else(|| PyValueError::new_err(format!("missing or wrong type for column {idx} ({name})")))
+}
+
 // ---------------------------------------------------------------------------
 // AgentSimulator
 // ---------------------------------------------------------------------------
@@ -1025,6 +1036,7 @@ impl AgentSimulator {
         let batch = batch.into_inner();
         let named_ids: std::collections::HashSet<u32> = self.registry.characters.iter()
             .map(|c| c.agent_id).collect();
+        let id_to_slot = self.pool.build_id_to_slot();
 
         // 1. Read current projected state (compound key = (a, b, relationship_type))
         let mut current: std::collections::HashSet<(u32, u32, u8)> = std::collections::HashSet::new();
@@ -1049,10 +1061,10 @@ impl AgentSimulator {
         let mut incoming: std::collections::HashSet<(u32, u32, u8)> = std::collections::HashSet::new();
         let mut incoming_turns: std::collections::HashMap<(u32, u32, u8), u16> = std::collections::HashMap::new();
         if batch.num_rows() > 0 {
-            let a_col = batch.column(0).as_any().downcast_ref::<arrow::array::UInt32Array>().unwrap();
-            let b_col = batch.column(1).as_any().downcast_ref::<arrow::array::UInt32Array>().unwrap();
-            let r_col = batch.column(2).as_any().downcast_ref::<arrow::array::UInt8Array>().unwrap();
-            let t_col = batch.column(3).as_any().downcast_ref::<arrow::array::UInt16Array>().unwrap();
+            let a_col = require_batch_column::<arrow::array::UInt32Array>(&batch, 0, "agent_a")?;
+            let b_col = require_batch_column::<arrow::array::UInt32Array>(&batch, 1, "agent_b")?;
+            let r_col = require_batch_column::<arrow::array::UInt8Array>(&batch, 2, "relationship")?;
+            let t_col = require_batch_column::<arrow::array::UInt16Array>(&batch, 3, "formed_turn")?;
             for i in 0..batch.num_rows() {
                 let a = a_col.value(i);
                 let b = b_col.value(i);
@@ -1074,17 +1086,17 @@ impl AgentSimulator {
         for &(a, b, bt) in current.difference(&incoming) {
             if crate::relationships::is_asymmetric(bt) {
                 // Mentor: remove from mentor side only
-                if let Some(slot_a) = self.pool.find_slot_by_id(a) {
+                if let Some(slot_a) = id_to_slot.get(&a).copied() {
                     crate::relationships::remove_directed(&mut self.pool, slot_a, b, bt);
                 }
             } else {
                 // Symmetric: remove whatever side still exists
-                if let Some(slot_a) = self.pool.find_slot_by_id(a) {
+                if let Some(slot_a) = id_to_slot.get(&a).copied() {
                     if self.pool.alive[slot_a] {
                         crate::relationships::remove_directed(&mut self.pool, slot_a, b, bt);
                     }
                 }
-                if let Some(slot_b) = self.pool.find_slot_by_id(b) {
+                if let Some(slot_b) = id_to_slot.get(&b).copied() {
                     if self.pool.alive[slot_b] {
                         crate::relationships::remove_directed(&mut self.pool, slot_b, a, bt);
                     }
@@ -1097,14 +1109,14 @@ impl AgentSimulator {
             let ft = incoming_turns.get(&(a, b, bt)).copied().unwrap_or(0);
             let sent: i8 = 50; // Default sentiment (M40 has no sentiment)
             if crate::relationships::is_asymmetric(bt) {
-                if let Some(slot_a) = self.pool.find_slot_by_id(a) {
+                if let Some(slot_a) = id_to_slot.get(&a).copied() {
                     if self.pool.alive[slot_a] {
                         crate::relationships::upsert_directed(&mut self.pool, slot_a, b, bt, sent, ft);
                     }
                 }
             } else {
-                if let Some(slot_a) = self.pool.find_slot_by_id(a) {
-                    if let Some(slot_b) = self.pool.find_slot_by_id(b) {
+                if let Some(slot_a) = id_to_slot.get(&a).copied() {
+                    if let Some(slot_b) = id_to_slot.get(&b).copied() {
                         if self.pool.alive[slot_a] && self.pool.alive[slot_b] {
                             crate::relationships::upsert_symmetric(&mut self.pool, slot_a, slot_b, bt, sent, ft);
                         }
@@ -1122,6 +1134,7 @@ impl AgentSimulator {
     pub fn apply_relationship_ops(&mut self, batch: PyRecordBatch) -> PyResult<()> {
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
+        let id_to_slot = self.pool.build_id_to_slot();
 
         macro_rules! named_col {
             ($name:expr, $ty:ty) => {
@@ -1155,11 +1168,11 @@ impl AgentSimulator {
             match op {
                 0 => {
                     // UpsertDirected: src and dst must be alive
-                    let slot_a = match self.pool.find_slot_by_id(id_a) {
+                    let slot_a = match id_to_slot.get(&id_a).copied() {
                         Some(s) => s,
                         None => continue,
                     };
-                    if self.pool.find_slot_by_id(id_b).is_none() {
+                    if !id_to_slot.contains_key(&id_b) {
                         continue; // dst must be alive
                     }
                     crate::relationships::upsert_directed(
@@ -1174,11 +1187,11 @@ impl AgentSimulator {
                     {
                         continue;
                     }
-                    let slot_a = match self.pool.find_slot_by_id(id_a) {
+                    let slot_a = match id_to_slot.get(&id_a).copied() {
                         Some(s) => s,
                         None => continue,
                     };
-                    let slot_b = match self.pool.find_slot_by_id(id_b) {
+                    let slot_b = match id_to_slot.get(&id_b).copied() {
                         Some(s) => s,
                         None => continue,
                     };
@@ -1188,7 +1201,7 @@ impl AgentSimulator {
                 }
                 2 => {
                     // RemoveDirected: source must be alive, target may be dead
-                    let slot_a = match self.pool.find_slot_by_id(id_a) {
+                    let slot_a = match id_to_slot.get(&id_a).copied() {
                         Some(s) => s,
                         None => continue,
                     };
@@ -1196,12 +1209,12 @@ impl AgentSimulator {
                 }
                 3 => {
                     // RemoveSymmetric: remove whatever side still exists
-                    if let Some(slot_a) = self.pool.find_slot_by_id(id_a) {
+                    if let Some(slot_a) = id_to_slot.get(&id_a).copied() {
                         if self.pool.alive[slot_a] {
                             crate::relationships::remove_directed(&mut self.pool, slot_a, id_b, bt_raw);
                         }
                     }
-                    if let Some(slot_b) = self.pool.find_slot_by_id(id_b) {
+                    if let Some(slot_b) = id_to_slot.get(&id_b).copied() {
                         if self.pool.alive[slot_b] {
                             crate::relationships::remove_directed(&mut self.pool, slot_b, id_a, bt_raw);
                         }
@@ -2794,4 +2807,5 @@ mod tests {
         assert!(bond_types.contains(&3), "ExileBond must be present");
         assert!(bond_types.contains(&4), "CoReligionist must be present");
     }
+
 }

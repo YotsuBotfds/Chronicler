@@ -4,6 +4,26 @@ use arrow::array::{BooleanArray, Float32Array, UInt8Array};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 
+#[inline]
+fn read_optional_f32_unit_signal(
+    column: Option<&Float32Array>,
+    field_name: &str,
+    row_idx: usize,
+) -> Result<f32, ArrowError> {
+    let value = column.map(|c| c.value(row_idx)).unwrap_or(0.0);
+    if !value.is_finite() {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be finite, got {value}"
+        )));
+    }
+    if !(-1.0..=1.0).contains(&value) {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be in [-1.0, 1.0], got {value}"
+        )));
+    }
+    Ok(value)
+}
+
 /// Per-civ signals from Python aggregate model.
 #[derive(Clone, Debug)]
 pub struct CivSignals {
@@ -120,6 +140,10 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
 
     let mut result = Vec::with_capacity(batch.num_rows());
     for i in 0..batch.num_rows() {
+        let shock_stability = read_optional_f32_unit_signal(shock_stability_col, "shock_stability", i)?;
+        let shock_economy = read_optional_f32_unit_signal(shock_economy_col, "shock_economy", i)?;
+        let shock_military = read_optional_f32_unit_signal(shock_military_col, "shock_military", i)?;
+        let shock_culture = read_optional_f32_unit_signal(shock_culture_col, "shock_culture", i)?;
         result.push(CivSignals {
             civ_id: civ_ids.value(i),
             stability: stabilities.value(i),
@@ -129,10 +153,10 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
             faction_merchant: fac_mer.value(i),
             faction_cultural: fac_cul.value(i),
             faction_clergy: faction_clergy_col.map_or(0.0, |c| c.value(i)),
-            shock_stability: shock_stability_col.map(|a| a.value(i)).unwrap_or(0.0),
-            shock_economy: shock_economy_col.map(|a| a.value(i)).unwrap_or(0.0),
-            shock_military: shock_military_col.map(|a| a.value(i)).unwrap_or(0.0),
-            shock_culture: shock_culture_col.map(|a| a.value(i)).unwrap_or(0.0),
+            shock_stability,
+            shock_economy,
+            shock_military,
+            shock_culture,
             demand_shift_farmer: demand_farmer_col.map(|a| a.value(i)).unwrap_or(0.0),
             demand_shift_soldier: demand_soldier_col.map(|a| a.value(i)).unwrap_or(0.0),
             demand_shift_merchant: demand_merchant_col.map(|a| a.value(i)).unwrap_or(0.0),
@@ -166,6 +190,11 @@ pub fn parse_contested_regions(batch: &RecordBatch, num_regions: usize) -> Vec<b
 }
 
 /// Aggregated shock values for a single civilization.
+///
+/// Sign contract across the Python/Rust boundary:
+///   - negative values are harmful shocks that reduce satisfaction
+///   - positive values are beneficial shocks that increase satisfaction
+/// Each component is normalized to the closed range `[-1.0, 1.0]`.
 #[derive(Clone, Debug, Default)]
 pub struct CivShock {
     pub stability: f32,
@@ -483,5 +512,26 @@ mod tests {
         assert!(idx.get(&ts, 99).is_none());
         let missing_shock = ts.shock_for_civ_indexed(99, &idx);
         assert_eq!(missing_shock.stability, 0.0);
+    }
+
+    #[test]
+    fn test_parse_civ_signals_rejects_out_of_range_shocks() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+            ("shock_stability", Arc::new(Float32Array::from(vec![1.25f32])) as _),
+        ])
+        .unwrap();
+
+        let err = parse_civ_signals(&batch).unwrap_err();
+        assert!(
+            err.to_string().contains("shock_stability"),
+            "unexpected error: {err}"
+        );
     }
 }

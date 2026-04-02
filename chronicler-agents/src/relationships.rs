@@ -1,7 +1,7 @@
 /// M50a Relationship Substrate
 /// Per-agent relationship store: BondType enum and classification helpers.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Bond types. Values 0-4 match M40 RelationshipType for zero-translation compatibility.
 #[repr(u8)]
@@ -291,7 +291,9 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
     let turn_u16 = turn as u16;
 
     // Build id→slot lookup (alive agents only)
-    let mut id_to_slot: HashMap<u32, usize> = HashMap::with_capacity(pool.capacity());
+    // Lookup-only map: deterministic ordering keeps future maintenance safe
+    // even though this path does not iterate the keys today.
+    let mut id_to_slot: BTreeMap<u32, usize> = BTreeMap::new();
     for slot in 0..pool.capacity() {
         if pool.alive[slot] {
             id_to_slot.insert(pool.ids[slot], slot);

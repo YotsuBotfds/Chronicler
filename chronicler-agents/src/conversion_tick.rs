@@ -18,6 +18,16 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+#[inline]
+fn conversion_stream(region_id: usize, turn: u32, stream_offset: u64) -> u64 {
+    // Pack region, turn, and stream offset into disjoint bit ranges so the
+    // natural and schism passes cannot collide with each other or with future
+    // turn/region combinations in the supported range.
+    debug_assert!(region_id <= u16::MAX as usize, "region_id exceeds packed RNG stream range");
+    debug_assert!(stream_offset <= u16::MAX as u64, "stream_offset exceeds packed RNG stream range");
+    ((region_id as u64) << 48) | ((turn as u64) << 16) | stream_offset
+}
+
 /// Run conversion logic for all agents in a region.
 /// Called as Rust tick stage 7, after culture_drift.
 ///
@@ -55,7 +65,7 @@ pub fn conversion_tick(
         let target = region.conversion_target_belief;
 
         let mut rng = ChaCha8Rng::from_seed(master_seed);
-        rng.set_stream(region_id as u64 * 1000 + turn as u64 + agent::CONVERSION_STREAM_OFFSET);
+        rng.set_stream(conversion_stream(region_id, turn, agent::CONVERSION_STREAM_OFFSET));
 
         for &slot in slots {
             if !pool.alive[slot] {
@@ -106,7 +116,7 @@ pub fn conversion_tick(
         let to_belief = region.schism_convert_to;
 
         let mut rng = ChaCha8Rng::from_seed(master_seed);
-        rng.set_stream(region_id as u64 * 1000 + turn as u64 + agent::SCHISM_CONVERSION_STREAM_OFFSET);
+        rng.set_stream(conversion_stream(region_id, turn, agent::SCHISM_CONVERSION_STREAM_OFFSET));
 
         for &slot in slots {
             if !pool.alive[slot] {
@@ -173,6 +183,18 @@ mod tests {
     }
 
     const SEED: [u8; 32] = [42u8; 32];
+
+    #[test]
+    fn test_conversion_stream_packing_is_distinct() {
+        let a = conversion_stream(1, 7, agent::CONVERSION_STREAM_OFFSET);
+        let b = conversion_stream(2, 7, agent::CONVERSION_STREAM_OFFSET);
+        let c = conversion_stream(1, 8, agent::CONVERSION_STREAM_OFFSET);
+        let d = conversion_stream(1, 7, agent::SCHISM_CONVERSION_STREAM_OFFSET);
+
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(a, d);
+    }
 
     // ------------------------------------------------------------------
     // Test 1: zero rate and no conquest → no conversions.

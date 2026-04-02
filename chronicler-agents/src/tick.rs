@@ -136,7 +136,8 @@ pub fn tick_agents(
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
-    update_satisfaction(pool, regions, signals, wealth_percentiles);
+    let sat_inputs = compute_satisfaction_region_inputs(pool, regions, signals);
+    update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs);
 
     // -----------------------------------------------------------------------
     // M48: Famine + Prosperity intents (post-satisfaction, post-wealth)
@@ -1007,13 +1008,79 @@ pub fn wealth_tick(
     }
 }
 
+struct SatisfactionRegionInputs {
+    occupation_supply: Vec<[usize; OCCUPATION_COUNT]>,
+    occupation_demand: Vec<[f32; OCCUPATION_COUNT]>,
+    population: Vec<usize>,
+}
+
+fn compute_satisfaction_region_inputs(
+    pool: &AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+) -> SatisfactionRegionInputs {
+    let n = regions.len();
+    let mut occupation_supply = vec![[0usize; OCCUPATION_COUNT]; n];
+    let mut population = vec![0usize; n];
+
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) || pool.is_on_trip(slot) {
+            continue;
+        }
+
+        let region_id = pool.region(slot) as usize;
+        if region_id >= n {
+            continue;
+        }
+
+        let occ = pool.occupation(slot) as usize;
+        if occ < OCCUPATION_COUNT {
+            occupation_supply[region_id][occ] += 1;
+        }
+        population[region_id] += 1;
+    }
+
+    let occupation_demand = (0..n)
+        .map(|region_id| {
+            let demand_shifts = if regions[region_id].controller_civ != 255 {
+                signals.demand_shifts_for_civ(regions[region_id].controller_civ)
+            } else {
+                [0.0; OCCUPATION_COUNT]
+            };
+            let ratios = satisfaction::target_occupation_ratio(
+                regions[region_id].terrain,
+                regions[region_id].soil,
+                regions[region_id].water,
+                regions[region_id].food_sufficiency,
+                demand_shifts,
+            );
+            let pop = population[region_id] as f32;
+            let mut demand = [0.0f32; OCCUPATION_COUNT];
+            for i in 0..OCCUPATION_COUNT {
+                demand[i] = ratios[i] * pop;
+            }
+            demand
+        })
+        .collect();
+
+    SatisfactionRegionInputs {
+        occupation_supply,
+        occupation_demand,
+        population,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Satisfaction update
 // ---------------------------------------------------------------------------
 
-fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &TickSignals, wealth_percentiles: &[f32]) {
-    // Pre-compute region stats for demand/supply ratio
-    let stats = compute_region_stats(pool, regions, signals);
+fn update_satisfaction(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    wealth_percentiles: &[f32],
+    sat_inputs: &SatisfactionRegionInputs,
+) {
 
     // Partition agents by region
     let num_regions = regions.len();
@@ -1053,17 +1120,15 @@ fn update_satisfaction(pool: &mut AgentPool, regions: &[RegionState], signals: &
                         };
 
                         let occ_idx = occ as usize;
-                        let supply = stats.occupation_supply[region_id][occ_idx] as f32;
-                        let demand = stats.occupation_demand[region_id][occ_idx];
+                        let supply = sat_inputs.occupation_supply[region_id][occ_idx] as f32;
+                        let demand = sat_inputs.occupation_demand[region_id][occ_idx];
                         let ds_ratio = if supply > 0.0 {
                             (demand - supply) / supply
                         } else {
                             0.0
                         };
 
-                        let pop = stats.occupation_supply[region_id]
-                            .iter()
-                            .sum::<usize>() as f32;
+                        let pop = sat_inputs.population[region_id] as f32;
                         let cap = region.carrying_capacity as f32;
                         let pop_over_cap = if cap > 0.0 { pop / cap } else { 1.0 };
 
@@ -1660,8 +1725,10 @@ mod tests {
         let cap_b = pool_b.capacity();
         let wealth_pcts_a = vec![0.5f32; cap_a];
         let wealth_pcts_b = vec![0.5f32; cap_b];
-        update_satisfaction(&mut pool_a, &regions, &signals, &wealth_pcts_a);
-        update_satisfaction(&mut pool_b, &regions, &signals, &wealth_pcts_b);
+        let sat_inputs_a = compute_satisfaction_region_inputs(&pool_a, &regions, &signals);
+        let sat_inputs_b = compute_satisfaction_region_inputs(&pool_b, &regions, &signals);
+        update_satisfaction(&mut pool_a, &regions, &signals, &wealth_pcts_a, &sat_inputs_a);
+        update_satisfaction(&mut pool_b, &regions, &signals, &wealth_pcts_b, &sat_inputs_b);
 
         // Verify computation actually happened (not still at default 0.5)
         let any_changed = (0..pool_a.capacity())

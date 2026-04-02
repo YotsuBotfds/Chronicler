@@ -1,7 +1,7 @@
 //! AgentPool: struct-of-arrays storage for all agent fields.
 //! Arena free-list added in Task 11.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use arrow::array::{Float32Builder, UInt16Builder, UInt32Builder, UInt8Builder};
@@ -538,6 +538,17 @@ impl AgentPool {
         self.skills[slot * 5 + occ]
     }
 
+    /// Build an O(alive) lookup table from stable agent_id to live slot index.
+    pub fn build_id_to_slot(&self) -> HashMap<u32, usize> {
+        let mut map = HashMap::with_capacity(self.alive_count());
+        for slot in 0..self.capacity() {
+            if self.alive[slot] {
+                map.insert(self.ids[slot], slot);
+            }
+        }
+        map
+    }
+
     /// Group live slot indices by region.
     /// Returns a Vec of length `num_regions`; each inner Vec holds slot indices.
     pub fn partition_by_region(&self, num_regions: u16) -> Vec<Vec<usize>> {
@@ -670,7 +681,7 @@ impl AgentPool {
     /// capacity) rather than live population.
     pub fn compute_aggregates(&self, regions: &[RegionState]) -> Result<RecordBatch, ArrowError> {
         // First pass: build civ -> controlled-region capacity mapping.
-        let mut civ_capacity: HashMap<u8, f64> = HashMap::new();
+        let mut civ_capacity: BTreeMap<u8, f64> = BTreeMap::new();
         for r in regions {
             if r.controller_civ != 255 {
                 *civ_capacity.entry(r.controller_civ).or_insert(0.0) += r.carrying_capacity as f64;
@@ -691,7 +702,7 @@ impl AgentPool {
             loyalty_sum: f64,
         }
 
-        let mut accums: HashMap<u8, CivAccum> = HashMap::new();
+        let mut accums: BTreeMap<u8, CivAccum> = BTreeMap::new();
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
                 continue;

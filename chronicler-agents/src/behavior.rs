@@ -67,6 +67,12 @@ pub fn personality_modifier(dimension: f32, weight: f32) -> f32 {
     (1.0 + dimension * weight).max(0.0)
 }
 
+/// Draw the winning utility slot with Gumbel noise.
+///
+/// The caller's slot ordering is part of the simulation's deterministic
+/// contract. For the decision path this is the frozen 4-slot layout
+/// `[rebel, migrate, switch, stay]`; append new actions in a new call site
+/// instead of changing the existing order.
 fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> usize {
     if temperature <= 0.0 {
         return utilities.iter().enumerate()

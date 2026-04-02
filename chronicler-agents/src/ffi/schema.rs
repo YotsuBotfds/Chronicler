@@ -100,7 +100,10 @@ pub fn social_edges_schema() -> Schema {
 // Ecology return schemas
 // ---------------------------------------------------------------------------
 
-/// Schema for the region-state batch returned by `tick_ecology()`.
+/// Canonical region-state batch for the ecology simulator.
+///
+/// This is the post-split replacement for the old monolithic region-state
+/// schema naming that existed before the FFI schemas were separated.
 pub fn ecology_region_schema() -> Schema {
     Schema::new(vec![
         Field::new("region_id", DataType::UInt16, false),

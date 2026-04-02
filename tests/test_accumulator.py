@@ -300,15 +300,21 @@ class TestBitIdenticalRegression:
         def noop_narrator(world, events):
             return ""
 
+        def make_selector(engine):
+            def _selector(civ, w):
+                return engine.select_action(civ, seed=w.seed + w.turn)
+
+            return _selector
+
         for turn in range(100):
             world_a.turn = turn
             world_b.turn = turn
 
             engine_a = ActionEngine(world_a)
-            selector_a = lambda civ, w, eng=engine_a: eng.select_action(civ, seed=w.seed + w.turn)
+            selector_a = make_selector(engine_a)
 
             engine_b = ActionEngine(world_b)
-            selector_b = lambda civ, w, eng=engine_b: eng.select_action(civ, seed=w.seed + w.turn)
+            selector_b = make_selector(engine_b)
 
             run_turn(world_a, selector_a, noop_narrator, seed=turn)
             run_turn(world_b, selector_b, noop_narrator, seed=turn)

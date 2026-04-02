@@ -599,6 +599,13 @@ class StatChange:
 
 @dataclass
 class CivShock:
+    """Normalized civ-level shock components sent across the Python/Rust boundary.
+
+    Sign contract:
+      negative values are harmful shocks that reduce satisfaction
+      positive values are beneficial shocks that increase satisfaction
+    Each component should stay within [-1.0, 1.0].
+    """
     civ_id: int
     stability_shock: float = 0.0
     economy_shock: float = 0.0

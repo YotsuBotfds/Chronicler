@@ -799,6 +799,65 @@ class AgentBridge:
             resolved.append(controller_id if controller_id is not None else int(fallback_civ_id))
         return resolved
 
+    def _refresh_snapshot_metrics(self, world: "WorldState") -> None:
+        """Update displacement, Gini, and wealth stats from the current snapshot."""
+        try:
+            snap = self._sim.get_snapshot()
+            regions_col = snap.column("region").to_pylist()
+            disp_col = snap.column("displacement_turn").to_pylist()
+            region_totals = Counter(regions_col)
+            region_displaced: Counter = Counter()
+            for r, d in zip(regions_col, disp_col):
+                if d > 0:
+                    region_displaced[r] += 1
+            self.displacement_by_region = {
+                r: region_displaced[r] / total if total > 0 else 0.0
+                for r, total in region_totals.items()
+            }
+
+            if "wealth" not in snap.schema.names:
+                return
+
+            wealth_col = snap.column("wealth").to_numpy()
+            civ_col = np.array(
+                self._resolve_polity_civ_ids(
+                    world,
+                    regions_col,
+                    snap.column("civ_affinity").to_pylist(),
+                ),
+                dtype=np.int64,
+            )
+            new_gini: dict[int, float] = {}
+            for civ_id in np.unique(civ_col):
+                mask = civ_col == civ_id
+                civ_wealth = wealth_col[mask]
+                new_gini[int(civ_id)] = compute_gini(civ_wealth)
+            occ_col = snap.column("occupation").to_numpy()
+            occ_names = ["farmer", "soldier", "merchant", "scholar", "priest"]
+            stats: dict[int, dict] = {}
+            for civ_id in np.unique(civ_col):
+                mask = civ_col == civ_id
+                civ_wealth = wealth_col[mask]
+                civ_occ = occ_col[mask]
+                wealth_by_occ = {}
+                for occ_idx, name in enumerate(occ_names):
+                    occ_mask = civ_occ == occ_idx
+                    if occ_mask.any():
+                        wealth_by_occ[name] = float(np.mean(civ_wealth[occ_mask]))
+                stats[int(civ_id)] = {
+                    "gini": new_gini.get(int(civ_id), 0.0),
+                    "mean": float(np.mean(civ_wealth)),
+                    "median": float(np.median(civ_wealth)),
+                    "std": float(np.std(civ_wealth)),
+                    "by_occupation": wealth_by_occ,
+                }
+            self._gini_by_civ = new_gini
+            self._wealth_stats = stats
+        except Exception:
+            # Preserve prior values on failure â€” one bad turn must not wipe
+            # accumulated history.
+            logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
+
     @property
     def ecology_simulator(self):
         """Expose the Rust simulator handle for ecology tick in agent modes."""
@@ -908,6 +967,8 @@ class AgentBridge:
             self._knowledge_stats_history.append(normalized_k_stats)
         except Exception:
             logger.exception("Failed to collect knowledge stats from Rust tick")
+
+        self._refresh_snapshot_metrics(world)
 
         if self._mode == "hybrid":
             self._write_back(world)

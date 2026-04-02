@@ -2,8 +2,9 @@ import pytest
 from chronicler.models import (
     ActionType, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
-from chronicler.action_engine import ActionEngine, resolve_action, resolve_war
+from chronicler.action_engine import ActionEngine, WarResult, resolve_action, resolve_war, _resolve_war_action
 from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR
+from chronicler.utils import stable_hash_int
 
 
 @pytest.fixture
@@ -305,6 +306,25 @@ class TestWarResolution:
             "old_civ_id": 1,
             "new_civ_id": 0,
         }]
+
+    def test_turn_level_war_seed_includes_both_combatants(self, engine_world, monkeypatch):
+        seeds = []
+
+        def fake_resolve_war(attacker, defender, world, seed=0, acc=None):
+            seeds.append((attacker.name, defender.name, seed))
+            return WarResult("stalemate", None)
+
+        monkeypatch.setattr("chronicler.action_engine.resolve_war", fake_resolve_war)
+        monkeypatch.setattr("chronicler.action_engine.get_perceived_stat", lambda *args, **kwargs: 50)
+
+        _resolve_war_action(engine_world.civilizations[0], engine_world)
+        _resolve_war_action(engine_world.civilizations[1], engine_world)
+
+        assert len(seeds) == 2
+        assert seeds[0][2] != seeds[1][2]
+        for attacker_name, defender_name, seed in seeds:
+            expected = stable_hash_int("war", engine_world.seed, engine_world.turn, attacker_name, defender_name)
+            assert seed == expected
 
 
 class TestWarWeariness:

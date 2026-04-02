@@ -6,9 +6,9 @@ use crate::signals::CivShock;
 
 const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 const PEAK_YIELD: f32 = 1.0;
-const FOOD_SHORTAGE_WEIGHT: f32 = 0.07;  // [CALIBRATE] integrated M54+M55 closeout: keep scarcity meaningful while avoiding the late-run satisfaction floor miss on the accepted runtime line.
-const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] M42: replaces trade_route_count weight
-const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.36;  // [CALIBRATE] M57 tuning: strengthen scarcity reallocation toward farming to stabilize food sufficiency.
+const FOOD_SHORTAGE_WEIGHT: f32 = 0.07;  // [CALIBRATE] Multiplies `(1.0 - food_sufficiency)` when food_sufficiency < 1.0, so the added penalty range is [0.0, 0.07].
+const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] Multiplies `merchant_margin` in [0.0, 1.0], so the merchant-only base uplift range is [0.0, 0.3].
+const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.36;  // [CALIBRATE] Added to farmer demand weight when food_sufficiency is critically low; larger values accelerate labor reallocation toward farming.
 
 // M-2 audit: Named constants for satisfaction formula terms
 const WAR_PENALTY_CIV: f32 = 0.08;        // [CALIBRATE] M47c: 0.15->0.08 (whole-civ at-war penalty)
@@ -74,7 +74,8 @@ pub fn cultural_distance(agent_values: [u8; 3], controller_values: [u8; 3]) -> u
             if av == cv { overlap += 1; break; }
         }
     }
-    3 - overlap
+    debug_assert!(overlap <= 3, "cultural overlap exceeded available value slots: {overlap}");
+    3u8.saturating_sub(overlap)
 }
 
 #[inline]

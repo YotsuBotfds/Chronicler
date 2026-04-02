@@ -160,11 +160,11 @@ class TestZeroFarmerIncomeModifier:
 
 
 # ---------------------------------------------------------------------------
-# H-5: Non-adjacent routes documented
+# H-5: Goods and treasury routes align on adjacent boundary pairs
 # ---------------------------------------------------------------------------
 
 class TestDecomposeTradeRoutes:
-    """H-5: decompose_trade_routes only returns adjacent pairs (by design)."""
+    """H-5: goods trade only uses civ pairs with an actual adjacent boundary."""
 
     def test_non_adjacent_returns_empty(self):
         from chronicler.economy import decompose_trade_routes
@@ -187,6 +187,46 @@ class TestDecomposeTradeRoutes:
         region_map = {"R1": r1, "R2": r2}
         pairs = decompose_trade_routes({"R1"}, {"R2"}, region_map)
         assert pairs == [("R1", "R2")]
+
+    def test_non_adjacent_navigation_route_excluded_from_goods_and_treasury(self):
+        from chronicler.economy import filter_goods_trade_routes
+        from chronicler.resources import get_active_trade_routes
+        from chronicler.simulation import apply_automatic_effects
+
+        civ_a = _make_civ(
+            name="CivA",
+            regions=["A1"],
+            treasury=10,
+            military=0,
+            active_focus="navigation",
+        )
+        civ_b = _make_civ(name="CivB", regions=["B1"], treasury=10, military=0)
+
+        a1 = _make_region("A1", terrain="coast", controller="CivA")
+        mid = _make_region("Mid", terrain="coast", controller=None)
+        b1 = _make_region("B1", terrain="coast", controller="CivB")
+        a1.adjacencies = ["Mid"]
+        mid.adjacencies = ["A1", "B1"]
+        b1.adjacencies = ["Mid"]
+
+        world = _make_world(regions=[a1, mid, b1], civs=[civ_a, civ_b])
+        world.embargoes = []
+        world.federations = []
+        world.active_wars = []
+        world.events_timeline = []
+        world.relationships = {
+            "CivA": {"CivB": Relationship(disposition=Disposition.NEUTRAL)},
+            "CivB": {"CivA": Relationship(disposition=Disposition.NEUTRAL)},
+        }
+
+        routes = get_active_trade_routes(world)
+        assert ("CivA", "CivB") in routes or ("CivB", "CivA") in routes
+        assert filter_goods_trade_routes(world, routes) == []
+
+        apply_automatic_effects(world)
+
+        assert civ_a.treasury == 10
+        assert civ_b.treasury == 10
 
 
 # ---------------------------------------------------------------------------

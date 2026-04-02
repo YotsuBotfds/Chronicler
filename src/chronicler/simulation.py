@@ -26,6 +26,7 @@ Performance note — Python critical path hotspots (audit batch I, 2026-04-01):
 """
 from __future__ import annotations
 
+import logging
 import random
 from typing import Callable, Protocol
 
@@ -87,6 +88,8 @@ from chronicler.tuning import (
     get_override,
 )
 from chronicler.arcs import classify_arc
+
+logger = logging.getLogger(__name__)
 
 
 # --- Type aliases for callbacks ---
@@ -209,6 +212,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
 def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Automatic per-turn effects — maintenance, trade, specialization, mercs."""
     from chronicler.resources import get_active_trade_routes, get_self_trade_civs
+    from chronicler.economy import filter_goods_trade_routes
     from chronicler.infrastructure import tick_infrastructure
     events: list[Event] = []
 
@@ -231,7 +235,8 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     # 2. Trade income
     # H-6: Emit capability events here (Phase 2 is the authoritative call site)
     cross_routes = get_active_trade_routes(world, emit_events=True)
-    for civ_a, civ_b in cross_routes:
+    economic_cross_routes = filter_goods_trade_routes(world, cross_routes)
+    for civ_a, civ_b in economic_cross_routes:
         a = get_civ(world, civ_a)
         b = get_civ(world, civ_b)
         if a:
@@ -272,7 +277,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
         if not resource_counts:
             continue
         primary = max(resource_counts, key=lambda r: resource_counts[r])
-        civ_routes = [(a, b) for a, b in cross_routes if civ.name in (a, b)]
+        civ_routes = [(a, b) for a, b in economic_cross_routes if civ.name in (a, b)]
         if not civ_routes:
             continue
         primary_routes = 0
@@ -1469,6 +1474,15 @@ def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result) -> 
     world._treasury_tax_carry = next_carry
 
 
+def _capture_agent_snapshot(world: WorldState, agent_bridge: object) -> None:
+    """Store the current Rust snapshot for same-turn Phase 10 consumers."""
+    try:
+        world._agent_snapshot = agent_bridge._sim.get_snapshot()
+    except Exception:
+        world._agent_snapshot = None
+        logger.exception("Failed to fetch agent snapshot for Phase 10 consumers")
+
+
 # --- Turn orchestrator ---
 
 def run_turn(
@@ -1533,13 +1547,15 @@ def run_turn(
             from chronicler.economy import (
                 build_economy_region_input_batch,
                 build_economy_trade_route_batch,
+                filter_goods_trade_routes,
                 reconstruct_economy_result,
             )
             from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             active_routes = get_active_trade_routes(world)
+            economic_routes = filter_goods_trade_routes(world, active_routes)
             region_input = build_economy_region_input_batch(world)
             trade_route_input = build_economy_trade_route_batch(
-                world, active_trade_routes=active_routes,
+                world, active_trade_routes=economic_routes,
             )
             season_id = get_season_id(world.turn)
             is_winter = season_id == 3
@@ -1632,7 +1648,8 @@ def run_turn(
         # Fold pending_shocks from last turn's Phase 10
         shocks.extend(world.pending_shocks)
         world.pending_shocks.clear()
-        # Tick existing demand signals (decay), then add new ones for next turn
+        # Tick existing demand signals to get the already-decayed demand shifts
+        # consumed by Rust this turn, then queue new signals for next turn.
         demand_shifts = agent_bridge._demand_manager.tick()
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
@@ -1654,10 +1671,7 @@ def run_turn(
     # M36: Stash snapshot for Phase 10 culture functions
     world._agent_snapshot = None
     if agent_bridge is not None:
-        try:
-            world._agent_snapshot = agent_bridge._sim.get_snapshot()
-        except Exception:
-            pass
+        _capture_agent_snapshot(world, agent_bridge)
 
     # M37: Stash named_agents for Phase 10 religion computations
     world._named_agents = agent_bridge.named_agents if agent_bridge else None

@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 def _strip_llm_fields(world_dict: dict) -> dict:
     """Remove LLM-generated fields from world state to prevent narration→state feedback.
 
-    arc_summary is written by _update_arc_summary() from LLM output during narration.
-    It must not persist into the authoritative bundle (M18 LLM isolation contract).
+    arc_summary is prompt-only narration context and must not persist into the
+    authoritative bundle (M18 LLM isolation contract).
     """
     for civ in world_dict.get("civilizations", []):
         for gp in civ.get("great_persons", []):
