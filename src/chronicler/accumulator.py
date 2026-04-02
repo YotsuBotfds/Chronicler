@@ -3,8 +3,33 @@
 All phase functions route stat mutations through the accumulator instead of
 mutating Civilization fields directly. In aggregate mode, apply() replays
 mutations bit-identically. In hybrid mode, mutations route by category:
-keep → apply, guard → skip, guard-action → demand signal,
-signal/guard-shock → shock signal.
+
+Routing categories (Batch A contract):
+  keep         — Apply directly in ALL modes. Used for treasury, prestige,
+                 asabiya, and any stat that must take effect regardless of
+                 whether agents are running.  Examples: tax income, prestige
+                 decay, stability recovery.
+  guard        — INTENTIONALLY SKIPPED in hybrid mode.  These mutations
+                 represent stats that agents produce emergently (population,
+                 military, economy via occupation counts).  In aggregate mode
+                 (--agents=off), apply() replays them.  17 call sites verified:
+                 population growth/loss, military maintenance, mercenary hire,
+                 secession splits, twilight pop drain, congress redistribution.
+  guard-action — Action engine outcomes routed to DemandSignals for the Rust
+                 agent tick.  Converted via to_demand_signals().
+  guard-shock  — Phase-generated shocks (leader events, vassalage, proxy wars,
+                 cultural milestones) routed to ShockSignals for the Rust tick.
+                 Converted via to_shock_signals().
+  signal       — External shocks (disasters, stability drains) routed to
+                 ShockSignals.  Converted via to_shock_signals().
+
+Flush semantics:
+  apply()      — Aggregate mode: apply ALL categories in insertion order.
+  apply_keep() — Hybrid/shadow mode: apply only "keep" category, skip rest.
+                 Can be called multiple times (idempotent per change via
+                 _applied flag).
+  to_shock_signals()  — Extract "signal" + "guard-shock" as normalized shocks.
+  to_demand_signals() — Extract "guard-action" as demand signals.
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -42,10 +67,11 @@ def normalize_shock(delta: float, stat: float) -> float:
 class StatAccumulator:
     """Captures stat mutations and routes them by category."""
 
-    __slots__ = ("_changes",)
+    __slots__ = ("_changes", "_keep_applied_up_to")
 
     def __init__(self) -> None:
         self._changes: list[StatChange] = []
+        self._keep_applied_up_to: int = 0  # watermark: keep changes applied up to this index
 
     def add(self, civ_idx: int, civ: Civilization, stat: str, delta: float, category: str) -> None:
         """Record a stat mutation. civ_idx is the index into world.civilizations."""
@@ -109,8 +135,16 @@ class StatAccumulator:
             setattr(civ, c.stat, type(current)(new_val))
 
     def apply_keep(self, world: WorldState) -> None:
-        """Agent mode: apply only keep-category changes."""
-        for c in self._changes:
+        """Agent mode: apply only keep-category changes.
+
+        Safe to call multiple times — uses a watermark to skip already-applied
+        changes.  This supports the two-flush pattern: once before the agent
+        tick (Phases 1-9 keep mutations) and once after Phase 10 (Phase 10
+        keep mutations like stability drains and faction effects).
+        """
+        start = self._keep_applied_up_to
+        for i in range(start, len(self._changes)):
+            c = self._changes[i]
             if c.category != "keep":
                 continue
             civ = world.civilizations[c.civ_id]
@@ -122,11 +156,17 @@ class StatAccumulator:
                 floor = STAT_FLOOR.get(c.stat, 0)
                 new_val = max(floor, min(100, new_val))
             setattr(civ, c.stat, type(current)(new_val))
+        self._keep_applied_up_to = len(self._changes)
 
-    def to_shock_signals(self) -> list[CivShock]:
-        """Convert signal + guard-shock changes to normalized shocks."""
+    def to_shock_signals(self, since: int = 0) -> list[CivShock]:
+        """Convert signal + guard-shock changes to normalized shocks.
+
+        Args:
+            since: Only process changes from this index onward.  Default 0
+                   processes all changes (backward compatible).
+        """
         shocks: dict[int, CivShock] = {}
-        for c in self._changes:
+        for c in self._changes[since:]:
             if c.category not in ("signal", "guard-shock"):
                 continue
             if c.stat not in STAT_TO_SHOCK_FIELD:

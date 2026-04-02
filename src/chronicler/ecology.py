@@ -121,13 +121,14 @@ def _check_famine_yield(
         # --- Famine effects ---
         mult = get_severity_multiplier(civ, world)
 
+        # C-3 fix: Always apply famine population loss as a direct mutation,
+        # not through the accumulator.  "guard" category is skipped in hybrid
+        # mode, but refugee additions (below) are always direct mutations.
+        # Routing the loss through guard created a conservation violation:
+        # hybrid mode gained population (refugees) without the matching loss.
         famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5))
-        if acc is not None:
-            civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "population", -int(famine_pop * mult), "guard")
-        else:
-            drain_region_pop(region, int(famine_pop * mult))
-            sync_civ_population(civ, world)
+        drain_region_pop(region, int(famine_pop * mult))
+        sync_civ_population(civ, world)
         drain = int(get_override(world, "stability.drain.famine_immediate", 3))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)

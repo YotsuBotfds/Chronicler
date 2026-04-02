@@ -513,7 +513,12 @@ def phase_production(world: WorldState, acc=None) -> None:
                     importance=1,
                 ))
 
-    # Stability recovery: passive per-turn recovery, halved during severe conditions
+    # Stability recovery: passive per-turn recovery, halved during severe conditions.
+    # B-1 fix: In hybrid mode, stability is overwritten by _write_back (mean_sat *
+    # mean_loy * 100), so "keep" routing is dead code.  Route as "guard-shock" so
+    # the recovery feeds the Rust tick as a positive shock signal.  In aggregate
+    # mode (acc=None), direct mutation.  In shadow/demographics-only (acc with
+    # apply()), the guard-shock is still applied via apply().
     for civ_idx, civ in enumerate(world.civilizations):
         if civ.stability < 50:
             base_recovery = int(get_override(world, K_STABILITY_RECOVERY, 20))
@@ -523,7 +528,7 @@ def phase_production(world: WorldState, acc=None) -> None:
             )
             recovery = base_recovery // 2 if has_severe_condition else base_recovery
             if acc is not None:
-                acc.add(civ_idx, civ, "stability", recovery, "keep")
+                acc.add(civ_idx, civ, "stability", recovery, "guard-shock")
             else:
                 civ.stability = clamp(civ.stability + recovery, STAT_FLOOR["stability"], 100)
 
@@ -941,7 +946,12 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
     # M16c: Cultural victory tracking (runs LAST in culture effects)
     check_cultural_victories(world)
 
-    # M37: Religion computations for next turn's Rust tick
+    # M37: Religion computations for next turn's Rust tick.
+    # C-12 note: persecution_intensity and martyrdom_boost are REGION-level
+    # fields, not civ-level stats.  They bypass the accumulator intentionally
+    # because the accumulator only routes civ stats.  These feed the Rust
+    # satisfaction formula via the region batch on the NEXT turn (one-turn
+    # latency is by design).
     _persecution_events: list[Event] = []
     _snap = getattr(world, '_agent_snapshot', None)
     if _snap is not None and world.belief_registry:
@@ -990,6 +1000,15 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         # M38b: Persecution
         if not hasattr(world, '_persecuted_regions'):
             world._persecuted_regions = set()
+        # H-14 fix: Clear regions whose persecution has ended (intensity=0)
+        # so the one-shot event fires again if persecution restarts.
+        # Without this, _persecuted_regions grows forever and suppresses
+        # future persecution events for regions that were ever persecuted.
+        world._persecuted_regions = {
+            rname for rname in world._persecuted_regions
+            if any(r.name == rname and r.persecution_intensity > 0
+                   for r in world.regions)
+        }
         _persecution_events = compute_persecution(
             world.regions, world.civilizations, world.belief_registry,
             _snap, world.turn, world._persecuted_regions, world=world,
@@ -1469,6 +1488,12 @@ def run_turn(
     for r in world.regions:
         r.conquest_conversion_active = False
 
+    # H-20 fix: Initialize _conquered_this_turn at turn start.  Previously
+    # only cleared mid-turn before bridge tick, so if the bridge was reset
+    # independently or if the previous turn had no war resolution, the
+    # attribute might not exist or carry stale data.
+    world._conquered_this_turn = set()
+
     # Phase 1: Environment
     turn_events.extend(phase_environment(world, seed=seed, acc=acc))
 
@@ -1601,11 +1626,15 @@ def run_turn(
             agent_bridge._demand_manager.add(ds)
         # Run agent tick via split bridge (no second set_region_state)
         turn_events.extend(agent_bridge.tick_agents(world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict))
+    elif agent_bridge is not None:
+        # C-10 fix: Shadow and demographics-only modes use apply_keep() to
+        # match hybrid mode's stat application, making comparison fair.
+        # "guard" mutations are intentionally skipped — agents produce them.
+        acc.apply_keep(world)
+        turn_events.extend(agent_bridge.tick_agents(world, conquered=conquered_dict))
     else:
+        # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
-        # Non-hybrid agent modes: use split bridge (no second set_region_state)
-        if agent_bridge is not None:
-            turn_events.extend(agent_bridge.tick_agents(world, conquered=conquered_dict))
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)
@@ -1630,10 +1659,17 @@ def run_turn(
     )
     turn_events.extend(settlement_events)
 
+    # C-2 fix: Commit Phases 1-9 events to timeline BEFORE Phase 10 so that
+    # update_event_counts(), check_great_person_generation(), and tick_factions()
+    # can see same-turn events (war, trade, expand, famine, build, etc.).
+    _pre_phase10_count = len(turn_events)
+    world.events_timeline.extend(turn_events)
+
     # Phase 10: Consequences
     # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.
     # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
     phase10_acc = acc if world.agent_mode == "hybrid" else None
+    _phase10_checkpoint = acc.checkpoint() if acc is not None else 0
     # M54c: Determine the politics runtime for this turn.
     # In agent modes, use the AgentSimulator via the bridge.
     # In off mode, use the dedicated PoliticsSimulator (if provided).
@@ -1641,6 +1677,19 @@ def run_turn(
     if agent_bridge is not None:
         _pol_rt = agent_bridge._sim  # AgentSimulator has tick_politics()
     turn_events.extend(phase_consequences(world, acc=phase10_acc, politics_runtime=_pol_rt))
+
+    # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,
+    # faction effects, cultural assimilation treasury costs, etc.).
+    # The watermark in apply_keep() ensures only new mutations since the first
+    # flush get applied.  Phase 10 signal mutations go to pending_shocks for
+    # next turn's agent tick.
+    if world.agent_mode == "hybrid" and acc is not None:
+        acc.apply_keep(world)
+        # Phase 10 signal/guard-shock mutations → pending_shocks for next turn
+        phase10_shocks = acc.to_shock_signals(since=_phase10_checkpoint)
+        if phase10_shocks:
+            world.pending_shocks.extend(phase10_shocks)
+
     prune_inactive_wars(world)
 
     # M40: Unified relationship formation and dissolution
@@ -1731,8 +1780,10 @@ def run_turn(
     artifact_events = tick_artifacts(world)
     turn_events.extend(artifact_events)
 
-    # Record events
-    world.events_timeline.extend(turn_events)
+    # Record post-Phase-10 events (Phase 10 consequences, relationships,
+    # tech regression, artifacts).  Pre-Phase-10 events were already committed
+    # above (C-2 fix).
+    world.events_timeline.extend(turn_events[_pre_phase10_count:])
 
     # M45: Arc classification — after events are on timeline, before snapshot
     dynasty_reg = agent_bridge.dynasty_registry if agent_bridge else None

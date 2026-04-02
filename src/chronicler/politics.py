@@ -1069,6 +1069,10 @@ def check_restoration(world: WorldState) -> list[Event]:
             )
             world.civilizations.append(restored_civ)
         else:
+            # H-1 note: These are absolute resets for a revived civ, not
+            # incremental deltas.  Direct mutation is correct here because
+            # the civ was dead (0 regions) and is being re-initialized.
+            # The accumulator only handles deltas, not absolute sets.
             restored_civ.population = restored_population
             restored_civ.military = 20
             restored_civ.economy = 20
