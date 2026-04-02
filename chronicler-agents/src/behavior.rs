@@ -4,7 +4,7 @@
 //! stay. Gumbel-argmax selects one action; loyalty drift runs as a background
 //! process for all non-rebel agents.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::agent::{
     BOLD_MIGRATE_WEIGHT, BOLD_REBEL_WEIGHT, AMBITION_SWITCH_WEIGHT, LOYALTY_TRAIT_WEIGHT,
@@ -269,9 +269,9 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
     let mut sat_sum = vec![0.0f32; n];
     let mut pop_count = vec![0usize; n];
     let mut occupation_supply = vec![[0usize; OCCUPATION_COUNT]; n];
-    // Per-region civ data: HashMap<civ_id, (count, satisfaction_sum)>
-    let mut civ_data: Vec<HashMap<u8, (usize, f32)>> =
-        (0..n).map(|_| HashMap::new()).collect();
+    // Per-region civ data: BTreeMap for deterministic iteration order (H-32 audit).
+    let mut civ_data: Vec<BTreeMap<u8, (usize, f32)>> =
+        (0..n).map(|_| BTreeMap::new()).collect();
 
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) {
@@ -363,7 +363,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
             };
             means.push((civ, mean));
         }
-        // Sort by civ_id for deterministic ordering
+        // BTreeMap already yields keys in order; sorts are defensive no-ops.
         counts.sort_by_key(|(c, _)| *c);
         means.sort_by_key(|(c, _)| *c);
         civ_counts.push(counts);

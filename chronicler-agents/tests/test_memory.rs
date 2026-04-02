@@ -1218,10 +1218,13 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         is_urban: false,
     });
 
-    // huge positive memory with cultural penalty should equal zero-penalty baseline
-    assert!((sat_huge_pos - sat_zero_pen).abs() < 0.001,
-        "huge positive memory should zero out penalty, not grant bonus: huge_pos={}, zero_pen={}",
-        sat_huge_pos, sat_zero_pen);
+    // M-6 audit: positive memories now cap at 50% of accumulated penalty,
+    // so a huge positive memory reduces the 0.10 cultural penalty by at most 0.05.
+    // sat_huge_pos should be 0.05 below the zero-penalty baseline.
+    let expected_residual = 0.05; // 50% of 0.10 cultural penalty
+    assert!((sat_zero_pen - sat_huge_pos - expected_residual).abs() < 0.001,
+        "positive memory should reduce penalty by 50%: huge_pos={}, zero_pen={}, expected residual={}",
+        sat_huge_pos, sat_zero_pen, expected_residual);
 }
 
 // ===========================================================================
