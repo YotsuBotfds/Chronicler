@@ -14,6 +14,92 @@ from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.simulation import get_injectable_event_types
 
+_SUPPORTED_NARRATORS = {"local", "api", "gemini"}
+_SUPPORTED_AGENT_MODES = {"off", "demographics-only", "shadow", "hybrid"}
+_SUPPORTED_PRESETS = {"pangaea", "archipelago", "golden-age", "dark-age", "ice-age", "silk-road"}
+_REQUIRED_LIVE_BUNDLE_KEYS = (
+    "world_state",
+    "history",
+    "events_timeline",
+    "named_events",
+    "chronicle_entries",
+    "era_reflections",
+    "metadata",
+)
+
+
+def _normalize_narrator(value: Any, default: str = "local") -> str:
+    if isinstance(value, str) and value in _SUPPORTED_NARRATORS:
+        return value
+    return default
+
+
+def _validate_legacy_live_bundle(payload: Any) -> dict[str, Any]:
+    from chronicler.models import Event, NamedEvent, TurnSnapshot
+
+    if not isinstance(payload, dict):
+        raise ValueError("Bundle must be a JSON object")
+    if "manifest_version" in payload and "layers" in payload:
+        raise ValueError(
+            "Bundle v2 manifests are not supported in live mode yet; load a legacy single-artifact bundle instead"
+        )
+
+    missing = [key for key in _REQUIRED_LIVE_BUNDLE_KEYS if key not in payload]
+    if missing:
+        raise ValueError(f"Missing required bundle keys: {', '.join(missing)}")
+
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ValueError("Bundle metadata must be an object")
+    era_reflections = payload.get("era_reflections")
+    if not isinstance(era_reflections, dict):
+        raise ValueError("Bundle era_reflections must be an object")
+
+    return {
+        "world_state": WorldState.model_validate(payload["world_state"]).model_dump(mode="json"),
+        "history": [
+            TurnSnapshot.model_validate(snapshot).model_dump(mode="json")
+            for snapshot in payload.get("history", [])
+        ],
+        "events_timeline": [
+            Event.model_validate(event).model_dump(mode="json")
+            for event in payload.get("events_timeline", [])
+        ],
+        "named_events": [
+            NamedEvent.model_validate(event).model_dump(mode="json")
+            for event in payload.get("named_events", [])
+        ],
+        "chronicle_entries": payload.get("chronicle_entries", {}),
+        "gap_summaries": payload.get("gap_summaries", []),
+        "era_reflections": era_reflections,
+        "metadata": metadata,
+    }
+
+
+def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+    metadata = bundle.get("metadata", {})
+    history = bundle.get("history", [])
+    history_turns = [
+        snap.get("turn")
+        for snap in history
+        if isinstance(snap, dict) and isinstance(snap.get("turn"), int)
+    ]
+    current_turn = metadata.get("total_turns")
+    if not isinstance(current_turn, int):
+        current_turn = max(history_turns, default=bundle.get("world_state", {}).get("turn", 0))
+
+    return {
+        "type": "init",
+        "world_state": bundle.get("world_state", {}),
+        "history": history,
+        "events_timeline": bundle.get("events_timeline", []),
+        "named_events": bundle.get("named_events", []),
+        "chronicle_entries": bundle.get("chronicle_entries", {}),
+        "era_reflections": bundle.get("era_reflections", {}),
+        "metadata": metadata,
+        "current_turn": current_turn,
+    }
+
 
 class LiveServer:
     """WebSocket server that bridges the simulation thread and a browser viewer.
@@ -43,6 +129,15 @@ class LiveServer:
         self._start_params: dict | None = None
         self._server_state: str = "lobby"
         self._lobby_init: dict | None = None
+        self._client_defaults: dict[str, Any] = {
+            "local_url": "http://localhost:1234/v1",
+            "sim_model": None,
+            "narrative_model": None,
+            "narrator": "local",
+            "agents": "off",
+            "preset": None,
+        }
+        self._session_client_config: dict[str, Any] = {}
         # Batch state
         self._batch_thread: threading.Thread | None = None
         self._batch_cancel_event = threading.Event()
@@ -67,6 +162,13 @@ class LiveServer:
 
     def _validate_batch_config(self, config: dict) -> str | None:
         for field in ("seed_start", "seed_count", "turns"):
+            if field not in config:
+                continue
+            value = config.get(field)
+            if not self._is_int(value) or value <= 0:
+                return f"batch_start config '{field}' must be a positive integer"
+
+        for field in ("civs", "regions"):
             if field not in config:
                 continue
             value = config.get(field)
@@ -98,7 +200,65 @@ class LiveServer:
                     if not self._is_number(override):
                         return "batch_start config 'tuning_overrides' values must be numbers"
 
+        for field in ("scenario", "sim_model", "narrative_model", "preset"):
+            if field in config:
+                value = config.get(field)
+                if value is not None and not isinstance(value, str):
+                    return f"batch_start config '{field}' must be a string or null"
+
+        if "narrator" in config:
+            narrator = config.get("narrator")
+            if narrator is not None:
+                if not isinstance(narrator, str):
+                    return "batch_start config 'narrator' must be a string or null"
+                if narrator not in _SUPPORTED_NARRATORS:
+                    return "batch_start config 'narrator' must be one of local, api, gemini"
+
+        if "agents" in config:
+            agents = config.get("agents")
+            if agents is not None:
+                if not isinstance(agents, str):
+                    return "batch_start config 'agents' must be a string or null"
+                if agents not in _SUPPORTED_AGENT_MODES:
+                    return "batch_start config 'agents' must be one of off, demographics-only, shadow, hybrid"
+
+        preset = config.get("preset")
+        if preset is not None and preset not in _SUPPORTED_PRESETS:
+            return "batch_start config 'preset' must be a supported preset name or null"
+
         return None
+
+    def _update_session_client_config(self, msg: dict) -> None:
+        self._session_client_config = {
+            "sim_model": msg.get("sim_model"),
+            "narrative_model": msg.get("narrative_model"),
+            "narrator": _normalize_narrator(
+                msg.get("narrator"),
+                self._client_defaults.get("narrator", "local"),
+            ),
+        }
+
+    def _resolve_client_config(self, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        config = dict(self._client_defaults)
+        config.update({
+            key: value
+            for key, value in self._session_client_config.items()
+            if value not in (None, "")
+        })
+        if metadata:
+            sim_model = metadata.get("sim_model")
+            narrative_model = metadata.get("narrative_model")
+            if isinstance(sim_model, str):
+                config["sim_model"] = sim_model
+            if isinstance(narrative_model, str):
+                config["narrative_model"] = narrative_model
+            config["narrator"] = _normalize_narrator(
+                metadata.get("narrator_mode"),
+                config.get("narrator", "local"),
+            )
+        else:
+            config["narrator"] = _normalize_narrator(config.get("narrator"), "local")
+        return config
 
     async def _send_error(self, websocket, message: str) -> None:
         await websocket.send(json.dumps({
@@ -129,14 +289,18 @@ class LiveServer:
         seed = msg.get("seed")
         if seed is not None and not self._is_int(seed):
             return {"type": "error", "message": "Start field 'seed' must be an integer or null"}
-        for field in ("scenario", "sim_model", "narrative_model"):
+        for field in ("scenario", "sim_model", "narrative_model", "narrator"):
             value = msg.get(field)
             if value is not None and not isinstance(value, str):
                 return {"type": "error", "message": f"Start field '{field}' must be a string or null"}
+        narrator = msg.get("narrator")
+        if narrator is not None and narrator not in _SUPPORTED_NARRATORS:
+            return {"type": "error", "message": "Start field 'narrator' must be one of local, api, gemini"}
         resume_state = msg.get("resume_state")
         if resume_state is not None and not isinstance(resume_state, dict):
             return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
         self._start_params = msg
+        self._update_session_client_config(msg)
         self._server_state = "running"
         self.start_event.set()
         return None
@@ -162,6 +326,7 @@ class LiveServer:
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             batch_output = f"output/batch_gui_{timestamp}"
+            defaults = self._lobby_init.get("defaults", {}) if isinstance(self._lobby_init, dict) else {}
 
             args = _argparse.Namespace(
                 seed=config.get("seed_start", 1),
@@ -172,19 +337,22 @@ class LiveServer:
                 output=f"{batch_output}/chronicle.md",
                 state=f"{batch_output}/state.json",
                 tuning=None,
-                civs=4,
-                regions=8,
+                civs=config.get("civs", defaults.get("civs", 4) or 4),
+                regions=config.get("regions", defaults.get("regions", 8) or 8),
                 resume=None,
                 reflection_interval=10,
-                local_url="http://localhost:1234/v1",
-                sim_model=None,
-                narrative_model=None,
+                local_url=self._client_defaults.get("local_url", "http://localhost:1234/v1"),
+                sim_model=config.get("sim_model", self._client_defaults.get("sim_model")),
+                narrative_model=config.get("narrative_model", self._client_defaults.get("narrative_model")),
                 llm_actions=False,
-                scenario=None,
+                scenario=config.get("scenario"),
                 fork=None,
                 interactive=False,
                 pause_every=None,
                 seed_range=None,
+                narrator=config.get("narrator", self._client_defaults.get("narrator", "local")),
+                agents=config.get("agents", self._client_defaults.get("agents", "off")),
+                preset=config.get("preset", self._client_defaults.get("preset")),
             )
 
             try:
@@ -361,18 +529,10 @@ class LiveServer:
                             allowed = Path("output").resolve()
                             if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {bundle_path}")
-                            bundle = json.loads(resolved.read_text(encoding="utf-8"))
-                            # H-25: Populate _init_data so narrate_range works
-                            self._init_data = {
-                                "type": "init",
-                                "world_state": bundle.get("world_state", {}),
-                                "history": bundle.get("history", []),
-                                "events_timeline": bundle.get("events_timeline", []),
-                                "named_events": bundle.get("named_events", []),
-                                "chronicle_entries": bundle.get("chronicle_entries", {}),
-                                "metadata": bundle.get("metadata", {}),
-                                "current_turn": bundle.get("metadata", {}).get("turns", 0),
-                            }
+                            bundle = _validate_legacy_live_bundle(
+                                json.loads(resolved.read_text(encoding="utf-8"))
+                            )
+                            self._init_data = _build_init_data_from_bundle(bundle)
                             await websocket.send(json.dumps({
                                 "type": "bundle_loaded",
                                 "bundle": bundle,
@@ -453,7 +613,16 @@ class LiveServer:
                             named_characters=named_chars if named_chars else None,
                         )
                         if moments:
-                            _, narrative_client = create_clients()
+                            metadata = self._init_data.get("metadata")
+                            client_config = self._resolve_client_config(
+                                metadata if isinstance(metadata, dict) else None
+                            )
+                            _, narrative_client = create_clients(
+                                local_url=client_config.get("local_url", "http://localhost:1234/v1"),
+                                sim_model=client_config.get("sim_model"),
+                                narrative_model=client_config.get("narrative_model"),
+                                narrator=client_config.get("narrator", "local"),
+                            )
                             engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
                             entries = engine.narrate_batch(moments, all_history, [])
                             if entries:
@@ -841,6 +1010,14 @@ def run_live(
 
     # --- Phase 1: Lobby ---
     server = LiveServer(port=port)
+    server._client_defaults = {
+        "local_url": getattr(args, "local_url", "http://localhost:1234/v1"),
+        "sim_model": getattr(args, "sim_model", None),
+        "narrative_model": getattr(args, "narrative_model", None),
+        "narrator": _normalize_narrator(getattr(args, "narrator", "local"), "local"),
+        "agents": getattr(args, "agents", "off"),
+        "preset": getattr(args, "preset", None),
+    }
     server._lobby_init = build_lobby_init(args)
     server.start()
     actual_port = server._actual_port or port
@@ -877,12 +1054,12 @@ def run_live(
             apply_scenario(world, scenario_config)
 
     # Construct LLM clients from client-selected models
-    sim_model = params.get("sim_model") or getattr(args, "sim_model", None)
-    narrative_model = params.get("narrative_model") or getattr(args, "narrative_model", None)
+    client_config = server._resolve_client_config()
     sim_client, narrative_client = create_clients(
-        local_url=getattr(args, "local_url", "http://localhost:1234/v1"),
-        sim_model=sim_model,
-        narrative_model=narrative_model,
+        local_url=client_config.get("local_url", "http://localhost:1234/v1"),
+        sim_model=client_config.get("sim_model"),
+        narrative_model=client_config.get("narrative_model"),
+        narrator=client_config.get("narrator", "local"),
     )
 
     pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
@@ -928,6 +1105,7 @@ def run_live(
                     "generated_at": "",
                     "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
                     "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
+                    "narrator_mode": client_config.get("narrator", "local"),
                     "scenario_name": getattr(w, "scenario_name", None),
                     "interestingness_score": None,
                 },

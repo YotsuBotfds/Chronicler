@@ -415,7 +415,7 @@ class Civilization(BaseModel):
     active_focus: str | None = None  # M21: current era's focus
     factions: FactionState = Field(default_factory=FactionState)
     founded_turn: int = 0
-    max_precap_weight: float = 0.0  # M19b: transient, tracks max weight before 2.5x cap
+    max_precap_weight: float = 0.0  # M19b: transient, tracks max absolute weight before base-scaled cap
     civ_majority_faith: int = 0  # M37: computed from agent snapshot each turn
     previous_majority_faith: int = 0           # initialized to civ_majority_faith at world-gen
     # M47d: War frequency calibration
@@ -432,15 +432,6 @@ class Relationship(BaseModel):
     allied_turns: int = 0
     trade_contact_turns: int = 0
     disposition_drift: int = 0
-
-
-class HistoricalFigure(BaseModel):
-    name: str
-    role: str
-    traits: list[str] = Field(default_factory=list)
-    civilization: str
-    alive: bool = True
-    deeds: list[str] = Field(default_factory=list)
 
 
 class GreatPerson(BaseModel):
@@ -668,7 +659,6 @@ class WorldState(BaseModel):
     regions: list[Region] = Field(default_factory=list)
     civilizations: list[Civilization] = Field(default_factory=list)
     relationships: dict[str, dict[str, Relationship]] = Field(default_factory=dict)
-    historical_figures: list[HistoricalFigure] = Field(default_factory=list)
     events_timeline: list[Event] = Field(default_factory=list)
     active_conditions: list[ActiveCondition] = Field(default_factory=list)
     event_probabilities: dict[str, float] = Field(default_factory=dict)
@@ -793,7 +783,7 @@ class CivSnapshot(BaseModel):
     active_focus: str | None = None  # M21: tech focus for viewer/analytics
     factions: FactionState | None = None
     action_counts: dict[str, int] = Field(default_factory=dict)  # M19b: cumulative action counts
-    max_precap_weight: float = 0.0  # M19b: max weight before 2.5x cap
+    max_precap_weight: float = 0.0  # M19b: max absolute weight before base-scaled cap
     last_action: str | None = None  # M19b: most recent action taken
     # M47d: War frequency analytics
     war_weariness: float = 0.0

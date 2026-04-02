@@ -38,6 +38,36 @@ describe("BatchPanel", () => {
     expect(config.parallel).toBe(true);
   });
 
+  it("passes through current setup defaults when provided", () => {
+    const onStart = vi.fn();
+    render(
+      <BatchPanel
+        {...defaultProps}
+        onStart={onStart}
+        runDefaults={{
+          turns: 120,
+          civs: 6,
+          regions: 10,
+          scenario: "test.yaml",
+          sim_model: "sim-x",
+          narrative_model: "narr-x",
+          narrator: "local",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Run Batch/i }));
+
+    const config = onStart.mock.calls[0][0];
+    expect(config.turns).toBe(120);
+    expect(config.civs).toBe(6);
+    expect(config.regions).toBe(10);
+    expect(config.scenario).toBe("test.yaml");
+    expect(config.sim_model).toBe("sim-x");
+    expect(config.narrative_model).toBe("narr-x");
+    expect(config.narrator).toBe("local");
+  });
+
   it("shows progress bar when running", () => {
     render(
       <BatchPanel

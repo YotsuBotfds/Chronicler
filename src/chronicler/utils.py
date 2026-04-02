@@ -110,3 +110,27 @@ def get_civ(world, name: str):
         if c.name == name:
             return c
     return None
+
+
+def resolve_civ_faith_id(civ, belief_registry, civ_idx: int | None = None, default: int = 0xFF) -> int:
+    """Resolve a civ-owned faith id without assuming registry order is civ order.
+
+    Prefer the civilization's persisted majority-faith fields when they point at
+    a live faith id, and only fall back to positional registry lookup for older
+    worlds that do not carry explicit faith ownership.
+    """
+    valid_faith_ids = {
+        int(getattr(belief, "faith_id"))
+        for belief in (belief_registry or [])
+        if hasattr(belief, "faith_id")
+    }
+    for attr_name in ("civ_majority_faith", "previous_majority_faith"):
+        faith_id = getattr(civ, attr_name, default)
+        if faith_id != default and faith_id in valid_faith_ids:
+            return int(faith_id)
+
+    if civ_idx is not None and 0 <= civ_idx < len(belief_registry or []):
+        fallback = getattr(belief_registry[civ_idx], "faith_id", default)
+        return int(fallback)
+
+    return default

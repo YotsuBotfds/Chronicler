@@ -237,7 +237,6 @@ def generate_world(
         regions=regions,
         civilizations=civs,
         relationships=relationships,
-        historical_figures=[],
         events_timeline=[],
         active_conditions=[],
         event_probabilities=dict(DEFAULT_EVENT_PROBABILITIES),
@@ -287,9 +286,12 @@ def generate_world(
         civ_values = [c.values for c in world.civilizations]
         civ_names = [c.name for c in world.civilizations]
         world.belief_registry = generate_faiths(civ_values, civ_names, seed=world.seed)
-        # M38b: Seed previous_majority_faith from founding faith
-        for civ in world.civilizations:
-            civ.previous_majority_faith = civ.civ_majority_faith
+        # M38b: Seed each civ's founding faith so turn-1 schism/reformation
+        # logic starts from the generated belief registry, not the model default.
+        for civ_idx, civ in enumerate(world.civilizations):
+            founding_faith = world.belief_registry[civ_idx].faith_id
+            civ.civ_majority_faith = founding_faith
+            civ.previous_majority_faith = founding_faith
 
     return world
 

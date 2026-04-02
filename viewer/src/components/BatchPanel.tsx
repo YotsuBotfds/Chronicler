@@ -46,6 +46,7 @@ interface BatchPanelProps {
   report: BatchReport | null;
   progress: { completed: number; total: number; currentSeed: number } | null;
   error: string | null;
+  runDefaults?: Partial<BatchConfig>;
   onStart: (config: BatchConfig) => void;
   onCancel: () => void;
   onReset: () => void;
@@ -56,13 +57,14 @@ export function BatchPanel({
   report,
   progress,
   error,
+  runDefaults,
   onStart,
   onCancel,
   onReset,
 }: BatchPanelProps) {
   const [seedStart, setSeedStart] = useState(1);
   const [seedCount, setSeedCount] = useState(200);
-  const [turns, setTurns] = useState(500);
+  const [turns, setTurns] = useState(runDefaults?.turns ?? 500);
   const [workers, setWorkers] = useState(0);
   const [simulateOnly, setSimulateOnly] = useState(true);
   const [showTuning, setShowTuning] = useState(false);
@@ -77,6 +79,7 @@ export function BatchPanel({
     }
 
     onStart({
+      ...runDefaults,
       seed_start: seedStart,
       seed_count: seedCount,
       turns,
@@ -85,7 +88,7 @@ export function BatchPanel({
       workers: workers > 0 ? workers : null,
       tuning_overrides: Object.keys(overrides).length > 0 ? overrides : null,
     });
-  }, [seedStart, seedCount, turns, workers, simulateOnly, tuningValues, onStart]);
+  }, [runDefaults, seedStart, seedCount, turns, workers, simulateOnly, tuningValues, onStart]);
 
   const setTuningValue = useCallback((key: string, value: string) => {
     setTuningValues((prev) => ({ ...prev, [key]: value }));

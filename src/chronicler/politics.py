@@ -65,7 +65,7 @@ def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
         treasury_cost = (region_count - 2) * 2
 
         stability_cost = 0
-        gov_cost_per_dist = int(get_override(world, K_GOVERNING_COST, 0.5))
+        gov_cost_per_dist = get_override(world, K_GOVERNING_COST, 0.5)
         for region_name in civ.regions:
             if region_name == civ.capital_region:
                 continue
@@ -293,12 +293,23 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
         new_civ_id = len(world.civilizations) + len(new_civs)
         mult = get_severity_multiplier(civ, world)
         secession_stab_loss = int(get_override(world, K_SECESSION_STABILITY_LOSS, 10))
-        if world.agent_mode == "hybrid":
+        if acc is not None:
+            acc.add(civ_idx, civ, "military", -split_mil, "guard")
+            acc.add(civ_idx, civ, "economy", -split_eco, "guard")
+            acc.add(civ_idx, civ, "treasury", -split_tre, "keep")
+            acc.add(civ_idx, civ, "stability", -int(secession_stab_loss * mult), "guard-shock")
+        elif world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(civ_idx,
                 military_shock=normalize_shock(split_mil, civ.military),
                 economy_shock=normalize_shock(split_eco, civ.economy),
                 stability_shock=normalize_shock(int(secession_stab_loss * mult), civ.stability)))
             civ.treasury -= split_tre  # treasury stays Python-side
+        else:
+            civ.military = max(civ.military - split_mil, 0)
+            civ.economy = max(civ.economy - split_eco, 0)
+            civ.treasury -= split_tre
+            civ.stability = clamp(civ.stability - int(secession_stab_loss * mult), STAT_FLOOR["stability"], 100)
+        if world.agent_mode == "hybrid":
             bridge = getattr(world, "_agent_bridge", None)
             if bridge is not None:
                 events.extend(
@@ -312,16 +323,6 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
                         old_civ_id=civ_idx,
                     )
                 )
-        elif acc is not None:
-            acc.add(civ_idx, civ, "military", -split_mil, "guard")
-            acc.add(civ_idx, civ, "economy", -split_eco, "guard")
-            acc.add(civ_idx, civ, "treasury", -split_tre, "keep")
-            acc.add(civ_idx, civ, "stability", -int(secession_stab_loss * mult), "signal")
-        else:
-            civ.military = max(civ.military - split_mil, 0)
-            civ.economy = max(civ.economy - split_eco, 0)
-            civ.treasury -= split_tre
-            civ.stability = clamp(civ.stability - int(secession_stab_loss * mult), STAT_FLOOR["stability"], 100)
         civ.regions = remaining_regions
 
         for rn in breakaway_regions:
@@ -381,11 +382,11 @@ def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
         civ_idx = civ_index(world, civ.name)
         mult = get_severity_multiplier(civ, world)
         cap_loss_stab = int(get_override(world, K_CAPITAL_LOSS_STABILITY, 20))
-        if world.agent_mode == "hybrid":
+        if acc is not None:
+            acc.add(civ_idx, civ, "stability", -int(cap_loss_stab * mult), "guard-shock")
+        elif world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(civ_idx,
                 stability_shock=normalize_shock(int(cap_loss_stab * mult), civ.stability)))
-        elif acc is not None:
-            acc.add(civ_idx, civ, "stability", -int(cap_loss_stab * mult), "signal")
         else:
             civ.stability = clamp(civ.stability - int(cap_loss_stab * mult), STAT_FLOOR["stability"], 100)
 
@@ -538,11 +539,11 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
         to_remove.append(vr)
         rebelled_overlords.add(vr.overlord)
         vassal_idx = civ_index(world, vassal.name)
-        if world.agent_mode == "hybrid":
+        if acc is not None:
+            acc.add(vassal_idx, vassal, "stability", 10, "guard-shock")
+        elif world.agent_mode == "hybrid":
             world.pending_shocks.append(CivShock(vassal_idx,
                 stability_shock=min(1.0, 10 / max(vassal.stability, 1))))
-        elif acc is not None:
-            acc.add(vassal_idx, vassal, "stability", 10, "guard-shock")
         else:
             vassal.stability = clamp(vassal.stability + 10, STAT_FLOOR["stability"], 100)
         from chronicler.simulation import _apply_asabiya_to_regions
@@ -641,7 +642,9 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             elif fed_b and not fed_a:
                 fed_b.members.append(civ_a.name)
             else:
-                rng = random.Random(world.seed + world.turn)
+                rng = random.Random(
+                    stable_hash_int("federation_name", world.seed, world.turn, civ_a.name, civ_b_name)
+                )
                 adj = rng.choice(_FEDERATION_ADJECTIVES)
                 noun = rng.choice(_FEDERATION_NOUNS)
                 fed_name = f"The {adj} {noun}"
@@ -670,6 +673,9 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
     for fed in world.federations:
         exiting: list[str] = []
         for member in fed.members:
+            civ = next((c for c in world.civilizations if c.name == member), None)
+            if civ is None or not civ.regions:
+                continue
             rels = world.relationships.get(member, {})
             for other_member in fed.members:
                 if other_member == member:
@@ -687,11 +693,11 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
             if civ:
                 civ_idx = civ_index(world, civ.name)
                 mult = get_severity_multiplier(civ, world)
-                if world.agent_mode == "hybrid":
+                if acc is not None:
+                    acc.add(civ_idx, civ, "stability", -int(fed_exit_stab * mult), "guard-shock")
+                elif world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(civ_idx,
                         stability_shock=normalize_shock(int(fed_exit_stab * mult), civ.stability)))
-                elif acc is not None:
-                    acc.add(civ_idx, civ, "stability", -int(fed_exit_stab * mult), "signal")
                 else:
                     civ.stability = clamp(civ.stability - int(fed_exit_stab * mult), STAT_FLOOR["stability"], 100)
             for remaining in fed.members:
@@ -699,11 +705,11 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
                 if rc:
                     rc_idx = civ_index(world, rc.name)
                     rc_mult = get_severity_multiplier(rc, world)
-                    if world.agent_mode == "hybrid":
+                    if acc is not None:
+                        acc.add(rc_idx, rc, "stability", -int(fed_remain_stab * rc_mult), "guard-shock")
+                    elif world.agent_mode == "hybrid":
                         world.pending_shocks.append(CivShock(rc_idx,
                             stability_shock=normalize_shock(int(fed_remain_stab * rc_mult), rc.stability)))
-                    elif acc is not None:
-                        acc.add(rc_idx, rc, "stability", -int(fed_remain_stab * rc_mult), "signal")
                     else:
                         rc.stability = clamp(rc.stability - int(fed_remain_stab * rc_mult), STAT_FLOOR["stability"], 100)
 
@@ -826,13 +832,19 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
         if rng.random() < detection_prob:
             pw.detected = True
             target_idx = civ_index(world, target.name)
-            if world.agent_mode == "hybrid":
+            mult = get_severity_multiplier(target, world)
+            detection_stab_loss = int(5 * mult)
+            if acc is not None:
+                acc.add(target_idx, target, "stability", -detection_stab_loss, "guard-shock")
+            elif world.agent_mode == "hybrid":
                 world.pending_shocks.append(CivShock(target_idx,
-                    stability_shock=max(-1.0, -5 / max(target.stability, 1))))
-            elif acc is not None:
-                acc.add(target_idx, target, "stability", -5, "guard-shock")
+                    stability_shock=normalize_shock(detection_stab_loss, target.stability)))
             else:
-                target.stability = clamp(target.stability - 5, STAT_FLOOR["stability"], 100)
+                target.stability = clamp(
+                    target.stability - detection_stab_loss,
+                    STAT_FLOOR["stability"],
+                    100,
+                )
 
             rels = world.relationships.get(pw.target_civ, {})
             if pw.sponsor in rels:
@@ -862,7 +874,7 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
     if len(participants) < 3:
         return events
 
-    rng = random.Random(world.seed + world.turn)
+    rng = random.Random(stable_hash_int("congress", world.seed, world.turn))
     congress_prob = get_override(world, K_CONGRESS_PROBABILITY, 0.05)
     if rng.random() >= congress_prob:
         return events
@@ -953,11 +965,11 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
             if civ:
                 civ_idx = civ_index(world, civ.name)
                 mult = get_severity_multiplier(civ, world)
-                if world.agent_mode == "hybrid":
+                if acc is not None:
+                    acc.add(civ_idx, civ, "stability", -int(5 * mult), "guard-shock")
+                elif world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(civ_idx,
                         stability_shock=normalize_shock(int(5 * mult), civ.stability)))
-                elif acc is not None:
-                    acc.add(civ_idx, civ, "stability", -int(5 * mult), "signal")
                 else:
                     civ.stability = clamp(civ.stability - int(5 * mult), STAT_FLOOR["stability"], 100)
         events.append(Event(
@@ -1048,7 +1060,9 @@ def check_restoration(world: WorldState) -> list[Event]:
         absorber_idx = era_order.index(absorber.tech_era)
         restored_era = era_order[max(0, absorber_idx - 1)]
 
-        rng_trait = random.Random(world.seed + world.turn)
+        rng_trait = random.Random(
+            stable_hash_int("restoration_trait", world.seed, world.turn, exile.original_civ_name)
+        )
         new_trait = rng_trait.choice(_TRAIT_POOL)
 
         restored_population = 30
@@ -1314,6 +1328,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                             best_absorber_u = absorber
             if best_absorber_u is not None:
                 absorbed_regions = list(civ.regions)
+                old_capital = civ.capital_region
                 civ_id = next(
                     i for i, existing_civ in enumerate(world.civilizations)
                     if existing_civ is civ
@@ -1336,7 +1351,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
                     emit_conquest_lifecycle_intent(
                         world, losing_civ=civ.name, gaining_civ=best_absorber_u.name,
                         region=rn,
-                        is_capital=(rn == civ.capital_region),
+                        is_capital=(rn == old_capital),
                         is_destructive=False,
                         action="twilight_absorption",
                     )
@@ -1389,6 +1404,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
             continue
 
         absorbed_regions_tw = list(civ.regions)
+        old_capital = civ.capital_region
         civ_id = next(
             i for i, existing_civ in enumerate(world.civilizations)
             if existing_civ is civ
@@ -1411,7 +1427,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
             emit_conquest_lifecycle_intent(
                 world, losing_civ=civ.name, gaining_civ=best_absorber.name,
                 region=rn,
-                is_capital=(rn == civ.capital_region),
+                is_capital=(rn == old_capital),
                 is_destructive=False,
                 action="twilight_absorption",
             )

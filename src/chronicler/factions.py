@@ -433,7 +433,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
             from chronicler.emergence import get_severity_multiplier
             drain = int(3 * get_severity_multiplier(civ, world))
             if acc is not None:
-                acc.add(civ_idx, civ, "stability", -drain, "signal")
+                acc.add(civ_idx, civ, "stability", -drain, "guard-shock")
             else:
                 civ.stability -= drain
                 if civ.stability < 0:

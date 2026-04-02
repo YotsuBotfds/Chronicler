@@ -257,7 +257,7 @@ TEMPLE_PRESTIGE_PER_TURN = 1
 CIV_PRESTIGE_PER_TEMPLE = 1
 
 
-def tick_temple_prestige(world):
+def tick_temple_prestige(world, acc=None):
     """Per-turn: increment temple prestige and award civ prestige.
 
     Civ prestige is awarded to the region controller, not the original builder.
@@ -281,7 +281,11 @@ def tick_temple_prestige(world):
             continue
         count = civ_temple_counts.get(civ.name, 0)
         if count > 0:
-            civ.prestige += civ_prestige_rate * count
+            delta = civ_prestige_rate * count
+            if acc is not None:
+                acc.add(civ_index(world, civ.name), civ, "prestige", delta, "keep")
+            else:
+                civ.prestige += delta
 
 
 def destroy_temple_on_conquest(region, attacker_civ, world) -> "Event | None":

@@ -485,6 +485,42 @@ async def test_batch_load_bundle_round_trip(tmp_path, monkeypatch):
         assert msg["path"] == str(bundle_path.resolve())
         assert msg["bundle"]["metadata"]["seed"] == 101
         assert msg["bundle"]["world_state"]["name"] == "Batch World"
+        assert server._init_data is not None
+        assert server._init_data["current_turn"] == 12
+    finally:
+        server.stop()
+
+
+@pytest.mark.asyncio
+async def test_batch_load_bundle_rejects_unsupported_manifest(tmp_path, monkeypatch):
+    """Live bundle loading should fail cleanly on unsupported bundle v2 manifests."""
+    from chronicler.live import LiveServer
+
+    monkeypatch.chdir(tmp_path)
+    bundle_dir = tmp_path / "output" / "batch_gui_test" / "seed_102"
+    bundle_dir.mkdir(parents=True)
+    bundle_path = bundle_dir / "chronicle_bundle.json"
+    bundle_path.write_text(json.dumps({
+        "manifest_version": 1,
+        "layers": [],
+    }))
+
+    server = LiveServer(port=0)
+    server.start()
+
+    try:
+        async with ws_client.connect(f"ws://localhost:{server._actual_port}") as ws:
+            await ws.send(json.dumps({
+                "type": "batch_load_bundle",
+                "path": str(bundle_path),
+            }))
+
+            raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            msg = json.loads(raw)
+
+        assert msg["type"] == "batch_error"
+        assert "Bundle v2 manifests are not supported" in msg["message"]
+        assert server._init_data is None
     finally:
         server.stop()
 

@@ -103,6 +103,7 @@ describe("SetupLobby", () => {
     expect(params.regions).toBe(8);
     expect(params.sim_model).toBe("model-a");
     expect(params.narrative_model).toBe("model-a");
+    expect(params.narrator).toBe("local");
     expect(params.resume_state).toBeNull();
   });
 

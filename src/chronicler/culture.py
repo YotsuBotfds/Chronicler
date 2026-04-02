@@ -247,7 +247,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                 if acc is not None:
                     ctrl_idx = civ_index(world, controller.name)
                     assim_drain = int(get_override(world, K_ASSIMILATION_STABILITY_DRAIN, 3))
-                    acc.add(ctrl_idx, controller, "stability", -int(assim_drain * mult), "signal")
+                    acc.add(ctrl_idx, controller, "stability", -int(assim_drain * mult), "guard-shock")
                 else:
                     assim_drain = int(get_override(world, K_ASSIMILATION_STABILITY_DRAIN, 3))
                     controller.stability = clamp(
@@ -408,12 +408,13 @@ def tick_prestige(world: WorldState, acc=None) -> None:
     for civ in world.civilizations:
         if len(civ.regions) == 0:
             continue
+        next_prestige = max(0, civ.prestige - prestige_decay)
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "prestige", -prestige_decay, "keep")
         else:
-            civ.prestige = max(0, civ.prestige - prestige_decay)
-        trade_bonus = civ.prestige // prestige_divisor
+            civ.prestige = next_prestige
+        trade_bonus = next_prestige // prestige_divisor
         # M52: Add ephemeral artifact prestige to trade bonus
         # Rehydrate cache if empty (e.g. first turn after save/load)
         if hasattr(world, '_artifact_prestige_by_civ'):

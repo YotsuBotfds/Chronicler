@@ -43,16 +43,16 @@ def assemble_bundle(
 ) -> dict[str, Any]:
     """Assemble all run data into a single dict for the viewer bundle."""
     return {
-        "world_state": _strip_llm_fields(json.loads(world.model_dump_json())),
-        "history": [json.loads(s.model_dump_json()) for s in history],
+        "world_state": _strip_llm_fields(world.model_dump(mode="json")),
+        "history": [s.model_dump(mode="json") for s in history],
         "events_timeline": [
-            json.loads(e.model_dump_json()) for e in world.events_timeline
+            e.model_dump(mode="json") for e in world.events_timeline
         ],
         "named_events": [
-            json.loads(ne.model_dump_json()) for ne in world.named_events
+            ne.model_dump(mode="json") for ne in world.named_events
         ],
-        "chronicle_entries": [entry.model_dump() for entry in chronicle_entries],
-        "gap_summaries": [gs.model_dump() for gs in (gap_summaries or [])],
+        "chronicle_entries": [entry.model_dump(mode="json") for entry in chronicle_entries],
+        "gap_summaries": [gs.model_dump(mode="json") for gs in (gap_summaries or [])],
         "era_reflections": {
             str(turn): text for turn, text in era_reflections.items()
         },
@@ -77,7 +77,12 @@ def write_bundle(bundle: dict[str, Any], path: Path,
     sidecar file ``agent_events.arrow`` is written next to the JSON bundle.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(bundle, indent=2, ensure_ascii=False), encoding="utf-8")
+    # Bundles are machine-consumed and timeline-heavy; compact encoding keeps
+    # the legacy single-file artifact within the current size budget.
+    path.write_text(
+        json.dumps(bundle, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
 
     if world is not None:
         write_agent_events_arrow(world, path.parent)

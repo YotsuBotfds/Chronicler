@@ -40,6 +40,8 @@ from chronicler.emergence import get_severity_multiplier
 
 logger = logging.getLogger(__name__)
 
+ACTION_WEIGHT_BASE = 0.2
+
 
 # M48: Mule constants [FROZEN M53 SOFT]
 MULE_ACTIVE_WINDOW = 30   # [FROZEN M53 SOFT] raised from 25
@@ -287,6 +289,8 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
             other_civ = get_civ(world, other_name)
             if other_civ is None:
                 continue
+            if len(other_civ.regions) == 0:
+                continue
             perceived_mil = get_perceived_stat(civ, other_civ, "military", world)
             if perceived_mil is None:
                 continue  # Unknown civ — not a valid target
@@ -389,13 +393,16 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
     if civ.name in world.relationships:
         for other, rel in world.relationships[civ.name].items():
             if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                target_civ = get_civ(world, other)
+                if target_civ is None or len(target_civ.regions) == 0:
+                    continue
                 if (civ.name, other) not in world.embargoes:
                     target_name = other
                     break
     if target_name:
         world.embargoes.append((civ.name, target_name))
         target = get_civ(world, target_name)
-        if target:
+        if target and target.regions:
             # M21: BANKING halves incoming embargo stability damage
             if target.active_focus == "banking":
                 embargo_damage = int(get_override(world, K_EMBARGO_BANKING_DAMAGE, 2))
@@ -409,7 +416,7 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
             mult = get_severity_multiplier(target, world)
             if acc is not None:
                 target_idx = civ_index(world, target.name)
-                acc.add(target_idx, target, "stability", -int(embargo_damage * mult), "signal")
+                acc.add(target_idx, target, "stability", -int(embargo_damage * mult), "guard-action")
             else:
                 target.stability = clamp(target.stability - int(embargo_damage * mult), STAT_FLOOR["stability"], 100)
         return Event(
@@ -658,12 +665,16 @@ def resolve_war(
             attacker.stability = clamp(attacker.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
         return WarResult("defender_wins", contested.name if contested else None)
     else:
+        att_mult = get_severity_multiplier(attacker, world)
+        def_mult = get_severity_multiplier(defender, world)
+        att_loss = int(stalemate_mil_loss * att_mult)
+        def_loss = int(stalemate_mil_loss * def_mult)
         if acc is not None:
-            acc.add(att_idx, attacker, "military", -stalemate_mil_loss, "guard-action")
-            acc.add(def_idx, defender, "military", -stalemate_mil_loss, "guard-action")
+            acc.add(att_idx, attacker, "military", -att_loss, "guard-action")
+            acc.add(def_idx, defender, "military", -def_loss, "guard-action")
         else:
-            attacker.military = clamp(attacker.military - stalemate_mil_loss, STAT_FLOOR["military"], 100)
-            defender.military = clamp(defender.military - stalemate_mil_loss, STAT_FLOOR["military"], 100)
+            attacker.military = clamp(attacker.military - att_loss, STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - def_loss, STAT_FLOOR["military"], 100)
         return WarResult("stalemate", None)
 
 
@@ -852,7 +863,7 @@ class ActionEngine:
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:
         eligible = self.get_eligible_actions(civ)
-        base = 0.2
+        base = ACTION_WEIGHT_BASE
         weights: dict[ActionType, float] = {a: base for a in ActionType}
         for action in ActionType:
             if action not in eligible:
@@ -926,7 +937,7 @@ class ActionEngine:
                 # Check if any hostile/suspicious neighbor has different faith
                 if civ.name in self.world.relationships:
                     for other_name, rel in self.world.relationships[civ.name].items():
-                        if rel.disposition in ("hostile", "suspicious"):
+                        if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                             other = next((c for c in self.world.civilizations if c.name == other_name), None)
                             if other and hasattr(other, 'civ_majority_faith') and other.civ_majority_faith != attacker_faith:
                                 weights[ActionType.WAR] *= HOLY_WAR_WEIGHT_BONUS
@@ -989,7 +1000,9 @@ class ActionEngine:
         # M19b: Track max pre-cap weight for analytics
         max_weight = max(weights.values()) if weights else 0
         civ.max_precap_weight = max_weight
-        # M21: Cap combined weight multiplier product (not absolute weight)
+        # M21: Cap final pre-selection weights at base_weight * weight_cap.
+        # This enforces the intended 2.5x multiplier ceiling while preserving
+        # relative ordering across the full pre-selection weighting pipeline.
         weight_cap = get_override(self.world, K_WEIGHT_CAP, 2.5)
         max_allowed = base * weight_cap
         if max_weight > max_allowed:

@@ -1006,6 +1006,7 @@ mod tests {
         assert_eq!(pending.loyalty_drifts.len(), 0);
     }
 
+    #[test]
     fn test_rebel_priority_over_migrate() {
         use rand::SeedableRng;
         use rand_chacha::ChaCha8Rng;

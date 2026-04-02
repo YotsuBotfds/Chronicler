@@ -1,6 +1,6 @@
 import pytest
 from chronicler.models import (
-    ActionType, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
+    ActionType, Belief, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
 from chronicler.action_engine import ActionEngine, WarResult, resolve_action, resolve_war, _resolve_war_action
 from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR
@@ -162,6 +162,27 @@ class TestSituationalOverrides:
         civ.treasury = 20
         w = ActionEngine(engine_world).compute_weights(civ)
         assert w[ActionType.DEVELOP] < 0.2 * 0.5
+
+    def test_militant_faith_hostile_neighbor_boosts_war(self, engine_world):
+        civ = engine_world.civilizations[0]
+        rival = engine_world.civilizations[1]
+        civ.leader.trait = "cautious"
+        civ.traditions = []
+        civ.military = 40
+        civ.stability = 80
+        civ.civ_majority_faith = 1
+        rival.civ_majority_faith = 2
+        engine_world.belief_registry = [
+            Belief(faith_id=1, name="Militant", civ_origin=0, doctrines=[0, 0, 1, 0, 0]),
+            Belief(faith_id=2, name="Peaceful", civ_origin=1, doctrines=[0, 0, -1, 0, 0]),
+        ]
+
+        holy_war_weights = ActionEngine(engine_world).compute_weights(civ)
+
+        rival.civ_majority_faith = 1
+        normal_weights = ActionEngine(engine_world).compute_weights(civ)
+
+        assert holy_war_weights[ActionType.WAR] > normal_weights[ActionType.WAR]
 
 
 class TestStreakBreaker:
@@ -325,6 +346,71 @@ class TestWarResolution:
         for attacker_name, defender_name, seed in seeds:
             expected = stable_hash_int("war", engine_world.seed, engine_world.turn, attacker_name, defender_name)
             assert seed == expected
+
+    def test_war_skips_dead_hostile_targets(self, engine_world, monkeypatch):
+        dead_civ = Civilization(
+            name="Dead Civ", population=0, military=10, economy=10, culture=10,
+            stability=10, tech_era=TechEra.IRON, treasury=0,
+            leader=Leader(name="Ghost", trait="bold", reign_start=0),
+            regions=[],
+        )
+        engine_world.civilizations.append(dead_civ)
+        engine_world.relationships["Civ A"]["Dead Civ"] = Relationship(
+            disposition=Disposition.HOSTILE
+        )
+        engine_world.relationships["Dead Civ"] = {
+            "Civ A": Relationship(disposition=Disposition.HOSTILE)
+        }
+
+        monkeypatch.setattr("chronicler.action_engine.get_perceived_stat", lambda *args, **kwargs: 50)
+
+        calls = []
+
+        def fake_resolve_war(attacker, defender, world, seed=0, acc=None):
+            calls.append(defender.name)
+            return WarResult("stalemate", None)
+
+        monkeypatch.setattr("chronicler.action_engine.resolve_war", fake_resolve_war)
+
+        _resolve_war_action(engine_world.civilizations[0], engine_world)
+
+        assert calls == ["Civ B"]
+
+    def test_stalemate_losses_use_severity_multiplier(self, engine_world, monkeypatch):
+        from chronicler.emergence import get_severity_multiplier
+        from chronicler.utils import STAT_FLOOR, clamp
+
+        attacker = engine_world.civilizations[0]
+        defender = engine_world.civilizations[1]
+        attacker.military = 50
+        defender.military = 50
+        attacker.stability = 10
+        defender.stability = 10
+        attacker.civ_stress = 20
+        defender.civ_stress = 20
+
+        class _FixedRng:
+            def __init__(self, seed):
+                self.seed = seed
+
+            def choice(self, seq):
+                return seq[0]
+
+            def uniform(self, a, b):
+                return 0.0
+
+        monkeypatch.setattr("chronicler.action_engine.random.Random", _FixedRng)
+
+        mult_att = get_severity_multiplier(attacker, engine_world)
+        mult_def = get_severity_multiplier(defender, engine_world)
+        expected_att = clamp(50 - int(10 * mult_att), STAT_FLOOR["military"], 100)
+        expected_def = clamp(50 - int(10 * mult_def), STAT_FLOOR["military"], 100)
+
+        result = resolve_war(attacker, defender, engine_world, seed=0)
+
+        assert result.outcome == "stalemate"
+        assert attacker.military == expected_att
+        assert defender.military == expected_def
 
 
 class TestWarWeariness:

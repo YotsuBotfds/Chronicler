@@ -131,6 +131,44 @@ class TestDistributionHelpers:
         assert p["median"] == 49.5 or p["median"] == 50
 
 
+class TestPrecapWeightExtractor:
+    def test_cap_fire_uses_base_scaled_default_threshold(self):
+        from chronicler.analytics import extract_precap_weights
+
+        bundle = {
+            "history": [{
+                "turn": 0,
+                "civ_stats": {
+                    "A": {"alive": True, "max_precap_weight": 0.6},
+                    "B": {"alive": True, "max_precap_weight": 0.4},
+                },
+            }],
+            "world_state": {"tuning_overrides": {}},
+            "metadata": {"total_turns": 1},
+        }
+
+        result = extract_precap_weights([bundle], checkpoints=[0])
+        assert result["cap_fire_rate"] == pytest.approx(0.5)
+
+    def test_cap_fire_respects_bundle_weight_cap_override(self):
+        from chronicler.analytics import extract_precap_weights
+
+        bundle = {
+            "history": [{
+                "turn": 0,
+                "civ_stats": {
+                    "A": {"alive": True, "max_precap_weight": 0.25},
+                    "B": {"alive": True, "max_precap_weight": 0.15},
+                },
+            }],
+            "world_state": {"tuning_overrides": {"action.weight_cap": 1.0}},
+            "metadata": {"total_turns": 1},
+        }
+
+        result = extract_precap_weights([bundle], checkpoints=[0])
+        assert result["cap_fire_rate"] == pytest.approx(0.5)
+
+
 class TestStabilityExtractor:
     def test_returns_percentiles_by_turn(self, tmp_path):
         from chronicler.analytics import load_bundles, extract_stability
@@ -255,6 +293,20 @@ class TestGeneralExtractor:
         assert "first_war_turn_distribution" in result
         assert result["first_war_turn_distribution"]["median"] == 5
         assert "civs_alive_at_end" in result
+
+
+class TestRunSummaries:
+    def test_run_summaries_treat_empty_regions_as_dead_without_alive_field(self):
+        from chronicler.analytics import compute_run_summaries
+
+        bundle = _make_bundle(seed=7)
+        dead_civ = bundle["history"][-1]["civ_stats"]["Civ1"]
+        dead_civ.pop("alive")
+        dead_civ["regions"] = []
+
+        summaries = compute_run_summaries([(Path("batch/seed_7/chronicle_bundle.json"), bundle)])
+
+        assert "fractured" in summaries[0]["signal_flags"]
 
 
 class TestEventFiringRates:

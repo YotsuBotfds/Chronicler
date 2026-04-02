@@ -23,10 +23,12 @@ from chronicler.models import (
     Civilization,
     ActionType,
     Disposition,
+    Belief,
     Event,
     ActiveCondition,
     TechEra,
     NamedEvent,
+    GreatPerson,
     Leader,
     Region,
     CivShock,
@@ -1044,9 +1046,8 @@ class TestAccumulatorWatermark:
 class TestPhase10AccumulatorFlush:
     """C-1 fix: Phase 10 keep mutations take effect in hybrid mode."""
 
-    def test_phase10_condition_drains_reach_pending_shocks(self, make_world):
-        """Phase 10 condition stability drains should go to pending_shocks
-        in hybrid mode, not be silently lost."""
+    def test_phase10_condition_drains_route_through_accumulator(self, make_world):
+        """Phase 10 condition drains should be visible via the accumulator watermark."""
         world = make_world(2)
         world.agent_mode = "hybrid"
         world.pending_shocks = []
@@ -1064,9 +1065,11 @@ class TestPhase10AccumulatorFlush:
         acc = StatAccumulator()
         phase_consequences(world, acc=acc)
 
-        # The condition drain in hybrid mode goes to pending_shocks directly
-        assert len(world.pending_shocks) > 0, \
-            "Phase 10 condition drains should produce pending_shocks in hybrid mode"
+        assert world.pending_shocks == []
+        shocks = acc.to_shock_signals()
+        assert len(shocks) > 0, \
+            "Phase 10 condition drains should produce accumulator-backed shock signals in hybrid mode"
+        assert any(shock.stability_shock < 0 for shock in shocks)
 
     def test_phase10_keep_mutations_survive_second_flush(self, make_world):
         """Phase 10 accumulator keep mutations must survive via second flush."""
@@ -1330,3 +1333,73 @@ class TestConqueredThisTurnReset:
         assert not hasattr(world, '_conquered_this_turn') or \
             world._conquered_this_turn == set(), \
             "_conquered_this_turn should be cleared during turn"
+
+
+class TestAgentsOffTransientCleanup:
+    def test_phase_consequences_preserves_civ_owned_faith_when_registry_order_drifts(self, make_world):
+        world = make_world(2)
+        world.agent_mode = "off"
+        world.belief_registry = [
+            Belief(faith_id=11, name="RegistryZero", civ_origin=0, doctrines=[0, 0, 0, 0, 0]),
+            Belief(faith_id=22, name="RegistryOne", civ_origin=1, doctrines=[0, 0, 0, 0, 0]),
+        ]
+        world.civilizations[0].civ_majority_faith = 22
+        world.civilizations[0].previous_majority_faith = 22
+        world.civilizations[1].civ_majority_faith = 11
+        world.civilizations[1].previous_majority_faith = 11
+
+        phase_consequences(world)
+
+        assert world.civilizations[0].civ_majority_faith == 22
+        assert world.civilizations[1].civ_majority_faith == 11
+
+    def test_run_turn_clears_unused_region_transients_without_agent_bridge(self, make_world):
+        world = make_world(2)
+        world.agent_mode = "off"
+        world.regions[0].schism_convert_from = 2
+        world.regions[0].schism_convert_to = 5
+        world.regions[0]._controller_changed_this_turn = True
+        world.regions[0]._war_won_this_turn = True
+        world.regions[0]._seceded_this_turn = True
+
+        run_turn(
+            world,
+            action_selector=lambda c, w: ActionType.DEVELOP,
+            narrator=lambda *a, **kw: "narration",
+            seed=42,
+        )
+
+        region = world.regions[0]
+        assert region.schism_convert_from == 0xFF
+        assert region.schism_convert_to == 0xFF
+        assert region._controller_changed_this_turn is False
+        assert region._war_won_this_turn is False
+        assert region._seceded_this_turn is False
+
+    def test_phase_consequences_resets_tech_advanced_after_gp_generation(self, make_world):
+        world = make_world(1)
+        civ = world.civilizations[0]
+        civ.event_counts["tech_advanced"] = 1
+
+        phase_consequences(world)
+
+        assert civ.event_counts["tech_advanced"] == 0
+
+    def test_phase_consequences_retires_orphaned_great_persons(self, make_world):
+        world = make_world(1)
+        civ = world.civilizations[0]
+        gp = GreatPerson(
+            name="Last Court Scholar",
+            role="scientist",
+            trait="wise",
+            civilization=civ.name,
+            origin_civilization=civ.name,
+            born_turn=0,
+        )
+        civ.great_persons = [gp]
+        civ.regions = []
+
+        events = phase_consequences(world)
+
+        assert gp in world.retired_persons
+        assert any(e.event_type == "great_person_retired" for e in events)

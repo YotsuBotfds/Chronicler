@@ -121,6 +121,7 @@ def execute_run(
     args : argparse.Namespace
         Must contain: seed, turns, civs, regions, output, state, resume,
         reflection_interval, llm_actions, scenario (and optionally pause_every).
+        `llm_actions` is accepted for backward compatibility but ignored.
     sim_client, narrative_client : LLMClient or None
         LLM clients for simulation and narration. Falls back to _DummyClient.
     world : WorldState or None
@@ -153,7 +154,10 @@ def execute_run(
     state_path = Path(args.state) if args.state else None
     resume_path = Path(args.resume) if getattr(args, "resume", None) else None
     reflection_interval = getattr(args, "reflection_interval", 10) or 10
-    use_llm_actions = getattr(args, "llm_actions", False)
+    if getattr(args, "llm_actions", False):
+        logger.warning(
+            "--llm-actions is deprecated and ignored; simulation action selection remains deterministic"
+        )
     _pause_every = pause_every or getattr(args, "pause_every", None)
 
     # Use scenario_config from arg if not passed directly
@@ -309,26 +313,8 @@ def execute_run(
         # Create action engine fresh each turn (needs current world state)
         action_engine = ActionEngine(world)
 
-        if use_llm_actions and sim_client:
-            def action_selector(civ, world, _engine=action_engine, _narr=engine):
-                try:
-                    action = _narr.select_action(civ, world)
-                    eligible = _engine.get_eligible_actions(civ)
-                    if action in eligible:
-                        return action
-                except Exception as exc:
-                    logger.warning(
-                        "LLM action selection failed for civ=%s turn=%s: %s; "
-                        "falling back to deterministic selector",
-                        civ.name,
-                        world.turn,
-                        exc,
-                    )
-                    pass
-                return _engine.select_action(civ, seed=world.seed)
-        else:
-            def action_selector(civ, world, _engine=action_engine):
-                return _engine.select_action(civ, seed=world.seed)
+        def action_selector(civ, world, _engine=action_engine):
+            return _engine.select_action(civ, seed=world.seed)
 
         # Run one turn
         chronicle_text = run_turn(
@@ -857,15 +843,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--narrative-model", type=str, default=None,
                         help="Model name for narrative generation (default: LM Studio's loaded model)")
     parser.add_argument("--llm-actions", action="store_true", default=False,
-                        help="Use LLM for action selection (default: deterministic engine)")
+                        help="Deprecated compatibility flag; ignored. Action selection is deterministic.")
     parser.add_argument("--scenario", type=str, default=None,
                         help="Path to a YAML scenario file")
     # --- M10 workflow flags ---
     parser.add_argument("--batch", type=int, default=None,
                         help="Run N chronicles with sequential seeds")
     parser.add_argument("--parallel", type=int, nargs="?", const=-1, default=None,
-                        help="Parallel workers for batch mode (default: cpu_count-1). "
-                             "Mutually exclusive with --llm-actions.")
+                        help="Parallel workers for batch mode (default: cpu_count-1).")
     parser.add_argument("--fork", type=str, default=None,
                         help="Fork from a saved state.json with a new seed")
     parser.add_argument("--interactive", action="store_true", default=False,
@@ -1066,9 +1051,11 @@ def main() -> None:
         print(f"Error: {' and '.join(mode_flags)} are mutually exclusive", file=sys.stderr)
         sys.exit(1)
 
-    if args.parallel is not None and args.llm_actions:
-        print("Error: Cannot use --parallel with --llm-actions", file=sys.stderr)
-        sys.exit(1)
+    if args.llm_actions:
+        logger.warning(
+            "--llm-actions is deprecated and ignored; simulation action selection remains deterministic"
+        )
+        args.llm_actions = False
 
     # Parse --seed-range into seed + batch count
     if getattr(args, "seed_range", None):

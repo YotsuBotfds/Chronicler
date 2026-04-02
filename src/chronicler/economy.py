@@ -921,22 +921,16 @@ def _regions_share_river(r1, r2) -> bool:
 def _transport_cost(r1, r2, is_winter: bool) -> float:
     """Compute directed transport cost from *r1* to *r2*.
 
-    Uses average terrain cost of the two endpoints, then applies discounts
-    for river/coastal adjacency and a winter surcharge.
+    Keep merchant-route graph costs aligned with the Python goods economy's
+    canonical transport-cost formula.
     """
-    cost1 = TERRAIN_COST.get(r1.terrain, 1.0)
-    cost2 = TERRAIN_COST.get(r2.terrain, 1.0)
-    base = TRANSPORT_COST_BASE * (cost1 + cost2) / 2.0
-
-    if _regions_share_river(r1, r2):
-        base *= RIVER_DISCOUNT
-    elif r1.terrain == "coast" and r2.terrain == "coast":
-        base *= COASTAL_DISCOUNT
-
-    if is_winter:
-        base *= WINTER_MODIFIER
-
-    return base
+    return compute_transport_cost(
+        r1.terrain,
+        r2.terrain,
+        is_river=_regions_share_river(r1, r2),
+        is_coastal=(r1.terrain == "coast" and r2.terrain == "coast"),
+        is_winter=is_winter,
+    )
 
 
 def build_merchant_route_graph(world) -> "pa.RecordBatch":

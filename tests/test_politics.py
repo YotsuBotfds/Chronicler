@@ -159,6 +159,25 @@ def test_capital_loss_triggers_stability_penalty():
     assert len(events) > 0
 
 
+def test_capital_loss_hybrid_routes_through_accumulator_when_available():
+    """Hybrid Phase 10 should record capital-loss shocks in the accumulator watermark."""
+    from chronicler.accumulator import StatAccumulator
+
+    adj = {"B": ["C"], "C": ["B"]}
+    world = _make_world_with_regions(["B", "C"], capital="A", adjacencies=adj)
+    world.agent_mode = "hybrid"
+    world.pending_shocks = []
+
+    acc = StatAccumulator()
+    events = check_capital_loss(world, acc=acc)
+
+    assert events
+    assert world.pending_shocks == []
+    shocks = acc.to_shock_signals()
+    assert len(shocks) == 1
+    assert shocks[0].stability_shock < 0
+
+
 def test_capital_loss_picks_best_remaining_region():
     """Capital reassignment picks highest effective_capacity."""
     from chronicler.models import RegionEcology
@@ -290,7 +309,7 @@ def test_simulation_calls_governing_costs():
     selector = lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn)
     run_turn(world, selector, lambda w, e: "", seed=world.seed + world.turn)
     # Treasury governing cost (16) is applied each turn; net may be positive due to income.
-    # With K_GOVERNING_COST=0.5 stability drain is zero; verify treasury was modified.
+    # Treasury movement is the simplest stable smoke check here.
     assert civ.treasury != initial_treasury
 
 
@@ -720,6 +739,32 @@ def test_proxy_detection_scales_with_culture():
     assert detected
 
 
+def test_proxy_detection_uses_severity_multiplier():
+    from chronicler.emergence import get_severity_multiplier
+    from chronicler.models import Relationship, Disposition
+
+    world = _make_world_with_regions(["A"], capital="A")
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    target = Civilization(
+        name="Target", population=30, military=20, economy=30,
+        culture=100, stability=40, treasury=50, leader=l2,
+        regions=["B"], capital_region="B",
+    )
+    target.civ_stress = 20
+    world.civilizations.append(target)
+    world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+    world.relationships = {
+        "Empire": {"Target": Relationship(disposition=Disposition.FRIENDLY)},
+        "Target": {"Empire": Relationship(disposition=Disposition.FRIENDLY)},
+    }
+
+    expected_drain = int(5 * get_severity_multiplier(target, world))
+    events = check_proxy_detection(world)
+
+    assert events and events[0].event_type == "proxy_detected"
+    assert target.stability == 40 - expected_drain
+
+
 # --- Task 19: Diplomatic congress ---
 
 from chronicler.politics import check_congress
@@ -1118,6 +1163,38 @@ def test_twilight_absorption_hybrid_calls_bridge_transition():
     assert kwargs["absorber_civ_id"] == 0
     assert kwargs["losing_civ_id"] == 1
     assert kwargs["world"] is world
+
+
+def test_twilight_absorption_marks_capital_region(monkeypatch):
+    from chronicler.politics import check_twilight_absorption
+
+    calls = []
+
+    def fake_emit(*args, **kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr("chronicler.artifacts.emit_conquest_lifecycle_intent", fake_emit)
+
+    world = generate_world(seed=42, num_civs=3, num_regions=6)
+    absorber = world.civilizations[0]
+    target = world.civilizations[1]
+    target_region = world.regions[1]
+    target.regions = [target_region.name]
+    target.capital_region = target_region.name
+    target.decline_turns = 50
+    target.culture = 10
+    absorber.culture = 90
+    target_region.controller = target.name
+    absorber_region = world.regions[0]
+    absorber_region.controller = absorber.name
+    absorber.regions = [absorber_region.name]
+    target_region.adjacencies = [absorber_region.name]
+    absorber_region.adjacencies = [target_region.name]
+
+    check_twilight_absorption(world)
+
+    assert calls
+    assert any(call["region"] == target_region.name and call["is_capital"] is True for call in calls)
 
 
 # --- M-AF1 #5: Federation mutual defense ---

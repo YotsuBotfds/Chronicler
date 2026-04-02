@@ -499,11 +499,11 @@ def test_coordinator_dissolves_dead_agent_edges():
     class MockBridge:
         def __init__(self, initial_edges):
             self._edges = initial_edges
-            self.replaced = None
+            self.ops = None
         def read_social_edges(self):
             return list(self._edges)
-        def replace_social_edges(self, edges):
-            self.replaced = edges
+        def apply_relationship_ops(self, ops):
+            self.ops = ops
 
     initial = [(100, 200, REL_RIVAL, 10)]
     bridge = MockBridge(initial)
@@ -511,19 +511,26 @@ def test_coordinator_dissolves_dead_agent_edges():
     active_ids = {200}
     dissolved = form_and_sync_relationships(world, bridge, active_ids, {}, {})
     assert len(dissolved) == 1
-    assert bridge.replaced is not None
-    assert len(bridge.replaced) == 0
+    assert bridge.ops is not None
+    assert bridge.ops == [{
+        "op_type": 3,
+        "agent_a": 100,
+        "agent_b": 200,
+        "bond_type": REL_RIVAL,
+        "sentiment": 50,
+        "formed_turn": 10,
+    }]
 
 
 def test_coordinator_forms_new_edges_and_writes_back(make_world):
     class MockBridge:
         def __init__(self):
             self._edges = []
-            self.replaced = None
+            self.ops = None
         def read_social_edges(self):
             return list(self._edges)
-        def replace_social_edges(self, edges):
-            self.replaced = edges
+        def apply_relationship_ops(self, ops):
+            self.ops = ops
 
     bridge = MockBridge()
     world = make_world(num_civs=2, seed=42)
@@ -541,9 +548,9 @@ def test_coordinator_forms_new_edges_and_writes_back(make_world):
     world.active_wars = [(civ1.name, civ2.name)]
     dissolved = form_and_sync_relationships(world, bridge, {100, 200}, {}, {})
     assert len(dissolved) == 0
-    assert bridge.replaced is not None
-    assert len(bridge.replaced) >= 1
-    assert any(e[2] == REL_RIVAL for e in bridge.replaced)
+    assert bridge.ops is not None
+    assert len(bridge.ops) >= 1
+    assert any(op["bond_type"] == REL_RIVAL and op["op_type"] == 1 for op in bridge.ops)
 
 
 # --- Task 17: agents=off empty relationships ---

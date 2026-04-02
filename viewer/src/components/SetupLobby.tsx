@@ -79,23 +79,26 @@ export function SetupLobby({
 
     const resolvedSimModel = simModel === "__custom__" ? customSimModel : simModel;
     const resolvedNarrativeModel = narrativeModel === "__custom__" ? customNarrativeModel : narrativeModel;
+    const resolvedCivs = resumeState
+      ? resumeState.civilizations.length
+      : civsDisabled
+        ? (selectedScenario?.civs?.length || defaults.civs)
+        : civs;
+    const resolvedRegions = resumeState
+      ? resumeState.regions.length
+      : regionsDisabled
+        ? (selectedScenario?.regions?.length || defaults.regions)
+        : regions;
 
     onLaunch({
       scenario: resumeState ? null : (scenario || null),
       turns,
       seed: seed === "" ? null : Number(seed),
-      civs: resumeState
-        ? resumeState.civilizations.length
-        : civsDisabled
-          ? (selectedScenario?.civs?.length || defaults.civs)
-          : civs,
-      regions: resumeState
-        ? resumeState.regions.length
-        : regionsDisabled
-          ? (selectedScenario?.regions?.length || defaults.regions)
-          : regions,
+      civs: resolvedCivs,
+      regions: resolvedRegions,
       sim_model: resolvedSimModel,
       narrative_model: resolvedNarrativeModel,
+      narrator: "local",
       resume_state: resumeState,
     });
   }, [
@@ -116,6 +119,23 @@ export function SetupLobby({
   const previewCivs = resumeState
     ? resumeState.civilizations.map((c) => ({ name: c.name, values: c.values ?? [] }))
     : selectedScenario?.civs ?? [];
+  const batchRunDefaults: Partial<BatchConfig> = {
+    turns,
+    civs: resumeState
+      ? resumeState.civilizations.length
+      : civsDisabled
+        ? (selectedScenario?.civs?.length || defaults.civs)
+        : civs,
+    regions: resumeState
+      ? resumeState.regions.length
+      : regionsDisabled
+        ? (selectedScenario?.regions?.length || defaults.regions)
+        : regions,
+    scenario: resumeState ? null : (scenario || null),
+    sim_model: simModel === "__custom__" ? customSimModel : simModel,
+    narrative_model: narrativeModel === "__custom__" ? customNarrativeModel : narrativeModel,
+    narrator: "local",
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex">
@@ -158,6 +178,7 @@ export function SetupLobby({
                 report={batchReport}
                 progress={batchProgress}
                 error={batchError}
+                runDefaults={batchRunDefaults}
                 onStart={onBatchStart}
                 onCancel={onBatchCancel}
                 onReset={onBatchReset}

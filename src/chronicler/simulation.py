@@ -54,6 +54,7 @@ from chronicler.utils import (
     civ_index,
     clamp,
     get_civ,
+    resolve_civ_faith_id,
     stable_hash_int,
     STAT_FLOOR,
     sync_civ_population,
@@ -940,11 +941,11 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                     drain = int(get_override(world, K_DROUGHT_ONGOING, 2))
                 else:
                     drain = int(get_override(world, K_CONDITION_ONGOING_DRAIN, 1))
-                if world.agent_mode == "hybrid":
+                if acc is not None:
+                    acc.add(civ_idx, civ, "stability", -int(drain * mult), "guard-shock")
+                elif world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(civ_idx,
                         stability_shock=normalize_shock(int(drain * mult), civ.stability)))
-                elif acc is not None:
-                    acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
                 else:
                     civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
@@ -1064,10 +1065,14 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         )
         _persecution_events.extend(pilgrimage_events)
     elif world.belief_registry:
-        # --agents=off: default civ_majority_faith to founding faith
+        # --agents=off: preserve persisted civ faith when present; otherwise
+        # fall back to founding-faith registry order for older worlds.
         for i, civ in enumerate(world.civilizations):
-            if i < len(world.belief_registry):
-                civ.civ_majority_faith = world.belief_registry[i].faith_id
+            civ.civ_majority_faith = resolve_civ_faith_id(
+                civ,
+                world.belief_registry,
+                civ_idx=i,
+            )
 
     # M38a: Build conversion_deltas and priest counts for tick_factions
     conversion_deltas = None
@@ -1151,7 +1156,10 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
-                if world.agent_mode == "hybrid":
+                if acc is not None:
+                    acc.add(civ_idx, civ, "military", -civ.military / 2, "guard-shock")
+                    acc.add(civ_idx, civ, "economy", -civ.economy / 2, "guard-shock")
+                elif world.agent_mode == "hybrid":
                     world.pending_shocks.append(CivShock(
                         civ_idx,
                         military_shock=-0.5,
@@ -1190,7 +1198,20 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         ))
 
     # --- M17: Great Person Consequences ---
-    from chronicler.great_persons import check_great_person_generation, check_lifespan_expiry
+    from chronicler.great_persons import (
+        check_great_person_generation,
+        check_lifespan_expiry,
+        retire_orphaned_great_persons,
+    )
+    retired_orphans = retire_orphaned_great_persons(world)
+    for gp in retired_orphans:
+        collapse_events.append(Event(
+            turn=world.turn,
+            event_type="great_person_retired",
+            actors=[gp.civilization],
+            description=f"{gp.name} retires after the fall of {gp.civilization}.",
+            importance=4,
+        ))
     for civ in world.civilizations:
         if not civ.regions:
             continue
@@ -1203,6 +1224,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 importance=6,
             ))
         check_lifespan_expiry(civ, world)
+        civ.event_counts["tech_advanced"] = 0
 
     # M17b: Exile restoration checks
     collapse_events.extend(check_exile_restoration(world))
@@ -1219,7 +1241,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
 
     # M38a: Temple prestige tick
     from chronicler.infrastructure import tick_temple_prestige
-    tick_temple_prestige(world)
+    tick_temple_prestige(world, acc=acc)
 
     return collapse_events
 
@@ -1605,10 +1627,6 @@ def run_turn(
     # M47d: Update war-weariness and peace momentum accumulators
     update_war_frequency_accumulators(world)
 
-    conquered_civs = getattr(world, '_conquered_this_turn', set())
-    world._conquered_this_turn = set()  # clear BEFORE passing to bridge (transient signal rule)
-    conquered_dict = {i: True for i in conquered_civs}
-
     # Phase 6: Cultural Milestones
     turn_events.extend(phase_cultural_milestones(world, acc=acc))
 
@@ -1640,6 +1658,10 @@ def run_turn(
 
     turn_events.extend(tick_ecology(world, climate_phase, acc=acc, ecology_runtime=_eco_rt))
 
+    conquered_civs = getattr(world, '_conquered_this_turn', set())
+    world._conquered_this_turn = set()  # clear immediately before bridge consumption
+    conquered_dict = {i: True for i in conquered_civs}
+
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
         acc.apply_keep(world)  # Apply treasury, prestige (asabiya now regional, M55b)
@@ -1664,6 +1686,14 @@ def run_turn(
     else:
         # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
+
+    if agent_bridge is None:
+        for region in world.regions:
+            region.schism_convert_from = 0xFF
+            region.schism_convert_to = 0xFF
+            region._controller_changed_this_turn = False
+            region._war_won_this_turn = False
+            region._seceded_this_turn = False
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)

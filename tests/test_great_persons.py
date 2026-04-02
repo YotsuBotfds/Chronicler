@@ -257,11 +257,39 @@ def test_50_cap_forces_retirement(make_world):
     assert world.retired_persons[-1].name == "Person0"
 
 
+def test_50_cap_retires_oldest_globally_even_if_spawning_civ_has_none(make_world):
+    world = make_world(num_civs=2, seed=42)
+    civ = world.civilizations[0]
+    other = world.civilizations[1]
+
+    for i in range(50):
+        other.great_persons.append(GreatPerson(
+            name=f"Other{i}",
+            role="merchant",
+            trait="shrewd",
+            civilization=other.name,
+            origin_civilization=other.name,
+            born_turn=i,
+        ))
+
+    civ.war_win_turns = [5, 8, 12]
+    spawned = check_great_person_generation(civ, world)
+
+    assert len(spawned) == 1
+    assert len(world.retired_persons) == 1
+    assert world.retired_persons[0].name == "Other0"
+
+
 # ---------------------------------------------------------------------------
 # Task 4: Lifecycle management tests
 # ---------------------------------------------------------------------------
 
-from chronicler.great_persons import check_lifespan_expiry, kill_great_person, _compute_lifespan
+from chronicler.great_persons import (
+    check_lifespan_expiry,
+    kill_great_person,
+    retire_orphaned_great_persons,
+    _compute_lifespan,
+)
 
 
 def test_retirement_on_lifespan_expiry(make_world):
@@ -291,6 +319,29 @@ def test_death_is_separate_from_retirement(make_world):
     assert killed.death_turn == 15
     assert killed not in civ.great_persons
     assert killed in world.retired_persons
+
+
+def test_retire_orphaned_great_persons(make_world):
+    world = make_world(num_civs=1, seed=42)
+    civ = world.civilizations[0]
+    gp = GreatPerson(
+        name="Orphaned Sage",
+        role="scientist",
+        trait="wise",
+        civilization=civ.name,
+        origin_civilization=civ.name,
+        born_turn=0,
+    )
+    civ.great_persons = [gp]
+    civ.regions = []
+    world.turn = 12
+
+    retired = retire_orphaned_great_persons(world)
+
+    assert retired == [gp]
+    assert gp.fate == "retired"
+    assert gp not in civ.great_persons
+    assert gp in world.retired_persons
 
 
 def test_lifespan_deterministic():

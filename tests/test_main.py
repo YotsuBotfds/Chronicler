@@ -88,7 +88,7 @@ class TestRunChronicle:
             narrative_client=narrative_client,
             reflection_interval=10,
         )
-        # Verify the mocks were called for action selection + narration
+        # Verify the mocks were called for world enrichment + narration
         assert sim_client.complete.call_count > 0
         assert narrative_client.complete.call_count > 0
 
@@ -349,7 +349,7 @@ def test_goal_enrichment_failure_logs_warning(tmp_path, caplog):
     )
 
 
-def test_llm_action_fallback_logs_civ_and_turn(tmp_path, caplog):
+def test_llm_actions_logs_deprecation_warning(tmp_path, caplog):
     from chronicler.main import execute_run
 
     caplog.set_level(logging.WARNING)
@@ -361,14 +361,14 @@ def test_llm_action_fallback_logs_civ_and_turn(tmp_path, caplog):
         llm_actions=True, scenario=None, pause_every=None,
     )
     sim_client = MagicMock(model="test-sim")
+    sim_client.complete.return_value = "DEVELOP"
     narrative_client = MagicMock(model="test-narr")
     narrative_client.complete.return_value = "Turn text."
 
-    with patch("chronicler.main.NarrativeEngine.select_action", side_effect=RuntimeError("selector down")):
-        execute_run(args, sim_client=sim_client, narrative_client=narrative_client)
+    execute_run(args, sim_client=sim_client, narrative_client=narrative_client)
 
     assert any(
-        "LLM action selection failed for civ=" in record.message and "turn=" in record.message
+        "--llm-actions is deprecated and ignored" in record.message
         for record in caplog.records
     )
 
@@ -468,13 +468,22 @@ def test_quit_check_stops_simulation_early(tmp_path):
 
 
 class TestMutualExclusions:
-    def test_parallel_and_llm_actions_rejected(self, capsys):
-        """--parallel and --llm-actions should error out."""
-        import sys
+    def test_parallel_and_llm_actions_allowed_when_ignored(self, caplog):
+        """--llm-actions no longer blocks batch parallelism because it is ignored."""
         from chronicler.main import main
-        sys.argv = ["chronicler", "--batch", "3", "--parallel", "--llm-actions"]
-        with pytest.raises(SystemExit):
-            main()
+
+        caplog.set_level(logging.WARNING)
+        sim_client = MagicMock(model="test-sim")
+        narrative_client = MagicMock(model="test-narr")
+        with patch("sys.argv", ["chronicler", "--batch", "3", "--parallel", "--llm-actions"]):
+            with patch("chronicler.main.create_clients", return_value=(sim_client, narrative_client)):
+                with patch("chronicler.batch.run_batch", return_value=Path("output/batch")):
+                    main()
+
+        assert any(
+            "--llm-actions is deprecated and ignored" in record.message
+            for record in caplog.records
+        )
 
     def test_batch_and_fork_rejected(self, capsys):
         import sys

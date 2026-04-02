@@ -38,6 +38,23 @@ pub struct AgentEvent {
     pub turn: u32,
 }
 
+fn mark_war_survivors(
+    pool: &mut AgentPool,
+    region_groups: &[Vec<usize>],
+    contested_regions: &[bool],
+) {
+    for (region_id, slots) in region_groups.iter().enumerate() {
+        if region_id >= contested_regions.len() || !contested_regions[region_id] {
+            continue;
+        }
+        for &slot in slots {
+            if pool.is_alive(slot) {
+                pool.life_events[slot] |= LIFE_EVENT_WAR_SURVIVAL;
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Public tick entry point
 // ---------------------------------------------------------------------------
@@ -853,18 +870,9 @@ pub fn tick_agents(
         }
     }
 
-    // Mark war survival for agents in contested regions who survived
-    for (region_id, slots) in region_groups.iter().enumerate() {
-        if region_id < signals.contested_regions.len()
-            && signals.contested_regions[region_id]
-        {
-            for &slot in slots {
-                if pool.is_alive(slot) {
-                    pool.life_events[slot] |= LIFE_EVENT_WAR_SURVIVAL;
-                }
-            }
-        }
-    }
+    // Mark war survival from the post-demographics partition so we reflect
+    // the agents that actually survived this tick in their current regions.
+    mark_war_survivors(pool, &post_demo_partition, &signals.contested_regions);
 
     // Decrement displacement turns for all alive agents
     for slot in 0..pool.capacity() {
@@ -1537,6 +1545,28 @@ mod tests {
             tick_agents(&mut pool_b, &regions, &signals, seed, turn, &mut pb, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
         }
         assert_eq!(pool_a.alive_count(), pool_b.alive_count());
+    }
+
+    #[test]
+    fn test_mark_war_survivors_uses_current_partition() {
+        let mut pool = AgentPool::new(4);
+        let slot_a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let slot_b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+
+        let stale_partition = vec![vec![slot_a], vec![slot_b]];
+        let current_partition = vec![vec![slot_b], vec![slot_a]];
+        let contested_regions = vec![false, true];
+
+        mark_war_survivors(&mut pool, &stale_partition, &contested_regions);
+        assert_eq!(pool.life_events[slot_a] & LIFE_EVENT_WAR_SURVIVAL, 0);
+        assert_eq!(pool.life_events[slot_b] & LIFE_EVENT_WAR_SURVIVAL, LIFE_EVENT_WAR_SURVIVAL);
+
+        pool.life_events[slot_a] = 0;
+        pool.life_events[slot_b] = 0;
+
+        mark_war_survivors(&mut pool, &current_partition, &contested_regions);
+        assert_eq!(pool.life_events[slot_a] & LIFE_EVENT_WAR_SURVIVAL, LIFE_EVENT_WAR_SURVIVAL);
+        assert_eq!(pool.life_events[slot_b] & LIFE_EVENT_WAR_SURVIVAL, 0);
     }
 
     #[test]

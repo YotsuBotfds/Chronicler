@@ -868,22 +868,25 @@ export function AppShell({
 
     const resolvedSimModel = simModel === "__custom__" ? customSimModel : simModel;
     const resolvedNarrativeModel = narrativeModel === "__custom__" ? customNarrativeModel : narrativeModel;
+    const resolvedCivs = resumeState
+      ? resumeState.civilizations.length
+      : civsDisabled
+        ? (selectedScenario?.civs?.length || defaults.civs)
+        : civs;
+    const resolvedRegions = resumeState
+      ? resumeState.regions.length
+      : regionsDisabled
+        ? (selectedScenario?.regions?.length || defaults.regions)
+        : regions;
     onLaunch({
       scenario: resumeState ? null : (scenario || null),
       turns,
       seed: seed === "" ? null : Number(seed),
-      civs: resumeState
-        ? resumeState.civilizations.length
-        : civsDisabled
-          ? (selectedScenario?.civs?.length || defaults.civs)
-          : civs,
-      regions: resumeState
-        ? resumeState.regions.length
-        : regionsDisabled
-          ? (selectedScenario?.regions?.length || defaults.regions)
-          : regions,
+      civs: resolvedCivs,
+      regions: resolvedRegions,
       sim_model: resolvedSimModel,
       narrative_model: resolvedNarrativeModel,
+      narrator: "local",
       resume_state: resumeState,
     });
   };
@@ -1491,6 +1494,7 @@ function LeftRail({
   onSelectBatchRun,
   onOpenBatchResult,
 }: LeftRailProps) {
+  const selectedScenario = setupState.scenarios.find((entry) => entry.file === setupState.scenario) ?? null;
   const railTabs = surface === "setup"
     ? [{ key: "launch", label: "Launch" }]
     : surface === "progress"
@@ -1501,6 +1505,25 @@ function LeftRail({
           { key: "chronicle", label: "Chronicle" },
           { key: "events", label: "Event Log" },
         ];
+  const batchRunDefaults: Partial<BatchConfig> = {
+    turns: setupState.turns,
+    civs: setupState.resumeState
+      ? setupState.resumeState.civilizations.length
+      : setupState.civsDisabled
+        ? (selectedScenario?.civs?.length || setupState.civs)
+        : setupState.civs,
+    regions: setupState.resumeState
+      ? setupState.resumeState.regions.length
+      : setupState.regionsDisabled
+        ? (selectedScenario?.regions?.length || setupState.regions)
+        : setupState.regions,
+    scenario: setupState.resumeState ? null : (setupState.scenario || null),
+    sim_model: setupState.simModel === "__custom__" ? setupState.customSimModel : setupState.simModel,
+    narrative_model: setupState.narrativeModel === "__custom__"
+      ? setupState.customNarrativeModel
+      : setupState.narrativeModel,
+    narrator: "local",
+  };
 
   return (
     <aside className="phase75-left-rail phase75-panel">
@@ -1649,6 +1672,7 @@ function LeftRail({
               report={batchReport}
               progress={batchProgress}
               error={batchError}
+              runDefaults={batchRunDefaults}
               onStart={onBatchStart}
               onCancel={onBatchCancel}
               onReset={onBatchReset}

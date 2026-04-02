@@ -124,7 +124,6 @@ def sample_world(sample_regions, sample_civilizations, sample_relationships):
         regions=sample_regions,
         civilizations=sample_civilizations,
         relationships=sample_relationships,
-        historical_figures=[],
         events_timeline=[],
         active_conditions=[],
         event_probabilities={

@@ -1,5 +1,7 @@
 """M43a: Transport, perishability & stockpiles tests."""
 
+import pytest
+
 from chronicler.models import RegionStockpile, Region
 from chronicler.economy import (
     FOOD_GOODS,
@@ -648,4 +650,37 @@ def test_transport_cost_mountain_vs_river():
     mountain = compute_transport_cost("plains", "mountains", is_river=False, is_coastal=False, is_winter=False)
     river = compute_transport_cost("plains", "plains", is_river=True, is_coastal=False, is_winter=False)
     assert mountain > river * 3, f"Mountain ({mountain}) should be much more than river ({river})"
+
+
+def test_merchant_route_graph_uses_canonical_transport_cost(make_world):
+    from chronicler.economy import build_merchant_route_graph
+
+    world = make_world(2)
+    civ = world.civilizations[0]
+    world.turn = 0
+    world.regions[0].controller = civ.name
+    world.regions[1].controller = civ.name
+    civ.regions = [world.regions[0].name, world.regions[1].name]
+    world.regions[0].terrain = "plains"
+    world.regions[1].terrain = "mountains"
+    world.regions[0].adjacencies = [world.regions[1].name]
+    world.regions[1].adjacencies = [world.regions[0].name]
+    world.regions[0].river_mask = 0
+    world.regions[1].river_mask = 0
+
+    batch = build_merchant_route_graph(world)
+    from_ids = batch.column("from_region").to_pylist()
+    to_ids = batch.column("to_region").to_pylist()
+    costs = batch.column("transport_cost").to_pylist()
+
+    idx = next(i for i, pair in enumerate(zip(from_ids, to_ids)) if pair == (0, 1))
+    expected = compute_transport_cost(
+        "plains",
+        "mountains",
+        is_river=False,
+        is_coastal=False,
+        is_winter=False,
+    )
+
+    assert costs[idx] == pytest.approx(expected)
 

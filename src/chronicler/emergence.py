@@ -428,14 +428,20 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
                 mult = get_severity_multiplier(civ, world)
                 volcano_pop = int(get_override(world, K_VOLCANO_POP_DRAIN, 20))
                 volcano_stab = int(get_override(world, K_VOLCANO_STABILITY_DRAIN, 15))
+                pop_loss = int(volcano_pop * mult)
+                stab_loss = int(volcano_stab * mult)
                 if acc is not None:
                     civ_idx = civ_index(world, civ.name)
-                    acc.add(civ_idx, civ, "population", -volcano_pop, "guard")
-                    acc.add(civ_idx, civ, "stability", -int(volcano_stab * mult), "signal")
+                    acc.add(civ_idx, civ, "population", -pop_loss, "guard")
+                    acc.add(civ_idx, civ, "stability", -stab_loss, "signal")
                 else:
-                    drain_region_pop(region, volcano_pop)
+                    drain_region_pop(region, pop_loss)
                     sync_civ_population(civ, world)
-                    civ.stability = clamp(civ.stability - int(volcano_stab * mult), STAT_FLOOR.get("stability", 0), 100)
+                    civ.stability = clamp(
+                        civ.stability - stab_loss,
+                        STAT_FLOOR.get("stability", 0),
+                        100,
+                    )
 
     world.climate_config.phase_offset += 1
 

@@ -7,6 +7,9 @@ import statistics
 from datetime import datetime
 from pathlib import Path
 
+from chronicler.action_engine import ACTION_WEIGHT_BASE
+from chronicler.tuning import K_WEIGHT_CAP
+
 ERA_ORDER = [
     "tribal", "bronze", "iron", "classical", "medieval",
     "renaissance", "industrial", "information",
@@ -97,6 +100,14 @@ def _snapshot_at_turn(bundle: dict, turn: int) -> dict | None:
     return None
 
 
+def _civ_is_alive(civ_data: dict) -> bool:
+    """Treat region ownership as canonical, with legacy alive-field fallback."""
+    regions = civ_data.get("regions")
+    if regions is not None:
+        return len(regions) > 0
+    return bool(civ_data.get("alive", True))
+
+
 def compute_run_summaries(records: list[tuple[Path, dict]]) -> list[dict]:
     """Build per-run summaries ranked by interestingness for Batch Lab browsing."""
     summaries: list[dict] = []
@@ -131,7 +142,7 @@ def compute_run_summaries(records: list[tuple[Path, dict]]) -> list[dict]:
             if e.get("event_type") in {"tech_advancement", "tech_advance"}
         )
         major_event_count = sum(1 for e in all_events if int(e.get("importance", 0) or 0) >= 7)
-        alive_count = sum(1 for civ in civ_stats.values() if civ.get("alive", True))
+        alive_count = sum(1 for civ in civ_stats.values() if _civ_is_alive(civ))
         low_stability = any(float(civ.get("stability", 0) or 0) <= 1 for civ in civ_stats.values())
         advanced_eras = {"industrial", "information"}
 
@@ -313,7 +324,7 @@ def extract_politics(bundles: list[dict]) -> dict:
     for b in bundles:
         for snap in b["history"]:
             for civ_data in snap["civ_stats"].values():
-                if not civ_data.get("alive", True):
+                if not _civ_is_alive(civ_data):
                     elimination_turns.append(snap["turn"])
                     break
             else:
@@ -441,7 +452,7 @@ def extract_general(bundles: list[dict]) -> dict:
         last_snap = b["history"][-1]
         alive_count = sum(
             1 for civ_data in last_snap["civ_stats"].values()
-            if civ_data.get("alive", False)
+            if _civ_is_alive(civ_data)
         )
         civs_alive_counts.append(alive_count)
 
@@ -514,7 +525,7 @@ def extract_focus_distribution(
             if snap is None:
                 continue
             for civ_data in snap["civ_stats"].values():
-                if not civ_data.get("alive", True):
+                if not _civ_is_alive(civ_data):
                     continue
                 era = civ_data.get("tech_era")
                 focus = civ_data.get("active_focus")
@@ -568,7 +579,7 @@ def extract_focus_geography(bundles: list[dict]) -> dict:
         # Get the final snapshot for alive check and active_focus
         last_snap = bundle["history"][-1]
         for civ_name, civ_data in last_snap["civ_stats"].items():
-            if not civ_data.get("alive", True):
+            if not _civ_is_alive(civ_data):
                 continue
             terrains = civ_terrains.get(civ_name, set())
             focus = civ_data.get("active_focus")
@@ -643,7 +654,7 @@ def extract_action_entropy(
             civ_timeline: list[tuple[int, str, dict[str, int]]] = []
             for snap in history:
                 civ_data = snap.get("civ_stats", {}).get(civ_name)
-                if civ_data is None or not civ_data.get("alive", True):
+                if civ_data is None or not _civ_is_alive(civ_data):
                     continue
                 turn = snap["turn"]
                 era = civ_data.get("tech_era", "tribal")
@@ -721,7 +732,7 @@ def extract_capability_firing(bundles: list[dict]) -> dict:
                 max_consecutive = 0
                 for snap in history:
                     civ_data = snap.get("civ_stats", {}).get(civ_name)
-                    if civ_data is None or not civ_data.get("alive", True):
+                    if civ_data is None or not _civ_is_alive(civ_data):
                         consecutive = 0
                         continue
                     if civ_data.get("active_focus") == focus_name:
@@ -780,7 +791,7 @@ def extract_faction_dominance(
             if snap is None:
                 continue
             for civ_data in snap["civ_stats"].values():
-                if not civ_data.get("alive", True):
+                if not _civ_is_alive(civ_data):
                     continue
                 factions = civ_data.get("factions")
                 if factions is None:
@@ -827,7 +838,7 @@ def extract_power_struggles(bundles: list[dict]) -> dict:
         civ_alive_turns: dict[str, int] = {}
         for snap in history:
             for civ_name, civ_data in snap.get("civ_stats", {}).items():
-                if civ_data.get("alive", True):
+                if _civ_is_alive(civ_data):
                     civ_alive_turns[civ_name] = civ_alive_turns.get(civ_name, 0) + 1
 
         # Find civs alive 100+ turns
@@ -990,7 +1001,7 @@ def extract_population(
             if snap is None:
                 continue
             for civ_data in snap["civ_stats"].values():
-                if not civ_data.get("alive", True):
+                if not _civ_is_alive(civ_data):
                     continue
                 pop = civ_data.get("population", 0)
                 pop_values.append(pop)
@@ -1015,7 +1026,8 @@ def extract_precap_weights(
     """Criterion 17: Pre-cap weight distribution and cap firing rate.
 
     At each checkpoint, collect max_precap_weight values from all alive civs.
-    Compute median, fraction where max_precap_weight > 2.5 (cap fires).
+    Compute median, fraction where max_precap_weight exceeds the engine's
+    absolute cap threshold (base_weight * configured weight_cap).
     """
     max_turn = _min_total_turns(bundles) - 1
     cps = _clamp_checkpoints(checkpoints, max_turn)
@@ -1029,13 +1041,19 @@ def extract_precap_weights(
             snap = _snapshot_at_turn(bundle, cp)
             if snap is None:
                 continue
+            tuning_overrides = bundle.get("world_state", {}).get("tuning_overrides", {}) or {}
+            try:
+                weight_cap = float(tuning_overrides.get(K_WEIGHT_CAP, 2.5))
+            except (TypeError, ValueError):
+                weight_cap = 2.5
+            cap_threshold = ACTION_WEIGHT_BASE * weight_cap
             for civ_data in snap["civ_stats"].values():
-                if not civ_data.get("alive", True):
+                if not _civ_is_alive(civ_data):
                     continue
                 weight = civ_data.get("max_precap_weight", 0.0)
                 all_precap_values.append(weight)
                 total_entries += 1
-                if weight > 2.5:
+                if weight > cap_threshold:
                     cap_fire_count += 1
 
     return {
@@ -1071,7 +1089,7 @@ def extract_action_persistence(bundles: list[dict]) -> dict:
             civ_snapshots: dict[int, dict[str, int]] = {}
             for snap in history:
                 civ_data = snap.get("civ_stats", {}).get(civ_name)
-                if civ_data is None or not civ_data.get("alive", True):
+                if civ_data is None or not _civ_is_alive(civ_data):
                     continue
                 civ_snapshots[snap["turn"]] = civ_data.get("action_counts", {})
 
@@ -1649,7 +1667,11 @@ def extract_schism_count(bundles: list[dict]) -> dict:
     """Count of schism events per run."""
     counts = []
     for b in bundles:
-        n = sum(1 for e in b.get("events_timeline", []) if e.get("event_type") == "Schism")
+        n = sum(
+            1
+            for e in b.get("events_timeline", [])
+            if str(e.get("event_type", "")).lower() == "schism"
+        )
         counts.append(n)
     return {
         "schism_count": _compute_percentiles(counts),
@@ -1726,15 +1748,20 @@ def extract_stockpile_levels(bundles: list[dict]) -> dict:
 
 def extract_conversion_rates(bundles: list[dict]) -> dict:
     """Religious conversion event counts."""
-    types = ("Persecution", "Schism", "Reformation")
-    counts_by_type: dict[str, list[int]] = {t: [] for t in types}
+    event_aliases = {
+        "Persecution": {"persecution"},
+        "Schism": {"schism"},
+        "Reformation": {"reformation"},
+    }
+    counts_by_type: dict[str, list[int]] = {t: [] for t in event_aliases}
     for b in bundles:
-        per_run: dict[str, int] = {t: 0 for t in types}
+        per_run: dict[str, int] = {t: 0 for t in event_aliases}
         for e in b.get("events_timeline", []):
-            et = e.get("event_type")
-            if et in per_run:
-                per_run[et] += 1
-        for t in types:
+            et = str(e.get("event_type", "")).lower()
+            for canonical, aliases in event_aliases.items():
+                if et in aliases:
+                    per_run[canonical] += 1
+        for t in event_aliases:
             counts_by_type[t].append(per_run[t])
     return {t: _compute_percentiles(v) for t, v in counts_by_type.items()}
 

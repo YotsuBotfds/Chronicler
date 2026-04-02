@@ -140,14 +140,19 @@ def _infer_dramatic_context(civ: Civilization, world: WorldState) -> str | None:
 
 
 def _enforce_cap(civ: Civilization, world: WorldState) -> None:
-    """If adding a GP would exceed the cap, retire the oldest active GP from *civ*."""
+    """If adding a GP would exceed the cap, retire the oldest active GP globally."""
     if _total_great_persons(world) >= _GREAT_PERSON_CAP:
-        active_sorted = sorted(
-            [gp for gp in civ.great_persons if gp.active],
-            key=lambda gp: gp.born_turn,
-        )
-        if active_sorted:
-            _retire_person(active_sorted[0], civ, world)
+        oldest_gp = None
+        oldest_civ = None
+        for owner in world.civilizations:
+            for gp in owner.great_persons:
+                if not gp.active:
+                    continue
+                if oldest_gp is None or gp.born_turn < oldest_gp.born_turn:
+                    oldest_gp = gp
+                    oldest_civ = owner
+        if oldest_gp is not None and oldest_civ is not None:
+            _retire_person(oldest_gp, oldest_civ, world)
 
 
 def _create_great_person(role: str, civ: Civilization, world: WorldState) -> GreatPerson:
@@ -266,6 +271,20 @@ def check_lifespan_expiry(civ: Civilization, world: WorldState) -> list[GreatPer
             continue
         lifespan = _compute_lifespan(world.seed, gp.born_turn, gp.name)
         if world.turn - gp.born_turn >= lifespan:
+            _retire_person(gp, civ, world)
+            retired.append(gp)
+    return retired
+
+
+def retire_orphaned_great_persons(world: WorldState) -> list[GreatPerson]:
+    """Retire active great persons whose civilization no longer controls land."""
+    retired: list[GreatPerson] = []
+    for civ in world.civilizations:
+        if civ.regions:
+            continue
+        for gp in list(civ.great_persons):
+            if not gp.active:
+                continue
             _retire_person(gp, civ, world)
             retired.append(gp)
     return retired

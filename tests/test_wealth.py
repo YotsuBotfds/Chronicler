@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 
 def test_compute_gini_uniform():
@@ -69,6 +70,48 @@ def test_conquered_this_turn_build_signals():
     # Without conquest — fresh call, no persistence
     batch2 = build_signals(world, conquered=None)
     assert batch2.column("conquered_this_turn").to_pylist()[0] is False
+
+
+def test_build_signals_merges_duplicate_civ_shocks():
+    """Duplicate CivShock entries for one civ are merged before bridge export."""
+    from chronicler.agent_bridge import build_signals
+    from chronicler.models import WorldState, Civilization, Region, Leader, CivShock
+
+    world = WorldState(name="TestWorld", seed=42)
+    leader = Leader(name="TestLeader", trait="warrior", reign_start=0)
+    civ = Civilization(
+        name="TestCiv",
+        population=10,
+        military=50,
+        economy=50,
+        culture=50,
+        stability=50,
+        leader=leader,
+    )
+    civ.regions = ["TestRegion"]
+    world.civilizations = [civ]
+    region = Region(
+        name="TestRegion",
+        terrain="plains",
+        carrying_capacity=10,
+        resources="fertile",
+    )
+    region.controller = "TestCiv"
+    world.regions = [region]
+
+    batch = build_signals(
+        world,
+        shocks=[
+            CivShock(civ_id=0, stability_shock=-0.20),
+            CivShock(civ_id=0, economy_shock=-0.30),
+            CivShock(civ_id=0, stability_shock=-0.15),
+        ],
+    )
+
+    assert batch.column("shock_stability").to_pylist()[0] == pytest.approx(-0.35)
+    assert batch.column("shock_economy").to_pylist()[0] == pytest.approx(-0.30)
+    assert batch.column("shock_military").to_pylist()[0] == pytest.approx(0.0)
+    assert batch.column("shock_culture").to_pylist()[0] == pytest.approx(0.0)
 
 
 def test_conquered_this_turn_transient_two_turns():

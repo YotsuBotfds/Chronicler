@@ -304,17 +304,18 @@ Focus stays in `tech_focuses` history for narrative ("they once knew navigation"
 
 ### Weight Cap in compute_weights() (action_engine.py)
 
-2.5x global normalization added after streak-breaking logic (lines 587-593) and before the return at line 594. Implemented in M21 as it introduces the third multiplicative layer (trait x tradition x focus). Zeroed-out actions from streak logic are not affected.
+2.5x global normalization added after streak-breaking logic (lines 587-593) and before the return at line 594. Implemented in M21 as it introduces the third multiplicative layer (trait x tradition x focus). Zeroed-out actions from streak logic are not affected. With the engine's `base_weight = 0.2`, this means the absolute max post-cap weight is `0.2 * 2.5 = 0.5`.
 
 ```python
 max_weight = max(weights.values())
-if max_weight > 2.5:
-    scale = 2.5 / max_weight
+max_allowed = 0.2 * 2.5
+if max_weight > max_allowed:
+    scale = max_allowed / max_weight
     for action in weights:
         weights[action] *= scale
 ```
 
-This preserves relative ordering while capping absolute maximum. A slight suppression of non-dominant actions is the correct tradeoff -- prevents any single action from becoming near-certain.
+This preserves relative ordering while capping the absolute maximum implied by the 2.5x multiplier ceiling. A slight suppression of non-dominant actions is the correct tradeoff -- prevents any single action from becoming near-certain.
 
 ## Files Modified
 

@@ -222,6 +222,45 @@ describe("useLiveConnection", () => {
     expect(ws.sent.length).toBe(1);
     expect(JSON.parse(ws.sent[0])).toEqual({ type: "continue" });
   });
+
+  it("accepts validated live bundle payloads", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+
+    act(() => {
+      ws.simulateMessage({
+        type: "bundle_loaded",
+        bundle: {
+          ...SAMPLE_INIT,
+          era_reflections: {},
+        },
+      });
+    });
+
+    expect(result.current.bundle?.world_state.name).toBe("TestWorld");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("rejects malformed live bundle payloads without poisoning app state", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    act(() => {
+      ws.simulateMessage({
+        type: "bundle_loaded",
+        bundle: {
+          manifest_version: 1,
+          layers: [],
+        },
+      });
+    });
+
+    expect(result.current.bundle?.world_state.name).toBe("TestWorld");
+    expect(result.current.error).toContain("Bundle v2 manifest");
+  });
 });
 
 const SAMPLE_LOBBY_INIT = {
@@ -281,6 +320,7 @@ describe("lobby state", () => {
         regions: 8,
         sim_model: "test-model",
         narrative_model: "test-model",
+        narrator: "local",
         resume_state: null,
       });
     });
@@ -301,7 +341,7 @@ describe("lobby state", () => {
     act(() => {
       result.current.sendStart({
         scenario: "bad.yaml", turns: 50, seed: 42, civs: 4, regions: 8,
-        sim_model: "m", narrative_model: "m", resume_state: null,
+        sim_model: "m", narrative_model: "m", narrator: "local", resume_state: null,
       });
     });
     expect(result.current.serverState).toBe("starting");
@@ -321,7 +361,7 @@ describe("lobby state", () => {
     act(() => {
       result.current.sendStart({
         scenario: "bad.yaml", turns: 50, seed: 42, civs: 4, regions: 8,
-        sim_model: "m", narrative_model: "m", resume_state: null,
+        sim_model: "m", narrative_model: "m", narrator: "local", resume_state: null,
       });
     });
     expect(result.current.serverState).toBe("starting");
@@ -333,7 +373,7 @@ describe("lobby state", () => {
     act(() => {
       result.current.sendStart({
         scenario: "test.yaml", turns: 50, seed: 42, civs: 4, regions: 8,
-        sim_model: "m", narrative_model: "m", resume_state: null,
+        sim_model: "m", narrative_model: "m", narrator: "local", resume_state: null,
       });
     });
     expect(result.current.serverState).toBe("starting");

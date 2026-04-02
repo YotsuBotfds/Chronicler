@@ -8,7 +8,7 @@ import pytest
 from chronicler_agents import AgentSimulator
 from chronicler.agent_bridge import build_region_batch, build_settlement_batch, TERRAIN_MAP, AgentBridge
 from chronicler.economy import EconomyResult
-from chronicler.models import GreatPerson
+from chronicler.models import Belief, GreatPerson
 from chronicler.sidecar import SidecarWriter
 
 
@@ -392,6 +392,34 @@ class TestDemographicsOnlyIntegration:
         assert secondary.culture == 0
         assert secondary.stability == 0
 
+    def test_write_back_clamps_stability_to_uint8_bounds(self, sample_world):
+        class _FakeSim:
+            def get_aggregates(self):
+                return pa.record_batch({
+                    "civ_id": pa.array([0], type=pa.uint16()),
+                    "population": pa.array([10], type=pa.uint32()),
+                    "military": pa.array([12], type=pa.uint32()),
+                    "economy": pa.array([23], type=pa.uint32()),
+                    "culture": pa.array([34], type=pa.uint32()),
+                    "stability": pa.array([255], type=pa.uint32()),
+                })
+
+            def get_region_populations(self):
+                return pa.record_batch({
+                    "region_id": pa.array([0], type=pa.uint16()),
+                    "alive_count": pa.array([10], type=pa.uint32()),
+                })
+
+        primary = sample_world.civilizations[0]
+        sample_world.regions[0].controller = primary.name
+        primary.regions = [sample_world.regions[0].name]
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        bridge._sim = _FakeSim()
+        bridge._write_back(sample_world)
+
+        assert primary.stability == 100
+
 
 class TestSecessionTransitions:
     def test_realign_region_agents_to_civ_moves_only_matching_region_agents(self, sample_world):
@@ -647,6 +675,25 @@ class TestPoliticalTransitions:
 
 class TestRegionBatchResourceColumns:
     """M34: Region batch includes resource/season columns."""
+
+    def test_region_batch_initial_belief_prefers_civ_owned_faith_over_registry_order(self, sample_world):
+        sample_world.belief_registry = [
+            Belief(faith_id=9, name="Second", civ_origin=1, doctrines=[0, 0, 0, 0, 0]),
+            Belief(faith_id=3, name="First", civ_origin=0, doctrines=[0, 0, 0, 0, 0]),
+        ]
+        sample_world.civilizations[0].civ_majority_faith = 3
+        sample_world.civilizations[0].previous_majority_faith = 3
+        sample_world.civilizations[1].civ_majority_faith = 9
+        sample_world.civilizations[1].previous_majority_faith = 9
+
+        batch = build_region_batch(sample_world)
+        initial_beliefs = batch.column("initial_belief").to_pylist()
+
+        assert initial_beliefs[0] == 3
+        assert initial_beliefs[1] == 9
+        assert initial_beliefs[2] == 3
+        assert initial_beliefs[3] == 0xFF
+        assert initial_beliefs[4] == 0xFF
 
     def test_region_batch_has_resource_columns(self, sample_world):
         from chronicler.agent_bridge import build_region_batch
@@ -960,6 +1007,33 @@ class TestDynastyIntegration:
         assert isinstance(bridge.dynasty_registry, DynastyRegistry)
         assert bridge.dynasty_registry.dynasties == []
 
+    def test_process_promotions_handles_child_before_parent_in_same_batch(self, sample_world):
+        class _FakeSim:
+            def get_agent_memories(self, agent_id):
+                return []
+
+        bridge = AgentBridge(sample_world, mode="demographics-only")
+        bridge._sim = _FakeSim()
+
+        batch = pa.record_batch({
+            "agent_id": pa.array([200, 100], type=pa.uint32()),
+            "parent_id_0": pa.array([100, 0], type=pa.uint32()),
+            "parent_id_1": pa.array([0, 0], type=pa.uint32()),
+            "role": pa.array([1, 0], type=pa.uint8()),
+            "trigger": pa.array([0, 0], type=pa.uint8()),
+            "origin_region": pa.array([0, 0], type=pa.uint16()),
+            "civ_id": pa.array([0, 0], type=pa.uint8()),
+        })
+
+        created = bridge._process_promotions(batch, sample_world)
+
+        assert len(created) == 2
+        child = bridge.gp_by_agent_id[200]
+        parent = bridge.gp_by_agent_id[100]
+        assert parent.dynasty_id is not None
+        assert child.dynasty_id == parent.dynasty_id
+        assert any(event.event_type == "dynasty_founded" for event in bridge._pending_dynasty_events)
+
 
 class TestBridgeResetAndEventFallback:
     def test_reset_clears_gini_and_cached_state(self, sample_world):
@@ -1097,7 +1171,7 @@ def _make_minimal_world():
     return WorldState(
         name="MinimalWorld", seed=1, turn=10,
         regions=regions, civilizations=civs,
-        relationships={}, historical_figures=[], events_timeline=[],
+        relationships={}, events_timeline=[],
         active_conditions=[], event_probabilities={},
     )
 

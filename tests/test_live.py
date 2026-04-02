@@ -251,6 +251,63 @@ def test_start_command_sets_event():
     assert server._start_params == start_msg
 
 
+def test_start_command_records_session_client_config():
+    """Live start should retain client model preferences for later narration."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    start_msg = {
+        "type": "start",
+        "scenario": None,
+        "turns": 12,
+        "seed": 7,
+        "civs": 4,
+        "regions": 8,
+        "sim_model": "sim-x",
+        "narrative_model": "narr-x",
+        "narrator": "local",
+        "resume_state": None,
+    }
+
+    result = server._handle_start(start_msg)
+
+    assert result is None
+    assert server._session_client_config == {
+        "sim_model": "sim-x",
+        "narrative_model": "narr-x",
+        "narrator": "local",
+    }
+
+
+def test_resolve_client_config_prefers_bundle_metadata():
+    """Bundle metadata should override session defaults when loading from Batch Lab."""
+    from chronicler.live import LiveServer
+
+    server = LiveServer(port=0)
+    server._client_defaults.update({
+        "local_url": "http://example.invalid/v1",
+        "sim_model": "default-sim",
+        "narrative_model": "default-narr",
+        "narrator": "local",
+    })
+    server._session_client_config = {
+        "sim_model": "session-sim",
+        "narrative_model": "session-narr",
+        "narrator": "local",
+    }
+
+    config = server._resolve_client_config({
+        "sim_model": "bundle-sim",
+        "narrative_model": "bundle-narr",
+        "narrator_mode": "local",
+    })
+
+    assert config["local_url"] == "http://example.invalid/v1"
+    assert config["sim_model"] == "bundle-sim"
+    assert config["narrative_model"] == "bundle-narr"
+    assert config["narrator"] == "local"
+
+
 def test_start_command_rejected_when_running():
     """Start command returns error when already running."""
     from chronicler.live import LiveServer

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage, LobbyInit, StartCommand, NewChronicleEntry } from "../types";
 import { isLegacyBundle } from "../types";
 import { useBatchConnection, type BatchConnectionState } from "./useBatchConnection";
+import { classifyParsedBundlePayload, formatBundleLoaderDiagnostics } from "../lib/bundleLoader";
 
 type ServerState = "connecting" | "lobby" | "starting" | "running" | "completed";
 
@@ -256,8 +257,15 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             break;
 
           case "bundle_loaded":
-            setBundle(msg.bundle as Bundle);
-            setError(null);
+            {
+              const classified = classifyParsedBundlePayload(msg.bundle);
+              if (classified.kind === "legacy") {
+                setBundle(classified.bundle);
+                setError(null);
+              } else {
+                setError(formatBundleLoaderDiagnostics(classified.diagnostics));
+              }
+            }
             break;
 
           case "error":

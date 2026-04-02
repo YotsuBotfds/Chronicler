@@ -465,23 +465,23 @@ def compute_persecution(
 
     events: list = []
 
-    if snapshot is None or snapshot.num_rows == 0:
-        return events
-
     # Build region name → index mapping
     region_map: dict[str, int] = {r.name: i for i, r in enumerate(regions)}
 
-    # Tally per-region belief counts from snapshot
-    snap_regions = snapshot.column("region").to_pylist()
-    snap_beliefs = snapshot.column("belief").to_pylist()
+    if snapshot is None or snapshot.num_rows == 0:
+        region_belief_counts: dict[int, Counter] = {}
+    else:
+        # Tally per-region belief counts from snapshot
+        snap_regions = snapshot.column("region").to_pylist()
+        snap_beliefs = snapshot.column("belief").to_pylist()
 
-    region_belief_counts: dict[int, Counter] = {}
-    for region_idx, faith_id in zip(snap_regions, snap_beliefs):
-        if faith_id == 0xFF:
-            continue
-        if region_idx not in region_belief_counts:
-            region_belief_counts[region_idx] = Counter()
-        region_belief_counts[region_idx][faith_id] += 1
+        region_belief_counts = {}
+        for region_idx, faith_id in zip(snap_regions, snap_beliefs):
+            if faith_id == 0xFF:
+                continue
+            if region_idx not in region_belief_counts:
+                region_belief_counts[region_idx] = Counter()
+            region_belief_counts[region_idx][faith_id] += 1
 
     for civ in civilizations:
         # Skip dead civs
@@ -510,6 +510,7 @@ def compute_persecution(
             counts = region_belief_counts.get(region_idx, Counter())
             total = sum(counts.values())
             if total == 0:
+                region.persecution_intensity = 0.0
                 continue
 
             majority_count = counts.get(majority_faith_id, 0)

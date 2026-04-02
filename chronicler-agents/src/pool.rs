@@ -195,7 +195,10 @@ impl AgentPool {
         belief: u8,
     ) -> usize {
         let id = self.next_id;
-        self.next_id += 1;
+        self.next_id = self
+            .next_id
+            .checked_add(1)
+            .expect("AgentPool exhausted: next_id overflow would collide with PARENT_NONE");
 
         if let Some(slot) = self.free_slots.pop() {
             // Reuse dead slot — overwrite all fields.
@@ -920,6 +923,14 @@ mod tests {
         let s2 = pool.spawn(0, 0, Occupation::Scholar, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!(pool.id(s0) < pool.id(s1));
         assert!(pool.id(s1) < pool.id(s2));
+    }
+
+    #[test]
+    #[should_panic(expected = "AgentPool exhausted")]
+    fn test_spawn_panics_when_next_id_overflows() {
+        let mut pool = AgentPool::new(1);
+        pool.next_id = u32::MAX;
+        let _ = pool.spawn(0, 0, Occupation::Farmer, 10, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
     }
 
     // --- Arrow round-trip tests (Task 9) ---

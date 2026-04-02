@@ -133,6 +133,10 @@ pub fn compute_satisfaction(
     // shock_effect can be positive (good shock) or negative (bad shock) — not strictly a penalty
     let shock_effect = compute_shock_penalty(occupation, shock);
 
+    // Shock effects live in base satisfaction, not the capped non-ecological
+    // social-penalty bucket. They can be positive or negative, and they are
+    // intentionally excluded from the 0.40 cap budget above.
+
     (base + stability_bonus + ds_bonus - overcrowding - war_pen + faction_bonus - displacement_pen + shock_effect)
         .clamp(0.0, 1.0)
 }
@@ -215,9 +219,10 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
         * (1.0 - inp.wealth_percentile)
         * crate::agent::CLASS_TENSION_WEIGHT;
 
-    // Priority clamping (Decision 3): core identity/persecution terms first,
-    // class tension takes whatever budget remains under the 0.40 cap.
-    let three_term = cultural_pen + religious_pen + penalty;
+    // Priority clamping (Decision 3): core identity/persecution terms first.
+    // Clamp this subtotal before downstream budget math so later priorities
+    // never observe more than the social-penalty cap allows.
+    let three_term = (cultural_pen + religious_pen + penalty).min(crate::agent::PENALTY_CAP);
     // M56b: Urban safety penalty — priority 2 (after three_term, before class tension)
     let urban_safety_pen = if inp.is_urban {
         crate::agent::URBAN_SAFETY_SATISFACTION_PENALTY
@@ -809,6 +814,54 @@ mod audit_tests {
         assert!(sat_big_memory > sat_no_memory,
             "Positive memory should still improve satisfaction: big={}, none={}",
             sat_big_memory, sat_no_memory);
+    }
+
+    // Civ shock effects remain part of base satisfaction, even when the
+    // social penalty budget is already exhausted.
+    #[test]
+    fn test_shock_effects_apply_outside_social_penalty_cap() {
+        let capped = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [4, 3, 2],
+            controller_values: [0, 1, 5],
+            agent_belief: 3,
+            majority_belief: 5,
+            soil: 0.0,
+            water: 0.0,
+            civ_stability: 0,
+            persecution_intensity: 1.0,
+            gini_coefficient: 1.0,
+            wealth_percentile: 0.0,
+            shock: CivShock {
+                stability: 0.0,
+                economy: 0.0,
+                military: 0.0,
+                culture: 0.0,
+            },
+            ..audit_base_inputs()
+        });
+        let shocked = compute_satisfaction_with_culture(&SatisfactionInputs {
+            agent_values: [4, 3, 2],
+            controller_values: [0, 1, 5],
+            agent_belief: 3,
+            majority_belief: 5,
+            soil: 0.0,
+            water: 0.0,
+            civ_stability: 0,
+            persecution_intensity: 1.0,
+            gini_coefficient: 1.0,
+            wealth_percentile: 0.0,
+            shock: CivShock {
+                stability: 1.0,
+                economy: 0.0,
+                military: 0.0,
+                culture: 0.0,
+            },
+            ..audit_base_inputs()
+        });
+
+        assert!(shocked > capped, "Shock effects should move base satisfaction even at the social-penalty cap");
+        assert!((shocked - capped - 0.15).abs() < 0.001,
+            "Stability shock should contribute its base 0.15 effect, got {}", shocked - capped);
     }
 
     // M-6: Zero penalty means positive memory has no penalty-reduction effect

@@ -150,6 +150,14 @@ print(json.dumps(payload, sort_keys=True))
 
         assert json.loads(out_a) == json.loads(out_b)
 
+    def test_previous_majority_faith_seeded_from_founding_faith(self):
+        world = generate_world(seed=42, num_regions=8, num_civs=4)
+        seeded = [c.previous_majority_faith for c in world.civilizations]
+        current = [c.civ_majority_faith for c in world.civilizations]
+
+        assert seeded == current
+        assert len(set(current)) == len(world.civilizations)
+
 
 class TestLLMWorldGeneration:
     def test_llm_generates_goals(self):

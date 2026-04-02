@@ -14,6 +14,7 @@ from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
+from chronicler.utils import resolve_civ_faith_id
 
 if TYPE_CHECKING:
     from chronicler.models import WorldState
@@ -121,6 +122,27 @@ def civ_personality_mean(
                 for i in range(3):
                     mean[i] += contrib[i]
     return tuple(max(-0.3, min(0.3, m)) for m in mean)
+
+
+def _merge_civ_shocks(shocks: list[CivShock] | None) -> dict[int, CivShock]:
+    """Merge duplicate civ shock entries into one unit-range shock per civ."""
+    merged: dict[int, CivShock] = {}
+    for shock in shocks or []:
+        current = merged.get(shock.civ_id)
+        if current is None:
+            merged[shock.civ_id] = CivShock(
+                civ_id=shock.civ_id,
+                stability_shock=shock.stability_shock,
+                economy_shock=shock.economy_shock,
+                military_shock=shock.military_shock,
+                culture_shock=shock.culture_shock,
+            )
+            continue
+        current.stability_shock = max(-1.0, min(1.0, current.stability_shock + shock.stability_shock))
+        current.economy_shock = max(-1.0, min(1.0, current.economy_shock + shock.economy_shock))
+        current.military_shock = max(-1.0, min(1.0, current.military_shock + shock.military_shock))
+        current.culture_shock = max(-1.0, min(1.0, current.culture_shock + shock.culture_shock))
+    return merged
 
 
 def _get_yield(region, slot: int) -> float:
@@ -241,8 +263,14 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
                 (j for j, c in enumerate(world.civilizations) if c.name == civ_name),
                 None,
             )
-            if civ_idx is not None and civ_idx < len(world.belief_registry):
-                initial_belief_arr.append(world.belief_registry[civ_idx].faith_id)
+            if civ_idx is not None:
+                initial_belief_arr.append(
+                    resolve_civ_faith_id(
+                        world.civilizations[civ_idx],
+                        world.belief_registry,
+                        civ_idx=civ_idx,
+                    )
+                )
             else:
                 initial_belief_arr.append(0xFF)
         else:
@@ -519,7 +547,8 @@ def build_signals(world: WorldState, shocks: list | None = None,
 
     Args:
         world: Current simulation state.
-        shocks: Pre-summed shock values per civ (list[CivShock]).
+        shocks: Civ shock entries for the current tick. Duplicate civ ids are
+            merged and saturated into one unit-range row per civ.
         demands: Per-civ demand shifts (5 floats per civ), output of
             DemandSignalManager.tick().
     """
@@ -535,7 +564,7 @@ def build_signals(world: WorldState, shocks: list | None = None,
     dom_factions, fac_mil, fac_mer, fac_cul, fac_cle = [], [], [], [], []
 
     # Shock / demand column builders
-    shock_map = {s.civ_id: s for s in (shocks or [])}
+    shock_map = _merge_civ_shocks(shocks)
     shock_stab, shock_eco, shock_mil, shock_cul = [], [], [], []
     ds_farmer, ds_soldier, ds_merchant, ds_scholar, ds_priest = [], [], [], [], []
     mean_bold, mean_ambi, mean_ltrait = [], [], []
@@ -1533,12 +1562,6 @@ class AgentBridge:
             created.append(gp)
             self.named_agents[agent_id] = name
             self.gp_by_agent_id[agent_id] = gp
-            dynasty_events = self.dynasty_registry.check_promotion(
-                gp, self.named_agents, self.gp_by_agent_id,
-            )
-            for de in dynasty_events:
-                de.turn = world.turn
-                self._pending_dynasty_events.append(de)
             self._origin_regions[agent_id] = origin_region
 
             # M48: Mule promotion roll
@@ -1558,6 +1581,14 @@ class AgentBridge:
             # M52: GP artifact intent
             from chronicler.artifacts import emit_gp_artifact_intent
             emit_gp_artifact_intent(world, civ, gp)
+
+        for gp in created:
+            dynasty_events = self.dynasty_registry.check_promotion(
+                gp, self.named_agents, self.gp_by_agent_id,
+            )
+            for de in dynasty_events:
+                de.turn = world.turn
+                self._pending_dynasty_events.append(de)
 
         return created
 
@@ -2182,7 +2213,7 @@ class AgentBridge:
             civ.military = aggs.column("military")[row_idx].as_py()
             civ.economy = aggs.column("economy")[row_idx].as_py()
             civ.culture = aggs.column("culture")[row_idx].as_py()
-            civ.stability = aggs.column("stability")[row_idx].as_py()
+            civ.stability = min(100, max(0, aggs.column("stability")[row_idx].as_py()))
 
     def _apply_demographics_clamp(self, world: WorldState) -> None:
         region_pops = self._sim.get_region_populations()

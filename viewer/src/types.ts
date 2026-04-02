@@ -17,6 +17,9 @@ export type Disposition =
   | "friendly"
   | "allied";
 
+export type NarratorMode = "local" | "api" | "gemini";
+export type AgentMode = "off" | "demographics-only" | "shadow" | "hybrid";
+
 export type ActionType =
   | "expand"
   | "develop"
@@ -244,7 +247,7 @@ export interface BundleMetadata {
   scenario_name: string | null;
   interestingness_score: number | null;
   bundle_version?: number;
-  narrator_mode?: string;
+  narrator_mode?: NarratorMode | string;
 }
 
 export interface Bundle {
@@ -349,6 +352,7 @@ export interface StartCommand {
   regions: number;
   sim_model: string;
   narrative_model: string;
+  narrator: NarratorMode;
   resume_state: WorldState | null;
 }
 
@@ -391,6 +395,14 @@ export interface BatchConfig {
   parallel: boolean;
   workers: number | null;
   tuning_overrides: Record<string, number> | null;
+  civs?: number;
+  regions?: number;
+  scenario?: string | null;
+  sim_model?: string | null;
+  narrative_model?: string | null;
+  narrator?: NarratorMode;
+  agents?: AgentMode;
+  preset?: string | null;
 }
 
 export interface BatchReport {

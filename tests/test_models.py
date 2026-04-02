@@ -8,7 +8,6 @@ from chronicler.models import (
     Leader,
     Civilization,
     Relationship,
-    HistoricalFigure,
     Event,
     NamedEvent,
     ActiveCondition,
@@ -78,6 +77,21 @@ class TestWorldStatePersistence:
         path = tmp_path / "state.json"
         sample_world.save(path)
         loaded = WorldState.load(path)
+        assert loaded.name == sample_world.name
+
+    def test_load_ignores_legacy_historical_figures_field(self, sample_world):
+        payload = sample_world.model_dump()
+        payload["historical_figures"] = [
+            {
+                "name": "Legacy Figure",
+                "role": "ruler",
+                "traits": ["bold"],
+                "civilization": sample_world.civilizations[0].name,
+                "alive": True,
+                "deeds": ["Founded a city"],
+            }
+        ]
+        loaded = WorldState.model_validate(payload)
         assert loaded.name == sample_world.name
         assert len(loaded.civilizations) == 2
 

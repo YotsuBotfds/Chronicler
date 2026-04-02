@@ -3,17 +3,12 @@ import pytest
 from unittest.mock import MagicMock
 from chronicler.narrative import (
     NarrativeEngine,
-    build_action_prompt,
     build_chronicle_prompt,
     thread_domains,
 )
 from chronicler.models import (
-    ActionType,
-    Civilization,
     Event,
-    Leader,
     NamedEvent,
-    WorldState,
 )
 
 
@@ -28,21 +23,6 @@ class TestDomainThreading:
         text = "Something happened."
         result = thread_domains(text, "Unknown", {})
         assert result == text
-
-
-class TestBuildActionPrompt:
-    def test_includes_civ_stats(self, sample_world):
-        civ = sample_world.civilizations[0]
-        prompt = build_action_prompt(civ, sample_world)
-        assert civ.name in prompt
-        assert "expand" in prompt.lower() or "EXPAND" in prompt
-        assert "develop" in prompt.lower() or "DEVELOP" in prompt
-
-    def test_includes_valid_actions(self, sample_world):
-        civ = sample_world.civilizations[0]
-        prompt = build_action_prompt(civ, sample_world)
-        for action in ActionType:
-            assert action.value in prompt.lower()
 
 
 class TestBuildChroniclePrompt:
@@ -64,23 +44,6 @@ class TestNarrativeEngine:
         mock.model = "test-model"
         return mock
 
-    def test_select_action_returns_valid_action(self, sample_world):
-        sim_client = self._mock_llm_client("DEVELOP")
-        narrative_client = self._mock_llm_client("")
-        engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
-        civ = sample_world.civilizations[0]
-        action = engine.select_action(civ, sample_world)
-        assert action in ActionType
-        sim_client.complete.assert_called_once()
-
-    def test_select_action_defaults_on_invalid_response(self, sample_world):
-        sim_client = self._mock_llm_client("gibberish that is not an action")
-        narrative_client = self._mock_llm_client("")
-        engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
-        civ = sample_world.civilizations[0]
-        action = engine.select_action(civ, sample_world)
-        assert action == ActionType.DEVELOP  # Safe default
-
     def test_generate_chronicle_returns_text(self, sample_world):
         sim_client = self._mock_llm_client("")
         narrative_client = self._mock_llm_client("In the third age, the empire rose...")
@@ -96,21 +59,23 @@ class TestNarrativeEngine:
 
     def test_adapter_methods_work_with_run_turn(self, sample_world):
         """NarrativeEngine adapters integrate with simulation's run_turn."""
+        from chronicler.action_engine import ActionEngine
         from chronicler.simulation import run_turn
 
-        sim_client = self._mock_llm_client("DEVELOP")
+        sim_client = self._mock_llm_client("")
         narrative_client = self._mock_llm_client("The age continued.")
         engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
+        action_engine = ActionEngine(sample_world)
 
         text = run_turn(
             sample_world,
-            action_selector=engine.action_selector,
+            action_selector=lambda civ, world, _engine=action_engine: _engine.select_action(civ, seed=world.seed),
             narrator=engine.narrator,
             seed=42,
         )
         assert isinstance(text, str)
         assert sample_world.turn == 1
-        assert sim_client.complete.call_count == len(sample_world.civilizations)
+        assert narrative_client.complete.call_count == 1
 
 
 def test_chronicle_prompt_includes_recent_named_events(sample_world):
@@ -405,3 +370,65 @@ def test_agent_context_includes_relationships():
     assert ctx is not None
     assert len(ctx.relationships) >= 1
     assert ctx.relationships[0]["type"] == "mentor"
+
+
+def test_prepare_narration_prompts_threads_focal_civ_gini(sample_world):
+    from chronicler.models import CivSnapshot, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot
+
+    civ_name = sample_world.civilizations[0].name
+    moment = NarrativeMoment(
+        anchor_turn=10,
+        turn_range=(10, 10),
+        events=[Event(
+            turn=10,
+            event_type="campaign",
+            actors=[civ_name],
+            description="A campaign unfolds",
+            importance=7,
+            source="agent",
+        )],
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+            )
+        },
+        region_control={},
+        relationships={},
+    )]
+    gp = GreatPerson(
+        name="Kiran",
+        role="general",
+        trait="bold",
+        civilization=civ_name,
+        origin_civilization=civ_name,
+        born_turn=5,
+        source="agent",
+        agent_id=42,
+    )
+
+    engine = NarrativeEngine(
+        sim_client=MagicMock(model="test"),
+        narrative_client=MagicMock(model="test"),
+    )
+    engine._world = sample_world
+
+    prepared = engine._prepare_narration_prompts(
+        [moment],
+        history,
+        great_persons=[gp],
+        gini_by_civ={0: 0.37},
+    )
+
+    assert prepared[0]["agent_ctx"] is not None
+    assert prepared[0]["agent_ctx"].gini_coefficient == pytest.approx(0.37)

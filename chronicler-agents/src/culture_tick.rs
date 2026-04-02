@@ -27,6 +27,13 @@ const ENV_BIAS_TABLE: [[f32; 6]; 8] = [
     [1.0, 0.0, 0.0, 0.5, 0.0, 0.0], // EXOTIC(7):     Freedom(primary), Knowledge(secondary)
 ];
 
+#[inline]
+fn culture_stream(region_id: usize, turn: u32, stream_offset: u64) -> u64 {
+    debug_assert!(region_id <= u16::MAX as usize, "region_id exceeds packed RNG stream range");
+    debug_assert!(stream_offset <= u16::MAX as u64, "stream_offset exceeds packed RNG stream range");
+    ((region_id as u64) << 48) | ((turn as u64) << 16) | stream_offset
+}
+
 /// Run cultural drift for all agents in a region.
 /// Called as Rust tick stage 6, after demographics.
 pub fn culture_tick(
@@ -58,7 +65,7 @@ pub fn culture_tick(
 
     // 4. Per-agent drift with dedicated RNG stream
     let mut rng = ChaCha8Rng::from_seed(master_seed);
-    rng.set_stream(region_id as u64 * 1000 + turn as u64 + agent::CULTURE_DRIFT_OFFSET);
+    rng.set_stream(culture_stream(region_id, turn, agent::CULTURE_DRIFT_OFFSET));
 
     for &slot in slots {
         if !pool.alive[slot] { continue; }
@@ -296,5 +303,17 @@ mod tests {
         assert!(ratio > 2.0 && ratio < 4.5,
             "Drift ratio slot2/slot0 = {:.2} (expected ~3.0), s0={}, s2={}",
             ratio, slot_0_drifts, slot_2_drifts);
+    }
+
+    #[test]
+    fn test_culture_stream_packing_is_distinct() {
+        let a = culture_stream(1, 500, agent::CULTURE_DRIFT_OFFSET);
+        let b = culture_stream(2, 500, agent::CULTURE_DRIFT_OFFSET);
+        let c = culture_stream(1, 501, agent::CULTURE_DRIFT_OFFSET);
+        let d = culture_stream(1, 500, agent::SPATIAL_POSITION_STREAM_OFFSET);
+
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(a, d);
     }
 }

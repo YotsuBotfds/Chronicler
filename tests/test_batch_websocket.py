@@ -215,3 +215,57 @@ class TestBatchWebSocket:
             server._batch_thread.join(timeout=5)
 
         assert captured_kwargs["tuning_overrides_dict"] == {"stability.drain.drought_immediate": 10.0}
+
+    def test_batch_start_passes_run_shape_through(self):
+        """Batch config should preserve the viewer-selected run shape and models."""
+        server = LiveServer(port=0)
+        server._client_defaults.update({
+            "local_url": "http://localhost:1234/v1",
+            "sim_model": "default-sim",
+            "narrative_model": "default-narr",
+            "narrator": "local",
+            "agents": "hybrid",
+            "preset": "silk-road",
+        })
+        server._lobby_init = {"defaults": {"civs": 6, "regions": 12}}
+        captured_args = {}
+
+        msg = {
+            "type": "batch_start",
+            "config": {
+                "seed_start": 5,
+                "seed_count": 2,
+                "turns": 25,
+                "simulate_only": True,
+                "parallel": False,
+                "civs": 7,
+                "regions": 14,
+                "scenario": "dead_miles.yaml",
+                "sim_model": "sim-x",
+                "narrative_model": "narr-x",
+                "narrator": "local",
+                "agents": "shadow",
+                "preset": "dark-age",
+            },
+        }
+
+        with patch("chronicler.batch.run_batch") as mock_batch, \
+             patch("chronicler.analytics.generate_report") as mock_report:
+            def capture_batch(args, **kwargs):
+                captured_args.update(vars(args))
+                return Path("/tmp/batch_5")
+
+            mock_batch.side_effect = capture_batch
+            mock_report.return_value = {"metadata": {}, "anomalies": []}
+
+            server._handle_batch_start(msg)
+            server._batch_thread.join(timeout=5)
+
+        assert captured_args["civs"] == 7
+        assert captured_args["regions"] == 14
+        assert captured_args["scenario"] == "dead_miles.yaml"
+        assert captured_args["sim_model"] == "sim-x"
+        assert captured_args["narrative_model"] == "narr-x"
+        assert captured_args["narrator"] == "local"
+        assert captured_args["agents"] == "shadow"
+        assert captured_args["preset"] == "dark-age"

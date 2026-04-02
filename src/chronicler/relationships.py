@@ -14,6 +14,58 @@ REL_MARRIAGE = 2
 REL_EXILE_BOND = 3
 REL_CORELIGIONIST = 4
 
+REL_OP_UPSERT_DIRECTED = 0
+REL_OP_UPSERT_SYMMETRIC = 1
+REL_OP_REMOVE_DIRECTED = 2
+REL_OP_REMOVE_SYMMETRIC = 3
+
+_LEGACY_REL_SENTIMENT = 50
+
+
+def _edge_op_type(rel_type: int, *, remove: bool) -> int:
+    if rel_type == REL_MENTOR:
+        return REL_OP_REMOVE_DIRECTED if remove else REL_OP_UPSERT_DIRECTED
+    return REL_OP_REMOVE_SYMMETRIC if remove else REL_OP_UPSERT_SYMMETRIC
+
+
+def _sync_relationship_edges(bridge, current_edges: list[tuple], next_edges: list[tuple]) -> None:
+    """Apply relationship diffs through ops when available.
+
+    Falls back to the legacy full-graph replace shim for older test doubles.
+    """
+    apply_ops = getattr(bridge, "apply_relationship_ops", None)
+    if not callable(apply_ops):
+        bridge.replace_social_edges(next_edges)
+        return
+
+    current_by_key = {(a, b, rel): (a, b, rel, formed_turn) for a, b, rel, formed_turn in current_edges}
+    next_by_key = {(a, b, rel): (a, b, rel, formed_turn) for a, b, rel, formed_turn in next_edges}
+
+    ops: list[dict] = []
+    for key in sorted(current_by_key.keys() - next_by_key.keys()):
+        agent_a, agent_b, rel_type = key
+        ops.append({
+            "op_type": _edge_op_type(rel_type, remove=True),
+            "agent_a": agent_a,
+            "agent_b": agent_b,
+            "bond_type": rel_type,
+            "sentiment": _LEGACY_REL_SENTIMENT,
+            "formed_turn": current_by_key[key][3],
+        })
+    for key in sorted(next_by_key.keys() - current_by_key.keys()):
+        agent_a, agent_b, rel_type = key
+        ops.append({
+            "op_type": _edge_op_type(rel_type, remove=False),
+            "agent_a": agent_a,
+            "agent_b": agent_b,
+            "bond_type": rel_type,
+            "sentiment": _LEGACY_REL_SENTIMENT,
+            "formed_turn": next_by_key[key][3],
+        })
+
+    if ops:
+        apply_ops(ops)
+
 
 def compute_belief_data(
     snap, active_ids: set[int], regions: list,
@@ -306,7 +358,7 @@ def form_and_sync_relationships(
     belief_by_agent: dict[int, int],
     region_belief_fractions: dict[str, dict[int, float]],
 ) -> list[tuple]:
-    """Phase 10 relationship pass: dissolve stale edges, form new ones, batch-replace to Rust.
+    """Phase 10 relationship pass: dissolve stale edges, form new ones, sync to Rust.
     Returns dissolved edges (for narration pipeline -- transient, not written to Rust).
     """
     current_edges = bridge.read_social_edges()
@@ -321,7 +373,7 @@ def form_and_sync_relationships(
         world, surviving, belief_by_agent, region_belief_fractions,
     )
     all_edges = surviving + new_rivals + new_mentors + new_marriages + new_exile_bonds + new_coreligionists
-    bridge.replace_social_edges(all_edges)
+    _sync_relationship_edges(bridge, current_edges, all_edges)
     return dissolved_this_turn
 
 

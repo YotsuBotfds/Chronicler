@@ -1,8 +1,8 @@
-"""LLM narrative engine — action selection and chronicle generation.
+"""LLM narrative engine for chronicle generation.
 
-Uses two LLMClient instances with role-based routing:
-- sim_client (local model via LM Studio): action selection — high volume, free
-- narrative_client (Claude API): chronicle prose — lower volume, higher quality
+Uses two LLMClient instances for historical compatibility:
+- sim_client is retained for older call sites but does not decide simulation actions
+- narrative_client produces chronicle prose
 
 Domain threading (Caves of Qud technique): each civilization's thematic
 keywords (domains) are woven into every narrative mention, creating the
@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 from chronicler.llm import AnthropicClient, GeminiClient, LLMClient
 from chronicler.models import (
-    ActionType,
     AgentContext,
     CausalLink,
     ChronicleEntry,
@@ -777,55 +776,6 @@ def thread_domains(text: str, civ_name: str, civ_domains: dict[str, list[str]]) 
     return text
 
 
-def build_action_prompt(civ: Civilization, world: WorldState) -> str:
-    """Build the prompt for LLM action selection."""
-    # Summarize relationships
-    rel_summary = ""
-    if civ.name in world.relationships:
-        for other_name, rel in world.relationships[civ.name].items():
-            rel_summary += f"  - {other_name}: {rel.disposition.value}"
-            if rel.grievances:
-                rel_summary += f" (grievances: {', '.join(rel.grievances)})"
-            if rel.treaties:
-                rel_summary += f" (treaties: {', '.join(rel.treaties)})"
-            rel_summary += "\n"
-
-    # Summarize active conditions
-    conditions = [
-        c for c in world.active_conditions if civ.name in c.affected_civs
-    ]
-    cond_text = ", ".join(f"{c.condition_type} (severity {c.severity}, {c.duration} turns left)"
-                          for c in conditions) or "None"
-
-    return f"""You are the strategic advisor for {civ.name}.
-
-CURRENT STATE:
-- Population: {civ.population} ({len(civ.regions)} region{'s' if len(civ.regions) != 1 else ''})
-- Military: {civ.military}/100
-- Economy: {civ.economy}/100
-- Culture: {civ.culture}/100
-- Stability: {civ.stability}/100
-- Tech Era: {civ.tech_era.value}
-- Treasury: {civ.treasury}
-- Asabiya (solidarity): {civ.asabiya}
-- Controlled regions: {', '.join(civ.regions) or 'None'}
-- Cultural domains: {', '.join(civ.domains)}
-- Values: {', '.join(civ.values)}
-- Leader: {civ.leader.name} ({civ.leader.trait})
-- Goal: {civ.goal}
-
-RELATIONSHIPS:
-{rel_summary or '  None'}
-
-ACTIVE CONDITIONS: {cond_text}
-
-Choose exactly ONE action from: EXPAND, DEVELOP, TRADE, DIPLOMACY, WAR, BUILD, EMBARGO, MOVE_CAPITAL, FUND_INSTABILITY, EXPLORE, INVEST_CULTURE
-
-Consider: your goal, your stats, your relationships, active threats, and available resources.
-You must respond with exactly one word. Do not explain your reasoning.
-Respond with ONLY the action name (one word, all caps). Nothing else."""
-
-
 def build_chronicle_prompt(world: WorldState, events: list[Event]) -> str:
     """Backward-compatible wrapper — delegates to a no-flavor, no-style build."""
     return _build_chronicle_prompt_impl(world, events, event_flavor=None, narrative_style=None)
@@ -912,11 +862,10 @@ Respond only with the chronicle prose. No preamble, no markdown formatting, no m
 
 
 class NarrativeEngine:
-    """LLM-powered action selection and chronicle generation.
+    """LLM-powered chronicle generation.
 
-    Accepts two separate LLMClient instances: one for simulation calls
-    (action selection — high volume, can be local) and one for narrative
-    calls (chronicle prose — lower volume, benefits from higher quality).
+    `sim_client` is retained for backward-compatible construction, but
+    simulation actions are selected deterministically by `ActionEngine`.
     """
 
     def __init__(self, sim_client: LLMClient, narrative_client: LLMClient,
@@ -934,28 +883,6 @@ class NarrativeEngine:
     def _supports_batch(self) -> bool:
         """Check if narrative_client supports batch_complete()."""
         return isinstance(self.narrative_client, AnthropicClient)
-
-    def select_action(self, civ: Civilization, world: WorldState) -> ActionType:
-        """Ask the LLM to choose an action for a civilization.
-
-        Routes to sim_client (local model) for cost efficiency.
-        Falls back to DEVELOP on any LLM error.
-        """
-        prompt = build_action_prompt(civ, world)
-        try:
-            text = self.sim_client.complete(prompt, max_tokens=10).upper()
-        except Exception:
-            return ActionType.DEVELOP
-
-        # Parse response — must be exactly one valid action
-        try:
-            return ActionType(text.lower())
-        except ValueError:
-            # Fuzzy match
-            for action in ActionType:
-                if action.value.upper() in text:
-                    return action
-            return ActionType.DEVELOP  # Safe default
 
     def generate_chronicle(self, world: WorldState, events: list[Event]) -> str:
         """Generate a chronicle entry for the current turn.
@@ -1093,6 +1020,30 @@ class NarrativeEngine:
             if after_summary:
                 context_text += f"\n\nAFTER this moment (for foreshadowing):\n{after_summary}"
 
+            snap = _closest_snap(snap_map, moment.anchor_turn)
+            focal_civ_name = None
+            if snap is not None:
+                for ev in moment.events:
+                    for actor in ev.actors:
+                        if actor in snap.civ_stats:
+                            focal_civ_name = actor
+                            break
+                    if focal_civ_name is not None:
+                        break
+                if focal_civ_name is None and snap.civ_stats:
+                    focal_civ_name = sorted(snap.civ_stats.keys())[0]
+
+            civ_idx = None
+            civ_names = None
+            world_obj = getattr(self, "_world", None)
+            if world_obj is not None:
+                civ_names = [c.name for c in world_obj.civilizations]
+                if focal_civ_name is not None:
+                    civ_idx = next(
+                        (i for i, civ in enumerate(world_obj.civilizations) if civ.name == focal_civ_name),
+                        None,
+                    )
+
             # M40: Build agent context with relationships
             agent_context_text = ""
             agent_ctx = None
@@ -1122,11 +1073,14 @@ class NarrativeEngine:
                     dissolved_edges=moment_dissolved if moment_dissolved else None,
                     agent_name_map=agent_name_map,
                     hostage_data=hostage_data,
+                    civ_idx=civ_idx,
                     gini_by_civ=gini_by_civ,
                     economy_result=economy_result,
+                    civ_names=civ_names,
+                    world_turn=moment.anchor_turn,
                     history=history,
                     current_snapshot=snap,
-                    world=getattr(self, "_world", None),
+                    world=world_obj,
                 )
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
@@ -1140,7 +1094,6 @@ class NarrativeEngine:
                 if artifact_context_text:
                     artifact_context_text = "\n\n" + artifact_context_text
 
-            snap = _closest_snap(snap_map, moment.anchor_turn)
             dominant_era = get_dominant_era(moment, snap) if snap else "tribal"
             era_voice, era_style = ERA_REGISTER.get(dominant_era, ERA_REGISTER["tribal"])
 
@@ -1281,10 +1234,6 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 on_progress(completed, total, eta)
 
         return entries
-
-    def action_selector(self, civ: Civilization, world: WorldState) -> ActionType:
-        """Adapter method matching the ActionSelector callback signature."""
-        return self.select_action(civ, world)
 
     def narrator(self, world: WorldState, events: list[Event]) -> str:
         """Adapter method matching the Narrator callback signature."""

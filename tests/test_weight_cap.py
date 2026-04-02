@@ -1,13 +1,14 @@
 """H-36: Tests for the 2.5x combined weight multiplier cap in action_engine.py.
 
 Verifies that when multiple multiplicative modifiers combine (trait × situational
-× tech focus × factions × holy war), the product is capped at 2.5x.
+× tech focus × factions × holy war), the final absolute weight is capped at
+`ACTION_WEIGHT_BASE * weight_cap`.
 """
 import pytest
 from chronicler.models import (
     ActionType, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
-from chronicler.action_engine import ActionEngine
+from chronicler.action_engine import ACTION_WEIGHT_BASE, ActionEngine
 
 
 def _make_world(
@@ -66,14 +67,14 @@ class TestWeightCap:
         civ = world.civilizations[0]
         weights = engine.compute_weights(civ)
 
-        # The max weight should not exceed 2.5 (base is 0.2, so absolute max is 0.5)
+        # The max weight should not exceed ACTION_WEIGHT_BASE * 2.5.
         max_weight = max(weights.values())
-        assert max_weight <= 2.5, (
+        assert max_weight <= ACTION_WEIGHT_BASE * 2.5, (
             f"Max weight {max_weight} exceeded 2.5x cap"
         )
 
     def test_cap_boundary_exact(self):
-        """When the max weight is exactly 2.5, cap should not reduce it."""
+        """Reasonable weights should remain below the absolute cap."""
         world = _make_world(trait="cautious", military=20, stability=50, hostile=False)
         engine = ActionEngine(world)
         civ = world.civilizations[0]
@@ -82,7 +83,7 @@ class TestWeightCap:
         # With cautious trait in a peaceful world, weights are moderate.
         # Verify cap logic doesn't over-suppress reasonable values.
         max_weight = max(weights.values())
-        assert max_weight <= 2.5
+        assert max_weight <= ACTION_WEIGHT_BASE * 2.5
 
     def test_cap_proportional_scaling(self):
         """When cap fires, all weights should be scaled proportionally, preserving
@@ -97,7 +98,7 @@ class TestWeightCap:
         if len(nonzero) >= 2:
             vals = list(nonzero.values())
             # Max should be at or below the cap
-            assert max(vals) <= 2.5
+            assert max(vals) <= ACTION_WEIGHT_BASE * 2.5
 
     def test_cap_does_not_alter_zero_weights(self):
         """Zero-weight actions should remain zero after cap scaling."""
@@ -122,7 +123,7 @@ class TestWeightCap:
         weights = engine.compute_weights(civ)
 
         max_weight = max(weights.values())
-        assert max_weight <= 1.0, (
+        assert max_weight <= ACTION_WEIGHT_BASE * 1.0, (
             f"Max weight {max_weight} exceeded custom cap of 1.0"
         )
 
@@ -146,7 +147,7 @@ class TestWeightCap:
         weights = engine.compute_weights(civ)
 
         max_weight = max(weights.values())
-        assert max_weight <= 2.5, (
+        assert max_weight <= ACTION_WEIGHT_BASE * 2.5, (
             f"Max weight {max_weight} exceeded 2.5x cap despite martial tradition"
         )
 
@@ -159,6 +160,6 @@ class TestWeightCap:
         weights = engine.compute_weights(civ)
 
         # If precap exceeded cap, all weights were scaled
-        if civ.max_precap_weight > 2.5:
+        if civ.max_precap_weight > ACTION_WEIGHT_BASE * 2.5:
             max_weight = max(weights.values())
-            assert max_weight <= 2.5 + 0.001  # Float tolerance
+            assert max_weight <= ACTION_WEIGHT_BASE * 2.5 + 0.001  # Float tolerance

@@ -18,6 +18,7 @@ from chronicler.religion import (
     compute_majority_belief,
     compute_civ_majority_faith,
     compute_conversion_signals,
+    compute_persecution,
     compute_martyrdom_boosts,
     decay_martyrdom_boosts,
     decay_conquest_boosts,
@@ -105,6 +106,31 @@ def test_compute_martyrdom_boosts_accepts_agent_event_records():
     compute_martyrdom_boosts([region], dead)
 
     assert region.martyrdom_boost > 0.0
+
+
+def test_compute_persecution_clears_regions_with_zero_believers():
+    region = _make_region(name="R0", controller="Militant Civ")
+    region.persecution_intensity = 0.6
+    civ = type("Civ", (), {})()
+    civ.name = "Militant Civ"
+    civ.regions = ["R0"]
+    civ.civ_majority_faith = 0
+    doctrines = [0, 0, 0, 0, 0]
+    doctrines[DOCTRINE_STANCE] = 1
+    belief_registry = [_make_belief(0, doctrines=doctrines)]
+    snapshot = _make_snapshot([])
+
+    events = compute_persecution(
+        [region],
+        [civ],
+        belief_registry,
+        snapshot,
+        turn=1,
+        persecuted_regions=set(),
+    )
+
+    assert events == []
+    assert region.persecution_intensity == 0.0
 
 
 # ---------------------------------------------------------------------------
