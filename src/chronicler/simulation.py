@@ -220,7 +220,8 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
                 civ.treasury -= cost
 
     # 2. Trade income
-    cross_routes = get_active_trade_routes(world)
+    # H-6: Emit capability events here (Phase 2 is the authoritative call site)
+    cross_routes = get_active_trade_routes(world, emit_events=True)
     for civ_a, civ_b in cross_routes:
         a = get_civ(world, civ_a)
         b = get_civ(world, civ_b)

@@ -140,13 +140,14 @@ def test_remove_focus_effects_reverses_stats():
 
 
 def test_apply_remove_clamping_asymmetry():
-    # Start at 95, apply METALLURGY (+15) -> clamped to 100
-    # Remove METALLURGY (-15) -> 100 - 15 = 85 (NOT 95)
+    # H-17 fix: Start at 95, apply METALLURGY (+15) -> clamped to 100.
+    # Only +5 was actually applied. Remove should subtract exactly +5,
+    # restoring to the baseline of 95 (not undershooting to 85).
     civ = _make_civ(military=95)
     apply_focus_effects(civ, TechFocus.METALLURGY)
     assert civ.military == 100
     remove_focus_effects(civ, TechFocus.METALLURGY)
-    assert civ.military == 85
+    assert civ.military == 95  # H-17: exact baseline restoration
 
 
 def test_get_weight_modifiers_returns_dict():

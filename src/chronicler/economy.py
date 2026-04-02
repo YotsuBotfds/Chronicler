@@ -516,11 +516,12 @@ class EconomyResult:
     priest_tithe_shares: dict[int, float] = field(default_factory=dict)
     treasury_tax: dict[int, float] = field(default_factory=dict)
     tithe_base: dict[int, float] = field(default_factory=dict)
-    # M43a: Conservation law tracking
+    # M43a: Conservation law tracking (H-3: includes treasury flows)
     conservation: dict[str, float] = field(default_factory=lambda: {
         "production": 0.0, "transit_loss": 0.0, "consumption": 0.0,
         "storage_loss": 0.0, "cap_overflow": 0.0, "clamp_floor_loss": 0.0,
         "in_transit_delta": 0.0,
+        "treasury_tax": 0.0, "treasury_tithe": 0.0,
     })
     # M43b: Supply shock detection and trade dependency
     imports_by_region: dict[str, dict[str, float]] = field(default_factory=dict)
@@ -597,7 +598,18 @@ def decompose_trade_routes(
     civ_b_regions: set[str],
     region_map: dict,
 ) -> list[tuple[str, str]]:
-    """Decompose a civ-level trade route into region-level boundary pairs."""
+    """Decompose a civ-level trade route into region-level boundary pairs.
+
+    H-5 Design note: This intentionally filters to adjacent-only pairs.
+    Non-adjacent routes (NAVIGATION/RAILWAYS/federation) exist at the civ
+    level for treasury income and diplomatic weight, but do NOT participate
+    in the goods economy. Goods flow requires physical adjacency for
+    transport cost computation and transit decay. The treasury-only benefit
+    for non-adjacent routes is bounded by TAX_RATE (0.05) applied to
+    merchant wealth, which is itself derived from adjacent-goods-flow
+    arbitrage. This means non-adjacent routes provide diplomatic/prestige
+    value but cannot create unbounded treasury without adjacent trade.
+    """
     pairs: list[tuple[str, str]] = []
     for region_name in civ_a_regions:
         region = region_map[region_name]
@@ -689,8 +701,16 @@ def derive_farmer_income_modifier(
     resource_type: int,
     post_trade_supply: dict[str, float],
     demand: dict[str, float],
+    farmer_count: int = -1,
 ) -> float:
-    """Derive farmer_income_modifier from post-trade price ratio."""
+    """Derive farmer_income_modifier from post-trade price ratio.
+
+    H-4: When farmer_count is 0, return neutral 1.0 — no farmers means the
+    signal is meaningless; the previous code would compute amplified values
+    from zero-production supply floors.
+    """
+    if farmer_count == 0:
+        return 1.0
     cat = map_resource_to_category(resource_type)
     s = max(post_trade_supply.get(cat, 0.0), _SUPPLY_FLOOR)
     d = demand.get(cat, 0.0)
@@ -1429,6 +1449,7 @@ def compute_economy(
 
         result.farmer_income_modifiers[rname] = derive_farmer_income_modifier(
             region.resource_types[0], post_supply, demand,
+            farmer_count=agent_data.get("farmer_count", 0),
         )
 
         routes = origin_routes.get(rname, [])
@@ -1467,7 +1488,7 @@ def compute_economy(
     if agent_mode:
         from chronicler.factions import TITHE_RATE
 
-        for civ_name, (civ_idx, _) in civ_lookup.items():
+        for civ_name, (civ_idx, civ_regions) in civ_lookup.items():
             merchant_wealth = _extract_civ_merchant_wealth(
                 snap_civ_affinity, snap_occupations, snap_wealth, civ_idx,
             )
@@ -1475,9 +1496,23 @@ def compute_economy(
                 snap_civ_affinity, snap_occupations, civ_idx,
             )
             result.treasury_tax[civ_idx] = TAX_RATE * merchant_wealth
-            result.tithe_base[civ_idx] = merchant_wealth
+
+            # H-2: Gate tithe on food sufficiency — reduce/skip when food is scarce
+            avg_food_suff = 1.0
+            if civ_regions:
+                suff_values = [result.food_sufficiency.get(rn, 1.0) for rn in civ_regions]
+                avg_food_suff = sum(suff_values) / len(suff_values)
+            TITHE_FOOD_GATE = 0.5
+            tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0) if avg_food_suff < TITHE_FOOD_GATE else 1.0
+            scaled_tithe_base = merchant_wealth * tithe_scale
+
+            result.tithe_base[civ_idx] = scaled_tithe_base
             result.priest_tithe_shares[civ_idx] = (
-                TITHE_RATE * merchant_wealth / max(priest_count, 1)
+                TITHE_RATE * scaled_tithe_base / max(priest_count, 1)
             )
+
+            # H-3: Track treasury flows in conservation
+            result.conservation["treasury_tax"] += result.treasury_tax[civ_idx]
+            result.conservation["treasury_tithe"] += TITHE_RATE * scaled_tithe_base
 
     return result

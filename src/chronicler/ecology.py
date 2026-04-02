@@ -238,9 +238,13 @@ def _write_back_ecology(world: "WorldState", region_batch) -> dict[str, list[flo
         if i >= len(world.regions):
             break
         region = world.regions[i]
-        region.ecology.soil = soils[i]
-        region.ecology.water = waters[i]
-        region.ecology.forest_cover = forests[i]
+
+        # H-16: Validate/clamp Rust ecology write-back values to [0.0, 1.0]
+        # and respect terrain-specific caps
+        caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
+        region.ecology.soil = max(_FLOOR_SOIL, min(caps["soil"], max(0.0, soils[i])))
+        region.ecology.water = max(_FLOOR_WATER, min(caps["water"], max(0.0, waters[i])))
+        region.ecology.forest_cover = max(_FLOOR_FOREST, min(caps["forest_cover"], max(0.0, forests[i])))
         # These fields are on Region, not RegionEcology
         region.endemic_severity = severities[i]
         region.prev_turn_water = prev_waters[i]
