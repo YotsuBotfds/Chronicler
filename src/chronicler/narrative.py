@@ -335,7 +335,7 @@ def build_agent_context_for_moment(
             "origin_civ": gp.origin_civilization,
             "status": _character_status(gp),
             "recent_history": [
-                {"event": d, "region": gp.region or "unknown"}
+                {"event": d.text, "region": d.region or "unknown", "turn": d.turn}
                 for d in gp.deeds[-3:]
             ],
         }

@@ -453,6 +453,44 @@ def test_agent_context_marks_retired_characters_as_retired():
     assert ctx.named_characters[0]["status"] == "retired"
 
 
+def test_agent_context_uses_deed_region_not_gp_region():
+    """recent_history should use deed.region, not gp.region."""
+    from chronicler.narrative import build_agent_context_for_moment
+    from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole, GreatPersonDeed
+
+    moment = NarrativeMoment(
+        anchor_turn=30,
+        turn_range=(30, 30),
+        events=[Event(
+            event_type="campaign", description="A campaign",
+            actors=["Traveler", "TestCiv"], importance=7, turn=30, source="agent",
+        )],
+        named_events=[],
+        score=10.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+
+    gp = GreatPerson(
+        name="Traveler", role="general", trait="bold",
+        civilization="TestCiv", origin_civilization="TestCiv",
+        born_turn=1, source="agent", agent_id=100,
+        region="CurrentRegion",
+        deeds=[
+            GreatPersonDeed(text="Fought in battle", region="OldRegion", turn=10),
+            GreatPersonDeed(text="Traded goods", region="MiddleRegion", turn=20),
+        ],
+    )
+
+    ctx = build_agent_context_for_moment(moment, [gp], {})
+    assert ctx is not None
+    history = ctx.named_characters[0]["recent_history"]
+    assert history[0]["region"] == "OldRegion"
+    assert history[1]["region"] == "MiddleRegion"
+    assert history[0]["region"] != gp.region
+
+
 def test_prepare_narration_prompts_threads_focal_civ_gini(sample_world):
     from chronicler.models import CivSnapshot, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot
 
