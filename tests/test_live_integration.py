@@ -615,3 +615,93 @@ async def test_start_and_batch_path_type_validation():
             assert "workers" in batch_error["message"]
     finally:
         server.stop()
+
+
+@pytest.mark.asyncio
+async def test_narrate_range_passes_great_persons_and_agent_name_map(running_live_server, monkeypatch):
+    """Live narrate_range threads great_persons and agent_name_map from _init_data."""
+    from chronicler.narrative import NarrativeEngine
+    from chronicler.models import (
+        CivSnapshot, Event, NarrativeMoment, NarrativeRole, TurnSnapshot,
+    )
+
+    captured_kwargs = {}
+
+    def spy_narrate_batch(self_engine, moments, history, **kwargs):
+        captured_kwargs.update(kwargs)
+        return []
+
+    monkeypatch.setattr(NarrativeEngine, "narrate_batch", spy_narrate_batch)
+
+    # Inject GP data
+    running_live_server._init_data["world_state"]["civilizations"] = [{
+        "name": "TestCiv", "regions": ["Region0"],
+        "leader": {"name": "TestLeader", "personality": "bold"},
+        "great_persons": [{
+            "name": "Kiran", "role": "general", "trait": "bold",
+            "civilization": "TestCiv", "origin_civilization": "TestCiv",
+            "born_turn": 1, "source": "agent", "agent_id": 42,
+        }],
+        "population": 100, "military": 50, "economy": 40,
+        "culture": 30, "stability": 60, "treasury": 20,
+        "asabiya": 0.5, "tech_era": "iron", "trait": "bold", "alive": True,
+    }]
+    running_live_server._init_data["world_state"]["retired_persons"] = []
+
+    # Inject valid TurnSnapshot-shaped history
+    running_live_server._init_data["history"] = [{
+        "turn": 1,
+        "civ_stats": {
+            "TestCiv": {
+                "population": 100, "military": 50, "economy": 40,
+                "culture": 30, "stability": 60, "treasury": 20,
+                "asabiya": 0.5, "tech_era": "iron", "trait": "bold",
+                "regions": ["Region0"], "leader_name": "TestLeader", "alive": True,
+            }
+        },
+        "region_control": {}, "relationships": {},
+    }]
+
+    # Inject events
+    running_live_server._init_data["events_timeline"] = [{
+        "turn": 1, "event_type": "campaign", "actors": ["TestCiv"],
+        "description": "A great campaign", "importance": 8, "source": "agent",
+    }]
+
+    # Monkeypatch curate for determinism
+    known_moment = NarrativeMoment(
+        anchor_turn=1, turn_range=(1, 1),
+        events=[Event(turn=1, event_type="campaign", actors=["TestCiv"],
+                      description="A great campaign", importance=8, source="agent")],
+        named_events=[], score=8.0, causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX, bonus_applied=0.0,
+    )
+    monkeypatch.setattr(
+        "chronicler.curator.curate",
+        lambda *args, **kwargs: ([known_moment], []),
+    )
+
+    async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+        init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+
+        await ws.send(json.dumps({
+            "type": "narrate_range", "start_turn": 1, "end_turn": 1,
+        }))
+
+        # narration_started arrives BEFORE narrate_batch runs — drain until captured_kwargs populated
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while not captured_kwargs:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                break
+            try:
+                await asyncio.wait_for(ws.recv(), timeout=remaining)
+            except asyncio.TimeoutError:
+                break
+
+    assert "great_persons" in captured_kwargs
+    assert "agent_name_map" in captured_kwargs
+    assert captured_kwargs["agent_name_map"] is not None
+    assert captured_kwargs["agent_name_map"].get(42) == "Kiran"
+    assert captured_kwargs.get("social_edges") is None
+    assert captured_kwargs.get("dynasty_registry") is None

@@ -609,6 +609,20 @@ class LiveServer:
                                 if gp.get("active") and gp.get("agent_id") is not None:
                                     named_chars.add(gp.get("name", ""))
 
+                        # Reconstruct great_persons from _init_data world state
+                        from chronicler.models import GreatPerson as _GP
+                        all_great_persons = []
+                        for civ_data in self._init_data.get("world_state", {}).get("civilizations", []):
+                            for gp_data in civ_data.get("great_persons", []):
+                                all_great_persons.append(_GP(**gp_data))
+                        for gp_data in self._init_data.get("world_state", {}).get("retired_persons", []):
+                            all_great_persons.append(_GP(**gp_data))
+
+                        agent_name_map = (
+                            {gp.agent_id: gp.name for gp in all_great_persons if gp.agent_id is not None}
+                            if all_great_persons else None
+                        )
+
                         moments, _ = curate(
                             range_events, all_named, all_history, budget=1, seed=seed,
                             named_characters=named_chars if named_chars else None,
@@ -625,7 +639,17 @@ class LiveServer:
                                 narrator=client_config.get("narrator", "local"),
                             )
                             engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
-                            entries = engine.narrate_batch(moments, all_history)
+                            entries = engine.narrate_batch(
+                                moments, all_history,
+                                great_persons=all_great_persons if all_great_persons else None,
+                                agent_name_map=agent_name_map,
+                                social_edges=None,
+                                dissolved_edges_by_turn=None,
+                                displacement_by_region=None,
+                                dynasty_registry=None,
+                                economy_result=None,
+                                gini_by_civ=None,
+                            )
                             if entries:
                                 await websocket.send(json.dumps({
                                     "type": "narration_complete",
