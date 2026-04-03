@@ -410,6 +410,76 @@ def test_release_hostage_syncs_rust_affinity(make_world):
     assert bridge._sim.calls == [(200, origin_idx)]
 
 
+def test_extinct_origin_release_syncs_rust_affinity(make_world):
+    """tick_hostages() syncs to captor when origin has no regions."""
+    world = make_world(num_civs=2, seed=42)
+    captor = world.civilizations[0]
+    origin = world.civilizations[1]
+    origin.regions = []  # extinct
+    hostage = GreatPerson(
+        name="Stranded GP", role="hostage", trait="cautious",
+        civilization=captor.name, origin_civilization=origin.name,
+        born_turn=0, is_hostage=True, hostage_turns=5,
+        captured_by=captor.name, pre_hostage_role="scientist",
+        agent_id=300,
+    )
+    captor.great_persons = [hostage]
+    bridge = _MockBridge()
+    captor_idx = 0  # world.civilizations index for captor
+    tick_hostages(world, bridge=bridge)
+    assert bridge._sim.calls == [(300, captor_idx)]
+
+
+def test_missing_origin_release_syncs_rust_affinity():
+    """tick_hostages() syncs to captor when origin civ not found at all."""
+    from chronicler.models import (
+        Civilization, Leader, Region, TechEra, WorldState, Relationship,
+    )
+    captor = Civilization(
+        name="Captor", population=50, military=30, economy=40, culture=30,
+        stability=50, tech_era=TechEra.IRON, treasury=50,
+        leader=Leader(name="Leader of Captor", trait="cautious", reign_start=0),
+        regions=["R1"], asabiya=0.5,
+    )
+    hostage = GreatPerson(
+        name="Orphan GP", role="hostage", trait="bold",
+        civilization="Captor", origin_civilization="NonExistent",
+        born_turn=0, is_hostage=True, hostage_turns=3,
+        captured_by="Captor", pre_hostage_role="general",
+        agent_id=400,
+    )
+    captor.great_persons = [hostage]
+    r1 = Region(name="R1", terrain="plains", carrying_capacity=60,
+                resources="fertile", controller="Captor")
+    world = WorldState(
+        name="TestWorld", seed=42, turn=10,
+        regions=[r1], civilizations=[captor], relationships={},
+    )
+    bridge = _MockBridge()
+    captor_idx = 0
+    tick_hostages(world, bridge=bridge)
+    assert bridge._sim.calls == [(400, captor_idx)]
+
+
+def test_tick_hostages_normal_release_forwards_bridge(make_world):
+    """tick_hostages() forwards bridge to release_hostage on normal auto-release."""
+    world = make_world(num_civs=2, seed=42)
+    captor = world.civilizations[0]
+    origin = world.civilizations[1]
+    hostage = GreatPerson(
+        name="Auto Release GP", role="hostage", trait="bold",
+        civilization=captor.name, origin_civilization=origin.name,
+        born_turn=0, is_hostage=True, hostage_turns=14,
+        captured_by=captor.name, pre_hostage_role="general",
+        agent_id=350,
+    )
+    captor.great_persons = [hostage]
+    bridge = _MockBridge()
+    origin_idx = 1  # world.civilizations index for origin
+    tick_hostages(world, bridge=bridge)
+    assert bridge._sim.calls == [(350, origin_idx)]
+
+
 # --- M40: Social Networks ---
 
 # --- Task 6: dissolve_edges ---

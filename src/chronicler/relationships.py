@@ -473,7 +473,7 @@ def capture_hostage(
     return youngest
 
 
-def tick_hostages(world: WorldState, acc=None) -> list[GreatPerson]:
+def tick_hostages(world: WorldState, acc=None, bridge=None) -> list[GreatPerson]:
     """Advance hostage turns, apply cultural conversion at 10, auto-release at 15."""
     released = []
     for civ in world.civilizations:
@@ -483,15 +483,30 @@ def tick_hostages(world: WorldState, acc=None) -> list[GreatPerson]:
             gp.hostage_turns += 1
             if gp.hostage_turns >= 10 and gp.cultural_identity != civ.name:
                 gp.cultural_identity = civ.name
-            # Free hostage if origin civ is extinct (no regions) — retire in place
+            # Free hostage if origin civ is missing or extinct — retire in place
             origin = next((c for c in world.civilizations if c.name == gp.origin_civilization), None)
             if origin is None or not origin.regions:
                 _clear_hostage_state(gp, origin or civ)
                 gp.civilization = civ.name
+                # Sync Rust-side civ affinity to captor
+                if bridge is not None and gp.agent_id is not None:
+                    captor_idx = next(
+                        (i for i, c in enumerate(world.civilizations) if c.name == civ.name),
+                        None,
+                    )
+                    if captor_idx is not None:
+                        try:
+                            bridge._sim.set_agent_civ(gp.agent_id, captor_idx)
+                        except Exception:
+                            import logging
+                            logging.getLogger(__name__).exception(
+                                "Failed to set GP civ during missing/extinct-origin hostage release (agent_id=%s, civ_idx=%s)",
+                                gp.agent_id, captor_idx,
+                            )
                 released.append(gp)
                 continue
             if gp.hostage_turns >= 15:
-                release_hostage(gp, civ, origin, world, acc=acc)
+                release_hostage(gp, civ, origin, world, acc=acc, bridge=bridge)
                 released.append(gp)
     return released
 
