@@ -360,6 +360,37 @@ def test_origin_extinction_release_clears_hostage_state(make_world):
     assert hostage.role == "scientist"
 
 
+# --- Hostage affinity sync ---
+
+class _MockSim:
+    """Records set_agent_civ calls for bridge sync tests."""
+    def __init__(self):
+        self.calls = []
+    def set_agent_civ(self, agent_id, civ_id):
+        self.calls.append((agent_id, civ_id))
+
+class _MockBridge:
+    def __init__(self):
+        self._sim = _MockSim()
+
+
+def test_capture_hostage_syncs_rust_affinity(make_world):
+    """capture_hostage() calls set_agent_civ when bridge is provided."""
+    world = make_world(num_civs=2, seed=42)
+    loser = world.civilizations[0]
+    winner = world.civilizations[1]
+    gp = GreatPerson(
+        name="Agent GP", role="general", trait="bold",
+        civilization=loser.name, origin_civilization=loser.name,
+        born_turn=5, agent_id=100,
+    )
+    loser.great_persons = [gp]
+    bridge = _MockBridge()
+    winner_idx = 1  # world.civilizations index for winner
+    capture_hostage(loser, winner, world, contested_region="Battlefield", bridge=bridge)
+    assert bridge._sim.calls == [(100, winner_idx)]
+
+
 # --- M40: Social Networks ---
 
 # --- Task 6: dissolve_edges ---

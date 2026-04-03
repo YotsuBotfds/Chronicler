@@ -405,6 +405,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
                 ))
             update_rivalries(civ, defender, world)
         # Hostage capture on decisive outcomes
+        bridge = getattr(world, "_agent_bridge", None)
         if result.outcome == "defender_wins":
             # M24: Check for intelligence failure (uses post-combat military —
             # intentional: the revealed truth is what defender had after battle)
@@ -414,7 +415,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
                     civ, defender, perceived_mil, defender.military, world,
                 ))
             from chronicler.relationships import capture_hostage
-            hostage = capture_hostage(civ, defender, world, contested_region=result.contested_region)
+            hostage = capture_hostage(civ, defender, world, contested_region=result.contested_region, bridge=bridge)
             if hostage:
                 world.events_timeline.append(Event(
                     turn=world.turn, event_type="hostage_taken",
@@ -424,7 +425,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
                 ))
         elif result.outcome == "attacker_wins":
             from chronicler.relationships import capture_hostage
-            hostage = capture_hostage(defender, civ, world, contested_region=result.contested_region)
+            hostage = capture_hostage(defender, civ, world, contested_region=result.contested_region, bridge=bridge)
             if hostage:
                 world.events_timeline.append(Event(
                     turn=world.turn, event_type="hostage_taken",

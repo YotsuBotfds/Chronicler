@@ -1,6 +1,6 @@
 import pytest
 from chronicler.models import (
-    ActionType, Belief, Civilization, Disposition, InfrastructureType, Leader, PendingBuild, Region, Relationship, TechEra, WorldState,
+    ActionType, Belief, Civilization, Disposition, GreatPerson, InfrastructureType, Leader, PendingBuild, Region, Relationship, TechEra, WorldState,
 )
 from chronicler.action_engine import ActionEngine, WarResult, resolve_action, resolve_war, _resolve_war_action
 from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR, K_WAR_WEARINESS_DIVISOR
@@ -381,6 +381,46 @@ class TestWarResolution:
 
         assert result.outcome == "attacker_wins"
         assert contested.pending_build is None
+
+    @pytest.mark.parametrize("outcome,loser_idx,winner_idx", [
+        ("attacker_wins", 1, 0),   # loser=defender(1), winner=attacker(0)
+        ("defender_wins", 0, 1),   # loser=attacker(0), winner=defender(1)
+    ])
+    def test_war_capture_passes_bridge_to_capture_hostage(
+        self, engine_world, monkeypatch, outcome, loser_idx, winner_idx,
+    ):
+        """_resolve_war_action passes world._agent_bridge on both war outcomes."""
+        class _FakeSim:
+            def __init__(self):
+                self.calls = []
+            def set_agent_civ(self, agent_id, civ_id):
+                self.calls.append((agent_id, civ_id))
+
+        class _FakeBridge:
+            def __init__(self):
+                self._sim = _FakeSim()
+
+        # Give the loser a GP with agent_id so capture_hostage has a candidate
+        loser = engine_world.civilizations[loser_idx]
+        gp = GreatPerson(
+            name="Capturable", role="general", trait="bold",
+            civilization=loser.name, origin_civilization=loser.name,
+            born_turn=5, agent_id=99,
+        )
+        loser.great_persons = [gp]
+
+        monkeypatch.setattr("chronicler.action_engine.resolve_war",
+            lambda attacker, defender, world, seed=0, acc=None: WarResult(outcome, "Region C"))
+        monkeypatch.setattr("chronicler.action_engine.get_perceived_stat",
+            lambda *args, **kwargs: 50)
+
+        bridge = _FakeBridge()
+        engine_world._agent_bridge = bridge
+
+        _resolve_war_action(engine_world.civilizations[0], engine_world)
+
+        # GP synced to the winner's civ index
+        assert bridge._sim.calls == [(99, winner_idx)]
 
     def test_turn_level_war_seed_includes_both_combatants(self, engine_world, monkeypatch):
         seeds = []
