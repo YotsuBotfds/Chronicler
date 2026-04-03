@@ -421,15 +421,17 @@ def test_agent_context_uses_deed_region_not_gp_region():
     from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole, GreatPersonDeed
 
     moment = NarrativeMoment(
+        anchor_turn=30,
+        turn_range=(30, 30),
         events=[Event(
             event_type="campaign", description="A campaign",
             actors=["Traveler", "TestCiv"], importance=7, turn=30, source="agent",
         )],
         named_events=[],
-        turn_range=(30, 30),
-        focal_civ="TestCiv",
-        role=NarrativeRole.NARRATOR,
-        importance=7,
+        score=10.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
     )
 
     gp = GreatPerson(
