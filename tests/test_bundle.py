@@ -540,6 +540,8 @@ class TestAgentEventsSerialization:
         assert schema.field("civ_affinity").type == pa.uint16()
         assert schema.field("occupation").type == pa.uint8()
         assert schema.field("belief").type == pa.uint8()
+        assert schema.field("target_agent_id").type == pa.uint32()
+        assert schema.field("formed_turn").type == pa.uint32()
 
 
 try:

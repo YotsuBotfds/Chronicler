@@ -1502,6 +1502,35 @@ def test_gp_region_updated_on_migration_event(demographics_bridge_world):
     assert gp.region == world.regions[target_region_idx].name
 
 
+def test_gp_region_updated_on_exile_return_event(demographics_bridge_world):
+    """_detect_character_events should update gp.region on named-character exile return."""
+    from chronicler.models import AgentEventRecord
+    from chronicler.models import GreatPerson
+
+    world, bridge = demographics_bridge_world
+    world.turn = 100
+    civ = world.civilizations[0]
+    gp = GreatPerson(
+        name="TestReturnee", role="merchant", trait="bold",
+        civilization=civ.name, origin_civilization=civ.name,
+        born_turn=1, source="agent", agent_id=98, region=world.regions[1].name,
+    )
+    civ.great_persons.append(gp)
+    bridge.named_agents[98] = "TestReturnee"
+    bridge.gp_by_agent_id[98] = gp
+    bridge._origin_regions[98] = 0
+    bridge._departure_turns[98] = 60
+
+    events = [AgentEventRecord(
+        turn=world.turn, agent_id=98, event_type="migration",
+        region=1, target_region=0, civ_affinity=0, occupation=2,
+    )]
+    emitted = bridge._detect_character_events(events, world)
+    assert gp.region == world.regions[0].name
+    assert 98 not in bridge._departure_turns
+    assert any(event.event_type == "exile_return" for event in emitted)
+
+
 # ---------------------------------------------------------------------------
 # Task 6: dissolution tuple uses real target_agent_id and formed_turn
 # ---------------------------------------------------------------------------
