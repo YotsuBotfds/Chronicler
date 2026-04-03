@@ -504,9 +504,9 @@ def test_post_loop_narration_passes_bridge_context(self, tmp_path):
     """Post-loop API narration threads all bridge-owned inputs to narrate_batch."""
     from unittest.mock import MagicMock, patch
     from chronicler.llm import AnthropicClient
+    from chronicler.narrative import NarrativeEngine
 
     captured_kwargs = {}
-    original_narrate = None
 
     def spy_narrate_batch(self_engine, moments, history, **kwargs):
         captured_kwargs.update(kwargs)
@@ -548,11 +548,11 @@ def test_post_loop_narration_passes_bridge_context(self, tmp_path):
     assert "dynasty_registry" in captured_kwargs
 ```
 
-Note: This test lives inside `class TestApiNarration` (which starts at ~line 833 and has the `_make_args` helper at line 839). The implementing agent should add it as a method of that class. If the `_make_args` helper doesn't include all needed fields for hybrid mode, the agent should adapt accordingly.
+Note: This test lives inside `class TestApiNarrationIntegration` (line 836, has `_make_args` helper at line 839). The implementing agent should add it as a method of that class. If `_make_args` doesn't include all needed fields for hybrid mode, adapt accordingly.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/test_main.py::TestApiNarration::test_post_loop_narration_passes_bridge_context -v`
+Run: `pytest tests/test_main.py::TestApiNarrationIntegration::test_post_loop_narration_passes_bridge_context -v`
 Expected: FAIL — the current call at `main.py:627` does not pass these kwargs.
 
 - [ ] **Step 3: Wire bridge context into post-loop narration call**
@@ -586,7 +586,7 @@ New:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/test_main.py::TestApiNarration::test_post_loop_narration_passes_bridge_context -v`
+Run: `pytest tests/test_main.py::TestApiNarrationIntegration::test_post_loop_narration_passes_bridge_context -v`
 Expected: PASS
 
 - [ ] **Step 5: Run existing main tests to check for regressions**
@@ -704,11 +704,11 @@ def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
     assert captured_kwargs.get("economy_result") is None
 ```
 
-Note: This test lives inside `class TestApiNarration`. The implementing agent should add it as a method of that class.
+Note: This test lives inside `class TestApiNarrationIntegration` (line 836). The implementing agent should add it as a method of that class.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/test_main.py::TestApiNarration::test_run_narrate_passes_bundle_derived_context -v`
+Run: `pytest tests/test_main.py::TestApiNarrationIntegration::test_run_narrate_passes_bundle_derived_context -v`
 Expected: FAIL — current call at `main.py:1005` does not pass `agent_name_map`.
 
 - [ ] **Step 3: Wire bundle-derived context into `_run_narrate()`**
@@ -749,7 +749,7 @@ New:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/test_main.py::TestApiNarration::test_run_narrate_passes_bundle_derived_context -v`
+Run: `pytest tests/test_main.py::TestApiNarrationIntegration::test_run_narrate_passes_bundle_derived_context -v`
 Expected: PASS
 
 - [ ] **Step 5: Run existing _run_narrate tests**
@@ -889,12 +889,18 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
             "end_turn": 1,
         }))
 
-        # Spy returns [] so no narration_complete is sent, but we need to
-        # give the server time to process the message and call narrate_batch.
-        try:
-            resp_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-        except asyncio.TimeoutError:
-            pass  # expected — spy returns empty list, no response sent
+        # The server sends narration_started BEFORE calling narrate_batch,
+        # so a single recv() can return before captured_kwargs is populated.
+        # Drain messages until captured_kwargs is non-empty or timeout.
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while not captured_kwargs:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                break
+            try:
+                await asyncio.wait_for(ws.recv(), timeout=remaining)
+            except asyncio.TimeoutError:
+                break
 
     # great_persons kwarg should be present
     assert "great_persons" in captured_kwargs
