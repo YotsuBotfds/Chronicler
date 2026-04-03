@@ -128,11 +128,13 @@ def _append_deed(gp, text, *, region=None, turn=None, civ=None):
 
 For deeds spanning multiple regions (migration, pilgrimage), `region` is the **primary/destination** location. The full text still carries both places ("Migrated from X to Y"), but the structured field is single-valued.
 
-### `gp.region` Staleness
+### `gp.region` Maintenance
 
-`gp.region` is only set at promotion time (`agent_bridge.py:1592`) and never updated on migration, exile, or pilgrimage. This means `gp.region` is stale for any character who has moved since promotion. The spec therefore requires each call site to pass an **explicit event-derived region argument** rather than relying on `gp.region`.
+`gp.region` is only set at promotion time (`agent_bridge.py:1592`) and never updated on migration or pilgrimage. This means `gp.region` is stale for any character who has moved since promotion.
 
-For political transition sites (exile, defection, restoration, absorption), `gp.region` is incidentally correct because those code paths filter on `gp.region in <region_set>` — the character is confirmed to be in that region at event time. But to avoid a hidden dependency on this coincidence, these sites should still pass the region explicitly.
+**This spec requires keeping `gp.region` current on named-character movement.** The two migration deed sites (`agent_bridge.py:1718` and `agent_bridge.py:1732`) already have the destination region name (`target_name`). Add `gp.region = target_name` at both sites. This is a prerequisite for deed provenance — without it, `gp.region` at deed call sites downstream (exile, defection, restoration, absorption) reflects the promotion region, not the actual current region, making both the transition filters and the deed region wrong.
+
+Pilgrimage also needs a region update: `great_persons.py:410` should set `gp.region = destination` on return (the `destination` local is already in scope at line 407).
 
 ### Call Sites (12 production)
 
@@ -140,9 +142,9 @@ For political transition sites (exile, defection, restoration, absorption), `gp.
 
 | Line | Deed | Region source | Notes |
 |------|------|---------------|-------|
-| 111 | Retirement | `gp.region` | Stale if character migrated since promotion; acceptable — retirement is low-stakes |
-| 308 | Death | `gp.region` | Same staleness caveat |
-| 410 | Pilgrimage return | `gp.pilgrimage_destination` | **FIX:** currently does not use destination; should use `destination` local (line 407) |
+| 111 | Retirement | `gp.region` | Correct after region maintenance lands |
+| 308 | Death | `gp.region` | Correct after region maintenance lands |
+| 410 | Pilgrimage return | `destination` (line 407) | **FIX:** currently omits region; also set `gp.region = destination` |
 | 482 | Pilgrimage departure | `best_region` | Correct — explicit destination |
 
 **`agent_bridge.py` (8 sites):**
@@ -150,15 +152,15 @@ For political transition sites (exile, defection, restoration, absorption), `gp.
 | Line | Deed | Region source | Notes |
 |------|------|---------------|-------|
 | 1594 | Promotion | `region_name` | Correct — derived from event batch |
-| 1613 | Mule memory shaping | `gp.region` | Stale; acceptable — mule shaping is supplementary |
-| 1718 | Return after exile | `target_name` | Correct — derived from event data |
-| 1732 | Migration | `target_name` | Correct — derived from event data |
-| 1764 | Exile after conquest | `gp.region` | Correct incidentally — filtered by `gp.region in conquered_region_set` |
-| 1832 | Defection during secession | `gp.region` | Correct incidentally — filtered by `gp.region in seceding_set` |
-| 1885 | Restoration return | `gp.region` | Correct incidentally — filtered by `gp.region in restored_set` |
-| 1928 | Twilight absorption | `gp.region` | Correct incidentally — filtered by `gp.region in absorbed_set` |
+| 1613 | Mule memory shaping | `gp.region` | Correct after region maintenance lands |
+| 1718 | Return after exile | `target_name` | Correct — derived from event data; **also set `gp.region = target_name`** |
+| 1732 | Migration | `target_name` | Correct — derived from event data; **also set `gp.region = target_name`** |
+| 1764 | Exile after conquest | `gp.region` | Correct after region maintenance lands |
+| 1832 | Defection during secession | `gp.region` | Correct after region maintenance lands |
+| 1885 | Restoration return | `gp.region` | Correct after region maintenance lands |
+| 1928 | Twilight absorption | `gp.region` | Correct after region maintenance lands |
 
-All sites have access to region, turn (`world.turn`), and civ (`gp.civilization`) at call time. No new data plumbing required — pass what's locally available. The key fix is pilgrimage return (line 410), which must switch from the implicit `gp.region` to the explicit `destination` variable already in scope.
+Region maintenance adds `gp.region = target_name` at lines 1718 and 1732, and `gp.region = destination` at line 410. After that, all sites that use `gp.region` reflect the character's actual current location.
 
 ### Narrative Consumer
 
