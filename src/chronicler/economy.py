@@ -45,6 +45,7 @@ ALL_GOODS: frozenset[str] = frozenset({
 TERRAIN_COST: dict[str, float] = {
     "plains": 1.0,
     "forest": 1.3,
+    "hills": 1.3,
     "desert": 1.5,
     "mountains": 2.0,
     "tundra": 1.8,
@@ -624,7 +625,9 @@ def decompose_trade_routes(
     """
     pairs: list[tuple[str, str]] = []
     for region_name in civ_a_regions:
-        region = region_map[region_name]
+        region = region_map.get(region_name)
+        if region is None:
+            continue
         for neighbor_name in region.adjacencies:
             if neighbor_name in civ_b_regions:
                 pairs.append((region_name, neighbor_name))

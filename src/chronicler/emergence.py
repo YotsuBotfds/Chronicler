@@ -520,6 +520,7 @@ def _apply_resource_discovery(world: WorldState, seed: int) -> list[Event]:
             if region.resource_types[slot] == EMPTY_SLOT:
                 region.resource_types[slot] = rtype
                 region.resource_base_yields[slot] = RESOURCE_BASE[rtype] * (1.0 + rng.uniform(-0.2, 0.2))
+                region.resource_effective_yields[slot] = region.resource_base_yields[slot]
                 break
     populate_legacy_resources([region])
 
@@ -942,41 +943,3 @@ def check_environmental_events(world: WorldState, rng) -> list[Event]:
                 events.append(result)
     return events
 
-
-# ---------------------------------------------------------------------------
-# Capacity Modifier Cleanup
-# ---------------------------------------------------------------------------
-
-# Map from _capacity_modifier_source tag to the disaster_cooldowns key it
-# corresponds to.  When the cooldown expires the modifier should reset.
-_SOURCE_TO_COOLDOWN_KEY: dict[str, str] = {
-    "flood": "flood",
-    "drought_intensification": "drought_intensification",
-}
-
-
-def clear_expired_capacity_modifier(region: Region) -> None:
-    """Reset capacity_modifier to 1.0 when the disaster that set it has expired.
-
-    Each _check_* function that modifies capacity_modifier also sets
-    region._capacity_modifier_source to identify which disaster owns the
-    modifier.  This helper checks whether that disaster's cooldown has
-    expired and, if so, resets the modifier.
-
-    NOTE: simulation.py should call this once per region per turn (e.g. at
-    the top of Phase 1 or the environment tick) to prevent stale
-    capacity_modifier values from persisting when multiple cooldowns overlap.
-    """
-    source = getattr(region, "_capacity_modifier_source", None)
-    if source is None:
-        return
-    cooldown_key = _SOURCE_TO_COOLDOWN_KEY.get(source)
-    if cooldown_key is None:
-        # Unknown source — clear unconditionally to be safe
-        region.capacity_modifier = 1.0
-        region._capacity_modifier_source = None  # type: ignore[attr-defined]
-        return
-    remaining = region.disaster_cooldowns.get(cooldown_key, 0)
-    if remaining <= 0:
-        region.capacity_modifier = 1.0
-        region._capacity_modifier_source = None  # type: ignore[attr-defined]

@@ -1243,7 +1243,8 @@ def detect_anomalies(report: dict) -> list[dict]:
 
     # Degenerate pattern: no late game
     median_era = report.get("general", {}).get("median_era_at_final", "medieval")
-    if ERA_ORDER.index(median_era.lower()) < ERA_ORDER.index("medieval"):
+    median_era_idx = next((i for i, e in enumerate(ERA_ORDER) if e == median_era.lower()), -1)
+    if median_era_idx >= 0 and median_era_idx < ERA_ORDER.index("medieval"):
         anomalies.append({
             "name": "no_late_game", "severity": "WARNING",
             "detail": f"Median era at final turn is {median_era}",
@@ -1653,10 +1654,10 @@ def format_delta_report(
         lines.append("  No significant changes.")
     lines.append("")
 
-    base_anomaly_names = {a["name"] for a in baseline.get("anomalies", [])}
-    curr_anomaly_names = {a["name"] for a in current.get("anomalies", [])}
-    resolved = base_anomaly_names - curr_anomaly_names
-    new_anomalies = curr_anomaly_names - base_anomaly_names
+    base_anomaly_keys = {(a["name"], a.get("detail", "")) for a in baseline.get("anomalies", [])}
+    curr_anomaly_keys = {(a["name"], a.get("detail", "")) for a in current.get("anomalies", [])}
+    resolved = {name for name, _ in base_anomaly_keys - curr_anomaly_keys}
+    new_anomalies = {name for name, _ in curr_anomaly_keys - base_anomaly_keys}
 
     if resolved:
         lines.append("ANOMALIES RESOLVED:")

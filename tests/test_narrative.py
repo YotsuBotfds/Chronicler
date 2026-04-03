@@ -278,7 +278,6 @@ def test_narrate_batch_does_not_mutate_live_arc_summary(sample_world):
         [moment],
         history,
         great_persons=[gp],
-        gp_by_name={"Kiran": gp},
         world=sample_world,
     )
 

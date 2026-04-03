@@ -456,6 +456,7 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
     ]
     key = war_key(winner.name, loser.name)
     world.war_start_turns.pop(key, None)
+    world.invalidate_trade_route_cache()
 
     # Create VassalRelation
     tribute_rate = get_override(world, K_VASSAL_TRIBUTE_RATE, 0.15)
@@ -771,6 +772,7 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
     events: list[Event] = []
     civ_map = world.civ_map
     to_remove = []
+    _treasury_deducted: dict[str, int] = {}
 
     for pw in world.proxy_wars:
         sponsor = civ_map.get(pw.sponsor)
@@ -799,7 +801,8 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
             target.economy = clamp(target.economy - int(pw_econ * mult), STAT_FLOOR["economy"], 100)
         pw.turns_active += 1
 
-        prospective_treasury = sponsor.treasury - pw.treasury_per_turn if acc is not None else sponsor.treasury
+        _treasury_deducted[sponsor.name] = _treasury_deducted.get(sponsor.name, 0) + pw.treasury_per_turn
+        prospective_treasury = sponsor.treasury - _treasury_deducted[sponsor.name] if acc is not None else sponsor.treasury
         if prospective_treasury < 0:
             to_remove.append(pw)
             continue
@@ -1499,16 +1502,19 @@ def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
     if len(living) >= 2:
         richest = max(living, key=lambda c: c.economy)
         poorest = min(living, key=lambda c: c.economy)
-        poorest_mult = get_severity_multiplier(poorest, world)
-        poorest_drain = int(1 * poorest_mult)
-        if acc is not None:
-            richest_idx = civ_index(world, richest.name)
-            poorest_idx = civ_index(world, poorest.name)
-            acc.add(richest_idx, richest, "economy", 1, "guard-shock")
-            acc.add(poorest_idx, poorest, "economy", -poorest_drain, "guard-shock")
+        if richest is poorest:
+            pass  # No inequality — skip transfer
         else:
-            richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
-            poorest.economy = clamp(poorest.economy - poorest_drain, STAT_FLOOR["economy"], 100)
+            poorest_mult = get_severity_multiplier(poorest, world)
+            poorest_drain = int(1 * poorest_mult)
+            if acc is not None:
+                richest_idx = civ_index(world, richest.name)
+                poorest_idx = civ_index(world, poorest.name)
+                acc.add(richest_idx, richest, "economy", 1, "guard-shock")
+                acc.add(poorest_idx, poorest, "economy", -poorest_drain, "guard-shock")
+            else:
+                richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
+                poorest.economy = clamp(poorest.economy - poorest_drain, STAT_FLOOR["economy"], 100)
 
     # ALLIED disposition decay every 10 peace turns
     if world.peace_turns % 10 == 0:

@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 from chronicler.models import Event, InfrastructureType as IType, Infrastructure, PendingBuild
 from chronicler.tuning import (
     K_TEMPLE_BUILD_COST, K_TEMPLE_BUILD_TURNS,
-    K_MAX_TEMPLES_PER_REGION, K_MAX_TEMPLES_PER_CIV,
-    K_TEMPLE_CONVERSION_BOOST, K_TEMPLE_PRESTIGE_PER_TURN,
+    K_MAX_TEMPLES_PER_CIV,
+    K_TEMPLE_PRESTIGE_PER_TURN,
     K_CIV_PRESTIGE_PER_TEMPLE, K_SCORCHED_EARTH_TRAIT_BONUS,
     get_override,
 )
@@ -135,11 +135,12 @@ def tick_infrastructure(world: WorldState) -> list:
                 ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
                 if ctrl_civ and ctrl_civ.active_focus == "fortification":
                     region.pending_build.turns_remaining = max(0, region.pending_build.turns_remaining - 1)
-                    world.events_timeline.append(Event(
-                        turn=world.turn, event_type="capability_fortification",
-                        actors=[ctrl_civ.name], description=f"{ctrl_civ.name} fortification speeds construction",
-                        importance=1,
-                    ))
+                    if region.pending_build.turns_remaining > 0:
+                        events.append(Event(
+                            turn=world.turn, event_type="capability_fortification",
+                            actors=[ctrl_civ.name], description=f"{ctrl_civ.name} fortification speeds construction",
+                            importance=1,
+                        ))
             if region.pending_build.turns_remaining <= 0:
                 completed = Infrastructure(
                     type=region.pending_build.type,

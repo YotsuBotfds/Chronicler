@@ -442,29 +442,10 @@ def test_season_clock():
     assert get_season_id(12) == 0
 
 
-def test_season_modifier_table_shape():
-    from chronicler.resources import SEASON_MOD
-    assert len(SEASON_MOD) == 8   # 8 resource types
-    assert len(SEASON_MOD[0]) == 4  # 4 seasons
-
-
 def test_climate_class_mod_shape():
     from chronicler.resources import CLIMATE_CLASS_MOD
     assert len(CLIMATE_CLASS_MOD) == 5   # 5 mechanical classes
     assert len(CLIMATE_CLASS_MOD[0]) == 4  # 4 climate phases
-
-
-def test_resource_class_index():
-    from chronicler.resources import resource_class_index
-    from chronicler.models import ResourceType
-    assert resource_class_index(ResourceType.GRAIN) == 0      # Crop
-    assert resource_class_index(ResourceType.BOTANICALS) == 0  # Crop
-    assert resource_class_index(ResourceType.EXOTIC) == 0      # Crop
-    assert resource_class_index(ResourceType.TIMBER) == 1      # Forestry
-    assert resource_class_index(ResourceType.FISH) == 2        # Marine
-    assert resource_class_index(ResourceType.ORE) == 3         # Mineral
-    assert resource_class_index(ResourceType.PRECIOUS) == 3    # Mineral
-    assert resource_class_index(ResourceType.SALT) == 4        # Evaporite
 
 
 # --- check_food_yield ---

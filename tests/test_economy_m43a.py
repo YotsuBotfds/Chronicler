@@ -82,7 +82,7 @@ def test_storage_decay_rates():
 
 
 def test_terrain_cost_all_terrains():
-    assert set(TERRAIN_COST.keys()) == {"plains", "forest", "desert", "mountains", "tundra", "coast"}
+    assert set(TERRAIN_COST.keys()) == {"plains", "forest", "desert", "mountains", "tundra", "coast", "hills"}
     assert TERRAIN_COST["plains"] == 1.0
     assert TERRAIN_COST["mountains"] == 2.0
     assert TERRAIN_COST["coast"] == 0.6

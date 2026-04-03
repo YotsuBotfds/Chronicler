@@ -101,7 +101,7 @@ def _set_cooldown(civ_name: str, role: str, world: WorldState) -> None:
 
 
 def _total_great_persons(world: WorldState) -> int:
-    return sum(len(c.great_persons) for c in world.civilizations)
+    return sum(1 for c in world.civilizations for gp in c.great_persons if gp.active)
 
 
 def _retire_person(gp: GreatPerson, civ: Civilization, world: WorldState) -> None:
@@ -333,7 +333,6 @@ def check_pilgrimages(
     temples: list,
     snapshot,
     current_turn: int,
-    belief_registry: list,
 ) -> list:
     """Check for pilgrimage departures and returns.
 

@@ -226,7 +226,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
             eligible.append((adj_region, adj_region.controller))
 
         if eligible:
-            share = surplus // len(eligible) if len(eligible) > 0 else 0
+            share = surplus // len(eligible)
             remainder = surplus - share * len(eligible)
             for adj_region, ctrl_name in eligible:
                 amount = share + (1 if remainder > 0 else 0)

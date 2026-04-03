@@ -1,14 +1,14 @@
 """Ten-phase simulation engine for the civilization chronicle.
 
 Turn phases:
-1. Environment — climate, conditions, terrain transitions
-2. Economy — trade routes, goods production, income, tribute, treasury
-3. Politics — governing costs, vassal checks, congress, secession
-4. Military — maintenance, war costs, mercenaries
-5. Diplomacy — disposition drift, federation checks, peace
-6. Culture — prestige, value drift, assimilation, movements
-7. Tech — advancement rolls, focus selection, focus effects
-8. Action selection + resolution (action engine)
+1. Environment — climate, conditions, terrain transitions, black swans
+2. Economy / automatic effects — goods economy, trade routes, income, tribute, treasury
+3. Production
+4. Technology
+5. Action selection + resolution (action engine)
+6. Cultural milestones
+7. Random events
+8. Leader dynamics
 9. Ecology — soil/water/forest tick, terrain transitions, famine checks
 --- Agent tick (between Phase 9 and 10) ---
 10. Consequences — emergence, factions, succession, named events, snapshot
@@ -58,7 +58,6 @@ from chronicler.utils import (
     stable_hash_int,
     STAT_FLOOR,
     sync_civ_population,
-    sync_all_populations,
     distribute_pop_loss,
     drain_region_pop,
     add_region_pop,
@@ -1092,7 +1091,6 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         ]
         pilgrimage_events = check_pilgrimages(
             all_great_persons, all_temples, _snap, world.turn,
-            world.belief_registry,
         )
         _persecution_events.extend(pilgrimage_events)
     elif world.belief_registry:
@@ -1405,9 +1403,6 @@ def phase_leader_dynamics(world: WorldState, seed: int, acc=None) -> list[Event]
             decay_grudges(civ.leader, current_turn=world.turn, world=world)
 
     return events
-
-
-    # NOTE: phase_fertility and _check_famine deleted by M23 — replaced by ecology.tick_ecology
 
 
 def get_civ_capacities(world: WorldState) -> dict[int, int]:
@@ -1819,7 +1814,9 @@ def run_turn(
             if dissolved:
                 # dissolved_edges_by_turn: at most ~10 edges/turn × 500 turns = ~5000 entries.
                 # Cleaned up when world is garbage-collected (exclude=True, not serialized).
-                world.dissolved_edges_by_turn[world.turn] = dissolved
+                existing = world.dissolved_edges_by_turn.get(world.turn, [])
+                existing.extend(dissolved)
+                world.dissolved_edges_by_turn[world.turn] = existing
 
         # Generate rivalry events for curator
         new_edges = agent_bridge.read_social_edges()

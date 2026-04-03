@@ -238,8 +238,6 @@ class GeminiClient:
         self._rate_limit_delay: float = 12.0  # 5 RPM free tier
 
     def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
-        import time
-
         # Blocking sleep is safe here: narration is sequential, post-simulation.
         if self.call_count > 0:
             time.sleep(self._rate_limit_delay)

@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from chronicler.models import ClimatePhase, Event, FOOD_TYPES, RegionEcology
 from chronicler.tuning import (
     K_FAMINE_YIELD_THRESHOLD, K_SUBSISTENCE_BASELINE,
-    K_FAMINE_POP_LOSS, K_FAMINE_REFUGEE_POP,
+    K_FAMINE_POP_LOSS, K_FAMINE_STABILITY,
     K_WATER_FACTOR_DENOMINATOR,
     get_override,
 )
@@ -131,9 +131,9 @@ def _check_famine_yield(
         # Routing the loss through guard created a conservation violation:
         # hybrid mode gained population (refugees) without the matching loss.
         famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5))
-        drain_region_pop(region, famine_pop)
+        actual_drain = drain_region_pop(region, famine_pop)
         sync_civ_population(civ, world)
-        drain = int(get_override(world, "stability.drain.famine_immediate", 3))
+        drain = int(get_override(world, K_FAMINE_STABILITY, 3))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
             acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
@@ -150,8 +150,8 @@ def _check_famine_yield(
                 if neighbor:
                     eligible.append((adj, neighbor))
 
-        if eligible:
-            per_neighbor = max(1, famine_pop // len(eligible))
+        if eligible and actual_drain > 0:
+            per_neighbor = max(1, actual_drain // len(eligible))
             for adj, neighbor in eligible:
                 add_region_pop(adj, per_neighbor)
                 sync_civ_population(neighbor, world)

@@ -922,9 +922,6 @@ class NarrativeEngine:
         gini_by_civ: dict[int, float] | None = None,
         # M43b: Economy result for trade dependency and shock narration
         economy_result=None,
-        # M45: Legacy parameter retained for call-site compatibility.
-        # Narration must not mutate live GreatPerson state from LLM output.
-        gp_by_name: dict | None = None,
         # M52: World state for artifact context in prompts
         world=None,
         # Displacement fractions by region index (from agent bridge)
@@ -955,7 +952,7 @@ class NarrativeEngine:
 
         # Sequential path — local / Gemini / fallback
         return self._narrate_sequential(
-            moments, prepared, on_progress, gp_by_name,
+            moments, prepared, on_progress,
         )
 
     def _prepare_narration_prompts(
@@ -1075,7 +1072,6 @@ class NarrativeEngine:
                     for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
                         moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
 
-                snap = _closest_snap(snap_map, moment.anchor_turn)
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons,
                     displacement_by_region=displacement_by_region or {},
@@ -1179,8 +1175,6 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         moments: list[NarrativeMoment],
         prepared: list[dict],
         on_progress: Callable[[int, int, float | None], None] | None = None,
-        # Retained for signature compatibility with existing call sites.
-        gp_by_name: dict | None = None,
     ) -> list[ChronicleEntry]:
         """Narrate moments sequentially — for local and Gemini clients."""
         entries: list[ChronicleEntry] = []
@@ -1193,7 +1187,6 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         for idx, (moment, prep) in enumerate(zip(moments, prepared)):
             prompt = prep["prompt"]
             system = prep["system"]
-            agent_ctx = prep["agent_ctx"]
 
             # Inject previous prose for style continuity (sequential only)
             if previous_prose:

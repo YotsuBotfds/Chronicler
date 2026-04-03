@@ -213,7 +213,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
                 history: msg.history || [],
                 events_timeline: msg.events_timeline || [],
                 named_events: msg.named_events || [],
-                chronicle_entries: msg.chronicle_entries || {},
+                chronicle_entries: msg.chronicle_entries || [],
                 gap_summaries: msg.gap_summaries || [],
                 era_reflections: msg.era_reflections || {},
                 metadata: msg.metadata,

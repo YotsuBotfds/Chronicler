@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import random
 
-from chronicler.models import Disposition, Event, InfrastructureType, Region, Resource, WorldState
+from chronicler.models import Event, InfrastructureType, Region, Resource, WorldState
 from chronicler.models import EMPTY_SLOT, ResourceType
 from chronicler.utils import get_region_map, stable_hash_int
 
@@ -220,7 +220,7 @@ def _compute_active_trade_routes(
         for i, m1 in enumerate(fed.members):
             for m2 in fed.members[i+1:]:
                 pair = tuple(sorted([m1, m2]))
-                if pair not in routes:
+                if pair not in routes and pair not in embargo_set:
                     routes.add(pair)
     return sorted(routes)
 
@@ -305,19 +305,6 @@ def get_season_id(turn: int) -> int:
     return (turn % 12) // 3
 
 
-# SEASON_MOD[resource_type_id][season_id] — all [CALIBRATE]
-SEASON_MOD: list[list[float]] = [
-    # Spring Summer Autumn Winter
-    [0.8,   1.2,   1.5,   0.3],   # GRAIN
-    [0.6,   1.0,   1.2,   0.8],   # TIMBER
-    [1.2,   0.8,   0.6,   0.2],   # BOTANICALS
-    [1.0,   1.0,   0.8,   0.6],   # FISH
-    [0.8,   1.2,   1.0,   1.0],   # SALT
-    [0.9,   1.0,   1.0,   0.9],   # ORE
-    [0.9,   1.0,   1.0,   1.0],   # PRECIOUS
-    [1.0,   0.8,   1.2,   0.6],   # EXOTIC
-]
-
 # CLIMATE_CLASS_MOD[class_index][climate_phase_index]
 # Classes: 0=Crop, 1=Forestry, 2=Marine, 3=Mineral, 4=Evaporite
 # Phases: 0=TEMPERATE, 1=WARMING, 2=DROUGHT, 3=COOLING
@@ -332,16 +319,3 @@ CLIMATE_CLASS_MOD: list[list[float]] = [
 _CLIMATE_PHASE_INDEX = {"temperate": 0, "warming": 1, "drought": 2, "cooling": 3}
 
 
-def resource_class_index(rtype: int) -> int:
-    """Map ResourceType to mechanical class index for CLIMATE_CLASS_MOD."""
-    if rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS, ResourceType.EXOTIC):
-        return 0  # Crop
-    elif rtype == ResourceType.TIMBER:
-        return 1  # Forestry
-    elif rtype == ResourceType.FISH:
-        return 2  # Marine
-    elif rtype in (ResourceType.ORE, ResourceType.PRECIOUS):
-        return 3  # Mineral
-    elif rtype == ResourceType.SALT:
-        return 4  # Evaporite
-    return 0  # Fallback

@@ -274,7 +274,7 @@ def resolve_power_struggle(civ: Civilization, world) -> list[Event]:
 # Per-turn faction tick (phase 10 — consequences)
 # ---------------------------------------------------------------------------
 
-def compute_tithe_base(civ, snapshot=None, economy_result=None, civ_idx=None):
+def compute_tithe_base(civ, economy_result=None, civ_idx=None):
     """M42: agent-derived merchant wealth in agent mode, trade_income fallback."""
     if economy_result is not None and civ_idx is not None:
         if civ_idx in economy_result.tithe_base:
@@ -321,6 +321,8 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
                         if rn in region_map
                     ):
                         civ.factions.influence[FactionType.CLERGY] += EVT_HOLY_WAR_WON
+                elif "stalemate" in event.description:
+                    pass  # No faction shift for stalemates
                 else:
                     # War loss — merchants profit from power vacuums
                     civ.factions.influence[FactionType.MILITARY] -= 0.05
@@ -603,7 +605,7 @@ def _winner_force_type(winner: dict | None) -> str | None:
     return None
 
 
-def _apply_gp_successor_winner(civ, new_leader, winner: dict) -> None:
+def _apply_gp_successor_winner(civ, new_leader, winner: dict, world=None) -> None:
     from chronicler.leaders import strip_title, TITLES, _compose_regnal_name
     import random as _random
 
@@ -659,6 +661,10 @@ def _apply_gp_successor_winner(civ, new_leader, winner: dict) -> None:
             gp.active = False
             gp.alive = False
             gp.fate = "ascended_to_leadership"
+            if gp in civ.great_persons:
+                civ.great_persons.remove(gp)
+            if world is not None:
+                world.retired_persons.append(gp)
             break
 
 
@@ -735,7 +741,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState, acc=None)
 
     # 8. Handle GP winner (transfer name/trait, mark gp dead)
     if winner and winner.get("source") == "great_person":
-        _apply_gp_successor_winner(civ, new_leader, winner)
+        _apply_gp_successor_winner(civ, new_leader, winner, world=world)
 
     # 9. Handle external backer (upgrade disposition)
     if winner and winner.get("backer_civ"):

@@ -96,7 +96,7 @@ class TestCandidateGuards:
         temple = _make_temple(faith_id=0, prestige=10)
         temples = [("SomeRegion", temple)]
 
-        events = check_pilgrimages([gp], temples, snap, current_turn=5, belief_registry=[])
+        events = check_pilgrimages([gp], temples, snap, current_turn=5)
 
         # Only a return event is possible at turn 5 < 99; no departure
         departure_events = [e for e in events if e.event_type == "pilgrimage_departure"]
@@ -119,7 +119,7 @@ class TestCandidateGuards:
         temple = _make_temple(faith_id=0, prestige=10)
         temples = [("HolyCity", temple)]
 
-        events = check_pilgrimages([gp], temples, snap, current_turn=5, belief_registry=[])
+        events = check_pilgrimages([gp], temples, snap, current_turn=5)
 
         departure_events = [e for e in events if e.event_type == "pilgrimage_departure"]
         assert departure_events == []
@@ -153,7 +153,7 @@ class TestDestinationSelection:
             ("WrongFaithRegion", other_faith_temple),
         ]
 
-        events = check_pilgrimages([gp], temples, snap, current_turn=1, belief_registry=[])
+        events = check_pilgrimages([gp], temples, snap, current_turn=1)
 
         departure_events = [e for e in events if e.event_type == "pilgrimage_departure"]
         assert len(departure_events) == 1
@@ -174,7 +174,7 @@ class TestDestinationSelection:
         temple = _make_temple(faith_id=0, prestige=10)  # faith 0 — wrong
         temples = [("SomeRegion", temple)]
 
-        events = check_pilgrimages([gp], temples, snap, current_turn=1, belief_registry=[])
+        events = check_pilgrimages([gp], temples, snap, current_turn=1)
 
         departure_events = [e for e in events if e.event_type == "pilgrimage_departure"]
         assert departure_events == []
@@ -205,7 +205,7 @@ class TestDestinationSelection:
         temple = _make_temple(faith_id=0, prestige=10)
         temples = [("HolyCity", temple)]
 
-        events = check_pilgrimages([gp1, gp2], temples, snap, current_turn=1, belief_registry=[])
+        events = check_pilgrimages([gp1, gp2], temples, snap, current_turn=1)
 
         departure_events = [e for e in events if e.event_type == "pilgrimage_departure"]
         assert len(departure_events) == 1, "Only one departure per faith per turn"
@@ -222,7 +222,7 @@ class TestPilgrimageReturn:
         gp.pilgrimage_destination = "Distant Shrine"
         gp.pilgrimage_return_turn = 5
 
-        events = check_pilgrimages([gp], [], None, current_turn=5, belief_registry=[])
+        events = check_pilgrimages([gp], [], None, current_turn=5)
 
         return_events = [e for e in events if e.event_type == "pilgrimage_return"]
         assert len(return_events) == 1
@@ -234,7 +234,7 @@ class TestPilgrimageReturn:
         gp.pilgrimage_destination = "Sacred Peak"
         gp.pilgrimage_return_turn = 3
 
-        check_pilgrimages([gp], [], None, current_turn=10, belief_registry=[])
+        check_pilgrimages([gp], [], None, current_turn=10)
 
         assert gp.arc_type == "Prophet"
 
@@ -244,7 +244,7 @@ class TestPilgrimageReturn:
         gp.pilgrimage_destination = "The Holy Mount"
         gp.pilgrimage_return_turn = 7
 
-        check_pilgrimages([gp], [], None, current_turn=7, belief_registry=[])
+        check_pilgrimages([gp], [], None, current_turn=7)
 
         assert gp.pilgrimage_destination is None
         assert gp.pilgrimage_return_turn is None
@@ -255,7 +255,7 @@ class TestPilgrimageReturn:
         gp.pilgrimage_destination = "Golden Temple"
         gp.pilgrimage_return_turn = 1
 
-        events = check_pilgrimages([gp], [], None, current_turn=1, belief_registry=[])
+        events = check_pilgrimages([gp], [], None, current_turn=1)
 
         return_events = [e for e in events if e.event_type == "pilgrimage_return"]
         assert return_events[0].importance == 5
@@ -266,7 +266,7 @@ class TestPilgrimageReturn:
         gp.pilgrimage_destination = "Far Shrine"
         gp.pilgrimage_return_turn = 20
 
-        events = check_pilgrimages([gp], [], None, current_turn=10, belief_registry=[])
+        events = check_pilgrimages([gp], [], None, current_turn=10)
 
         return_events = [e for e in events if e.event_type == "pilgrimage_return"]
         assert return_events == []
@@ -298,7 +298,7 @@ class TestDuration:
         temples = [("HolyCity", temple)]
 
         current_turn = 50
-        check_pilgrimages([gp], temples, snap, current_turn=current_turn, belief_registry=[])
+        check_pilgrimages([gp], temples, snap, current_turn=current_turn)
 
         assert gp.pilgrimage_return_turn is not None
         assert current_turn + PILGRIMAGE_DURATION_MIN <= gp.pilgrimage_return_turn <= current_turn + PILGRIMAGE_DURATION_MAX
@@ -318,8 +318,8 @@ class TestDuration:
         temple = _make_temple(faith_id=0, prestige=10)
         temples = [("HolyCity", temple)]
 
-        check_pilgrimages([gp_a], temples, snap, current_turn=50, belief_registry=[])
-        check_pilgrimages([gp_b], temples, snap, current_turn=50, belief_registry=[])
+        check_pilgrimages([gp_a], temples, snap, current_turn=50)
+        check_pilgrimages([gp_b], temples, snap, current_turn=50)
 
         assert gp_a.pilgrimage_return_turn == gp_b.pilgrimage_return_turn
 
@@ -337,7 +337,7 @@ class TestDuration:
         temple = _make_temple(faith_id=0, prestige=10)
         temples = [("HolyCity", temple)]
 
-        events = check_pilgrimages([gp], temples, snap, current_turn=1, belief_registry=[])
+        events = check_pilgrimages([gp], temples, snap, current_turn=1)
 
         departure_events = [e for e in events if e.event_type == "pilgrimage_departure"]
         assert len(departure_events) == 1
