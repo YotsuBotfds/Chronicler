@@ -502,6 +502,7 @@ def release_hostage(
     origin: "Civilization",
     world: WorldState,
     acc=None,
+    bridge=None,
 ) -> None:
     """Release a hostage back to their origin civilization."""
     if gp in captor.great_persons:
@@ -510,6 +511,21 @@ def release_hostage(
     gp.civilization = origin.name
     gp.region = origin.capital_region or (origin.regions[0] if origin.regions else None)
     origin.great_persons.append(gp)
+    # Sync Rust-side civ affinity (mirrors capture_hostage sync block)
+    if bridge is not None and gp.agent_id is not None:
+        origin_idx = next(
+            (i for i, c in enumerate(world.civilizations) if c.name == origin.name),
+            None,
+        )
+        if origin_idx is not None:
+            try:
+                bridge._sim.set_agent_civ(gp.agent_id, origin_idx)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Failed to set GP civ during hostage release (agent_id=%s, civ_idx=%s)",
+                    gp.agent_id, origin_idx,
+                )
     if origin.treasury >= 10:
         if acc is not None:
             from chronicler.utils import civ_index

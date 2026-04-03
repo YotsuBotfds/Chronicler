@@ -391,6 +391,25 @@ def test_capture_hostage_syncs_rust_affinity(make_world):
     assert bridge._sim.calls == [(100, winner_idx)]
 
 
+def test_release_hostage_syncs_rust_affinity(make_world):
+    """release_hostage() calls set_agent_civ with origin civ index."""
+    world = make_world(num_civs=2, seed=42)
+    captor = world.civilizations[0]
+    origin = world.civilizations[1]
+    hostage = GreatPerson(
+        name="Agent Captive", role="hostage", trait="bold",
+        civilization=captor.name, origin_civilization=origin.name,
+        born_turn=0, is_hostage=True, hostage_turns=11,
+        captured_by=captor.name, pre_hostage_role="merchant",
+        agent_id=200,
+    )
+    captor.great_persons = [hostage]
+    bridge = _MockBridge()
+    origin_idx = 1  # world.civilizations index for origin
+    release_hostage(hostage, captor, origin, world, bridge=bridge)
+    assert bridge._sim.calls == [(200, origin_idx)]
+
+
 # --- M40: Social Networks ---
 
 # --- Task 6: dissolve_edges ---
