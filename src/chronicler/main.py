@@ -1009,10 +1009,23 @@ def _run_narrate(args: argparse.Namespace) -> None:
     # M45: Include retired persons for dead character arc context
     all_great_persons = list(gp_by_name.values()) if gp_by_name else None
 
+    # Build agent_name_map from bundled great_persons (agent_id filter on map only)
+    agent_name_map = (
+        {gp.agent_id: gp.name for gp in all_great_persons if gp.agent_id is not None}
+        if all_great_persons else None
+    )
+
     chronicle_entries = engine.narrate_batch(
         moments, history, on_progress=progress_cb,
         great_persons=all_great_persons,
         world=world,
+        agent_name_map=agent_name_map,
+        social_edges=None,
+        dissolved_edges_by_turn=None,
+        displacement_by_region=None,
+        dynasty_registry=None,
+        economy_result=None,
+        gini_by_civ=None,
     )
 
     # M44: Token summary

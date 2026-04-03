@@ -1012,6 +1012,81 @@ class TestApiNarrationIntegration:
         assert "displacement_by_region" in captured_kwargs
         assert "dynasty_registry" in captured_kwargs
 
+    def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
+        """_run_narrate passes agent_name_map from great_persons, None for bridge-only inputs."""
+        import json
+        from unittest.mock import MagicMock, patch
+        from chronicler.main import execute_run, _run_narrate
+        from chronicler.llm import AnthropicClient
+
+        mock_sdk = MagicMock()
+
+        sim_args = argparse.Namespace(
+            seed=42, turns=20, civs=3, regions=6,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None,
+            simulate_only=True, agents="off",
+            budget=50, narrator="local",
+            pause_every=None,
+        )
+        execute_run(sim_args)
+
+        bundle_path = tmp_path / "chronicle_bundle.json"
+        assert bundle_path.exists()
+
+        # Inject a known GP
+        bundle = json.loads(bundle_path.read_text())
+        civ_name = bundle["world_state"]["civilizations"][0]["name"]
+        bundle["world_state"]["civilizations"][0]["great_persons"] = [{
+            "name": "Kiran", "role": "general", "trait": "bold",
+            "civilization": civ_name, "origin_civilization": civ_name,
+            "born_turn": 5, "source": "agent", "agent_id": 42,
+            "active": True,
+        }]
+        bundle_path.write_text(json.dumps(bundle))
+
+        captured_kwargs = {}
+        def spy_narrate_batch(self_engine, moments, history, **kwargs):
+            captured_kwargs.update(kwargs)
+            return []
+
+        narrate_args = argparse.Namespace(
+            narrate=bundle_path, narrator="api",
+            local_url="http://localhost:1234/v1",
+            sim_model=None, narrative_model=None,
+            budget=10, narrate_output=tmp_path / "narrated.json",
+        )
+
+        api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+        def fake_batch_complete(requests, poll_interval=10.0):
+            api_client.total_input_tokens += 300
+            api_client.total_output_tokens += 150
+            api_client.call_count += len(requests)
+            return ["Narrated text." for _ in requests]
+        api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
+
+        from chronicler.narrative import NarrativeEngine
+        with patch.object(NarrativeEngine, "narrate_batch", spy_narrate_batch):
+            with patch("chronicler.main.create_clients",
+                       return_value=(MagicMock(model="test"), api_client)):
+                _run_narrate(narrate_args)
+
+        assert captured_kwargs.get("great_persons") is not None
+        gps = captured_kwargs["great_persons"]
+        assert any(gp.name == "Kiran" for gp in gps)
+
+        expected_map = {gp.agent_id: gp.name for gp in gps if gp.agent_id is not None}
+        assert captured_kwargs.get("agent_name_map") == expected_map
+        assert expected_map.get(42) == "Kiran"
+
+        assert captured_kwargs.get("social_edges") is None
+        assert captured_kwargs.get("dissolved_edges_by_turn") is None
+        assert captured_kwargs.get("displacement_by_region") is None
+        assert captured_kwargs.get("dynasty_registry") is None
+        assert captured_kwargs.get("economy_result") is None
+
 
 # ── M54c Task 4: Politics Runtime Wiring Tests ─────────────────────
 
