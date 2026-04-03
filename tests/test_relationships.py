@@ -374,6 +374,18 @@ class _MockBridge:
         self._sim = _MockSim()
 
 
+class _RaisingSim:
+    """Raises from set_agent_civ to exercise fail-soft sync handling."""
+
+    def set_agent_civ(self, agent_id, civ_id):
+        raise RuntimeError("bridge sync failed")
+
+
+class _RaisingBridge:
+    def __init__(self):
+        self._sim = _RaisingSim()
+
+
 def test_capture_hostage_syncs_rust_affinity(make_world):
     """capture_hostage() calls set_agent_civ when bridge is provided."""
     world = make_world(num_civs=2, seed=42)
@@ -524,6 +536,53 @@ def test_release_hostage_noop_without_bridge(make_world):
     release_hostage(hostage, captor, origin, world)
     assert hostage.civilization == origin.name
     assert hostage in origin.great_persons
+
+
+def test_capture_hostage_logs_and_continues_when_bridge_sync_fails(make_world, caplog):
+    """capture_hostage() should fail soft if Rust civ-affinity sync raises."""
+    world = make_world(num_civs=2, seed=42)
+    loser = world.civilizations[0]
+    winner = world.civilizations[1]
+    gp = GreatPerson(
+        name="Fragile Bridge GP", role="general", trait="bold",
+        civilization=loser.name, origin_civilization=loser.name,
+        born_turn=5, agent_id=700,
+    )
+    loser.great_persons = [gp]
+    bridge = _RaisingBridge()
+
+    with caplog.at_level("ERROR"):
+        captured = capture_hostage(
+            loser, winner, world, contested_region="Battlefield", bridge=bridge,
+        )
+
+    assert captured is gp
+    assert captured in winner.great_persons
+    assert captured.civilization == winner.name
+    assert "Failed to set GP civ during hostage capture" in caplog.text
+
+
+def test_release_hostage_logs_and_continues_when_bridge_sync_fails(make_world, caplog):
+    """release_hostage() should still restore the GP if Rust sync raises."""
+    world = make_world(num_civs=2, seed=42)
+    captor = world.civilizations[0]
+    origin = world.civilizations[1]
+    hostage = GreatPerson(
+        name="Returned GP", role="hostage", trait="bold",
+        civilization=captor.name, origin_civilization=origin.name,
+        born_turn=0, is_hostage=True, hostage_turns=11,
+        captured_by=captor.name, pre_hostage_role="merchant",
+        agent_id=701,
+    )
+    captor.great_persons = [hostage]
+    bridge = _RaisingBridge()
+
+    with caplog.at_level("ERROR"):
+        release_hostage(hostage, captor, origin, world, bridge=bridge)
+
+    assert hostage.civilization == origin.name
+    assert hostage in origin.great_persons
+    assert "Failed to set GP civ during hostage release" in caplog.text
 
 
 # --- M40: Social Networks ---

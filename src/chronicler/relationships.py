@@ -1,6 +1,7 @@
 """Character relationships: rivalry, mentorship, marriage alliance, hostage exchanges."""
 from __future__ import annotations
 
+import logging
 import random
 from collections import defaultdict
 
@@ -26,6 +27,7 @@ _HOSTAGE_ROLE_BY_FACTION = {
     "cultural": "scientist",
     "clergy": "prophet",
 }
+logger = logging.getLogger(__name__)
 
 
 def _edge_op_type(rel_type: int, *, remove: bool) -> int:
@@ -59,6 +61,36 @@ def _clear_hostage_state(gp: GreatPerson, fallback_civ) -> None:
     gp.hostage_turns = 0
     gp.captured_by = None
     _restore_hostage_role(gp, fallback_civ)
+
+
+def _sync_hostage_agent_civ(
+    bridge,
+    world: WorldState,
+    gp: GreatPerson,
+    civ_name: str,
+    *,
+    context: str,
+) -> None:
+    """Best-effort Rust civ-affinity sync for hostage lifecycle transitions."""
+    if bridge is None or gp.agent_id is None:
+        return
+
+    civ_idx = next(
+        (i for i, civ in enumerate(world.civilizations) if civ.name == civ_name),
+        None,
+    )
+    if civ_idx is None:
+        return
+
+    try:
+        bridge._sim.set_agent_civ(gp.agent_id, civ_idx)
+    except Exception:
+        logger.exception(
+            "Failed to set GP civ during %s (agent_id=%s, civ_idx=%s)",
+            context,
+            gp.agent_id,
+            civ_idx,
+        )
 
 
 def _sync_relationship_edges(bridge, current_edges: list[tuple], next_edges: list[tuple]) -> None:
@@ -454,21 +486,13 @@ def capture_hostage(
     youngest.hostage_turns = 0
     youngest.region = contested_region
     # Sync Rust-side civ affinity in hybrid mode (mirrors apply_conquest_transitions)
-    if bridge is not None and youngest.agent_id is not None:
-        winner_civ_idx = next(
-            (i for i, c in enumerate(world.civilizations) if c.name == winner.name),
-            None,
-        )
-        if winner_civ_idx is not None:
-            try:
-                bridge._sim.set_agent_civ(youngest.agent_id, winner_civ_idx)
-            except Exception:
-                import logging
-                logging.getLogger(__name__).exception(
-                    "Failed to set GP civ during hostage capture (agent_id=%s, civ_idx=%s)",
-                    youngest.agent_id,
-                    winner_civ_idx,
-                )
+    _sync_hostage_agent_civ(
+        bridge,
+        world,
+        youngest,
+        winner.name,
+        context="hostage capture",
+    )
     winner.great_persons.append(youngest)
     return youngest
 
@@ -489,20 +513,13 @@ def tick_hostages(world: WorldState, acc=None, bridge=None) -> list[GreatPerson]
                 _clear_hostage_state(gp, origin or civ)
                 gp.civilization = civ.name
                 # Sync Rust-side civ affinity to captor
-                if bridge is not None and gp.agent_id is not None:
-                    captor_idx = next(
-                        (i for i, c in enumerate(world.civilizations) if c.name == civ.name),
-                        None,
-                    )
-                    if captor_idx is not None:
-                        try:
-                            bridge._sim.set_agent_civ(gp.agent_id, captor_idx)
-                        except Exception:
-                            import logging
-                            logging.getLogger(__name__).exception(
-                                "Failed to set GP civ during missing/extinct-origin hostage release (agent_id=%s, civ_idx=%s)",
-                                gp.agent_id, captor_idx,
-                            )
+                _sync_hostage_agent_civ(
+                    bridge,
+                    world,
+                    gp,
+                    civ.name,
+                    context="missing/extinct-origin hostage release",
+                )
                 released.append(gp)
                 continue
             if gp.hostage_turns >= 15:
@@ -527,20 +544,13 @@ def release_hostage(
     gp.region = origin.capital_region or (origin.regions[0] if origin.regions else None)
     origin.great_persons.append(gp)
     # Sync Rust-side civ affinity (mirrors capture_hostage sync block)
-    if bridge is not None and gp.agent_id is not None:
-        origin_idx = next(
-            (i for i, c in enumerate(world.civilizations) if c.name == origin.name),
-            None,
-        )
-        if origin_idx is not None:
-            try:
-                bridge._sim.set_agent_civ(gp.agent_id, origin_idx)
-            except Exception:
-                import logging
-                logging.getLogger(__name__).exception(
-                    "Failed to set GP civ during hostage release (agent_id=%s, civ_idx=%s)",
-                    gp.agent_id, origin_idx,
-                )
+    _sync_hostage_agent_civ(
+        bridge,
+        world,
+        gp,
+        origin.name,
+        context="hostage release",
+    )
     if origin.treasury >= 10:
         if acc is not None:
             from chronicler.utils import civ_index
