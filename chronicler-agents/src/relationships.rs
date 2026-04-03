@@ -288,7 +288,8 @@ pub fn remove_symmetric(pool: &mut AgentPool, slot_a: usize, slot_b: usize, bond
 /// Per-tick sentiment drift for all agents.
 /// Phase 0.8: after needs (0.75), before satisfaction (1.0).
 pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
-    let turn_u16 = turn as u16;
+    let strong_tie_cadence = u32::from(crate::agent::STRONG_TIE_CADENCE);
+    let negative_decay_cadence = u32::from(crate::agent::NEGATIVE_DECAY_CADENCE);
 
     // Build id→slot lookup (alive agents only)
     // Lookup-only map: deterministic ordering keeps future maintenance safe
@@ -321,7 +322,7 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
                 if valence {
                     // Positive: strengthen toward +127, cadence-gated above threshold
                     if sent <= crate::agent::STRONG_TIE_THRESHOLD
-                        || turn_u16 % crate::agent::STRONG_TIE_CADENCE == 0
+                        || turn % strong_tie_cadence == 0
                     {
                         sent = (sent + crate::agent::POSITIVE_COLOC_DRIFT).min(127);
                     }
@@ -335,7 +336,7 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
                     sent = (sent - crate::agent::POSITIVE_SEPARATION_DECAY).max(0);
                 } else if sent < 0 {
                     // Negative decays slower (cadence-gated)
-                    if turn_u16 % crate::agent::NEGATIVE_DECAY_CADENCE == 0 {
+                    if turn % negative_decay_cadence == 0 {
                         sent = (sent + 1).min(0);
                     }
                 }
@@ -346,11 +347,16 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
     }
 }
 
+#[inline]
+fn saturating_turn_u16(turn: u32) -> u16 {
+    turn.min(u32::from(u16::MAX)) as u16
+}
+
 /// Form a kin bond between parent and child at birth.
 /// Atomic pair-write: both succeed or neither.
-/// `turn` is u32 from the tick entrypoint; truncated to u16 for storage.
+/// `turn` is u32 from the tick entrypoint; saturates at u16::MAX for storage.
 pub fn form_kin_bond(pool: &mut AgentPool, parent_slot: usize, child_slot: usize, turn: u32) -> bool {
-    let turn = turn as u16;
+    let turn = saturating_turn_u16(turn);
     let parent_id = pool.ids[parent_slot];
     let child_id = pool.ids[child_slot];
     if parent_id == child_id { return false; }
@@ -601,6 +607,17 @@ mod tests {
         pool.rel_count[parent] = 8;
         assert!(!form_kin_bond(&mut pool, parent, child, 50));
         assert_eq!(pool.rel_count[child], 0); // child not written either
+    }
+
+    #[test]
+    fn test_form_kin_bond_saturates_formed_turn_at_u16_max() {
+        let (mut pool, slots) = setup_pool(2);
+        let parent = slots[0];
+        let child = slots[1];
+
+        assert!(form_kin_bond(&mut pool, parent, child, u32::from(u16::MAX) + 123));
+        assert_eq!(pool.rel_formed_turns[parent][0], u16::MAX);
+        assert_eq!(pool.rel_formed_turns[child][0], u16::MAX);
     }
 
     #[test]

@@ -1,4 +1,6 @@
 """Tests for M18 Emergence and Chaos systems."""
+import random
+
 import pytest
 from chronicler.models import PandemicRegion, TerrainTransitionRule
 
@@ -144,6 +146,7 @@ def _make_civ(name="TestCiv", **overrides) -> Civilization:
         name=name, population=50, military=50, economy=50,
         culture=50, stability=50,
         leader=Leader(name="L", trait="bold", reign_start=0),
+        regions=["R1"],
     )
     defaults.update(overrides)
     return Civilization(**defaults)
@@ -285,6 +288,19 @@ class TestComputeAllStress:
         assert civ_a.civ_stress == 3
         assert civ_b.civ_stress == 0
         assert world.stress_index == 3
+
+    def test_dead_civs_do_not_contribute_stress_index(self):
+        from chronicler.emergence import compute_all_stress
+        world = _make_world()
+        dead_civ = _make_civ(name="Dead", decline_turns=5, regions=[])
+        living_civ = _make_civ(name="Alive")
+        world.civilizations = [dead_civ, living_civ]
+
+        compute_all_stress(world)
+
+        assert dead_civ.civ_stress == 0
+        assert living_civ.civ_stress == 0
+        assert world.stress_index == 0
 
 
 class TestGetSeverityMultiplier:
@@ -429,6 +445,29 @@ class TestBlackSwanEligibility:
         events = check_black_swans(world, seed=42)
         assert events == []
         assert world.black_swan_cooldown == 0
+
+
+class TestEnvironmentalFloodCaps:
+    def test_flood_soil_gain_respects_terrain_cap(self, monkeypatch):
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+        from chronicler.emergence import _check_flood
+
+        world = _make_world(turn=0)
+        region = _make_region(
+            name="DryWash",
+            terrain="desert",
+            controller="TestCiv",
+            river_mask=1,
+        )
+        region.ecology.water = 0.9
+        region.ecology.soil = 0.25
+
+        monkeypatch.setattr("chronicler.emergence.get_override", lambda *_args, **_kwargs: 1.0)
+
+        event = _check_flood(region, world, random.Random(0))
+
+        assert event is not None
+        assert region.ecology.soil == TERRAIN_ECOLOGY_CAPS["desert"]["soil"]
 
 
 from chronicler.models import Resource, TechEra, Infrastructure, InfrastructureType

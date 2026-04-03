@@ -220,6 +220,7 @@ class TestBundleAssembly:
         assert meta["scenario_name"] is None
         assert "generated_at" in meta
         assert "total_turns" in meta
+        assert meta["bundle_version"] == 3
 
     def test_events_timeline_serialized(self, sample_world):
         from chronicler.models import Event
@@ -292,6 +293,31 @@ class TestArcSummaryIsolation:
             interestingness_score=None,
         )
         assert gp.arc_summary == "LLM generated text."
+
+
+class TestTransientSerializationHygiene:
+    def test_bundle_world_state_omits_transient_turn_fields(self, sample_world):
+        civ = sample_world.civilizations[0]
+        civ.max_precap_weight = 0.9
+        civ.regions_start_of_turn = 4
+        civ.was_in_twilight = True
+        civ.capital_start_of_turn = "Verdant Plains"
+        sample_world.regions[0].resource_current_yields = [0.5, 0.3, 0.1]
+
+        bundle = assemble_bundle(
+            world=sample_world, history=[], chronicle_entries=[],
+            era_reflections={}, sim_model="m", narrative_model="m",
+            interestingness_score=None,
+        )
+
+        civ_data = bundle["world_state"]["civilizations"][0]
+        region_data = bundle["world_state"]["regions"][0]
+
+        assert "max_precap_weight" not in civ_data
+        assert "regions_start_of_turn" not in civ_data
+        assert "was_in_twilight" not in civ_data
+        assert "capital_start_of_turn" not in civ_data
+        assert "resource_current_yields" not in region_data
 
 
 class TestViewerFixtureContract:

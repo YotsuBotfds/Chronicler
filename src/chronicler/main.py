@@ -37,6 +37,11 @@ def _set_narrative_token_metadata(metadata: dict[str, Any], client: Any) -> None
     metadata["narrative_output_tokens"] = client.total_output_tokens
     metadata["api_input_tokens"] = client.total_input_tokens
     metadata["api_output_tokens"] = client.total_output_tokens
+
+
+def _default_shadow_output_path(output_path: Path) -> Path:
+    """Return the deterministic shadow artifact path for a run output dir."""
+    return output_path.parent / "shadow.arrow"
 from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_name, should_reflect
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, SettlementSummary, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
@@ -255,9 +260,18 @@ def execute_run(
         world.agent_mode = agent_mode
         from chronicler.agent_bridge import AgentBridge
         _use_sidecar = getattr(args, "validation_sidecar", False)
+        _shadow_output = None
+        if agent_mode == "shadow":
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            _shadow_output = getattr(args, "shadow_output", None)
+            if _shadow_output is None:
+                _shadow_output = _default_shadow_output_path(output_path)
+            else:
+                _shadow_output = Path(_shadow_output)
         agent_bridge = AgentBridge(
             world,
             mode=agent_mode,
+            shadow_output=_shadow_output,
             validation_sidecar=_use_sidecar,
             output_dir=output_path.parent if _use_sidecar else None,
             relationship_stats=getattr(args, "relationship_stats", False),

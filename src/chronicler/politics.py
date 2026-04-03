@@ -251,10 +251,11 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
                 new_values[swap_idx] = rng.choice(available_values)
 
         def _min_dist_to_parent(rn: str) -> int:
-            return min(
-                (graph_distance(adj_map, rn, pr) for pr in remaining_regions),
-                default=0,
-            )
+            distances = [
+                d for d in (graph_distance(adj_map, rn, pr) for pr in remaining_regions)
+                if d >= 0
+            ]
+            return min(distances, default=len(world.regions) + 1)
         breakaway_capital = min(breakaway_regions, key=_min_dist_to_parent)
 
         # M51: Create breakaway civ with placeholder leader, then apply regnal naming
@@ -632,7 +633,7 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             checked_pairs.add(pair)
 
             civ_b = civ_map.get(civ_b_name)
-            if civ_b is not None and not civ_b.regions:  # H-8: skip dead civ_b
+            if civ_b is None or not civ_b.regions:  # H-8: skip missing/dead civ_b
                 continue
             rel_ba = world.relationships.get(civ_b_name, {}).get(civ_a.name)
             if rel_ba is None or rel_ba.allied_turns < fed_turns_req:
@@ -740,8 +741,12 @@ def trigger_federation_defense(attacker: str, defender: str, world: WorldState) 
     if fed is None:
         return events
 
+    civ_map = world.civ_map
     for member in fed.members:
         if member == defender or member == attacker:
+            continue
+        ally = civ_map.get(member)
+        if ally is None or not ally.regions:
             continue
         war_pair = (attacker, member)
         if war_pair not in world.active_wars and (member, attacker) not in world.active_wars:
@@ -769,7 +774,12 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
     for pw in world.proxy_wars:
         sponsor = civ_map.get(pw.sponsor)
         target = civ_map.get(pw.target_civ)
-        if sponsor is None or target is None:
+        if (
+            sponsor is None
+            or target is None
+            or not sponsor.regions
+            or not target.regions
+        ):
             to_remove.append(pw)
             continue
 
@@ -1492,14 +1502,16 @@ def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
     if len(living) >= 2:
         richest = max(living, key=lambda c: c.economy)
         poorest = min(living, key=lambda c: c.economy)
+        poorest_mult = get_severity_multiplier(poorest, world)
+        poorest_drain = int(1 * poorest_mult)
         if acc is not None:
             richest_idx = civ_index(world, richest.name)
             poorest_idx = civ_index(world, poorest.name)
             acc.add(richest_idx, richest, "economy", 1, "guard-shock")
-            acc.add(poorest_idx, poorest, "economy", -1, "guard-shock")
+            acc.add(poorest_idx, poorest, "economy", -poorest_drain, "guard-shock")
         else:
             richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
-            poorest.economy = clamp(poorest.economy - 1, STAT_FLOOR["economy"], 100)
+            poorest.economy = clamp(poorest.economy - poorest_drain, STAT_FLOOR["economy"], 100)
 
     # ALLIED disposition decay every 10 peace turns
     if world.peace_turns % 10 == 0:

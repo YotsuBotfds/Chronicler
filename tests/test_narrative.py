@@ -372,6 +372,89 @@ def test_agent_context_includes_relationships():
     assert ctx.relationships[0]["type"] == "mentor"
 
 
+def test_agent_context_recent_history_omits_fake_turn_zero():
+    from chronicler.narrative import build_agent_context_for_moment, build_agent_context_block
+    from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole
+
+    moment = NarrativeMoment(
+        anchor_turn=25,
+        turn_range=(25, 25),
+        events=[Event(
+            turn=25,
+            event_type="campaign",
+            actors=["Kiran"],
+            description="Kiran campaigns abroad.",
+            importance=7,
+            source="agent",
+        )],
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+    gp = GreatPerson(
+        name="Kiran",
+        role="general",
+        trait="bold",
+        civilization="Civ1",
+        origin_civilization="Civ1",
+        born_turn=5,
+        source="agent",
+        agent_id=42,
+        deeds=["Promoted as General in Iron Peaks"],
+    )
+
+    ctx = build_agent_context_for_moment(moment, [gp], {})
+
+    assert ctx is not None
+    block = build_agent_context_block(ctx)
+    assert "turn 0" not in block
+    assert "Promoted as General in Iron Peaks" in block
+
+
+def test_agent_context_marks_retired_characters_as_retired():
+    from chronicler.narrative import build_agent_context_for_moment
+    from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole
+
+    moment = NarrativeMoment(
+        anchor_turn=30,
+        turn_range=(30, 30),
+        events=[Event(
+            turn=30,
+            event_type="great_person_retired",
+            actors=["Old Sage", "Civ1"],
+            description="Old Sage retires after long service.",
+            importance=6,
+            source="agent",
+        )],
+        named_events=[],
+        score=7.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.RESOLUTION,
+        bonus_applied=0.0,
+    )
+    gp = GreatPerson(
+        name="Old Sage",
+        role="scientist",
+        trait="visionary",
+        civilization="Civ1",
+        origin_civilization="Civ1",
+        born_turn=2,
+        source="agent",
+        agent_id=7,
+        active=False,
+        alive=False,
+        fate="retired",
+        death_turn=30,
+    )
+
+    ctx = build_agent_context_for_moment(moment, [gp], {})
+
+    assert ctx is not None
+    assert ctx.named_characters[0]["status"] == "retired"
+
+
 def test_prepare_narration_prompts_threads_focal_civ_gini(sample_world):
     from chronicler.models import CivSnapshot, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot
 

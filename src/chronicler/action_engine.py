@@ -113,6 +113,42 @@ def _power_struggle_factor(civ: Civilization, world: "WorldState | None" = None)
     return factor if civ.factions.power_struggle else 1.0
 
 
+def _living_other_civs(world: WorldState, civ_name: str) -> list[Civilization]:
+    return [
+        other for other in world.civilizations
+        if other.name != civ_name and other.regions
+    ]
+
+
+def _iter_living_relationships(world: WorldState, civ_name: str):
+    rels = world.relationships.get(civ_name, {})
+    for other in _living_other_civs(world, civ_name):
+        yield other, rels.get(other.name)
+
+
+def _trade_disposition_score(rel) -> int:
+    if rel is None:
+        return DISPOSITION_ORDER[Disposition.NEUTRAL]
+    return DISPOSITION_ORDER.get(rel.disposition, DISPOSITION_ORDER[Disposition.NEUTRAL])
+
+
+def _has_rival_adjacent_culture_targets(world: WorldState, civ: Civilization) -> bool:
+    civ_regions = {r.name for r in world.regions if r.controller == civ.name}
+    if not civ_regions:
+        return False
+    adjacent = set()
+    for region in world.regions:
+        if region.name in civ_regions:
+            adjacent.update(region.adjacencies)
+    return any(
+        region.name in adjacent
+        and region.controller is not None
+        and region.controller != civ.name
+        and region.cultural_identity != civ.name
+        for region in world.regions
+    )
+
+
 # --- Action handlers ---
 
 @register_action(ActionType.DEVELOP)
@@ -201,21 +237,31 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
 @register_action(ActionType.TRADE)
 def _resolve_trade_action(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Initiate trade with the friendliest neighbor."""
+    from chronicler.resources import get_active_trade_routes
+
     best_partner = None
     best_disp = -1
-    if civ.name in world.relationships:
-        for other_name, rel in world.relationships[civ.name].items():
-            d = DISPOSITION_ORDER.get(rel.disposition, 0)
-            if d > best_disp:
-                best_disp = d
-                best_partner = get_civ(world, other_name)
+    routes = get_active_trade_routes(world)
+    route_partners = sorted(
+        {
+            b if a == civ.name else a
+            for a, b in routes
+            if civ.name in (a, b)
+        }
+    )
+    candidate_names = route_partners or [other.name for other in _living_other_civs(world, civ.name)]
+    for other_name in candidate_names:
+        other_civ = get_civ(world, other_name)
+        if other_civ is None or not other_civ.regions:
+            continue
+        rel = world.relationships.get(civ.name, {}).get(other_name)
+        d = _trade_disposition_score(rel)
+        if d > best_disp:
+            best_disp = d
+            best_partner = other_civ
 
-    if best_partner and best_disp >= 2:  # At least neutral
-        # M-AF1 #2: Verify an active trade route exists between these civs
-        from chronicler.resources import get_active_trade_routes
-        routes = get_active_trade_routes(world)
-        civ_pair = tuple(sorted([civ.name, best_partner.name]))
-        if civ_pair not in set(routes):
+    if best_partner and best_disp >= DISPOSITION_ORDER[Disposition.NEUTRAL]:
+        if not route_partners:
             # No route — fall back to develop resolution
             return _resolve_develop(civ, world, acc=acc)
         resolve_trade(civ, best_partner, world, acc=acc)
@@ -238,6 +284,9 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
     worst_disp = 5
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
+            other_civ = get_civ(world, other_name)
+            if other_civ is None or not other_civ.regions:
+                continue
             d = DISPOSITION_ORDER.get(rel.disposition, 2)
             if d < worst_disp:
                 worst_disp = d
@@ -575,6 +624,7 @@ def resolve_war(
         # Otherwise: existing absorption path runs unchanged
         if contested:
             contested.controller = attacker.name
+            contested.pending_build = None
             # M48: Transient memory signals — conquest and victory
             contested._controller_changed_this_turn = True
             contested._war_won_this_turn = True
@@ -801,28 +851,26 @@ class ActionEngine:
         if civ.military >= expand_thresh and unclaimed:
             eligible.append(ActionType.EXPAND)
         has_hostile = False
-        if civ.name in self.world.relationships:
-            for rel in self.world.relationships[civ.name].values():
-                if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
-                    has_hostile = True
-                    break
+        for _, rel in _iter_living_relationships(self.world, civ.name):
+            if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                has_hostile = True
+                break
         if has_hostile:
             eligible.append(ActionType.WAR)
         if _era_at_least(civ.tech_era, TechEra.BRONZE):
-            if civ.name in self.world.relationships:
-                for rel in self.world.relationships[civ.name].values():
-                    if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
-                        eligible.append(ActionType.TRADE)
-                        break
+            for _, rel in _iter_living_relationships(self.world, civ.name):
+                if _trade_disposition_score(rel) >= DISPOSITION_ORDER[Disposition.NEUTRAL]:
+                    eligible.append(ActionType.TRADE)
+                    break
         # BUILD: treasury >= min build cost and has valid build regions
-        from chronicler.infrastructure import valid_build_types, BUILD_SPECS
-        min_cost = min(s.cost for s in BUILD_SPECS.values())
+        from chronicler.infrastructure import get_build_specs, valid_build_types
+        min_cost = min(s.cost for s in get_build_specs(self.world).values())
         if civ.treasury >= min_cost and civ.regions:
             has_valid = False
             region_map = self.world.region_map
             for rname in civ.regions:
                 region = region_map.get(rname)
-                if region and valid_build_types(region):
+                if region and valid_build_types(region, civ=civ, world=self.world):
                     has_valid = True
                     break
             if has_valid:
@@ -1010,14 +1058,13 @@ class ActionEngine:
         max_weight = max(weights.values()) if weights else 0
         civ.max_precap_weight = max_weight
         # M21: Cap final pre-selection weights at base_weight * weight_cap.
-        # This enforces the intended 2.5x multiplier ceiling while preserving
-        # relative ordering across the full pre-selection weighting pipeline.
+        # Clamp individual actions. Uniform rescaling leaves selection
+        # probabilities unchanged and does not enforce a real cap.
         weight_cap = get_override(self.world, K_WEIGHT_CAP, 2.5)
         max_allowed = base * weight_cap
-        if max_weight > max_allowed:
-            scale = max_allowed / max_weight
-            for action in weights:
-                weights[action] *= scale
+        for action, weight in list(weights.items()):
+            if weight > max_allowed:
+                weights[action] = max_allowed
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
@@ -1030,11 +1077,10 @@ class ActionEngine:
         if civ.stability <= 20:
             weights[ActionType.DIPLOMACY] *= 3.0
         has_hostile = False
-        if civ.name in self.world.relationships:
-            for rel in self.world.relationships[civ.name].values():
-                if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
-                    has_hostile = True
-                    break
+        for _, rel in _iter_living_relationships(self.world, civ.name):
+            if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                has_hostile = True
+                break
         if civ.military >= 70 and has_hostile:
             weights[ActionType.WAR] *= 2.5
         if civ.treasury >= 200:
@@ -1050,18 +1096,19 @@ class ActionEngine:
             weights[ActionType.TRADE] *= 1.5
         if not has_hostile:
             weights[ActionType.WAR] *= 0.1
-        all_allied = True
-        if civ.name in self.world.relationships:
-            for rel in self.world.relationships[civ.name].values():
-                if rel.disposition != Disposition.ALLIED:
-                    all_allied = False
-                    break
-        else:
-            all_allied = False
+        living_rels = list(_iter_living_relationships(self.world, civ.name))
+        all_allied = bool(living_rels) and all(
+            rel is not None and rel.disposition == Disposition.ALLIED
+            for _, rel in living_rels
+        )
         if all_allied:
             weights[ActionType.DIPLOMACY] *= 0.1
         # M16c: Boost INVEST_CULTURE when rival-adjacent regions exist
-        if ActionType.INVEST_CULTURE in weights and weights[ActionType.INVEST_CULTURE] > 0:
+        if (
+            ActionType.INVEST_CULTURE in weights
+            and weights[ActionType.INVEST_CULTURE] > 0
+            and _has_rival_adjacent_culture_targets(self.world, civ)
+        ):
             weights[ActionType.INVEST_CULTURE] *= 2.0
 
     def select_action(self, civ: Civilization, seed: int) -> ActionType:

@@ -18,6 +18,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+LEGACY_BUNDLE_VERSION = 3
+
 
 def _strip_llm_fields(world_dict: dict) -> dict:
     """Remove LLM-generated fields from world state to prevent narration→state feedback.
@@ -64,7 +66,7 @@ def assemble_bundle(
             "narrative_model": narrative_model,
             "scenario_name": getattr(world, "scenario_name", None),
             "interestingness_score": interestingness_score,
-            "bundle_version": 1,
+            "bundle_version": LEGACY_BUNDLE_VERSION,
         },
     }
 

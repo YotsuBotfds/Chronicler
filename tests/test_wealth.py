@@ -39,7 +39,7 @@ def test_compute_gini_single():
 def test_conquered_this_turn_build_signals():
     """build_signals produces correct conquered_this_turn per call."""
     from chronicler.agent_bridge import build_signals
-    from chronicler.models import WorldState, Civilization, Region, Leader
+    from chronicler.models import WorldState, Civilization, Region, Leader, FactionType
 
     world = WorldState(name="TestWorld", seed=42)
     leader = Leader(name="TestLeader", trait="warrior", reign_start=0)
@@ -112,6 +112,67 @@ def test_build_signals_merges_duplicate_civ_shocks():
     assert batch.column("shock_economy").to_pylist()[0] == pytest.approx(-0.30)
     assert batch.column("shock_military").to_pylist()[0] == pytest.approx(0.0)
     assert batch.column("shock_culture").to_pylist()[0] == pytest.approx(0.0)
+
+
+def test_build_signals_rejects_nonfinite_gini():
+    """Bridge should fail fast on non-finite civ float signals."""
+    from chronicler.agent_bridge import build_signals
+    from chronicler.models import WorldState, Civilization, Region, Leader
+
+    world = WorldState(name="TestWorld", seed=42)
+    civ = Civilization(
+        name="TestCiv",
+        population=10,
+        military=50,
+        economy=50,
+        culture=50,
+        stability=50,
+        leader=Leader(name="TestLeader", trait="warrior", reign_start=0),
+    )
+    civ.regions = ["TestRegion"]
+    world.civilizations = [civ]
+    region = Region(
+        name="TestRegion",
+        terrain="plains",
+        carrying_capacity=10,
+        resources="fertile",
+    )
+    region.controller = "TestCiv"
+    world.regions = [region]
+
+    with pytest.raises(ValueError, match="gini_coefficient"):
+        build_signals(world, gini_by_civ={0: float("nan")})
+
+
+def test_build_signals_rejects_out_of_range_faction_weight():
+    """Faction influence sent to Rust must stay in the normalized range."""
+    from chronicler.agent_bridge import build_signals
+    from chronicler.models import WorldState, Civilization, Region, Leader, FactionType
+
+    world = WorldState(name="TestWorld", seed=42)
+    civ = Civilization(
+        name="TestCiv",
+        population=10,
+        military=50,
+        economy=50,
+        culture=50,
+        stability=50,
+        leader=Leader(name="TestLeader", trait="warrior", reign_start=0),
+    )
+    civ.regions = ["TestRegion"]
+    civ.factions.influence[FactionType.MILITARY] = 1.5
+    world.civilizations = [civ]
+    region = Region(
+        name="TestRegion",
+        terrain="plains",
+        carrying_capacity=10,
+        resources="fertile",
+    )
+    region.controller = "TestCiv"
+    world.regions = [region]
+
+    with pytest.raises(ValueError, match="faction_military"):
+        build_signals(world)
 
 
 def test_conquered_this_turn_transient_two_turns():

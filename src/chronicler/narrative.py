@@ -155,6 +155,19 @@ def compute_population_mood(events: list[Event]) -> str:
     return "content"
 
 
+def _character_status(gp) -> str:
+    """Render a stable status label from lifecycle fields."""
+    if gp.fate == "exile":
+        return "exiled"
+    if gp.fate == "retired":
+        return "retired"
+    if gp.fate in {"ascended", "ascended_to_leadership"}:
+        return "ascended"
+    if gp.fate == "dead" or not gp.alive:
+        return "dead"
+    return "active"
+
+
 def build_agent_context_block(ctx: AgentContext | None) -> str:
     """Build the agent context section for the narrator prompt."""
     if ctx is None:
@@ -194,7 +207,11 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
                 lines.append(f"  Summary: {char['arc_summary']}")
             history_parts = []
             for h in char.get("recent_history", []):
-                history_parts.append(f"  {h['event']} in {h['region']} (turn {h['turn']})")
+                turn = h.get("turn")
+                if turn is None:
+                    history_parts.append(f"  {h['event']} in {h['region']}")
+                else:
+                    history_parts.append(f"  {h['event']} in {h['region']} (turn {turn})")
             if history_parts:
                 lines.append(";".join(history_parts))
             if char.get("dynasty"):
@@ -319,10 +336,9 @@ def build_agent_context_for_moment(
             "role": gp.role.title(),
             "civ": gp.civilization,
             "origin_civ": gp.origin_civilization,
-            "status": ("exiled" if gp.fate == "exile"
-                       else ("dead" if not gp.alive else "active")),
+            "status": _character_status(gp),
             "recent_history": [
-                {"turn": 0, "event": d, "region": gp.region or "unknown"}
+                {"event": d, "region": gp.region or "unknown"}
                 for d in gp.deeds[-3:]
             ],
         }

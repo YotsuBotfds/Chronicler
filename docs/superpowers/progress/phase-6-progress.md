@@ -2,11 +2,20 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-04-02 (2026-04-02 audit cache-hot-path follow-up)
+> **Last updated:** 2026-04-03 (2026-04-03 full audit remediation closeout)
 
 ---
 
-## Current Focus (2026-03-31)
+## Current Focus (2026-04-03)
+
+- **2026-04-03 full audit remediation is complete in the working tree.**
+  Four parallel lanes plus a stitched integration follow-up closed the live plan in `docs/superpowers/plans/2026-04-03-full-audit-remediation-plan.md`: shadow-mode output is wired back through `main.py` / `AgentBridge` without adding any shadow write-back, settlement transients now have the required multi-turn reset coverage, the simulation/economy/politics/action/faction/infrastructure cluster landed its confirmed correctness fixes including the neutral-by-default trade-route behavior and the real post-cap action-weight fix, the bridge/FFI lane hardened civ-signal validation and relationship-slot handling without changing the intended stability/shadow ownership rules, Great Person/analytics/narrative/bundle/model hygiene fixes are in place, and the viewer/live shell regressions from the same audit are closed with green tests/lint/build.
+- **Claim hygiene from the 2026-04-03 plan was preserved.**
+  `C2` and `C3` stayed rejected as filed, `C4` stayed reframed to "insufficient explicit FFI contract coverage" rather than "zero tests", `M15` was re-audited and not reproducible on the current `curator.py` / `narrative.py` path, and `M11` was already closed on head before this pass so no duplicate source change was forced.
+- **The stitched post-lane follow-up is also complete.**
+  The final integration pass corrected an over-tight civ-signal contract introduced during hardening: demand shifts now only require finiteness end-to-end, `priest_tithe_share` remains non-negative but is no longer incorrectly capped at `1.0`, and the stale intelligence expectations were refreshed to match `H4`'s verified neutral-by-default trade-route behavior.
+- **Validation for the 2026-04-03 full remediation pass is green.**
+  Rebuilt the extension with `cd chronicler-agents && ..\\.venv\\Scripts\\python.exe -m maturin develop --release`, then ran `.\.venv\Scripts\python.exe -m pytest -q` PASS (`2541 passed, 4 skipped`), `cargo nextest run --manifest-path chronicler-agents/Cargo.toml` PASS (`809 passed, 2 skipped`) with `C:\Users\tateb\AppData\Local\Python\pythoncore-3.14-64` prepended to `PATH` so Windows can resolve `python314.dll`, and viewer validation stayed green via `npm test` PASS (`94 passed`), `npm run lint` PASS, and `npm run build` PASS with only the existing Vite chunk-size warning.
 
 - **2026-04-02 audit cache-hot-path follow-up is complete in the working tree.**
   The remaining high-frequency civ/region lookup stragglers on the Sprint 2/3 performance-hardening surface now reuse cached maps instead of repeated linear scans: `build_region_batch()` / `_get_active_focus()` in `agent_bridge.py`, `process_migration()` in `climate.py`, the pandemic / supervolcano / resource-discovery / tech-accident / drought-intensification paths in `emergence.py`, and the remaining hot federation / proxy / congress / exile civ lookups in `politics.py` now consume `world.civ_map` and `world.region_map` (with safe fallbacks for lightweight test worlds where appropriate). This keeps the behavior from the earlier audit closeout but removes the last practical hot-path rescans that were still sitting on the bridge/environment/politics side of the Sprint 2 cache work.

@@ -124,6 +124,29 @@ class TestValidBuildTypes:
         types = valid_build_types(r)
         assert types == []
 
+    def test_foreign_temple_remains_buildable_for_replacement(self):
+        from chronicler.infrastructure import valid_build_types
+
+        region = Region(
+            name="F", terrain="plains", carrying_capacity=80, resources="fertile",
+            controller="Rome",
+            infrastructure=[
+                Infrastructure(
+                    type=InfrastructureType.TEMPLES,
+                    builder_civ="Other",
+                    built_turn=1,
+                    faith_id=2,
+                ),
+            ],
+        )
+        civ = _make_civ("Rome", regions=["F"])
+        civ.civ_majority_faith = 1
+        world = _make_world([region], [civ])
+
+        types = valid_build_types(region, civ=civ, world=world)
+
+        assert InfrastructureType.TEMPLES in types
+
 
 class TestHandleBuild:
     def test_build_creates_pending(self):
@@ -168,6 +191,55 @@ class TestHandleBuild:
         world = _make_world([r], [civ])
         event = handle_build(civ, world)
         assert event is None
+
+    def test_build_uses_temple_tuning_overrides(self):
+        from chronicler.infrastructure import handle_build
+        from chronicler.tuning import K_TEMPLE_BUILD_COST, K_TEMPLE_BUILD_TURNS
+
+        region = Region(
+            name="A", terrain="coast", carrying_capacity=80, resources="fertile", controller="Rome",
+            infrastructure=[
+                Infrastructure(type=InfrastructureType.ROADS, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.FORTIFICATIONS, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.IRRIGATION, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.PORTS, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.MINES, builder_civ="Rome", built_turn=1),
+            ],
+        )
+        civ = _make_civ("Rome", treasury=50, regions=["A"])
+        civ.civ_majority_faith = 1
+        world = _make_world([region], [civ])
+        world.tuning_overrides[K_TEMPLE_BUILD_COST] = 7
+        world.tuning_overrides[K_TEMPLE_BUILD_TURNS] = 5
+
+        handle_build(civ, world)
+
+        assert region.pending_build.type == InfrastructureType.TEMPLES
+        assert region.pending_build.turns_remaining == 5
+        assert civ.treasury == 43
+
+    def test_build_replaces_foreign_temple(self):
+        from chronicler.infrastructure import handle_build
+
+        region = Region(
+            name="A", terrain="coast", carrying_capacity=80, resources="fertile", controller="Rome",
+            infrastructure=[
+                Infrastructure(type=InfrastructureType.ROADS, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.FORTIFICATIONS, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.IRRIGATION, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.PORTS, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.MINES, builder_civ="Rome", built_turn=1),
+                Infrastructure(type=InfrastructureType.TEMPLES, builder_civ="Other", built_turn=1, faith_id=2),
+            ],
+        )
+        civ = _make_civ("Rome", treasury=50, regions=["A"])
+        civ.civ_majority_faith = 1
+        world = _make_world([region], [civ])
+
+        handle_build(civ, world)
+
+        assert region.pending_build.type == InfrastructureType.TEMPLES
+        assert region.infrastructure[-1].active is False
 
 
 class TestTickInfrastructure:
@@ -241,3 +313,26 @@ class TestScorchedEarth:
         world = _make_world([r], [civ])
         events = scorched_earth_check(world, civ, r, seed=42)
         assert len(events) == 0
+
+    def test_scorched_earth_clears_pending_build(self):
+        from chronicler.infrastructure import scorched_earth_check
+
+        civ = _make_civ("Rome", stability=10)
+        r = Region(
+            name="A", terrain="plains", carrying_capacity=80, resources="fertile",
+            infrastructure=[
+                Infrastructure(type=InfrastructureType.ROADS, builder_civ="Rome", built_turn=1),
+            ],
+            pending_build=PendingBuild(
+                type=InfrastructureType.MINES,
+                builder_civ="Rome",
+                started_turn=1,
+                turns_remaining=2,
+            ),
+        )
+        world = _make_world([r], [civ])
+
+        events = scorched_earth_check(world, civ, r, seed=42)
+
+        assert len(events) == 1
+        assert r.pending_build is None

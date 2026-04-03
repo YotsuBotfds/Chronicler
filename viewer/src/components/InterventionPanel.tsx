@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { PauseContext, Command, PendingAction, InjectCommand } from "../types";
 
 interface InterventionPanelProps {
@@ -22,6 +22,15 @@ export function InterventionPanel({
   const [setStat, setSetStat] = useState(pauseContext.settable_stats[0] || "");
   const [setValue, setSetValue] = useState(5);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+
+  useEffect(() => {
+    setInjectEvent(pauseContext.injectable_events[0] || "");
+    setInjectCiv(pauseContext.civs[0] || "");
+    setSetCiv(pauseContext.civs[0] || "");
+    setSetStat(pauseContext.settable_stats[0] || "");
+    setSetValue(5);
+    setPendingActions([]);
+  }, [pauseContext]);
 
   const stageInject = useCallback(() => {
     const cmd: InjectCommand = { type: "inject", event_type: injectEvent, civ: injectCiv };

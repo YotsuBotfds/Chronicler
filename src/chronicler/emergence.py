@@ -47,6 +47,8 @@ from chronicler.utils import (
 
 def compute_civ_stress(civ: Civilization, world: WorldState) -> int:
     """Compute per-civ stress from current world state. Returns 0-20."""
+    if not civ.regions:
+        return 0
     stress = 0
 
     # Active wars: per war weight
@@ -101,10 +103,10 @@ def compute_all_stress(world: WorldState) -> None:
     """Recompute stress for all civs and set global aggregate."""
     for civ in world.civilizations:
         civ.civ_stress = compute_civ_stress(civ, world)
-    if world.civilizations:
-        world.stress_index = max(c.civ_stress for c in world.civilizations)
-    else:
-        world.stress_index = 0
+    world.stress_index = max(
+        (c.civ_stress for c in world.civilizations if c.regions),
+        default=0,
+    )
 
 
 def get_severity_multiplier(civ: Civilization, world: "WorldState | None" = None) -> float:
@@ -791,6 +793,7 @@ def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
 
 def _check_flood(region: Region, world: WorldState, rng) -> Event | None:
     """Flood: river region, spring, water > 0.8."""
+    from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
     from chronicler.resources import get_season_id
     season_id = get_season_id(world.turn)
     if region.river_mask == 0:
@@ -806,7 +809,8 @@ def _check_flood(region: Region, world: WorldState, rng) -> Event | None:
     region.disaster_cooldowns["flood"] = duration
     region.capacity_modifier = 0.85
     region._capacity_modifier_source = "flood"
-    region.ecology.soil = min(1.0, region.ecology.soil + 0.15)
+    caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
+    region.ecology.soil = min(caps["soil"], region.ecology.soil + 0.15)
     return Event(
         turn=world.turn, event_type="flood",
         actors=[region.controller] if region.controller else [],

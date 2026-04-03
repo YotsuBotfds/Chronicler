@@ -18,6 +18,7 @@ from chronicler.factions import (
     _build_gp_successor_candidate, _select_succession_winner,
     _apply_gp_successor_winner, _build_succession_resolution_description,
 )
+from chronicler.utils import STAT_FLOOR
 
 
 class TestFactionDataModel:
@@ -381,6 +382,37 @@ class TestTickFactions:
         acc.apply_keep(world)
 
         assert civ.treasury == 100 + int(TITHE_RATE * civ.last_income)
+
+    def test_pending_faction_shift_is_normalized_before_dominance_check(self):
+        civ = _make_civ()
+        civ.factions.influence[FactionType.MILITARY] = 0.25
+        civ.factions.influence[FactionType.MERCHANT] = 0.45
+        civ.factions.influence[FactionType.CULTURAL] = 0.15
+        civ.factions.influence[FactionType.CLERGY] = 0.15
+        civ.factions.pending_faction_shift = FactionType.MILITARY.value
+        world = _make_world(turn=10)
+        world.civilizations = [civ]
+
+        events = tick_factions(world)
+
+        assert civ.factions.pending_faction_shift is None
+        assert sum(civ.factions.influence.values()) == pytest.approx(1.0)
+        assert get_dominant_faction(civ.factions) == FactionType.MILITARY
+        assert any(e.event_type == "faction_dominance_shift" for e in events)
+
+    def test_power_struggle_stability_clamps_to_stat_floor(self, monkeypatch):
+        civ = _make_civ()
+        civ.stability = 20
+        civ.factions.power_struggle = True
+        civ.factions.power_struggle_turns = 2
+        world = _make_world(turn=10)
+        world.civilizations = [civ]
+
+        monkeypatch.setitem(STAT_FLOOR, "stability", 25)
+
+        tick_factions(world)
+
+        assert civ.stability == 25
 
 
 class TestCandidateGeneration:

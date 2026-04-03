@@ -701,6 +701,69 @@ class TestAgentsWiring:
         assert world.agent_mode == "shadow"
         mock_bridge.close.assert_called_once()
 
+    def test_shadow_run_writes_arrow_artifact(self, tmp_path):
+        """Shadow mode should thread a real output path and produce a file."""
+        import pyarrow as pa
+        from chronicler.shadow import ShadowLogger
+        from chronicler.world_gen import generate_world
+
+        args = argparse.Namespace(
+            seed=42, turns=1, civs=2, regions=4,
+            output=str(tmp_path / "chronicle.md"),
+            state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10,
+            llm_actions=False, scenario=None, pause_every=None,
+            simulate_only=True, agents="shadow",
+        )
+        world = generate_world(seed=42, num_regions=4, num_civs=2)
+        mock_bridge = self._mock_agent_bridge()
+        logger_holder = {"logger": None}
+        shadow_path_holder = {"path": None}
+
+        def _build_shadow_aggs(world_obj):
+            return pa.record_batch({
+                "civ_id": pa.array(list(range(len(world_obj.civilizations))), type=pa.uint8()),
+                "population": pa.array([max(c.population, 0) for c in world_obj.civilizations], type=pa.uint32()),
+                "military": pa.array([max(c.military, 0) for c in world_obj.civilizations], type=pa.uint32()),
+                "economy": pa.array([max(c.economy, 0) for c in world_obj.civilizations], type=pa.uint32()),
+                "culture": pa.array([max(c.culture, 0) for c in world_obj.civilizations], type=pa.uint32()),
+                "stability": pa.array([max(c.stability, 0) for c in world_obj.civilizations], type=pa.uint32()),
+            })
+
+        def _bridge_factory(*_args, **kwargs):
+            shadow_path = kwargs.get("shadow_output")
+            assert shadow_path is not None
+            shadow_path_holder["path"] = shadow_path
+            logger_holder["logger"] = ShadowLogger(shadow_path)
+            mock_bridge.tick_agents.side_effect = (
+                lambda world_obj, **_kw: logger_holder["logger"].log_turn(
+                    world_obj.turn,
+                    _build_shadow_aggs(world_obj),
+                    world_obj,
+                ) or []
+            )
+            mock_bridge.close.side_effect = logger_holder["logger"].close
+            return mock_bridge
+
+        import sys
+        mock_ab_module = MagicMock()
+        mock_ab_module.AgentBridge = MagicMock(side_effect=_bridge_factory)
+        saved = sys.modules.get("chronicler.agent_bridge")
+        sys.modules["chronicler.agent_bridge"] = mock_ab_module
+        try:
+            execute_run(args, world=world)
+        finally:
+            if saved is None:
+                sys.modules.pop("chronicler.agent_bridge", None)
+            else:
+                sys.modules["chronicler.agent_bridge"] = saved
+
+        shadow_path = shadow_path_holder["path"]
+        assert shadow_path == tmp_path / "shadow.arrow"
+        assert shadow_path.exists()
+        assert shadow_path.stat().st_size > 0
+        mock_bridge.close.assert_called_once()
+
 
 class TestNarratorArgument:
     def test_narrator_default_is_local(self):

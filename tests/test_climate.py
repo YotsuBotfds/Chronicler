@@ -203,6 +203,32 @@ class TestCheckDisasters:
                 assert "trade_route" not in r.resource_suspensions
                 break
 
+    def test_flood_water_gain_respects_terrain_cap(self, monkeypatch):
+        from chronicler.climate import check_disasters
+        from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
+
+        region = Region(
+            name="Harbor",
+            terrain="coast",
+            carrying_capacity=60,
+            resources="maritime",
+        )
+        region.ecology.water = 0.85
+        world = WorldState(
+            name="T",
+            seed=42,
+            turn=10,
+            regions=[region],
+            climate_config=ClimateConfig(severity=1.0),
+        )
+
+        monkeypatch.setattr("chronicler.climate._deterministic_roll", lambda *_args, **_kwargs: 0.0)
+
+        events = check_disasters(world, ClimatePhase.TEMPERATE)
+
+        assert any(e.event_type == "flood" for e in events)
+        assert region.ecology.water == TERRAIN_ECOLOGY_CAPS["coast"]["water"]
+
 
 def _make_civ(name, population=50, stability=50, regions=None):
     leader = Leader(name=f"L-{name}", trait="bold", reign_start=0)

@@ -585,6 +585,76 @@ class TestRunSettlementTick:
         run_settlement_tick(w, source_turn=15, force=False)
         assert getattr(w, '_settlement_source_turn', None) == 15
 
+    def test_transients_reset_on_non_detection_turn_after_founding(self):
+        from chronicler.models import Settlement
+        from chronicler.settlements import (
+            CANDIDATE_PERSISTENCE,
+            DENSITY_FLOOR,
+            run_settlement_tick,
+        )
+
+        positions = [(0.51 + i * 0.005, 0.51) for i in range(DENSITY_FLOOR + 1)]
+        w = self._make_world_with_snapshot({0: positions})
+        w.settlement_candidates = [
+            Settlement(
+                region_name="R0",
+                last_seen_turn=0,
+                centroid_x=0.52,
+                centroid_y=0.51,
+                population_estimate=DENSITY_FLOOR + 1,
+                candidate_passes=CANDIDATE_PERSISTENCE - 1,
+            )
+        ]
+
+        w.turn = 15
+        run_settlement_tick(w, source_turn=15, force=False)
+        assert w._settlement_founded_this_turn == [1]
+        assert w._settlement_transitions
+
+        w.turn = 16
+        run_settlement_tick(w, source_turn=16, force=False)
+        assert w._settlement_founded_this_turn == []
+        assert w._settlement_dissolved_this_turn == []
+        assert w._settlement_transitions == []
+
+    def test_transients_reset_on_later_detection_with_no_matching_events(self):
+        from chronicler.models import Settlement
+        from chronicler.settlements import (
+            CANDIDATE_PERSISTENCE,
+            DENSITY_FLOOR,
+            SETTLEMENT_DETECTION_INTERVAL,
+            run_settlement_tick,
+        )
+
+        positions = [(0.51 + i * 0.005, 0.51) for i in range(DENSITY_FLOOR + 1)]
+        w = self._make_world_with_snapshot({0: positions})
+        w.settlement_candidates = [
+            Settlement(
+                region_name="R0",
+                last_seen_turn=0,
+                centroid_x=0.52,
+                centroid_y=0.51,
+                population_estimate=DENSITY_FLOOR + 1,
+                candidate_passes=CANDIDATE_PERSISTENCE - 1,
+            )
+        ]
+
+        w.turn = 15
+        run_settlement_tick(w, source_turn=15, force=False)
+        assert w._settlement_founded_this_turn == [1]
+        assert w._settlement_transitions
+
+        w._agent_snapshot = self._make_world_with_snapshot({})._agent_snapshot
+        w.turn = 15 + SETTLEMENT_DETECTION_INTERVAL
+        run_settlement_tick(w, source_turn=w.turn, force=False)
+        assert w._settlement_transitions
+
+        w.turn = 15 + 2 * SETTLEMENT_DETECTION_INTERVAL
+        run_settlement_tick(w, source_turn=w.turn, force=False)
+        assert w._settlement_founded_this_turn == []
+        assert w._settlement_dissolved_this_turn == []
+        assert w._settlement_transitions == []
+
 
 class TestIntegration:
     def test_run_turn_accepts_force_settlement_detection(self):

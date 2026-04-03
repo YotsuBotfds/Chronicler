@@ -33,6 +33,9 @@ ERA_FOCUSES_MAP: dict[str, list[str]] = {
     "information": ["networks", "surveillance", "media"],
 }
 
+FACTION_NAMES = ("MILITARY", "MERCHANT", "CULTURAL", "CLERGY")
+FACTION_NAMES_LOWER = tuple(name.lower() for name in FACTION_NAMES)
+
 
 def load_bundle_records(batch_dir: Path) -> list[tuple[Path, dict]]:
     """Glob batch_dir/*/chronicle_bundle.json and return ``(path, bundle)`` pairs.
@@ -829,7 +832,7 @@ def extract_faction_dominance(
 
         if sample_size > 0:
             entry: dict[str, float | int] = {}
-            for faction_name in ["MILITARY", "MERCHANT", "CULTURAL"]:
+            for faction_name in FACTION_NAMES:
                 entry[faction_name] = faction_counts.get(faction_name, 0) / sample_size
             entry["sample_size"] = sample_size
             by_checkpoint[str(cp)] = entry
@@ -884,7 +887,7 @@ def extract_power_struggles(bundles: list[dict]) -> dict:
             desc = e.get("description", "").lower()
             actors = e.get("actors", [])
             winning_faction = None
-            for faction_name in ["military", "merchant", "cultural"]:
+            for faction_name in FACTION_NAMES_LOWER:
                 if faction_name in desc:
                     winning_faction = faction_name.upper()
                     break
@@ -892,7 +895,7 @@ def extract_power_struggles(bundles: list[dict]) -> dict:
                 # Check actors list for faction names
                 for actor in actors:
                     actor_lower = actor.lower()
-                    for faction_name in ["military", "merchant", "cultural"]:
+                    for faction_name in FACTION_NAMES_LOWER:
                         if faction_name in actor_lower:
                             winning_faction = faction_name.upper()
                             break
@@ -908,7 +911,7 @@ def extract_power_struggles(bundles: list[dict]) -> dict:
     # Build resolution balance as fractions
     resolution_balance: dict[str, float] = {}
     resolved_with_faction = sum(resolution_faction_counts.values())
-    for faction_name in ["MILITARY", "MERCHANT", "CULTURAL"]:
+    for faction_name in FACTION_NAMES:
         resolution_balance[faction_name] = (
             resolution_faction_counts.get(faction_name, 0) / max(1, resolved_with_faction)
         )
@@ -1263,7 +1266,7 @@ def detect_anomalies(report: dict) -> list[dict]:
     # M22: Faction dominance where one faction > 50% at turn 100
     faction_dom = report.get("faction_dominance", {}).get("by_checkpoint", {})
     cp100 = faction_dom.get("100", {})
-    for faction_name in ["MILITARY", "MERCHANT", "CULTURAL"]:
+    for faction_name in FACTION_NAMES:
         frac = cp100.get(faction_name, 0)
         if frac > 0.50:
             anomalies.append({
@@ -1508,7 +1511,7 @@ def format_text_report(report: dict) -> str:
         for cp, data in sorted(fdom.get("by_checkpoint", {}).items()):
             sample = data.get("sample_size", 0)
             parts = []
-            for faction_name in ["MILITARY", "MERCHANT", "CULTURAL"]:
+            for faction_name in FACTION_NAMES:
                 frac = data.get(faction_name, 0)
                 parts.append(f"{faction_name}={frac:.0%}")
             lines.append(f"  turn {cp}: {', '.join(parts)} (n={sample})")
@@ -1520,7 +1523,7 @@ def format_text_report(report: dict) -> str:
         lines.append("POWER STRUGGLES:")
         lines.append(f"  Per-civ rate: {ps.get('per_civ_rate', 0):.0%} (n={ps.get('per_civ_sample_size', 0)})")
         rb = ps.get("resolution_balance", {})
-        parts = ", ".join(f"{f}={rb.get(f, 0):.0%}" for f in ["MILITARY", "MERCHANT", "CULTURAL"])
+        parts = ", ".join(f"{f}={rb.get(f, 0):.0%}" for f in FACTION_NAMES)
         lines.append(f"  Resolution balance: {parts} (total={ps.get('total_resolutions', 0)})")
         lines.append("")
 

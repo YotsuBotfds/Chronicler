@@ -88,4 +88,32 @@ describe("InterventionPanel", () => {
     fireEvent.click(screen.getByText(/quit/i));
     expect(sendCommand).toHaveBeenCalledWith({ type: "quit" });
   });
+
+  it("resyncs staged controls when pause context changes", () => {
+    const sendCommand = vi.fn();
+    const { rerender } = render(
+      <InterventionPanel pauseContext={mockContext} sendCommand={sendCommand} />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/event type/i), { target: { value: "migration" } });
+    fireEvent.change(screen.getByLabelText(/target civ/i), { target: { value: "Civ Beta" } });
+    fireEvent.click(screen.getByText(/inject/i));
+
+    const updatedContext: PauseContext = {
+      ...mockContext,
+      turn: 25,
+      injectable_events: ["famine"],
+      civs: ["Civ Gamma"],
+      settable_stats: ["stability"],
+    };
+
+    rerender(<InterventionPanel pauseContext={updatedContext} sendCommand={sendCommand} />);
+
+    expect(screen.getByText(/paused at turn 25/i)).toBeDefined();
+    expect(screen.getByLabelText(/event type/i)).toHaveValue("famine");
+    expect(screen.getByLabelText(/target civ/i)).toHaveValue("Civ Gamma");
+    expect(screen.getByLabelText(/stat civ/i)).toHaveValue("Civ Gamma");
+    expect(screen.getByLabelText(/stat name/i)).toHaveValue("stability");
+    expect(screen.queryByText(/pending actions/i)).toBeNull();
+  });
 });

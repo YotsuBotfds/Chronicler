@@ -8,7 +8,6 @@ import type {
   LobbyInit,
   NamedEvent,
   PauseContext,
-  Relationship,
   StartCommand,
   TurnSnapshot,
   WorldState,
@@ -21,6 +20,7 @@ import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/
 import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
 import { InterventionPanel } from "../InterventionPanel";
+import { buildTradeLinks, percentToTurn, turnToPercent } from "./appShellHelpers";
 import "./app-shell.css";
 
 export type AppSurface =
@@ -245,13 +245,6 @@ function buildNarratedSpans(bundle: Bundle | null): { start: number; end: number
     .sort((left, right) => left.start - right.start);
 }
 
-function turnToPercent(turn: number, maxTurn: number): number {
-  if (maxTurn <= 1) {
-    return 0;
-  }
-  return ((turn - 1) / (maxTurn - 1)) * 100;
-}
-
 function buildChronicleFeed(bundle: Bundle | null, currentTurn: number): ChronicleFeedItem[] {
   if (!bundle) {
     return [];
@@ -466,42 +459,6 @@ function computeControllerCentroids(nodes: MapNode[]): Record<string, { x: numbe
     };
   }
   return centroids;
-}
-
-function buildTradeLinks(
-  centroids: Record<string, { x: number; y: number }>,
-  relationships: Record<string, Record<string, Relationship>> | null,
-  civNames: string[],
-): Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; strength: number }> {
-  const links: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; strength: number }> = [];
-  const seen = new Set<string>();
-
-  for (const civName of civNames) {
-    const relationMap = relationships?.[civName] ?? {};
-    for (const [other, relation] of Object.entries(relationMap)) {
-      const key = [civName, other].sort().join("--");
-      if (seen.has(key) || !centroids[civName] || !centroids[other]) {
-        continue;
-      }
-      seen.add(key);
-      const strength = relation.trade_volume > 0
-        ? relation.trade_volume
-        : relation.disposition === "friendly" || relation.disposition === "allied"
-          ? 0.6
-          : 0;
-      if (strength <= 0) {
-        continue;
-      }
-      links.push({
-        key,
-        source: centroids[civName],
-        target: centroids[other],
-        strength,
-      });
-    }
-  }
-
-  return links;
 }
 
 function buildCampaignLinks(
@@ -752,10 +709,12 @@ export function AppShell({
   const controllerCentroids = computeControllerCentroids(atlasNodes);
   const worldRelationships = bundle?.world_state.relationships ?? null;
   const snapshotRelationships = currentSnapshot?.relationships ?? null;
+  const tradeRelationships = snapshotRelationships ?? worldRelationships;
   const tradeLinks = buildTradeLinks(
     controllerCentroids,
-    worldRelationships,
+    tradeRelationships,
     civilizations.map((civilization) => civilization.name),
+    currentSnapshot?.trade_routes ?? null,
   );
   const campaignLinks = buildCampaignLinks(
     controllerCentroids,
@@ -818,7 +777,7 @@ export function AppShell({
 
   useEffect(() => {
     syncSelectedEntity();
-  }, [bundle, civilizations, leadCivilization, selectedEntity, surface]);
+  }, [bundle, leadCivilization?.name, surface]);
 
   const headerWorldName = bundle?.world_state.name
     ?? resumeState?.name
@@ -912,7 +871,7 @@ export function AppShell({
     }
     const rect = trackRef.current.getBoundingClientRect();
     const percent = (event.clientX - rect.left) / rect.width;
-    onSeek(Math.max(1, Math.round(percent * totalTurns)));
+    onSeek(percentToTurn(percent, totalTurns));
   };
 
   const selectedRegion = selectedEntity?.kind === "region"

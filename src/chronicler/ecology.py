@@ -381,10 +381,6 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     from chronicler.utils import sync_all_populations
     sync_all_populations(world)
 
-    # M35b: Store post-tick water for next turn's delta detection
-    for region in world.regions:
-        region.prev_turn_water = region.ecology.water
-
     # 5. Narrow post-pass patch back to Rust
     from chronicler.agent_bridge import build_region_postpass_patch_batch
     patch = build_region_postpass_patch_batch(world)

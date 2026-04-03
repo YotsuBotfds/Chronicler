@@ -153,7 +153,7 @@ class TestComputeAccuracy:
         world = WorldState(name="t", seed=42, civilizations=[c1, c2])
         assert compute_accuracy(c1, c2, world) == 0.0
 
-    def test_adjacent_gives_0_3(self):
+    def test_adjacent_defaults_to_trade_contact_0_5(self):
         r1 = _region("A", controller="Civ1", adjacencies=["B"])
         r2 = _region("B", controller="Civ2", adjacencies=["A"])
         # Use military-dominant faction so no faction bonus
@@ -165,7 +165,8 @@ class TestComputeAccuracy:
         c1 = _civ("Civ1", regions=["A"], factions=military_factions)
         c2 = _civ("Civ2", regions=["B"])
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
-        assert compute_accuracy(c1, c2, world) == pytest.approx(0.3)
+        # adjacent(0.3) + default-neutral trade(0.2) = 0.5
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.5)
 
     def test_sources_stack_and_cap_at_1(self):
         r1 = _region("A", controller="Civ1", adjacencies=["B"])
@@ -196,8 +197,8 @@ class TestComputeAccuracy:
         c1.regions = ["A"]
         c2.regions = ["B"]
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
-        # adjacent(0.3) + merchant(0.1) = 0.4
-        assert compute_accuracy(c1, c2, world) == pytest.approx(0.4)
+        # adjacent(0.3) + default-neutral trade(0.2) + merchant(0.1) = 0.6
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.6)
 
     def test_cultural_faction_bonus(self):
         c1 = _civ("Civ1")
@@ -212,8 +213,8 @@ class TestComputeAccuracy:
         c1.regions = ["A"]
         c2.regions = ["B"]
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
-        # adjacent(0.3) + cultural(0.05) = 0.35
-        assert compute_accuracy(c1, c2, world) == pytest.approx(0.35)
+        # adjacent(0.3) + default-neutral trade(0.2) + cultural(0.05) = 0.55
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.55)
 
     def test_merchant_gp_bonus(self):
         gp = GreatPerson(name="Trader", role="merchant", trait="shrewd",
@@ -232,8 +233,8 @@ class TestComputeAccuracy:
         c1.regions = ["A"]
         c2.regions = ["B"]
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
-        # adjacent(0.3) + merchant_gp(0.05) = 0.35
-        assert compute_accuracy(c1, c2, world) == pytest.approx(0.35)
+        # adjacent(0.3) + default-neutral trade(0.2) + merchant_gp(0.05) = 0.55
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.55)
 
     def test_hostage_gp_bonus(self):
         gp = GreatPerson(name="Prince", role="hostage", trait="noble",
@@ -267,8 +268,8 @@ class TestComputeAccuracy:
         c1.regions = ["A"]
         c2.regions = ["B"]
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
-        # adjacent(0.3) + grudge(0.1) = 0.4
-        assert compute_accuracy(c1, c2, world) == pytest.approx(0.4)
+        # adjacent(0.3) + default-neutral trade(0.2) + grudge(0.1) = 0.6
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.6)
 
     def test_grudge_below_threshold_no_bonus(self):
         leader = Leader(name="L", trait="bold", reign_start=0,
@@ -287,7 +288,7 @@ class TestComputeAccuracy:
         c2.regions = ["B"]
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
         # adjacent(0.3) only — grudge intensity 0.2 < threshold 0.3
-        assert compute_accuracy(c1, c2, world) == pytest.approx(0.3)
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.5)
 
 
 # --- Task 4: get_perceived_stat tests ---
@@ -338,7 +339,7 @@ class TestGetPerceivedStat:
         c1 = _civ("Civ1", regions=["A"])
         c2 = _civ("Civ2", regions=["B"], military=50)
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
-        # accuracy = 0.3; noise_range = int((1 - 0.3) * 20) = 14; bounds: 36..64
+        # accuracy = 0.5; noise_range = int((1 - 0.5) * 20) = 10; bounds: 40..60
         perceived = get_perceived_stat(c1, c2, "military", world)
         assert perceived is not None
         assert 36 <= perceived <= 64
@@ -521,7 +522,8 @@ class TestSnapshotPopulation:
     def test_snapshot_contains_accuracy_and_errors(self):
         r1 = _region("A", controller="Civ1", adjacencies=["B"])
         r2 = _region("B", controller="Civ2", adjacencies=["A"])
-        # Use military-dominant faction so no faction bonus (accuracy = adjacent only = 0.3)
+        # Use military-dominant faction so no faction bonus.
+        # accuracy = adjacent(0.3) + default-neutral trade(0.2) = 0.5
         military_factions = FactionState(influence={
             FactionType.MILITARY: 0.6,
             FactionType.MERCHANT: 0.2,
@@ -557,7 +559,7 @@ class TestSnapshotPopulation:
             for obs in world.civilizations
         }
         assert "Civ2" in per_pair_accuracy.get("Civ1", {})
-        assert per_pair_accuracy["Civ1"]["Civ2"] == pytest.approx(0.3)
+        assert per_pair_accuracy["Civ1"]["Civ2"] == pytest.approx(0.5)
         errors = perception_errors["Civ1"]["Civ2"]
         assert "military" in errors
         assert "economy" in errors

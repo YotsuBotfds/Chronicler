@@ -74,12 +74,27 @@ describe("BatchPanel", () => {
         {...defaultProps}
         batchState="running"
         progress={{ completed: 50, total: 200, currentSeed: 51 }}
-      />
+      />,
     );
 
     expect(screen.getByText("50/200")).toBeTruthy();
     expect(screen.getByText("Seed 51")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Cancel Batch/i })).toBeTruthy();
+  });
+
+  it("guards zero-total progress without rendering NaN width", () => {
+    const { container } = render(
+      <BatchPanel
+        {...defaultProps}
+        batchState="running"
+        progress={{ completed: 0, total: 0, currentSeed: 1 }}
+      />,
+    );
+
+    expect(screen.getByText("0/0")).toBeTruthy();
+    const fill = container.querySelector(".bg-green-500");
+    expect(fill).not.toBeNull();
+    expect(fill).toHaveStyle({ width: "0%" });
   });
 
   it("calls onCancel when Cancel clicked", () => {
@@ -90,7 +105,7 @@ describe("BatchPanel", () => {
         batchState="running"
         progress={{ completed: 10, total: 200, currentSeed: 11 }}
         onCancel={onCancel}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Cancel Batch/i }));
@@ -103,7 +118,7 @@ describe("BatchPanel", () => {
         {...defaultProps}
         batchState="running"
         progress={{ completed: 0, total: 200, currentSeed: 1 }}
-      />
+      />,
     );
 
     const inputs = screen.getAllByRole("spinbutton");
@@ -129,10 +144,8 @@ describe("BatchPanel", () => {
     const onStart = vi.fn();
     render(<BatchPanel {...defaultProps} onStart={onStart} />);
 
-    // Open tuning
     fireEvent.click(screen.getByText(/Tuning Overrides/));
 
-    // Find the drought immediate input by its label
     const droughtLabel = screen.getByText("Drought Immediate");
     const droughtInput = droughtLabel.closest("div")!.querySelector("input")!;
     fireEvent.change(droughtInput, { target: { value: "10" } });

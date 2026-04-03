@@ -106,6 +106,7 @@ def _total_great_persons(world: WorldState) -> int:
 
 def _retire_person(gp: GreatPerson, civ: Civilization, world: WorldState) -> None:
     gp.active = False
+    gp.alive = False
     gp.fate = "retired"
     _append_deed(gp, f"Retired in {gp.region or 'unknown'}")
     gp.death_turn = world.turn

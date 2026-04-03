@@ -9,9 +9,25 @@ can be re-added as an optional mode via `pip install chronicler[api]`.
 from __future__ import annotations
 
 import numbers
+import time
 from typing import Protocol, runtime_checkable, Any
 
 DEFAULT_LOCAL_URL = "http://localhost:1234/v1"
+_TRANSIENT_RETRY_ATTEMPTS = 2
+_TRANSIENT_RETRY_BASE_DELAY_S = 0.5
+_TRANSIENT_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
+_TRANSIENT_ERROR_MARKERS = (
+    "connection",
+    "overloaded",
+    "rate limit",
+    "reset by peer",
+    "service unavailable",
+    "temporar",
+    "timeout",
+    "timed out",
+    "try again",
+    "unavailable",
+)
 
 
 def _coerce_token_count(value: Any) -> int:
@@ -19,6 +35,49 @@ def _coerce_token_count(value: Any) -> int:
     if isinstance(value, numbers.Real):
         return int(value)
     return 0
+
+
+def _extract_status_code(exc: Exception) -> int | None:
+    """Read a best-effort HTTP-ish status code from SDK exceptions."""
+    for candidate in (
+        getattr(exc, "status_code", None),
+        getattr(getattr(exc, "response", None), "status_code", None),
+    ):
+        if isinstance(candidate, numbers.Real):
+            return int(candidate)
+    return None
+
+
+def _is_transient_llm_error(exc: Exception) -> bool:
+    """Heuristic retry gate for network/rate-limit/server-side failures."""
+    status_code = _extract_status_code(exc)
+    if status_code in _TRANSIENT_STATUS_CODES:
+        return True
+    exc_text = f"{exc.__class__.__name__} {exc}".lower()
+    return any(marker in exc_text for marker in _TRANSIENT_ERROR_MARKERS)
+
+
+def _call_with_transient_retry(fn, *, sleep=None):
+    """Retry transient LLM/API failures with short exponential backoff."""
+    sleep_fn = time.sleep if sleep is None else sleep
+    for attempt in range(_TRANSIENT_RETRY_ATTEMPTS + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if not _is_transient_llm_error(exc) or attempt >= _TRANSIENT_RETRY_ATTEMPTS:
+                raise
+            sleep_fn(_TRANSIENT_RETRY_BASE_DELAY_S * (2 ** attempt))
+
+
+def _extract_anthropic_text(content: Any) -> str:
+    """Return the first non-empty text block from an Anthropic response."""
+    if not content:
+        raise ValueError("Anthropic response contained no content blocks")
+    for block in content:
+        text = block.get("text") if isinstance(block, dict) else getattr(block, "text", None)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    raise ValueError("Anthropic response contained no text content")
 
 
 @runtime_checkable
@@ -88,11 +147,14 @@ class AnthropicClient:
         if system:
             kwargs["system"] = system
 
-        response = self._client.messages.create(**kwargs)
-        self.total_input_tokens += response.usage.input_tokens
-        self.total_output_tokens += response.usage.output_tokens
+        response = _call_with_transient_retry(
+            lambda: self._client.messages.create(**kwargs)
+        )
+        usage = getattr(response, "usage", None)
+        self.total_input_tokens += _coerce_token_count(getattr(usage, "input_tokens", 0))
+        self.total_output_tokens += _coerce_token_count(getattr(usage, "output_tokens", 0))
         self.call_count += 1
-        return response.content[0].text.strip()
+        return _extract_anthropic_text(getattr(response, "content", None))
 
     def batch_complete(
         self,
@@ -104,8 +166,6 @@ class AnthropicClient:
         Each request dict has keys: prompt, max_tokens, system (optional).
         Returns list of response texts in the same order, None for failures.
         """
-        import time
-
         batch_requests = []
         for i, req in enumerate(requests):
             params: dict[str, Any] = {
@@ -120,13 +180,17 @@ class AnthropicClient:
                 "params": params,
             })
 
-        batch = self._client.messages.batches.create(requests=batch_requests)
+        batch = _call_with_transient_retry(
+            lambda: self._client.messages.batches.create(requests=batch_requests)
+        )
         print(f"  Batch submitted: {batch.id} ({len(batch_requests)} requests)")
 
         # Poll until complete (terminal statuses: ended, expired, canceled)
         while batch.processing_status not in ("ended", "expired", "canceled"):
             time.sleep(poll_interval)
-            batch = self._client.messages.batches.retrieve(batch.id)
+            batch = _call_with_transient_retry(
+                lambda: self._client.messages.batches.retrieve(batch.id)
+            )
             succeeded = batch.request_counts.succeeded
             total = len(batch_requests)
             print(f"  Batch progress: {succeeded}/{total} complete")
@@ -138,14 +202,21 @@ class AnthropicClient:
 
         # Collect results in order
         results: dict[str, str | None] = {}
-        for result in self._client.messages.batches.results(batch.id):
+        batch_results = _call_with_transient_retry(
+            lambda: list(self._client.messages.batches.results(batch.id))
+        )
+        for result in batch_results:
             custom_id = result.custom_id
             if result.result.type == "succeeded":
                 msg = result.result.message
-                self.total_input_tokens += msg.usage.input_tokens
-                self.total_output_tokens += msg.usage.output_tokens
+                usage = getattr(msg, "usage", None)
+                self.total_input_tokens += _coerce_token_count(getattr(usage, "input_tokens", 0))
+                self.total_output_tokens += _coerce_token_count(getattr(usage, "output_tokens", 0))
                 self.call_count += 1
-                results[custom_id] = msg.content[0].text.strip()
+                try:
+                    results[custom_id] = _extract_anthropic_text(getattr(msg, "content", None))
+                except ValueError:
+                    results[custom_id] = None
             else:
                 results[custom_id] = None
 
@@ -179,10 +250,12 @@ class GeminiClient:
         if system:
             config["system_instruction"] = system
 
-        response = self._client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=config,
+        response = _call_with_transient_retry(
+            lambda: self._client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=config,
+            )
         )
         usage = response.usage_metadata
         prompt_tokens = _coerce_token_count(getattr(usage, "prompt_token_count", 0))

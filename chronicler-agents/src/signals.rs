@@ -24,6 +24,67 @@ fn read_optional_f32_unit_signal(
     Ok(value)
 }
 
+#[inline]
+fn read_optional_f32_bounded(
+    column: Option<&Float32Array>,
+    field_name: &str,
+    row_idx: usize,
+    default: f32,
+    min: f32,
+    max: f32,
+) -> Result<f32, ArrowError> {
+    let value = column.map(|c| c.value(row_idx)).unwrap_or(default);
+    if !value.is_finite() {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be finite, got {value}"
+        )));
+    }
+    if !(min..=max).contains(&value) {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be in [{min}, {max}], got {value}"
+        )));
+    }
+    Ok(value)
+}
+
+#[inline]
+fn read_optional_f32_finite(
+    column: Option<&Float32Array>,
+    field_name: &str,
+    row_idx: usize,
+    default: f32,
+) -> Result<f32, ArrowError> {
+    let value = column.map(|c| c.value(row_idx)).unwrap_or(default);
+    if !value.is_finite() {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be finite, got {value}"
+        )));
+    }
+    Ok(value)
+}
+
+#[inline]
+fn read_optional_f32_min(
+    column: Option<&Float32Array>,
+    field_name: &str,
+    row_idx: usize,
+    default: f32,
+    min: f32,
+) -> Result<f32, ArrowError> {
+    let value = column.map(|c| c.value(row_idx)).unwrap_or(default);
+    if !value.is_finite() {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be finite, got {value}"
+        )));
+    }
+    if value < min {
+        return Err(ArrowError::InvalidArgumentError(format!(
+            "{field_name} row {row_idx} must be >= {min}, got {value}"
+        )));
+    }
+    Ok(value)
+}
+
 /// Per-civ signals from Python aggregate model.
 #[derive(Clone, Debug)]
 pub struct CivSignals {
@@ -144,32 +205,80 @@ pub fn parse_civ_signals(batch: &RecordBatch) -> Result<Vec<CivSignals>, ArrowEr
         let shock_economy = read_optional_f32_unit_signal(shock_economy_col, "shock_economy", i)?;
         let shock_military = read_optional_f32_unit_signal(shock_military_col, "shock_military", i)?;
         let shock_culture = read_optional_f32_unit_signal(shock_culture_col, "shock_culture", i)?;
+        let faction_military = read_optional_f32_bounded(
+            Some(fac_mil), "faction_military", i, 0.33, 0.0, 1.0,
+        )?;
+        let faction_merchant = read_optional_f32_bounded(
+            Some(fac_mer), "faction_merchant", i, 0.33, 0.0, 1.0,
+        )?;
+        let faction_cultural = read_optional_f32_bounded(
+            Some(fac_cul), "faction_cultural", i, 0.34, 0.0, 1.0,
+        )?;
+        let faction_clergy = read_optional_f32_bounded(
+            faction_clergy_col, "faction_clergy", i, 0.0, 0.0, 1.0,
+        )?;
+        let demand_shift_farmer = read_optional_f32_finite(
+            demand_farmer_col, "demand_shift_farmer", i, 0.0,
+        )?;
+        let demand_shift_soldier = read_optional_f32_finite(
+            demand_soldier_col, "demand_shift_soldier", i, 0.0,
+        )?;
+        let demand_shift_merchant = read_optional_f32_finite(
+            demand_merchant_col, "demand_shift_merchant", i, 0.0,
+        )?;
+        let demand_shift_scholar = read_optional_f32_finite(
+            demand_scholar_col, "demand_shift_scholar", i, 0.0,
+        )?;
+        let demand_shift_priest = read_optional_f32_finite(
+            demand_priest_col, "demand_shift_priest", i, 0.0,
+        )?;
+        let mean_boldness = read_optional_f32_bounded(
+            mean_boldness_col, "mean_boldness", i, 0.0, -0.3, 0.3,
+        )?;
+        let mean_ambition = read_optional_f32_bounded(
+            mean_ambition_col, "mean_ambition", i, 0.0, -0.3, 0.3,
+        )?;
+        let mean_loyalty_trait = read_optional_f32_bounded(
+            mean_loyalty_trait_col, "mean_loyalty_trait", i, 0.0, -0.3, 0.3,
+        )?;
+        let gini_coefficient = read_optional_f32_bounded(
+            gini_coefficient_col, "gini_coefficient", i, 0.0, 0.0, 1.0,
+        )?;
+        let priest_tithe_share = read_optional_f32_min(
+            priest_tithe_share_col, "priest_tithe_share", i, 0.0, 0.0,
+        )?;
+        let cultural_drift_multiplier = read_optional_f32_min(
+            cultural_drift_multiplier_col, "cultural_drift_multiplier", i, 1.0, 0.0,
+        )?;
+        let religion_intensity_multiplier = read_optional_f32_min(
+            religion_intensity_multiplier_col, "religion_intensity_multiplier", i, 1.0, 0.0,
+        )?;
         result.push(CivSignals {
             civ_id: civ_ids.value(i),
             stability: stabilities.value(i),
             is_at_war: at_wars.value(i),
             dominant_faction: dom_factions.value(i),
-            faction_military: fac_mil.value(i),
-            faction_merchant: fac_mer.value(i),
-            faction_cultural: fac_cul.value(i),
-            faction_clergy: faction_clergy_col.map_or(0.0, |c| c.value(i)),
+            faction_military,
+            faction_merchant,
+            faction_cultural,
+            faction_clergy,
             shock_stability,
             shock_economy,
             shock_military,
             shock_culture,
-            demand_shift_farmer: demand_farmer_col.map(|a| a.value(i)).unwrap_or(0.0),
-            demand_shift_soldier: demand_soldier_col.map(|a| a.value(i)).unwrap_or(0.0),
-            demand_shift_merchant: demand_merchant_col.map(|a| a.value(i)).unwrap_or(0.0),
-            demand_shift_scholar: demand_scholar_col.map(|a| a.value(i)).unwrap_or(0.0),
-            demand_shift_priest: demand_priest_col.map(|a| a.value(i)).unwrap_or(0.0),
-            mean_boldness: mean_boldness_col.map(|a| a.value(i)).unwrap_or(0.0),
-            mean_ambition: mean_ambition_col.map(|a| a.value(i)).unwrap_or(0.0),
-            mean_loyalty_trait: mean_loyalty_trait_col.map(|a| a.value(i)).unwrap_or(0.0),
-            gini_coefficient: gini_coefficient_col.map(|a| a.value(i)).unwrap_or(0.0),
+            demand_shift_farmer,
+            demand_shift_soldier,
+            demand_shift_merchant,
+            demand_shift_scholar,
+            demand_shift_priest,
+            mean_boldness,
+            mean_ambition,
+            mean_loyalty_trait,
+            gini_coefficient,
             conquered_this_turn: conquered_this_turn_col.map(|a| a.value(i)).unwrap_or(false),
-            priest_tithe_share: priest_tithe_share_col.map(|a| a.value(i)).unwrap_or(0.0),
-            cultural_drift_multiplier: cultural_drift_multiplier_col.map(|a| a.value(i)).unwrap_or(1.0),
-            religion_intensity_multiplier: religion_intensity_multiplier_col.map(|a| a.value(i)).unwrap_or(1.0),
+            priest_tithe_share,
+            cultural_drift_multiplier,
+            religion_intensity_multiplier,
         });
     }
     Ok(result)
@@ -531,6 +640,110 @@ mod tests {
         let err = parse_civ_signals(&batch).unwrap_err();
         assert!(
             err.to_string().contains("shock_stability"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_civ_signals_rejects_out_of_range_faction_weight() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![1.25f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+        ])
+        .unwrap();
+
+        let err = parse_civ_signals(&batch).unwrap_err();
+        assert!(
+            err.to_string().contains("faction_military"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_civ_signals_rejects_non_finite_gini() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+            ("gini_coefficient", Arc::new(Float32Array::from(vec![f32::NAN])) as _),
+        ])
+        .unwrap();
+
+        let err = parse_civ_signals(&batch).unwrap_err();
+        assert!(
+            err.to_string().contains("gini_coefficient"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_civ_signals_rejects_negative_cultural_drift_multiplier() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+            ("cultural_drift_multiplier", Arc::new(Float32Array::from(vec![-0.1f32])) as _),
+        ])
+        .unwrap();
+
+        let err = parse_civ_signals(&batch).unwrap_err();
+        assert!(
+            err.to_string().contains("cultural_drift_multiplier"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_civ_signals_allows_large_demand_shifts_and_tithe_shares() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+            ("demand_shift_soldier", Arc::new(Float32Array::from(vec![-20.0f32])) as _),
+            ("priest_tithe_share", Arc::new(Float32Array::from(vec![2.5f32])) as _),
+        ])
+        .unwrap();
+
+        let civs = parse_civ_signals(&batch).unwrap();
+        assert_eq!(civs.len(), 1);
+        assert!((civs[0].demand_shift_soldier - (-20.0)).abs() < 0.001);
+        assert!((civs[0].priest_tithe_share - 2.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_parse_civ_signals_rejects_negative_priest_tithe_share() {
+        let batch = RecordBatch::try_from_iter(vec![
+            ("civ_id", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("stability", Arc::new(UInt8Array::from(vec![50u8])) as _),
+            ("is_at_war", Arc::new(BooleanArray::from(vec![false])) as _),
+            ("dominant_faction", Arc::new(UInt8Array::from(vec![0u8])) as _),
+            ("faction_military", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_merchant", Arc::new(Float32Array::from(vec![0.33f32])) as _),
+            ("faction_cultural", Arc::new(Float32Array::from(vec![0.34f32])) as _),
+            ("priest_tithe_share", Arc::new(Float32Array::from(vec![-0.1f32])) as _),
+        ])
+        .unwrap();
+
+        let err = parse_civ_signals(&batch).unwrap_err();
+        assert!(
+            err.to_string().contains("priest_tithe_share"),
             "unexpected error: {err}"
         );
     }

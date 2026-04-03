@@ -88,6 +88,22 @@ def test_get_active_trade_routes(sample_world):
     assert routes == sorted(routes)
 
 
+def test_get_active_trade_routes_defaults_missing_relationships_to_neutral(sample_world):
+    civ_a = sample_world.civilizations[0]
+    civ_b = sample_world.civilizations[1]
+    r1 = sample_world.regions[0]
+    r2 = sample_world.regions[1]
+    r1.controller = civ_a.name
+    r2.controller = civ_b.name
+    r1.adjacencies = [r2.name]
+    r2.adjacencies = [r1.name]
+    sample_world.relationships = {}
+
+    routes = get_active_trade_routes(sample_world)
+
+    assert (civ_a.name, civ_b.name) in routes or (civ_b.name, civ_a.name) in routes
+
+
 def test_no_trade_route_when_embargoed(sample_world):
     civ_a = sample_world.civilizations[0]
     civ_b = sample_world.civilizations[1]

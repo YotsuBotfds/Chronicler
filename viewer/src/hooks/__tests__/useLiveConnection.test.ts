@@ -109,6 +109,68 @@ describe("useLiveConnection", () => {
     expect(entries && !Array.isArray(entries) ? entries["1"] : undefined).toBe("Turn 1 text");
   });
 
+  it("preserves gap summaries from live init payloads", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+
+    act(() => {
+      ws.simulateMessage({
+        ...SAMPLE_INIT,
+        gap_summaries: [
+          {
+            turn_range: [2, 4],
+            event_count: 3,
+            top_event_type: "trade",
+            stat_deltas: {},
+            territory_changes: 1,
+          },
+        ],
+      });
+    });
+
+    expect(result.current.bundle?.gap_summaries).toHaveLength(1);
+    expect(result.current.bundle?.gap_summaries?.[0]?.turn_range).toEqual([2, 4]);
+  });
+
+  it("preserves optional turn snapshot fields from live turn messages", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+
+    act(() => {
+      ws.simulateMessage({
+        type: "turn",
+        turn: 2,
+        civ_stats: {},
+        region_control: {},
+        relationships: {},
+        trade_routes: [["Civ A", "Civ B"]],
+        active_wars: [["Civ B", "Civ C"]],
+        embargoes: [["Civ C", "Civ D"]],
+        active_conditions: [{ type: "drought", severity: 20 }],
+        settlement_source_turn: 1,
+        founded_this_turn: [11],
+        dissolved_this_turn: [9],
+        urban_fraction: 0.4,
+        events: [],
+        named_events: [],
+        chronicle_text: "Turn 2 text",
+      });
+    });
+
+    const snapshot = result.current.bundle?.history[0];
+    expect(snapshot?.trade_routes).toEqual([["Civ A", "Civ B"]]);
+    expect(snapshot?.active_wars).toEqual([["Civ B", "Civ C"]]);
+    expect(snapshot?.embargoes).toEqual([["Civ C", "Civ D"]]);
+    expect(snapshot?.active_conditions).toEqual([{ type: "drought", severity: 20 }]);
+    expect(snapshot?.settlement_source_turn).toBe(1);
+    expect(snapshot?.founded_this_turn).toEqual([11]);
+    expect(snapshot?.dissolved_this_turn).toEqual([9]);
+    expect(snapshot?.urban_fraction).toBe(0.4);
+  });
+
   it("sets paused state on paused message", async () => {
     const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
     await vi.advanceTimersByTimeAsync(10);

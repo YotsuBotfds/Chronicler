@@ -6,9 +6,15 @@ import tempfile
 import pyarrow as pa
 import pytest
 from chronicler_agents import AgentSimulator
-from chronicler.agent_bridge import build_region_batch, build_settlement_batch, TERRAIN_MAP, AgentBridge
+from chronicler.agent_bridge import (
+    AgentBridge,
+    TERRAIN_MAP,
+    build_region_batch,
+    build_settlement_batch,
+    build_signals,
+)
 from chronicler.economy import EconomyResult
-from chronicler.models import Belief, GreatPerson
+from chronicler.models import Belief, FactionType, GreatPerson
 from chronicler.sidecar import SidecarWriter
 
 
@@ -123,6 +129,38 @@ class TestPythonRoundTrip:
 
         with pytest.raises((RuntimeError, ValueError), match="relationship"):
             sim.replace_social_edges(bad_batch)
+
+
+class TestBuildSignalsValidation:
+    def test_rejects_non_finite_gini(self, sample_world):
+        with pytest.raises(ValueError, match="gini_coefficient"):
+            build_signals(sample_world, gini_by_civ={0: float("nan")})
+
+    def test_rejects_out_of_range_faction_weight(self, sample_world):
+        sample_world.civilizations[0].factions.influence[FactionType.MILITARY] = 1.2
+
+        with pytest.raises(ValueError, match="faction_military"):
+            build_signals(sample_world)
+
+    def test_allows_large_demand_shifts_and_positive_priest_tithe_share(self, sample_world):
+        economy_result = EconomyResult(priest_tithe_shares={0: 2.5})
+        batch = build_signals(
+            sample_world,
+            demands={0: [0.0, -20.0, 0.0, 0.0, 0.0]},
+            economy_result=economy_result,
+        )
+
+        demand_values = batch.column("demand_shift_soldier").to_pylist()
+        tithe_values = batch.column("priest_tithe_share").to_pylist()
+
+        assert demand_values[0] == pytest.approx(-20.0)
+        assert tithe_values[0] == pytest.approx(2.5)
+
+    def test_rejects_negative_priest_tithe_share(self, sample_world):
+        economy_result = EconomyResult(priest_tithe_shares={0: -0.1})
+
+        with pytest.raises(ValueError, match="priest_tithe_share"):
+            build_signals(sample_world, economy_result=economy_result)
 
 
 class TestTickBehavior:
@@ -1359,6 +1397,56 @@ class TestSnapshotMetrics:
         assert bridge.displacement_by_region[0] == pytest.approx(0.5)
         assert bridge._gini_by_civ[0] > 0.0
         assert bridge._gini_by_civ[1] == pytest.approx(0.0)
+
+    def test_refresh_snapshot_metrics_preserves_prior_values_on_missing_required_column(self, sample_world):
+        class _FakeSim:
+            @staticmethod
+            def get_snapshot():
+                return pa.record_batch({
+                    "displacement_turn": pa.array([0, 1], type=pa.uint16()),
+                    "wealth": pa.array([1.0, 2.0], type=pa.float32()),
+                    "civ_affinity": pa.array([0, 0], type=pa.uint16()),
+                    "occupation": pa.array([0, 1], type=pa.uint8()),
+                })
+
+        bridge = AgentBridge(sample_world, mode="shadow")
+        bridge._sim = _FakeSim()
+        bridge.displacement_by_region = {0: 0.25}
+        bridge._gini_by_civ = {0: 0.4}
+        bridge._wealth_stats = {0: {"gini": 0.4}}
+
+        bridge._refresh_snapshot_metrics(sample_world)
+
+        assert bridge.displacement_by_region == {0: 0.25}
+        assert bridge._gini_by_civ == {0: 0.4}
+        assert bridge._wealth_stats == {0: {"gini": 0.4}}
+
+
+class TestAggregateEvents:
+    def test_occupation_shift_uses_region_population_not_event_count(self, sample_world):
+        from types import SimpleNamespace
+
+        class _FakeSim:
+            @staticmethod
+            def get_region_populations():
+                return pa.record_batch({
+                    "region_id": pa.array([0], type=pa.uint16()),
+                    "alive_count": pa.array([100], type=pa.uint32()),
+                })
+
+        bridge = AgentBridge(sample_world, mode="shadow")
+        bridge._sim = _FakeSim()
+        bridge._event_window.clear()
+        bridge._event_window.append([
+            SimpleNamespace(event_type="occupation_switch", region=0, occupation=1, target_region=0, civ_affinity=0, agent_id=1),
+            SimpleNamespace(event_type="occupation_switch", region=0, occupation=1, target_region=0, civ_affinity=0, agent_id=2),
+            SimpleNamespace(event_type="occupation_switch", region=0, occupation=1, target_region=0, civ_affinity=0, agent_id=3),
+            SimpleNamespace(event_type="occupation_switch", region=0, occupation=1, target_region=0, civ_affinity=0, agent_id=4),
+        ])
+
+        summaries = bridge._aggregate_events(sample_world)
+
+        assert not any(e.event_type == "occupation_shift" for e in summaries)
 
 
 # ---------------------------------------------------------------------------

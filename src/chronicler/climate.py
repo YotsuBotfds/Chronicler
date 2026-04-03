@@ -142,8 +142,10 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 ))
 
             elif dtype == "flood":
+                from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
                 flood_water = get_override(world, K_FLOOD_WATER_GAIN, 0.1)
-                region.ecology.water = min(1.0, region.ecology.water + flood_water)
+                caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
+                region.ecology.water = min(caps["water"], region.ecology.water + flood_water)
                 for i in region.infrastructure:
                     if i.type == InfrastructureType.PORTS and i.active:
                         i.active = False

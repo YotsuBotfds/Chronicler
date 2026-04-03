@@ -214,10 +214,15 @@ export interface TurnSnapshot {
   pandemic_regions?: string[];
   climate_phase?: string;
   active_conditions?: Array<Record<string, unknown>>;
+  per_pair_accuracy?: Record<string, Record<string, number>>;
+  perception_errors?: Record<string, Record<string, Record<string, number>>>;
+  settlement_source_turn?: number;
   settlement_count?: number;
   candidate_count?: number;
   total_settlement_population?: number;
   active_settlements?: Array<Record<string, unknown>>;
+  founded_this_turn?: number[];
+  dissolved_this_turn?: number[];
   urban_agent_count?: number;
   urban_fraction?: number;
 }

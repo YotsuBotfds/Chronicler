@@ -546,6 +546,52 @@ def test_extract_conversion_rates_basic():
     assert result["Reformation"]["median"] == 0
 
 
+def test_extract_faction_dominance_includes_clergy():
+    from chronicler.analytics import extract_faction_dominance
+
+    bundles = [{
+        "metadata": {"total_turns": 1},
+        "history": [{
+            "turn": 0,
+            "civ_stats": {
+                "A": {
+                    "regions": ["r1"],
+                    "factions": {
+                        "influence": {
+                            "military": 0.1,
+                            "merchant": 0.2,
+                            "cultural": 0.25,
+                            "clergy": 0.45,
+                        }
+                    },
+                }
+            },
+        }],
+    }]
+
+    result = extract_faction_dominance(bundles, checkpoints=[0])
+
+    assert result["by_checkpoint"]["0"]["CLERGY"] == 1.0
+
+
+def test_extract_power_struggles_resolution_balance_includes_clergy():
+    from chronicler.analytics import extract_power_struggles
+
+    bundles = [{
+        "history": [],
+        "events_timeline": [{
+            "turn": 10,
+            "event_type": "power_struggle_resolved",
+            "actors": ["Civ1"],
+            "description": "Civ1: clergy faction prevails after infighting.",
+        }],
+    }]
+
+    result = extract_power_struggles(bundles)
+
+    assert result["resolution_balance"]["CLERGY"] == 1.0
+
+
 def test_settlement_diagnostics_includes_urbanization():
     """extract_settlement_diagnostics includes urban fraction time series."""
     from chronicler.analytics import extract_settlement_diagnostics

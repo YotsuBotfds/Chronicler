@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from chronicler.models import RegionStockpile
 from chronicler.economy import (
     map_resource_to_category,
+    map_resource_to_good,
     CATEGORIES,
     RegionGoods,
     EconomyResult,
@@ -45,6 +46,13 @@ def test_map_resource_to_category_raw_material():
 def test_map_resource_to_category_luxury():
     """PRECIOUS → luxury."""
     assert map_resource_to_category(6) == "luxury"  # PRECIOUS
+
+
+def test_map_resource_lookup_ignores_empty_and_unknown_slots():
+    assert map_resource_to_category(255) is None
+    assert map_resource_to_category(999) is None
+    assert map_resource_to_good(255) is None
+    assert map_resource_to_good(999) is None
 
 
 def test_categories_constant():
@@ -103,6 +111,11 @@ def test_compute_production_zero_farmers():
     assert result == ("food", 0.0)
 
 
+def test_compute_production_empty_slot_is_safe():
+    result = compute_production(resource_type=255, resource_yield=1.5, farmer_count=10)
+    assert result == (None, 0.0)
+
+
 # --- Task 4: Demand ---
 
 def test_compute_demand_food():
@@ -121,6 +134,16 @@ def test_compute_demand_luxury():
     """Luxury demand = wealthy_count × LUXURY_PER_WEALTHY_AGENT."""
     demand = compute_demand(population=100, soldier_count=20, wealthy_count=5)
     assert demand["luxury"] == 5 * 0.2  # LUXURY_PER_WEALTHY_AGENT = 0.2
+
+
+def test_farmer_income_modifier_is_neutral_for_unknown_resource():
+    modifier = derive_farmer_income_modifier(
+        255,
+        {"food": 10.0, "raw_material": 5.0, "luxury": 2.0},
+        {"food": 10.0, "raw_material": 5.0, "luxury": 2.0},
+        farmer_count=10,
+    )
+    assert modifier == 1.0
 
 
 def test_compute_demand_zero_pop():

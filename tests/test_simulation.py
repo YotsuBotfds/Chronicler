@@ -177,6 +177,26 @@ class TestAutomaticEffects:
         assert c0.treasury == 0
         assert c0.stability == 48
 
+    def test_war_cost_projection_includes_already_pending_keep_changes(self, sample_world):
+        """Pre-existing keep deltas must contribute to the war-cost bankruptcy check."""
+        c0 = sample_world.civilizations[0]
+        c1 = sample_world.civilizations[1]
+        c0.treasury = 4
+        c0.stability = 50
+        c0.military = 0
+        c1.military = 0
+        c0.last_income = 0
+        c1.last_income = 0
+        sample_world.active_wars = [(c0.name, c1.name)]
+
+        acc = StatAccumulator()
+        acc.add(0, c0, "treasury", -2, "keep")
+        apply_automatic_effects(sample_world, acc=acc)
+        acc.apply(sample_world)
+
+        assert c0.treasury == 0
+        assert c0.stability == 48
+
     def test_treasury_tax_fractional_carry_prevents_permanent_zeroing(self, sample_world):
         """Fractional tax should carry and eventually convert to whole-treasury increments."""
         from types import SimpleNamespace
@@ -368,6 +388,26 @@ class TestPhaseConsequences:
         assert len(collapse_events) == 1
         assert collapse_events[0].importance == 10
         assert civ.name in collapse_events[0].actors
+
+    def test_collapse_shocks_use_integer_halving_semantics(self, sample_world):
+        civ = sample_world.civilizations[0]
+        civ.asabiya = 0.05
+        civ.stability = 10
+        civ.military = 5
+        civ.economy = 5
+        civ.regions = [r.name for r in sample_world.regions[:3]]
+        for r in sample_world.regions[:3]:
+            r.controller = civ.name
+
+        sample_world.agent_mode = "hybrid"
+        acc = StatAccumulator()
+
+        phase_consequences(sample_world, acc=acc)
+        shocks = acc.to_shock_signals()
+        shock = next(s for s in shocks if s.civ_id == 0)
+
+        assert shock.military_shock == pytest.approx(-0.6)
+        assert shock.economy_shock == pytest.approx(-0.6)
 
     def test_leader_death_passes_acc_to_rival_fall(self, sample_world, monkeypatch):
         """Leader-death path should pass the active accumulator into rival-fall handling."""
@@ -799,6 +839,38 @@ class TestApplyInjectedEvent:
         apply_injected_event("drought", civ.name, sample_world)
         # drought handler creates an ActiveCondition
         assert len(sample_world.active_conditions) > old_conditions
+
+    def test_drought_uses_tuning_override_for_stability_drain(self, sample_world):
+        from chronicler.tuning import K_DROUGHT_STABILITY
+
+        civ = sample_world.civilizations[0]
+        civ.stability = 50
+        sample_world.tuning_overrides[K_DROUGHT_STABILITY] = 4
+
+        apply_injected_event("drought", civ.name, sample_world)
+
+        assert civ.stability == 46
+
+    def test_plague_uses_tuning_override_for_stability_drain(self, sample_world):
+        from chronicler.tuning import K_PLAGUE_STABILITY
+
+        civ = sample_world.civilizations[0]
+        civ.stability = 50
+        sample_world.tuning_overrides[K_PLAGUE_STABILITY] = 5
+
+        apply_injected_event("plague", civ.name, sample_world)
+
+        assert civ.stability == 45
+
+
+def test_stability_recovery_skips_dead_civs(sample_world):
+    dead_civ = sample_world.civilizations[0]
+    dead_civ.regions = []
+    dead_civ.stability = 10
+
+    apply_automatic_effects(sample_world)
+
+    assert dead_civ.stability == 10
 
 
 def _make_world_with_wars():

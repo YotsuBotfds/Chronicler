@@ -46,8 +46,31 @@ BUILD_SPECS: dict[IType, BuildSpec] = {
 }
 
 
+def get_build_specs(world: "WorldState | None" = None) -> dict[IType, BuildSpec]:
+    """Return build specs, applying live tuning overrides where needed."""
+    if world is None:
+        return BUILD_SPECS
+
+    temple_defaults = BUILD_SPECS[IType.TEMPLES]
+    specs = dict(BUILD_SPECS)
+    specs[IType.TEMPLES] = BuildSpec(
+        cost=max(0, int(get_override(world, K_TEMPLE_BUILD_COST, temple_defaults.cost))),
+        turns=max(1, int(get_override(world, K_TEMPLE_BUILD_TURNS, temple_defaults.turns))),
+        terrain_req=temple_defaults.terrain_req,
+        terrain_exclude=temple_defaults.terrain_exclude,
+    )
+    return specs
+
+
+def _get_active_temple(region) -> Infrastructure | None:
+    return next(
+        (i for i in region.infrastructure if i.type == IType.TEMPLES and i.active),
+        None,
+    )
+
+
 def _region_has_temple(region) -> bool:
-    return any(i.type == IType.TEMPLES and i.active for i in region.infrastructure)
+    return _get_active_temple(region) is not None
 
 
 def _count_civ_temples(world, civ_name: str) -> int:
@@ -62,15 +85,36 @@ def _count_civ_temples(world, civ_name: str) -> int:
     return count
 
 
-def valid_build_types(region: Region) -> list[IType]:
+def valid_build_types(
+    region: Region,
+    civ: "Civilization | None" = None,
+    world: "WorldState | None" = None,
+) -> list[IType]:
     """Return infrastructure types that can be built in this region."""
     if region.pending_build is not None:
         return []
 
-    existing = {i.type for i in region.infrastructure if i.active}
+    build_specs = get_build_specs(world)
+    existing = {i.type for i in region.infrastructure if i.active and i.type != IType.TEMPLES}
+    active_temple = _get_active_temple(region)
+    builder_faith = getattr(civ, "civ_majority_faith", -1) if civ is not None else None
+    temple_blocked = active_temple is not None
+    if civ is not None and active_temple is not None:
+        temple_blocked = active_temple.faith_id == builder_faith
+    if civ is not None and world is not None:
+        max_temples = int(get_override(world, K_MAX_TEMPLES_PER_CIV, 3))
+        temple_count = _count_civ_temples(world, civ.name)
+        if temple_count >= max_temples and (
+            active_temple is None or active_temple.faith_id == builder_faith
+        ):
+            temple_blocked = True
+
     result = []
-    for itype, spec in BUILD_SPECS.items():
-        if itype in existing:
+    for itype, spec in build_specs.items():
+        if itype == IType.TEMPLES:
+            if temple_blocked:
+                continue
+        elif itype in existing:
             continue
         if spec.terrain_req and region.terrain != spec.terrain_req:
             continue
@@ -150,6 +194,7 @@ def scorched_earth_check(
     if roll < prob and any(i.active for i in lost_region.infrastructure):
         for infra in lost_region.infrastructure:
             infra.active = False
+        lost_region.pending_build = None
         return [Event(
             turn=world.turn,
             event_type="scorched_earth",
@@ -182,12 +227,13 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
     seed = stable_hash_int("build_action", world.seed, world.turn, civ.name)
 
     region_map = get_region_map(world)
+    build_specs = get_build_specs(world)
     candidates: list[tuple] = []
     for rname in civ.regions:
         region = region_map.get(rname)
         if region is None:
             continue
-        vtypes = valid_build_types(region)
+        vtypes = valid_build_types(region, civ=civ, world=world)
         if vtypes:
             candidates.append((region, vtypes))
 
@@ -203,35 +249,28 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
     priority = TRAIT_BUILD_PRIORITY.get(trait, _DEFAULT_PRIORITY)
     selected_type = None
     for ptype in priority:
-        if ptype not in valid_types or BUILD_SPECS[ptype].cost > civ.treasury:
+        if ptype not in valid_types or build_specs[ptype].cost > civ.treasury:
             continue
-        if ptype == IType.TEMPLES:
-            if _count_civ_temples(world, civ.name) >= int(get_override(world, K_MAX_TEMPLES_PER_CIV, 3)):
-                continue
-            existing_temple = next(
-                (i for i in target_region.infrastructure if i.type == IType.TEMPLES and i.active),
-                None,
-            )
-            if existing_temple:
-                builder_faith = getattr(civ, 'civ_majority_faith', -1)
-                if existing_temple.faith_id == builder_faith:
-                    continue  # can't build same-faith duplicate
-                # M38a: foreign temple — destroy and replace
-                evt = destroy_temple_for_replacement(target_region, world)
-                if evt:
-                    world.events_timeline.append(evt)
         selected_type = ptype
         break
     if selected_type is None:
-        affordable = [(t, BUILD_SPECS[t].cost) for t in valid_types
-                      if BUILD_SPECS[t].cost <= civ.treasury]
+        affordable = [(t, build_specs[t].cost) for t in valid_types
+                      if build_specs[t].cost <= civ.treasury]
         if not affordable:
             return None
         selected_type = min(affordable, key=lambda x: x[1])[0]
 
+    if selected_type == IType.TEMPLES:
+        existing_temple = _get_active_temple(target_region)
+        builder_faith = getattr(civ, "civ_majority_faith", -1)
+        if existing_temple is not None and existing_temple.faith_id != builder_faith:
+            evt = destroy_temple_for_replacement(target_region, world)
+            if evt:
+                world.events_timeline.append(evt)
+
     faith_id = getattr(civ, 'civ_majority_faith', -1) if selected_type == IType.TEMPLES else -1
 
-    spec = BUILD_SPECS[selected_type]
+    spec = build_specs[selected_type]
     if acc is not None:
         civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -spec.cost, "keep")

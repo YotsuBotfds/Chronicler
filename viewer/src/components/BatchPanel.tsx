@@ -94,6 +94,10 @@ export function BatchPanel({
     setTuningValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const progressPercent = progress && progress.total > 0
+    ? (progress.completed / progress.total) * 100
+    : 0;
+
   // Show analytics view when complete
   if (batchState === "complete" && report) {
     return (
@@ -220,7 +224,7 @@ export function BatchPanel({
           <div className="w-full bg-gray-700 rounded-full h-2">
             <div
               className="bg-green-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(progress.completed / progress.total) * 100}%` }}
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
         </div>

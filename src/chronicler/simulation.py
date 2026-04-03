@@ -340,9 +340,20 @@ def apply_automatic_effects(
                         break  # Only one black market route per civ per turn
 
     # 5. Ongoing war costs: -3/turn per active war
-    # In accumulator mode, track projected treasury per civ so zero-crossing
-    # checks match aggregate semantics even before keep-changes are applied.
-    pending_war_treasury = {c.name: c.treasury for c in world.civilizations}
+    # In accumulator mode, include already-queued keep mutations so the
+    # zero-crossing check mirrors aggregate semantics instead of stale scalars.
+    pending_war_treasury: dict[str, float] = {}
+    for pending_idx, pending_civ in enumerate(world.civilizations):
+        projected = float(pending_civ.treasury)
+        if acc is not None:
+            for change in getattr(acc, "_changes", ()):
+                if (
+                    change.civ_id == pending_idx
+                    and change.category == "keep"
+                    and change.stat == "treasury"
+                ):
+                    projected += change.delta
+        pending_war_treasury[pending_civ.name] = projected
     for war in world.active_wars:
         for civ_name in war:
             c = get_civ(world, civ_name)
@@ -559,6 +570,8 @@ def phase_production(world: WorldState, acc=None) -> None:
     # mode (acc=None), direct mutation.  In shadow/demographics-only (acc with
     # apply()), the guard-shock is still applied via apply().
     for civ_idx, civ in enumerate(world.civilizations):
+        if not civ.regions:
+            continue
         if civ.stability < 50:
             base_recovery = int(get_override(world, K_STABILITY_RECOVERY, 20))
             has_severe_condition = any(
@@ -895,11 +908,12 @@ def apply_injected_event(
 
     if event_type == "drought":
         mult = get_severity_multiplier(civ, world)
+        drain = int(get_override(world, K_DROUGHT_STABILITY, 3) * mult)
         if acc is not None:
-            acc.add(civ_idx, civ, "stability", -int(10 * mult), "signal")
+            acc.add(civ_idx, civ, "stability", -drain, "signal")
             acc.add(civ_idx, civ, "economy", -int(10 * mult), "signal")
         else:
-            civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
             civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
         world.active_conditions.append(
             ActiveCondition(
@@ -911,6 +925,7 @@ def apply_injected_event(
         )
     elif event_type == "plague":
         mult = get_severity_multiplier(civ, world)
+        drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
         if acc is not None:
             acc.add(civ_idx, civ, "population", -10, "guard")
         else:
@@ -920,9 +935,9 @@ def apply_injected_event(
                 drain_region_pop(target_r, 10)
                 sync_civ_population(civ, world)
         if acc is not None:
-            acc.add(civ_idx, civ, "stability", -int(10 * mult), "signal")
+            acc.add(civ_idx, civ, "stability", -drain, "signal")
         else:
-            civ.stability = clamp(civ.stability - int(10 * mult), STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - drain, STAT_FLOOR["stability"], 100)
         world.active_conditions.append(
             ActiveCondition(
                 condition_type="plague",
@@ -1175,12 +1190,14 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
+                collapsed_military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
+                collapsed_economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
                 if acc is not None:
-                    acc.add(civ_idx, civ, "military", -civ.military / 2, "guard-shock")
-                    acc.add(civ_idx, civ, "economy", -civ.economy / 2, "guard-shock")
+                    acc.add(civ_idx, civ, "military", collapsed_military - civ.military, "guard-shock")
+                    acc.add(civ_idx, civ, "economy", collapsed_economy - civ.economy, "guard-shock")
                 else:
-                    civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
-                    civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
+                    civ.military = collapsed_military
+                    civ.economy = collapsed_economy
                 collapse_events.append(Event(
                     turn=world.turn,
                     event_type="collapse",

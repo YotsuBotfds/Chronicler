@@ -158,6 +158,62 @@ class TestEcologySchemaFFIRoundTrip:
         snap = sim.get_snapshot()
         assert snap.num_rows == 30  # 10 agents per region
 
+    def test_missing_required_column_raises_schema_error(self):
+        """Explicit contract test: missing core columns must fail loudly."""
+        sim = AgentSimulator(num_regions=1, seed=42)
+        batch = pa.record_batch({
+            "region_id": pa.array([0], type=pa.uint16()),
+            "carrying_capacity": pa.array([10], type=pa.uint16()),
+            "population": pa.array([10], type=pa.uint16()),
+            "soil": pa.array([0.8], type=pa.float32()),
+            "water": pa.array([0.6], type=pa.float32()),
+            "forest_cover": pa.array([0.3], type=pa.float32()),
+        })
+        with pytest.raises(Exception):
+            sim.set_region_state(batch)
+
+    def test_wrong_arrow_type_raises_cast_error(self):
+        """Explicit contract test: wrong Arrow types must fail loudly."""
+        sim = AgentSimulator(num_regions=1, seed=42)
+        batch = pa.record_batch({
+            "region_id": pa.array([0], type=pa.uint16()),
+            "terrain": pa.array([0], type=pa.uint8()),
+            "carrying_capacity": pa.array([10], type=pa.uint16()),
+            "population": pa.array([10.0], type=pa.float32()),
+            "soil": pa.array([0.8], type=pa.float32()),
+            "water": pa.array([0.6], type=pa.float32()),
+            "forest_cover": pa.array([0.3], type=pa.float32()),
+        })
+        with pytest.raises(Exception):
+            sim.set_region_state(batch)
+
+    def test_column_order_drift_is_tolerated(self):
+        """Column lookup should be name-based, not position-based."""
+        sim = AgentSimulator(num_regions=1, seed=42)
+        arrays = [
+            pa.array([0.8], type=pa.float32()),
+            pa.array([0], type=pa.uint16()),
+            pa.array([10], type=pa.uint16()),
+            pa.array([0.6], type=pa.float32()),
+            pa.array([10], type=pa.uint16()),
+            pa.array([0.3], type=pa.float32()),
+            pa.array([0], type=pa.uint8()),
+        ]
+        batch = pa.RecordBatch.from_arrays(
+            arrays,
+            names=[
+                "soil",
+                "region_id",
+                "population",
+                "water",
+                "carrying_capacity",
+                "forest_cover",
+                "terrain",
+            ],
+        )
+        sim.set_region_state(batch)
+        assert sim.get_snapshot().num_rows == 10
+
 
 # ---------------------------------------------------------------------------
 # Python batch construction tests

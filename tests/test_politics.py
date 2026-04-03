@@ -268,6 +268,40 @@ def test_secession_fires_at_zero_stability():
     assert breakaway.stability == 40
 
 
+def test_secession_capital_prefers_connected_breakaway_region():
+    adj = {
+        "A": ["B"],
+        "B": ["A", "C"],
+        "C": ["B"],
+        "D": [],
+    }
+    world = _make_world_with_regions(["A", "B", "C", "D"], capital="A", adjacencies=adj)
+    civ = world.civilizations[0]
+    civ.stability = 0
+    civ.leader_name_pool = ["Name1", "Name2", "Name3"]
+    for region in world.regions:
+        if region.name == "D":
+            region.carrying_capacity = 120
+
+    fired = False
+    for seed in range(100):
+        world.seed = seed
+        world.turn = seed
+        civ.regions = ["A", "B", "C", "D"]
+        civ.stability = 0
+        world.civilizations = [civ]
+        for region in world.regions:
+            region.controller = civ.name
+        events = check_secession(world)
+        if len(world.civilizations) > 1:
+            fired = True
+            break
+
+    assert fired, "Secession should fire within 100 seed attempts for the capital-selection test"
+    breakaway = world.civilizations[1]
+    assert breakaway.capital_region != "D"
+
+
 # --- Task 8: MOVE_CAPITAL action handler ---
 
 def test_move_capital_eligibility():
@@ -532,6 +566,27 @@ def test_federation_does_not_form_below_10_turns():
     assert len(world.federations) == 0
 
 
+def test_federation_ignores_missing_partner_names():
+    from chronicler.models import Region, Relationship, Disposition
+
+    regions = [Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile")]
+    leader = Leader(name="LA", trait="bold", reign_start=0)
+    civ_a = Civilization(
+        name="CivA", population=50, military=30, economy=40,
+        culture=30, stability=50, leader=leader, regions=["A"], capital_region="A",
+    )
+    world = WorldState(name="test", seed=42, turn=20, regions=regions, civilizations=[civ_a])
+    world.relationships = {
+        "CivA": {"Ghost": Relationship(disposition=Disposition.ALLIED, allied_turns=10)},
+        "Ghost": {"CivA": Relationship(disposition=Disposition.ALLIED, allied_turns=10)},
+    }
+
+    events = check_federation_formation(world)
+
+    assert events == []
+    assert world.federations == []
+
+
 # --- Task 15: Federation defense and vassal WAR restriction ---
 
 from chronicler.politics import trigger_federation_defense, war_key
@@ -561,6 +616,33 @@ def test_federation_defense_adds_allies_to_war():
     world.war_start_turns = {war_key("Attacker", "Defender"): 10}
     events = trigger_federation_defense("Attacker", "Defender", world)
     assert ("Attacker", "Ally") in world.active_wars or ("Ally", "Attacker") in world.active_wars
+
+
+def test_federation_defense_skips_dead_allies():
+    regions = [
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile"),
+    ]
+    la = Leader(name="LA", trait="bold", reign_start=0)
+    lb = Leader(name="LB", trait="bold", reign_start=0)
+    lc = Leader(name="LC", trait="bold", reign_start=0)
+    civ_a = Civilization(name="Attacker", population=50, military=40, economy=40,
+                         culture=30, stability=50, leader=la, regions=["A"], capital_region="A")
+    civ_b = Civilization(name="Defender", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=lb, regions=["B"], capital_region="B")
+    civ_c = Civilization(name="Ally", population=50, military=30, economy=40,
+                         culture=30, stability=50, leader=lc, regions=[], capital_region=None)
+    world = WorldState(name="test", seed=42, turn=10, regions=regions,
+                       civilizations=[civ_a, civ_b, civ_c])
+    world.federations = [Federation(name="The Iron Pact", members=["Defender", "Ally"], founded_turn=5)]
+    world.active_wars = [("Attacker", "Defender")]
+    world.war_start_turns = {war_key("Attacker", "Defender"): 10}
+
+    events = trigger_federation_defense("Attacker", "Defender", world)
+
+    assert events == []
+    assert ("Attacker", "Ally") not in world.active_wars
+    assert ("Ally", "Attacker") not in world.active_wars
 
 
 def test_vassal_cannot_declare_war():
@@ -705,6 +787,20 @@ def test_proxy_war_auto_cancels_on_bankruptcy():
     world.civilizations.append(target)
     world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
     apply_proxy_wars(world)
+    assert len(world.proxy_wars) == 0
+
+
+def test_proxy_war_removes_dead_targets():
+    world = _make_world_with_regions(["A"], capital="A")
+    l2 = Leader(name="L2", trait="bold", reign_start=0)
+    target = Civilization(name="Target", population=30, military=20, economy=30,
+                          culture=60, stability=40, treasury=50, leader=l2,
+                          regions=[], capital_region=None)
+    world.civilizations.append(target)
+    world.proxy_wars = [ProxyWar(sponsor="Empire", target_civ="Target", target_region="B")]
+
+    apply_proxy_wars(world)
+
     assert len(world.proxy_wars) == 0
 
 
@@ -1170,6 +1266,30 @@ def test_long_peace_military_restlessness():
     world.peace_turns = 29  # will become 30
     apply_long_peace(world)
     assert civ.stability == 48  # -2 for military > 60
+
+
+def test_long_peace_uses_severity_on_poorest_economy_drain(monkeypatch):
+    world = _make_world_with_regions(["A", "B"], capital="A")
+    rich = world.civilizations[0]
+    rich.name = "Rich"
+    rich.regions = ["A"]
+    rich.economy = 50
+
+    poor = Civilization(
+        name="Poor", population=50, military=30, economy=10, culture=30,
+        stability=50, treasury=100, leader=Leader(name="LP", trait="bold", reign_start=0),
+        regions=["B"], capital_region="B",
+    )
+    world.civilizations = [rich, poor]
+    world.regions[0].controller = "Rich"
+    world.regions[1].controller = "Poor"
+    world.peace_turns = 29
+
+    monkeypatch.setattr("chronicler.politics.get_severity_multiplier", lambda civ, world: 2.0)
+    apply_long_peace(world)
+
+    assert rich.economy == 51
+    assert poor.economy == 8
 
 
 # --- Task 28: 200-turn integration test and scenario regression ---

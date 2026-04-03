@@ -1,6 +1,6 @@
 import pytest
 from chronicler.models import (
-    ActionType, Belief, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
+    ActionType, Belief, Civilization, Disposition, InfrastructureType, Leader, PendingBuild, Region, Relationship, TechEra, WorldState,
 )
 from chronicler.action_engine import ActionEngine, WarResult, resolve_action, resolve_war, _resolve_war_action
 from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR, K_WAR_WEARINESS_DIVISOR
@@ -62,6 +62,11 @@ class TestEligibility:
     def test_trade_requires_neutral_plus_partner(self, engine_world):
         engine = ActionEngine(engine_world)
         assert ActionType.TRADE not in engine.get_eligible_actions(engine_world.civilizations[0])
+
+    def test_trade_defaults_missing_relationships_to_neutral(self, engine_world):
+        engine = ActionEngine(engine_world)
+        engine_world.relationships = {}
+        assert ActionType.TRADE in engine.get_eligible_actions(engine_world.civilizations[0])
 
     def test_develop_always_eligible(self, engine_world):
         assert ActionType.DEVELOP in ActionEngine(engine_world).get_eligible_actions(engine_world.civilizations[0])
@@ -357,6 +362,25 @@ class TestWarResolution:
             "old_civ_id": 1,
             "new_civ_id": 0,
         }]
+
+    def test_conquest_clears_pending_build(self, engine_world):
+        attacker = engine_world.civilizations[0]
+        defender = engine_world.civilizations[1]
+        contested = engine_world.regions[2]
+        attacker.military = 100
+        defender.military = 10
+        attacker.stability = 40
+        contested.pending_build = PendingBuild(
+            type=InfrastructureType.ROADS,
+            builder_civ=defender.name,
+            started_turn=1,
+            turns_remaining=2,
+        )
+
+        result = resolve_war(attacker, defender, engine_world, seed=0)
+
+        assert result.outcome == "attacker_wins"
+        assert contested.pending_build is None
 
     def test_turn_level_war_seed_includes_both_combatants(self, engine_world, monkeypatch):
         seeds = []
@@ -662,6 +686,83 @@ class TestTradeRouteCheck:
         assert event.event_type == "trade", \
             f"Expected 'trade' with active route, got '{event.event_type}'"
         assert "traded with" in event.description
+
+    def test_trade_works_with_missing_relationship_when_route_exists(self, engine_world):
+        civ = engine_world.civilizations[0]
+        engine_world.relationships = {}
+        engine_world.regions[0].adjacencies = ["Region C"]
+        engine_world.regions[2].adjacencies = ["Region A"]
+
+        event = resolve_action(civ, ActionType.TRADE, engine_world)
+
+        assert event.event_type == "trade"
+        assert event.actors == ["Civ A", "Civ B"]
+
+
+class TestDiplomacyTargets:
+    def test_diplomacy_skips_dead_targets(self, engine_world):
+        from chronicler.action_engine import _resolve_diplomacy
+
+        civ = engine_world.civilizations[0]
+        other = engine_world.civilizations[1]
+        civ.culture = 50
+        other.regions = []
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.HOSTILE
+
+        event = _resolve_diplomacy(civ, engine_world)
+
+        assert event.event_type == "diplomacy"
+        assert event.actors == ["Civ A"]
+
+
+class TestWeightCap:
+    def test_weight_cap_clamps_individual_actions(self, engine_world, monkeypatch):
+        civ = engine_world.civilizations[0]
+        civ.military = 80
+
+        def uncapped_override(world, key, default):
+            from chronicler.tuning import K_WEIGHT_CAP
+            if key == K_WEIGHT_CAP:
+                return 100.0
+            return default
+
+        monkeypatch.setattr("chronicler.action_engine.get_override", uncapped_override)
+        uncapped = ActionEngine(engine_world).compute_weights(civ)
+
+        def capped_override(world, key, default):
+            from chronicler.tuning import K_WEIGHT_CAP
+            if key == K_WEIGHT_CAP:
+                return 2.5
+            return default
+
+        monkeypatch.setattr("chronicler.action_engine.get_override", capped_override)
+        capped = ActionEngine(engine_world).compute_weights(civ)
+
+        assert uncapped[ActionType.WAR] > 0.5
+        assert capped[ActionType.WAR] == pytest.approx(0.5)
+        assert capped[ActionType.DEVELOP] == pytest.approx(uncapped[ActionType.DEVELOP])
+
+
+class TestInvestCultureWeights:
+    def test_invest_culture_boost_requires_adjacent_rival(self, engine_world):
+        civ = engine_world.civilizations[0]
+        other = engine_world.civilizations[1]
+        civ.tech_era = TechEra.INFORMATION
+        civ.culture = 80
+        other.culture = 80
+        engine_world.relationships["Civ A"]["Civ B"].disposition = Disposition.NEUTRAL
+        engine_world.relationships["Civ B"]["Civ A"].disposition = Disposition.NEUTRAL
+        engine_world.regions[0].adjacencies = []
+        engine_world.regions[1].adjacencies = []
+        engine_world.regions[2].adjacencies = []
+
+        non_adjacent = ActionEngine(engine_world).compute_weights(civ)[ActionType.INVEST_CULTURE]
+
+        engine_world.regions[0].adjacencies = ["Region C"]
+        engine_world.regions[2].adjacencies = ["Region A"]
+        adjacent = ActionEngine(engine_world).compute_weights(civ)[ActionType.INVEST_CULTURE]
+
+        assert adjacent == pytest.approx(non_adjacent * 2)
 
 
 class TestWarStartTurns:

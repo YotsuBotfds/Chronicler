@@ -142,6 +142,8 @@ def test_civilization_new_fields():
     )
     assert civ.cultural_milestones == []
     assert civ.action_counts == {}
+    assert civ.civ_majority_faith == 0xFF
+    assert civ.previous_majority_faith == 0xFF
 
 
 def test_world_state_new_fields():
@@ -191,6 +193,25 @@ def test_world_state_scenario_name_persists(sample_world, tmp_path):
     sample_world.save(path)
     loaded = WorldState.load(path)
     assert loaded.scenario_name == "Dead Miles"
+
+
+def test_world_state_dump_excludes_transient_turn_fields(sample_world):
+    civ = sample_world.civilizations[0]
+    civ.regions_start_of_turn = 3
+    civ.was_in_twilight = True
+    civ.capital_start_of_turn = "Verdant Plains"
+    civ.max_precap_weight = 0.75
+    sample_world.regions[0].resource_current_yields = [0.4, 0.2, 0.1]
+
+    dumped = sample_world.model_dump()
+    civ_data = dumped["civilizations"][0]
+    region_data = dumped["regions"][0]
+
+    assert "regions_start_of_turn" not in civ_data
+    assert "was_in_twilight" not in civ_data
+    assert "capital_start_of_turn" not in civ_data
+    assert "max_precap_weight" not in civ_data
+    assert "resource_current_yields" not in region_data
 
 
 def test_turn_snapshot_has_climate_phase():

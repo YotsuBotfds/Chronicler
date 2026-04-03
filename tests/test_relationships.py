@@ -231,6 +231,8 @@ def test_capture_hostage_takes_youngest(make_world):
     assert captured is not None
     assert captured.name == "Young"
     assert captured.is_hostage is True
+    assert captured.role == "hostage"
+    assert captured.pre_hostage_role == "general"
     assert captured.region == "Battlefield"
     assert captured in winner.great_persons
 
@@ -256,6 +258,9 @@ def test_capture_hostage_creates_new_when_no_candidates(make_world):
     captured = capture_hostage(loser, winner, world, contested_region="Plains")
     assert captured is not None
     assert captured.is_hostage is True
+    assert captured.role == "hostage"
+    assert captured.captured_by == winner.name
+    assert captured.pre_hostage_role is not None
     assert captured.civilization == winner.name
     assert captured.origin_civilization == loser.name
 
@@ -263,9 +268,10 @@ def test_capture_hostage_creates_new_when_no_candidates(make_world):
 def test_hostage_cultural_conversion_at_10_turns(make_world):
     world = make_world(num_civs=2, seed=42)
     captor = world.civilizations[0]
+    origin = world.civilizations[1]
     hostage = GreatPerson(
         name="Captive", role="general", trait="bold",
-        civilization=captor.name, origin_civilization="Other",
+        civilization=captor.name, origin_civilization=origin.name,
         born_turn=0, is_hostage=True, hostage_turns=9,
     )
     captor.great_persons = [hostage]
@@ -281,12 +287,15 @@ def test_hostage_auto_release_at_15_turns(make_world):
     hostage = GreatPerson(
         name="Captive", role="general", trait="bold",
         civilization=captor.name, origin_civilization=origin.name,
-        born_turn=0, is_hostage=True, hostage_turns=14,
+        born_turn=0, is_hostage=True, hostage_turns=14, pre_hostage_role="general",
     )
+    hostage.role = "hostage"
     captor.great_persons = [hostage]
     released = tick_hostages(world)
     assert len(released) == 1
     assert hostage.is_hostage is False
+    assert hostage.hostage_turns == 0
+    assert hostage.role == "general"
     assert hostage in origin.great_persons
 
 
@@ -309,16 +318,46 @@ def test_release_hostage_moves_to_origin(make_world):
     captor = world.civilizations[0]
     origin = world.civilizations[1]
     hostage = GreatPerson(
-        name="Freed", role="general", trait="bold",
+        name="Freed", role="hostage", trait="bold",
         civilization=captor.name, origin_civilization=origin.name,
-        born_turn=0, is_hostage=True,
+        born_turn=0, is_hostage=True, hostage_turns=11, pre_hostage_role="merchant",
     )
     captor.great_persons = [hostage]
     release_hostage(hostage, captor, origin, world)
     assert hostage in origin.great_persons
     assert hostage not in captor.great_persons
     assert hostage.is_hostage is False
+    assert hostage.hostage_turns == 0
     assert hostage.civilization == origin.name
+    assert hostage.role == "merchant"
+
+
+def test_origin_extinction_release_clears_hostage_state(make_world):
+    world = make_world(num_civs=2, seed=42)
+    captor = world.civilizations[0]
+    origin = world.civilizations[1]
+    origin.regions = []
+    hostage = GreatPerson(
+        name="Assimilated",
+        role="hostage",
+        trait="cautious",
+        civilization=captor.name,
+        origin_civilization=origin.name,
+        born_turn=0,
+        is_hostage=True,
+        hostage_turns=5,
+        captured_by=captor.name,
+        pre_hostage_role="scientist",
+    )
+    captor.great_persons = [hostage]
+
+    released = tick_hostages(world)
+
+    assert released == [hostage]
+    assert hostage.is_hostage is False
+    assert hostage.hostage_turns == 0
+    assert hostage.captured_by is None
+    assert hostage.role == "scientist"
 
 
 # --- M40: Social Networks ---

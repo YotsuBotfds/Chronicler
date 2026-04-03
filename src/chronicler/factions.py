@@ -13,7 +13,7 @@ from chronicler.models import (
     Leader,
     WorldState,
 )
-from chronicler.utils import get_region_map, stable_hash_int
+from chronicler.utils import STAT_FLOOR, clamp, get_region_map, stable_hash_int
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -416,6 +416,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
         if civ.factions.pending_faction_shift:
             winning_ft = FactionType(civ.factions.pending_faction_shift)
             civ.factions.influence[winning_ft] += 0.20
+            normalize_influence(civ.factions)
             civ.factions.pending_faction_shift = None
 
         # 6. Check for dominance shift
@@ -446,9 +447,11 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
             if acc is not None:
                 acc.add(civ_idx, civ, "stability", -drain, "guard-shock")
             else:
-                civ.stability -= drain
-                if civ.stability < 0:
-                    civ.stability = 0
+                civ.stability = clamp(
+                    civ.stability - drain,
+                    STAT_FLOOR["stability"],
+                    100,
+                )
             if civ.factions.power_struggle_turns > 5:
                 events.extend(resolve_power_struggle(civ, world))
         elif civ.factions.power_struggle_cooldown <= 0:

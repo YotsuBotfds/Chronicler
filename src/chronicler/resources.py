@@ -111,6 +111,14 @@ TERRAIN_RESOURCE_PROBS: dict[str, dict[Resource, float]] = {
 DISP_ORDER = {"hostile": 0, "suspicious": 1, "neutral": 2, "friendly": 3, "allied": 4}
 
 
+def _trade_disposition_score(rel) -> int:
+    """Treat missing relationships as neutral for route eligibility."""
+    if rel is None:
+        return DISP_ORDER["neutral"]
+    disposition = getattr(rel.disposition, "value", rel.disposition)
+    return DISP_ORDER.get(disposition, DISP_ORDER["neutral"])
+
+
 def assign_resources(regions: list[Region], seed: int) -> None:
     """Assign specialized_resources to regions that don't have them."""
     for region in regions:
@@ -157,9 +165,8 @@ def _compute_active_trade_routes(
                 continue
             rel_ab = world.relationships.get(pair[0], {}).get(pair[1])
             rel_ba = world.relationships.get(pair[1], {}).get(pair[0])
-            if rel_ab and rel_ba:
-                if DISP_ORDER.get(rel_ab.disposition.value, 0) >= 2 and DISP_ORDER.get(rel_ba.disposition.value, 0) >= 2:
-                    routes.add(pair)
+            if _trade_disposition_score(rel_ab) >= 2 and _trade_disposition_score(rel_ba) >= 2:
+                routes.add(pair)
     # M21: NAVIGATION extends trade to 2-hop coastal routes
     # M21: RAILWAYS extends trade to 2-hop road routes
     civ_focuses = {}
@@ -195,10 +202,9 @@ def _compute_active_trade_routes(
                     continue
                 rel_ab = world.relationships.get(pair[0], {}).get(pair[1])
                 rel_ba = world.relationships.get(pair[1], {}).get(pair[0])
-                if rel_ab and rel_ba:
-                    if DISP_ORDER.get(rel_ab.disposition.value, 0) >= 2 and DISP_ORDER.get(rel_ba.disposition.value, 0) >= 2:
-                        routes.add(pair)
-                        capability_fired.add((r1.controller, focus))
+                if _trade_disposition_score(rel_ab) >= 2 and _trade_disposition_score(rel_ba) >= 2:
+                    routes.add(pair)
+                    capability_fired.add((r1.controller, focus))
 
     # H-6: Only emit capability events when explicitly requested (Phase 2 call site)
     if emit_events:

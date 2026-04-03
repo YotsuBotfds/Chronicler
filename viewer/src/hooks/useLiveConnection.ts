@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Bundle, PauseContext, Command, AckMessage, ForkedMessage, LobbyInit, StartCommand, NewChronicleEntry } from "../types";
+import type {
+  AckMessage,
+  Bundle,
+  Command,
+  ForkedMessage,
+  LobbyInit,
+  NewChronicleEntry,
+  PauseContext,
+  StartCommand,
+  TurnSnapshot,
+} from "../types";
 import { isLegacyBundle } from "../types";
 import { useBatchConnection, type BatchConnectionState } from "./useBatchConnection";
 import { classifyParsedBundlePayload, formatBundleLoaderDiagnostics } from "../lib/bundleLoader";
@@ -37,12 +47,23 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
   const [lastForked, setLastForked] = useState<ForkedMessage | null>(null);
   const [serverState, setServerState] = useState<ServerState>("connecting");
   const [lobbyInit, setLobbyInit] = useState<LobbyInit | null>(null);
+  const bundleRef = useRef<Bundle | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelayRef = useRef(1000);
   const serverStateRef = useRef<ServerState>("connecting");
   const batch = useBatchConnection(wsRef);
   const handleBatchMessage = batch.handleMessage;
+
+  const replaceBundle = useCallback((nextBundle: Bundle | null) => {
+    bundleRef.current = nextBundle;
+    setBundle(nextBundle ? { ...nextBundle } : null);
+  }, []);
+
+  const publishBundleMutation = useCallback(() => {
+    const nextBundle = bundleRef.current;
+    setBundle(nextBundle ? { ...nextBundle } : null);
+  }, []);
 
   const sendCommand = useCallback((cmd: Command) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -83,6 +104,41 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
       }));
     }
   }, []);
+
+  const buildLiveTurnSnapshot = useCallback((msg: Record<string, unknown>): TurnSnapshot => ({
+    turn: (msg.turn as number) ?? 0,
+    civ_stats: (msg.civ_stats as TurnSnapshot["civ_stats"]) ?? {},
+    region_control: (msg.region_control as TurnSnapshot["region_control"]) ?? {},
+    relationships: (msg.relationships as TurnSnapshot["relationships"]) ?? {},
+    trade_routes: msg.trade_routes as TurnSnapshot["trade_routes"],
+    active_wars: msg.active_wars as TurnSnapshot["active_wars"],
+    embargoes: msg.embargoes as TurnSnapshot["embargoes"],
+    ecology: msg.ecology as TurnSnapshot["ecology"],
+    mercenary_companies: msg.mercenary_companies as TurnSnapshot["mercenary_companies"],
+    vassal_relations: msg.vassal_relations as TurnSnapshot["vassal_relations"],
+    federations: msg.federations as TurnSnapshot["federations"],
+    proxy_wars: msg.proxy_wars as TurnSnapshot["proxy_wars"],
+    exile_modifiers: msg.exile_modifiers as TurnSnapshot["exile_modifiers"],
+    capitals: msg.capitals as TurnSnapshot["capitals"],
+    peace_turns: msg.peace_turns as TurnSnapshot["peace_turns"],
+    region_cultural_identity: msg.region_cultural_identity as TurnSnapshot["region_cultural_identity"],
+    movements_summary: msg.movements_summary as TurnSnapshot["movements_summary"],
+    stress_index: msg.stress_index as TurnSnapshot["stress_index"],
+    pandemic_regions: msg.pandemic_regions as TurnSnapshot["pandemic_regions"],
+    climate_phase: msg.climate_phase as TurnSnapshot["climate_phase"],
+    active_conditions: msg.active_conditions as TurnSnapshot["active_conditions"],
+    per_pair_accuracy: msg.per_pair_accuracy as TurnSnapshot["per_pair_accuracy"],
+    perception_errors: msg.perception_errors as TurnSnapshot["perception_errors"],
+    settlement_source_turn: msg.settlement_source_turn as TurnSnapshot["settlement_source_turn"],
+    settlement_count: msg.settlement_count as TurnSnapshot["settlement_count"],
+    candidate_count: msg.candidate_count as TurnSnapshot["candidate_count"],
+    total_settlement_population: msg.total_settlement_population as TurnSnapshot["total_settlement_population"],
+    active_settlements: msg.active_settlements as TurnSnapshot["active_settlements"],
+    founded_this_turn: msg.founded_this_turn as TurnSnapshot["founded_this_turn"],
+    dissolved_this_turn: msg.dissolved_this_turn as TurnSnapshot["dissolved_this_turn"],
+    urban_agent_count: msg.urban_agent_count as TurnSnapshot["urban_agent_count"],
+    urban_fraction: msg.urban_fraction as TurnSnapshot["urban_fraction"],
+  }), []);
 
   useEffect(() => {
     let unmounted = false;
@@ -151,12 +207,13 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
               setServerState("running");
               serverStateRef.current = "running";
               setError(null);
-              setBundle({
+              replaceBundle({
                 world_state: msg.world_state,
                 history: msg.history || [],
                 events_timeline: msg.events_timeline || [],
                 named_events: msg.named_events || [],
                 chronicle_entries: msg.chronicle_entries || {},
+                gap_summaries: msg.gap_summaries || [],
                 era_reflections: msg.era_reflections || {},
                 metadata: msg.metadata,
               });
@@ -167,26 +224,22 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             break;
 
           case "turn":
-            setBundle((prev) => {
-              if (!prev) return prev;
-              const snap = {
-                turn: msg.turn,
-                civ_stats: msg.civ_stats,
-                region_control: msg.region_control,
-                relationships: msg.relationships,
-              };
-              // Only merge turn text into legacy (Record) chronicle_entries
-              const updatedChronicle = isLegacyBundle(prev.chronicle_entries)
-                ? { ...prev.chronicle_entries, [String(msg.turn)]: msg.chronicle_text || "" }
-                : prev.chronicle_entries;
-              return {
-                ...prev,
-                history: [...prev.history, snap],
-                chronicle_entries: updatedChronicle,
-                events_timeline: [...prev.events_timeline, ...(msg.events || [])],
-                named_events: [...prev.named_events, ...(msg.named_events || [])],
-              };
-            });
+            {
+              const liveBundle = bundleRef.current;
+              if (!liveBundle) {
+                break;
+              }
+              liveBundle.history.push(buildLiveTurnSnapshot(msg as Record<string, unknown>));
+              if (isLegacyBundle(liveBundle.chronicle_entries)) {
+                liveBundle.chronicle_entries = {
+                  ...liveBundle.chronicle_entries,
+                  [String(msg.turn)]: (msg.chronicle_text as string) || "",
+                };
+              }
+              liveBundle.events_timeline.push(...((msg.events as Bundle["events_timeline"]) || []));
+              liveBundle.named_events.push(...((msg.named_events as Bundle["named_events"]) || []));
+              publishBundleMutation();
+            }
             break;
 
           case "paused":
@@ -209,20 +262,18 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
               setPauseContext(null);
             }
             if (ack.command === "set" && ack.civ && ack.stat && ack.value !== undefined) {
-              setBundle((prev) => {
-                if (!prev || prev.history.length === 0) return prev;
-                const newHistory = [...prev.history];
-                const lastIdx = newHistory.length - 1;
-                const lastSnap = { ...newHistory[lastIdx] };
-                const civStats = { ...lastSnap.civ_stats };
-                const civData = civStats[ack.civ!];
+              const liveBundle = bundleRef.current;
+              if (liveBundle && liveBundle.history.length > 0) {
+                const lastSnapshot = liveBundle.history[liveBundle.history.length - 1];
+                const civData = lastSnapshot.civ_stats[ack.civ];
                 if (civData) {
-                  civStats[ack.civ!] = { ...civData, [ack.stat!]: ack.value };
-                  lastSnap.civ_stats = civStats;
-                  newHistory[lastIdx] = lastSnap;
+                  lastSnapshot.civ_stats = {
+                    ...lastSnapshot.civ_stats,
+                    [ack.civ]: { ...civData, [ack.stat]: ack.value },
+                  };
+                  publishBundleMutation();
                 }
-                return { ...prev, history: newHistory };
-              });
+              }
             }
             break;
           }
@@ -238,14 +289,14 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
 
           case "narration_complete":
             if (msg.entry) {
-              setBundle((prev) => {
-                if (!prev) return prev;
-                const entry = msg.entry as NewChronicleEntry;
-                const entries = Array.isArray(prev.chronicle_entries)
-                  ? [...prev.chronicle_entries, entry]
-                  : prev.chronicle_entries;
-                return { ...prev, chronicle_entries: entries };
-              });
+              const liveBundle = bundleRef.current;
+              if (!liveBundle) {
+                break;
+              }
+              if (Array.isArray(liveBundle.chronicle_entries)) {
+                liveBundle.chronicle_entries.push(msg.entry as NewChronicleEntry);
+                publishBundleMutation();
+              }
             }
             break;
 
@@ -260,7 +311,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             {
               const classified = classifyParsedBundlePayload(msg.bundle);
               if (classified.kind === "legacy") {
-                setBundle(classified.bundle);
+                replaceBundle(classified.bundle);
                 setError(null);
               } else {
                 setError(formatBundleLoaderDiagnostics(classified.diagnostics));
@@ -295,7 +346,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
-  }, [wsUrl, handleBatchMessage]);
+  }, [wsUrl, buildLiveTurnSnapshot, handleBatchMessage, publishBundleMutation, replaceBundle]);
 
   return {
     bundle,

@@ -155,6 +155,63 @@ class TestAnthropicClient:
         assert client.total_output_tokens == 150
         assert client.call_count == 2
 
+    def test_complete_retries_transient_failures(self):
+        class RateLimitError(Exception):
+            status_code = 429
+
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            RateLimitError("rate limit"),
+            MagicMock(
+                content=[MagicMock(text="Recovered response")],
+                usage=MagicMock(input_tokens=10, output_tokens=5),
+            ),
+        ]
+        client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+
+        import unittest.mock as mock
+        with mock.patch("time.sleep") as mock_sleep:
+            result = client.complete("Retry me", max_tokens=100)
+
+        assert result == "Recovered response"
+        assert mock_sdk.messages.create.call_count == 2
+        mock_sleep.assert_called_once()
+
+    def test_complete_rejects_empty_content(self):
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = MagicMock(
+            content=[],
+            usage=MagicMock(input_tokens=0, output_tokens=0),
+        )
+        client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+
+        with pytest.raises(ValueError, match="no content"):
+            client.complete("Write a chronicle entry", max_tokens=500)
+
+    def test_batch_complete_treats_empty_content_as_missing_result(self):
+        mock_sdk = MagicMock()
+        mock_sdk.messages.batches.create.return_value = MagicMock(
+            id="batch-1",
+            processing_status="ended",
+        )
+        mock_sdk.messages.batches.results.return_value = [
+            MagicMock(
+                custom_id="moment-0",
+                result=MagicMock(
+                    type="succeeded",
+                    message=MagicMock(
+                        content=[],
+                        usage=MagicMock(input_tokens=3, output_tokens=2),
+                    ),
+                ),
+            )
+        ]
+        client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+
+        result = client.batch_complete([{"prompt": "One", "max_tokens": 50}], poll_interval=0)
+
+        assert result == [None]
+
 
 class TestGeminiClient:
     def _make_mock_response(self, text="The empire rose...", prompt_tokens=150, candidates_tokens=80):
@@ -241,6 +298,26 @@ class TestGeminiClient:
 
         result = client.complete("Write prose")
         assert result == "The empire rose"
+
+    def test_complete_retries_transient_failures(self):
+        class ServiceUnavailable(Exception):
+            status_code = 503
+
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.side_effect = [
+            ServiceUnavailable("temporarily unavailable"),
+            self._make_mock_response(text="Recovered"),
+        ]
+        client = GeminiClient(client=mock_sdk, model="gemini-2.5-pro")
+        client._rate_limit_delay = 0
+
+        import unittest.mock as mock
+        with mock.patch("time.sleep") as mock_sleep:
+            result = client.complete("Retry me")
+
+        assert result == "Recovered"
+        assert mock_sdk.models.generate_content.call_count == 2
+        mock_sleep.assert_called_once()
 
 
 class TestCreateClients:

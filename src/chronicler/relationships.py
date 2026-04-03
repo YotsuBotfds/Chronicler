@@ -20,12 +20,45 @@ REL_OP_REMOVE_DIRECTED = 2
 REL_OP_REMOVE_SYMMETRIC = 3
 
 _LEGACY_REL_SENTIMENT = 50
+_HOSTAGE_ROLE_BY_FACTION = {
+    "military": "general",
+    "merchant": "merchant",
+    "cultural": "scientist",
+    "clergy": "prophet",
+}
 
 
 def _edge_op_type(rel_type: int, *, remove: bool) -> int:
     if rel_type == REL_MENTOR:
         return REL_OP_REMOVE_DIRECTED if remove else REL_OP_UPSERT_DIRECTED
     return REL_OP_REMOVE_SYMMETRIC if remove else REL_OP_UPSERT_SYMMETRIC
+
+
+def _default_hostage_role(civ) -> str:
+    """Pick a deterministic non-hostage role for synthetic or restored hostages."""
+    influence = getattr(getattr(civ, "factions", None), "influence", {}) or {}
+    if influence:
+        dominant = max(influence, key=influence.get)
+        dominant_name = getattr(dominant, "value", dominant)
+        mapped = _HOSTAGE_ROLE_BY_FACTION.get(str(dominant_name).lower())
+        if mapped is not None:
+            return mapped
+    return "general"
+
+
+def _restore_hostage_role(gp: GreatPerson, fallback_civ) -> None:
+    restored_role = gp.pre_hostage_role
+    if restored_role in (None, "", "hostage"):
+        restored_role = _default_hostage_role(fallback_civ)
+    gp.role = restored_role
+    gp.pre_hostage_role = None
+
+
+def _clear_hostage_state(gp: GreatPerson, fallback_civ) -> None:
+    gp.is_hostage = False
+    gp.hostage_turns = 0
+    gp.captured_by = None
+    _restore_hostage_role(gp, fallback_civ)
 
 
 def _sync_relationship_edges(bridge, current_edges: list[tuple], next_edges: list[tuple]) -> None:
@@ -395,6 +428,7 @@ def capture_hostage(
         )
         from chronicler.leaders import _pick_name
         name = _pick_name(loser, world, rng)
+        restored_role = _default_hostage_role(loser)
         hostage = GreatPerson(
             name=name,
             role="hostage",
@@ -403,12 +437,17 @@ def capture_hostage(
             origin_civilization=loser.name,
             born_turn=world.turn,
             is_hostage=True,
+            hostage_turns=0,
+            captured_by=winner.name,
+            pre_hostage_role=restored_role,
             region=contested_region,
         )
         winner.great_persons.append(hostage)
         return hostage
     youngest = max(candidates, key=lambda gp: gp.born_turn)
     loser.great_persons.remove(youngest)
+    youngest.pre_hostage_role = youngest.pre_hostage_role or youngest.role
+    youngest.role = "hostage"
     youngest.civilization = winner.name
     youngest.captured_by = winner.name
     youngest.is_hostage = True
@@ -447,8 +486,7 @@ def tick_hostages(world: WorldState) -> list[GreatPerson]:
             # Free hostage if origin civ is extinct (no regions) — retire in place
             origin = next((c for c in world.civilizations if c.name == gp.origin_civilization), None)
             if origin is None or not origin.regions:
-                gp.is_hostage = False
-                gp.captured_by = None
+                _clear_hostage_state(gp, origin or civ)
                 gp.civilization = civ.name
                 released.append(gp)
                 continue
@@ -467,13 +505,9 @@ def release_hostage(
     """Release a hostage back to their origin civilization."""
     if gp in captor.great_persons:
         captor.great_persons.remove(gp)
-    gp.is_hostage = False
+    _clear_hostage_state(gp, origin)
     gp.civilization = origin.name
-    gp.captured_by = None
     gp.region = origin.capital_region or (origin.regions[0] if origin.regions else None)
-    # Reset synthetic hostage role now that they're home
-    if gp.role == "hostage" and gp.origin_civilization == origin.name:
-        gp.role = "general"
     origin.great_persons.append(gp)
     if origin.treasury >= 10:
         origin.treasury -= 10

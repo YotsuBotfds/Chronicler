@@ -210,6 +210,47 @@ def _get_agent_memory_records(sim, agent_id: int) -> list[AgentMemoryRecord]:
     return [_decode_agent_memory_row(row) for row in raw]
 
 
+def _validated_civ_signal(
+    civ_id: int,
+    field_name: str,
+    value: float,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    """Validate a free-form civ f32 signal before it crosses into Rust."""
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f"{field_name} for civ {civ_id} must be finite, got {value!r}")
+    if minimum is not None and value < minimum:
+        raise ValueError(
+            f"{field_name} for civ {civ_id} must be >= {minimum}, got {value}"
+        )
+    if maximum is not None and value > maximum:
+        raise ValueError(
+            f"{field_name} for civ {civ_id} must be <= {maximum}, got {value}"
+        )
+    return value
+
+
+def _require_snapshot_pylist(snapshot: pa.RecordBatch, field_name: str) -> list:
+    """Read a required snapshot column as a Python list."""
+    if snapshot is None:
+        raise ValueError("snapshot is unavailable")
+    if field_name not in snapshot.schema.names:
+        raise KeyError(f"snapshot missing required column {field_name!r}")
+    return snapshot.column(field_name).to_pylist()
+
+
+def _require_snapshot_numpy(snapshot: pa.RecordBatch, field_name: str) -> np.ndarray:
+    """Read a required snapshot column as a NumPy array."""
+    if snapshot is None:
+        raise ValueError("snapshot is unavailable")
+    if field_name not in snapshot.schema.names:
+        raise KeyError(f"snapshot missing required column {field_name!r}")
+    return snapshot.column(field_name).to_numpy()
+
+
 def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
@@ -575,37 +616,88 @@ def build_signals(world: WorldState, shocks: list | None = None,
         at_wars.append(civ.name in war_civs)
         dominant = get_dominant_faction(civ.factions)
         dom_factions.append(FACTION_MAP.get(dominant.value, 0))
-        fac_mil.append(civ.factions.influence.get(FactionType.MILITARY, 0.33))
-        fac_mer.append(civ.factions.influence.get(FactionType.MERCHANT, 0.33))
-        fac_cul.append(civ.factions.influence.get(FactionType.CULTURAL, 0.34))
-        fac_cle.append(civ.factions.influence.get(FactionType.CLERGY, 0.08))
+        fac_mil.append(_validated_civ_signal(
+            i, "faction_military",
+            civ.factions.influence.get(FactionType.MILITARY, 0.33),
+            minimum=0.0, maximum=1.0,
+        ))
+        fac_mer.append(_validated_civ_signal(
+            i, "faction_merchant",
+            civ.factions.influence.get(FactionType.MERCHANT, 0.33),
+            minimum=0.0, maximum=1.0,
+        ))
+        fac_cul.append(_validated_civ_signal(
+            i, "faction_cultural",
+            civ.factions.influence.get(FactionType.CULTURAL, 0.34),
+            minimum=0.0, maximum=1.0,
+        ))
+        fac_cle.append(_validated_civ_signal(
+            i, "faction_clergy",
+            civ.factions.influence.get(FactionType.CLERGY, 0.08),
+            minimum=0.0, maximum=1.0,
+        ))
 
         # Per-civ shock values (default zeros via CivShock defaults)
         s = shock_map.get(i, CivShock(i))
-        shock_stab.append(s.stability_shock)
-        shock_eco.append(s.economy_shock)
-        shock_mil.append(s.military_shock)
-        shock_cul.append(s.culture_shock)
+        shock_stab.append(_validated_civ_signal(
+            i, "shock_stability", s.stability_shock, minimum=-1.0, maximum=1.0,
+        ))
+        shock_eco.append(_validated_civ_signal(
+            i, "shock_economy", s.economy_shock, minimum=-1.0, maximum=1.0,
+        ))
+        shock_mil.append(_validated_civ_signal(
+            i, "shock_military", s.military_shock, minimum=-1.0, maximum=1.0,
+        ))
+        shock_cul.append(_validated_civ_signal(
+            i, "shock_culture", s.culture_shock, minimum=-1.0, maximum=1.0,
+        ))
 
         # Per-civ demand shifts (5 occupation slots)
         d = (demands or {}).get(i, [0.0] * 5)
-        ds_farmer.append(d[0])
-        ds_soldier.append(d[1])
-        ds_merchant.append(d[2])
-        ds_scholar.append(d[3])
-        ds_priest.append(d[4])
+        ds_farmer.append(_validated_civ_signal(i, "demand_shift_farmer", d[0]))
+        ds_soldier.append(_validated_civ_signal(i, "demand_shift_soldier", d[1]))
+        ds_merchant.append(_validated_civ_signal(i, "demand_shift_merchant", d[2]))
+        ds_scholar.append(_validated_civ_signal(i, "demand_shift_scholar", d[3]))
+        ds_priest.append(_validated_civ_signal(i, "demand_shift_priest", d[4]))
 
         civ_values = getattr(civ, 'values', [])
         civ_domains = getattr(civ, 'domains', [])
         pm = civ_personality_mean(civ_values, civ_domains)
-        mean_bold.append(pm[0])
-        mean_ambi.append(pm[1])
-        mean_ltrait.append(pm[2])
+        mean_bold.append(_validated_civ_signal(
+            i, "mean_boldness", pm[0], minimum=-0.3, maximum=0.3,
+        ))
+        mean_ambi.append(_validated_civ_signal(
+            i, "mean_ambition", pm[1], minimum=-0.3, maximum=0.3,
+        ))
+        mean_ltrait.append(_validated_civ_signal(
+            i, "mean_loyalty_trait", pm[2], minimum=-0.3, maximum=0.3,
+        ))
         conquered_flags.append((conquered or {}).get(i, False))
-        gini_vals.append((gini_by_civ or {}).get(i, 0.0))
+        gini_vals.append(_validated_civ_signal(
+            i, "gini_coefficient", (gini_by_civ or {}).get(i, 0.0),
+            minimum=0.0, maximum=1.0,
+        ))
         priest_tithe_shares.append(
-            (economy_result.priest_tithe_shares.get(i, 0.0) if economy_result else 0.0)
+            _validated_civ_signal(
+                i,
+                "priest_tithe_share",
+                (economy_result.priest_tithe_shares.get(i, 0.0) if economy_result else 0.0),
+                minimum=0.0,
+            )
         )
+
+    cultural_drift_multiplier = _validated_civ_signal(
+        -1,
+        "cultural_drift_multiplier",
+        get_multiplier(world, K_CULTURAL_DRIFT_SPEED),
+        minimum=0.0,
+    )
+    religion_intensity_multiplier = _validated_civ_signal(
+        -1,
+        "religion_intensity_multiplier",
+        get_multiplier(world, K_RELIGION_INTENSITY),
+        minimum=0.0,
+    )
 
     return pa.record_batch({
         "civ_id": pa.array(civ_ids, type=pa.uint8()),
@@ -632,10 +724,10 @@ def build_signals(world: WorldState, shocks: list | None = None,
         "gini_coefficient": pa.array(gini_vals, type=pa.float32()),
         "priest_tithe_share": pa.array(priest_tithe_shares, type=pa.float32()),
         "cultural_drift_multiplier": pa.array(
-            [get_multiplier(world, K_CULTURAL_DRIFT_SPEED)] * n_civs, type=pa.float32(),
+            [cultural_drift_multiplier] * n_civs, type=pa.float32(),
         ),
         "religion_intensity_multiplier": pa.array(
-            [get_multiplier(world, K_RELIGION_INTENSITY)] * n_civs, type=pa.float32(),
+            [religion_intensity_multiplier] * n_civs, type=pa.float32(),
         ),
     })
 
@@ -826,8 +918,8 @@ class AgentBridge:
         """Update displacement, Gini, and wealth stats from the current snapshot."""
         try:
             snap = self._sim.get_snapshot()
-            regions_col = snap.column("region").to_pylist()
-            disp_col = snap.column("displacement_turn").to_pylist()
+            regions_col = _require_snapshot_pylist(snap, "region")
+            disp_col = _require_snapshot_pylist(snap, "displacement_turn")
             region_totals = Counter(regions_col)
             region_displaced: Counter = Counter()
             for r, d in zip(regions_col, disp_col):
@@ -841,12 +933,12 @@ class AgentBridge:
             if "wealth" not in snap.schema.names:
                 return
 
-            wealth_col = snap.column("wealth").to_numpy()
+            wealth_col = _require_snapshot_numpy(snap, "wealth")
             civ_col = np.array(
                 self._resolve_polity_civ_ids(
                     world,
                     regions_col,
-                    snap.column("civ_affinity").to_pylist(),
+                    _require_snapshot_pylist(snap, "civ_affinity"),
                 ),
                 dtype=np.int64,
             )
@@ -855,7 +947,7 @@ class AgentBridge:
                 mask = civ_col == civ_id
                 civ_wealth = wealth_col[mask]
                 new_gini[int(civ_id)] = compute_gini(civ_wealth)
-            occ_col = snap.column("occupation").to_numpy()
+            occ_col = _require_snapshot_numpy(snap, "occupation")
             occ_names = ["farmer", "soldier", "merchant", "scholar", "priest"]
             stats: dict[int, dict] = {}
             for civ_id in np.unique(civ_col):
@@ -876,7 +968,7 @@ class AgentBridge:
                 }
             self._gini_by_civ = new_gini
             self._wealth_stats = stats
-        except Exception:
+        except (AttributeError, KeyError, TypeError, ValueError):
             # Preserve prior values on failure â€” one bad turn must not wipe
             # accumulated history.
             logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
@@ -1919,6 +2011,20 @@ class AgentBridge:
         summaries = []
         current = list(self._event_window)[-1] if self._event_window else []
         region_names = {i: r.name for i, r in enumerate(world.regions)}
+        region_populations = {
+            idx: int(getattr(region, "population", 0) or 0)
+            for idx, region in enumerate(world.regions)
+        }
+        try:
+            region_pops = self._sim.get_region_populations()
+            region_ids = region_pops.column("region_id").to_pylist()
+            alive_counts = region_pops.column("alive_count").to_pylist()
+            region_populations.update({
+                int(region_id): int(alive_count)
+                for region_id, alive_count in zip(region_ids, alive_counts)
+            })
+        except (AttributeError, KeyError, TypeError, ValueError):
+            logger.debug("Falling back to region.population values for event aggregation")
 
         # === Single-tick patterns ===
 
@@ -1969,7 +2075,7 @@ class AgentBridge:
 
         # Occupation shift: >25% of region switches in one tick
         for region_id, events in switches_by_region.items():
-            region_pop = sum(1 for e in current if e.region == region_id)
+            region_pop = region_populations.get(region_id, 0)
             if region_pop > 0 and len(events) / region_pop > 0.25:
                 new_occ_counts = Counter(e.occupation for e in events)
                 new_occ = OCCUPATION_NAMES[new_occ_counts.most_common(1)[0][0]]

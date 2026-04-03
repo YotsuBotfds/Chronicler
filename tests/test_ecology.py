@@ -1,3 +1,4 @@
+import pyarrow as pa
 import pytest
 from chronicler.models import (
     ClimatePhase, InfrastructureType, Region, RegionEcology, WorldState,
@@ -232,6 +233,67 @@ class TestTickEcology:
         w.regions[0].famine_cooldown = 3
         tick_ecology(w, ClimatePhase.TEMPERATE)
         assert w.regions[0].famine_cooldown == 3
+
+    def test_rust_prev_turn_water_writeback_is_preserved(self):
+        from chronicler.models import Civilization, Leader
+
+        region = Region(
+            name="LaggedRiver",
+            terrain="plains",
+            carrying_capacity=100,
+            resources="fertile",
+            population=30,
+            controller="TestCiv",
+            ecology=RegionEcology(soil=0.8, water=0.6, forest_cover=0.3),
+        )
+        civ = Civilization(
+            name="TestCiv",
+            population=30,
+            military=30,
+            economy=40,
+            culture=30,
+            stability=50,
+            leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["LaggedRiver"],
+        )
+        world = WorldState(name="T", seed=42, turn=12, regions=[region], civilizations=[civ])
+
+        region_batch = pa.record_batch({
+            "soil": pa.array([0.81], type=pa.float32()),
+            "water": pa.array([0.62], type=pa.float32()),
+            "forest_cover": pa.array([0.31], type=pa.float32()),
+            "endemic_severity": pa.array([0.02], type=pa.float32()),
+            "prev_turn_water": pa.array([0.48], type=pa.float32()),
+            "soil_pressure_streak": pa.array([1], type=pa.int32()),
+            "overextraction_streak_0": pa.array([0], type=pa.int32()),
+            "overextraction_streak_1": pa.array([0], type=pa.int32()),
+            "overextraction_streak_2": pa.array([0], type=pa.int32()),
+            "resource_reserve_0": pa.array([1.0], type=pa.float32()),
+            "resource_reserve_1": pa.array([1.0], type=pa.float32()),
+            "resource_reserve_2": pa.array([1.0], type=pa.float32()),
+            "resource_effective_yield_0": pa.array([0.0], type=pa.float32()),
+            "resource_effective_yield_1": pa.array([0.0], type=pa.float32()),
+            "resource_effective_yield_2": pa.array([0.0], type=pa.float32()),
+            "current_turn_yield_0": pa.array([0.0], type=pa.float32()),
+            "current_turn_yield_1": pa.array([0.0], type=pa.float32()),
+            "current_turn_yield_2": pa.array([0.0], type=pa.float32()),
+        })
+        event_batch = pa.record_batch({
+            "event_type": pa.array([], type=pa.uint8()),
+            "region_id": pa.array([], type=pa.uint16()),
+        })
+
+        class FakeEcologyRuntime:
+            def tick_ecology(self, *_args, **_kwargs):
+                return region_batch, event_batch
+
+            def apply_region_postpass_patch(self, patch):
+                self.patch = patch
+
+        tick_ecology(world, ClimatePhase.TEMPERATE, ecology_runtime=FakeEcologyRuntime())
+
+        assert world.regions[0].ecology.water == pytest.approx(0.62)
+        assert world.regions[0].prev_turn_water == pytest.approx(0.48)
 
 
 class TestFamineCheck:

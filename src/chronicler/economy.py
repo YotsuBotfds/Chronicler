@@ -97,9 +97,13 @@ _CATEGORY_MAP: dict[int, str] = {
 }
 
 
-def map_resource_to_category(resource_type: int) -> str:
-    """Map M34 resource type enum value to one of three goods categories."""
-    return _CATEGORY_MAP[resource_type]
+def map_resource_to_category(resource_type: int) -> str | None:
+    """Map M34 resource type enum value to one of three goods categories.
+
+    Returns None for EMPTY_SLOT or unknown resource IDs so callers can keep
+    sparse/legacy worlds safe instead of raising on invalid primary slots.
+    """
+    return _CATEGORY_MAP.get(resource_type)
 
 
 _GOOD_MAP: dict[int, str] = {
@@ -108,9 +112,12 @@ _GOOD_MAP: dict[int, str] = {
 }
 
 
-def map_resource_to_good(resource_type: int) -> str:
-    """Map M34 resource type enum value to per-good stockpile key."""
-    return _GOOD_MAP[resource_type]
+def map_resource_to_good(resource_type: int) -> str | None:
+    """Map M34 resource type enum value to per-good stockpile key.
+
+    Returns None for EMPTY_SLOT or unknown resource IDs.
+    """
+    return _GOOD_MAP.get(resource_type)
 
 
 def bootstrap_region_stockpile(region, population: int | None = None) -> bool:
@@ -128,6 +135,8 @@ def bootstrap_region_stockpile(region, population: int | None = None) -> bool:
         return False
 
     good = map_resource_to_good(region.resource_types[0])
+    if good is None:
+        return False
     amount = INITIAL_BUFFER * target_population
     seeded = False
 
@@ -538,12 +547,14 @@ def compute_production(
     resource_type: int,
     resource_yield: float,
     farmer_count: int,
-) -> tuple[str, float]:
+) -> tuple[str | None, float]:
     """Compute goods output for a region.
 
     Returns (category, amount). Only primary resource slot (index 0) is used.
     """
     category = map_resource_to_category(resource_type)
+    if category is None:
+        return None, 0.0
     amount = resource_yield * farmer_count
     return category, amount
 
@@ -746,6 +757,8 @@ def derive_farmer_income_modifier(
     if farmer_count == 0:
         return 1.0
     cat = map_resource_to_category(resource_type)
+    if cat is None:
+        return 1.0
     s = max(post_trade_supply.get(cat, 0.0), _SUPPLY_FLOOR)
     d = demand.get(cat, 0.0)
     raw = d / s
@@ -1222,8 +1235,9 @@ def compute_economy(
         cat, amount = compute_production(
             region.resource_types[0], region.resource_effective_yields[0], agent_data["farmer_count"],
         )
-        prod[cat] = amount
-        result.conservation["production"] += amount
+        if cat is not None:
+            prod[cat] = amount
+            result.conservation["production"] += amount
         region_production[rname] = prod
 
         demand = compute_demand(
@@ -1374,7 +1388,10 @@ def compute_economy(
         if region.resource_types[0] != 255:
             good = map_resource_to_good(region.resource_types[0])
             cat = map_resource_to_category(region.resource_types[0])
-            region_per_good_production[rname] = {good: region_production.get(rname, _empty_category_dict()).get(cat, 0.0)}
+            if good is not None and cat is not None:
+                region_per_good_production[rname] = {good: region_production.get(rname, _empty_category_dict()).get(cat, 0.0)}
+            else:
+                region_per_good_production[rname] = {}
         else:
             region_per_good_production[rname] = {}
 
@@ -1382,7 +1399,10 @@ def compute_economy(
         if region.resource_types[0] != 255:
             good = map_resource_to_good(region.resource_types[0])
             cat = map_resource_to_category(region.resource_types[0])
-            region_per_good_exports[rname] = {good: region_exports.get(rname, _empty_category_dict()).get(cat, 0.0)}
+            if good is not None and cat is not None:
+                region_per_good_exports[rname] = {good: region_exports.get(rname, _empty_category_dict()).get(cat, 0.0)}
+            else:
+                region_per_good_exports[rname] = {}
         else:
             region_per_good_exports[rname] = {}
 
@@ -1397,6 +1417,8 @@ def compute_economy(
             continue
         source_good = map_resource_to_good(origin_region.resource_types[0])
         source_cat = map_resource_to_category(origin_region.resource_types[0])
+        if source_good is None or source_cat is None:
+            continue
         for route, cat_flows in route_flows_for_origin.items():
             _, dest_name = route
             shipped = cat_flows.get(source_cat, 0.0)

@@ -97,7 +97,10 @@ class FactionState(BaseModel):
     power_struggle: bool = False
     power_struggle_turns: int = 0
     power_struggle_cooldown: int = 0  # M19b: turns until next struggle eligible
-    pending_faction_shift: str | None = None  # M19b: faction to shift after normalization
+    pending_faction_shift: str | None = Field(
+        default=None,
+        exclude=True,
+    )  # M19b: transient post-normalization shift signal
 
     @model_validator(mode="after")
     def _ensure_clergy(self) -> "FactionState":
@@ -304,7 +307,10 @@ class Region(BaseModel):
     soil_pressure_streak: int = 0
     overextraction_streaks: dict[int, int] = Field(default_factory=dict)
     resource_effective_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
-    resource_current_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])  # M54a: transient per-turn yields (season+climate adjusted)
+    resource_current_yields: list[float] = Field(
+        default_factory=lambda: [0.0, 0.0, 0.0],
+        exclude=True,
+    )  # M54a: transient per-turn yields (season+climate adjusted)
     capacity_modifier: float = 1.0  # Temporary capacity multiplier (flood=0.85, drought=0.5)
     prev_turn_water: float = -1.0  # Previous turn's water level for delta tracking (-1 = unset)
     # M37: Religion
@@ -408,17 +414,20 @@ class Civilization(BaseModel):
     succession_crisis_turns_remaining: int = 0
     succession_candidates: list[dict] = Field(default_factory=list)
     civ_stress: int = 0  # M18: per-civ stress, recomputed each turn
-    regions_start_of_turn: int = 0  # M18: snapshot for regression detection
-    was_in_twilight: bool = False  # M18: snapshot for regression detection
-    capital_start_of_turn: str | None = None  # M18: snapshot for regression detection
+    regions_start_of_turn: int = Field(default=0, exclude=True)  # M18: transient regression snapshot
+    was_in_twilight: bool = Field(default=False, exclude=True)  # M18: transient regression snapshot
+    capital_start_of_turn: str | None = Field(default=None, exclude=True)  # M18: transient regression snapshot
     tech_focuses: list[str] = Field(default_factory=list)  # M21: history of focus values
     active_focus: str | None = None  # M21: current era's focus
     factions: FactionState = Field(default_factory=FactionState)
     founded_turn: int = 0
-    max_precap_weight: float = 0.0  # M19b: transient, tracks max absolute weight before base-scaled cap
-    civ_majority_faith: int = 0  # M37: computed from agent snapshot each turn
+    max_precap_weight: float = Field(
+        default=0.0,
+        exclude=True,
+    )  # M19b: transient, tracked separately in snapshots for analytics
+    civ_majority_faith: int = 0xFF  # M37: computed from agent snapshot each turn; 0xFF = unknown
     majority_faith_ratio: float = 0.0  # M37: ratio of majority faith holders; drives reformation
-    previous_majority_faith: int = 0           # initialized to civ_majority_faith at world-gen
+    previous_majority_faith: int = 0xFF  # initialized to civ_majority_faith at world-gen
     # M47d: War frequency calibration
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
@@ -451,6 +460,7 @@ class GreatPerson(BaseModel):
     captured_by: str | None = None
     is_hostage: bool = False
     hostage_turns: int = 0
+    pre_hostage_role: str | None = None
     cultural_identity: str | None = None
     movement_id: str | None = None  # NOTE: Movement.id is str, not int
     recognized_by: list[str] = Field(default_factory=list)

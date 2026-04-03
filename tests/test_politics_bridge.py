@@ -7,6 +7,8 @@ Covers:
 - bridge transition helper timing and deterministic event merge
 - _seceded_this_turn surviving one turn and clearing on next builder read
 """
+import pytest
+import pyarrow as pa
 from chronicler.models import (
     Civilization, Disposition, Event, ExileModifier, Federation, FactionType, Leader,
     ProxyWar, Region, Relationship, VassalRelation, WorldState,
@@ -1548,6 +1550,95 @@ class TestCallRustPolitics:
         # Should have at least one decline tracking op (step 10)
         step10_bk = [o for o in bk_ops if o[0] == 10]
         assert len(step10_bk) > 0, "Expected step 10 bookkeeping ops"
+
+    def test_tick_politics_rejects_missing_required_civ_column(self):
+        """Explicit contract test: missing required politics columns must fail."""
+        from chronicler.politics import (
+            _build_region_input_with_eff_cap,
+            _dict_to_civ_input_batch,
+            _dict_to_region_input_batch,
+            _dict_to_relationship_batch,
+            _dict_to_vassal_batch,
+            _dict_to_federation_batch,
+            _dict_to_pair_batch,
+            _dict_to_proxy_war_batch,
+            _dict_to_exile_batch,
+            build_politics_civ_input_batch,
+            build_politics_region_input_batch,
+            build_politics_relationship_batch,
+            build_politics_vassal_batch,
+            build_politics_federation_batch,
+            build_politics_war_batch,
+            build_politics_embargo_batch,
+            build_politics_proxy_war_batch,
+            build_politics_exile_batch,
+        )
+
+        sim = self._get_simulator()
+        world = _make_world(num_civs=2, num_regions=4)
+        civ_dict = build_politics_civ_input_batch(world)
+        civ_dict.pop("stability")
+        with pytest.raises(Exception):
+            civ_rb = _dict_to_civ_input_batch(civ_dict)
+            region_rb = _dict_to_region_input_batch(_build_region_input_with_eff_cap(world))
+            rel_rb = _dict_to_relationship_batch(build_politics_relationship_batch(world))
+            vassal_rb = _dict_to_vassal_batch(build_politics_vassal_batch(world))
+            fed_rb = _dict_to_federation_batch(build_politics_federation_batch(world))
+            war_rb = _dict_to_pair_batch(build_politics_war_batch(world))
+            embargo_rb = _dict_to_pair_batch(build_politics_embargo_batch(world))
+            proxy_rb = _dict_to_proxy_war_batch(build_politics_proxy_war_batch(world))
+            exile_rb = _dict_to_exile_batch(build_politics_exile_batch(world))
+            sim.tick_politics(
+                civ_rb, region_rb, rel_rb, vassal_rb, fed_rb,
+                war_rb, embargo_rb, proxy_rb, exile_rb,
+                100, 42, False,
+            )
+
+    def test_tick_politics_tolerates_reordered_columns(self):
+        """Politics FFI should resolve inputs by column name, not order."""
+        from chronicler.politics import (
+            _build_region_input_with_eff_cap,
+            _dict_to_civ_input_batch,
+            _dict_to_region_input_batch,
+            _dict_to_relationship_batch,
+            _dict_to_vassal_batch,
+            _dict_to_federation_batch,
+            _dict_to_pair_batch,
+            _dict_to_proxy_war_batch,
+            _dict_to_exile_batch,
+            build_politics_civ_input_batch,
+            build_politics_relationship_batch,
+            build_politics_vassal_batch,
+            build_politics_federation_batch,
+            build_politics_war_batch,
+            build_politics_embargo_batch,
+            build_politics_proxy_war_batch,
+            build_politics_exile_batch,
+        )
+
+        sim = self._get_simulator()
+        world = _make_world(num_civs=2, num_regions=4)
+        civ_rb = _dict_to_civ_input_batch(build_politics_civ_input_batch(world))
+        region_rb = _dict_to_region_input_batch(_build_region_input_with_eff_cap(world))
+        rel_rb = _dict_to_relationship_batch(build_politics_relationship_batch(world))
+        vassal_rb = _dict_to_vassal_batch(build_politics_vassal_batch(world))
+        fed_rb = _dict_to_federation_batch(build_politics_federation_batch(world))
+        war_rb = _dict_to_pair_batch(build_politics_war_batch(world))
+        embargo_rb = _dict_to_pair_batch(build_politics_embargo_batch(world))
+        proxy_rb = _dict_to_proxy_war_batch(build_politics_proxy_war_batch(world))
+        exile_rb = _dict_to_exile_batch(build_politics_exile_batch(world))
+
+        reordered_civ_rb = pa.RecordBatch.from_arrays(
+            list(reversed(civ_rb.columns)),
+            names=list(reversed(civ_rb.schema.names)),
+        )
+
+        result = sim.tick_politics(
+            reordered_civ_rb, region_rb, rel_rb, vassal_rb, fed_rb,
+            war_rb, embargo_rb, proxy_rb, exile_rb,
+            100, 42, False,
+        )
+        assert len(result) == 12
 
     def test_twilight_absorption_keeps_all_exile_regions_beyond_four(self):
         """Rust FFI must not truncate exile region lists to four entries."""

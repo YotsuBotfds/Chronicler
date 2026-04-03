@@ -29,6 +29,7 @@ class ShadowLogger:
 
     def __init__(self, output_path: Path):
         self._path = output_path
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         self._writer: ipc.RecordBatchFileWriter | None = None
 
     def log_turn(self, turn: int, agent_aggs: pa.RecordBatch, world: WorldState) -> None:
