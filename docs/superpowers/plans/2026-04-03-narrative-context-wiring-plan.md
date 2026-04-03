@@ -22,7 +22,7 @@
 
 - [ ] **Step 1: Write failing test — dynasty_registry threads through to agent context**
 
-In `tests/test_narrative.py`, add a test near the existing Gini plumbing test (~line 545). This test verifies that when `dynasty_registry` is passed to `_prepare_narration_prompts()`, it reaches `build_agent_context_for_moment()` and dynasty lineage appears in the output.
+In `tests/test_narrative.py`, add a test near the existing Gini plumbing test (~line 545). Mirror the model shapes from the existing `test_prepare_narration_prompts_threads_focal_civ_gini` test at line 494. Use `sample_world` fixture, real `Event` and `CivSnapshot` constructors, full `NarrativeMoment` with all required fields.
 
 ```python
 def test_dynasty_registry_threads_through_prepare_prompts(sample_world):
@@ -30,43 +30,59 @@ def test_dynasty_registry_threads_through_prepare_prompts(sample_world):
     from unittest.mock import MagicMock
     from chronicler.narrative import NarrativeEngine
     from chronicler.models import (
-        NarrativeMoment, GreatPerson, TurnSnapshot, CivStats,
+        CivSnapshot, Event, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot,
     )
 
-    # Create a great person with dynasty info
+    civ_name = sample_world.civilizations[0].name
     gp = GreatPerson(
-        name="Kael the Bold",
+        name="Kiran",
         role="general",
-        civilization="Ironforge",
+        trait="bold",
+        civilization=civ_name,
+        origin_civilization=civ_name,
+        born_turn=5,
         source="agent",
-        agent_id=10,
-        active=True,
-        born_turn=1,
+        agent_id=42,
         dynasty_id=1,
     )
 
     moment = NarrativeMoment(
-        turn_range=(5, 5),
-        anchor_turn=5,
-        events=[MagicMock(
-            turn=5, description="Battle", source="agent",
-            actors=["Kael the Bold"], severity=5, event_type="war",
-            causal_parent_id=None, causal_children_ids=[],
+        anchor_turn=10,
+        turn_range=(10, 10),
+        events=[Event(
+            turn=10,
+            event_type="campaign",
+            actors=[civ_name],
+            description="A campaign unfolds",
+            importance=7,
+            source="agent",
         )],
-        title="A Battle",
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
     )
 
-    snap = TurnSnapshot(
-        turn=5,
-        civ_stats={"Ironforge": CivStats(population=100, regions=1)},
-    )
-    history = [snap]
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+            )
+        },
+        region_control={},
+        relationships={},
+    )]
 
-    # Build a mock dynasty registry that returns a dynasty for agent 10
+    # Build a mock dynasty registry that returns a dynasty for agent 42
     mock_registry = MagicMock()
     mock_dynasty = MagicMock()
-    mock_dynasty.founder_name = "House of Kael"
-    mock_dynasty.members = [10, 11, 12]
+    mock_dynasty.founder_name = "House of Kiran"
+    mock_dynasty.members = [42, 43, 44]
     mock_dynasty.split_detected = False
     mock_registry.get_dynasty_for.return_value = mock_dynasty
 
@@ -86,7 +102,7 @@ def test_dynasty_registry_threads_through_prepare_prompts(sample_world):
     assert prepared[0]["agent_ctx"] is not None
     # Dynasty context should reach the character entry
     char = prepared[0]["agent_ctx"].named_characters[0]
-    assert char["dynasty"] == "House of Kael"
+    assert char["dynasty"] == "House of Kiran"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -187,34 +203,52 @@ def test_dynasty_registry_none_degrades_gracefully(sample_world):
     from unittest.mock import MagicMock
     from chronicler.narrative import NarrativeEngine
     from chronicler.models import (
-        NarrativeMoment, GreatPerson, TurnSnapshot, CivStats,
+        CivSnapshot, Event, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot,
     )
 
+    civ_name = sample_world.civilizations[0].name
     gp = GreatPerson(
-        name="Kael the Bold",
+        name="Kiran",
         role="general",
-        civilization="Ironforge",
+        trait="bold",
+        civilization=civ_name,
+        origin_civilization=civ_name,
+        born_turn=5,
         source="agent",
-        agent_id=10,
-        active=True,
-        born_turn=1,
+        agent_id=42,
     )
 
     moment = NarrativeMoment(
-        turn_range=(5, 5),
-        anchor_turn=5,
-        events=[MagicMock(
-            turn=5, description="Battle", source="agent",
-            actors=["Kael the Bold"], severity=5, event_type="war",
-            causal_parent_id=None, causal_children_ids=[],
+        anchor_turn=10,
+        turn_range=(10, 10),
+        events=[Event(
+            turn=10,
+            event_type="campaign",
+            actors=[civ_name],
+            description="A campaign unfolds",
+            importance=7,
+            source="agent",
         )],
-        title="A Battle",
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
     )
 
-    snap = TurnSnapshot(
-        turn=5,
-        civ_stats={"Ironforge": CivStats(population=100, regions=1)},
-    )
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+            )
+        },
+        region_control={},
+        relationships={},
+    )]
 
     engine = NarrativeEngine(
         sim_client=MagicMock(model="test"),
@@ -224,7 +258,7 @@ def test_dynasty_registry_none_degrades_gracefully(sample_world):
 
     prepared = engine._prepare_narration_prompts(
         [moment],
-        [snap],
+        history,
         great_persons=[gp],
         dynasty_registry=None,
     )
@@ -251,12 +285,12 @@ git commit -m "feat: add dynasty_registry kwarg to narrate_batch and _prepare_na
 ### Task 2: Gini fallback from snapshot in `build_agent_context_for_moment()`
 
 **Files:**
-- Modify: `src/chronicler/narrative.py:468-469` (Gini resolution line)
+- Modify: `src/chronicler/narrative.py:468-469` (Gini resolution line — move after `focal_civ` block)
 - Test: `tests/test_narrative.py`
 
 - [ ] **Step 1: Write failing test — Gini fallback from snapshot when gini_by_civ is None**
 
-Add near the existing Gini test at `tests/test_narrative.py:545`:
+Add near the existing Gini test at `tests/test_narrative.py:545`. Mirror the existing test shape.
 
 ```python
 def test_gini_fallback_from_snapshot_when_gini_by_civ_none(sample_world):
@@ -264,34 +298,53 @@ def test_gini_fallback_from_snapshot_when_gini_by_civ_none(sample_world):
     from unittest.mock import MagicMock
     from chronicler.narrative import NarrativeEngine
     from chronicler.models import (
-        NarrativeMoment, GreatPerson, TurnSnapshot, CivStats,
+        CivSnapshot, Event, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot,
     )
 
+    civ_name = sample_world.civilizations[0].name
     gp = GreatPerson(
-        name="Kael the Bold",
+        name="Kiran",
         role="general",
-        civilization="Ironforge",
+        trait="bold",
+        civilization=civ_name,
+        origin_civilization=civ_name,
+        born_turn=5,
         source="agent",
-        agent_id=10,
-        active=True,
-        born_turn=1,
+        agent_id=42,
     )
 
     moment = NarrativeMoment(
-        turn_range=(5, 5),
-        anchor_turn=5,
-        events=[MagicMock(
-            turn=5, description="Battle", source="agent",
-            actors=["Kael the Bold"], severity=5, event_type="war",
-            causal_parent_id=None, causal_children_ids=[],
+        anchor_turn=10,
+        turn_range=(10, 10),
+        events=[Event(
+            turn=10,
+            event_type="campaign",
+            actors=[civ_name],
+            description="A campaign unfolds",
+            importance=7,
+            source="agent",
         )],
-        title="A Battle",
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
     )
 
-    snap = TurnSnapshot(
-        turn=5,
-        civ_stats={"Ironforge": CivStats(population=100, regions=1, gini=0.42)},
-    )
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+                gini=0.42,
+            )
+        },
+        region_control={},
+        relationships={},
+    )]
 
     engine = NarrativeEngine(
         sim_client=MagicMock(model="test"),
@@ -301,7 +354,7 @@ def test_gini_fallback_from_snapshot_when_gini_by_civ_none(sample_world):
 
     prepared = engine._prepare_narration_prompts(
         [moment],
-        [snap],
+        history,
         great_persons=[gp],
         gini_by_civ=None,
     )
@@ -348,53 +401,78 @@ The `gini` variable is consumed later in the `AgentContext` constructor at ~line
 Run: `pytest tests/test_narrative.py::test_gini_fallback_from_snapshot_when_gini_by_civ_none -v`
 Expected: PASS
 
-- [ ] **Step 5: Write test — no snapshot and no gini_by_civ gives default 0.0**
+- [ ] **Step 5: Write test — no snapshot Gini and no gini_by_civ gives default 0.0**
 
 ```python
-def test_gini_no_source_keeps_default():
+def test_gini_no_source_keeps_default(sample_world):
     """When both gini_by_civ and snapshot gini are absent, gini stays at 0.0."""
     from unittest.mock import MagicMock
-    from chronicler.narrative import build_agent_context_for_moment
-    from chronicler.models import NarrativeMoment, GreatPerson, TurnSnapshot, CivStats
+    from chronicler.narrative import NarrativeEngine
+    from chronicler.models import (
+        CivSnapshot, Event, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot,
+    )
 
+    civ_name = sample_world.civilizations[0].name
     gp = GreatPerson(
-        name="Kael the Bold",
+        name="Kiran",
         role="general",
-        civilization="Ironforge",
+        trait="bold",
+        civilization=civ_name,
+        origin_civilization=civ_name,
+        born_turn=5,
         source="agent",
-        agent_id=10,
-        active=True,
-        born_turn=1,
+        agent_id=42,
     )
 
     moment = NarrativeMoment(
-        turn_range=(5, 5),
-        anchor_turn=5,
-        events=[MagicMock(
-            turn=5, description="Battle", source="agent",
-            actors=["Kael the Bold"], severity=5, event_type="war",
-            causal_parent_id=None, causal_children_ids=[],
+        anchor_turn=10,
+        turn_range=(10, 10),
+        events=[Event(
+            turn=10,
+            event_type="campaign",
+            actors=[civ_name],
+            description="A campaign unfolds",
+            importance=7,
+            source="agent",
         )],
-        title="A Battle",
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
     )
 
-    # Snapshot with default gini (0.0)
-    snap = TurnSnapshot(
-        turn=5,
-        civ_stats={"Ironforge": CivStats(population=100, regions=1)},
-    )
+    # CivSnapshot with default gini (0.0) — no explicit gini= kwarg
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+            )
+        },
+        region_control={},
+        relationships={},
+    )]
 
-    ctx = build_agent_context_for_moment(
-        moment,
-        [gp],
-        displacement_by_region={},
+    engine = NarrativeEngine(
+        sim_client=MagicMock(model="test"),
+        narrative_client=MagicMock(model="test"),
+    )
+    engine._world = sample_world
+
+    prepared = engine._prepare_narration_prompts(
+        [moment],
+        history,
+        great_persons=[gp],
         gini_by_civ=None,
-        civ_idx=0,
-        current_snapshot=snap,
     )
 
-    assert ctx is not None
-    assert ctx.gini_coefficient == 0.0
+    assert prepared[0]["agent_ctx"] is not None
+    # Default CivSnapshot.gini is 0.0, which the fallback reads but is equivalent to no-signal
+    assert prepared[0]["agent_ctx"].gini_coefficient == 0.0
 ```
 
 - [ ] **Step 6: Run all Gini tests**
@@ -419,47 +497,46 @@ git commit -m "feat: Gini fallback from snapshot when gini_by_civ is None"
 
 - [ ] **Step 1: Write failing test — post-loop narration passes bridge context**
 
-In `tests/test_main.py`, add a test that verifies the post-loop narration caller passes all 7 bridge-owned inputs. This test monkeypatches `NarrativeEngine.narrate_batch` and checks the kwargs:
+In `tests/test_main.py`, add a test inside or near `TestApiNarration`. The post-loop narration path only fires when `_api_mode` is true (line 150-151: `_narrator_mode != "local"`), so the test must use `narrator="api"` and pass a mocked API client via `execute_run(args, narrative_client=...)`. Follow the pattern at `tests/test_main.py:859` (`test_api_mode_produces_curated_entries_with_metadata`).
 
 ```python
-def test_post_loop_narration_passes_bridge_context(tmp_path, monkeypatch):
+def test_post_loop_narration_passes_bridge_context(self, tmp_path):
     """Post-loop API narration threads all bridge-owned inputs to narrate_batch."""
-    import argparse
     from unittest.mock import MagicMock, patch
-    from chronicler.main import execute_run
+    from chronicler.llm import AnthropicClient
 
     captured_kwargs = {}
+    original_narrate = None
 
-    def spy_narrate_batch(self, moments, history, **kwargs):
+    def spy_narrate_batch(self_engine, moments, history, **kwargs):
         captured_kwargs.update(kwargs)
         return []
 
-    monkeypatch.setattr(
-        "chronicler.narrative.NarrativeEngine.narrate_batch",
-        spy_narrate_batch,
-    )
+    mock_sdk = MagicMock()
+    api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+    def fake_batch_complete(requests, poll_interval=10.0):
+        api_client.total_input_tokens += 500
+        api_client.total_output_tokens += 200
+        api_client.call_count += len(requests)
+        return [
+            "The great empire rose from humble beginnings..."
+            for _ in requests
+        ]
+    api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
 
-    args = argparse.Namespace(
-        seed=42, turns=5, civs=2, regions=4,
-        output=str(tmp_path / "chronicle.md"),
-        state=str(tmp_path / "state.json"),
-        resume=None, reflection_interval=10,
-        llm_actions=False, scenario=None,
-        simulate_only=False, agents="hybrid",
-        budget=50, narrator="local",
-        pause_every=None,
-        narrative_model=None,
-    )
+    args = self._make_args(str(tmp_path))
+    # _make_args already sets narrator="api" and agents="off"
+    # Override agents to "hybrid" so a bridge exists
+    args.agents = "hybrid"
 
-    # Mock the LLM clients so we don't need a real server
-    mock_client = MagicMock()
-    mock_client.model = "test"
-    mock_client.chat.completions.create.return_value = MagicMock(
-        choices=[MagicMock(message=MagicMock(content="Narrated text."))]
-    )
-
-    with patch("chronicler.main.create_clients", return_value=(mock_client, mock_client)):
-        execute_run(args)
+    with patch.object(
+        NarrativeEngine, "narrate_batch", spy_narrate_batch,
+    ):
+        execute_run(
+            args,
+            sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
+            narrative_client=api_client,
+        )
 
     # All 7 bridge-owned inputs should be present and non-None
     assert "social_edges" in captured_kwargs
@@ -471,11 +548,11 @@ def test_post_loop_narration_passes_bridge_context(tmp_path, monkeypatch):
     assert "dynasty_registry" in captured_kwargs
 ```
 
-Note: This test may need adjustment based on how `execute_run` is structured and what mocks are needed. The implementing agent should verify the exact mocking requirements by reading the test patterns in `tests/test_main.py:913` and adapting. The key assertion is that all 7 kwargs arrive non-None.
+Note: This test lives inside `class TestApiNarration` (which starts at ~line 833 and has the `_make_args` helper at line 839). The implementing agent should add it as a method of that class. If the `_make_args` helper doesn't include all needed fields for hybrid mode, the agent should adapt accordingly.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/test_main.py::test_post_loop_narration_passes_bridge_context -v`
+Run: `pytest tests/test_main.py::TestApiNarration::test_post_loop_narration_passes_bridge_context -v`
 Expected: FAIL — the current call at `main.py:627` does not pass these kwargs.
 
 - [ ] **Step 3: Wire bridge context into post-loop narration call**
@@ -509,7 +586,7 @@ New:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/test_main.py::test_post_loop_narration_passes_bridge_context -v`
+Run: `pytest tests/test_main.py::TestApiNarration::test_post_loop_narration_passes_bridge_context -v`
 Expected: PASS
 
 - [ ] **Step 5: Run existing main tests to check for regressions**
@@ -534,22 +611,21 @@ git commit -m "feat: wire bridge-owned narrative context into post-loop narratio
 
 - [ ] **Step 1: Write failing test — replay passes agent_name_map and great_persons, bridge-only inputs are None**
 
+Follow the existing `test_run_narrate_api_mode_writes_metadata` pattern at `tests/test_main.py:913`. Key details: argparse namespace must include `local_url`, `sim_model`, `narrate_output` (not `output`). Generate a simulate-only bundle first, then re-narrate with a spy.
+
 ```python
-def test_run_narrate_passes_bundle_derived_context(tmp_path, monkeypatch):
+def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
     """_run_narrate passes agent_name_map from great_persons, None for bridge-only inputs."""
-    import argparse
+    import json
     from unittest.mock import MagicMock, patch
     from chronicler.main import execute_run, _run_narrate
+    from chronicler.llm import AnthropicClient
 
-    captured_kwargs = {}
-
-    def spy_narrate_batch(self, moments, history, **kwargs):
-        captured_kwargs.update(kwargs)
-        return []
+    mock_sdk = MagicMock()
 
     # First, generate a simulate-only bundle with agents
     sim_args = argparse.Namespace(
-        seed=42, turns=10, civs=2, regions=4,
+        seed=42, turns=20, civs=3, regions=6,
         output=str(tmp_path / "chronicle.md"),
         state=str(tmp_path / "state.json"),
         resume=None, reflection_interval=10,
@@ -563,23 +639,36 @@ def test_run_narrate_passes_bundle_derived_context(tmp_path, monkeypatch):
     bundle_path = tmp_path / "chronicle_bundle.json"
     assert bundle_path.exists()
 
-    monkeypatch.setattr(
-        "chronicler.narrative.NarrativeEngine.narrate_batch",
-        spy_narrate_batch,
-    )
+    # Spy on narrate_batch
+    captured_kwargs = {}
+
+    def spy_narrate_batch(self_engine, moments, history, **kwargs):
+        captured_kwargs.update(kwargs)
+        return []
 
     narrate_args = argparse.Namespace(
         narrate=bundle_path,
-        output=str(tmp_path / "narrated.md"),
-        budget=50,
-        narrator="local",
+        narrator="api",
+        local_url="http://localhost:1234/v1",
+        sim_model=None,
         narrative_model=None,
+        budget=10,
+        narrate_output=tmp_path / "narrated.json",
     )
 
-    mock_client = MagicMock()
-    mock_client.model = "test"
-    with patch("chronicler.main.create_clients", return_value=(mock_client, mock_client)):
-        _run_narrate(narrate_args)
+    api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+    def fake_batch_complete(requests, poll_interval=10.0):
+        api_client.total_input_tokens += 300
+        api_client.total_output_tokens += 150
+        api_client.call_count += len(requests)
+        return ["Narrated text." for _ in requests]
+    api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
+
+    from chronicler.narrative import NarrativeEngine
+    with patch.object(NarrativeEngine, "narrate_batch", spy_narrate_batch):
+        with patch("chronicler.main.create_clients",
+                   return_value=(MagicMock(model="test"), api_client)):
+            _run_narrate(narrate_args)
 
     # great_persons should be the full list (not filtered)
     assert captured_kwargs.get("great_persons") is not None
@@ -597,9 +686,11 @@ def test_run_narrate_passes_bundle_derived_context(tmp_path, monkeypatch):
     assert captured_kwargs.get("economy_result") is None
 ```
 
+Note: This test lives inside `class TestApiNarration`. The implementing agent should add it as a method of that class.
+
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/test_main.py::test_run_narrate_passes_bundle_derived_context -v`
+Run: `pytest tests/test_main.py::TestApiNarration::test_run_narrate_passes_bundle_derived_context -v`
 Expected: FAIL — current call at `main.py:1005` does not pass `agent_name_map`.
 
 - [ ] **Step 3: Wire bundle-derived context into `_run_narrate()`**
@@ -640,7 +731,7 @@ New:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/test_main.py::test_run_narrate_passes_bundle_derived_context -v`
+Run: `pytest tests/test_main.py::TestApiNarration::test_run_narrate_passes_bundle_derived_context -v`
 Expected: PASS
 
 - [ ] **Step 5: Run existing _run_narrate tests**
@@ -665,61 +756,92 @@ git commit -m "feat: wire bundle-derived narrative context into _run_narrate rep
 
 - [ ] **Step 1: Write failing test — live narrate_range passes great_persons and agent_name_map**
 
-In `tests/test_live_integration.py`, add a test that verifies the narrate_range caller passes `great_persons` and `agent_name_map`. This test monkeypatches `NarrativeEngine.narrate_batch` and checks the kwargs:
+In `tests/test_live_integration.py`, add a test using the `running_live_server` fixture. This fixture provides skeletal `_init_data` with empty civilizations (line 32-68). The test injects GP data and events into `_init_data` before connecting, then sends `narrate_range` (which is accepted regardless of pause state — it's handled at line 582-634, before the pause-only command check at line 636).
 
 ```python
 @pytest.mark.asyncio
 async def test_narrate_range_passes_great_persons_and_agent_name_map(running_live_server, monkeypatch):
     """Live narrate_range threads great_persons and agent_name_map from _init_data."""
+    from chronicler.narrative import NarrativeEngine
+
     captured_kwargs = {}
 
-    original_narrate = None
-
-    def spy_narrate_batch(self, moments, history, **kwargs):
+    def spy_narrate_batch(self_engine, moments, history, **kwargs):
         captured_kwargs.update(kwargs)
         return []
 
-    monkeypatch.setattr(
-        "chronicler.narrative.NarrativeEngine.narrate_batch",
-        spy_narrate_batch,
-    )
+    monkeypatch.setattr(NarrativeEngine, "narrate_batch", spy_narrate_batch)
+
+    # Inject GP data and events into _init_data so curate() returns moments
+    running_live_server._init_data["world_state"]["civilizations"] = [{
+        "name": "TestCiv",
+        "regions": ["Region0"],
+        "leader": {"name": "TestLeader", "personality": "bold"},
+        "great_persons": [
+            {
+                "name": "Kiran",
+                "role": "general",
+                "trait": "bold",
+                "civilization": "TestCiv",
+                "origin_civilization": "TestCiv",
+                "born_turn": 1,
+                "source": "agent",
+                "agent_id": 42,
+            }
+        ],
+        "population": 100,
+        "military": 50,
+        "economy": 40,
+        "culture": 30,
+        "stability": 60,
+        "treasury": 20,
+        "asabiya": 0.5,
+        "tech_era": "iron",
+        "trait": "bold",
+        "alive": True,
+    }]
+    running_live_server._init_data["world_state"]["retired_persons"] = []
+    running_live_server._init_data["events_timeline"] = [
+        {
+            "turn": 1,
+            "event_type": "campaign",
+            "actors": ["TestCiv"],
+            "description": "A great campaign",
+            "importance": 8,
+            "source": "agent",
+        }
+    ]
 
     async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+        # Drain the init message
         init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-        init_msg = json.loads(init_raw)
-        assert init_msg["state"] == "running"
 
-        # Wait for at least one turn
-        while True:
-            msg_raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
-            msg = json.loads(msg_raw)
-            if msg.get("type") == "turn" and msg.get("turn", 0) >= 2:
-                break
-
-        # Pause
-        await ws.send(json.dumps({"type": "pause"}))
-        pause_msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
-
-        # Send narrate_range
+        # Send narrate_range (accepted anytime, not just when paused)
         await ws.send(json.dumps({
             "type": "narrate_range",
             "start_turn": 1,
-            "end_turn": 2,
+            "end_turn": 1,
         }))
 
-        # Read response (could be narration_complete or error)
-        resp_raw = await asyncio.wait_for(ws.recv(), timeout=15.0)
+        # Read response — spy intercepts narrate_batch, so we get narration_complete
+        # with empty entries or possibly no response if curate returns nothing.
+        # Give it a moment to process.
+        try:
+            resp_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+        except asyncio.TimeoutError:
+            pass  # spy returns [] so no narration_complete sent — that's fine
 
-    # great_persons kwarg should be present (may be empty list if no GPs promoted yet)
+    # great_persons kwarg should be present
     assert "great_persons" in captured_kwargs
-    # agent_name_map should be present
+    # agent_name_map should be present and contain our test GP
     assert "agent_name_map" in captured_kwargs
+    if captured_kwargs["agent_name_map"] is not None:
+        assert 42 in captured_kwargs["agent_name_map"]
+        assert captured_kwargs["agent_name_map"][42] == "Kiran"
     # Bridge-only inputs should be None
     assert captured_kwargs.get("social_edges") is None
     assert captured_kwargs.get("dynasty_registry") is None
 ```
-
-Note: The implementing agent should adapt this test to the existing patterns in `tests/test_live_integration.py:529`. The `running_live_server` fixture and `ws_client` imports need to match the existing test infrastructure.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -728,14 +850,9 @@ Expected: FAIL — current call at `live.py:628` passes no kwargs.
 
 - [ ] **Step 3: Wire great_persons, agent_name_map, and explicit None kwargs into narrate_range**
 
-In `src/chronicler/live.py`, modify the narrate_range handler at ~line 598-628. After the existing `named_chars` collection (line 606-610), add GP reconstruction and wire into the narrate_batch call:
+In `src/chronicler/live.py`, modify the narrate_range handler at ~line 598-628. After the existing `named_chars` collection (line 606-610), add GP reconstruction and wire into the narrate_batch call.
 
-Old (line 628):
-```python
-                            entries = engine.narrate_batch(moments, all_history)
-```
-
-New — after the `named_chars` block (~line 610), add great_persons reconstruction:
+After the `named_chars` block (~line 610), add great_persons reconstruction:
 
 ```python
                         # Reconstruct great_persons from _init_data world state
@@ -753,8 +870,14 @@ New — after the `named_chars` block (~line 610), add great_persons reconstruct
                         )
 ```
 
-Then update the narrate_batch call:
+Then update the narrate_batch call at line 628:
 
+Old:
+```python
+                            entries = engine.narrate_batch(moments, all_history)
+```
+
+New:
 ```python
                             entries = engine.narrate_batch(
                                 moments, all_history,
