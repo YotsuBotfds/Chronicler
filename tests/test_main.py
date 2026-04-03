@@ -970,6 +970,48 @@ class TestApiNarrationIntegration:
         assert output["metadata"]["api_input_tokens"] > 0
         assert output["metadata"]["api_output_tokens"] > 0
 
+    def test_post_loop_narration_passes_bridge_context(self, tmp_path):
+        """Post-loop API narration threads all bridge-owned inputs to narrate_batch."""
+        from chronicler.narrative import NarrativeEngine
+
+        captured_kwargs = {}
+
+        def spy_narrate_batch(self_engine, moments, history, **kwargs):
+            captured_kwargs.update(kwargs)
+            return []
+
+        mock_sdk = MagicMock()
+        api_client = AnthropicClient(client=mock_sdk, model="claude-sonnet-4-6")
+        def fake_batch_complete(requests, poll_interval=10.0):
+            api_client.total_input_tokens += 500
+            api_client.total_output_tokens += 200
+            api_client.call_count += len(requests)
+            return [
+                "The great empire rose from humble beginnings..."
+                for _ in requests
+            ]
+        api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
+
+        args = self._make_args(str(tmp_path))
+        args.agents = "hybrid"
+
+        with patch.object(
+            NarrativeEngine, "narrate_batch", spy_narrate_batch,
+        ):
+            execute_run(
+                args,
+                sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
+                narrative_client=api_client,
+            )
+
+        assert "social_edges" in captured_kwargs
+        assert "dissolved_edges_by_turn" in captured_kwargs
+        assert "agent_name_map" in captured_kwargs
+        assert "gini_by_civ" in captured_kwargs
+        assert "economy_result" in captured_kwargs
+        assert "displacement_by_region" in captured_kwargs
+        assert "dynasty_registry" in captured_kwargs
+
 
 # ── M54c Task 4: Politics Runtime Wiring Tests ─────────────────────
 

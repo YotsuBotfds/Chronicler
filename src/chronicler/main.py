@@ -628,6 +628,13 @@ def execute_run(
             moments, history, on_progress=progress_cb,
             great_persons=all_great_persons,
             world=world,
+            social_edges=agent_bridge.read_social_edges() if agent_bridge is not None else None,
+            dissolved_edges_by_turn=world.dissolved_edges_by_turn if hasattr(world, "dissolved_edges_by_turn") else None,
+            agent_name_map=agent_bridge.named_agents if agent_bridge is not None else None,
+            gini_by_civ=agent_bridge._gini_by_civ if agent_bridge is not None else None,
+            economy_result=agent_bridge._economy_result if agent_bridge is not None else None,
+            displacement_by_region=agent_bridge.displacement_by_region if agent_bridge is not None else None,
+            dynasty_registry=agent_bridge.dynasty_registry if agent_bridge is not None else None,
         )
 
         print(f"API narration: curated {len(moments)} moments from {len(world.events_timeline)} events")
