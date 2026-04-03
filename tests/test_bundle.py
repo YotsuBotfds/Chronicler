@@ -599,3 +599,36 @@ class TestBundleSize:
         size_mb = bundle_path.stat().st_size / (1024 * 1024)
         # M41 added wealth column (~8MB for 500 turns). Bundle optimization deferred.
         assert size_mb < 35, f"Bundle is {size_mb:.2f}MB, expected < 35MB"
+
+
+# ---------------------------------------------------------------------------
+# Task 7: agent_events.arrow includes provenance columns
+# ---------------------------------------------------------------------------
+
+def test_agent_events_arrow_includes_provenance_columns():
+    """agent_events.arrow should include target_agent_id and formed_turn columns."""
+    import pyarrow.ipc as ipc
+    from types import SimpleNamespace
+    from chronicler.models import AgentEventRecord
+    from chronicler.bundle import write_agent_events_arrow
+    from pathlib import Path
+    import tempfile
+
+    world = SimpleNamespace(agent_events_raw=[
+        AgentEventRecord(
+            turn=10, agent_id=100, event_type="dissolution",
+            region=0, target_region=3, civ_affinity=0, occupation=0,
+            belief=0, target_agent_id=200, formed_turn=5,
+        ),
+    ])
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = write_agent_events_arrow(world, Path(tmpdir))
+        assert path is not None
+        with open(path, "rb") as f:
+            reader = ipc.open_file(f)
+            batch = reader.get_batch(0)
+        assert "target_agent_id" in batch.schema.names
+        assert "formed_turn" in batch.schema.names
+        assert batch.column("target_agent_id")[0].as_py() == 200
+        assert batch.column("formed_turn")[0].as_py() == 5

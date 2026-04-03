@@ -111,6 +111,8 @@ def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None
         "civ_affinity": pa.array([e.civ_affinity for e in events], type=pa.uint16()),
         "occupation": pa.array([e.occupation for e in events], type=pa.uint8()),
         "belief": pa.array([e.belief for e in events], type=pa.uint8()),
+        "target_agent_id": pa.array([e.target_agent_id for e in events], type=pa.uint32()),
+        "formed_turn": pa.array([e.formed_turn for e in events], type=pa.uint32()),
     })
 
     out_path = bundle_dir / "agent_events.arrow"
