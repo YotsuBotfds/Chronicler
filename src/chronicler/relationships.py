@@ -473,7 +473,7 @@ def capture_hostage(
     return youngest
 
 
-def tick_hostages(world: WorldState) -> list[GreatPerson]:
+def tick_hostages(world: WorldState, acc=None) -> list[GreatPerson]:
     """Advance hostage turns, apply cultural conversion at 10, auto-release at 15."""
     released = []
     for civ in world.civilizations:
@@ -491,7 +491,7 @@ def tick_hostages(world: WorldState) -> list[GreatPerson]:
                 released.append(gp)
                 continue
             if gp.hostage_turns >= 15:
-                release_hostage(gp, civ, origin, world)
+                release_hostage(gp, civ, origin, world, acc=acc)
                 released.append(gp)
     return released
 
@@ -501,6 +501,7 @@ def release_hostage(
     captor: "Civilization",
     origin: "Civilization",
     world: WorldState,
+    acc=None,
 ) -> None:
     """Release a hostage back to their origin civilization."""
     if gp in captor.great_persons:
@@ -510,4 +511,9 @@ def release_hostage(
     gp.region = origin.capital_region or (origin.regions[0] if origin.regions else None)
     origin.great_persons.append(gp)
     if origin.treasury >= 10:
-        origin.treasury -= 10
+        if acc is not None:
+            from chronicler.utils import civ_index
+            origin_idx = civ_index(world, origin.name)
+            acc.add(origin_idx, origin, "treasury", -10, "keep")
+        else:
+            origin.treasury -= 10

@@ -220,7 +220,7 @@ def test_narrate_batch_warns_on_first_failure(caplog):
     history = [TurnSnapshot(turn=10, civ_stats={}, region_control={}, relationships={})]
 
     with caplog.at_level(logging.WARNING):
-        entries = engine.narrate_batch([moment], history, [])
+        entries = engine.narrate_batch([moment], history)
 
     assert len(entries) == 1
     assert "API error" in caplog.text or "narration failed" in caplog.text.lower()
@@ -277,7 +277,6 @@ def test_narrate_batch_does_not_mutate_live_arc_summary(sample_world):
     entries = engine.narrate_batch(
         [moment],
         history,
-        [],
         great_persons=[gp],
         gp_by_name={"Kiran": gp},
         world=sample_world,

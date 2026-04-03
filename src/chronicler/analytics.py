@@ -293,6 +293,9 @@ def extract_stockpiles(
 ) -> dict:
     """Per-region per-good stockpile levels at checkpoints.
 
+    NOTE: Currently non-functional — TurnSnapshot does not include world_state.regions.
+    Stockpile data would need to be added to TurnSnapshot for this to work.
+
     Returns: {region_name: {good_name: {turn: level}}}
     """
     if not bundles:
@@ -1424,7 +1427,7 @@ def format_text_report(report: dict) -> str:
 
     # Politics
     pol = report.get("politics", {})
-    for key in ["war_rate", "secession_rate", "federation_rate", "vassal_rate", "mercenary_rate", "twilight_rate"]:
+    for key in ["war_rate", "secession_rate", "federation_formed_rate", "vassal_imposed_rate", "mercenary_spawned_rate", "twilight_absorption_rate"]:
         rate = pol.get(key, 0)
         if rate > 0:
             count = int(rate * n_runs)
@@ -1987,6 +1990,9 @@ def extract_spatial_diagnostics(diag_history: list[dict]) -> dict:
 def extract_legacy_chain_metrics(bundles: list[dict]) -> dict:
     """Extract dynasty chain lengths from great_persons in bundle metadata.
 
+    NOTE: Currently non-functional — bundle metadata does not contain great_persons.
+    Great persons are stored at world_state.civilizations[*].great_persons.
+
     Groups GreatPersons by ``dynasty_id`` and counts how many belong to each
     dynasty.  Returns:
     - ``dynasty_chain_lengths``: ``{dynasty_id: count}``
@@ -2126,7 +2132,7 @@ def extract_conservation_diagnostics(economy_result) -> dict[str, float]:
     return {
         "conservation_error_abs_turn": 0.0,  # computed from invariant check
         "conservation_error_abs_cumulative": 0.0,
-        "conservation_repair_events": c.get("clamp_floor_loss", 0.0) > 0,
+        "conservation_repair_events": float(c.get("clamp_floor_loss", 0.0) > 0),
         "max_region_slot_error_turn": 0.0,
         "in_transit_total": 0.0,
         "in_transit_delta": c.get("in_transit_delta", 0.0),

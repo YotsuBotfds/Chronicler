@@ -162,6 +162,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
         if (unmounted) return;
         setConnected(false);
         wsRef.current = null;
+        if (reconnectRef.current) clearTimeout(reconnectRef.current);
         const delay = reconnectDelayRef.current;
         reconnectRef.current = setTimeout(() => {
           reconnectDelayRef.current = Math.min(delay * 2, 10000);
@@ -229,15 +230,15 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
               if (!liveBundle) {
                 break;
               }
-              liveBundle.history.push(buildLiveTurnSnapshot(msg as Record<string, unknown>));
+              liveBundle.history = [...liveBundle.history, buildLiveTurnSnapshot(msg as Record<string, unknown>)];
               if (isLegacyBundle(liveBundle.chronicle_entries)) {
                 liveBundle.chronicle_entries = {
                   ...liveBundle.chronicle_entries,
                   [String(msg.turn)]: (msg.chronicle_text as string) || "",
                 };
               }
-              liveBundle.events_timeline.push(...((msg.events as Bundle["events_timeline"]) || []));
-              liveBundle.named_events.push(...((msg.named_events as Bundle["named_events"]) || []));
+              liveBundle.events_timeline = [...liveBundle.events_timeline, ...((msg.events as Bundle["events_timeline"]) || [])];
+              liveBundle.named_events = [...liveBundle.named_events, ...((msg.named_events as Bundle["named_events"]) || [])];
               publishBundleMutation();
             }
             break;
@@ -267,10 +268,8 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
                 const lastSnapshot = liveBundle.history[liveBundle.history.length - 1];
                 const civData = lastSnapshot.civ_stats[ack.civ];
                 if (civData) {
-                  lastSnapshot.civ_stats = {
-                    ...lastSnapshot.civ_stats,
-                    [ack.civ]: { ...civData, [ack.stat]: ack.value },
-                  };
+                  const updatedSnapshot = { ...lastSnapshot, civ_stats: { ...lastSnapshot.civ_stats, [ack.civ]: { ...civData, [ack.stat]: ack.value } } };
+                  liveBundle.history = [...liveBundle.history.slice(0, -1), updatedSnapshot];
                   publishBundleMutation();
                 }
               }
@@ -294,7 +293,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
                 break;
               }
               if (Array.isArray(liveBundle.chronicle_entries)) {
-                liveBundle.chronicle_entries.push(msg.entry as NewChronicleEntry);
+                liveBundle.chronicle_entries = [...(liveBundle.chronicle_entries as NewChronicleEntry[]), msg.entry as NewChronicleEntry];
                 publishBundleMutation();
               }
             }

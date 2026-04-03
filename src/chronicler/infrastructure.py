@@ -126,8 +126,6 @@ def valid_build_types(
 
 def tick_infrastructure(world: WorldState) -> list:
     """Called from apply_automatic_effects (phase 2)."""
-    from chronicler.models import Event
-
     events = []
     for region in world.regions:
         if region.pending_build is not None:
@@ -182,7 +180,6 @@ def scorched_earth_check(
 ) -> list:
     """REACTION_REGISTRY['region_lost'] handler."""
     import hashlib
-    from chronicler.models import Event
 
     scorched_bonus = get_override(world, K_SCORCHED_EARTH_TRAIT_BONUS, 0.2)
     trait_bonus = scorched_bonus if defender.leader.trait == "aggressive" else 0.0
@@ -222,7 +219,6 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
     Replaces the old _resolve_build handler from M13b-1.
     """
     import hashlib
-    from chronicler.models import Event
 
     seed = stable_hash_int("build_action", world.seed, world.turn, civ.name)
 
@@ -328,7 +324,6 @@ def tick_temple_prestige(world, acc=None):
 
 
 def destroy_temple_on_conquest(region, attacker_civ, world) -> "Event | None":
-    from chronicler.models import Event
     for infra in region.infrastructure:
         if infra.type == IType.TEMPLES and infra.active:
             infra.active = False
@@ -342,7 +337,6 @@ def destroy_temple_on_conquest(region, attacker_civ, world) -> "Event | None":
 
 
 def destroy_temple_for_replacement(region, world) -> "Event | None":
-    from chronicler.models import Event
     for infra in region.infrastructure:
         if infra.type == IType.TEMPLES and infra.active:
             infra.active = False

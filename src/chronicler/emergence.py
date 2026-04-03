@@ -329,13 +329,14 @@ def tick_pandemic(
         ]
         if not affected_regions:
             affected_regions = [r for r in world.regions if r.controller == civ_name]
+        # Population loss: always direct mutation (C-3 pattern)
+        distribute_pop_loss(affected_regions, pop_loss)
+        sync_civ_population(civ, world)
+        # Economy loss: through accumulator when available
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "population", -pop_loss, "guard")
             acc.add(civ_idx, civ, "economy", -eco_loss, "signal")
         else:
-            distribute_pop_loss(affected_regions, pop_loss)
-            sync_civ_population(civ, world)
             civ.economy = clamp(civ.economy - eco_loss, STAT_FLOOR.get("economy", 0), 100)
 
         # Leader kill check: per infected civ
@@ -448,13 +449,14 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
                 volcano_stab = int(get_override(world, K_VOLCANO_STABILITY_DRAIN, 15))
                 pop_loss = int(volcano_pop * mult)
                 stab_loss = int(volcano_stab * mult)
+                # Population: always direct mutation
+                drain_region_pop(region, pop_loss)
+                sync_civ_population(civ, world)
+                # Stability: through accumulator when available
                 if acc is not None:
                     civ_idx = civ_index(world, civ.name)
-                    acc.add(civ_idx, civ, "population", -pop_loss, "guard")
                     acc.add(civ_idx, civ, "stability", -stab_loss, "signal")
                 else:
-                    drain_region_pop(region, pop_loss)
-                    sync_civ_population(civ, world)
                     civ.stability = clamp(
                         civ.stability - stab_loss,
                         STAT_FLOOR.get("stability", 0),
@@ -692,9 +694,6 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
 # ---------------------------------------------------------------------------
 # Ecological Succession
 # ---------------------------------------------------------------------------
-
-    # NOTE: update_low_fertility_counters deleted by M23 — replaced by _update_ecology_counters in ecology.py
-
 
 def tick_terrain_succession(world: WorldState) -> list[Event]:
     """Check and apply terrain transitions. Called at end of Phase 9."""

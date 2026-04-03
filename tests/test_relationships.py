@@ -612,8 +612,16 @@ def test_agents_off_produces_empty_relationships():
 # --- M57a: Aggregate mode (agents=off) smoke test ---
 
 def test_agents_off_no_marriage_events_and_default_lineage():
-    """In aggregate mode, no marriage_formed events should exist and
-    GreatPerson records keep parent_id_1 == 0 and lineage_house == 0."""
+    """Verify data-model defaults for aggregate mode: GreatPerson records have
+    parent_id_1 == 0 and lineage_house == 0, and a freshly-constructed world
+    has no marriage_formed events.
+
+    NOTE: This tests initial-state defaults only. It does NOT exercise any
+    code path that would produce marriage events in agents=on mode and verify
+    they are suppressed in agents=off mode. A true integration test would run
+    form_and_sync_relationships with a live AgentBridge vs a NullBridge and
+    compare event output.  TODO: upgrade to integration test when feasible.
+    """
     from chronicler.models import WorldState, Civilization, Leader, Region
 
     # Build minimal aggregate-mode world

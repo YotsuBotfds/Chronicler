@@ -303,11 +303,14 @@ class TestPhaseAction:
 
 class TestResolveWar:
     def test_attacker_wins_if_stronger(self, sample_world):
-        attacker = sample_world.civilizations[1]  # Dorrathi: military=70
-        defender = sample_world.civilizations[0]  # Kethani: military=50
+        attacker = sample_world.civilizations[1]  # Dorrathi: military=70, asabiya=0.8
+        defender = sample_world.civilizations[0]  # Kethani: military=50, asabiya=0.6
         attacker_mil_before = attacker.military
+        # att_power ~ 70^2 * 0.8 = 3920 vs def_power ~ 50^2 * 0.6 = 1500 + terrain
+        # Kethani's regions (plains/coast) have 0 terrain defense, so attacker
+        # decisively wins (3920 >> 1500 * 1.3 decisive_ratio).
         result = resolve_war(attacker, defender, sample_world, seed=42)
-        assert result.outcome in ("attacker_wins", "defender_wins", "stalemate")
+        assert result.outcome == "attacker_wins"
 
     def test_war_costs_treasury(self, sample_world):
         attacker = sample_world.civilizations[1]
@@ -954,7 +957,7 @@ class TestWarFrequencyAccumulators:
         assert world.civilizations[0].peace_momentum == 20.0
 
     def test_chose_war_aggressor_decay(self):
-        """Only civs that CHOSE WAR this turn get aggressor decay (0.3x)."""
+        """Only civs that CHOSE WAR this turn get aggressor decay (0.5x)."""
         world = _make_world_with_wars()
         world.civilizations[0].peace_momentum = 20.0
         world.active_wars = [("Civ A", "Civ B")]

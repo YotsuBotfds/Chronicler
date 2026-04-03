@@ -611,15 +611,16 @@ def resolve_war(
             vassal_events = resolve_vassalization(attacker, defender, world)
             world.events_timeline.extend(vassal_events)
             # Still apply military losses and stability drain
-            mult = get_severity_multiplier(defender, world)
+            att_mult = get_severity_multiplier(attacker, world)
+            def_mult = get_severity_multiplier(defender, world)
             if acc is not None:
-                acc.add(att_idx, attacker, "military", -winner_mil_loss, "guard-action")
-                acc.add(def_idx, defender, "military", -loser_mil_loss, "guard-action")
-                acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "guard-shock")
+                acc.add(att_idx, attacker, "military", -int(winner_mil_loss * att_mult), "guard-action")
+                acc.add(def_idx, defender, "military", -int(loser_mil_loss * def_mult), "guard-action")
+                acc.add(def_idx, defender, "stability", -int(war_stab_loss * def_mult), "guard-shock")
             else:
-                attacker.military = clamp(attacker.military - winner_mil_loss, STAT_FLOOR["military"], 100)
-                defender.military = clamp(defender.military - loser_mil_loss, STAT_FLOOR["military"], 100)
-                defender.stability = clamp(defender.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
+                attacker.military = clamp(attacker.military - int(winner_mil_loss * att_mult), STAT_FLOOR["military"], 100)
+                defender.military = clamp(defender.military - int(loser_mil_loss * def_mult), STAT_FLOOR["military"], 100)
+                defender.stability = clamp(defender.stability - int(war_stab_loss * def_mult), STAT_FLOOR["stability"], 100)
             return WarResult("attacker_wins", contested.name if contested else None)
         # Otherwise: existing absorption path runs unchanged
         if contested:
@@ -697,30 +698,32 @@ def resolve_war(
                     temple_evt = destroy_temple_on_conquest(contested, attacker, world)
                     if temple_evt:
                         world.events_timeline.append(temple_evt)
-                contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
-        mult = get_severity_multiplier(defender, world)
+                    contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
+        att_mult = get_severity_multiplier(attacker, world)
+        def_mult = get_severity_multiplier(defender, world)
         if acc is not None:
-            acc.add(att_idx, attacker, "military", -winner_mil_loss, "guard-action")
-            acc.add(def_idx, defender, "military", -loser_mil_loss, "guard-action")
-            acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "signal")
+            acc.add(att_idx, attacker, "military", -int(winner_mil_loss * att_mult), "guard-action")
+            acc.add(def_idx, defender, "military", -int(loser_mil_loss * def_mult), "guard-action")
+            acc.add(def_idx, defender, "stability", -int(war_stab_loss * def_mult), "guard-shock")
         else:
-            attacker.military = clamp(attacker.military - winner_mil_loss, STAT_FLOOR["military"], 100)
-            defender.military = clamp(defender.military - loser_mil_loss, STAT_FLOOR["military"], 100)
-            defender.stability = clamp(defender.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
+            attacker.military = clamp(attacker.military - int(winner_mil_loss * att_mult), STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - int(loser_mil_loss * def_mult), STAT_FLOOR["military"], 100)
+            defender.stability = clamp(defender.stability - int(war_stab_loss * def_mult), STAT_FLOOR["stability"], 100)
         return WarResult("attacker_wins", contested.name if contested else None)
     elif def_power > att_power * decisive_ratio:
         # M48: Transient memory signal — defender won the battle on contested region
         if contested:
             contested._war_won_this_turn = True
-        mult = get_severity_multiplier(attacker, world)
+        att_mult = get_severity_multiplier(attacker, world)
+        def_mult = get_severity_multiplier(defender, world)
         if acc is not None:
-            acc.add(att_idx, attacker, "military", -loser_mil_loss, "guard-action")
-            acc.add(def_idx, defender, "military", -winner_mil_loss, "guard-action")
-            acc.add(att_idx, attacker, "stability", -int(war_stab_loss * mult), "signal")
+            acc.add(att_idx, attacker, "military", -int(loser_mil_loss * att_mult), "guard-action")
+            acc.add(def_idx, defender, "military", -int(winner_mil_loss * def_mult), "guard-action")
+            acc.add(att_idx, attacker, "stability", -int(war_stab_loss * att_mult), "guard-shock")
         else:
-            attacker.military = clamp(attacker.military - loser_mil_loss, STAT_FLOOR["military"], 100)
-            defender.military = clamp(defender.military - winner_mil_loss, STAT_FLOOR["military"], 100)
-            attacker.stability = clamp(attacker.stability - int(war_stab_loss * mult), STAT_FLOOR["stability"], 100)
+            attacker.military = clamp(attacker.military - int(loser_mil_loss * att_mult), STAT_FLOOR["military"], 100)
+            defender.military = clamp(defender.military - int(winner_mil_loss * def_mult), STAT_FLOOR["military"], 100)
+            attacker.stability = clamp(attacker.stability - int(war_stab_loss * att_mult), STAT_FLOOR["stability"], 100)
         return WarResult("defender_wins", contested.name if contested else None)
     else:
         att_mult = get_severity_multiplier(attacker, world)

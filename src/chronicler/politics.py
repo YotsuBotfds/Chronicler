@@ -676,6 +676,7 @@ def check_federation_formation(world: WorldState) -> list[Event]:
 
 def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any federation members want to exit."""
+    _require_acc_for_hybrid(world, acc, "check_federation_dissolution()")
     events: list[Event] = []
     feds_to_remove = []
     civ_map = world.civ_map
@@ -932,7 +933,7 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
         ]
         for key in list(world.war_start_turns):
             parts = key.split(":")
-            if parts[0] in participants or parts[1] in participants:
+            if parts[0] in participants and parts[1] in participants:
                 del world.war_start_turns[key]
 
         for a in participants:
@@ -1135,7 +1136,6 @@ def check_restoration(world: WorldState) -> list[Event]:
         restored_civ.leader.throne_name = throne_name
         restored_civ.leader.regnal_ordinal = ordinal
 
-        restored_civ_id = len(world.civilizations) - 1
         restored_civ_id = next(
             i for i, existing_civ in enumerate(world.civilizations)
             if existing_civ is restored_civ
@@ -1290,15 +1290,12 @@ def apply_twilight(world: WorldState, acc=None) -> list[Event]:
             continue
         twilight_pop = int(get_override(world, K_TWILIGHT_POP_DRAIN, 3))
         civ_regions = [r for r in world.regions if r.controller == civ.name]
-        if civ_regions:
-            if acc is not None:
-                civ_idx = civ_index(world, civ.name)
-                acc.add(civ_idx, civ, "population", -twilight_pop, "guard")
-            else:
-                target_r = max(civ_regions, key=lambda r: r.population)
-                drain_region_pop(target_r, twilight_pop)
-                sync_civ_population(civ, world)
         mult = get_severity_multiplier(civ, world)
+        twilight_pop_scaled = int(twilight_pop * mult)
+        if civ_regions:
+            target_r = max(civ_regions, key=lambda r: r.population)
+            drain_region_pop(target_r, twilight_pop_scaled)
+            sync_civ_population(civ, world)
         twilight_culture = int(get_override(world, K_TWILIGHT_CULTURE_DRAIN, 2))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)

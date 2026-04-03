@@ -625,7 +625,7 @@ class LiveServer:
                                 narrator=client_config.get("narrator", "local"),
                             )
                             engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
-                            entries = engine.narrate_batch(moments, all_history, [])
+                            entries = engine.narrate_batch(moments, all_history)
                             if entries:
                                 await websocket.send(json.dumps({
                                     "type": "narration_complete",

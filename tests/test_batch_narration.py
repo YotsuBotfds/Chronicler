@@ -76,7 +76,7 @@ def test_narrate_batch_produces_entries():
         ),
     ]
     history = [_make_snap(i, "A", 100, 50, 50, ["r1"]) for i in range(1, 15)]
-    entries = engine.narrate_batch(moments, history, [])
+    entries = engine.narrate_batch(moments, history)
     assert len(entries) == 1
     assert entries[0].narrative == "The war began at dawn."
     assert entries[0].narrative_role == NarrativeRole.CLIMAX
@@ -96,7 +96,7 @@ def test_narrate_batch_fallback_on_error():
         ),
     ]
     history = [_make_snap(i, "A", 100, 50, 50, ["r1"]) for i in range(1, 15)]
-    entries = engine.narrate_batch(moments, history, [])
+    entries = engine.narrate_batch(moments, history)
     assert len(entries) == 1
     assert entries[0].narrative == "battle"
 
@@ -118,7 +118,7 @@ def test_narrate_batch_progress_callback():
     history = [_make_snap(i, "A", 100, 50, 50, ["r1"]) for i in range(1, 35)]
     progress_calls = []
     entries = engine.narrate_batch(
-        moments, history, [],
+        moments, history,
         on_progress=lambda completed, total, eta: progress_calls.append((completed, total)),
     )
     assert len(entries) == 3
@@ -149,7 +149,7 @@ def test_end_to_end_simulate_curate_narrate():
     mock_client.complete.return_value = "Chronicle prose."
     engine = NarrativeEngine(sim_client=mock_client, narrative_client=mock_client)
 
-    entries = engine.narrate_batch(moments, history, gaps)
+    entries = engine.narrate_batch(moments, history)
 
     assert len(entries) == len(moments)
     assert all(isinstance(e, ChronicleEntry) for e in entries)

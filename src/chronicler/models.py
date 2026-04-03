@@ -935,19 +935,6 @@ class AgentContext(BaseModel):
     top_settlements: list[SettlementSummary] = Field(default_factory=list)
 
 
-class NarrationContext(BaseModel):
-    """Per-moment LLM context for batch narration."""
-    moment: NarrativeMoment
-    snapshot: TurnSnapshot
-    before_summary: str
-    after_summary: str
-    role_instruction: str
-    causes: list[str]
-    consequences: list[str]
-    previous_prose: str | None
-    agent_context: AgentContext | None = None
-
-
 class ChronicleEntry(BaseModel):
     """A narrated chronicle entry covering a range of turns."""
     turn: int  # anchor turn

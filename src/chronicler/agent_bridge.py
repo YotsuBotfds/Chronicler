@@ -69,9 +69,13 @@ VALUE_PERSONALITY_MAP = {
 }
 
 DOMAIN_PERSONALITY_MAP = {
-    "military": ( 0.10,  0.0,   0.0),
-    "trade":    ( 0.0,   0.10,  0.0),
-    "merchant": ( 0.0,   0.10,  0.0),
+    "warfare":     ( 0.10,  0.0,   0.0),
+    "expansion":   ( 0.10,  0.0,   0.0),
+    "commerce":    ( 0.0,   0.10,  0.0),
+    "maritime":    ( 0.0,   0.10,  0.0),
+    "scholarship": ( 0.0,   0.0,   0.10),
+    "faith":       ( 0.0,   0.0,   0.10),
+    "diplomacy":   ( 0.0,   0.05,  0.05),
 }
 
 
@@ -2250,6 +2254,10 @@ class AgentBridge:
             civ = world.civilizations[civ_id]
             if len(civ.regions) == 0:
                 civ.population = 0
+                civ.military = 0
+                civ.economy = 0
+                civ.culture = 0
+                civ.stability = 0
                 continue
             civ.population = int(controlled_population_by_civ.get(civ.name, 0))
             if civ.population < 1:

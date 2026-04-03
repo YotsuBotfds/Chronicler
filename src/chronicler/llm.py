@@ -112,7 +112,7 @@ class LocalClient:
             max_tokens=max_tokens,
             temperature=self.temperature,
         )
-        return response.choices[0].message.content.strip()
+        return (response.choices[0].message.content or "").strip()
 
 
 class LocalNarrativeClient(LocalClient):
@@ -265,7 +265,7 @@ class GeminiClient:
         # Thinking models (2.5-flash/pro) split output into candidates + thoughts
         self.total_output_tokens += candidate_tokens + thought_tokens
         self.call_count += 1
-        return response.text.strip()
+        return (response.text or "").strip()
 
 
 def create_clients(

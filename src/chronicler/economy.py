@@ -965,6 +965,7 @@ def build_merchant_route_graph(world) -> "pa.RecordBatch":
 
     regions = world.regions
     region_idx = {r.name: i for i, r in enumerate(regions)}
+    river_routes = build_river_route_set(world.rivers) if hasattr(world, "rivers") and world.rivers else set()
     is_winter = get_season_id(world.turn) == 3
 
     # Pre-build lookup sets for O(1) gating checks.
@@ -1012,16 +1013,14 @@ def build_merchant_route_graph(world) -> "pa.RecordBatch":
                 # Disposition check: both sides must be >= neutral (2)
                 rel_ab = world.relationships.get(r1.controller, {}).get(r2.controller)
                 rel_ba = world.relationships.get(r2.controller, {}).get(r1.controller)
-                if rel_ab is None or rel_ba is None:
-                    continue
-                if _DISP_NUMERIC.get(rel_ab.disposition.value, 0) < 2:
-                    continue
-                if _DISP_NUMERIC.get(rel_ba.disposition.value, 0) < 2:
+                disp_ab = _DISP_NUMERIC.get(rel_ab.disposition.value, 0) if rel_ab else 2
+                disp_ba = _DISP_NUMERIC.get(rel_ba.disposition.value, 0) if rel_ba else 2
+                if disp_ab < 2 or disp_ba < 2:
                     continue
 
             from_ids.append(region_idx[r1.name])
             to_ids.append(region_idx[r2.name])
-            is_river_flags.append(_regions_share_river(r1, r2))
+            is_river_flags.append(frozenset({r1.name, r2.name}) in river_routes)
             transport_costs.append(_transport_cost(r1, r2, is_winter))
 
     return pa.record_batch({
@@ -1555,7 +1554,7 @@ def compute_economy(
                 suff_values = [result.food_sufficiency.get(rn, 1.0) for rn in civ_regions]
                 avg_food_suff = sum(suff_values) / len(suff_values)
             TITHE_FOOD_GATE = 0.5
-            tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0) if avg_food_suff < TITHE_FOOD_GATE else 1.0
+            tithe_scale = avg_food_suff / TITHE_FOOD_GATE if avg_food_suff < TITHE_FOOD_GATE else 1.0
             scaled_tithe_base = merchant_wealth * tithe_scale
 
             result.tithe_base[civ_idx] = scaled_tithe_base

@@ -22,10 +22,7 @@ from chronicler.models import (
     CausalLink,
     ChronicleEntry,
     Civilization,
-    Disposition,
     Event,
-    GapSummary,
-    NarrationContext,
     NarrativeMoment,
     NarrativeRole,
     NamedEvent,
@@ -349,7 +346,7 @@ def build_agent_context_for_moment(
         if dynasty_registry is not None and gp_by_agent_id is not None and gp.agent_id:
             dynasty = dynasty_registry.get_dynasty_for(gp.agent_id, gp_by_agent_id)
             if dynasty is not None:
-                living_count = sum(1 for m in dynasty.members if gp_by_agent_id[m].alive)
+                living_count = sum(1 for m in dynasty.members if m in gp_by_agent_id and gp_by_agent_id[m].alive)
                 char["dynasty"] = dynasty.founder_name
                 char["dynasty_living"] = living_count
                 char["dynasty_total"] = len(dynasty.members)
@@ -544,7 +541,7 @@ def build_agent_context_for_moment(
                 upstream_source=ev.actors[1] if len(ev.actors) > 1 else None,
             )
             for ev in moment.events
-            if ev.event_type == "supply_shock" and ev.shock_region is not None
+            if ev.event_type == "supply_shock" and ev.shock_region is not None and ev.shock_category is not None
         ]
     return ctx
 
@@ -915,7 +912,6 @@ class NarrativeEngine:
         self,
         moments: list[NarrativeMoment],
         history: Sequence[TurnSnapshot],
-        gap_summaries: list[GapSummary],
         on_progress: Callable[[int, int, float | None], None] | None = None,
         # M40: Optional agent context data
         great_persons: list | None = None,

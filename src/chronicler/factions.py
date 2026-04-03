@@ -166,7 +166,7 @@ def _event_is_win(event: Event, civ: Civilization, faction_type: FactionType) ->
         if event_type_lower == "build_started" and "temples" in event_desc_lower:
             return True
         if event_type_lower == "persecution":
-            return True
+            return len(event.actors) >= 1 and civ.name == event.actors[0]
     return False
 
 

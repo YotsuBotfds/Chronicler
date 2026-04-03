@@ -141,20 +141,26 @@ def _check_famine_yield(
             civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         region.famine_cooldown = 5
 
+        # Collect eligible neighbors for refugee distribution
+        eligible = []
         for adj_name in region.adjacencies:
             adj = next((r for r in world.regions if r.name == adj_name), None)
             if adj and adj.controller and adj.controller != civ.name:
                 neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
                 if neighbor:
-                    refugee_pop = int(get_override(world, K_FAMINE_REFUGEE_POP, 5))
-                    add_region_pop(adj, refugee_pop)
-                    sync_civ_population(neighbor, world)
-                    neighbor_mult = get_severity_multiplier(neighbor, world)
-                    if acc is not None:
-                        neighbor_idx = civ_index(world, neighbor.name)
-                        acc.add(neighbor_idx, neighbor, "stability", -int(5 * neighbor_mult), "signal")
-                    else:
-                        neighbor.stability = clamp(neighbor.stability - int(5 * neighbor_mult), STAT_FLOOR["stability"], 100)
+                    eligible.append((adj, neighbor))
+
+        if eligible:
+            per_neighbor = max(1, famine_pop // len(eligible))
+            for adj, neighbor in eligible:
+                add_region_pop(adj, per_neighbor)
+                sync_civ_population(neighbor, world)
+                neighbor_mult = get_severity_multiplier(neighbor, world)
+                if acc is not None:
+                    neighbor_idx = civ_index(world, neighbor.name)
+                    acc.add(neighbor_idx, neighbor, "stability", -int(5 * neighbor_mult), "signal")
+                else:
+                    neighbor.stability = clamp(neighbor.stability - int(5 * neighbor_mult), STAT_FLOOR["stability"], 100)
 
         events.append(Event(
             turn=world.turn, event_type="famine", actors=[civ.name],
@@ -208,9 +214,6 @@ def _collect_army_arrived_mask(world: "WorldState") -> list[bool]:
                     and 0 <= e.target_region < len(mask)):
                 mask[e.target_region] = True
     return mask
-
-
-_TERRAIN_FROM_U8 = {0: "plains", 1: "mountains", 2: "coast", 3: "forest", 4: "desert", 5: "tundra"}
 
 
 def _write_back_ecology(world: "WorldState", region_batch) -> dict[str, list[float]]:
@@ -352,9 +355,6 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     rust_events = _materialize_ecology_events(event_batch, world)
 
     # 4. Python famine / soil floor / counters / terrain succession / population sync
-    from chronicler.resources import get_season_id
-    season_id = get_season_id(world.turn)
-
     subsistence_base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
     famine_threshold = get_override(world, K_FAMINE_YIELD_THRESHOLD, 0.12)
 

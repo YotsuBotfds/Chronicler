@@ -214,6 +214,7 @@ def check_great_person_generation(civ: Civilization, world: WorldState) -> list[
             _enforce_cap(civ, world)
             gp = _create_great_person("scientist", civ, world)
             _set_cooldown(civ.name, "scientist", world)
+            civ.event_counts["tech_advanced"] = 0  # Only reset on actual spawn
             spawned.append(gp)
 
     # ------------------------------------------------------------------

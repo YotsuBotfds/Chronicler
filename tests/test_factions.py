@@ -60,18 +60,24 @@ class TestNormalization:
         fs = FactionState()
         fs.influence[FactionType.MILITARY] = 0.5
         fs.influence[FactionType.MERCHANT] = 0.3
-        fs.influence[FactionType.CULTURAL] = 0.2
+        fs.influence[FactionType.CULTURAL] = 0.1
+        fs.influence[FactionType.CLERGY] = 0.1
         normalize_influence(fs)
         assert sum(fs.influence.values()) == pytest.approx(1.0)
+        # All four factions should be present and at or above floor
+        for ft in FactionType:
+            assert ft in fs.influence
 
     def test_normalize_enforces_floor(self):
         fs = FactionState()
-        fs.influence[FactionType.MILITARY] = 0.95
+        fs.influence[FactionType.MILITARY] = 0.90
         fs.influence[FactionType.MERCHANT] = 0.04
         fs.influence[FactionType.CULTURAL] = 0.01
+        fs.influence[FactionType.CLERGY] = 0.05
         normalize_influence(fs)
-        assert fs.influence[FactionType.CULTURAL] >= 0.05
-        assert fs.influence[FactionType.MERCHANT] >= 0.05
+        # FACTION_FLOOR is 0.08 — all factions must be at or above it
+        for ft in FactionType:
+            assert fs.influence[ft] >= 0.08, f"{ft} below floor"
         assert sum(fs.influence.values()) == pytest.approx(1.0)
 
     def test_normalize_after_zero(self):
@@ -79,9 +85,13 @@ class TestNormalization:
         fs.influence[FactionType.MILITARY] = 1.0
         fs.influence[FactionType.MERCHANT] = 0.0
         fs.influence[FactionType.CULTURAL] = 0.0
+        fs.influence[FactionType.CLERGY] = 0.0
         normalize_influence(fs)
-        assert fs.influence[FactionType.MERCHANT] >= 0.05
-        assert fs.influence[FactionType.CULTURAL] >= 0.05
+        # FACTION_FLOOR is 0.08 — all factions must be at or above it
+        assert fs.influence[FactionType.MERCHANT] >= 0.08
+        assert fs.influence[FactionType.CULTURAL] >= 0.08
+        assert fs.influence[FactionType.CLERGY] >= 0.08
+        assert sum(fs.influence.values()) == pytest.approx(1.0)
 
     def test_normalize_handles_all_zero_input(self):
         fs = FactionState()

@@ -479,7 +479,7 @@ def apply_automatic_effects(
 
     # M17c: Hostage turn ticking
     from chronicler.relationships import tick_hostages
-    tick_hostages(world)
+    tick_hostages(world, acc=acc)
 
     # M18: Pandemic tick
     from chronicler.emergence import tick_pandemic
@@ -926,14 +926,11 @@ def apply_injected_event(
     elif event_type == "plague":
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
-        if acc is not None:
-            acc.add(civ_idx, civ, "population", -10, "guard")
-        else:
-            civ_regions = [r for r in world.regions if r.controller == civ.name]
-            if civ_regions:
-                target_r = max(civ_regions, key=lambda r: r.population)
-                drain_region_pop(target_r, 10)
-                sync_civ_population(civ, world)
+        pop_loss = int(10 * mult)
+        civ_regions = [r for r in world.regions if r.controller == civ.name]
+        if civ_regions:
+            distribute_pop_loss(civ_regions, pop_loss)
+            sync_civ_population(civ, world)
         if acc is not None:
             acc.add(civ_idx, civ, "stability", -drain, "signal")
         else:
@@ -1254,7 +1251,6 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 importance=6,
             ))
         check_lifespan_expiry(civ, world)
-        civ.event_counts["tech_advanced"] = 0
 
     # M17b: Exile restoration checks
     collapse_events.extend(check_exile_restoration(world))

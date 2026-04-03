@@ -310,7 +310,10 @@ def execute_run(
     sim_model = getattr(_sim, "model", "unknown") or "LM Studio default"
     narr_model = getattr(_narr, "model", "unknown") or "LM Studio default"
     print(f"Generating chronicle for '{world.name}' — {remaining} turns, {len(world.civilizations)} civs")
-    print(f"  Sim model: {sim_model} | Narrative model: {narr_model} [local inference]")
+    mode_label = {"local": "local inference", "api": "Claude API", "gemini": "Gemini API"}.get(
+        getattr(args, "narrator", "local"), "local inference"
+    )
+    print(f"  Sim model: {sim_model} | Narrative model: {narr_model} [{mode_label}]")
 
     # Pending injections list — shared mutable object with on_pause callback
     _pending = pending_injections if pending_injections is not None else []
@@ -622,7 +625,7 @@ def execute_run(
         all_great_persons = list(gp_by_name.values()) if gp_by_name else None
 
         chronicle_entries = engine.narrate_batch(
-            moments, history, gap_summaries, on_progress=progress_cb,
+            moments, history, on_progress=progress_cb,
             great_persons=all_great_persons,
             gp_by_name=gp_by_name if gp_by_name else None,
             world=world,
@@ -1001,7 +1004,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
     all_great_persons = list(gp_by_name.values()) if gp_by_name else None
 
     chronicle_entries = engine.narrate_batch(
-        moments, history, gap_summaries, on_progress=progress_cb,
+        moments, history, on_progress=progress_cb,
         great_persons=all_great_persons,
         gp_by_name=gp_by_name if gp_by_name else None,
         world=world,
