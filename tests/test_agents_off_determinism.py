@@ -125,3 +125,12 @@ class TestAgentsOffDeterminism:
                 f"Run {i} diverged from run 0"
             )
             assert snaps[0]["events_count"] == snaps[i]["events_count"]
+
+    def test_single_civ_world_remains_deterministic(self):
+        """Single-civ aggregate worlds should still run and remain deterministic."""
+        snap_a = _run_aggregate_simulation(seed=321, num_turns=12, num_civs=1, num_regions=3)
+        snap_b = _run_aggregate_simulation(seed=321, num_turns=12, num_civs=1, num_regions=3)
+
+        assert snap_a == snap_b
+        assert snap_a["civ_count"] == 1
+        assert len(snap_a["civs"]) == 1

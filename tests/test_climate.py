@@ -67,6 +67,11 @@ class TestGetClimatePhase:
         assert get_climate_phase(75, cfg) == ClimatePhase.TEMPERATE
         assert get_climate_phase(105, cfg) == ClimatePhase.WARMING
 
+    def test_zero_period_uses_floor(self):
+        from chronicler.climate import get_climate_phase
+        cfg = ClimateConfig(period=0)
+        assert get_climate_phase(0, cfg) == ClimatePhase.TEMPERATE
+
 
 class TestClimateDegradationMultiplier:
     def test_temperate_no_change(self):

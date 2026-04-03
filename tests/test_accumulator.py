@@ -161,6 +161,24 @@ class TestShockNormalization:
         shocks = acc.to_shock_signals()
         assert shocks[0].stability_shock == pytest.approx(-1.0)
 
+    def test_stability_uses_higher_floor_at_low_values(self):
+        from chronicler.accumulator import StatAccumulator, normalize_shock
+        civ = _make_civ(0, stability=2)
+        acc = StatAccumulator()
+        acc.add(0, civ, "stability", -1, "signal")
+        shocks = acc.to_shock_signals()
+        assert shocks[0].stability_shock == pytest.approx(-0.1)
+        assert normalize_shock(1, 2, "stability") == pytest.approx(-0.1)
+
+    def test_economy_uses_higher_floor_at_low_values(self):
+        from chronicler.accumulator import StatAccumulator, normalize_shock
+        civ = _make_civ(0, economy=2)
+        acc = StatAccumulator()
+        acc.add(0, civ, "economy", -1, "signal")
+        shocks = acc.to_shock_signals()
+        assert shocks[0].economy_shock == pytest.approx(-0.2)
+        assert normalize_shock(1, 2, "economy") == pytest.approx(-0.2)
+
     def test_positive_shock(self):
         from chronicler.accumulator import StatAccumulator
         civ = _make_civ(0, culture=50)

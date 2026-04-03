@@ -5,7 +5,7 @@ import random
 
 from chronicler.models import Disposition, Event, InfrastructureType, Region, Resource, WorldState
 from chronicler.models import EMPTY_SLOT, ResourceType
-from chronicler.utils import stable_hash_int
+from chronicler.utils import get_region_map, stable_hash_int
 
 # --- M34: Resource type constants ---
 
@@ -131,7 +131,11 @@ def assign_resources(regions: list[Region], seed: int) -> None:
         region.specialized_resources = resources
 
 
-def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> list[tuple[str, str]]:
+def _compute_active_trade_routes(
+    world: WorldState,
+    *,
+    emit_events: bool = False,
+) -> list[tuple[str, str]]:
     """Cross-civ trade routes — direct adjacency, neutral+ disposition, no embargo.
 
     H-6: Pure query by default. Set emit_events=True at the dedicated point
@@ -139,12 +143,13 @@ def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> 
     (intelligence, snapshots, action engine) get a side-effect-free read.
     """
     routes: set[tuple[str, str]] = set()
+    region_map = get_region_map(world)
     embargo_set = {(a, b) for a, b in world.embargoes} | {(b, a) for a, b in world.embargoes}
     for r1 in world.regions:
         if r1.controller is None:
             continue
         for adj_name in r1.adjacencies:
-            r2 = next((r for r in world.regions if r.name == adj_name), None)
+            r2 = region_map.get(adj_name)
             if r2 is None or r2.controller is None or r1.controller == r2.controller:
                 continue
             pair = tuple(sorted([r1.controller, r2.controller]))
@@ -170,7 +175,7 @@ def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> 
         if focus not in ("navigation", "railways"):
             continue
         for mid_name in r1.adjacencies:
-            mid = next((r for r in world.regions if r.name == mid_name), None)
+            mid = region_map.get(mid_name)
             if mid is None:
                 continue
             # NAVIGATION: intermediate must be coastal
@@ -182,7 +187,7 @@ def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> 
             ):
                 continue
             for hop2_name in mid.adjacencies:
-                hop2 = next((r for r in world.regions if r.name == hop2_name), None)
+                hop2 = region_map.get(hop2_name)
                 if hop2 is None or hop2.controller is None or hop2.controller == r1.controller:
                     continue
                 pair = tuple(sorted([r1.controller, hop2.controller]))
@@ -197,7 +202,7 @@ def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> 
 
     # H-6: Only emit capability events when explicitly requested (Phase 2 call site)
     if emit_events:
-        for civ_name, focus in capability_fired:
+        for civ_name, focus in sorted(capability_fired):
             world.events_timeline.append(Event(
                 turn=world.turn, event_type=f"capability_{focus}",
                 actors=[civ_name], description=f"{civ_name} {focus} extends trade routes",
@@ -211,19 +216,76 @@ def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> 
                 pair = tuple(sorted([m1, m2]))
                 if pair not in routes:
                     routes.add(pair)
-    return list(routes)
+    return sorted(routes)
+
+
+def set_active_trade_routes_snapshot(
+    world: WorldState,
+    routes: list[tuple[str, str]],
+) -> None:
+    """Seed the current turn's route cache for downstream read-only consumers."""
+    route_list = sorted(routes)
+    world._trade_route_cache_turn = world.turn
+    world._active_trade_routes_cache = list(route_list)
+    world._active_trade_route_pairs_cache = set(route_list)
+
+
+def clear_active_trade_routes_snapshot(world: WorldState) -> None:
+    """Clear the transient per-turn route cache."""
+    if hasattr(world, "invalidate_trade_route_cache"):
+        world.invalidate_trade_route_cache()
+    else:
+        world._trade_route_cache_turn = None
+        world._active_trade_routes_cache = None
+        world._active_trade_route_pairs_cache = None
+        world._self_trade_civs_cache = None
+
+
+def get_active_trade_route_pairs(world: WorldState) -> set[tuple[str, str]]:
+    """Return active trade routes as a normalized pair set."""
+    cached_turn = getattr(world, "_trade_route_cache_turn", None)
+    cached_pairs = getattr(world, "_active_trade_route_pairs_cache", None)
+    if cached_turn == world.turn and cached_pairs is not None:
+        return set(cached_pairs)
+    return set(get_active_trade_routes(world))
+
+
+def get_active_trade_routes(world: WorldState, *, emit_events: bool = False) -> list[tuple[str, str]]:
+    """Return the current turn's trade-route graph.
+
+    In `run_turn()`, Phase 2 may seed the current turn's route cache so later
+    read-only consumers do not keep rebuilding the same route graph. Route-
+    affecting mutations are expected to invalidate that cache before the next
+    read.
+    """
+    if not emit_events:
+        cached_routes = getattr(world, "_active_trade_routes_cache", None)
+        cached_turn = getattr(world, "_trade_route_cache_turn", None)
+        if cached_routes is not None and cached_turn == world.turn:
+            return list(cached_routes)
+    routes = _compute_active_trade_routes(world, emit_events=emit_events)
+    set_active_trade_routes_snapshot(world, routes)
+    return routes
 
 
 def get_self_trade_civs(world: WorldState) -> set[str]:
     """Civs that control both endpoints of an adjacency edge (internal routes)."""
+    cached_turn = getattr(world, "_trade_route_cache_turn", None)
+    cached_self = getattr(world, "_self_trade_civs_cache", None)
+    if cached_self is not None and cached_turn == world.turn:
+        return set(cached_self)
+
     self_routes: set[str] = set()
+    region_map = get_region_map(world)
     for r1 in world.regions:
         if r1.controller is None:
             continue
         for adj_name in r1.adjacencies:
-            r2 = next((r for r in world.regions if r.name == adj_name), None)
+            r2 = region_map.get(adj_name)
             if r2 and r2.controller == r1.controller:
                 self_routes.add(r1.controller)
+    world._trade_route_cache_turn = world.turn
+    world._self_trade_civs_cache = set(self_routes)
     return self_routes
 
 

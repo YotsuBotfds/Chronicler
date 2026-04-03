@@ -103,6 +103,47 @@ class TestValueDrift:
         rel = drift_world.relationships["CivA"]["CivB"]
         assert rel.disposition_drift == 0
 
+    def test_agent_value_drift_is_stable_across_snapshot_row_order(self, drift_world):
+        class _FakeColumn:
+            def __init__(self, values):
+                self._values = values
+
+            def to_pylist(self):
+                return list(self._values)
+
+        class _FakeSnapshot:
+            def __init__(self, columns):
+                self._columns = columns
+                self.num_rows = len(next(iter(columns.values()))) if columns else 0
+
+            def column(self, name):
+                return _FakeColumn(self._columns[name])
+
+        columns_a = {
+            "civ_affinity": [0, 0, 1, 1],
+            "cultural_value_0": [0, 0, 0, 0],
+            "cultural_value_1": [1, 1, 1, 1],
+            "cultural_value_2": [2, 2, 3, 3],
+        }
+        columns_b = {
+            "civ_affinity": [1, 0, 1, 0],
+            "cultural_value_0": [0, 0, 0, 0],
+            "cultural_value_1": [1, 1, 1, 1],
+            "cultural_value_2": [3, 2, 3, 2],
+        }
+
+        world_a = drift_world.model_copy(deep=True)
+        world_b = drift_world.model_copy(deep=True)
+
+        apply_value_drift(world_a, agent_snapshot=_FakeSnapshot(columns_a))
+        apply_value_drift(world_b, agent_snapshot=_FakeSnapshot(columns_b))
+
+        assert world_a.relationships["CivA"]["CivB"].disposition_drift == 3
+        assert (
+            world_a.relationships["CivA"]["CivB"].disposition_drift
+            == world_b.relationships["CivA"]["CivB"].disposition_drift
+        )
+
 
 @pytest.fixture
 def assimilation_world():
@@ -357,6 +398,34 @@ class TestMovementDispositionEffects:
         apply_value_drift(drift_world)
         rel = drift_world.relationships["CivA"]["CivB"]
         assert rel.disposition_drift == 10
+
+
+def test_agent_snapshot_value_drift_sorts_value_keys_before_summing(drift_world, monkeypatch):
+    import builtins
+    from collections import Counter
+    import chronicler.culture as culture
+
+    observed_value_sort = []
+    real_sorted = builtins.sorted
+
+    def fake_profiles(_snapshot):
+        return {
+            0: Counter({"Trade": 2, "Order": 1}),
+            1: Counter({"Order": 2, "Trade": 1}),
+        }
+
+    def tracking_sorted(iterable, *args, **kwargs):
+        items = list(iterable)
+        if set(items) == {"Trade", "Order"}:
+            observed_value_sort.append(tuple(items))
+        return real_sorted(items, *args, **kwargs)
+
+    monkeypatch.setattr(culture, "compute_civ_cultural_profile", fake_profiles)
+    monkeypatch.setattr(builtins, "sorted", tracking_sorted)
+
+    apply_value_drift(drift_world, agent_snapshot=object())
+
+    assert observed_value_sort, "Expected deterministic sorting of cultural profile keys"
 
 
 from chronicler.tech import get_era_bonus

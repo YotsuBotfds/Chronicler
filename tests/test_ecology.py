@@ -117,6 +117,14 @@ class TestTerrainDefaults:
     def test_all_six_terrains_present(self):
         assert set(TERRAIN_ECOLOGY_DEFAULTS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
 
+    def test_effective_capacity_zero_water_denominator_uses_floor(self, monkeypatch):
+        region = Region(name="T", terrain="plains", carrying_capacity=100, resources="fertile")
+        world = WorldState(name="T", seed=42)
+
+        monkeypatch.setattr("chronicler.ecology.get_override", lambda *_args, **_kwargs: 0.0)
+
+        assert effective_capacity(region, world) >= 1
+
 
 class TestTerrainCaps:
     def test_desert_caps(self):

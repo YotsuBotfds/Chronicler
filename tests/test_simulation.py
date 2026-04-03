@@ -91,6 +91,30 @@ class TestPhaseProduction:
         phase_production(sample_world)
         assert sample_world.civilizations[0].population <= 100
 
+    def test_agents_off_population_growth_updates_regions_when_accumulator_present(self, sample_world):
+        from chronicler.utils import sync_all_populations
+
+        civ = sample_world.civilizations[0]
+        civ.population = 20
+        civ.economy = 80
+        civ.stability = 60
+        sample_world.agent_mode = "off"
+
+        controlled_regions = [r for r in sample_world.regions if r.controller == civ.name]
+        assert controlled_regions
+        for region in controlled_regions:
+            region.population = 10
+        sync_all_populations(sample_world)
+        before = sum(region.population for region in controlled_regions)
+
+        acc = StatAccumulator()
+        phase_production(sample_world, acc=acc)
+
+        after = sum(region.population for region in controlled_regions)
+        assert after > before
+        sync_all_populations(sample_world)
+        assert civ.population == after
+
 
 class TestAutomaticEffects:
     def test_low_stability_recovery_routes_as_guard_shock(self, sample_world):
@@ -184,6 +208,42 @@ class TestPhaseAction:
 
         events = phase_action(sample_world, action_selector=stub_selector)
         assert len(events) == len(sample_world.civilizations)
+
+    def test_route_cache_invalidates_between_actions_when_diplomacy_opens_trade(self, sample_world):
+        from chronicler.resources import set_active_trade_routes_snapshot
+
+        civ_a = sample_world.civilizations[0]
+        civ_b = sample_world.civilizations[1]
+        for civ in sample_world.civilizations[2:]:
+            civ.regions = []
+
+        r1 = sample_world.regions[0]
+        r2 = sample_world.regions[1]
+        r1.controller = civ_a.name
+        r2.controller = civ_b.name
+        r1.adjacencies = [r2.name]
+        r2.adjacencies = [r1.name]
+        sample_world.relationships[civ_a.name] = {
+            civ_b.name: sample_world.relationships[civ_a.name][civ_b.name]
+        }
+        sample_world.relationships[civ_b.name] = {
+            civ_a.name: sample_world.relationships[civ_b.name][civ_a.name]
+        }
+        sample_world.relationships[civ_a.name][civ_b.name].disposition = Disposition.SUSPICIOUS
+        sample_world.relationships[civ_b.name][civ_a.name].disposition = Disposition.SUSPICIOUS
+
+        # Simulate the Phase 2 cached route snapshot that exists in run_turn().
+        set_active_trade_routes_snapshot(sample_world, [])
+
+        def selector(civ: Civilization, world: WorldState) -> ActionType:
+            if civ.name == civ_a.name:
+                return ActionType.DIPLOMACY
+            return ActionType.TRADE
+
+        events = phase_action(sample_world, action_selector=selector)
+
+        assert events[0].event_type == "diplomacy"
+        assert events[1].event_type == "trade"
 
     def test_crisis_halving_applies_in_accumulator_mode(self, sample_world):
         """Crisis action gains must be halved even when actions route through StatAccumulator."""

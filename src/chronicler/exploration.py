@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from chronicler.models import Civilization, Region, WorldState
 
 from chronicler.models import Event, Relationship
-from chronicler.utils import civ_index
+from chronicler.utils import civ_index, get_region_map
 
 
 def initialize_fog(world: WorldState) -> None:
@@ -20,7 +20,7 @@ def initialize_fog(world: WorldState) -> None:
     if not world.fog_of_war:
         return
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
 
     for civ in world.civilizations:
         known: set[str] = set()
@@ -41,7 +41,7 @@ def is_explore_eligible(world: WorldState, civ: Civilization) -> bool:
         return False
 
     known_set = set(civ.known_regions)
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
 
     for rname in civ.known_regions:
         region = region_map.get(rname)
@@ -58,7 +58,7 @@ def _get_unknown_adjacent(world: WorldState, civ: Civilization) -> list[str]:
     if civ.known_regions is None:
         return []
     known_set = set(civ.known_regions)
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     candidates: list[str] = []
 
     for rname in civ.known_regions:
@@ -74,7 +74,7 @@ def _get_unknown_adjacent(world: WorldState, civ: Civilization) -> list[str]:
 def handle_explore(world: WorldState, civ: Civilization, acc=None) -> Event:
     """EXPLORE action handler. Reveals 1 unknown adjacent region + its adjacencies."""
     candidates = _get_unknown_adjacent(world, civ)
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
 
     if not candidates:
         return Event(
@@ -145,7 +145,7 @@ def handle_first_contact(
     world.relationships[discoverer][discovered] = Relationship()
     world.relationships[discovered][discoverer] = Relationship()
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     contact = region_map.get(contact_region)
     if contact:
         nearby: set[str] = {contact_region}
@@ -230,14 +230,20 @@ def filter_targets_by_fog(
     return [r for r in target_regions if r in known_set]
 
 
-def tick_trade_knowledge_sharing(world: WorldState) -> list[Event]:
+def tick_trade_knowledge_sharing(
+    world: WorldState,
+    routes: list[tuple[str, str]] | None = None,
+) -> list[Event]:
     """Called from apply_automatic_effects (phase 2)."""
     from chronicler.resources import get_active_trade_routes
 
     events: list[Event] = []
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
 
-    for route in get_active_trade_routes(world):
+    if routes is None:
+        routes = get_active_trade_routes(world)
+
+    for route in routes:
         civ_a_name = route[0]
         civ_b_name = route[1]
 

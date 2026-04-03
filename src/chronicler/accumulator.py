@@ -55,15 +55,24 @@ STAT_TO_SHOCK_FIELD = {
 }
 
 DEMAND_SCALE_FACTOR = 1.0
+SHOCK_NORMALIZATION_FLOORS = {
+    "stability": 10.0,
+    "economy": 5.0,
+}
 
 
-def normalize_shock(delta: float, stat: float) -> float:
+def _shock_denominator(stat: float, stat_name: str | None = None) -> float:
+    """Return the denominator used to normalize civ shocks."""
+    return max(float(stat), SHOCK_NORMALIZATION_FLOORS.get(stat_name, 1.0))
+
+
+def normalize_shock(delta: float, stat: float, stat_name: str | None = None) -> float:
     """Normalize a punitive stat delta to a negative shock in [-1.0, 0.0].
 
     `delta` is the magnitude of a loss. Use direct `CivShock` fields for
     positive boosts instead of this helper.
     """
-    return max(-1.0, min(1.0, -abs(delta) / max(stat, 1)))
+    return max(-1.0, min(1.0, -abs(delta) / _shock_denominator(stat, stat_name)))
 
 
 class StatAccumulator:
@@ -176,7 +185,7 @@ class StatAccumulator:
             shock = shocks.setdefault(c.civ_id, CivShock(c.civ_id))
             field = STAT_TO_SHOCK_FIELD[c.stat]
             current_shock = getattr(shock, field)
-            normalized = c.delta / max(c.stat_at_time, 1)
+            normalized = c.delta / _shock_denominator(c.stat_at_time, c.stat)
             new_shock = max(-1.0, min(1.0, current_shock + normalized))
             setattr(shock, field, new_shock)
         return list(shocks.values())

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from chronicler.models import Event, FactionType
 from chronicler.factions import get_dominant_faction
-from chronicler.resources import get_active_trade_routes
+from chronicler.resources import get_active_trade_route_pairs
 
 
 def shares_adjacent_region(observer: Civilization, target: Civilization,
@@ -29,9 +29,8 @@ def shares_adjacent_region(observer: Civilization, target: Civilization,
 def has_active_trade_route(observer: Civilization, target: Civilization,
                            world: WorldState) -> bool:
     """True if an active trade route exists between observer and target."""
-    routes = get_active_trade_routes(world)
     pair = tuple(sorted([observer.name, target.name]))
-    return pair in {tuple(sorted(r)) for r in routes}
+    return pair in get_active_trade_route_pairs(world)
 
 
 def in_same_federation(observer: Civilization, target: Civilization,

@@ -49,11 +49,15 @@ TERRAIN_ECOLOGY_CAPS: dict[str, dict[str, float]] = {
 _FLOOR_SOIL = 0.05
 _FLOOR_WATER = 0.10
 _FLOOR_FOREST = 0.00
+_MIN_TUNING_DENOMINATOR = 0.001
 
 
 def effective_capacity(region: Region, world: "WorldState | None" = None) -> int:
     soil = region.ecology.soil
-    water_denom = get_override(world, K_WATER_FACTOR_DENOMINATOR, 0.5) if world else 0.5
+    water_denom = max(
+        get_override(world, K_WATER_FACTOR_DENOMINATOR, 0.5) if world else 0.5,
+        _MIN_TUNING_DENOMINATOR,
+    )
     water_factor = min(1.0, region.ecology.water / water_denom)
     cap_mod = region.capacity_modifier
     return max(int(region.carrying_capacity * cap_mod * soil * water_factor), 1)

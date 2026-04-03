@@ -1,5 +1,11 @@
 """Tests for resource system."""
-from chronicler.resources import assign_resources, get_active_trade_routes, get_self_trade_civs
+from chronicler.resources import (
+    assign_resources,
+    clear_active_trade_routes_snapshot,
+    get_active_trade_routes,
+    get_self_trade_civs,
+    set_active_trade_routes_snapshot,
+)
 from chronicler.models import Region, Resource, Disposition, Relationship
 
 
@@ -79,6 +85,7 @@ def test_get_active_trade_routes(sample_world):
     sample_world.relationships[civ_b.name][civ_a.name].disposition = Disposition.NEUTRAL
     routes = get_active_trade_routes(sample_world)
     assert (civ_a.name, civ_b.name) in routes or (civ_b.name, civ_a.name) in routes
+    assert routes == sorted(routes)
 
 
 def test_no_trade_route_when_embargoed(sample_world):
@@ -104,6 +111,38 @@ def test_get_self_trade_civs(sample_world):
     r2.adjacencies = [r1.name]
     self_traders = get_self_trade_civs(sample_world)
     assert sample_world.civilizations[0].name in self_traders
+
+
+def test_get_active_trade_routes_uses_turn_snapshot_when_present(sample_world):
+    civ_a = sample_world.civilizations[0]
+    civ_b = sample_world.civilizations[1]
+    snapshot_routes = [(civ_a.name, civ_b.name)]
+    set_active_trade_routes_snapshot(sample_world, snapshot_routes)
+    sample_world.relationships[civ_a.name][civ_b.name].disposition = Disposition.HOSTILE
+    sample_world.relationships[civ_b.name][civ_a.name].disposition = Disposition.HOSTILE
+    assert get_active_trade_routes(sample_world) == snapshot_routes
+    clear_active_trade_routes_snapshot(sample_world)
+
+
+def test_get_active_trade_routes_ignores_stale_snapshot(sample_world):
+    civ_a = sample_world.civilizations[0]
+    civ_b = sample_world.civilizations[1]
+    r1 = sample_world.regions[0]
+    r2 = sample_world.regions[1]
+    r1.controller = civ_a.name
+    r2.controller = civ_b.name
+    r1.adjacencies = [r2.name]
+    r2.adjacencies = [r1.name]
+    sample_world.relationships[civ_a.name][civ_b.name].disposition = Disposition.NEUTRAL
+    sample_world.relationships[civ_b.name][civ_a.name].disposition = Disposition.NEUTRAL
+
+    set_active_trade_routes_snapshot(sample_world, [])
+    sample_world.turn += 1
+
+    routes = get_active_trade_routes(sample_world)
+
+    assert (civ_a.name, civ_b.name) in routes or (civ_b.name, civ_a.name) in routes
+    clear_active_trade_routes_snapshot(sample_world)
 
 
 # --- M34: Task 2 — assign_resource_types tests ---

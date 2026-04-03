@@ -20,6 +20,7 @@ from chronicler.models import (
 )
 from chronicler.utils import (
     clamp,
+    get_region_map,
     stable_hash_int,
     STAT_FLOOR,
     sync_civ_population,
@@ -691,10 +692,12 @@ def _build_breakaway_civ(
         if available_values:
             new_values[swap_idx] = rng.choice(available_values)
 
+    adj_map = {r.name: set(r.adjacencies) for r in world.regions}
+
     def _min_dist_to_parent(region_name: str) -> int:
         return min(
             (
-                graph_distance(world.regions, region_name, parent_region)
+                graph_distance(adj_map, region_name, parent_region)
                 for parent_region in remaining_regions
             ),
             default=0,
@@ -911,7 +914,7 @@ def _apply_civ_op(world: WorldState, payload: dict, new_civ_map: dict,
         if 0 <= src_idx < len(world.civilizations) and 0 <= tgt_idx < len(world.civilizations):
             src_civ = world.civilizations[src_idx]
             tgt_civ = world.civilizations[tgt_idx]
-            region_map = {r.name: r for r in world.regions}
+            region_map = get_region_map(world)
             for rn in list(src_civ.regions):
                 tgt_civ.regions.append(rn)
                 if rn in region_map:

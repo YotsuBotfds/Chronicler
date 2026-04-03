@@ -19,7 +19,7 @@ from chronicler.tuning import (
     K_CIV_PRESTIGE_PER_TEMPLE, K_SCORCHED_EARTH_TRAIT_BONUS,
     get_override,
 )
-from chronicler.utils import civ_index, stable_hash_int
+from chronicler.utils import civ_index, get_region_map, stable_hash_int
 
 
 @dataclass(frozen=True)
@@ -181,7 +181,7 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
 
     seed = stable_hash_int("build_action", world.seed, world.turn, civ.name)
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     candidates: list[tuple] = []
     for rname in civ.regions:
         region = region_map.get(rname)

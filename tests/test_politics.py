@@ -804,6 +804,134 @@ def test_congress_can_trigger_with_3_plus_participants():
     assert triggered
 
 
+def test_congress_ceasefire_orders_actors_and_breaks_ties_deterministically(monkeypatch):
+    import chronicler.politics as politics
+    from chronicler.models import Region, Relationship, Disposition
+
+    regions = [
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile"),
+    ]
+    civs = []
+    for name in ["CivA", "CivB", "CivC"]:
+        civs.append(Civilization(
+            name=name,
+            population=50,
+            military=40,
+            economy=40,
+            culture=40,
+            stability=50,
+            treasury=100,
+            leader=Leader(name=f"L_{name}", trait="bold", reign_start=0),
+            regions=[name[-1]],
+            capital_region=name[-1],
+        ))
+    world = WorldState(name="test", seed=7, turn=10, regions=regions, civilizations=civs)
+    world.active_wars = [("CivB", "CivC"), ("CivC", "CivA"), ("CivA", "CivB")]
+    world.war_start_turns = {
+        war_key("CivA", "CivB"): 1,
+        war_key("CivA", "CivC"): 1,
+        war_key("CivB", "CivC"): 1,
+    }
+    world.relationships = {
+        "CivA": {
+            "CivB": Relationship(disposition=Disposition.HOSTILE),
+            "CivC": Relationship(disposition=Disposition.HOSTILE),
+        },
+        "CivB": {
+            "CivA": Relationship(disposition=Disposition.HOSTILE),
+            "CivC": Relationship(disposition=Disposition.HOSTILE),
+        },
+        "CivC": {
+            "CivA": Relationship(disposition=Disposition.HOSTILE),
+            "CivB": Relationship(disposition=Disposition.HOSTILE),
+        },
+    }
+
+    class FakeRandom:
+        def __init__(self):
+            self._rolls = iter((0.0, 0.5))
+
+        def random(self):
+            return next(self._rolls)
+
+        def gauss(self, mu, sigma):
+            return 0.0
+
+    monkeypatch.setattr(politics.random, "Random", lambda seed: FakeRandom())
+
+    events = check_congress(world)
+
+    assert events[0].event_type == "congress_ceasefire"
+    assert events[0].actors == ["CivA", "CivB", "CivC"]
+    assert war_key("CivA", "CivB") not in world.war_start_turns
+    assert ("CivA", "CivB") not in world.active_wars
+    assert ("CivB", "CivA") not in world.active_wars
+    assert world.relationships["CivA"]["CivB"].disposition == Disposition.NEUTRAL
+    assert world.relationships["CivB"]["CivA"].disposition == Disposition.NEUTRAL
+
+
+def test_congress_ceasefire_uses_deterministic_tiebreak_and_invalidates_route_cache(monkeypatch):
+    from chronicler.models import Region, Relationship, Disposition
+    from chronicler.resources import get_active_trade_routes, set_active_trade_routes_snapshot
+
+    regions = [
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="Alpha", adjacencies=["B", "C"]),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="Beta", adjacencies=["A", "C"]),
+        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile",
+               controller="Gamma", adjacencies=["A", "B"]),
+    ]
+    civs = []
+    for name, capital in [("Alpha", "A"), ("Beta", "B"), ("Gamma", "C")]:
+        civs.append(Civilization(
+            name=name,
+            population=50,
+            military=40,
+            economy=40,
+            culture=40,
+            stability=50,
+            treasury=100,
+            leader=Leader(name=f"L_{name}", trait="bold", reign_start=0),
+            regions=[capital],
+            capital_region=capital,
+        ))
+
+    hostile = Relationship(disposition=Disposition.HOSTILE)
+    world = WorldState(name="test", seed=42, turn=10, regions=regions, civilizations=civs)
+    world.relationships = {
+        "Alpha": {"Beta": hostile.model_copy(deep=True), "Gamma": hostile.model_copy(deep=True)},
+        "Beta": {"Alpha": hostile.model_copy(deep=True), "Gamma": hostile.model_copy(deep=True)},
+        "Gamma": {"Alpha": hostile.model_copy(deep=True), "Beta": hostile.model_copy(deep=True)},
+    }
+    world.active_wars = [("Alpha", "Beta"), ("Alpha", "Gamma"), ("Beta", "Gamma")]
+    world.war_start_turns = {
+        war_key("Alpha", "Beta"): 1,
+        war_key("Alpha", "Gamma"): 1,
+        war_key("Beta", "Gamma"): 1,
+    }
+    set_active_trade_routes_snapshot(world, [])
+
+    rolls = iter([0.0, 0.5])
+    monkeypatch.setattr("chronicler.politics.random.Random.random", lambda self: next(rolls))
+    monkeypatch.setattr(
+        "chronicler.politics.get_perceived_stat",
+        lambda observer, target, stat, world, max_value=None: getattr(target, stat),
+    )
+
+    events = check_congress(world)
+
+    assert events and events[0].event_type == "congress_ceasefire"
+    assert events[0].actors == ["Alpha", "Beta", "Gamma"]
+    assert ("Alpha", "Beta") not in world.active_wars
+    assert ("Beta", "Alpha") not in world.active_wars
+    assert world.relationships["Alpha"]["Beta"].disposition == Disposition.NEUTRAL
+    assert world.relationships["Beta"]["Alpha"].disposition == Disposition.NEUTRAL
+    assert ("Alpha", "Beta") in get_active_trade_routes(world)
+
+
 # --- Task 20: Governments in exile ---
 
 from chronicler.politics import create_exile, apply_exile_effects, check_restoration

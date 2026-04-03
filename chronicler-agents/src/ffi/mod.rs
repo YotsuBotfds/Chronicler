@@ -30,7 +30,7 @@ use std::sync::Arc;
 use arrow::array::{Int8Builder, UInt8Builder, UInt16Builder, UInt32Builder, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
 
@@ -581,27 +581,32 @@ impl AgentSimulator {
                 for _ in 0..n_farmer {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
                     let age = assign_age(&mut age_rng);
-                    self.pool.spawn(region_id, civ, Occupation::Farmer, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    self.pool.try_spawn(region_id, civ, Occupation::Farmer, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief)
+                        .map_err(PyRuntimeError::new_err)?;
                 }
                 for _ in 0..n_soldier {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
                     let age = assign_age(&mut age_rng);
-                    self.pool.spawn(region_id, civ, Occupation::Soldier, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    self.pool.try_spawn(region_id, civ, Occupation::Soldier, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief)
+                        .map_err(PyRuntimeError::new_err)?;
                 }
                 for _ in 0..n_merchant {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
                     let age = assign_age(&mut age_rng);
-                    self.pool.spawn(region_id, civ, Occupation::Merchant, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    self.pool.try_spawn(region_id, civ, Occupation::Merchant, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief)
+                        .map_err(PyRuntimeError::new_err)?;
                 }
                 for _ in 0..n_scholar {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
                     let age = assign_age(&mut age_rng);
-                    self.pool.spawn(region_id, civ, Occupation::Scholar, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    self.pool.try_spawn(region_id, civ, Occupation::Scholar, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief)
+                        .map_err(PyRuntimeError::new_err)?;
                 }
                 for _ in 0..n_priest {
                     let p = crate::demographics::assign_personality(&mut personality_rng, civ_mean);
                     let age = assign_age(&mut age_rng);
-                    self.pool.spawn(region_id, civ, Occupation::Priest, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief);
+                    self.pool.try_spawn(region_id, civ, Occupation::Priest, age, p[0], p[1], p[2], crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, crate::agent::CULTURAL_VALUE_EMPTY, belief)
+                        .map_err(PyRuntimeError::new_err)?;
                 }
             }
 
@@ -738,7 +743,7 @@ impl AgentSimulator {
     }
 
     /// Advance simulation by one turn. Returns an events RecordBatch.
-    pub fn tick(&mut self, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
+    pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
         if !self.initialized {
             return Err(PyValueError::new_err(
                 "tick() called before set_region_state()",
@@ -772,19 +777,22 @@ impl AgentSimulator {
             _ => None,
         };
 
-        let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) = crate::tick::tick_agents(
-            &mut self.pool,
-            &self.regions,
-            &signals,
-            self.master_seed,
-            turn,
-            &mut self.wealth_percentiles,
-            &mut self.spatial_grids,
-            &self.attractors,
-            &mut spatial_diag,
-            &self.settlement_grids,  // M56b
-            merchant_state,
-        );
+        let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
+            py.detach(|| {
+                crate::tick::try_tick_agents(
+                    &mut self.pool,
+                    &self.regions,
+                    &signals,
+                    self.master_seed,
+                    turn,
+                    &mut self.wealth_percentiles,
+                    &mut self.spatial_grids,
+                    &self.attractors,
+                    &mut spatial_diag,
+                    &self.settlement_grids,  // M56b
+                    merchant_state,
+                )
+            }).map_err(PyRuntimeError::new_err)?;
 
         // Restore graph, ledger, and delivery buffer
         self.merchant_graph = merchant_graph_taken;

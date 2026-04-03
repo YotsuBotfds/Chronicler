@@ -3,7 +3,7 @@ from chronicler.models import (
     ActionType, Belief, Civilization, Disposition, Leader, Region, Relationship, TechEra, WorldState,
 )
 from chronicler.action_engine import ActionEngine, WarResult, resolve_action, resolve_war, _resolve_war_action
-from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR
+from chronicler.tuning import K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR, K_WAR_WEARINESS_DIVISOR
 from chronicler.utils import stable_hash_int
 
 
@@ -121,6 +121,23 @@ class TestEligibility:
 
         assert frontier.controller == civ.name
         assert getattr(frontier, "_stockpile_bootstrap_pending", False) is True
+
+    def test_embargo_routes_target_penalty_as_shock_signal_in_accumulator_mode(self, engine_world):
+        from chronicler.accumulator import StatAccumulator
+
+        civ = engine_world.civilizations[0]
+        acc = StatAccumulator()
+
+        event = resolve_action(civ, ActionType.EMBARGO, engine_world, acc=acc)
+
+        shocks = acc.to_shock_signals()
+        demand_signals = acc.to_demand_signals({1: 10})
+
+        assert event.event_type == "embargo"
+        assert len(shocks) == 1
+        assert shocks[0].civ_id == 1
+        assert shocks[0].stability_shock < 0
+        assert demand_signals == []
 
 
 class TestPersonalityWeights:
@@ -298,6 +315,19 @@ class TestWarDamper:
         weights = engine.compute_weights(civ)
         assert weights[ActionType.DIPLOMACY] > weights[ActionType.DEVELOP]
 
+    def test_zero_threshold_override_uses_floor(self, engine_world, monkeypatch):
+        civ = engine_world.civilizations[0]
+        civ.stability = 20
+
+        def fake_get_override(world, key, default):
+            if key == K_WAR_DAMPER_THRESHOLD:
+                return 0.0
+            return default
+
+        monkeypatch.setattr("chronicler.action_engine.get_override", fake_get_override)
+        weights = ActionEngine(engine_world).compute_weights(civ)
+        assert weights[ActionType.WAR] > 0
+
 
 class TestWarResolution:
     def test_hybrid_conquest_realigns_conquered_region_agents(self, engine_world):
@@ -456,6 +486,19 @@ class TestWarWeariness:
         weights_weary = engine.compute_weights(civ)
 
         assert abs(weights_fresh[ActionType.DEVELOP] - weights_weary[ActionType.DEVELOP]) < 0.001
+
+    def test_zero_divisor_override_uses_floor(self, engine_world, monkeypatch):
+        civ = engine_world.civilizations[0]
+        civ.war_weariness = 10.0
+
+        def fake_get_override(world, key, default):
+            if key == K_WAR_WEARINESS_DIVISOR:
+                return 0.0
+            return default
+
+        monkeypatch.setattr("chronicler.action_engine.get_override", fake_get_override)
+        weights = ActionEngine(engine_world).compute_weights(civ)
+        assert weights[ActionType.WAR] > 0
 
 
 class TestPeaceDividend:

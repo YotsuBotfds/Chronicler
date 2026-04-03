@@ -1,8 +1,9 @@
-//! M59b: Threat-aware migration tests.
+//! M59b and Sprint 5 migration-behavior integration tests.
 
-use chronicler_agents::{AgentPool, Occupation, RegionState};
+use chronicler_agents::{AgentPool, Occupation, RegionState, tick_agents, BELIEF_NONE};
 use chronicler_agents::knowledge::{admit_packet, PacketCandidate, InfoType};
 use chronicler_agents::signals::{CivSignals, TickSignals};
+use chronicler_agents::spatial::SpatialDiagnostics;
 
 fn peaceful_signals(num_regions: usize) -> TickSignals {
     TickSignals {
@@ -63,6 +64,15 @@ fn setup_migration_world() -> (AgentPool, Vec<RegionState>) {
     regions[1].adjacency_mask = 1 << 0;
     regions[2].adjacency_mask = 1 << 0;
     (pool, regions)
+}
+
+fn sync_region_populations(pool: &AgentPool, regions: &mut [RegionState]) {
+    for region in regions.iter_mut() {
+        let pop = (0..pool.capacity())
+            .filter(|&slot| pool.is_alive(slot) && pool.regions[slot] == region.region_id)
+            .count() as u16;
+        region.population = pop;
+    }
 }
 
 #[test]
@@ -184,5 +194,75 @@ fn test_strongest_threat_wins_no_stacking() {
     assert!(
         (strength - 200.0 / 255.0).abs() < 0.01,
         "Should use the strongest packet, got {strength}",
+    );
+}
+
+#[test]
+fn test_economy_satisfaction_behavior_chain_can_trigger_migration() {
+    let mut pool = AgentPool::new(0);
+    let mut regions: Vec<RegionState> = (0..2).map(|i| {
+        let mut r = RegionState::new(i);
+        r.carrying_capacity = if i == 0 { 40 } else { 80 };
+        r.controller_civ = 0;
+        r.food_sufficiency = if i == 0 { 0.15 } else { 1.25 };
+        r.farmer_income_modifier = if i == 0 { 0.25 } else { 1.5 };
+        r
+    }).collect();
+    regions[0].adjacency_mask = 0b10;
+    regions[1].adjacency_mask = 0b01;
+
+    let source_slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, BELIEF_NONE);
+    let target_slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, BELIEF_NONE);
+    let mut source_ids = vec![pool.ids[source_slot]];
+    for _ in 0..17 {
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, BELIEF_NONE);
+        source_ids.push(pool.ids[slot]);
+    }
+    for _ in 0..3 {
+        pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, BELIEF_NONE);
+    }
+
+    let signals = peaceful_signals(2);
+    let mut seed = [0u8; 32];
+    seed[0] = 19;
+    let mut percentiles: Vec<f32> = Vec::new();
+
+    for turn in 0..8u32 {
+        sync_region_populations(&pool, &mut regions);
+        if percentiles.len() < pool.capacity() {
+            percentiles.resize(pool.capacity(), 0.0);
+        }
+        tick_agents(
+            &mut pool,
+            &regions,
+            &signals,
+            seed,
+            turn,
+            &mut percentiles,
+            &mut Vec::new(),
+            &[],
+            &mut SpatialDiagnostics::default(),
+            &[],
+            None,
+        );
+        if turn == 0 {
+            assert!(
+                pool.satisfaction(source_slot) < pool.satisfaction(target_slot),
+                "source region should produce lower satisfaction before migration pressure resolves",
+            );
+        }
+    }
+
+    let migrated = source_ids
+        .iter()
+        .filter(|&&agent_id| {
+            (0..pool.capacity()).any(|slot| {
+                pool.is_alive(slot) && pool.ids[slot] == agent_id && pool.regions[slot] == 1
+            })
+        })
+        .count();
+    assert!(
+        migrated > 0,
+        "expected at least one low-food, low-income farmer to migrate to the healthier adjacent region",
     );
 }

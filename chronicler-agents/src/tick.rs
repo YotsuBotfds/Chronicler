@@ -59,7 +59,7 @@ fn mark_war_survivors(
 // Public tick entry point
 // ---------------------------------------------------------------------------
 
-pub fn tick_agents(
+pub fn try_tick_agents(
     pool: &mut AgentPool,
     regions: &[RegionState],
     signals: &TickSignals,
@@ -71,7 +71,7 @@ pub fn tick_agents(
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
     mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
-) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats) {
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
 
@@ -660,7 +660,7 @@ pub fn tick_agents(
 
         // Births
         for birth in &dr.births {
-            let new_slot = pool.spawn(
+            let new_slot = pool.try_spawn(
                 birth.region,
                 birth.civ,
                 crate::agent::Occupation::Farmer,
@@ -672,7 +672,7 @@ pub fn tick_agents(
                 birth.cultural_values[1],
                 birth.cultural_values[2],
                 birth.belief,
-            );
+            )?;
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             pool.parent_id_0[new_slot] = birth.birth_parent_id;
             pool.parent_id_1[new_slot] = birth.other_parent_id;
@@ -934,7 +934,35 @@ pub fn tick_agents(
     knowledge_stats.merchant_no_usable_packets = merchant_stats.no_usable_packets;
     knowledge_stats.migration_choices_changed_by_threat = migration_threat_changed;
 
-    (events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats)
+    Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))
+}
+
+pub fn tick_agents(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,
+) -> (Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats) {
+    try_tick_agents(
+        pool,
+        regions,
+        signals,
+        master_seed,
+        turn,
+        wealth_percentiles,
+        spatial_grids,
+        attractors,
+        spatial_diag,
+        settlement_grids,
+        merchant_state,
+    ).expect(crate::pool::AGENT_POOL_EXHAUSTED)
 }
 
 // ---------------------------------------------------------------------------

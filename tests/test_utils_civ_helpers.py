@@ -40,8 +40,25 @@ class TestCivIndex:
     def test_raises_on_missing_civ(self):
         from chronicler.utils import civ_index
         world = _make_world(["Alpha"])
-        with pytest.raises(StopIteration):
+        with pytest.raises(ValueError, match="NonExistent"):
             civ_index(world, "NonExistent")
+
+    def test_cache_rebuilds_after_civilization_list_growth(self):
+        from chronicler.utils import civ_index
+
+        world = _make_world(["Alpha"])
+        assert civ_index(world, "Alpha") == 0
+
+        region = Region(name="Beta_region", terrain="plains", carrying_capacity=10, resources="fertile", controller="Beta")
+        world.regions.append(region)
+        world.civilizations.append(Civilization(
+            name="Beta", population=10, military=5, economy=5, culture=5, stability=50,
+            tech_era=TechEra.IRON, treasury=10,
+            leader=Leader(name="Leader of Beta", trait="cautious", reign_start=0),
+            regions=[region.name], values=["Honor"], asabiya=0.5,
+        ))
+
+        assert civ_index(world, "Beta") == 1
 
 
 class TestGetCiv:
@@ -56,3 +73,22 @@ class TestGetCiv:
         from chronicler.utils import get_civ
         world = _make_world(["Alpha"])
         assert get_civ(world, "NonExistent") is None
+
+    def test_civ_map_refreshes_after_append(self):
+        from chronicler.utils import civ_index, get_civ
+
+        world = _make_world(["Alpha"])
+        assert get_civ(world, "Alpha") is not None
+
+        region = Region(name="Beta_region", terrain="plains", carrying_capacity=10, resources="fertile", controller="Beta")
+        civ = Civilization(
+            name="Beta", population=10, military=5, economy=5, culture=5, stability=50,
+            tech_era=TechEra.IRON, treasury=10,
+            leader=Leader(name="Leader of Beta", trait="cautious", reign_start=0),
+            regions=[region.name], values=["Honor"], asabiya=0.5,
+        )
+        world.regions.append(region)
+        world.civilizations.append(civ)
+
+        assert get_civ(world, "Beta") is civ
+        assert civ_index(world, "Beta") == 1

@@ -196,6 +196,23 @@ class TestDemographicsOnlyIntegration:
         )
         assert snap.num_rows == expected
 
+
+class TestSharedModeFixtures:
+    def test_demographics_bridge_world_fixture(self, demographics_bridge_world):
+        world, bridge = demographics_bridge_world
+        assert world.agent_mode == "demographics-only"
+        assert bridge.get_snapshot().num_rows >= 0
+
+    def test_shadow_bridge_world_fixture(self, shadow_bridge_world):
+        world, bridge = shadow_bridge_world
+        assert world.agent_mode == "shadow"
+        assert bridge.get_snapshot().num_rows >= 0
+
+    def test_hybrid_bridge_world_fixture(self, hybrid_bridge_world):
+        world, bridge = hybrid_bridge_world
+        assert world.agent_mode == "hybrid"
+        assert bridge.get_snapshot().num_rows >= 0
+
     def test_demographics_only_20_turns(self, sample_world):
         # Seed region populations from carrying_capacity so the bridge has agents to tick
         for region in sample_world.regions:

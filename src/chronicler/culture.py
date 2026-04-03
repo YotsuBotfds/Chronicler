@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from chronicler.agent_bridge import VALUE_TO_ID
+from chronicler.ffi_constants import VALUE_TO_ID
 from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
 from chronicler.tuning import (
     K_ASSIMILATION_THRESHOLD, K_ASSIMILATION_STABILITY_DRAIN,
@@ -62,6 +62,7 @@ def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
         all_values = set()
         for prof in profiles.values():
             all_values.update(prof.keys())
+        ordered_values = sorted(all_values)
 
         for i, civ_a in enumerate(civs):
             for j, civ_b in enumerate(civs):
@@ -73,7 +74,7 @@ def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
                 total_b = sum(prof_b.values()) or 1
                 shared_frac = sum(
                     min(prof_a.get(v, 0) / total_a, prof_b.get(v, 0) / total_b)
-                    for v in all_values
+                    for v in ordered_values
                 )
                 from chronicler.tuning import get_multiplier, K_CULTURAL_DRIFT_SPEED
                 net_drift = int((shared_frac - 0.3) * 10 * get_multiplier(world, K_CULTURAL_DRIFT_SPEED))

@@ -243,6 +243,13 @@ class TestClimateExtractor:
         assert "disaster_frequency_by_type" in result
         assert result["disaster_frequency_by_type"].get("drought", 0) == 1.0
 
+    def test_empty_input_returns_zero_frequencies(self):
+        from chronicler.analytics import extract_climate
+
+        result = extract_climate([])
+
+        assert set(result["disaster_frequency_by_type"].values()) == {0.0}
+
 
 class TestMemeticExtractor:
     def test_movement_metrics(self, tmp_path):
@@ -274,6 +281,14 @@ class TestEmergenceExtractor:
         assert 0 < result["black_swan_frequency_by_type"].get("pandemic", 0) < 1.0
         assert "regression_rate" in result
 
+    def test_empty_input_returns_zero_frequencies(self):
+        from chronicler.analytics import extract_emergence
+
+        result = extract_emergence([])
+
+        assert set(result["black_swan_frequency_by_type"].values()) == {0.0}
+        assert result["regression_rate"] == 0.0
+
 
 class TestGeneralExtractor:
     def test_era_distribution(self, tmp_path):
@@ -293,6 +308,14 @@ class TestGeneralExtractor:
         assert "first_war_turn_distribution" in result
         assert result["first_war_turn_distribution"]["median"] == 5
         assert "civs_alive_at_end" in result
+
+    def test_empty_history_bundle_does_not_crash(self):
+        from chronicler.analytics import extract_general
+
+        result = extract_general([{"history": [], "world_state": {}}])
+
+        assert result["median_era_at_final"] == "tribal"
+        assert result["civs_alive_at_end"]["median"] == 0
 
 
 class TestRunSummaries:
@@ -324,6 +347,11 @@ class TestEventFiringRates:
         assert "war" in rates
         assert rates["famine"] == 1.0
         assert rates["war"] == 1.0
+
+    def test_empty_input_returns_empty_mapping(self):
+        from chronicler.analytics import compute_event_firing_rates
+
+        assert compute_event_firing_rates([]) == {}
 
 
 class TestAnomalyDetection:

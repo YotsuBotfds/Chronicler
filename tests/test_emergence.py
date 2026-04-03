@@ -622,6 +622,20 @@ class TestPandemic:
         infected_names = {p.region_name for p in world.pandemic_state}
         assert "D" not in infected_names
 
+    def test_tick_pandemic_uses_explicit_route_snapshot(self, monkeypatch):
+        from chronicler.emergence import tick_pandemic
+        import chronicler.emergence as emergence
+
+        world = self._setup_trade_world()
+        world.pandemic_state = [PandemicRegion(region_name="B", severity=1, turns_remaining=4)]
+
+        def fail_recompute(_world):
+            raise AssertionError("tick_pandemic() should reuse explicit phase routes")
+
+        monkeypatch.setattr(emergence, "get_active_trade_routes", fail_recompute)
+
+        tick_pandemic(world, routes=[("A", "B"), ("B", "C")])
+
 
 class TestPandemicSeverityMultiplier:
     """Audit C-6: Pandemic losses must go through M18 severity multiplier."""
@@ -744,6 +758,13 @@ class TestSupervolcano:
         assert len(volcanic) == 1
         assert volcanic[0].duration == 5
         assert volcanic[0].severity == 40
+        assert volcanic[0].affected_civs == sorted(volcanic[0].affected_civs)
+
+    def test_supervolcano_orders_event_actors_deterministically(self):
+        from chronicler.emergence import _apply_supervolcano
+        world = self._setup_volcano_world()
+        events = _apply_supervolcano(world, seed=42)
+        assert events[0].actors == sorted(events[0].actors)
 
     def test_supervolcano_skips_uncontrolled_region_penalties(self):
         from chronicler.emergence import _apply_supervolcano

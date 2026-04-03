@@ -93,6 +93,15 @@ from chronicler.arcs import classify_arc
 logger = logging.getLogger(__name__)
 
 
+def _require_phase_acc_for_hybrid(world: WorldState, acc, phase_name: str) -> None:
+    """Fail fast if a hybrid phase path is invoked without an accumulator."""
+    if world.agent_mode == "hybrid" and acc is None:
+        raise RuntimeError(
+            f"{phase_name} requires acc in hybrid mode so shocks flow through "
+            "the post-phase accumulator watermark"
+        )
+
+
 # --- Type aliases for callbacks ---
 
 ActionSelector = Callable[[Civilization, WorldState], ActionType]
@@ -210,7 +219,11 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
 
 # --- Phase 2: Automatic Effects ---
 
-def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
+def apply_automatic_effects(
+    world: WorldState,
+    acc=None,
+    cross_routes: list[tuple[str, str]] | None = None,
+) -> list[Event]:
     """Phase 2: Automatic per-turn effects — maintenance, trade, specialization, mercs."""
     from chronicler.resources import get_active_trade_routes, get_self_trade_civs
     from chronicler.economy import filter_goods_trade_routes
@@ -235,7 +248,8 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
 
     # 2. Trade income
     # H-6: Emit capability events here (Phase 2 is the authoritative call site)
-    cross_routes = get_active_trade_routes(world, emit_events=True)
+    if cross_routes is None:
+        cross_routes = get_active_trade_routes(world, emit_events=True)
     economic_cross_routes = filter_goods_trade_routes(world, cross_routes)
     for civ_a, civ_b in economic_cross_routes:
         a = get_civ(world, civ_a)
@@ -252,11 +266,11 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
                 acc.add(b_idx, b, "treasury", 2, "keep")
             else:
                 b.treasury += 2
-    for civ_name in get_self_trade_civs(world):
+    for civ_name in sorted(get_self_trade_civs(world)):
         c = get_civ(world, civ_name)
         if c:
             if acc is not None:
-                c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                c_idx = civ_index(world, c.name)
                 acc.add(c_idx, c, "treasury", 3, "keep")
             else:
                 c.treasury += 3
@@ -335,7 +349,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
             if c:
                 war_mult = get_severity_multiplier(c, world)
                 if acc is not None:
-                    c_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == c.name)
+                    c_idx = civ_index(world, c.name)
                     pending_war_treasury[c.name] = pending_war_treasury.get(c.name, c.treasury) - 3
                     acc.add(c_idx, c, "treasury", -3, "keep")
                     if pending_war_treasury[c.name] <= 0:
@@ -391,7 +405,7 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
             candidates.sort(key=lambda c: (c.military, -c.treasury))
             hirer = candidates[0]
             if acc is not None:
-                hirer_idx = next(i for i, cc in enumerate(world.civilizations) if cc.name == hirer.name)
+                hirer_idx = civ_index(world, hirer.name)
                 acc.add(hirer_idx, hirer, "treasury", -10, "keep")
                 acc.add(hirer_idx, hirer, "military", merc["strength"], "guard")
             else:
@@ -435,9 +449,14 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
     events.extend(apply_long_peace(world, acc=acc))
     update_peak_regions(world)
 
+    # Phase 2 politics/disposition updates can change route availability.
+    # Refresh once here so knowledge sharing and pandemic spread read current data.
+    world.invalidate_trade_route_cache()
+    refreshed_routes = get_active_trade_routes(world)
+
     # Trade knowledge sharing (fog of war)
     from chronicler.exploration import tick_trade_knowledge_sharing
-    knowledge_events = tick_trade_knowledge_sharing(world)
+    knowledge_events = tick_trade_knowledge_sharing(world, routes=refreshed_routes)
     events.extend(knowledge_events)
 
     # M17b: Exile pretender stability drain
@@ -453,7 +472,11 @@ def apply_automatic_effects(world: WorldState, acc=None) -> list[Event]:
 
     # M18: Pandemic tick
     from chronicler.emergence import tick_pandemic
-    events.extend(tick_pandemic(world, acc=acc))
+    events.extend(tick_pandemic(world, acc=acc, routes=refreshed_routes))
+
+    # Trade-route caching is phase-scoped: clear the Phase 2 view so later
+    # diplomacy/war/federation mutations rebuild from current world state.
+    world.invalidate_trade_route_cache()
 
     return events
 
@@ -485,7 +508,7 @@ def phase_production(world: WorldState, acc=None) -> None:
             if civ_regions:
                 growth = max(5, 5 * len(civ_regions))
                 per_region = max(1, growth // len(civ_regions))
-                if acc is not None:
+                if acc is not None and world.agent_mode != "off":
                     acc.add(civ_idx, civ, "population", per_region * len(civ_regions), "guard")
                 else:
                     for r in civ_regions:
@@ -493,7 +516,7 @@ def phase_production(world: WorldState, acc=None) -> None:
                     sync_civ_population(civ, world)
         elif civ.stability <= 5 and civ.population > 1:
             if civ_regions:
-                if acc is not None:
+                if acc is not None and world.agent_mode != "off":
                     acc.add(civ_idx, civ, "population", -5, "guard")
                 else:
                     target = max(civ_regions, key=lambda r: r.population)
@@ -502,7 +525,7 @@ def phase_production(world: WorldState, acc=None) -> None:
         # Passive repopulation: empty controlled regions slowly recover
         if civ_regions:
             empty_count = sum(1 for r in civ_regions if r.population == 0)
-            if acc is not None:
+            if acc is not None and world.agent_mode != "off":
                 if empty_count > 0:
                     acc.add(civ_idx, civ, "population", 3 * empty_count, "guard")
             else:
@@ -634,7 +657,7 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
     ASABIYA_POWER_DROPOFF = 5.0          # h, military projection distance decay  # noqa: F841
     ASABIYA_COLLAPSE_VARIANCE_THRESHOLD = 0.04  # variance collapse trigger  # noqa: F841
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = world.region_map
     civ_by_name = {c.name: c for c in world.civilizations}
 
     # Step 1: Compute frontier fraction for each region
@@ -930,6 +953,7 @@ def apply_injected_event(
 
 def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
+    _require_phase_acc_for_hybrid(world, acc, "phase_consequences()")
     for condition in world.active_conditions:
         condition.duration -= 1
         for civ_name in condition.affected_civs:
@@ -943,9 +967,6 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                     drain = int(get_override(world, K_CONDITION_ONGOING_DRAIN, 1))
                 if acc is not None:
                     acc.add(civ_idx, civ, "stability", -int(drain * mult), "guard-shock")
-                elif world.agent_mode == "hybrid":
-                    world.pending_shocks.append(CivShock(civ_idx,
-                        stability_shock=normalize_shock(int(drain * mult), civ.stability)))
                 else:
                     civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
 
@@ -1159,12 +1180,6 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 if acc is not None:
                     acc.add(civ_idx, civ, "military", -civ.military / 2, "guard-shock")
                     acc.add(civ_idx, civ, "economy", -civ.economy / 2, "guard-shock")
-                elif world.agent_mode == "hybrid":
-                    world.pending_shocks.append(CivShock(
-                        civ_idx,
-                        military_shock=-0.5,
-                        economy_shock=-0.5,
-                    ))
                 else:
                     civ.military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
                     civ.economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
@@ -1386,7 +1401,7 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
 
 def get_civ_capacities(world: WorldState) -> dict[int, int]:
     """Get total carrying capacity per civ for demand signal normalization."""
-    region_map = {r.name: r for r in world.regions}
+    region_map = world.region_map
     return {
         i: sum(region_map[rn].carrying_capacity for rn in civ.regions if rn in region_map)
         for i, civ in enumerate(world.civilizations)
@@ -1520,9 +1535,15 @@ def run_turn(
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     from chronicler.accumulator import StatAccumulator
+    from chronicler.resources import (
+        clear_active_trade_routes_snapshot,
+        get_active_trade_routes,
+        set_active_trade_routes_snapshot,
+    )
 
     turn_events: list[Event] = []
     acc = StatAccumulator()
+    clear_active_trade_routes_snapshot(world)
 
     # --- M18: Start-of-turn snapshots ---
     for civ in world.civilizations:
@@ -1560,12 +1581,15 @@ def run_turn(
     # In --agents=off, production behavior stays frozen: there is no runtime
     # economy_result here, and compute_economy(agent_mode=False) remains an
     # oracle/test surface rather than an off-mode production path.
+    phase2_trade_routes = get_active_trade_routes(world, emit_events=True)
+    set_active_trade_routes_snapshot(world, phase2_trade_routes)
+
     economy_result = None
     if agent_bridge is not None:
-        region_map = {r.name: r for r in world.regions}
+        region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
-            from chronicler.resources import get_active_trade_routes, get_season_id
+            from chronicler.resources import get_season_id
             from chronicler.economy import (
                 build_economy_region_input_batch,
                 build_economy_trade_route_batch,
@@ -1573,8 +1597,7 @@ def run_turn(
                 reconstruct_economy_result,
             )
             from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
-            active_routes = get_active_trade_routes(world)
-            economic_routes = filter_goods_trade_routes(world, active_routes)
+            economic_routes = filter_goods_trade_routes(world, phase2_trade_routes)
             region_input = build_economy_region_input_batch(world)
             trade_route_input = build_economy_trade_route_batch(
                 world, active_trade_routes=economic_routes,
@@ -1610,7 +1633,7 @@ def run_turn(
                 turn_events.extend(shock_events)
 
     # Phase 2: Automatic Effects (NEW)
-    turn_events.extend(apply_automatic_effects(world, acc=acc))
+    turn_events.extend(apply_automatic_effects(world, acc=acc, cross_routes=phase2_trade_routes))
 
     # M42: Apply treasury tax (keep category)
     _apply_treasury_tax_from_economy(world, acc, economy_result)
@@ -1722,9 +1745,14 @@ def run_turn(
     world.events_timeline.extend(turn_events)
 
     # Phase 10: Consequences
-    # In hybrid mode, pass acc so Phase 10 guards can route to pending_shocks.
+    # In hybrid mode, Phase 10 helpers must record into the accumulator.
+    # run_turn() converts the Phase 10 tail slice into pending_shocks after
+    # the phase returns; helper-level pending_shocks fallbacks remain only for
+    # standalone acc=None calls outside the main hybrid turn path.
     # In aggregate mode, pass acc=None so Phase 10 uses direct mutation (acc already applied).
     phase10_acc = acc if world.agent_mode == "hybrid" else None
+    if world.agent_mode == "hybrid" and phase10_acc is None:
+        raise RuntimeError("Hybrid Phase 10 requires an accumulator in run_turn()")
     _phase10_checkpoint = acc.checkpoint() if acc is not None else 0
     # M54c: Determine the politics runtime for this turn.
     # In agent modes, use the AgentSimulator via the bridge.
@@ -1867,6 +1895,7 @@ def run_turn(
     chronicle_text = narrator(world, turn_events)
 
     # Advance turn counter
+    clear_active_trade_routes_snapshot(world)
     world.turn += 1
 
     return chronicle_text

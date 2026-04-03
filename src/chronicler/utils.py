@@ -99,17 +99,38 @@ def add_region_pop(region, amount: int, cap=None) -> None:
 def civ_index(world, name: str) -> int:
     """Return the index of the named civilization in world.civilizations.
 
-    Raises StopIteration if not found.
+    Raises ValueError if not found.
     """
-    return next(i for i, c in enumerate(world.civilizations) if c.name == name)
+    idx = getattr(world, "civ_index_map", {}).get(name)
+    if idx is not None:
+        return idx
+    if hasattr(world, "invalidate_civ_map"):
+        world.invalidate_civ_map()
+        idx = getattr(world, "civ_index_map", {}).get(name)
+        if idx is not None:
+            return idx
+    known = ", ".join(civ.name for civ in world.civilizations) or "<none>"
+    raise ValueError(
+        f"Civilization {name!r} not found in world.civilizations at turn "
+        f"{getattr(world, 'turn', 'unknown')}; known civs: {known}"
+    )
 
 
 def get_civ(world, name: str):
     """Return the Civilization with the given name, or None."""
-    for c in world.civilizations:
-        if c.name == name:
-            return c
-    return None
+    return getattr(world, "civ_map", {}).get(name)
+
+
+def get_region_map(world) -> dict[str, object]:
+    """Return a region-name lookup, falling back for mock/test worlds.
+
+    Real `WorldState` instances expose `world.region_map`; some focused tests use
+    lightweight mocks that only provide `world.regions`.
+    """
+    region_map = getattr(world, "region_map", None)
+    if isinstance(region_map, dict):
+        return region_map
+    return {region.name: region for region in getattr(world, "regions", [])}
 
 
 def resolve_civ_faith_id(civ, belief_registry, civ_idx: int | None = None, default: int = 0xFF) -> int:

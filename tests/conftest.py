@@ -8,7 +8,17 @@ from chronicler.models import (
     Civilization,
     Relationship,
     WorldState,
-)
+    )
+
+
+def _prime_agent_mode_world(world: WorldState, mode: str) -> WorldState:
+    """Prepare a copied world for non-off agent-mode bridge tests."""
+    world.agent_mode = mode
+    world.turn = 0
+    for region in world.regions:
+        if region.controller is not None and region.population == 0:
+            region.population = region.carrying_capacity
+    return world
 
 
 @pytest.fixture
@@ -139,3 +149,33 @@ def sample_world(sample_regions, sample_civilizations, sample_relationships):
             "border_incident": 0.08,
         },
     )
+
+
+@pytest.fixture
+def make_agent_bridge_world(sample_world):
+    """Factory fixture for primed non-off agent-mode worlds plus AgentBridge."""
+
+    def _make(mode="demographics-only"):
+        try:
+            from chronicler.agent_bridge import AgentBridge
+        except Exception as exc:  # pragma: no cover - environment dependent
+            pytest.skip(f"AgentBridge unavailable in this environment: {exc}")
+        world = _prime_agent_mode_world(sample_world.model_copy(deep=True), mode)
+        return world, AgentBridge(world, mode=mode)
+
+    return _make
+
+
+@pytest.fixture
+def demographics_bridge_world(make_agent_bridge_world):
+    return make_agent_bridge_world(mode="demographics-only")
+
+
+@pytest.fixture
+def shadow_bridge_world(make_agent_bridge_world):
+    return make_agent_bridge_world(mode="shadow")
+
+
+@pytest.fixture
+def hybrid_bridge_world(make_agent_bridge_world):
+    return make_agent_bridge_world(mode="hybrid")

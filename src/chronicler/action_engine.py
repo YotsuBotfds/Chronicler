@@ -41,6 +41,7 @@ from chronicler.emergence import get_severity_multiplier
 logger = logging.getLogger(__name__)
 
 ACTION_WEIGHT_BASE = 0.2
+_MIN_TUNING_DIVISOR = 0.001
 
 
 # M48: Mule constants [FROZEN M53 SOFT]
@@ -165,6 +166,7 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
         target = rng.choice(unclaimed)
         target.controller = civ.name
         civ.regions.append(target.name)
+        world.invalidate_trade_route_cache()
         if target.resource_types[0] != 255:
             from chronicler.economy import bootstrap_region_stockpile
             if target.population > 0:
@@ -247,6 +249,7 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
             rel_in = world.relationships[worst_name][civ.name]
             rel_in.disposition = DISPOSITION_UPGRADE[rel_in.disposition]
         new_disp = rel_out.disposition
+        world.invalidate_trade_route_cache()
         # Clear active war if disposition reaches FRIENDLY+
         if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED):
             world.active_wars = [
@@ -313,6 +316,8 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
     if defender:
         war_seed = stable_hash_int("war", world.seed, world.turn, civ.name, defender.name)
         result = resolve_war(civ, defender, world, seed=war_seed, acc=acc)
+        if result.outcome == "attacker_wins":
+            world.invalidate_trade_route_cache()
         # Track active war (both orderings) — skip if vassalized (M-AF1 #15)
         pair = (civ.name, target_name)
         pair_rev = (target_name, civ.name)
@@ -401,6 +406,7 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
                     break
     if target_name:
         world.embargoes.append((civ.name, target_name))
+        world.invalidate_trade_route_cache()
         target = get_civ(world, target_name)
         if target and target.regions:
             # M21: BANKING halves incoming embargo stability damage
@@ -416,7 +422,7 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
             mult = get_severity_multiplier(target, world)
             if acc is not None:
                 target_idx = civ_index(world, target.name)
-                acc.add(target_idx, target, "stability", -int(embargo_damage * mult), "guard-action")
+                acc.add(target_idx, target, "stability", -int(embargo_damage * mult), "signal")
             else:
                 target.stability = clamp(target.stability - int(embargo_damage * mult), STAT_FLOOR["stability"], 100)
         return Event(
@@ -811,8 +817,9 @@ class ActionEngine:
         min_cost = min(s.cost for s in BUILD_SPECS.values())
         if civ.treasury >= min_cost and civ.regions:
             has_valid = False
+            region_map = self.world.region_map
             for rname in civ.regions:
-                region = next((r for r in self.world.regions if r.name == rname), None)
+                region = region_map.get(rname)
                 if region and valid_build_types(region):
                     has_valid = True
                     break
@@ -968,14 +975,14 @@ class ActionEngine:
 
         # M47d: War-weariness penalty — suppresses WAR after multiplicative boosters
         if civ.war_weariness > 0:
-            divisor = get_override(self.world, K_WAR_WEARINESS_DIVISOR, 0.5)
+            divisor = max(get_override(self.world, K_WAR_WEARINESS_DIVISOR, 0.5), _MIN_TUNING_DIVISOR)
             weariness_penalty = 1.0 / (1.0 + civ.war_weariness / divisor)
             weights[ActionType.WAR] *= weariness_penalty
 
         # M47d: Peace dividend — boost DEVELOP/TRADE from peace momentum
         if civ.peace_momentum > 0:
-            develop_divisor = get_override(self.world, K_PEACE_DEVELOP_DIVISOR, 5.0)
-            trade_divisor = get_override(self.world, K_PEACE_TRADE_DIVISOR, 5.0)
+            develop_divisor = max(get_override(self.world, K_PEACE_DEVELOP_DIVISOR, 5.0), _MIN_TUNING_DIVISOR)
+            trade_divisor = max(get_override(self.world, K_PEACE_TRADE_DIVISOR, 5.0), _MIN_TUNING_DIVISOR)
             weights[ActionType.DEVELOP] *= 1.0 + civ.peace_momentum / develop_divisor
             weights[ActionType.TRADE] *= 1.0 + civ.peace_momentum / trade_divisor
 
@@ -1014,7 +1021,7 @@ class ActionEngine:
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
         # M47d: Smooth WAR damper — linear ramp from floor to 1.0
         # Replaces binary cliff. DIPLOMACY boost stays as binary (qualitative regime change).
-        threshold = get_override(self.world, K_WAR_DAMPER_THRESHOLD, 50.0)
+        threshold = max(get_override(self.world, K_WAR_DAMPER_THRESHOLD, 50.0), _MIN_TUNING_DIVISOR)
         floor = get_override(self.world, K_WAR_DAMPER_FLOOR, 0.05)
         war_damper = max(min(civ.stability / threshold, 1.0), floor)
         weights[ActionType.WAR] *= war_damper

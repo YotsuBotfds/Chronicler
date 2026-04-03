@@ -14,6 +14,7 @@ import math
 from dataclasses import dataclass, field
 
 import numpy as np
+from chronicler.utils import get_region_map
 
 # ---------------------------------------------------------------------------
 # Constants  [CALIBRATE] — all tunable, see spec for tuning targets
@@ -213,7 +214,7 @@ def _get_adjacent_enemy_regions(civ, world) -> list:
     if not enemy_civs:
         return []
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     own_regions = set(civ.regions)
     adjacent_enemy = []
     seen = set()
@@ -632,7 +633,7 @@ def filter_goods_trade_routes(
     if not active_trade_routes:
         return []
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     civ_lookup: dict[str, set[str]] = {}
     for civ in world.civilizations:
         if len(civ.regions) > 0:
@@ -829,7 +830,7 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
     Does NOT include agent counts — Rust derives those from the live pool.
     """
     import pyarrow as pa
-    from chronicler.agent_bridge import TERRAIN_MAP
+    from chronicler.ffi_constants import TERRAIN_MAP
 
     regions = world.regions
     data = {
@@ -861,7 +862,7 @@ def build_economy_trade_route_batch(world, active_trade_routes=None) -> "pa.Reco
         active_trade_routes = get_active_trade_routes(world)
     active_trade_routes = filter_goods_trade_routes(world, active_trade_routes)
 
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     region_idx_map = {r.name: i for i, r in enumerate(world.regions)}
     river_pairs = build_river_route_set(world.rivers) if hasattr(world, "rivers") and world.rivers else set()
 

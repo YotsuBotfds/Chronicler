@@ -12,6 +12,9 @@ use crate::agent::Occupation;
 use crate::ffi;
 use crate::region::RegionState;
 
+pub const AGENT_POOL_EXHAUSTED: &str =
+    "AgentPool exhausted: next_id overflow would collide with PARENT_NONE";
+
 /// Struct-of-arrays agent pool. Each index is a "slot"; a slot may be dead.
 /// Use `is_alive(slot)` before accessing any field.
 pub struct AgentPool {
@@ -180,7 +183,7 @@ impl AgentPool {
 
     /// Spawn a new agent. Returns the slot index.
     /// Reuses a dead slot from the free-list if available; otherwise grows vecs.
-    pub fn spawn(
+    pub fn try_spawn(
         &mut self,
         region: u16,
         civ_affinity: u8,
@@ -193,12 +196,12 @@ impl AgentPool {
         cultural_value_1: u8,
         cultural_value_2: u8,
         belief: u8,
-    ) -> usize {
+    ) -> Result<usize, &'static str> {
         let id = self.next_id;
         self.next_id = self
             .next_id
             .checked_add(1)
-            .expect("AgentPool exhausted: next_id overflow would collide with PARENT_NONE");
+            .ok_or(AGENT_POOL_EXHAUSTED)?;
 
         if let Some(slot) = self.free_slots.pop() {
             // Reuse dead slot — overwrite all fields.
@@ -267,7 +270,7 @@ impl AgentPool {
             self.arrived_this_turn[slot] = false;
             self.alive[slot] = true;
             self.count += 1;
-            slot
+            Ok(slot)
         } else {
             // No free slot — grow vecs.
             let slot = self.ids.len();
@@ -335,8 +338,37 @@ impl AgentPool {
             self.arrived_this_turn.push(false);
             self.alive.push(true);
             self.count += 1;
-            slot
+            Ok(slot)
         }
+    }
+
+    pub fn spawn(
+        &mut self,
+        region: u16,
+        civ_affinity: u8,
+        occupation: Occupation,
+        age: u16,
+        boldness: f32,
+        ambition: f32,
+        loyalty_trait: f32,
+        cultural_value_0: u8,
+        cultural_value_1: u8,
+        cultural_value_2: u8,
+        belief: u8,
+    ) -> usize {
+        self.try_spawn(
+            region,
+            civ_affinity,
+            occupation,
+            age,
+            boldness,
+            ambition,
+            loyalty_trait,
+            cultural_value_0,
+            cultural_value_1,
+            cultural_value_2,
+            belief,
+        ).expect(AGENT_POOL_EXHAUSTED)
     }
 
     /// Kill an agent by slot. Zeros key fields, decrements live count, and
@@ -923,6 +955,26 @@ mod tests {
         let s2 = pool.spawn(0, 0, Occupation::Scholar, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
         assert!(pool.id(s0) < pool.id(s1));
         assert!(pool.id(s1) < pool.id(s2));
+    }
+
+    #[test]
+    fn test_try_spawn_returns_err_when_next_id_overflows() {
+        let mut pool = AgentPool::new(1);
+        pool.next_id = u32::MAX;
+        let err = pool.try_spawn(
+            0,
+            0,
+            Occupation::Farmer,
+            10,
+            0.0,
+            0.0,
+            0.0,
+            0,
+            1,
+            2,
+            crate::agent::BELIEF_NONE,
+        ).unwrap_err();
+        assert_eq!(err, AGENT_POOL_EXHAUSTED);
     }
 
     #[test]

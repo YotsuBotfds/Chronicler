@@ -36,9 +36,10 @@ PHASE_SCHEDULE: list[tuple[float, ClimatePhase]] = [
 def get_climate_phase(turn: int, config: ClimateConfig) -> ClimatePhase:
     """Pure function. Deterministic from turn + config."""
     phase_idx = config.phase_offset % len(PHASE_SCHEDULE)
-    threshold_shift = int(PHASE_SCHEDULE[phase_idx][0] * config.period)
+    period = max(int(config.period), 1)
+    threshold_shift = int(PHASE_SCHEDULE[phase_idx][0] * period)
     shifted_turn = turn + threshold_shift
-    position = (shifted_turn % config.period) / config.period
+    position = (shifted_turn % period) / period
     phase = ClimatePhase.TEMPERATE
     for threshold, p in PHASE_SCHEDULE:
         if position >= threshold:
@@ -181,15 +182,19 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
 def process_migration(world: WorldState, acc=None) -> list[Event]:
     """Called at end of phase 1, after disasters."""
     from chronicler.ecology import effective_capacity
-    from chronicler.utils import add_region_pop, sync_all_populations
+    from chronicler.utils import add_region_pop, get_region_map, sync_all_populations
 
     events: list[Event] = []
+    civ_by_name = getattr(world, "civ_map", None)
+    if not isinstance(civ_by_name, dict):
+        civ_by_name = {c.name: c for c in world.civilizations}
+    region_map = get_region_map(world)
 
     for region in world.regions:
         if region.controller is None:
             continue
 
-        civ = next((c for c in world.civilizations if c.name == region.controller), None)
+        civ = civ_by_name.get(region.controller)
         if civ is None or not civ.regions:
             continue
 
@@ -206,7 +211,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
 
         eligible: list[tuple] = []
         for adj_name in region.adjacencies:
-            adj_region = next((r for r in world.regions if r.name == adj_name), None)
+            adj_region = region_map.get(adj_name)
             if adj_region is None:
                 continue
             if adj_region.controller is None:
@@ -227,9 +232,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
                     remainder -= 1
                 add_region_pop(adj_region, amount)
                 if ctrl_name is not None:
-                    recv_civ = next(
-                        (c for c in world.civilizations if c.name == ctrl_name), None
-                    )
+                    recv_civ = civ_by_name.get(ctrl_name)
                     if recv_civ:
                         mult = get_severity_multiplier(recv_civ, world)
                         if acc is not None:

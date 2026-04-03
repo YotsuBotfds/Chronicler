@@ -717,6 +717,14 @@ class WorldState(BaseModel):
     settlement_candidates: list[Settlement] = Field(default_factory=list)
     # M47: Cached region lookup
     _region_map: dict[str, "Region"] | None = PrivateAttr(default=None)
+    # Cached civ lookup for hot paths
+    _civ_map: dict[str, "Civilization"] | None = PrivateAttr(default=None)
+    _civ_index_map: dict[str, int] | None = PrivateAttr(default=None)
+    # Cached trade-route lookups for hot read paths within a turn.
+    _trade_route_cache_turn: int | None = PrivateAttr(default=None)
+    _active_trade_routes_cache: list[tuple[str, str]] | None = PrivateAttr(default=None)
+    _active_trade_route_pairs_cache: set[tuple[str, str]] | None = PrivateAttr(default=None)
+    _self_trade_civs_cache: set[str] | None = PrivateAttr(default=None)
     # Hybrid-mode bridge hook for transient agent/civ synchronization.
     _agent_bridge: object | None = PrivateAttr(default=None)
     # M52: Transient artifact pipeline signals (not serialized)
@@ -733,6 +741,31 @@ class WorldState(BaseModel):
     def invalidate_region_map(self) -> None:
         """Call after region list changes (conquest, expansion)."""
         self._region_map = None
+        self.invalidate_trade_route_cache()
+
+    @property
+    def civ_map(self) -> dict[str, "Civilization"]:
+        if self._civ_map is None or len(self._civ_map) != len(self.civilizations):
+            self._civ_map = {c.name: c for c in self.civilizations}
+        return self._civ_map
+
+    @property
+    def civ_index_map(self) -> dict[str, int]:
+        if self._civ_index_map is None or len(self._civ_index_map) != len(self.civilizations):
+            self._civ_index_map = {c.name: i for i, c in enumerate(self.civilizations)}
+        return self._civ_index_map
+
+    def invalidate_civ_map(self) -> None:
+        """Call after structural civilization edits."""
+        self._civ_map = None
+        self._civ_index_map = None
+
+    def invalidate_trade_route_cache(self) -> None:
+        """Clear cached trade-route lookups after route-affecting mutations."""
+        self._trade_route_cache_turn = None
+        self._active_trade_routes_cache = None
+        self._active_trade_route_pairs_cache = None
+        self._self_trade_civs_cache = None
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""

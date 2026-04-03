@@ -89,15 +89,21 @@ def _clamp_checkpoints(checkpoints: list[int] | None, max_turn: int) -> list[int
 
 def _min_total_turns(bundles: list[dict]) -> int:
     """Get the minimum total_turns across all bundles."""
-    return min(len(b["history"]) for b in bundles)
+    return min((len(b.get("history", [])) for b in bundles), default=0)
 
 
 def _snapshot_at_turn(bundle: dict, turn: int) -> dict | None:
     """Look up a snapshot by its turn field, not list position."""
-    for snap in bundle["history"]:
+    for snap in bundle.get("history", []):
         if snap["turn"] == turn:
             return snap
     return None
+
+
+def _final_snapshot(bundle: dict) -> dict | None:
+    """Return the final snapshot in a bundle, or None if history is empty."""
+    history = bundle.get("history", [])
+    return history[-1] if history else None
 
 
 def _civ_is_alive(civ_data: dict) -> bool:
@@ -338,6 +344,8 @@ def extract_politics(bundles: list[dict]) -> dict:
 def extract_climate(bundles: list[dict]) -> dict:
     """Disaster frequency by type."""
     disaster_types = {"drought", "plague", "earthquake", "flood", "wildfire", "sandstorm"}
+    if not bundles:
+        return {"disaster_frequency_by_type": {dtype: 0.0 for dtype in disaster_types}}
     disaster_frequency_by_type: dict[str, float] = {}
     n = len(bundles)
     for dtype in disaster_types:
@@ -391,6 +399,13 @@ def extract_emergence(
     n = len(bundles)
 
     black_swan_types = ["pandemic", "supervolcano", "resource_discovery", "tech_accident"]
+    if not bundles:
+        return {
+            "black_swan_frequency_by_type": {bst: 0.0 for bst in black_swan_types},
+            "regression_rate": 0.0,
+            "terrain_transition_rate": 0.0,
+            "stress_percentiles_by_turn": {},
+        }
     black_swan_frequency_by_type: dict[str, float] = {}
     for bst in black_swan_types:
         count = sum(
@@ -428,7 +443,9 @@ def extract_general(bundles: list[dict]) -> dict:
     era_counts: dict[str, int] = {}
     era_ordinals: list[int] = []
     for b in bundles:
-        last_snap = b["history"][-1]
+        last_snap = _final_snapshot(b)
+        if last_snap is None:
+            continue
         for civ_data in last_snap["civ_stats"].values():
             era = civ_data.get("tech_era", "tribal")
             era_counts[era] = era_counts.get(era, 0) + 1
@@ -449,7 +466,9 @@ def extract_general(bundles: list[dict]) -> dict:
     # civs_alive_at_end
     civs_alive_counts = []
     for b in bundles:
-        last_snap = b["history"][-1]
+        last_snap = _final_snapshot(b)
+        if last_snap is None:
+            continue
         alive_count = sum(
             1 for civ_data in last_snap["civ_stats"].values()
             if _civ_is_alive(civ_data)
@@ -577,7 +596,9 @@ def extract_focus_geography(bundles: list[dict]) -> dict:
             civ_terrains[ctrl].add(terrain)
 
         # Get the final snapshot for alive check and active_focus
-        last_snap = bundle["history"][-1]
+        last_snap = _final_snapshot(bundle)
+        if last_snap is None:
+            continue
         for civ_name, civ_data in last_snap["civ_stats"].items():
             if not _civ_is_alive(civ_data):
                 continue
@@ -1174,6 +1195,8 @@ def compute_event_firing_rates(bundles: list[dict]) -> dict[str, float]:
     Scans both events_timeline and named_events to capture all event types.
     """
     n_runs = len(bundles)
+    if n_runs == 0:
+        return {}
     type_run_sets: dict[str, set[int]] = {}
     for i, bundle in enumerate(bundles):
         for event in bundle.get("events_timeline", []):

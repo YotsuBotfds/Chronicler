@@ -13,7 +13,7 @@ from chronicler.models import (
     Leader,
     WorldState,
 )
-from chronicler.utils import stable_hash_int
+from chronicler.utils import get_region_map, stable_hash_int
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -392,8 +392,11 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
 
         # 4d. M38a: tithe collection
         if civ.factions.influence.get(FactionType.CLERGY, 0) >= TITHE_THRESHOLD:
-            tithe = TITHE_RATE * compute_tithe_base(civ, economy_result=economy_result, civ_idx=civ_idx)
-            civ.treasury += int(tithe)
+            tithe_gain = int(TITHE_RATE * compute_tithe_base(civ, economy_result=economy_result, civ_idx=civ_idx))
+            if acc is not None:
+                acc.add(civ_idx, civ, "treasury", tithe_gain, "keep")
+            else:
+                civ.treasury += tithe_gain
 
         # 5. Normalize influence
         normalize_influence(civ.factions)
@@ -559,7 +562,7 @@ def inherit_grudges_with_factions(
 def total_effective_capacity(civ: Civilization, world) -> int:
     """Sum of effective_capacity across all civ-controlled regions."""
     from chronicler.ecology import effective_capacity
-    region_map = {r.name: r for r in world.regions}
+    region_map = get_region_map(world)
     return sum(
         effective_capacity(region_map[rn])
         for rn in civ.regions

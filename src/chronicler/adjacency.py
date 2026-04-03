@@ -16,12 +16,14 @@ def _build_adj_map(regions: list[Region]) -> dict[str, set[str]]:
 
 
 def shortest_path(
-    regions: list[Region], from_name: str, to_name: str,
+    regions_or_adj: list[Region] | dict[str, set[str]] | dict[str, list[str]],
+    from_name: str,
+    to_name: str,
 ) -> list[str] | None:
     """BFS shortest path. Returns list of region names or None."""
     if from_name == to_name:
         return [from_name]
-    adj = _build_adj_map(regions)
+    adj = regions_or_adj if isinstance(regions_or_adj, dict) else _build_adj_map(regions_or_adj)
     visited: set[str] = {from_name}
     queue: deque[list[str]] = deque([[from_name]])
     while queue:
@@ -36,10 +38,12 @@ def shortest_path(
 
 
 def graph_distance(
-    regions: list[Region], from_name: str, to_name: str,
+    regions_or_adj: list[Region] | dict[str, set[str]] | dict[str, list[str]],
+    from_name: str,
+    to_name: str,
 ) -> int:
     """Shortest path length, or -1 if disconnected."""
-    path = shortest_path(regions, from_name, to_name)
+    path = shortest_path(regions_or_adj, from_name, to_name)
     if path is None:
         return -1
     return len(path) - 1

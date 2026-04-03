@@ -9,6 +9,7 @@ import numpy as np
 import pyarrow as pa
 from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
+from chronicler.ffi_constants import TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID
 from chronicler.great_persons import _append_deed
 from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
@@ -21,12 +22,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-TERRAIN_MAP = {
-    "plains": 0, "mountains": 1, "coast": 2,
-    "forest": 3, "desert": 4, "tundra": 5,
-    "river": 0,   # Maps to plains for Rust terrain modifiers
-    "hills": 0,   # Maps to plains for Rust terrain modifiers
-}
 # M58a: Fixed good slot ordering — mirrors economy.FIXED_GOODS (avoid circular import)
 _FIXED_GOODS: tuple[str, ...] = (
     "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
@@ -63,13 +58,6 @@ SUMMARY_TEMPLATES = {
     "brain_drain": "{count} scholars fled {region} over {window} turns",
 }
 
-
-# M36: Cultural value string → u8 index mapping (matches Rust enum order)
-VALUE_TO_ID = {
-    "Freedom": 0, "Order": 1, "Tradition": 2,
-    "Knowledge": 3, "Honor": 4, "Cunning": 5,
-}
-VALUE_EMPTY = 0xFF
 
 VALUE_PERSONALITY_MAP = {
     "Honor":     ( 0.15,  0.0,   0.0),
@@ -166,7 +154,10 @@ def _get_active_focus(region, world) -> int:
     """Return the controlling civ's tech focus as u8, 0 = None."""
     if region.controller is None:
         return 0
-    civ = next((c for c in world.civilizations if c.name == region.controller), None)
+    civ_by_name = getattr(world, "civ_map", None)
+    if not isinstance(civ_by_name, dict):
+        civ_by_name = {c.name: c for c in world.civilizations}
+    civ = civ_by_name.get(region.controller)
     if civ is None or not civ.active_focus:
         return 0
     # Map TechFocus string values to sequential u8 IDs (1-indexed, 0 = None)
@@ -222,6 +213,12 @@ def _get_agent_memory_records(sim, agent_id: int) -> list[AgentMemoryRecord]:
 def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
+    civ_by_name = getattr(world, "civ_map", None)
+    if not isinstance(civ_by_name, dict):
+        civ_by_name = {c.name: c for c in world.civilizations}
+    civ_index_by_name = getattr(world, "civ_index_map", None)
+    if not isinstance(civ_index_by_name, dict):
+        civ_index_by_name = {c.name: i for i, c in enumerate(world.civilizations)}
     region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
     if len(world.regions) > 32:
         raise ValueError(
@@ -246,7 +243,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         """Denormalize controller civ's cultural values into per-region columns."""
         if region.controller is None:
             return [VALUE_EMPTY, VALUE_EMPTY, VALUE_EMPTY]
-        ctrl_civ = next((c for c in world.civilizations if c.name == region.controller), None)
+        ctrl_civ = civ_by_name.get(region.controller)
         if ctrl_civ is None:
             return [VALUE_EMPTY, VALUE_EMPTY, VALUE_EMPTY]
         vals = [VALUE_TO_ID.get(v, VALUE_EMPTY) for v in ctrl_civ.values[:3]]
@@ -259,14 +256,11 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
     for region in world.regions:
         civ_name = region.controller
         if civ_name and world.belief_registry:
-            civ_idx = next(
-                (j for j, c in enumerate(world.civilizations) if c.name == civ_name),
-                None,
-            )
+            civ_idx = civ_index_by_name.get(civ_name)
             if civ_idx is not None:
                 initial_belief_arr.append(
                     resolve_civ_faith_id(
-                        world.civilizations[civ_idx],
+                        civ_by_name[civ_name],
                         world.belief_registry,
                         civ_idx=civ_idx,
                     )
@@ -281,7 +275,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         controller_name = region.controller
         if controller_name is None:
             return False
-        controller = next((c for c in world.civilizations if c.name == controller_name), None)
+        controller = civ_by_name.get(controller_name)
         if controller is None:
             return False
         cmf = getattr(controller, 'civ_majority_faith', -1)

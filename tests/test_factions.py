@@ -9,6 +9,7 @@ from chronicler.factions import (
     get_leader_faction_alignment,
     TRAIT_FACTION_MAP,
     FOCUS_FACTION_MAP,
+    TITHE_RATE,
 )
 from chronicler.factions import count_faction_wins, _event_is_win
 from chronicler.factions import (
@@ -361,6 +362,25 @@ class TestTickFactions:
         events = tick_factions(world)
         shift_events = [e for e in events if e.event_type == "faction_dominance_shift"]
         assert len(shift_events) == 1
+
+    def test_tithe_routes_through_accumulator_keep_in_agent_mode(self):
+        from chronicler.accumulator import StatAccumulator
+
+        civ = _make_civ()
+        civ.treasury = 100
+        civ.last_income = 80
+        civ.factions.influence[FactionType.CLERGY] = 0.20
+        world = _make_world(turn=10)
+        world.civilizations = [civ]
+
+        acc = StatAccumulator()
+        tick_factions(world, acc=acc)
+
+        assert civ.treasury == 100
+
+        acc.apply_keep(world)
+
+        assert civ.treasury == 100 + int(TITHE_RATE * civ.last_income)
 
 
 class TestCandidateGeneration:

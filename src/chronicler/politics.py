@@ -55,9 +55,19 @@ def war_key(a: str, b: str) -> str:
     return ":".join(sorted([a, b]))
 
 
+def _require_acc_for_hybrid(world: WorldState, acc, phase_name: str) -> None:
+    """Fail fast if a hybrid phase helper is called without an accumulator."""
+    if world.agent_mode == "hybrid" and acc is None:
+        raise RuntimeError(
+            f"{phase_name} requires acc in hybrid mode so shocks route through "
+            "the accumulator watermark instead of bypassing it"
+        )
+
+
 def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply governing costs based on empire size and distance from capital."""
     events: list[Event] = []
+    adj_map = {r.name: set(r.adjacencies) for r in world.regions}
     for civ in world.civilizations:
         if len(civ.regions) <= 2 or civ.capital_region is None:
             continue
@@ -69,7 +79,7 @@ def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
         for region_name in civ.regions:
             if region_name == civ.capital_region:
                 continue
-            dist = graph_distance(world.regions, civ.capital_region, region_name)
+            dist = graph_distance(adj_map, civ.capital_region, region_name)
             if dist < 0:
                 dist = 1  # fallback if disconnected
             treasury_cost += dist * 2
@@ -90,6 +100,7 @@ def resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Even
     """Resolve MOVE_CAPITAL action: relocate capital to most central region."""
     from chronicler.models import ActiveCondition
     move_cost = int(get_override(world, K_MOVE_CAPITAL_COST, 15))
+    adj_map = {r.name: set(r.adjacencies) for r in world.regions}
     if acc is not None:
         civ_idx = civ_index(world, civ.name)
         acc.add(civ_idx, civ, "treasury", -move_cost, "keep")
@@ -100,7 +111,7 @@ def resolve_move_capital(civ: Civilization, world: WorldState, acc=None) -> Even
         distances = []
         for rn in civ.regions:
             if rn != candidate:
-                d = graph_distance(world.regions, candidate, rn)
+                d = graph_distance(adj_map, candidate, rn)
                 distances.append(d if d >= 0 else 1)
         return sum(distances) / max(len(distances), 1)
 
@@ -138,8 +149,10 @@ _TRAIT_POOL = [
 
 def check_secession(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check for civil war / secession in unstable empires."""
+    _require_acc_for_hybrid(world, acc, "check_secession()")
     events: list[Event] = []
     new_civs: list[Civilization] = []
+    adj_map = {r.name: set(r.adjacencies) for r in world.regions}
 
     for civ in list(world.civilizations):
         if civ.founded_turn > 0 and (world.turn - civ.founded_turn) < SECESSION_GRACE_TURNS:
@@ -165,7 +178,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
         # M38b: Religious faith mismatch raises secession probability
         from chronicler.religion import SCHISM_SECESSION_MODIFIER
-        region_map = {r.name: r for r in world.regions}
+        region_map = world.region_map
         civ_faith = getattr(civ, "civ_majority_faith", 0xFF)
         for region_name in civ.regions:
             region_obj = region_map.get(region_name)
@@ -185,10 +198,10 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             continue
 
         # Secession fires
-        region_map = {r.name: r for r in world.regions}
+        region_map = world.region_map
 
         def _secession_score(rn: str, _civ=civ) -> float:
-            d = graph_distance(world.regions, _civ.capital_region or _civ.regions[0], rn)
+            d = graph_distance(adj_map, _civ.capital_region or _civ.regions[0], rn)
             dist = d if d >= 0 else 0
             cap = effective_capacity(region_map[rn]) if rn in region_map else 0
             return dist * 0.7 + cap * 0.3
@@ -237,7 +250,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
         def _min_dist_to_parent(rn: str) -> int:
             return min(
-                (graph_distance(world.regions, rn, pr) for pr in remaining_regions),
+                (graph_distance(adj_map, rn, pr) for pr in remaining_regions),
                 default=0,
             )
         breakaway_capital = min(breakaway_regions, key=_min_dist_to_parent)
@@ -270,7 +283,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
         # M55b: Initialize breakaway region asabiya
         for rname in breakaway_regions:
-            br = next((r for r in world.regions if r.name == rname), None)
+            br = region_map.get(rname)
             if br is not None:
                 br.asabiya_state.asabiya = 0.7
 
@@ -298,12 +311,6 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             acc.add(civ_idx, civ, "economy", -split_eco, "guard")
             acc.add(civ_idx, civ, "treasury", -split_tre, "keep")
             acc.add(civ_idx, civ, "stability", -int(secession_stab_loss * mult), "guard-shock")
-        elif world.agent_mode == "hybrid":
-            world.pending_shocks.append(CivShock(civ_idx,
-                military_shock=normalize_shock(split_mil, civ.military),
-                economy_shock=normalize_shock(split_eco, civ.economy),
-                stability_shock=normalize_shock(int(secession_stab_loss * mult), civ.stability)))
-            civ.treasury -= split_tre  # treasury stays Python-side
         else:
             civ.military = max(civ.military - split_mil, 0)
             civ.economy = max(civ.economy - split_eco, 0)
@@ -371,6 +378,7 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
 
 def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any civ lost its capital and handle reassignment."""
+    _require_acc_for_hybrid(world, acc, "check_capital_loss()")
     events: list[Event] = []
     for civ in world.civilizations:
         if civ.capital_region is None or civ.capital_region in civ.regions:
@@ -384,15 +392,12 @@ def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
         cap_loss_stab = int(get_override(world, K_CAPITAL_LOSS_STABILITY, 20))
         if acc is not None:
             acc.add(civ_idx, civ, "stability", -int(cap_loss_stab * mult), "guard-shock")
-        elif world.agent_mode == "hybrid":
-            world.pending_shocks.append(CivShock(civ_idx,
-                stability_shock=normalize_shock(int(cap_loss_stab * mult), civ.stability)))
         else:
             civ.stability = clamp(civ.stability - int(cap_loss_stab * mult), STAT_FLOOR["stability"], 100)
 
         # Pick best remaining region (highest effective_capacity)
         from chronicler.ecology import effective_capacity
-        region_map = {r.name: r for r in world.regions}
+        region_map = world.region_map
         best_region = max(
             civ.regions,
             key=lambda rn: (
@@ -476,7 +481,7 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
 def collect_tribute(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Collect tribute from vassals to overlords."""
     events: list[Event] = []
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
     for vr in world.vassal_relations:
         vassal = civ_map.get(vr.vassal)
         overlord = civ_map.get(vr.overlord)
@@ -503,7 +508,7 @@ def collect_tribute(world: WorldState, acc=None) -> list[Event]:
 def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if vassals rebel against weak overlords."""
     events: list[Event] = []
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
     to_remove: list[VassalRelation] = []
     rebelled_overlords: set[str] = set()
 
@@ -541,9 +546,6 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
         vassal_idx = civ_index(world, vassal.name)
         if acc is not None:
             acc.add(vassal_idx, vassal, "stability", 10, "guard-shock")
-        elif world.agent_mode == "hybrid":
-            world.pending_shocks.append(CivShock(vassal_idx,
-                stability_shock=min(1.0, 10 / max(vassal.stability, 1))))
         else:
             vassal.stability = clamp(vassal.stability + 10, STAT_FLOOR["stability"], 100)
         from chronicler.simulation import _apply_asabiya_to_regions
@@ -607,6 +609,7 @@ def check_federation_formation(world: WorldState) -> list[Event]:
     from chronicler.models import Federation
     events: list[Event] = []
     checked_pairs: set[tuple[str, str]] = set()
+    civ_map = world.civ_map
 
     for civ_a in world.civilizations:
         if not civ_a.regions:  # H-8: skip dead civs
@@ -623,7 +626,7 @@ def check_federation_formation(world: WorldState) -> list[Event]:
                 continue
             checked_pairs.add(pair)
 
-            civ_b = next((c for c in world.civilizations if c.name == civ_b_name), None)
+            civ_b = civ_map.get(civ_b_name)
             if civ_b is not None and not civ_b.regions:  # H-8: skip dead civ_b
                 continue
             rel_ba = world.relationships.get(civ_b_name, {}).get(civ_a.name)
@@ -669,11 +672,12 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any federation members want to exit."""
     events: list[Event] = []
     feds_to_remove = []
+    civ_map = world.civ_map
 
     for fed in world.federations:
         exiting: list[str] = []
         for member in fed.members:
-            civ = next((c for c in world.civilizations if c.name == member), None)
+            civ = civ_map.get(member)
             if civ is None or not civ.regions:
                 continue
             rels = world.relationships.get(member, {})
@@ -689,27 +693,21 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
         fed_remain_stab = int(get_override(world, K_FEDERATION_REMAINING_STABILITY, 5))
         for member in exiting:
             fed.members.remove(member)
-            civ = next((c for c in world.civilizations if c.name == member), None)
+            civ = civ_map.get(member)
             if civ:
                 civ_idx = civ_index(world, civ.name)
                 mult = get_severity_multiplier(civ, world)
                 if acc is not None:
                     acc.add(civ_idx, civ, "stability", -int(fed_exit_stab * mult), "guard-shock")
-                elif world.agent_mode == "hybrid":
-                    world.pending_shocks.append(CivShock(civ_idx,
-                        stability_shock=normalize_shock(int(fed_exit_stab * mult), civ.stability)))
                 else:
                     civ.stability = clamp(civ.stability - int(fed_exit_stab * mult), STAT_FLOOR["stability"], 100)
             for remaining in fed.members:
-                rc = next((c for c in world.civilizations if c.name == remaining), None)
+                rc = civ_map.get(remaining)
                 if rc:
                     rc_idx = civ_index(world, rc.name)
                     rc_mult = get_severity_multiplier(rc, world)
                     if acc is not None:
                         acc.add(rc_idx, rc, "stability", -int(fed_remain_stab * rc_mult), "guard-shock")
-                    elif world.agent_mode == "hybrid":
-                        world.pending_shocks.append(CivShock(rc_idx,
-                            stability_shock=normalize_shock(int(fed_remain_stab * rc_mult), rc.stability)))
                     else:
                         rc.stability = clamp(rc.stability - int(fed_remain_stab * rc_mult), STAT_FLOOR["stability"], 100)
 
@@ -759,7 +757,7 @@ def trigger_federation_defense(attacker: str, defender: str, world: WorldState) 
 def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply ongoing proxy war costs and effects."""
     events: list[Event] = []
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
     to_remove = []
 
     for pw in world.proxy_wars:
@@ -810,7 +808,7 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
 def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if proxy wars are detected by target civs."""
     events: list[Event] = []
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
 
     for pw in world.proxy_wars:
         if pw.detected:
@@ -836,9 +834,6 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
             detection_stab_loss = int(5 * mult)
             if acc is not None:
                 acc.add(target_idx, target, "stability", -detection_stab_loss, "guard-shock")
-            elif world.agent_mode == "hybrid":
-                world.pending_shocks.append(CivShock(target_idx,
-                    stability_shock=normalize_shock(detection_stab_loss, target.stability)))
             else:
                 target.stability = clamp(
                     target.stability - detection_stab_loss,
@@ -867,10 +862,11 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
     """Phase 7: Check for diplomatic congress when 3+ civs at war."""
     events: list[Event] = []
 
-    participants = set()
+    participants_set = set()
     for a, b in world.active_wars:
-        participants.add(a)
-        participants.add(b)
+        participants_set.add(a)
+        participants_set.add(b)
+    participants = sorted(participants_set)
     if len(participants) < 3:
         return events
 
@@ -879,12 +875,12 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
     if rng.random() >= congress_prob:
         return events
 
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
 
     # M24: Congress organizer = highest actual culture (world fact, not perceived)
     organizer = max(
         (civ_map[n] for n in participants if n in civ_map),
-        key=lambda c: c.culture, default=None,
+        key=lambda c: (c.culture, c.name), default=None,
     )
     powers: dict[str, float] = {}
     for name in participants:
@@ -929,18 +925,19 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
 
         highest_culture_civ = max(
             (civ_map[n] for n in participants if n in civ_map),
-            key=lambda c: c.culture, default=None,
+            key=lambda c: (c.culture, c.name), default=None,
         )
         location = highest_culture_civ.capital_region if highest_culture_civ else "unknown"
+        world.invalidate_trade_route_cache()
         events.append(Event(
             turn=world.turn, event_type="congress_peace",
-            actors=list(participants),
+            actors=participants,
             description=f"The Congress of {location}",
             importance=9,
         ))
     elif roll < 0.75:
         # Partial ceasefire
-        sorted_powers = sorted(powers.items(), key=lambda x: x[1], reverse=True)
+        sorted_powers = sorted(powers.items(), key=lambda x: (-x[1], x[0]))
         if len(sorted_powers) >= 2:
             a, b = sorted_powers[0][0], sorted_powers[1][0]
             world.active_wars = [
@@ -952,9 +949,10 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
                 world.relationships[a][b].disposition = Disposition.NEUTRAL
             if b in world.relationships and a in world.relationships.get(b, {}):
                 world.relationships[b][a].disposition = Disposition.NEUTRAL
+        world.invalidate_trade_route_cache()
         events.append(Event(
             turn=world.turn, event_type="congress_ceasefire",
-            actors=list(participants),
+            actors=participants,
             description="Partial ceasefire achieved at diplomatic congress",
             importance=7,
         ))
@@ -967,14 +965,11 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
                 mult = get_severity_multiplier(civ, world)
                 if acc is not None:
                     acc.add(civ_idx, civ, "stability", -int(5 * mult), "guard-shock")
-                elif world.agent_mode == "hybrid":
-                    world.pending_shocks.append(CivShock(civ_idx,
-                        stability_shock=normalize_shock(int(5 * mult), civ.stability)))
                 else:
                     civ.stability = clamp(civ.stability - int(5 * mult), STAT_FLOOR["stability"], 100)
         events.append(Event(
             turn=world.turn, event_type="congress_collapse",
-            actors=list(participants),
+            actors=participants,
             description="The Failed Congress",
             importance=6,
         ))
@@ -999,7 +994,7 @@ def create_exile(eliminated: Civilization, conqueror: Civilization, world: World
 def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Drain absorber stability for each active exile modifier."""
     events: list[Event] = []
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
     to_remove = []
 
     for exile in world.exile_modifiers:
@@ -1024,8 +1019,8 @@ def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
 def check_restoration(world: WorldState) -> list[Event]:
     """Phase 10: Check if any exiled civs can be restored."""
     events: list[Event] = []
-    civ_map = {c.name: c for c in world.civilizations}
-    region_map = {r.name: r for r in world.regions}
+    civ_map = world.civ_map
+    region_map = world.region_map
     to_remove = []
 
     for exile in world.exile_modifiers:
@@ -1312,7 +1307,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
         # M22: Absorb structurally unviable civs
         from chronicler.factions import total_effective_capacity
         if total_effective_capacity(civ, world) < 10 and (world.turn - civ.founded_turn) > 30:
-            region_map_u = {r.name: r for r in world.regions}
+            region_map_u = world.region_map
             best_absorber_u = None
             best_culture_u = -1
             for rn in civ.regions:
@@ -1385,7 +1380,7 @@ def check_twilight_absorption(world: WorldState) -> list[Event]:
         if civ.decline_turns < int(get_override(world, K_TWILIGHT_ABSORPTION_DECLINE, 40)) or len(civ.regions) != 1:
             continue
 
-        region_map = {r.name: r for r in world.regions}
+        region_map = world.region_map
         civ_region = region_map.get(civ.regions[0])
         if civ_region is None:
             continue
@@ -1514,7 +1509,7 @@ def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
 
 def resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Resolve FUND_INSTABILITY action: start covert destabilization."""
-    civ_map = {c.name: c for c in world.civilizations}
+    civ_map = world.civ_map
 
     # Find most hostile viable target (deterministic ranking).
     # Rank by disposition hostility, then by region count, then name.
@@ -1537,9 +1532,9 @@ def resolve_fund_instability(civ: Civilization, world: WorldState, acc=None) -> 
     # Pick most distant region from target's capital
     target_region = target.regions[0]
     if target.capital_region and len(target.regions) > 1:
-        from chronicler.adjacency import graph_distance
+        adj_map = {r.name: set(r.adjacencies) for r in world.regions}
         target_region = max(target.regions,
-                           key=lambda rn: graph_distance(world.regions, target.capital_region, rn))
+                           key=lambda rn: graph_distance(adj_map, target.capital_region, rn))
 
     if acc is not None:
         civ_idx = civ_index(world, civ.name)

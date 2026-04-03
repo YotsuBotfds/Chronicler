@@ -31,6 +31,12 @@ def test_graph_distance():
     assert graph_distance(regions, "A", "A") == 0
 
 
+def test_graph_distance_accepts_prebuilt_adjacency_map():
+    adj = {"A": {"B"}, "B": {"A", "C"}, "C": {"B"}}
+    assert shortest_path(adj, "A", "C") == ["A", "B", "C"]
+    assert graph_distance(adj, "A", "C") == 2
+
+
 def test_graph_distance_disconnected():
     regions = _make_regions({"A": [], "B": []})
     assert graph_distance(regions, "A", "B") == -1
