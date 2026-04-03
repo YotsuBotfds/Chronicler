@@ -813,19 +813,19 @@ In `tests/test_bundle.py`, add:
 def test_agent_events_arrow_includes_provenance_columns():
     """agent_events.arrow should include target_agent_id and formed_turn columns."""
     import pyarrow.ipc as ipc
-    from chronicler.models import WorldState, AgentEventRecord
+    from types import SimpleNamespace
+    from chronicler.models import AgentEventRecord
     from chronicler.bundle import write_agent_events_arrow
     from pathlib import Path
     import tempfile
 
-    world = WorldState.__new__(WorldState)
-    world.agent_events_raw = [
+    world = SimpleNamespace(agent_events_raw=[
         AgentEventRecord(
             turn=10, agent_id=100, event_type="dissolution",
             region=0, target_region=3, civ_affinity=0, occupation=0,
             belief=0, target_agent_id=200, formed_turn=5,
         ),
-    ]
+    ])
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = write_agent_events_arrow(world, Path(tmpdir))
