@@ -155,6 +155,8 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
     adj_map = {r.name: set(r.adjacencies) for r in world.regions}
 
     for civ in list(world.civilizations):
+        if len(civ.regions) == 0:
+            continue
         if civ.founded_turn > 0 and (world.turn - civ.founded_turn) < SECESSION_GRACE_TURNS:
             continue
         if civ.active_focus == "surveillance":
@@ -518,6 +520,9 @@ def check_vassal_rebellion(world: WorldState, acc=None) -> list[Event]:
         if overlord is None or vassal is None:
             to_remove.append(vr)
             continue
+        if not overlord.regions or not vassal.regions:
+            to_remove.append(vr)
+            continue
 
         perceived_stab = get_perceived_stat(vassal, overlord, "stability", world)
         perceived_treas = get_perceived_stat(vassal, overlord, "treasury", world, max_value=500)
@@ -675,6 +680,7 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
     civ_map = world.civ_map
 
     for fed in world.federations:
+        fed.members = [m for m in fed.members if civ_map.get(m) and civ_map[m].regions]
         exiting: list[str] = []
         for member in fed.members:
             civ = civ_map.get(member)
@@ -774,15 +780,16 @@ def apply_proxy_wars(world: WorldState, acc=None) -> list[Event]:
             sponsor_idx = civ_index(world, sponsor.name)
             target_idx = civ_index(world, target.name)
             acc.add(sponsor_idx, sponsor, "treasury", -pw.treasury_per_turn, "keep")
-            acc.add(target_idx, target, "stability", -int(pw_stab * mult), "signal")
-            acc.add(target_idx, target, "economy", -int(pw_econ * mult), "signal")
+            acc.add(target_idx, target, "stability", -int(pw_stab * mult), "guard-shock")
+            acc.add(target_idx, target, "economy", -int(pw_econ * mult), "guard-shock")
         else:
             sponsor.treasury -= pw.treasury_per_turn
             target.stability = clamp(target.stability - int(pw_stab * mult), STAT_FLOOR["stability"], 100)
             target.economy = clamp(target.economy - int(pw_econ * mult), STAT_FLOOR["economy"], 100)
         pw.turns_active += 1
 
-        if sponsor.treasury < 0:
+        prospective_treasury = sponsor.treasury - pw.treasury_per_turn if acc is not None else sponsor.treasury
+        if prospective_treasury < 0:
             to_remove.append(pw)
             continue
 
@@ -814,7 +821,7 @@ def check_proxy_detection(world: WorldState, acc=None) -> list[Event]:
         if pw.detected:
             continue
         target = civ_map.get(pw.target_civ)
-        if target is None:
+        if target is None or not target.regions:
             continue
 
         rng = random.Random(
@@ -879,13 +886,13 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
 
     # M24: Congress organizer = highest actual culture (world fact, not perceived)
     organizer = max(
-        (civ_map[n] for n in participants if n in civ_map),
+        (civ_map[n] for n in participants if n in civ_map and civ_map[n].regions),
         key=lambda c: (c.culture, c.name), default=None,
     )
     powers: dict[str, float] = {}
     for name in participants:
         civ = civ_map.get(name)
-        if civ is None:
+        if civ is None or not civ.regions:
             continue
         matching_starts = [
             world.war_start_turns[key] for key in world.war_start_turns
@@ -924,10 +931,10 @@ def check_congress(world: WorldState, acc=None) -> list[Event]:
                     world.relationships[a][b].disposition = Disposition.NEUTRAL
 
         highest_culture_civ = max(
-            (civ_map[n] for n in participants if n in civ_map),
+            (civ_map[n] for n in participants if n in civ_map and civ_map[n].regions),
             key=lambda c: (c.culture, c.name), default=None,
         )
-        location = highest_culture_civ.capital_region if highest_culture_civ else "unknown"
+        location = (highest_culture_civ.capital_region or "unknown") if highest_culture_civ else "unknown"
         world.invalidate_trade_route_cache()
         events.append(Event(
             turn=world.turn, event_type="congress_peace",
@@ -999,7 +1006,7 @@ def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
 
     for exile in world.exile_modifiers:
         absorber = civ_map.get(exile.absorber_civ)
-        if absorber:
+        if absorber and absorber.regions:
             mult = get_severity_multiplier(absorber, world)
             if acc is not None:
                 absorber_idx = civ_index(world, absorber.name)
@@ -1488,8 +1495,8 @@ def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
         if acc is not None:
             richest_idx = civ_index(world, richest.name)
             poorest_idx = civ_index(world, poorest.name)
-            acc.add(richest_idx, richest, "economy", 1, "guard")
-            acc.add(poorest_idx, poorest, "economy", -1, "guard")
+            acc.add(richest_idx, richest, "economy", 1, "guard-shock")
+            acc.add(poorest_idx, poorest, "economy", -1, "guard-shock")
         else:
             richest.economy = clamp(richest.economy + 1, STAT_FLOOR["economy"], 100)
             poorest.economy = clamp(poorest.economy - 1, STAT_FLOOR["economy"], 100)

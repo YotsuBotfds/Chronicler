@@ -65,7 +65,7 @@ pub fn culture_tick(
 
     // 4. Per-agent drift with dedicated RNG stream
     let mut rng = ChaCha8Rng::from_seed(master_seed);
-    rng.set_stream(culture_stream(region_id, turn, agent::CULTURE_DRIFT_OFFSET));
+    rng.set_stream(culture_stream(region_id, turn, agent::CULTURE_DRIFT_STREAM_OFFSET));
 
     for &slot in slots {
         if !pool.alive[slot] { continue; }
@@ -307,9 +307,9 @@ mod tests {
 
     #[test]
     fn test_culture_stream_packing_is_distinct() {
-        let a = culture_stream(1, 500, agent::CULTURE_DRIFT_OFFSET);
-        let b = culture_stream(2, 500, agent::CULTURE_DRIFT_OFFSET);
-        let c = culture_stream(1, 501, agent::CULTURE_DRIFT_OFFSET);
+        let a = culture_stream(1, 500, agent::CULTURE_DRIFT_STREAM_OFFSET);
+        let b = culture_stream(2, 500, agent::CULTURE_DRIFT_STREAM_OFFSET);
+        let c = culture_stream(1, 501, agent::CULTURE_DRIFT_STREAM_OFFSET);
         let d = culture_stream(1, 500, agent::SPATIAL_POSITION_STREAM_OFFSET);
 
         assert_ne!(a, b);

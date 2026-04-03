@@ -384,6 +384,7 @@ def capture_hostage(
     winner: "Civilization",
     world: WorldState,
     contested_region: str | None = None,
+    bridge=None,
 ) -> GreatPerson | None:
     """Take a hostage from the loser and move them to the winner's great persons list."""
     candidates = [gp for gp in loser.great_persons if gp.active and not gp.is_hostage]
@@ -413,6 +414,22 @@ def capture_hostage(
     youngest.is_hostage = True
     youngest.hostage_turns = 0
     youngest.region = contested_region
+    # Sync Rust-side civ affinity in hybrid mode (mirrors apply_conquest_transitions)
+    if bridge is not None and youngest.agent_id is not None:
+        winner_civ_idx = next(
+            (i for i, c in enumerate(world.civilizations) if c.name == winner.name),
+            None,
+        )
+        if winner_civ_idx is not None:
+            try:
+                bridge._sim.set_agent_civ(youngest.agent_id, winner_civ_idx)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Failed to set GP civ during hostage capture (agent_id=%s, civ_idx=%s)",
+                    youngest.agent_id,
+                    winner_civ_idx,
+                )
     winner.great_persons.append(youngest)
     return youngest
 
@@ -454,6 +471,9 @@ def release_hostage(
     gp.civilization = origin.name
     gp.captured_by = None
     gp.region = origin.capital_region or (origin.regions[0] if origin.regions else None)
+    # Reset synthetic hostage role now that they're home
+    if gp.role == "hostage" and gp.origin_civilization == origin.name:
+        gp.role = "general"
     origin.great_persons.append(gp)
     if origin.treasury >= 10:
         origin.treasury -= 10

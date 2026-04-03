@@ -434,7 +434,7 @@ def test_dead_character_in_moment_context():
     ev = _make_event(140, "character_death", ["Kiran", "Aram"], source="agent")
     moment = _make_moment(140, [ev])
     ctx = build_agent_context_for_moment(
-        moment, [gp], {}, {},
+        moment, [gp], {},
     )
     assert ctx is not None
     names = [c["name"] for c in ctx.named_characters]

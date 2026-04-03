@@ -642,7 +642,7 @@ impl AgentSimulator {
                 r.season_id = season_id_col.map_or(r.season_id, |arr| arr.value(i));
                 r.river_mask = river_mask_col.map_or(r.river_mask, |arr| arr.value(i));
                 r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
-                r.culture_investment_active = culture_investment.map_or(false, |arr| arr.value(i));
+                r.culture_investment_active = culture_investment.map_or(r.culture_investment_active, |arr| arr.value(i));
                 r.controller_values = [
                     ctrl_val_0.map_or(0xFF, |arr| arr.value(i)),
                     ctrl_val_1.map_or(0xFF, |arr| arr.value(i)),
@@ -652,7 +652,7 @@ impl AgentSimulator {
                 r.conversion_target_belief = conversion_target_belief_col.map_or(r.conversion_target_belief, |arr| arr.value(i));
                 r.conquest_conversion_active = conquest_conversion_active_col.map_or(r.conquest_conversion_active, |arr| arr.value(i));
                 r.majority_belief = majority_belief_col.map_or(r.majority_belief, |arr| arr.value(i));
-                r.has_temple = has_temple_col.map_or(false, |arr| arr.value(i));
+                r.has_temple = has_temple_col.map_or(r.has_temple, |arr| arr.value(i));
                 r.persecution_intensity = persecution_intensity_col.map_or(r.persecution_intensity, |arr| arr.value(i));
                 r.schism_convert_from = schism_convert_from_col.map_or(0xFF, |arr| arr.value(i));
                 r.schism_convert_to = schism_convert_to_col.map_or(0xFF, |arr| arr.value(i));
@@ -1525,7 +1525,7 @@ impl AgentSimulator {
         let mut turn_col = UInt16Builder::with_capacity(total_memories);
         let mut intensity_col = Int8Builder::with_capacity(total_memories);
         let mut is_legacy_col = UInt8Builder::with_capacity(total_memories);
-        let mut civ_affinity_col = UInt16Builder::with_capacity(total_memories);
+        let mut civ_affinity_col = UInt8Builder::with_capacity(total_memories);
         let mut region_col = UInt16Builder::with_capacity(total_memories);
         let mut occupation_col = UInt8Builder::with_capacity(total_memories);
 
@@ -1533,7 +1533,7 @@ impl AgentSimulator {
             if !self.pool.alive[slot] { continue; }
             let agent_id = self.pool.ids[slot];
             let mem_count = self.pool.memory_count[slot] as usize;
-            let civ_affinity = self.pool.civ_affinities[slot] as u16;
+            let civ_affinity = self.pool.civ_affinities[slot];
             let region = self.pool.regions[slot];
             let occupation = self.pool.occupations[slot];
             let legacy_mask = self.pool.memory_is_legacy[slot];
@@ -1557,7 +1557,7 @@ impl AgentSimulator {
             Field::new("turn", DataType::UInt16, false),
             Field::new("intensity", DataType::Int8, false),
             Field::new("is_legacy", DataType::UInt8, false),
-            Field::new("civ_affinity", DataType::UInt16, false),
+            Field::new("civ_affinity", DataType::UInt8, false),
             Field::new("region", DataType::UInt16, false),
             Field::new("occupation", DataType::UInt8, false),
         ]));
@@ -1596,7 +1596,7 @@ impl AgentSimulator {
         let mut spiritual_col = arrow::array::Float32Builder::with_capacity(live);
         let mut material_col = arrow::array::Float32Builder::with_capacity(live);
         let mut purpose_col = arrow::array::Float32Builder::with_capacity(live);
-        let mut civ_affinity_col = UInt16Builder::with_capacity(live);
+        let mut civ_affinity_col = UInt8Builder::with_capacity(live);
         let mut region_col = UInt16Builder::with_capacity(live);
         let mut occupation_col = UInt8Builder::with_capacity(live);
         let mut satisfaction_col = arrow::array::Float32Builder::with_capacity(live);
@@ -1613,7 +1613,7 @@ impl AgentSimulator {
             spiritual_col.append_value(self.pool.need_spiritual[slot]);
             material_col.append_value(self.pool.need_material[slot]);
             purpose_col.append_value(self.pool.need_purpose[slot]);
-            civ_affinity_col.append_value(self.pool.civ_affinities[slot] as u16);
+            civ_affinity_col.append_value(self.pool.civ_affinities[slot]);
             region_col.append_value(self.pool.regions[slot]);
             occupation_col.append_value(self.pool.occupations[slot]);
             satisfaction_col.append_value(self.pool.satisfactions[slot]);
@@ -1630,7 +1630,7 @@ impl AgentSimulator {
             Field::new("spiritual",    DataType::Float32, false),
             Field::new("material",     DataType::Float32, false),
             Field::new("purpose",      DataType::Float32, false),
-            Field::new("civ_affinity", DataType::UInt16,  false),
+            Field::new("civ_affinity", DataType::UInt8,   false),
             Field::new("region",       DataType::UInt16,  false),
             Field::new("occupation",   DataType::UInt8,   false),
             Field::new("satisfaction", DataType::Float32, false),
@@ -2166,6 +2166,11 @@ impl AgentSimulator {
             None
         };
 
+        // --- Build region→civ owner mapping for tithe food gate ---
+        let region_civ_owner: Vec<u8> = (0..n_regions)
+            .map(|i| self.regions[i].controller_civ)
+            .collect();
+
         // --- Call the core ---
         let output = tick_economy_core(
             &region_inputs,
@@ -2174,6 +2179,7 @@ impl AgentSimulator {
             &civ_merchant_wealth,
             &civ_priest_count,
             n_civs,
+            &region_civ_owner,
             &self.economy_config,
             trade_friction,
             is_winter,

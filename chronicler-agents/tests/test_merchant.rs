@@ -457,7 +457,7 @@ fn test_hybrid_economy_consumes_delivery_buffer() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &[], &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Transit loss should be tracked (grain has non-zero TRANSIT_DECAY)
@@ -485,7 +485,7 @@ fn test_hybrid_economy_abstract_path_unchanged() {
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     assert_eq!(output.region_results.len(), 2);
@@ -518,7 +518,7 @@ fn test_hybrid_transit_decay_accounting() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &[], &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Transit loss = 100 * 0.08 = 8.0
@@ -552,7 +552,7 @@ fn test_oracle_shadow_produces_data_in_hybrid_mode() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &routes, &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Oracle shadow should have run abstract allocation
@@ -583,7 +583,7 @@ fn test_oracle_food_sufficiency_matches_realized_basis() {
 
     let abstract_output = tick_economy_core(
         &region_inputs, &agent_counts, &routes, &[0.0], &[0],
-        1, &config, 1.0, false, None,
+        1, &[0u8, 0u8], &config, 1.0, false, None,
     );
     let abstract_fs_0 = abstract_output.region_results[0].food_sufficiency;
     let abstract_fs_1 = abstract_output.region_results[1].food_sufficiency;
@@ -593,7 +593,7 @@ fn test_oracle_food_sufficiency_matches_realized_basis() {
     let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
     let hybrid_output = tick_economy_core(
         &region_inputs, &agent_counts, &routes, &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Oracle food_suff should match abstract food_suff (same stock-flow basis).
@@ -673,7 +673,7 @@ fn test_transit_decay_on_arrivals_only() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &[], &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Transit loss should only be from arrivals (10 * TRANSIT_DECAY[0]), not returns
@@ -724,7 +724,7 @@ fn test_hybrid_stockpile_net_mobility() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &[], &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Region 0: stockpile = 50 + production(40*1.0) + net_mobility(0 + 0 - 20) = 70
@@ -771,7 +771,7 @@ fn test_transit_decay_by_region_populated_in_hybrid() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &[], &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // transit_decay_by_region should be Some in hybrid mode.
@@ -817,7 +817,7 @@ fn test_transit_decay_by_region_none_in_abstract() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &[], &[0.0], &[0],
-        1, &config, 1.0, false, None,
+        1, &[0u8], &config, 1.0, false, None,
     );
 
     assert!(

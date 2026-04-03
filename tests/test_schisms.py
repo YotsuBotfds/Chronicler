@@ -320,7 +320,7 @@ class TestReformationThreshold:
         regions = ["r0"] if region_names is None else region_names
         civ = _make_civ("CivA", faith_id=current_faith, region_names=regions)
         civ.previous_majority_faith = previous_faith
-        civ._majority_faith_ratio = ratio
+        civ.majority_faith_ratio = ratio
         return civ
 
     def test_at_threshold_fires(self):

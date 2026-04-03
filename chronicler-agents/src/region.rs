@@ -58,7 +58,7 @@ pub struct RegionState {
     pub merchant_margin: f32,
     pub merchant_route_margin: f32,
     pub merchant_trade_income: f32,
-    // M48: Per-region transient memory signals (cleared each turn by build_region_batch)
+    // M48: Per-region transient memory signals (cleared each turn by Python via set_region_state)
     pub controller_changed_this_turn: bool,
     pub war_won_this_turn: bool,
     pub seceded_this_turn: bool,

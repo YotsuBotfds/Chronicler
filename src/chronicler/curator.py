@@ -518,7 +518,7 @@ def _find_closest_snap(
                 best = t
             else:
                 break
-        return snap_by_turn[best] if best is not None else snap_by_turn[sorted_turns[0]]
+        return snap_by_turn[best] if best is not None else None
     else:
         # Find smallest turn >= target
         for t in sorted_turns:

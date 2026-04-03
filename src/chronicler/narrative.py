@@ -99,7 +99,7 @@ NEED_DESCRIPTIONS = {
 # Thresholds must match agent.rs constants
 _NEED_THRESHOLDS = {
     "safety": 0.3, "material": 0.3, "social": 0.25,
-    "spiritual": 0.3, "autonomy": 0.3, "purpose": 0.35,
+    "spiritual": 0.3, "autonomy": 0.25, "purpose": 0.35,
 }
 
 
@@ -285,7 +285,6 @@ def build_agent_context_for_moment(
     moment: NarrativeMoment,
     great_persons: list,
     displacement_by_region: dict[int, float],
-    region_names: dict[int, str],
     dynasty_registry=None,       # M39: optional DynastyRegistry
     gp_by_agent_id: dict | None = None,  # M39: agent_id → GreatPerson
     social_edges: list[tuple] | None = None,      # M40
@@ -450,7 +449,7 @@ def build_agent_context_for_moment(
 
     # Add hostage relationships
     for h in (hostage_data or []):
-        if h.get("name") in char_names:
+        if h.get("character_b") in char_names or h.get("character_a") in char_names:
             relationships.append(h)
 
     # M41: Gini coefficient for wealth inequality context
@@ -876,10 +875,6 @@ class NarrativeEngine:
         self.event_flavor = event_flavor
         self.narrative_style = narrative_style
 
-    def _is_api_client(self) -> bool:
-        """Check if narrative_client is an API backend (not local)."""
-        return isinstance(self.narrative_client, (AnthropicClient, GeminiClient))
-
     def _supports_batch(self) -> bool:
         """Check if narrative_client supports batch_complete()."""
         return isinstance(self.narrative_client, AnthropicClient)
@@ -920,6 +915,8 @@ class NarrativeEngine:
         gp_by_name: dict | None = None,
         # M52: World state for artifact context in prompts
         world=None,
+        # Displacement fractions by region index (from agent bridge)
+        displacement_by_region: dict[int, float] | None = None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments.
 
@@ -935,7 +932,7 @@ class NarrativeEngine:
         prepared = self._prepare_narration_prompts(
             moments, history, great_persons, social_edges,
             dissolved_edges_by_turn, agent_name_map, gini_by_civ,
-            economy_result,
+            economy_result, displacement_by_region=displacement_by_region,
         )
 
         # Batch API path — Anthropic only
@@ -959,6 +956,7 @@ class NarrativeEngine:
         agent_name_map: dict[int, str] | None = None,
         gini_by_civ: dict[int, float] | None = None,
         economy_result=None,
+        displacement_by_region: dict[int, float] | None = None,
     ) -> list[dict]:
         """Build prompt/system pairs for each moment. Returns list of dicts
         with keys: prompt, system, agent_ctx."""
@@ -1067,7 +1065,8 @@ class NarrativeEngine:
 
                 snap = _closest_snap(snap_map, moment.anchor_turn)
                 agent_ctx = build_agent_context_for_moment(
-                    moment, great_persons, {}, {},
+                    moment, great_persons,
+                    displacement_by_region=displacement_by_region or {},
                     gp_by_agent_id=gp_by_agent_id,
                     social_edges=social_edges,
                     dissolved_edges=moment_dissolved if moment_dissolved else None,
@@ -1177,6 +1176,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         previous_prose: str | None = None
         start_time: float | None = None
         _first_failure = True
+        _failure_count = 0
 
         for idx, (moment, prep) in enumerate(zip(moments, prepared)):
             prompt = prep["prompt"]
@@ -1194,6 +1194,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                     prompt, max_tokens=1000, system=system
                 )
             except Exception as exc:
+                _failure_count += 1
                 if _first_failure:
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
                     _first_failure = False
@@ -1232,6 +1233,9 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
 
             if on_progress is not None:
                 on_progress(completed, total, eta)
+
+        if _failure_count > 0:
+            logger.warning("Narration: %d/%d moments fell back to mechanical summary", _failure_count, total)
 
         return entries
 

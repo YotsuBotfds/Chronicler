@@ -503,7 +503,7 @@ def test_economy_result_reaches_narrator():
     er.trade_dependent = {"Plains": True, "Coast": True}
 
     ctx = build_agent_context_for_moment(
-        moment, [], {}, {},
+        moment, [], {},
         economy_result=er,
     )
     assert ctx is not None

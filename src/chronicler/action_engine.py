@@ -174,10 +174,12 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
             else:
                 target._stockpile_bootstrap_pending = True
         expand_mil_cost = int(get_override(world, K_EXPAND_MILITARY_COST, 10))
+        mult = get_severity_multiplier(civ, world)
+        scaled_mil_cost = int(expand_mil_cost * mult)
         if acc is not None:
-            acc.add(civ_idx, civ, "military", -expand_mil_cost, "guard-action")
+            acc.add(civ_idx, civ, "military", -scaled_mil_cost, "guard-action")
         else:
-            civ.military = clamp(civ.military - expand_mil_cost, STAT_FLOOR["military"], 100)
+            civ.military = clamp(civ.military - scaled_mil_cost, STAT_FLOOR["military"], 100)
         # M19b: Track exploration capability firing into harsh terrain pre-Iron
         if civ.active_focus == "exploration" and not _era_at_least(civ.tech_era, TechEra.IRON) and target.terrain in HARSH_TERRAINS:
             world.events_timeline.append(Event(
@@ -564,7 +566,7 @@ def resolve_war(
             if acc is not None:
                 acc.add(att_idx, attacker, "military", -winner_mil_loss, "guard-action")
                 acc.add(def_idx, defender, "military", -loser_mil_loss, "guard-action")
-                acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "signal")
+                acc.add(def_idx, defender, "stability", -int(war_stab_loss * mult), "guard-shock")
             else:
                 attacker.military = clamp(attacker.military - winner_mil_loss, STAT_FLOOR["military"], 100)
                 defender.military = clamp(defender.military - loser_mil_loss, STAT_FLOOR["military"], 100)

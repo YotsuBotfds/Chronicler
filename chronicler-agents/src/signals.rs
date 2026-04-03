@@ -30,7 +30,7 @@ pub struct CivSignals {
     pub civ_id: u8,
     pub stability: u8,
     pub is_at_war: bool,
-    pub dominant_faction: u8,   // 0=military, 1=merchant, 2=cultural
+    pub dominant_faction: u8,   // 0=military, 1=merchant, 2=cultural, 3=clergy
     pub faction_military: f32,
     pub faction_merchant: f32,
     pub faction_cultural: f32,

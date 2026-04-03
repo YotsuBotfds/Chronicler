@@ -733,6 +733,6 @@ class TestSaveLoad:
         assert len(loaded.regions[0].settlements) == 1
         assert loaded.regions[0].settlements[0].settlement_id == 1
         assert loaded.regions[0].settlements[0].footprint_cells == [(5, 5)]
-        assert len(loaded.settlement_candidates) == 1
-        assert loaded.settlement_candidates[0].candidate_passes == 1
+        # settlement_candidates is transient (exclude=True) — not serialized to bundle
+        assert len(loaded.settlement_candidates) == 0
         assert len(loaded.dissolved_settlements) == 1

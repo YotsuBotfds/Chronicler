@@ -1216,7 +1216,7 @@ pub(crate) fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<Reco
     let mut event_types = UInt8Builder::with_capacity(n);
     let mut regions = UInt16Builder::with_capacity(n);
     let mut target_regions = UInt16Builder::with_capacity(n);
-    let mut civ_affinities = UInt16Builder::with_capacity(n);
+    let mut civ_affinities = UInt8Builder::with_capacity(n);
     let mut occupations = UInt8Builder::with_capacity(n);
     let mut beliefs = UInt8Builder::with_capacity(n);
     let mut turns = UInt32Builder::with_capacity(n);
@@ -1226,7 +1226,7 @@ pub(crate) fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<Reco
         event_types.append_value(e.event_type);
         regions.append_value(e.region);
         target_regions.append_value(e.target_region);
-        civ_affinities.append_value(e.civ_affinity as u16);
+        civ_affinities.append_value(e.civ_affinity);
         occupations.append_value(e.occupation);
         beliefs.append_value(e.belief);
         turns.append_value(e.turn);

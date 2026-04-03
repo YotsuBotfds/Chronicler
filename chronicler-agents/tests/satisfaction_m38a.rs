@@ -9,7 +9,7 @@ fn m38a_base_inputs(occupation: u8) -> SatisfactionInputs {
         soil: 0.5, water: 0.5, civ_stability: 50,
         demand_supply_ratio: 0.0, pop_over_capacity: 0.8,
         civ_at_war: false, region_contested: false, occ_matches_faction: false,
-        is_displaced: false, trade_routes: 0, faction_influence: 0.0,
+        is_displaced: false, faction_influence: 0.0,
         shock: CivShock::default(),
         agent_values: [0xFF, 0xFF, 0xFF], controller_values: [0xFF, 0xFF, 0xFF],
         agent_belief: 0xFF, majority_belief: 0xFF,
@@ -32,7 +32,7 @@ fn test_priest_clergy_faction_alignment() {
         0.5, 0.5, 50, 0.0, 0.8,
         false, false,
         true,  // occ_matches_faction = true (clergy dominant faction matched)
-        false, 0, 0.0,
+        false, 0.0,
         &shock, 0.0,
     );
     let sat_unaligned = compute_satisfaction(
@@ -40,7 +40,7 @@ fn test_priest_clergy_faction_alignment() {
         0.5, 0.5, 50, 0.0, 0.8,
         false, false,
         false, // occ_matches_faction = false
-        false, 0, 0.0,
+        false, 0.0,
         &shock, 0.0,
     );
     let diff = sat_aligned - sat_unaligned;

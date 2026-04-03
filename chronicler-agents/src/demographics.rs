@@ -36,8 +36,8 @@ fn crowding_fertility_modifier(pop_over_capacity: f32) -> f32 {
 /// crowding adds extra pressure on top of soil/water stress.
 pub fn ecological_stress(region: &RegionState) -> f32 {
     let pop_pressure = population_pressure(region);
-    let soil_stress = (0.5 - region.soil) * ((0.5 - region.soil) > 0.0) as i32 as f32;
-    let water_stress = (0.5 - region.water) * ((0.5 - region.water) > 0.0) as i32 as f32;
+    let soil_stress = (0.5 - region.soil).max(0.0);
+    let water_stress = (0.5 - region.water).max(0.0);
     let crowding_stress =
         ((pop_pressure - 1.0) * CROWDING_STRESS_WEIGHT).clamp(0.0, CROWDING_STRESS_CAP);
     1.0 + soil_stress + water_stress + crowding_stress

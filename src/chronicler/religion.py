@@ -879,7 +879,7 @@ def detect_reformation(
 
     Triggers when:
     - civ.civ_majority_faith != civ.previous_majority_faith
-    - civ._majority_faith_ratio >= REFORMATION_THRESHOLD
+    - civ.majority_faith_ratio >= REFORMATION_THRESHOLD
 
     Updates previous_majority_faith after firing the event.
 
@@ -900,7 +900,7 @@ def detect_reformation(
         if current_faith == previous_faith:
             continue
 
-        ratio = getattr(civ, '_majority_faith_ratio', 0.0)
+        ratio = civ.majority_faith_ratio
         if ratio < REFORMATION_THRESHOLD:
             continue
 

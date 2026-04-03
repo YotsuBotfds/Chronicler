@@ -120,6 +120,8 @@ fn migration_region_score(region: &RegionState, mean_satisfaction: f32, pop_coun
     mean_satisfaction + headroom_bonus - overcrowding_penalty + food_signal
 }
 
+// NOTE: MIGRATION_SELF_RULE_BONUS = 0.0 — this function currently returns 0.0
+// for all inputs. Retained as a calibration hook for future retuning.
 #[inline]
 fn polity_alignment_score(
     source_region: &RegionState,
@@ -567,7 +569,12 @@ pub fn evaluate_region_decisions(
         }
 
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
-        let u_migrate = if !is_displaced && migrate_util > 0.0 {
+        // Gate: if no better destination exists (best target is own region), force
+        // NEG_INFINITY so persecution/memory/need boosts cannot make an agent
+        // "choose to migrate" to their own region.
+        let u_migrate = if !is_displaced && migrate_util > 0.0
+            && best_migration_target != region_id as u16
+        {
             migrate_util
         } else {
             f32::NEG_INFINITY
@@ -580,7 +587,14 @@ pub fn evaluate_region_decisions(
         );
         let u_switch_raw = u_switch_base * personality_modifier(ambi, AMBITION_SWITCH_WEIGHT)
             + mem_mods.switch + need_mods.switch_occ;
-        let u_switch = if u_switch_raw > 0.0 { u_switch_raw } else { f32::NEG_INFINITY };
+        // Gate: if no valid alternative occupation was found (switch_target == own occ),
+        // force NEG_INFINITY so memory/need modifiers cannot make an agent "choose to
+        // switch" when no destination occupation exists.
+        let u_switch = if switch_target == occ as u8 || u_switch_raw <= 0.0 {
+            f32::NEG_INFINITY
+        } else {
+            u_switch_raw
+        };
 
         let u_stay = STAY_BASE + mem_mods.stay + need_mods.stay;
 

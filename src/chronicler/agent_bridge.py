@@ -999,63 +999,6 @@ class AgentBridge:
             promotions_batch = self._sim.get_promotions()
             self._process_promotions(promotions_batch, world)  # step 1
 
-            # Compute displacement fractions from snapshot
-            try:
-                snap = self._sim.get_snapshot()
-                regions_col = snap.column("region").to_pylist()
-                disp_col = snap.column("displacement_turn").to_pylist()
-                region_totals = Counter(regions_col)
-                region_displaced: Counter = Counter()
-                for r, d in zip(regions_col, disp_col):
-                    if d > 0:
-                        region_displaced[r] += 1
-                self.displacement_by_region = {
-                    r: region_displaced[r] / total if total > 0 else 0.0
-                    for r, total in region_totals.items()
-                }
-                # M41: compute per-civ Gini from wealth snapshot (hybrid mode only)
-                if "wealth" in snap.schema.names:
-                    wealth_col = snap.column("wealth").to_numpy()
-                    civ_col = np.array(
-                        self._resolve_polity_civ_ids(
-                            world,
-                            regions_col,
-                            snap.column("civ_affinity").to_pylist(),
-                        ),
-                        dtype=np.int64,
-                    )
-                    new_gini: dict[int, float] = {}
-                    for civ_id in np.unique(civ_col):
-                        mask = civ_col == civ_id
-                        civ_wealth = wealth_col[mask]
-                        new_gini[int(civ_id)] = compute_gini(civ_wealth)
-                    self._gini_by_civ = new_gini
-                    occ_col = snap.column("occupation").to_numpy()
-                    occ_names = ["farmer", "soldier", "merchant", "scholar", "priest"]
-                    stats: dict[int, dict] = {}
-                    for civ_id in np.unique(civ_col):
-                        mask = civ_col == civ_id
-                        civ_wealth = wealth_col[mask]
-                        civ_occ = occ_col[mask]
-                        wealth_by_occ = {}
-                        for occ_idx, name in enumerate(occ_names):
-                            occ_mask = civ_occ == occ_idx
-                            if occ_mask.any():
-                                wealth_by_occ[name] = float(np.mean(civ_wealth[occ_mask]))
-                        stats[int(civ_id)] = {
-                            "gini": self._gini_by_civ.get(int(civ_id), 0.0),
-                            "mean": float(np.mean(civ_wealth)),
-                            "median": float(np.median(civ_wealth)),
-                            "std": float(np.std(civ_wealth)),
-                            "by_occupation": wealth_by_occ,
-                        }
-                    self._wealth_stats = stats
-            except Exception:
-                # Preserve prior Gini/wealth values on failure — one bad turn
-                # must not wipe accumulated history (H-18 audit fix).
-                self.displacement_by_region = {}
-                logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
-
             raw_events = self._convert_events(agent_events, world.turn)
             world._dead_agents_this_turn = [e for e in raw_events if e.event_type == "death"]
             death_events = self._process_deaths(raw_events, world)  # step 2
@@ -1550,6 +1493,7 @@ class AgentBridge:
             # M40: Set origin_region from promotions batch
             if origin_region < len(world.regions):
                 gp.origin_region = world.regions[origin_region].name
+                gp.region = gp.origin_region
             region_name = world.regions[origin_region].name if origin_region < len(world.regions) else "unknown"
             _append_deed(gp, f"Promoted as {role} in {region_name}")
             civ.great_persons.append(gp)

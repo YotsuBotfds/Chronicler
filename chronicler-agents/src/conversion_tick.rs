@@ -64,6 +64,13 @@ pub fn conversion_tick(
     if has_natural {
         let target = region.conversion_target_belief;
 
+        // Guard: if Python sent conversion_rate > 0 but left the target at the
+        // 0xFF sentinel (no faith assigned), skip pass 1 entirely.  Without this,
+        // agents would have their belief overwritten to BELIEF_NONE.
+        if target == agent::BELIEF_NONE {
+            // Fall through to pass 2 (schism) which has its own guards.
+        } else {
+
         let mut rng = ChaCha8Rng::from_seed(master_seed);
         rng.set_stream(conversion_stream(region_id, turn, agent::CONVERSION_STREAM_OFFSET));
 
@@ -108,6 +115,8 @@ pub fn conversion_tick(
                 pool.life_events[slot] |= agent::LIFE_EVENT_CONVERSION;
             }
         }
+
+        } // end if target != BELIEF_NONE
     }
 
     // --- Pass 2: schism conversion ---

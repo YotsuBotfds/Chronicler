@@ -241,7 +241,7 @@ fn test_urban_satisfaction_material_bonus() {
         demand_supply_ratio: 0.0, pop_over_capacity: 0.0,
         civ_at_war: false, region_contested: false,
         occ_matches_faction: false, is_displaced: false,
-        trade_routes: 1, faction_influence: 0.0,
+        faction_influence: 0.0,
         shock: chronicler_agents::signals::CivShock::default(),
         agent_values: [0, 0, 0], controller_values: [0, 0, 0],
         agent_belief: 0, majority_belief: 0, has_temple: false,
@@ -276,7 +276,7 @@ fn test_urban_safety_penalty_respects_cap() {
         demand_supply_ratio: 0.5, pop_over_capacity: 0.0,
         civ_at_war: false, region_contested: false,
         occ_matches_faction: false, is_displaced: false,
-        trade_routes: 1, faction_influence: 0.0,
+        faction_influence: 0.0,
         shock: chronicler_agents::signals::CivShock::default(),
         agent_values: [4, 3, 2], controller_values: [0, 1, 5], // max cultural mismatch
         agent_belief: 1, majority_belief: 2,                     // religious mismatch

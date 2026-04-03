@@ -342,10 +342,11 @@ def tick_pandemic(
         )
         leader_kill_prob = get_override(world, K_PANDEMIC_LEADER_KILL_PROB, 0.05)
         if rng.random() < leader_kill_prob:
-            from chronicler.succession import trigger_crisis
+            from chronicler.succession import trigger_crisis, is_in_crisis
             old_leader = civ.leader
             old_leader.alive = False
-            trigger_crisis(civ, world)
+            if not is_in_crisis(civ):
+                trigger_crisis(civ, world)
             events.append(Event(
                 turn=world.turn, event_type="pandemic_leader_death",
                 actors=[civ_name],
@@ -474,7 +475,7 @@ def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:
             condition_type="volcanic_winter",
             affected_civs=all_affected,
             duration=winter_duration,
-            severity=40,
+            severity=50,
         ))
 
     # M17: Folk hero asabiya bonus
@@ -622,6 +623,8 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
     events: list[Event] = []
 
     for civ in world.civilizations:
+        if not civ.regions:
+            continue  # Skip dead civs — no regions means eliminated
         if _prev_era(civ.tech_era) is None:
             continue
 
@@ -745,6 +748,9 @@ def _apply_transition(region: Region, rule) -> None:
         region.carrying_capacity = max(1, region.carrying_capacity - 10)
         region.ecology.forest_cover = 0.7
         region.forest_regrowth_turns = 0
+    else:
+        # General fallback for custom TerrainTransitionRule entries from scenario config
+        region.terrain = rule.to_terrain
 
     # H-15: Clamp all ecology values to the NEW terrain's caps
     clamp_ecology(region)
@@ -754,83 +760,82 @@ def _apply_transition(region: Region, rule) -> None:
 # M35b: Environmental Events (condition-triggered)
 # ---------------------------------------------------------------------------
 
-def _check_locust(region: Region, world: WorldState, rng) -> bool:
+def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
     """Locust swarm: plains/desert, summer/autumn, has Grain, soil > 0.4."""
     from chronicler.resources import get_season_id
     season_id = get_season_id(world.turn)
     if region.terrain not in ("plains", "desert"):
-        return False
+        return None
     if season_id not in (1, 2):  # Summer, Autumn
-        return False
+        return None
     if not any(rtype == ResourceType.GRAIN for rtype in region.resource_types if rtype != EMPTY_SLOT):
-        return False
+        return None
     if region.ecology.soil <= 0.4:
-        return False
+        return None
     prob = get_override(world, K_LOCUST_PROBABILITY, 0.15)
     if rng.random() >= prob:
-        return False
+        return None
     duration = rng.randint(2, 3)
     region.disaster_cooldowns["locust_swarm"] = duration
     for slot in range(3):
         rtype = region.resource_types[slot]
         if rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS):
             region.resource_suspensions[rtype] = duration
-    world.events_timeline.append(Event(
+    return Event(
         turn=world.turn, event_type="locust_swarm",
         actors=[region.controller] if region.controller else [],
         description=f"A locust swarm descends on {region.name}, devouring the crops",
         importance=7,
-    ))
-    return True
+    )
 
 
-def _check_flood(region: Region, world: WorldState, rng) -> bool:
+def _check_flood(region: Region, world: WorldState, rng) -> Event | None:
     """Flood: river region, spring, water > 0.8."""
     from chronicler.resources import get_season_id
     season_id = get_season_id(world.turn)
     if region.river_mask == 0:
-        return False
+        return None
     if season_id != 0:  # Spring
-        return False
+        return None
     if region.ecology.water <= 0.8:
-        return False
+        return None
     prob = get_override(world, K_FLOOD_PROBABILITY, 0.20)
     if rng.random() >= prob:
-        return False
+        return None
     duration = rng.randint(1, 2)
     region.disaster_cooldowns["flood"] = duration
     region.capacity_modifier = 0.85
+    region._capacity_modifier_source = "flood"
     region.ecology.soil = min(1.0, region.ecology.soil + 0.15)
-    world.events_timeline.append(Event(
+    return Event(
         turn=world.turn, event_type="flood",
         actors=[region.controller] if region.controller else [],
         description=f"The river floods {region.name}, depositing rich silt but damaging infrastructure",
         importance=6,
-    ))
-    return True
+    )
 
 
-def _check_collapse(region: Region, world: WorldState, rng) -> bool:
+def _check_collapse(region: Region, world: WorldState, rng) -> Event | None:
     """Mine collapse: mountains, mineral resource, reserves < 0.3."""
     if region.terrain != "mountains":
-        return False
+        return None
     has_mineral = any(
         rtype in (ResourceType.ORE, ResourceType.PRECIOUS)
         for rtype in region.resource_types
         if rtype != EMPTY_SLOT
     )
     if not has_mineral:
-        return False
+        return None
     low_reserves = any(
         region.resource_reserves[slot] < 0.3
         for slot in range(3)
         if region.resource_types[slot] in (ResourceType.ORE, ResourceType.PRECIOUS)
     )
     if not low_reserves:
-        return False
+        return None
     prob = get_override(world, K_COLLAPSE_PROBABILITY, 0.10)
     if rng.random() >= prob:
-        return False
+        return None
     duration = rng.randint(3, 5)
     region.disaster_cooldowns["mine_collapse"] = duration
     spike = get_override(world, K_COLLAPSE_MORTALITY_SPIKE, 0.10)
@@ -838,49 +843,49 @@ def _check_collapse(region: Region, world: WorldState, rng) -> bool:
     for slot in range(3):
         if region.resource_types[slot] in (ResourceType.ORE, ResourceType.PRECIOUS):
             region.resource_suspensions[region.resource_types[slot]] = duration
-    world.events_timeline.append(Event(
+    return Event(
         turn=world.turn, event_type="mine_collapse",
         actors=[region.controller] if region.controller else [],
         description=f"A mine collapses in {region.name}, killing workers and halting extraction",
         importance=8,
-    ))
-    return True
+    )
 
 
-def _check_drought(region: Region, world: WorldState, rng) -> bool:
+def _check_drought(region: Region, world: WorldState, rng) -> Event | None:
     """Drought intensification: active DROUGHT, summer, water < 0.25."""
     from chronicler.resources import get_season_id
     from chronicler.climate import get_climate_phase
     season_id = get_season_id(world.turn)
     climate_phase = get_climate_phase(world.turn, world.climate_config)
     if climate_phase != ClimatePhase.DROUGHT:
-        return False
+        return None
     if season_id != 1:  # Summer
-        return False
+        return None
     if region.ecology.water >= 0.25:
-        return False
+        return None
     prob = get_override(world, K_DROUGHT_INTENSIFICATION_PROBABILITY, 0.25)
     if rng.random() >= prob:
-        return False
+        return None
     duration = rng.randint(4, 8)
     region.disaster_cooldowns["drought_intensification"] = duration
     region.capacity_modifier = 0.5
+    region._capacity_modifier_source = "drought_intensification"
     region_map = get_region_map(world)
     for adj_name in region.adjacencies:
         adj = region_map.get(adj_name)
         if adj and adj.terrain == "desert" and not adj.disaster_cooldowns:
             adj.capacity_modifier = 0.5
+            adj._capacity_modifier_source = "drought_intensification"
             adj.disaster_cooldowns["drought_intensification"] = duration
-    world.events_timeline.append(Event(
+    return Event(
         turn=world.turn, event_type="drought_intensification",
         actors=[region.controller] if region.controller else [],
         description=f"The drought intensifies around {region.name}, devastating the region",
         importance=8,
-    ))
-    return True
+    )
 
 
-def _check_ecological_recovery(region: Region, world: WorldState, rng) -> bool:
+def _check_ecological_recovery(region: Region, world: WorldState, rng) -> Event | None:
     """Ecological recovery: rare event restoring degraded resource yields."""
     prob = get_override(world, K_ECOLOGICAL_RECOVERY_PROBABILITY, 0.02)
     fraction = get_override(world, K_ECOLOGICAL_RECOVERY_FRACTION, 0.50)
@@ -890,22 +895,21 @@ def _check_ecological_recovery(region: Region, world: WorldState, rng) -> bool:
         and region.resource_effective_yields[slot] < 0.8 * region.resource_base_yields[slot]
     ]
     if not eligible_slots:
-        return False
+        return None
     if rng.random() >= prob:
-        return False
+        return None
     slot = min(eligible_slots, key=lambda s: region.resource_effective_yields[s] / max(0.001, region.resource_base_yields[s]))
     base = region.resource_base_yields[slot]
     current = region.resource_effective_yields[slot]
     lost = base - current
     restore = lost * fraction
     region.resource_effective_yields[slot] = min(base, current + restore)
-    world.events_timeline.append(Event(
+    return Event(
         turn=world.turn, event_type="ecological_recovery",
         actors=[region.controller] if region.controller else [],
         description=f"The degraded resources of {region.name} show signs of recovery",
         importance=5,
-    ))
-    return True
+    )
 
 
 def check_environmental_events(world: WorldState, rng) -> list[Event]:
@@ -913,16 +917,63 @@ def check_environmental_events(world: WorldState, rng) -> list[Event]:
 
     Uses per-region disaster_cooldowns (shared with climate system).
     M18 black swans use separate world.black_swan_cooldown.
+
+    Each _check_* function returns an Event on fire or None on miss.
+    Events are collected here and returned to the caller — the caller
+    handles timeline commitment via the bulk extend in simulation.py.
     """
-    initial_event_count = len(world.events_timeline)
+    events: list[Event] = []
     for region in world.regions:
         if region.disaster_cooldowns:
             continue
         fired = False
         for event_check in [_check_locust, _check_flood, _check_collapse, _check_drought]:
-            if event_check(region, world, rng):
+            result = event_check(region, world, rng)
+            if result is not None:
+                events.append(result)
                 fired = True
                 break
         if not fired:
-            _check_ecological_recovery(region, world, rng)
-    return world.events_timeline[initial_event_count:]
+            result = _check_ecological_recovery(region, world, rng)
+            if result is not None:
+                events.append(result)
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Capacity Modifier Cleanup
+# ---------------------------------------------------------------------------
+
+# Map from _capacity_modifier_source tag to the disaster_cooldowns key it
+# corresponds to.  When the cooldown expires the modifier should reset.
+_SOURCE_TO_COOLDOWN_KEY: dict[str, str] = {
+    "flood": "flood",
+    "drought_intensification": "drought_intensification",
+}
+
+
+def clear_expired_capacity_modifier(region: Region) -> None:
+    """Reset capacity_modifier to 1.0 when the disaster that set it has expired.
+
+    Each _check_* function that modifies capacity_modifier also sets
+    region._capacity_modifier_source to identify which disaster owns the
+    modifier.  This helper checks whether that disaster's cooldown has
+    expired and, if so, resets the modifier.
+
+    NOTE: simulation.py should call this once per region per turn (e.g. at
+    the top of Phase 1 or the environment tick) to prevent stale
+    capacity_modifier values from persisting when multiple cooldowns overlap.
+    """
+    source = getattr(region, "_capacity_modifier_source", None)
+    if source is None:
+        return
+    cooldown_key = _SOURCE_TO_COOLDOWN_KEY.get(source)
+    if cooldown_key is None:
+        # Unknown source — clear unconditionally to be safe
+        region.capacity_modifier = 1.0
+        region._capacity_modifier_source = None  # type: ignore[attr-defined]
+        return
+    remaining = region.disaster_cooldowns.get(cooldown_key, 0)
+    if remaining <= 0:
+        region.capacity_modifier = 1.0
+        region._capacity_modifier_source = None  # type: ignore[attr-defined]

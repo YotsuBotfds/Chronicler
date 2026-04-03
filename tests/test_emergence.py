@@ -373,9 +373,10 @@ class TestSeverityMultiplierWiring:
             threshold=0.12,
             subsistence_base=0.15,
         )
-        # Base famine pop loss is 5. With 1.5x stress multiplier: pop -= int(5 * 1.5) = 7.
+        # Base famine pop loss is 5. Ecology is exempt from severity multiplier
+        # for population loss (per CLAUDE.md), so pop -= 5 flat.
         assert len(events) == 1
-        assert civ.population == 73
+        assert civ.population == 75
 
     def test_random_event_damage_amplified(self):
         """Random event damage should be amplified by stress."""
@@ -757,7 +758,7 @@ class TestSupervolcano:
         volcanic = [c for c in world.active_conditions if c.condition_type == "volcanic_winter"]
         assert len(volcanic) == 1
         assert volcanic[0].duration == 5
-        assert volcanic[0].severity == 40
+        assert volcanic[0].severity == 50
         assert volcanic[0].affected_civs == sorted(volcanic[0].affected_civs)
 
     def test_supervolcano_orders_event_actors_deterministically(self):
@@ -900,7 +901,7 @@ class TestTechRegression:
     def test_no_regression_without_triggers(self):
         from chronicler.emergence import check_tech_regression
         world = _make_world()
-        civ = _make_civ(tech_era=TechEra.INDUSTRIAL)
+        civ = _make_civ(tech_era=TechEra.INDUSTRIAL, regions=["R1"])
         world.civilizations = [civ]
         events = check_tech_regression(world, black_swan_fired=False)
         assert events == []
@@ -943,6 +944,7 @@ class TestTechRegression:
                 tech_era=TechEra.IRON,
                 decline_turns=1,
                 was_in_twilight=False,
+                regions=["R1"],
             )
             test_world.civilizations = [test_civ]
             test_world.seed = i
@@ -959,7 +961,7 @@ class TestTechRegression:
             world = _make_world()
             civ = _make_civ(
                 tech_era=TechEra.IRON, decline_turns=1, was_in_twilight=False,
-                military=60, economy=60,
+                military=60, economy=60, regions=["R1"],
             )
             world.civilizations = [civ]
             world.seed = i
@@ -975,6 +977,7 @@ class TestTechRegression:
         world = _make_world()
         civ = _make_civ(
             tech_era=TechEra.TRIBAL, decline_turns=1, was_in_twilight=False,
+            regions=["R1"],
         )
         world.civilizations = [civ]
         events = check_tech_regression(world, black_swan_fired=False)
@@ -1011,6 +1014,7 @@ class TestTechRegression:
             civ = _make_civ(
                 tech_era=TechEra.IRON, economy=70,
                 decline_turns=1, was_in_twilight=False,
+                regions=["R1"],
             )
             world.civilizations = [civ]
             world.seed = i

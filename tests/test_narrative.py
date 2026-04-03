@@ -363,7 +363,7 @@ def test_agent_context_includes_relationships():
     agent_name_map = {100: "Mentor", 200: "Apprentice"}
 
     ctx = build_agent_context_for_moment(
-        moment, [gp1, gp2], {}, {},
+        moment, [gp1, gp2], {},
         social_edges=social_edges,
         agent_name_map=agent_name_map,
     )

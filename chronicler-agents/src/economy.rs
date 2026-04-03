@@ -101,6 +101,10 @@ const WINTER_MODIFIER: f32 = 1.5;
 /// Tithe rate from Python factions.py.
 const TITHE_RATE: f32 = 0.10;
 
+/// Food sufficiency threshold below which tithe collection is reduced.
+/// Matches Python economy.py H-2 food gate: `tithe_scale = min(avg_food_suff / 0.5, 1.0)`.
+const TITHE_FOOD_GATE: f32 = 0.5;
+
 /// Supply floor for price computation (avoid division by zero).
 const SUPPLY_FLOOR: f32 = 0.1;
 
@@ -575,6 +579,7 @@ pub fn tick_economy_core(
     civ_merchant_wealth: &[f32],
     civ_priest_count: &[u32],
     n_civs: usize,
+    region_civ_owner: &[u8],
     config: &EconomyConfig,
     trade_friction: f32,
     is_winter: bool,
@@ -1321,6 +1326,20 @@ pub fn tick_economy_core(
     // Phase D: Civ fiscal + conservation (per-civ)
     // -----------------------------------------------------------------------
 
+    // Accumulate per-civ average food_sufficiency from region results for tithe food gate.
+    // Matches Python H-2: tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0)
+    let mut civ_food_suff_sum = vec![0.0f32; n_civs];
+    let mut civ_region_count = vec![0u32; n_civs];
+    for (ri, rr) in region_results.iter().enumerate() {
+        if ri < region_civ_owner.len() {
+            let civ = region_civ_owner[ri] as usize;
+            if civ < n_civs {
+                civ_food_suff_sum[civ] += rr.food_sufficiency;
+                civ_region_count[civ] += 1;
+            }
+        }
+    }
+
     let mut civ_results: Vec<EconomyCivResult> = Vec::with_capacity(n_civs);
     for civ_idx in 0..n_civs {
         let mw = if civ_idx < civ_merchant_wealth.len() {
@@ -1334,9 +1353,21 @@ pub fn tick_economy_core(
             0
         };
 
+        // H-2: Food gate on tithe — reduce collection during famines.
+        let avg_food_suff = if civ_region_count[civ_idx] > 0 {
+            civ_food_suff_sum[civ_idx] / civ_region_count[civ_idx] as f32
+        } else {
+            1.0 // no regions → default to full tithe (matches Python default)
+        };
+        let tithe_scale = if avg_food_suff < TITHE_FOOD_GATE {
+            avg_food_suff / TITHE_FOOD_GATE
+        } else {
+            1.0
+        };
+
         let treasury_tax = config.tax_rate * mw;
-        let tithe_base = mw;
-        let priest_tithe_share = TITHE_RATE * mw / (pc.max(1) as f32);
+        let tithe_base = mw * tithe_scale;
+        let priest_tithe_share = TITHE_RATE * tithe_base / (pc.max(1) as f32);
 
         civ_results.push(EconomyCivResult {
             civ_id: civ_idx as u16,
@@ -1388,7 +1419,7 @@ mod tests {
 
         let out = tick_economy_core(
             &regions, &agents, &[], &[0.0], &[0], 1,
-            &config, 1.0, false, None,
+            &[0u8], &config, 1.0, false, None,
         );
 
         assert_eq!(out.region_results.len(), 1);

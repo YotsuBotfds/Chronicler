@@ -165,7 +165,7 @@ def _event_is_win(event: Event, civ: Civilization, faction_type: FactionType) ->
     elif faction_type == FactionType.CLERGY:
         if event_type_lower == "build_started" and "temples" in event_desc_lower:
             return True
-        if event_type_lower in ("schism", "reformation", "persecution"):
+        if event_type_lower == "persecution":
             return True
     return False
 
@@ -291,6 +291,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
 
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
+            civ.factions.pending_faction_shift = None
             continue
 
         # 1. Record current dominant faction
@@ -310,8 +311,15 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
                    (not is_attacker and "defender_wins" in event.description):
                     # War win
                     civ.factions.influence[FactionType.MILITARY] += 0.05
-                    # M38a: holy war clergy boost
-                    if "holy_war" in event.description.lower():
+                    # M38a: holy war clergy boost — detect via conquest_conversion_active
+                    # on any region the attacker controls (set by action_engine on militant
+                    # holy-war conquest, still live at phase-10 faction tick).
+                    region_map = get_region_map(world)
+                    if any(
+                        region_map[rn].conquest_conversion_active
+                        for rn in civ.regions
+                        if rn in region_map
+                    ):
                         civ.factions.influence[FactionType.CLERGY] += EVT_HOLY_WAR_WON
                 else:
                     # War loss — merchants profit from power vacuums
@@ -671,7 +679,7 @@ def _build_succession_resolution_description(civ, old_leader, new_leader, legiti
     )
 
 
-def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[Event]:
+def resolve_crisis_with_factions(civ: Civilization, world: WorldState, acc=None) -> list[Event]:
     """End the crisis using faction-weighted candidate selection.
 
     Mirrors the full flow of resolve_crisis in succession.py but integrates
@@ -709,7 +717,7 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState) -> list[E
         events.append(legacy_event)
 
     # 4. Generate successor
-    new_leader = generate_successor(civ, world, seed=world.seed, force_type=force_type)
+    new_leader = generate_successor(civ, world, seed=world.seed, force_type=force_type, acc=acc)
 
     # 5. Override grudges: clear the ones from generate_successor, apply faction-aware inheritance
     new_leader.grudges = []

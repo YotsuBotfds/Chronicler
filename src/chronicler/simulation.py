@@ -770,7 +770,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_LEADER_DEATH_STABILITY, 4))
         if acc is not None:
-            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+            acc.add(civ_idx, civ, "stability", -int(drain * mult), "guard-shock")
         else:
             civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
         apply_leader_legacy(civ, old_leader, world)
@@ -789,9 +789,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
                 importance=8,
             ))
         else:
-            new_leader = generate_successor(civ, world, seed=world.turn * 100)
-            from chronicler.succession import inherit_grudges
-            inherit_grudges(old_leader, new_leader)
+            new_leader = generate_successor(civ, world, seed=world.seed, acc=acc)
             civ.leader = new_leader
     elif event_type == "rebellion":
         mult = get_severity_multiplier(civ, world)
@@ -1010,7 +1008,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         for cid, civ in enumerate(world.civilizations):
             entry = civ_majority_with_ratio.get(cid)
             if entry is not None:
-                civ.civ_majority_faith, civ._majority_faith_ratio = entry
+                civ.civ_majority_faith, civ.majority_faith_ratio = entry
 
         # Build plain faith-id dict for downstream callers
         civ_faiths = {cid: faith_id for cid, (faith_id, _ratio) in civ_majority_with_ratio.items()}
@@ -1367,7 +1365,7 @@ def phase_cultural_milestones(world: WorldState, acc=None) -> list[Event]:
     return events
 
 
-def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
+def phase_leader_dynamics(world: WorldState, seed: int, acc=None) -> list[Event]:
     """Phase 8: Handle trait evolution, crisis ticks, grudge decay for all living leaders."""
     events = []
     for civ in world.civilizations:
@@ -1386,7 +1384,7 @@ def phase_leader_dynamics(world: WorldState, seed: int) -> list[Event]:
             tick_crisis(civ, world)
             if civ.succession_crisis_turns_remaining == 0:
                 from chronicler.factions import resolve_crisis_with_factions
-                crisis_events = resolve_crisis_with_factions(civ, world)
+                crisis_events = resolve_crisis_with_factions(civ, world, acc=acc)
                 events.extend(crisis_events)
 
         # Grudge decay — per-grudge rival alive status handled inside decay_grudges
@@ -1657,7 +1655,7 @@ def run_turn(
     turn_events.extend(phase_random_events(world, seed=seed + 100, acc=acc))
 
     # Phase 8: Leader Dynamics
-    turn_events.extend(phase_leader_dynamics(world, seed=seed))
+    turn_events.extend(phase_leader_dynamics(world, seed=seed, acc=acc))
 
     # Phase 9: Ecology (M23 — replaces phase_fertility)
     # M54a: ecology_runtime routes to Rust when available, else pure-Python.
@@ -1717,6 +1715,8 @@ def run_turn(
             region._controller_changed_this_turn = False
             region._war_won_this_turn = False
             region._seceded_this_turn = False
+            if hasattr(region, '_culture_investment_active'):
+                del region._culture_investment_active
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)

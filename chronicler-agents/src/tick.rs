@@ -223,7 +223,7 @@ pub fn try_tick_agents(
             .map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
                 rng.set_stream(
-                    region_id as u64 * 1000 + turn as u64 + DECISION_STREAM_OFFSET,
+                    ((region_id as u64) << 48) | ((turn as u64) << 16) | (DECISION_STREAM_OFFSET as u64),
                 );
                 evaluate_region_decisions(
                     pool_ref,
@@ -488,8 +488,8 @@ pub fn try_tick_agents(
             .map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
                 rng.set_stream(
-                    region_id as u64 * 1000 + turn as u64
-                        + crate::agent::DEMOGRAPHICS_STREAM_OFFSET,
+                    ((region_id as u64) << 48) | ((turn as u64) << 16)
+                        | (crate::agent::DEMOGRAPHICS_STREAM_OFFSET as u64),
                 );
                 tick_region_demographics(
                     pool_ref,
@@ -1142,6 +1142,13 @@ fn update_satisfaction(
                 slots
                     .iter()
                     .map(|&slot| {
+                        // On-trip merchants are excluded from region supply/population counts
+                        // (compute_satisfaction_region_inputs), so including them here would
+                        // give them inflated demand-side satisfaction. Preserve their last
+                        // computed value instead.
+                        if pool_ref.is_on_trip(slot) {
+                            return (slot, pool_ref.satisfaction(slot));
+                        }
                         let occ = pool_ref.occupation(slot);
                         let civ = pool_ref.civ_affinity(slot);
 
@@ -1214,7 +1221,6 @@ fn update_satisfaction(
                                 region_contested,
                                 occ_matches_faction: occ_matches,
                                 is_displaced,
-                                trade_routes: region.trade_route_count,
                                 faction_influence,
                                 shock,
                                 agent_values,
@@ -1334,7 +1340,7 @@ fn tick_region_demographics(
     // Prevents adding/removing mortality checks from changing personality assignments.
     let mut personality_rng = ChaCha8Rng::from_seed(master_seed);
     personality_rng.set_stream(
-        region_id as u64 * 1000 + turn as u64 + PERSONALITY_STREAM_OFFSET,
+        ((region_id as u64) << 48) | ((turn as u64) << 16) | (PERSONALITY_STREAM_OFFSET as u64),
     );
 
     for &slot in slots {

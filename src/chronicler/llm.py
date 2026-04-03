@@ -123,13 +123,18 @@ class AnthropicClient:
         batch = self._client.messages.batches.create(requests=batch_requests)
         print(f"  Batch submitted: {batch.id} ({len(batch_requests)} requests)")
 
-        # Poll until complete
-        while batch.processing_status != "ended":
+        # Poll until complete (terminal statuses: ended, expired, canceled)
+        while batch.processing_status not in ("ended", "expired", "canceled"):
             time.sleep(poll_interval)
             batch = self._client.messages.batches.retrieve(batch.id)
             succeeded = batch.request_counts.succeeded
             total = len(batch_requests)
             print(f"  Batch progress: {succeeded}/{total} complete")
+
+        # Handle expired/canceled batches — return None for all requests
+        if batch.processing_status in ("expired", "canceled"):
+            print(f"  Batch {batch.processing_status}: {batch.id}")
+            return [None] * len(requests)
 
         # Collect results in order
         results: dict[str, str | None] = {}

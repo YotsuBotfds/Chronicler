@@ -417,6 +417,7 @@ class Civilization(BaseModel):
     founded_turn: int = 0
     max_precap_weight: float = 0.0  # M19b: transient, tracks max absolute weight before base-scaled cap
     civ_majority_faith: int = 0  # M37: computed from agent snapshot each turn
+    majority_faith_ratio: float = 0.0  # M37: ratio of majority faith holders; drives reformation
     previous_majority_faith: int = 0           # initialized to civ_majority_faith at world-gen
     # M47d: War frequency calibration
     war_weariness: float = 0.0
@@ -702,8 +703,8 @@ class WorldState(BaseModel):
     tuning_overrides: dict[str, float] = Field(default_factory=dict)
     # M27: Agent integration
     agent_mode: str | None = None       # None/"off", "demographics-only", "shadow", "hybrid"
-    pending_shocks: list = Field(default_factory=list)   # list[CivShock]
-    agent_events_raw: list = Field(default_factory=list)  # list[AgentEventRecord]
+    pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
+    agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
     rivers: list[River] = Field(default_factory=list)
     # M37: Religion
@@ -714,7 +715,7 @@ class WorldState(BaseModel):
     dissolved_settlements: list[Settlement] = Field(default_factory=list)
     next_settlement_id: int = 1
     settlement_naming_counters: dict[str, int] = Field(default_factory=dict)
-    settlement_candidates: list[Settlement] = Field(default_factory=list)
+    settlement_candidates: list[Settlement] = Field(default_factory=list, exclude=True)
     # M47: Cached region lookup
     _region_map: dict[str, "Region"] | None = PrivateAttr(default=None)
     # Cached civ lookup for hot paths

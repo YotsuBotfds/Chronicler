@@ -47,6 +47,7 @@ pub const FERTILITY_SATISFACTION_THRESHOLD: f32 = 0.26;  // [CALIBRATE] M57 tuni
 pub const REBEL_LOYALTY_THRESHOLD: f32 = 0.2;
 pub const REBEL_SATISFACTION_THRESHOLD: f32 = 0.08;
 pub const REBEL_MIN_COHORT: usize = 6;
+const _: () = assert!(REBEL_MIN_COHORT >= 2, "REBEL_MIN_COHORT must be >= 2 for smoothstep edge safety");
 pub const MIGRATE_SATISFACTION_THRESHOLD: f32 = 0.25;
 pub const OCCUPATION_SWITCH_UNDERSUPPLY: f32 = 1.5;
 // M53 follow-on retune: 0.5 made the derived 2.0x oversupply threshold
@@ -87,13 +88,14 @@ pub const BIRTH_PERSONALITY_NOISE: f32 = 0.15;
 pub const PERSONALITY_LABEL_THRESHOLD: f32 = 0.5;
 
 // RNG stream offsets — central registry to prevent collisions.
-// Each system gets a range of 100 offsets. Stream for region r at turn t:
-//   stream = r as u64 * 1000 + t as u64 + OFFSET
+// All systems use bit-packing to derive the stream ID:
+//   stream = (region_id as u64) << 48 | (turn as u64) << 16 | OFFSET
+// This guarantees no cross-system collisions regardless of turn count.
 pub const DECISION_STREAM_OFFSET: u64     = 0;
 pub const DEMOGRAPHICS_STREAM_OFFSET: u64 = 100;
 pub const MIGRATION_STREAM_OFFSET: u64    = 200;
 // Phase 6 additions (reserved, wired when systems land):
-pub const CULTURE_DRIFT_OFFSET: u64       = 500;
+pub const CULTURE_DRIFT_STREAM_OFFSET: u64 = 500;
 pub const CONVERSION_STREAM_OFFSET: u64   = 600;
 pub const PERSONALITY_STREAM_OFFSET: u64  = 700;
 pub const GOODS_ALLOC_STREAM_OFFSET: u64  = 800;
@@ -189,6 +191,9 @@ pub const SUSCEPTIBILITY_THRESHOLD: f32 = 0.4;  // satisfaction below this → 2
 pub const SUSCEPTIBILITY_MULTIPLIER: f32 = 2.0;
 pub const CONQUEST_CONVERSION_RATE: f32 = 0.30;  // forced flip probability
 pub const SCHISM_CONVERSION_RATE: f32 = 0.25;    // [CALIBRATE] schism-driven belief flip per agent per turn
+
+// M38a: Temple priest bonus
+pub const TEMPLE_PRIEST_BONUS: f32 = 0.10;    // [CALIBRATE] satisfaction bonus for priests in regions with temples
 
 // M38b: Persecution
 pub const PERSECUTION_SAT_WEIGHT: f32 = 0.09;  // [CALIBRATE] M57 tuning: ease minority satisfaction drag while rebellion containment is enforced by decision gating.
@@ -451,7 +456,7 @@ mod tests {
             DECISION_STREAM_OFFSET,
             DEMOGRAPHICS_STREAM_OFFSET,
             MIGRATION_STREAM_OFFSET,
-            CULTURE_DRIFT_OFFSET,
+            CULTURE_DRIFT_STREAM_OFFSET,
             CONVERSION_STREAM_OFFSET,
             PERSONALITY_STREAM_OFFSET,
             GOODS_ALLOC_STREAM_OFFSET,

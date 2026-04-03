@@ -95,6 +95,7 @@ def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         "events_timeline": bundle.get("events_timeline", []),
         "named_events": bundle.get("named_events", []),
         "chronicle_entries": bundle.get("chronicle_entries", {}),
+        "gap_summaries": bundle.get("gap_summaries", []),
         "era_reflections": bundle.get("era_reflections", {}),
         "metadata": metadata,
         "current_turn": current_turn,

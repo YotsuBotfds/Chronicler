@@ -131,7 +131,7 @@ def _check_famine_yield(
         # Routing the loss through guard created a conservation violation:
         # hybrid mode gained population (refugees) without the matching loss.
         famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5))
-        drain_region_pop(region, int(famine_pop * mult))
+        drain_region_pop(region, famine_pop)
         sync_civ_population(civ, world)
         drain = int(get_override(world, "stability.drain.famine_immediate", 3))
         if acc is not None:

@@ -87,5 +87,5 @@ def test_ecological_recovery_never_exceeds_base():
     # Not eligible (0.95 >= 0.8 * 1.0), so recovery should not fire
     rng = random.Random(42)
     result = _check_ecological_recovery(region, world, rng)
-    assert result is False
+    assert result is None
     assert region.resource_effective_yields[0] == 0.95

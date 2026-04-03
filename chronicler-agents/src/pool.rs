@@ -387,6 +387,9 @@ impl AgentPool {
             self.life_events[slot] = 0;
             self.displacement_turns[slot] = 0;
             self.promotion_progress[slot] = 0;
+            self.rel_count[slot] = 0;
+            self.parent_id_0[slot] = crate::agent::PARENT_NONE;
+            self.parent_id_1[slot] = crate::agent::PARENT_NONE;
             self.count -= 1;
             self.free_slots.push(slot);
         }
@@ -406,7 +409,7 @@ impl AgentPool {
     }
 
     #[inline]
-    pub fn set_dead(&mut self, slot: usize) {
+    pub(crate) fn set_dead(&mut self, slot: usize) {
         self.alive[slot] = false;
     }
 
@@ -625,7 +628,7 @@ impl AgentPool {
         let mut ids = UInt32Builder::with_capacity(live);
         let mut regions = UInt16Builder::with_capacity(live);
         let mut origin_regions = UInt16Builder::with_capacity(live);
-        let mut civ_affinities = UInt16Builder::with_capacity(live);
+        let mut civ_affinities = UInt8Builder::with_capacity(live);
         let mut occupations = UInt8Builder::with_capacity(live);
         let mut loyalties = Float32Builder::with_capacity(live);
         let mut satisfactions = Float32Builder::with_capacity(live);
@@ -653,8 +656,7 @@ impl AgentPool {
             ids.append_value(self.ids[slot]);
             regions.append_value(self.regions[slot]);
             origin_regions.append_value(self.origin_regions[slot]);
-            // stored as u8, schema says UInt16
-            civ_affinities.append_value(self.civ_affinities[slot] as u16);
+            civ_affinities.append_value(self.civ_affinities[slot]);
             occupations.append_value(self.occupations[slot]);
             loyalties.append_value(self.loyalties[slot]);
             satisfactions.append_value(self.satisfactions[slot]);
@@ -1033,7 +1035,7 @@ mod tests {
         let civ_affinities = batch
             .column(3)
             .as_any()
-            .downcast_ref::<UInt16Array>()
+            .downcast_ref::<UInt8Array>()
             .unwrap();
         assert_eq!(civ_affinities.value(0), 1);
         assert_eq!(civ_affinities.value(1), 1);
@@ -1603,6 +1605,9 @@ mod tests {
         pool.life_events[slot] = 0xFF;
         pool.promotion_progress[slot] = 10;
         pool.set_displacement_turns(slot, 5);
+        pool.rel_count[slot] = 3;
+        pool.parent_id_0[slot] = 42;
+        pool.parent_id_1[slot] = 99;
 
         pool.kill(slot);
 
@@ -1617,5 +1622,8 @@ mod tests {
         assert_eq!(pool.life_events[slot], 0);
         assert_eq!(pool.displacement_turns(slot), 0);
         assert_eq!(pool.promotion_progress[slot], 0);
+        assert_eq!(pool.rel_count[slot], 0);
+        assert_eq!(pool.parent_id_0[slot], crate::agent::PARENT_NONE);
+        assert_eq!(pool.parent_id_1[slot], crate::agent::PARENT_NONE);
     }
 }

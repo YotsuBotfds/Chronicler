@@ -14,6 +14,7 @@ pub enum CharacterRole {
     Merchant = 1,
     Scientist = 2,
     Prophet = 3,
+    // PLACEHOLDER: produced by Python-side bypass triggers; Rust does not generate Exile roles
     Exile = 4,
 }
 
@@ -97,12 +98,15 @@ impl NamedCharacterRegistry {
             // Two-gate: skill gate
             if pool.promotion_progress[slot] >= PROMOTION_DURATION_TURNS {
                 let occ = pool.occupations[slot];
-                let role = match occ {
-                    1 => CharacterRole::General,  // Soldier
-                    2 => CharacterRole::Merchant,
-                    3 => CharacterRole::Scientist, // Scholar
-                    4 => CharacterRole::Prophet,   // Priest
-                    _ => CharacterRole::Merchant,  // Farmer → default Merchant
+                // Map occupation to CharacterRole via Occupation::from_u8 instead of
+                // raw integer literals.  Farmer (0) has no dedicated CharacterRole,
+                // so it falls through to Merchant as default.
+                let role = match crate::agent::Occupation::from_u8(occ) {
+                    Some(crate::agent::Occupation::Soldier)  => CharacterRole::General,
+                    Some(crate::agent::Occupation::Merchant) => CharacterRole::Merchant,
+                    Some(crate::agent::Occupation::Scholar)  => CharacterRole::Scientist,
+                    Some(crate::agent::Occupation::Priest)   => CharacterRole::Prophet,
+                    Some(crate::agent::Occupation::Farmer) | None => CharacterRole::Merchant,
                 };
                 candidates.push((slot, role, 0)); // trigger 0 = skill
             }

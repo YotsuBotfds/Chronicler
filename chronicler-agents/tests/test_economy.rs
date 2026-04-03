@@ -63,7 +63,7 @@ fn test_single_region_production_and_demand() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0], &[0], 1,
-        &config, 1.0, false, None,
+        &[0u8], &config, 1.0, false, None,
     );
 
     assert_eq!(out.region_results.len(), 1);
@@ -119,7 +119,7 @@ fn test_conservation_law() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[0.0], &[0], 1,
-        &config, 1.0, false, None,
+        &[0u8], &config, 1.0, false, None,
     );
 
     let c = &out.conservation;
@@ -161,7 +161,7 @@ fn test_civ_fiscal_outputs() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &merchant_wealth, &priest_count, 1,
-        &config, 1.0, false, None,
+        &[0u8], &config, 1.0, false, None,
     );
 
     let cr = &out.civ_results[0];
@@ -194,7 +194,7 @@ fn test_civ_fiscal_no_priests() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[200.0], &[0], 1,
-        &config, 1.0, false, None,
+        &[0u8], &config, 1.0, false, None,
     );
 
     let cr = &out.civ_results[0];
@@ -229,11 +229,11 @@ fn test_salt_preservation() {
 
     let out_no_salt = tick_economy_core(
         &[region_no_salt], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false, None,
+        &[0.0], &[0], 1, &[0u8], &config, 1.0, false, None,
     );
     let out_with_salt = tick_economy_core(
         &[region_with_salt], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false, None,
+        &[0.0], &[0], 1, &[0u8], &config, 1.0, false, None,
     );
 
     // With salt, food goods should decay less.
@@ -275,7 +275,7 @@ fn test_stockpile_cap_and_overflow() {
 
     let out = tick_economy_core(
         &[region], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false, None,
+        &[0.0], &[0], 1, &[0u8], &config, 1.0, false, None,
     );
 
     // After storage decay and capping:
@@ -302,7 +302,7 @@ fn test_clamp_floor_loss_tracking() {
 
     let out = tick_economy_core(
         &[region], &agents, &[],
-        &[0.0], &[0], 1, &config, 1.0, false, None,
+        &[0.0], &[0], 1, &[0u8], &config, 1.0, false, None,
     );
 
     // With no trade and balanced production, clamp_floor_loss should be 0.
@@ -340,7 +340,7 @@ fn test_two_region_trade_allocation() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     assert_eq!(out.region_results.len(), 2);
@@ -415,7 +415,7 @@ fn test_trade_stable_route_ordering() {
     let out1 = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0, 0.0], &[0, 0, 0], 3,
-        &config, 1.0, false, None,
+        &[0u8, 1u8, 2u8], &config, 1.0, false, None,
     );
 
     // Run again with routes in different order.
@@ -442,7 +442,7 @@ fn test_trade_stable_route_ordering() {
     let out2 = tick_economy_core(
         &regions_b, &agents_b, &routes_shuffled,
         &[0.0, 0.0, 0.0], &[0, 0, 0], 3,
-        &config, 1.0, false, None,
+        &[0u8, 1u8, 2u8], &config, 1.0, false, None,
     );
 
     // Outputs must be identical regardless of input route ordering.
@@ -481,7 +481,7 @@ fn test_tatonnement_max_passes_respected() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     // Should produce valid output even with 1 pass.
@@ -520,14 +520,14 @@ fn test_exact_determinism() {
     let out1 = tick_economy_core(
         &r1, &a1, &rt1,
         &[50.0, 30.0], &[3, 2], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     let (r2, a2, rt2) = build_inputs();
     let out2 = tick_economy_core(
         &r2, &a2, &rt2,
         &[50.0, 30.0], &[3, 2], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     // Exact bit-identical comparison.
@@ -579,7 +579,7 @@ fn test_observability_import_timing() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     // If grain was traded, region 1 should have food imports.
@@ -619,7 +619,7 @@ fn test_river_trade_increases_flow() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents, &routes_no_river,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     // With river.
@@ -635,7 +635,7 @@ fn test_river_trade_increases_flow() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents_b, &routes_river,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     // River should reduce transport cost, potentially increasing trade flow.
@@ -657,7 +657,7 @@ fn test_empty_regions() {
     let out = tick_economy_core(
         &[], &[], &[],
         &[], &[], 0,
-        &config, 1.0, false, None,
+        &[], &config, 1.0, false, None,
     );
     assert!(out.region_results.is_empty());
     assert!(out.civ_results.is_empty());
@@ -674,7 +674,7 @@ fn test_no_farmers_no_production() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[0.0], &[0], 1,
-        &config, 1.0, false, None,
+        &[0u8], &config, 1.0, false, None,
     );
 
     assert!(
@@ -701,7 +701,7 @@ fn test_winter_increases_transport_cost() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None, // not winter
+        &[0u8, 1u8], &config, 1.0, false, None, // not winter
     );
 
     let agents_b = vec![
@@ -716,7 +716,7 @@ fn test_winter_increases_transport_cost() {
         &[make_region(0, 0, 2.0), make_region(1, 5, 1.0)],
         &agents_b, &routes_b,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, true, None, // winter
+        &[0u8, 1u8], &config, 1.0, true, None, // winter
     );
 
     // Higher transport cost in winter should mean less effective margin.
@@ -750,7 +750,7 @@ fn test_trade_dependency_detection() {
     let out = tick_economy_core(
         &regions, &agents, &routes,
         &[0.0, 0.0], &[0, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     // Region 1's import_share: food imports / food demand.
@@ -764,7 +764,8 @@ fn test_trade_dependency_detection() {
 #[test]
 fn test_multiple_civs_fiscal() {
     let config = default_config();
-    let regions = vec![make_region(0, 0, 1.0), make_region(1, 5, 1.0)];
+    // Both regions produce food (grain) so food_sufficiency >= 0.5 and tithe food gate = 1.0.
+    let regions = vec![make_region(0, 0, 1.0), make_region(1, 0, 1.0)];
     let agents = vec![
         make_agents(50, 30, 5, 3, 1),
         make_agents(40, 20, 3, 5, 2),
@@ -773,7 +774,7 @@ fn test_multiple_civs_fiscal() {
     let out = tick_economy_core(
         &regions, &agents, &[],
         &[100.0, 200.0], &[3, 0], 2,
-        &config, 1.0, false, None,
+        &[0u8, 1u8], &config, 1.0, false, None,
     );
 
     assert_eq!(out.civ_results.len(), 2);
@@ -782,8 +783,129 @@ fn test_multiple_civs_fiscal() {
     assert!((out.civ_results[0].treasury_tax - 5.0).abs() < 0.001);
     // Civ 1: treasury_tax = 0.05 * 200 = 10.0
     assert!((out.civ_results[1].treasury_tax - 10.0).abs() < 0.001);
-    // Civ 1: priest_tithe_share = 0.10 * 200 / max(0,1) = 20.0
+    // Civ 1: food_sufficiency >= 0.5 → tithe_scale = 1.0 → tithe_base = 200.0
+    // priest_tithe_share = 0.10 * 200 / max(0,1) = 20.0
     assert!((out.civ_results[1].priest_tithe_share - 20.0).abs() < 0.001);
+}
+
+// ---------------------------------------------------------------------------
+// Tithe food gate tests (H-2)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_tithe_food_gate_reduces_tithe_during_famine() {
+    // Region producing ore (no food) → food_sufficiency ≈ 0.0
+    // Tithe should be gated to near-zero.
+    let config = default_config();
+    let regions = vec![make_region(0, 5, 1.0)]; // RT=5 → ORE → no food
+    let agents = vec![make_agents(50, 20, 5, 3, 1)];
+
+    let out = tick_economy_core(
+        &regions, &agents, &[],
+        &[200.0], &[5], 1,
+        &[0u8], &config, 1.0, false, None,
+    );
+
+    let cr = &out.civ_results[0];
+    // treasury_tax is NOT gated by food: 0.05 * 200 = 10.0
+    assert!(
+        (cr.treasury_tax - 10.0).abs() < 0.001,
+        "treasury_tax should be ungated: expected 10.0, got {}",
+        cr.treasury_tax,
+    );
+    // food_sufficiency ≈ 0.0 → tithe_scale = 0.0/0.5 = 0.0
+    // tithe_base = 200.0 * 0.0 = 0.0
+    assert!(
+        cr.tithe_base.abs() < 0.01,
+        "tithe_base should be near-zero during famine: got {}",
+        cr.tithe_base,
+    );
+    assert!(
+        cr.priest_tithe_share.abs() < 0.01,
+        "priest_tithe_share should be near-zero during famine: got {}",
+        cr.priest_tithe_share,
+    );
+}
+
+#[test]
+fn test_tithe_food_gate_partial_reduction() {
+    // Region with barely enough food: food_sufficiency should be around 0.2-0.4
+    // which is below the 0.5 threshold, so tithe should be proportionally reduced.
+    let config = default_config();
+    // grain (RT=0), very low yield → food production < demand
+    let regions = vec![make_region(0, 0, 0.2)]; // 20 farmers * 0.2 = 4.0 food, demand = 50 * 0.5 = 25.0
+    let agents = vec![make_agents(50, 20, 5, 3, 1)];
+
+    let out = tick_economy_core(
+        &regions, &agents, &[],
+        &[100.0], &[5], 1,
+        &[0u8], &config, 1.0, false, None,
+    );
+
+    let rr = &out.region_results[0];
+    // food_sufficiency = 4.0 / 25.0 = 0.16 (below 0.5 threshold)
+    assert!(
+        rr.food_sufficiency < 0.5,
+        "food_sufficiency should be below 0.5: got {}",
+        rr.food_sufficiency,
+    );
+
+    let cr = &out.civ_results[0];
+    // tithe_scale = food_suff / 0.5 < 1.0
+    // tithe_base = 100.0 * tithe_scale < 100.0
+    assert!(
+        cr.tithe_base < 100.0,
+        "tithe_base should be reduced by food gate: got {}",
+        cr.tithe_base,
+    );
+    assert!(
+        cr.tithe_base > 0.0,
+        "tithe_base should be positive (partial reduction): got {}",
+        cr.tithe_base,
+    );
+    // Verify proportional relationship: tithe_base ≈ 100.0 * (food_suff / 0.5)
+    let expected_scale = rr.food_sufficiency / 0.5;
+    let expected_tithe_base = 100.0 * expected_scale;
+    assert!(
+        (cr.tithe_base - expected_tithe_base).abs() < 0.01,
+        "tithe_base should be proportional: expected {}, got {}",
+        expected_tithe_base, cr.tithe_base,
+    );
+}
+
+#[test]
+fn test_tithe_food_gate_above_threshold() {
+    // Region with ample food: food_sufficiency > 0.5 → tithe_scale = 1.0, no reduction.
+    let config = default_config();
+    let regions = vec![make_region(0, 0, 1.0)]; // 30 farmers * 1.0 = 30.0 food, demand = 50 * 0.5 = 25.0
+    let agents = vec![make_agents(50, 30, 5, 3, 1)];
+
+    let out = tick_economy_core(
+        &regions, &agents, &[],
+        &[100.0], &[5], 1,
+        &[0u8], &config, 1.0, false, None,
+    );
+
+    let rr = &out.region_results[0];
+    assert!(
+        rr.food_sufficiency >= 0.5,
+        "food_sufficiency should be >= 0.5: got {}",
+        rr.food_sufficiency,
+    );
+
+    let cr = &out.civ_results[0];
+    // tithe_scale = 1.0 → tithe_base = 100.0 (ungated)
+    assert!(
+        (cr.tithe_base - 100.0).abs() < 0.001,
+        "tithe_base should be ungated when food is sufficient: got {}",
+        cr.tithe_base,
+    );
+    // priest_tithe_share = 0.10 * 100.0 / 5 = 2.0
+    assert!(
+        (cr.priest_tithe_share - 2.0).abs() < 0.001,
+        "priest_tithe_share should be ungated: got {}",
+        cr.priest_tithe_share,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -824,7 +946,7 @@ fn test_hybrid_trade_route_count_matches_abstract_semantics() {
 
     let output = tick_economy_core(
         &region_inputs, &agent_counts, &routes, &[0.0], &[0],
-        1, &config, 1.0, false, Some(&delivery),
+        1, &[0u8, 0u8, 0u8], &config, 1.0, false, Some(&delivery),
     );
 
     // Region 0 has 2 outbound routes → trade_route_count = 2
