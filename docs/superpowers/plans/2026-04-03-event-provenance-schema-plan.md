@@ -19,45 +19,62 @@
 - Modify: `src/chronicler/great_persons.py:410`
 - Test: `tests/test_deeds.py`
 
-- [ ] **Step 1: Write failing test — migration updates `gp.region`**
+- [ ] **Step 1: Write failing test — migration updates `gp.region` via production path**
 
-In `tests/test_deeds.py`, add:
+In `tests/test_agent_bridge.py`, add a test that exercises `_detect_character_events` with a named migration event and verifies `gp.region` is updated:
 
 ```python
-def test_gp_region_updated_on_migration():
-    """gp.region should reflect destination after migration deed."""
-    gp = _make_gp(region="Origin")
-    # Simulate what _detect_character_events does at agent_bridge.py:1732
-    target_name = "Destination"
-    gp.region = target_name
-    _append_deed(gp, f"Migrated from Origin to {target_name}")
-    assert gp.region == "Destination"
+def test_gp_region_updated_on_migration_event(demographics_bridge_world):
+    """_detect_character_events should update gp.region on named-character migration."""
+    from chronicler.models import AgentEventRecord
+    world, bridge = demographics_bridge_world
 
+    # Create a named GP in region 0
+    from chronicler.models import GreatPerson
+    civ = world.civilizations[0]
+    gp = GreatPerson(
+        name="TestMigrant", role="merchant", trait="bold",
+        civilization=civ.name, origin_civilization=civ.name,
+        born_turn=1, source="agent", agent_id=99, region=world.regions[0].name,
+    )
+    civ.great_persons.append(gp)
+    bridge.named_agents[99] = "TestMigrant"
+    bridge.gp_by_agent_id[99] = gp
+    bridge._origin_regions[99] = 0
 
-def test_gp_region_updated_on_exile_return():
-    """gp.region should reflect destination after exile return deed."""
-    gp = _make_gp(region="ExilePlace")
-    target_name = "Homeland"
-    gp.region = target_name
-    _append_deed(gp, f"Returned to {target_name} after 35 turns")
-    assert gp.region == "Homeland"
+    # Simulate a migration event from region 0 to region 1
+    target_region_idx = 1
+    events = [AgentEventRecord(
+        turn=world.turn, agent_id=99, event_type="migration",
+        region=0, target_region=target_region_idx, civ_affinity=0, occupation=2,
+    )]
+    bridge._detect_character_events(events, world)
 
+    assert gp.region == world.regions[target_region_idx].name
+```
 
-def test_gp_region_updated_on_pilgrimage_return():
-    """gp.region should reflect destination after pilgrimage return."""
-    gp = _make_gp(region="StartRegion")
-    destination = "HolyCity"
-    gp.region = destination
-    _append_deed(gp, "Returned from pilgrimage as Prophet")
+In `tests/test_great_persons.py`, add a test for pilgrimage return updating `gp.region`:
+
+```python
+def test_pilgrimage_return_updates_gp_region():
+    """check_pilgrimages should update gp.region on pilgrimage return."""
+    from chronicler.great_persons import check_pilgrimages
+    from chronicler.models import GreatPerson
+
+    gp = GreatPerson(
+        name="TestProphet", role="prophet", trait="pious",
+        civilization="TestCiv", origin_civilization="TestCiv",
+        born_turn=1, source="agent", agent_id=50, region="StartRegion",
+        pilgrimage_destination="HolyCity", pilgrimage_return_turn=10,
+    )
+    events = check_pilgrimages([gp], [], None, current_turn=10)
     assert gp.region == "HolyCity"
 ```
 
-- [ ] **Step 2: Run tests to verify they pass**
+- [ ] **Step 2: Run tests to verify they fail**
 
-These tests validate the contract but will pass immediately since they set `gp.region` inline. The real fix is in the production code below.
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_deeds.py -v -k "region_updated"`
-Expected: 3 PASS
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_agent_bridge.py -v -k "gp_region_updated_on_migration" tests/test_great_persons.py -v -k "pilgrimage_return_updates_gp_region"`
+Expected: FAIL — `gp.region` not updated in production code
 
 - [ ] **Step 3: Add `gp.region` updates at migration sites**
 
@@ -391,38 +408,54 @@ Every deed now carries region, turn, civ captured at event time."
 
 **Files:**
 - Modify: `src/chronicler/narrative.py:337-339`
-- Test: `tests/test_deeds.py`
+- Test: `tests/test_narrative.py`
 
-- [ ] **Step 1: Write failing test — narrative uses deed-time region**
+- [ ] **Step 1: Write failing test — `build_agent_context_for_moment` uses deed-time region**
 
-In `tests/test_deeds.py`, add:
+In `tests/test_narrative.py`, add a test that calls the real production function:
 
 ```python
-def test_narrative_deed_uses_deed_region_not_current():
-    """Deed provenance region should differ from gp.region when character moved."""
-    gp = _make_gp(region="CurrentRegion")
-    from chronicler.models import GreatPersonDeed
-    gp.deeds = [
-        GreatPersonDeed(text="Fought in battle", region="OldRegion", turn=10, civ="Aram"),
-        GreatPersonDeed(text="Traded goods", region="MiddleRegion", turn=20, civ="Aram"),
-        GreatPersonDeed(text="Settled down", region="CurrentRegion", turn=30, civ="Aram"),
-    ]
-    # Simulate narrative context builder output
-    recent_history = [
-        {"event": d.text, "region": d.region or "unknown", "turn": d.turn}
-        for d in gp.deeds[-3:]
-    ]
-    assert recent_history[0]["region"] == "OldRegion"
-    assert recent_history[1]["region"] == "MiddleRegion"
-    assert recent_history[2]["region"] == "CurrentRegion"
+def test_agent_context_uses_deed_region_not_gp_region():
+    """recent_history should use deed.region, not gp.region."""
+    from chronicler.narrative import build_agent_context_for_moment
+    from chronicler.models import NarrativeMoment, Event, GreatPerson, NarrativeRole, GreatPersonDeed
+
+    moment = NarrativeMoment(
+        events=[Event(
+            event_type="campaign", description="A campaign",
+            actors=["Traveler", "TestCiv"], importance=7, turn=30, source="agent",
+        )],
+        named_events=[],
+        turn_range=(30, 30),
+        focal_civ="TestCiv",
+        role=NarrativeRole.NARRATOR,
+        importance=7,
+    )
+
+    gp = GreatPerson(
+        name="Traveler", role="general", trait="bold",
+        civilization="TestCiv", origin_civilization="TestCiv",
+        born_turn=1, source="agent", agent_id=100,
+        region="CurrentRegion",  # current location
+        deeds=[
+            GreatPersonDeed(text="Fought in battle", region="OldRegion", turn=10),
+            GreatPersonDeed(text="Traded goods", region="MiddleRegion", turn=20),
+        ],
+    )
+
+    ctx = build_agent_context_for_moment(moment, [gp], {})
+    assert ctx is not None
+    history = ctx.named_characters[0]["recent_history"]
+    assert history[0]["region"] == "OldRegion"
+    assert history[1]["region"] == "MiddleRegion"
+    # Must NOT be "CurrentRegion" for old deeds
+    assert history[0]["region"] != gp.region
 ```
 
-- [ ] **Step 2: Run test to verify it passes**
+- [ ] **Step 2: Run test to verify it fails**
 
-This tests the contract, not the production code. It passes immediately.
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_deeds.py -v -k "narrative_deed_uses"`
-Expected: PASS
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_narrative.py -v -k "deed_region_not_gp_region"`
+Expected: FAIL — current code uses `gp.region` for all deeds, so both entries show "CurrentRegion"
 
 - [ ] **Step 3: Update narrative consumer**
 
@@ -452,7 +485,7 @@ Expected: all PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/chronicler/narrative.py tests/test_deeds.py
+git add src/chronicler/narrative.py tests/test_narrative.py
 git commit -m "fix: narrative context uses deed-time region/turn, not gp.region
 
 recent_history entries now carry d.text, d.region, d.turn from
@@ -585,13 +618,13 @@ In `chronicler-agents/src/formation.rs`, at the test around line 1673, add asser
         assert_eq!(events[0].formed_turn, pool.rel_formed_turns[a][0] as u32);
 ```
 
-Wait — `id_b` is the dead agent and the bond to b was removed. The test setup has `a` bonded to `b` (Friend) and `c` (Kin), then `b` dies. After cleanup, the dissolution event should carry `target_agent_id = id_b`. `id_b` is already in scope at the test (used earlier). For `formed_turn`, the test needs to set a known value. Check the test setup — if `rel_formed_turns` is initialized to 0 by default, assert against 0.
+The test fixture at `formation.rs:1655` writes the bond with `formed_turn = 1` via `upsert_directed(&mut pool, a, id_b, BondType::Friend as u8, 50, 1)`. The dissolution event should carry `target_agent_id = id_b` (the dead agent) and `formed_turn = 1` (from the bond's creation).
 
 Add after line 1678:
 
 ```rust
         assert_eq!(events[0].target_agent_id, id_b);
-        assert_eq!(events[0].formed_turn, 0); // default formation turn from pool init
+        assert_eq!(events[0].formed_turn, 1); // matches upsert_directed formed_turn param
 ```
 
 - [ ] **Step 7: Run Rust tests**
