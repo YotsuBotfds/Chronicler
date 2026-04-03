@@ -1500,3 +1500,49 @@ def test_gp_region_updated_on_migration_event(demographics_bridge_world):
     )]
     bridge._detect_character_events(events, world)
     assert gp.region == world.regions[target_region_idx].name
+
+
+# ---------------------------------------------------------------------------
+# Task 6: dissolution tuple uses real target_agent_id and formed_turn
+# ---------------------------------------------------------------------------
+
+def test_dissolution_tuple_uses_target_agent_id_and_formed_turn():
+    """Dissolution events should carry real target_agent_id and formed_turn."""
+    batch = pa.record_batch({
+        "agent_id": pa.array([100], type=pa.uint32()),
+        "event_type": pa.array([6], type=pa.uint8()),
+        "region": pa.array([0], type=pa.uint16()),
+        "target_region": pa.array([3], type=pa.uint16()),
+        "civ_affinity": pa.array([0], type=pa.uint8()),
+        "occupation": pa.array([0], type=pa.uint8()),
+        "belief": pa.array([0], type=pa.uint8()),
+        "turn": pa.array([50], type=pa.uint32()),
+        "target_agent_id": pa.array([200], type=pa.uint32()),
+        "formed_turn": pa.array([10], type=pa.uint32()),
+    })
+
+    bridge = AgentBridge.__new__(AgentBridge)
+    records = bridge._convert_events(batch, 50)
+    assert len(records) == 1
+    assert records[0].target_agent_id == 200
+    assert records[0].formed_turn == 10
+
+
+def test_convert_events_old_schema_fallback():
+    """_convert_events handles batches missing target_agent_id and formed_turn."""
+    batch = pa.record_batch({
+        "agent_id": pa.array([100], type=pa.uint32()),
+        "event_type": pa.array([6], type=pa.uint8()),
+        "region": pa.array([0], type=pa.uint16()),
+        "target_region": pa.array([3], type=pa.uint16()),
+        "civ_affinity": pa.array([0], type=pa.uint8()),
+        "occupation": pa.array([0], type=pa.uint8()),
+        "belief": pa.array([0], type=pa.uint8()),
+        "turn": pa.array([50], type=pa.uint32()),
+    })
+
+    bridge = AgentBridge.__new__(AgentBridge)
+    records = bridge._convert_events(batch, 50)
+    assert len(records) == 1
+    assert records[0].target_agent_id == 0
+    assert records[0].formed_turn == 0

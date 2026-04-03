@@ -654,6 +654,8 @@ class AgentEventRecord:
     civ_affinity: int
     occupation: int
     belief: int | None = None
+    target_agent_id: int = 0
+    formed_turn: int = 0
 
 
 @dataclass

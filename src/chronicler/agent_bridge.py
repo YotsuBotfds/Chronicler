@@ -1107,7 +1107,7 @@ class AgentBridge:
                 for e in dissolution_events:
                     # target_region field repurposed as bond_type in dissolution events
                     dissolved_list.append(
-                        (e.agent_id, 0, e.target_region, world.turn)
+                        (e.agent_id, e.target_agent_id, e.target_region, e.formed_turn)
                     )
                 world.dissolved_edges_by_turn[world.turn] = dissolved_list
 
@@ -1482,6 +1482,8 @@ class AgentBridge:
         """Convert Arrow events RecordBatch to AgentEventRecord list."""
         records = []
         belief_col = batch.column("belief") if "belief" in batch.schema.names else None
+        target_agent_id_col = batch.column("target_agent_id") if "target_agent_id" in batch.schema.names else None
+        formed_turn_col = batch.column("formed_turn") if "formed_turn" in batch.schema.names else None
         for i in range(batch.num_rows):
             event_type_code = batch.column("event_type")[i].as_py()
             records.append(AgentEventRecord(
@@ -1493,6 +1495,8 @@ class AgentBridge:
                 civ_affinity=batch.column("civ_affinity")[i].as_py(),
                 occupation=batch.column("occupation")[i].as_py(),
                 belief=belief_col[i].as_py() if belief_col is not None else None,
+                target_agent_id=target_agent_id_col[i].as_py() if target_agent_id_col is not None else 0,
+                formed_turn=formed_turn_col[i].as_py() if formed_turn_col is not None else 0,
             ))
         return records
 
