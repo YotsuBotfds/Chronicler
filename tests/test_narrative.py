@@ -553,6 +553,104 @@ def test_prepare_narration_prompts_threads_focal_civ_gini(sample_world):
     assert prepared[0]["agent_ctx"].gini_coefficient == pytest.approx(0.37)
 
 
+def test_gini_fallback_from_snapshot_when_gini_by_civ_none(sample_world):
+    """When gini_by_civ is None, Gini falls back to snapshot civ_stats."""
+    from chronicler.narrative import NarrativeEngine
+    from chronicler.models import (
+        CivSnapshot, Event, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot,
+    )
+
+    civ_name = sample_world.civilizations[0].name
+    gp = GreatPerson(
+        name="Kiran", role="general", trait="bold",
+        civilization=civ_name, origin_civilization=civ_name,
+        born_turn=5, source="agent", agent_id=42,
+    )
+
+    moment = NarrativeMoment(
+        anchor_turn=10, turn_range=(10, 10),
+        events=[Event(turn=10, event_type="campaign", actors=[civ_name],
+                      description="A campaign unfolds", importance=7, source="agent")],
+        named_events=[], score=8.0, causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX, bonus_applied=0.0,
+    )
+
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+                gini=0.42,  # <-- the snapshot Gini we expect to fall back to
+            )
+        },
+        region_control={}, relationships={},
+    )]
+
+    engine = NarrativeEngine(
+        sim_client=MagicMock(model="test"), narrative_client=MagicMock(model="test"),
+    )
+    engine._world = sample_world
+
+    prepared = engine._prepare_narration_prompts(
+        [moment], history, great_persons=[gp], gini_by_civ=None,
+    )
+
+    assert prepared[0]["agent_ctx"] is not None
+    assert prepared[0]["agent_ctx"].gini_coefficient == pytest.approx(0.42)
+
+
+def test_gini_default_zero_when_no_source(sample_world):
+    """When gini_by_civ is None and snapshot has default gini, result is 0.0."""
+    from chronicler.narrative import NarrativeEngine
+    from chronicler.models import (
+        CivSnapshot, Event, GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot,
+    )
+
+    civ_name = sample_world.civilizations[0].name
+    gp = GreatPerson(
+        name="Kiran", role="general", trait="bold",
+        civilization=civ_name, origin_civilization=civ_name,
+        born_turn=5, source="agent", agent_id=42,
+    )
+
+    moment = NarrativeMoment(
+        anchor_turn=10, turn_range=(10, 10),
+        events=[Event(turn=10, event_type="campaign", actors=[civ_name],
+                      description="A campaign unfolds", importance=7, source="agent")],
+        named_events=[], score=8.0, causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX, bonus_applied=0.0,
+    )
+
+    history = [TurnSnapshot(
+        turn=10,
+        civ_stats={
+            civ_name: CivSnapshot(
+                population=50, military=30, economy=40, culture=35,
+                stability=55, treasury=20, asabiya=0.5, tech_era="iron",
+                trait="bold", regions=list(sample_world.civilizations[0].regions),
+                leader_name=sample_world.civilizations[0].leader.name, alive=True,
+                # no gini kwarg — defaults to 0.0
+            )
+        },
+        region_control={}, relationships={},
+    )]
+
+    engine = NarrativeEngine(
+        sim_client=MagicMock(model="test"), narrative_client=MagicMock(model="test"),
+    )
+    engine._world = sample_world
+
+    prepared = engine._prepare_narration_prompts(
+        [moment], history, great_persons=[gp], gini_by_civ=None,
+    )
+
+    assert prepared[0]["agent_ctx"] is not None
+    assert prepared[0]["agent_ctx"].gini_coefficient == pytest.approx(0.0)
+
+
 def test_dynasty_registry_threads_through_prepare_prompts(sample_world):
     """dynasty_registry kwarg propagates from _prepare_narration_prompts to agent context."""
     from chronicler.narrative import NarrativeEngine

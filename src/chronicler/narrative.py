@@ -465,9 +465,6 @@ def build_agent_context_for_moment(
         if h.get("character_b") in char_names or h.get("character_a") in char_names:
             relationships.append(h)
 
-    # M41: Gini coefficient for wealth inequality context
-    gini = (gini_by_civ or {}).get(civ_idx, 0.0) if civ_idx is not None else 0.0
-
     # M56b: Urbanization context — focal civ, urban delta, top settlements
     focal_civ = None
     if current_snapshot is not None:
@@ -480,6 +477,18 @@ def build_agent_context_for_moment(
                 break
         if focal_civ is None and current_snapshot.civ_stats:
             focal_civ = sorted(current_snapshot.civ_stats.keys())[0]
+
+    # M41: Gini coefficient for wealth inequality context
+    # Step 1: try live bridge data (gini_by_civ keyed by civ index)
+    gini = (gini_by_civ or {}).get(civ_idx, None) if civ_idx is not None else None
+    # Step 2: fallback to snapshot civ_stats (keyed by civ name)
+    if gini is None and current_snapshot is not None and focal_civ is not None:
+        snap_stats = current_snapshot.civ_stats.get(focal_civ)
+        if snap_stats is not None and snap_stats.gini is not None:
+            gini = snap_stats.gini
+    # Step 3: default — no signal
+    if gini is None:
+        gini = 0.0
 
     urban_fraction_delta_20t = 0.0
     if history is not None and current_snapshot is not None and focal_civ is not None:
