@@ -220,6 +220,29 @@ class TestAutomaticEffects:
         assert sample_world._treasury_tax_carry[0] == pytest.approx(0.2)
 
 
+def test_phase2_passes_bridge_to_tick_hostages(sample_world, monkeypatch):
+    """apply_automatic_effects passes world._agent_bridge to tick_hostages."""
+    received_kwargs = []
+
+    def recording_tick_hostages(world, acc=None, bridge=None):
+        received_kwargs.append({"bridge": bridge})
+        return []
+
+    monkeypatch.setattr("chronicler.relationships.tick_hostages", recording_tick_hostages)
+
+    class _Sentinel:
+        """Marker object to verify identity, not just truthiness."""
+        pass
+
+    sentinel_bridge = _Sentinel()
+    sample_world._agent_bridge = sentinel_bridge
+
+    apply_automatic_effects(sample_world)
+
+    assert len(received_kwargs) == 1
+    assert received_kwargs[0]["bridge"] is sentinel_bridge
+
+
 class TestPhaseAction:
     def test_each_civ_takes_one_action(self, sample_world):
         """With a stub action selector, every civ takes exactly one action."""

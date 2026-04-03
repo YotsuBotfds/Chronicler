@@ -480,6 +480,52 @@ def test_tick_hostages_normal_release_forwards_bridge(make_world):
     assert bridge._sim.calls == [(350, origin_idx)]
 
 
+def test_capture_hostage_noop_without_bridge(make_world):
+    """capture_hostage() does not error when bridge is None."""
+    world = make_world(num_civs=2, seed=42)
+    loser = world.civilizations[0]
+    winner = world.civilizations[1]
+    gp = GreatPerson(
+        name="No Bridge GP", role="general", trait="bold",
+        civilization=loser.name, origin_civilization=loser.name,
+        born_turn=5, agent_id=500,
+    )
+    loser.great_persons = [gp]
+    captured = capture_hostage(loser, winner, world, contested_region="Battlefield")
+    assert captured is not None
+    assert captured.is_hostage is True
+
+
+def test_capture_hostage_noop_without_agent_id(make_world):
+    """capture_hostage() skips sync for synthetic hostages (no agent_id)."""
+    world = make_world(num_civs=2, seed=42)
+    loser = world.civilizations[0]
+    winner = world.civilizations[1]
+    loser.great_persons = []  # forces synthetic hostage creation
+    bridge = _MockBridge()
+    captured = capture_hostage(loser, winner, world, contested_region="Plains", bridge=bridge)
+    assert captured is not None
+    assert bridge._sim.calls == []  # no sync for synthetic (agent_id is None)
+
+
+def test_release_hostage_noop_without_bridge(make_world):
+    """release_hostage() works without bridge (--agents=off path)."""
+    world = make_world(num_civs=2, seed=42)
+    captor = world.civilizations[0]
+    origin = world.civilizations[1]
+    hostage = GreatPerson(
+        name="Offline GP", role="hostage", trait="bold",
+        civilization=captor.name, origin_civilization=origin.name,
+        born_turn=0, is_hostage=True, hostage_turns=11,
+        captured_by=captor.name, pre_hostage_role="merchant",
+        agent_id=600,
+    )
+    captor.great_persons = [hostage]
+    release_hostage(hostage, captor, origin, world)
+    assert hostage.civilization == origin.name
+    assert hostage in origin.great_persons
+
+
 # --- M40: Social Networks ---
 
 # --- Task 6: dissolve_edges ---

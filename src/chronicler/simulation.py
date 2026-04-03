@@ -478,7 +478,8 @@ def apply_automatic_effects(
 
     # M17c: Hostage turn ticking
     from chronicler.relationships import tick_hostages
-    tick_hostages(world, acc=acc)
+    bridge = getattr(world, "_agent_bridge", None)
+    tick_hostages(world, acc=acc, bridge=bridge)
 
     # M18: Pandemic tick
     from chronicler.emergence import tick_pandemic
