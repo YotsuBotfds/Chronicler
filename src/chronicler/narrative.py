@@ -926,6 +926,8 @@ class NarrativeEngine:
         world=None,
         # Displacement fractions by region index (from agent bridge)
         displacement_by_region: dict[int, float] | None = None,
+        # M39: Dynasty registry for lineage narration
+        dynasty_registry=None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments.
 
@@ -942,6 +944,7 @@ class NarrativeEngine:
             moments, history, great_persons, social_edges,
             dissolved_edges_by_turn, agent_name_map, gini_by_civ,
             economy_result, displacement_by_region=displacement_by_region,
+            dynasty_registry=dynasty_registry,
         )
 
         # Batch API path — Anthropic only
@@ -966,6 +969,7 @@ class NarrativeEngine:
         gini_by_civ: dict[int, float] | None = None,
         economy_result=None,
         displacement_by_region: dict[int, float] | None = None,
+        dynasty_registry=None,
     ) -> list[dict]:
         """Build prompt/system pairs for each moment. Returns list of dicts
         with keys: prompt, system, agent_ctx."""
@@ -1075,6 +1079,7 @@ class NarrativeEngine:
                 agent_ctx = build_agent_context_for_moment(
                     moment, great_persons,
                     displacement_by_region=displacement_by_region or {},
+                    dynasty_registry=dynasty_registry,
                     gp_by_agent_id=gp_by_agent_id,
                     social_edges=social_edges,
                     dissolved_edges=moment_dissolved if moment_dissolved else None,
