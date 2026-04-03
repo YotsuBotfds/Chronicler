@@ -403,6 +403,8 @@ pub fn death_cleanup_sweep(
                     occupation: pool.occupations[slot],
                     belief: pool.beliefs[slot],
                     turn,
+                    target_agent_id: target_id,
+                    formed_turn: pool.rel_formed_turns[slot][i] as u32,
                 });
                 crate::relationships::swap_remove_rel(pool, slot, i);
                 removed += 1;
@@ -1676,6 +1678,8 @@ mod tests {
         assert_eq!(events[0].event_type, agent::LIFE_EVENT_DISSOLUTION);
         assert_eq!(events[0].target_region, BondType::Friend as u16);
         assert_eq!(events[0].turn, 10);
+        assert_eq!(events[0].target_agent_id, id_b);
+        assert_eq!(events[0].formed_turn, 1); // matches upsert_directed formed_turn param at line 1655
     }
 
     #[test]

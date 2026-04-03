@@ -66,6 +66,8 @@ pub fn events_schema() -> Schema {
         Field::new("occupation", DataType::UInt8, false),
         Field::new("belief", DataType::UInt8, false),
         Field::new("turn", DataType::UInt32, false),
+        Field::new("target_agent_id", DataType::UInt32, false),
+        Field::new("formed_turn", DataType::UInt32, false),
     ])
 }
 

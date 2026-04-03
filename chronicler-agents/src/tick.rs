@@ -36,6 +36,8 @@ pub struct AgentEvent {
     pub occupation: u8,
     pub belief: u8,
     pub turn: u32,
+    pub target_agent_id: u32,
+    pub formed_turn: u32,
 }
 
 fn mark_war_survivors(
@@ -275,6 +277,8 @@ pub fn try_tick_agents(
                 occupation: pool.occupation(slot),
                 belief: pool.beliefs[slot],
                 turn,
+                target_agent_id: 0,
+                formed_turn: 0,
             });
         }
 
@@ -292,6 +296,8 @@ pub fn try_tick_agents(
                 occupation: pool.occupation(slot),
                 belief: pool.beliefs[slot],
                 turn,
+                target_agent_id: 0,
+                formed_turn: 0,
             });
         }
 
@@ -315,6 +321,8 @@ pub fn try_tick_agents(
                 occupation: pool.occupation(slot),
                 belief: pool.beliefs[slot],
                 turn,
+                target_agent_id: 0,
+                formed_turn: 0,
             });
             let _ = old_occ; // suppress unused warning
         }
@@ -333,6 +341,8 @@ pub fn try_tick_agents(
                 occupation: pool.occupation(slot),
                 belief: pool.beliefs[slot],
                 turn,
+                target_agent_id: 0,
+                formed_turn: 0,
             });
         }
 
@@ -599,6 +609,8 @@ pub fn try_tick_agents(
                 occupation: pool.occupation(slot),
                 belief: pool.beliefs[slot],
                 turn,
+                target_agent_id: 0,
+                formed_turn: 0,
             });
 
             // M57b: Inheritance transfer — MUST run before DeathOfKin and pool.kill
@@ -729,6 +741,8 @@ pub fn try_tick_agents(
                 occupation: crate::agent::Occupation::Farmer as u8,
                 belief: birth.belief,
                 turn,
+                target_agent_id: 0,
+                formed_turn: 0,
             });
 
             // M48/M57a: BirthOfKin intent for both parents
