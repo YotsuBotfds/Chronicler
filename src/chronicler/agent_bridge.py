@@ -1591,7 +1591,7 @@ class AgentBridge:
                 gp.origin_region = world.regions[origin_region].name
                 gp.region = gp.origin_region
             region_name = world.regions[origin_region].name if origin_region < len(world.regions) else "unknown"
-            _append_deed(gp, f"Promoted as {role} in {region_name}")
+            _append_deed(gp, f"Promoted as {role} in {region_name}", region=region_name, turn=world.turn, civ=gp.civilization)
             civ.great_persons.append(gp)
             created.append(gp)
             self.named_agents[agent_id] = name
@@ -1610,7 +1610,7 @@ class AgentBridge:
                             gp.mule = True
                             gp.mule_memory_event_type = event_type
                             gp.utility_overrides = MULE_MAPPING[event_type]
-                            _append_deed(gp, f"Mule: shaped by memory type {event_type}")
+                            _append_deed(gp, f"Mule: shaped by memory type {event_type}", region=gp.region, turn=world.turn, civ=gp.civilization)
 
             # M52: GP artifact intent
             from chronicler.artifacts import emit_gp_artifact_intent
@@ -1716,7 +1716,7 @@ class AgentBridge:
                     ))
                     if e.agent_id in self.gp_by_agent_id:
                         self.gp_by_agent_id[e.agent_id].region = target_name
-                        _append_deed(self.gp_by_agent_id[e.agent_id], f"Returned to {target_name} after {turns_away} turns")
+                        _append_deed(self.gp_by_agent_id[e.agent_id], f"Returned to {target_name} after {turns_away} turns", region=target_name, turn=world.turn, civ=self.gp_by_agent_id[e.agent_id].civilization)
                     del self._departure_turns[e.agent_id]
                     continue  # don't also emit notable_migration
 
@@ -1731,7 +1731,7 @@ class AgentBridge:
             ))
             if e.agent_id in self.gp_by_agent_id:
                 self.gp_by_agent_id[e.agent_id].region = target_name
-                _append_deed(self.gp_by_agent_id[e.agent_id], f"Migrated from {source_name} to {target_name}")
+                _append_deed(self.gp_by_agent_id[e.agent_id], f"Migrated from {source_name} to {target_name}", region=target_name, turn=world.turn, civ=self.gp_by_agent_id[e.agent_id].civilization)
 
         return character_events
 
@@ -1763,7 +1763,7 @@ class AgentBridge:
 
             gp.fate = "exile"
             gp.active = False
-            _append_deed(gp, f"Exiled after conquest of {gp.region or conquered_civ.name}")
+            _append_deed(gp, f"Exiled after conquest of {gp.region or conquered_civ.name}", region=gp.region, turn=turn, civ=gp.civilization)
 
             if gp.region in conquered_region_set:
                 # In conquered territory → hostage
@@ -1831,7 +1831,7 @@ class AgentBridge:
             # origin_civilization stays unchanged
             old_civ.great_persons.remove(gp)
             new_civ.great_persons.append(gp)
-            _append_deed(gp, f"Defected to {new_civ.name} during secession")
+            _append_deed(gp, f"Defected to {new_civ.name} during secession", region=gp.region, turn=turn, civ=new_civ.name)
 
             if gp.agent_id not in transferred_agent_ids:
                 try:
@@ -1884,7 +1884,7 @@ class AgentBridge:
             gp.civilization = restored_civ.name
             absorber_civ.great_persons.remove(gp)
             restored_civ.great_persons.append(gp)
-            _append_deed(gp, f"Returned to {restored_civ.name} during restoration")
+            _append_deed(gp, f"Returned to {restored_civ.name} during restoration", region=gp.region, turn=world.turn if world is not None else None, civ=restored_civ.name)
 
             if gp.agent_id not in transferred_agent_ids:
                 try:
@@ -1927,7 +1927,7 @@ class AgentBridge:
             gp.civilization = absorber_civ.name
             losing_civ.great_persons.remove(gp)
             absorber_civ.great_persons.append(gp)
-            _append_deed(gp, f"Absorbed into {absorber_civ.name} during twilight absorption")
+            _append_deed(gp, f"Absorbed into {absorber_civ.name} during twilight absorption", region=gp.region, turn=world.turn if world is not None else None, civ=absorber_civ.name)
 
             if gp.agent_id not in transferred_agent_ids:
                 try:

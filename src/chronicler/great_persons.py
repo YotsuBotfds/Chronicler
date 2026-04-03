@@ -23,9 +23,10 @@ if TYPE_CHECKING:
 DEEDS_CAP = 10
 
 
-def _append_deed(gp: "GreatPerson", deed: str) -> None:
-    """Append a deed to a GreatPerson, capping at DEEDS_CAP entries."""
-    gp.deeds.append(deed)
+def _append_deed(gp: "GreatPerson", text: str, *, region: str | None = None, turn: int | None = None, civ: str | None = None) -> None:
+    """Append a GreatPersonDeed to a GreatPerson, capping at DEEDS_CAP entries."""
+    from chronicler.models import GreatPersonDeed
+    gp.deeds.append(GreatPersonDeed(text=text, region=region, turn=turn, civ=civ))
     if len(gp.deeds) > DEEDS_CAP:
         gp.deeds = gp.deeds[-DEEDS_CAP:]
 
@@ -108,7 +109,7 @@ def _retire_person(gp: GreatPerson, civ: Civilization, world: WorldState) -> Non
     gp.active = False
     gp.alive = False
     gp.fate = "retired"
-    _append_deed(gp, f"Retired in {gp.region or 'unknown'}")
+    _append_deed(gp, f"Retired in {gp.region or 'unknown'}", region=gp.region, turn=world.turn, civ=gp.civilization)
     gp.death_turn = world.turn
     if gp in civ.great_persons:
         civ.great_persons.remove(gp)
@@ -305,7 +306,7 @@ def kill_great_person(
     gp.active = False
     gp.alive = False
     gp.fate = "dead"
-    _append_deed(gp, f"Died in {gp.region or 'unknown'}")
+    _append_deed(gp, f"Died in {gp.region or 'unknown'}", region=gp.region, turn=world.turn, civ=gp.civilization)
     gp.death_turn = world.turn
     if gp in civ.great_persons:
         civ.great_persons.remove(gp)
@@ -408,7 +409,7 @@ def check_pilgrimages(
             gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
             gp.arc_type = "Prophet"  # Guard-compat shim: classifier confirms idempotently (M45 Decision 18)
             gp.region = destination
-            _append_deed(gp, "Returned from pilgrimage as Prophet")
+            _append_deed(gp, "Returned from pilgrimage as Prophet", region=destination, turn=current_turn, civ=gp.civilization)
             gp.pilgrimage_destination = None
             gp.pilgrimage_return_turn = None
             events.append(Event(
@@ -480,7 +481,7 @@ def check_pilgrimages(
             ) % duration_span
         )
         gp.pilgrimage_return_turn = current_turn + duration
-        _append_deed(gp, f"Departed on pilgrimage to {best_region}")
+        _append_deed(gp, f"Departed on pilgrimage to {best_region}", region=best_region, turn=current_turn, civ=gp.civilization)
         faiths_departed.add(belief)
 
         events.append(Event(

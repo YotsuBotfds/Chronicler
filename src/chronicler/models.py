@@ -444,6 +444,14 @@ class Relationship(BaseModel):
     disposition_drift: int = 0
 
 
+class GreatPersonDeed(BaseModel):
+    """Structured deed with event-time provenance."""
+    text: str
+    region: str | None = None
+    turn: int | None = None
+    civ: str | None = None
+
+
 class GreatPerson(BaseModel):
     name: str
     role: str  # "general", "merchant", "prophet", "scientist", "exile", "hostage"
@@ -455,7 +463,20 @@ class GreatPerson(BaseModel):
     fate: str = "active"  # "active", "retired", "dead", "ascended", "exile"
     born_turn: int
     death_turn: int | None = None
-    deeds: list[str] = Field(default_factory=list)
+    deeds: list[GreatPersonDeed] = Field(default_factory=list)
+
+    @field_validator("deeds", mode="before")
+    @classmethod
+    def _normalize_deeds(cls, v):
+        if not isinstance(v, list):
+            return v
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append({"text": item})
+            else:
+                result.append(item)
+        return result
     region: str | None = None
     captured_by: str | None = None
     is_hostage: bool = False
