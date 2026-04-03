@@ -128,31 +128,37 @@ def _append_deed(gp, text, *, region=None, turn=None, civ=None):
 
 For deeds spanning multiple regions (migration, pilgrimage), `region` is the **primary/destination** location. The full text still carries both places ("Migrated from X to Y"), but the structured field is single-valued.
 
+### `gp.region` Staleness
+
+`gp.region` is only set at promotion time (`agent_bridge.py:1592`) and never updated on migration, exile, or pilgrimage. This means `gp.region` is stale for any character who has moved since promotion. The spec therefore requires each call site to pass an **explicit event-derived region argument** rather than relying on `gp.region`.
+
+For political transition sites (exile, defection, restoration, absorption), `gp.region` is incidentally correct because those code paths filter on `gp.region in <region_set>` — the character is confirmed to be in that region at event time. But to avoid a hidden dependency on this coincidence, these sites should still pass the region explicitly.
+
 ### Call Sites (12 production)
 
 **`great_persons.py` (4 sites):**
 
-| Line | Deed | Region source |
-|------|------|---------------|
-| 111 | Retirement | `gp.region` |
-| 308 | Death | `gp.region` |
-| 410 | Pilgrimage return | `gp.region` (current = destination) |
-| 482 | Pilgrimage departure | `best_region` (destination) |
+| Line | Deed | Region source | Notes |
+|------|------|---------------|-------|
+| 111 | Retirement | `gp.region` | Stale if character migrated since promotion; acceptable — retirement is low-stakes |
+| 308 | Death | `gp.region` | Same staleness caveat |
+| 410 | Pilgrimage return | `gp.pilgrimage_destination` | **FIX:** currently does not use destination; should use `destination` local (line 407) |
+| 482 | Pilgrimage departure | `best_region` | Correct — explicit destination |
 
 **`agent_bridge.py` (8 sites):**
 
-| Line | Deed | Region source |
-|------|------|---------------|
-| 1594 | Promotion | `region_name` (from event) |
-| 1613 | Mule memory shaping | `gp.region` |
-| 1718 | Return after exile | `target_name` (destination) |
-| 1732 | Migration | `target_name` (destination) |
-| 1764 | Exile after conquest | `gp.region` |
-| 1832 | Defection during secession | `gp.region` |
-| 1885 | Restoration return | `gp.region` |
-| 1928 | Twilight absorption | `gp.region` |
+| Line | Deed | Region source | Notes |
+|------|------|---------------|-------|
+| 1594 | Promotion | `region_name` | Correct — derived from event batch |
+| 1613 | Mule memory shaping | `gp.region` | Stale; acceptable — mule shaping is supplementary |
+| 1718 | Return after exile | `target_name` | Correct — derived from event data |
+| 1732 | Migration | `target_name` | Correct — derived from event data |
+| 1764 | Exile after conquest | `gp.region` | Correct incidentally — filtered by `gp.region in conquered_region_set` |
+| 1832 | Defection during secession | `gp.region` | Correct incidentally — filtered by `gp.region in seceding_set` |
+| 1885 | Restoration return | `gp.region` | Correct incidentally — filtered by `gp.region in restored_set` |
+| 1928 | Twilight absorption | `gp.region` | Correct incidentally — filtered by `gp.region in absorbed_set` |
 
-All sites already have access to the region, turn (`world.turn`), and civ (`gp.civilization`) at call time. No new data plumbing required — just pass what's locally available.
+All sites have access to region, turn (`world.turn`), and civ (`gp.civilization`) at call time. No new data plumbing required — pass what's locally available. The key fix is pilgrimage return (line 410), which must switch from the implicit `gp.region` to the explicit `destination` variable already in scope.
 
 ### Narrative Consumer
 
@@ -189,6 +195,7 @@ Pydantic serializes `GreatPersonDeed` as a dict in `model_dump(mode="json")`. Ol
 - **Rust unit test:** `death_cleanup_sweep` emits correct `target_agent_id` and `formed_turn` from pool relationship slots
 - **Rust regression:** Existing test at `formation.rs:1673` updated to assert new fields
 - **Integration test:** Dissolution event round-trips through Arrow → `_convert_events()` → `dissolved_edges_by_turn` with real agent IDs and formation turns
+- **Old-schema regression:** `_convert_events()` handles an Arrow batch missing `target_agent_id` and `formed_turn` columns — falls back to `0` for both fields without crashing. This locks the compatibility claim and mirrors the existing `belief` column fallback pattern.
 - **Bundle test:** `write_agent_events_arrow()` includes new columns; verify schema on read-back
 
 ### Deed Provenance
