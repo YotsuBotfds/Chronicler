@@ -611,7 +611,7 @@ git commit -m "feat: wire bridge-owned narrative context into post-loop narratio
 
 - [ ] **Step 1: Write failing test — replay passes agent_name_map and great_persons, bridge-only inputs are None**
 
-Follow the existing `test_run_narrate_api_mode_writes_metadata` pattern at `tests/test_main.py:913`. Key details: argparse namespace must include `local_url`, `sim_model`, `narrate_output` (not `output`). Generate a simulate-only bundle first, then re-narrate with a spy.
+Follow the existing `test_run_narrate_api_mode_writes_metadata` pattern at `tests/test_main.py:913`. Key details: argparse namespace must include `local_url`, `sim_model`, `narrate_output` (not `output`). Generate a simulate-only bundle first, then inject a known GP into the bundle JSON so the test doesn't depend on emergent promotion (which may produce 0 GPs in short runs).
 
 ```python
 def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
@@ -623,14 +623,14 @@ def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
 
     mock_sdk = MagicMock()
 
-    # First, generate a simulate-only bundle with agents
+    # First, generate a simulate-only bundle
     sim_args = argparse.Namespace(
         seed=42, turns=20, civs=3, regions=6,
         output=str(tmp_path / "chronicle.md"),
         state=str(tmp_path / "state.json"),
         resume=None, reflection_interval=10,
         llm_actions=False, scenario=None,
-        simulate_only=True, agents="hybrid",
+        simulate_only=True, agents="off",
         budget=50, narrator="local",
         pause_every=None,
     )
@@ -638,6 +638,22 @@ def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
 
     bundle_path = tmp_path / "chronicle_bundle.json"
     assert bundle_path.exists()
+
+    # Inject a known GP into the bundle so the test is deterministic
+    # (emergent promotion may produce 0 GPs in short runs)
+    bundle = json.loads(bundle_path.read_text())
+    civ_name = bundle["world_state"]["civilizations"][0]["name"]
+    bundle["world_state"]["civilizations"][0]["great_persons"] = [{
+        "name": "Kiran",
+        "role": "general",
+        "trait": "bold",
+        "civilization": civ_name,
+        "origin_civilization": civ_name,
+        "born_turn": 5,
+        "source": "agent",
+        "agent_id": 42,
+    }]
+    bundle_path.write_text(json.dumps(bundle))
 
     # Spy on narrate_batch
     captured_kwargs = {}
@@ -672,11 +688,13 @@ def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
 
     # great_persons should be the full list (not filtered)
     assert captured_kwargs.get("great_persons") is not None
+    gps = captured_kwargs["great_persons"]
+    assert any(gp.name == "Kiran" for gp in gps)
 
     # agent_name_map should be derived from great_persons
-    gps = captured_kwargs["great_persons"]
     expected_map = {gp.agent_id: gp.name for gp in gps if gp.agent_id is not None}
     assert captured_kwargs.get("agent_name_map") == expected_map
+    assert expected_map.get(42) == "Kiran"
 
     # Bridge-only inputs should be explicitly None
     assert captured_kwargs.get("social_edges") is None
@@ -756,13 +774,22 @@ git commit -m "feat: wire bundle-derived narrative context into _run_narrate rep
 
 - [ ] **Step 1: Write failing test — live narrate_range passes great_persons and agent_name_map**
 
-In `tests/test_live_integration.py`, add a test using the `running_live_server` fixture. This fixture provides skeletal `_init_data` with empty civilizations (line 32-68). The test injects GP data and events into `_init_data` before connecting, then sends `narrate_range` (which is accepted regardless of pause state — it's handled at line 582-634, before the pause-only command check at line 636).
+In `tests/test_live_integration.py`, add a test using the `running_live_server` fixture. This fixture provides skeletal `_init_data` with empty civilizations (line 32-68) and minimal history entries (just `{"turn": N}`). The test must:
+
+1. Inject GP data into `_init_data["world_state"]`
+2. Inject valid TurnSnapshot-shaped history entries (the handler deserializes them via `TurnSnapshot.model_validate()` at `live.py:600`)
+3. Monkeypatch `chronicler.curator.curate` to return a known moment deterministically (avoids dependency on real curate scoring)
+
+This makes the test fully deterministic — it tests the wiring seam, not curate or GP promotion.
 
 ```python
 @pytest.mark.asyncio
 async def test_narrate_range_passes_great_persons_and_agent_name_map(running_live_server, monkeypatch):
     """Live narrate_range threads great_persons and agent_name_map from _init_data."""
     from chronicler.narrative import NarrativeEngine
+    from chronicler.models import (
+        CivSnapshot, Event, NarrativeMoment, NarrativeRole, TurnSnapshot,
+    )
 
     captured_kwargs = {}
 
@@ -772,7 +799,7 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
 
     monkeypatch.setattr(NarrativeEngine, "narrate_batch", spy_narrate_batch)
 
-    # Inject GP data and events into _init_data so curate() returns moments
+    # Inject GP data into _init_data
     running_live_server._init_data["world_state"]["civilizations"] = [{
         "name": "TestCiv",
         "regions": ["Region0"],
@@ -801,6 +828,26 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
         "alive": True,
     }]
     running_live_server._init_data["world_state"]["retired_persons"] = []
+
+    # Inject valid TurnSnapshot-shaped history (handler calls TurnSnapshot.model_validate)
+    running_live_server._init_data["history"] = [
+        {
+            "turn": 1,
+            "civ_stats": {
+                "TestCiv": {
+                    "population": 100, "military": 50, "economy": 40,
+                    "culture": 30, "stability": 60, "treasury": 20,
+                    "asabiya": 0.5, "tech_era": "iron", "trait": "bold",
+                    "regions": ["Region0"],
+                    "leader_name": "TestLeader", "alive": True,
+                }
+            },
+            "region_control": {},
+            "relationships": {},
+        }
+    ]
+
+    # Inject events for curate to work with
     running_live_server._init_data["events_timeline"] = [
         {
             "turn": 1,
@@ -811,6 +858,25 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
             "source": "agent",
         }
     ]
+
+    # Monkeypatch curate to return a known moment deterministically
+    known_moment = NarrativeMoment(
+        anchor_turn=1,
+        turn_range=(1, 1),
+        events=[Event(
+            turn=1, event_type="campaign", actors=["TestCiv"],
+            description="A great campaign", importance=8, source="agent",
+        )],
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+    monkeypatch.setattr(
+        "chronicler.curator.curate",
+        lambda *args, **kwargs: ([known_moment], []),
+    )
 
     async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
         # Drain the init message
@@ -823,21 +889,19 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
             "end_turn": 1,
         }))
 
-        # Read response — spy intercepts narrate_batch, so we get narration_complete
-        # with empty entries or possibly no response if curate returns nothing.
-        # Give it a moment to process.
+        # Spy returns [] so no narration_complete is sent, but we need to
+        # give the server time to process the message and call narrate_batch.
         try:
             resp_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
         except asyncio.TimeoutError:
-            pass  # spy returns [] so no narration_complete sent — that's fine
+            pass  # expected — spy returns empty list, no response sent
 
     # great_persons kwarg should be present
     assert "great_persons" in captured_kwargs
     # agent_name_map should be present and contain our test GP
     assert "agent_name_map" in captured_kwargs
-    if captured_kwargs["agent_name_map"] is not None:
-        assert 42 in captured_kwargs["agent_name_map"]
-        assert captured_kwargs["agent_name_map"][42] == "Kiran"
+    assert captured_kwargs["agent_name_map"] is not None
+    assert captured_kwargs["agent_name_map"].get(42) == "Kiran"
     # Bridge-only inputs should be None
     assert captured_kwargs.get("social_edges") is None
     assert captured_kwargs.get("dynasty_registry") is None
