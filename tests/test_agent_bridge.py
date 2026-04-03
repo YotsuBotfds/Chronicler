@@ -1470,3 +1470,33 @@ class TestPromotionRoleGuard:
         # Must not crash — unknown role skipped
         created = bridge._process_promotions(batch, sample_world)
         assert len(created) == 0
+
+
+# ---------------------------------------------------------------------------
+# gp.region maintenance on named-character movement
+# ---------------------------------------------------------------------------
+
+def test_gp_region_updated_on_migration_event(demographics_bridge_world):
+    """_detect_character_events should update gp.region on named-character migration."""
+    from chronicler.models import AgentEventRecord
+    world, bridge = demographics_bridge_world
+
+    from chronicler.models import GreatPerson
+    civ = world.civilizations[0]
+    gp = GreatPerson(
+        name="TestMigrant", role="merchant", trait="bold",
+        civilization=civ.name, origin_civilization=civ.name,
+        born_turn=1, source="agent", agent_id=99, region=world.regions[0].name,
+    )
+    civ.great_persons.append(gp)
+    bridge.named_agents[99] = "TestMigrant"
+    bridge.gp_by_agent_id[99] = gp
+    bridge._origin_regions[99] = 0
+
+    target_region_idx = 1
+    events = [AgentEventRecord(
+        turn=world.turn, agent_id=99, event_type="migration",
+        region=0, target_region=target_region_idx, civ_affinity=0, occupation=2,
+    )]
+    bridge._detect_character_events(events, world)
+    assert gp.region == world.regions[target_region_idx].name

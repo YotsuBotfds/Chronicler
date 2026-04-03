@@ -1715,6 +1715,7 @@ class AgentBridge:
                         source="agent",
                     ))
                     if e.agent_id in self.gp_by_agent_id:
+                        self.gp_by_agent_id[e.agent_id].region = target_name
                         _append_deed(self.gp_by_agent_id[e.agent_id], f"Returned to {target_name} after {turns_away} turns")
                     del self._departure_turns[e.agent_id]
                     continue  # don't also emit notable_migration
@@ -1729,6 +1730,7 @@ class AgentBridge:
                 source="agent",
             ))
             if e.agent_id in self.gp_by_agent_id:
+                self.gp_by_agent_id[e.agent_id].region = target_name
                 _append_deed(self.gp_by_agent_id[e.agent_id], f"Migrated from {source_name} to {target_name}")
 
         return character_events

@@ -407,6 +407,7 @@ def check_pilgrimages(
             destination = gp.pilgrimage_destination or "unknown"
             gp.pilgrimage_skill_bonus = PILGRIMAGE_SKILL_BOOST
             gp.arc_type = "Prophet"  # Guard-compat shim: classifier confirms idempotently (M45 Decision 18)
+            gp.region = destination
             _append_deed(gp, "Returned from pilgrimage as Prophet")
             gp.pilgrimage_destination = None
             gp.pilgrimage_return_turn = None

@@ -414,3 +414,22 @@ def test_m17a_integration_5_turn_simulation(make_world):
             assert gp.civilization == c.name
     for gp in world.retired_persons:
         assert gp.active is False
+
+
+# ---------------------------------------------------------------------------
+# gp.region maintenance on pilgrimage return
+# ---------------------------------------------------------------------------
+
+def test_pilgrimage_return_updates_gp_region():
+    """check_pilgrimages should update gp.region on pilgrimage return."""
+    from chronicler.great_persons import check_pilgrimages
+    from chronicler.models import GreatPerson
+
+    gp = GreatPerson(
+        name="TestProphet", role="prophet", trait="pious",
+        civilization="TestCiv", origin_civilization="TestCiv",
+        born_turn=1, source="agent", agent_id=50, region="StartRegion",
+        pilgrimage_destination="HolyCity", pilgrimage_return_turn=10,
+    )
+    events = check_pilgrimages([gp], [], None, current_turn=10)
+    assert gp.region == "HolyCity"
