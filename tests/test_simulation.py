@@ -1561,3 +1561,31 @@ class TestAgentsOffTransientCleanup:
 
         assert gp in world.retired_persons
         assert any(e.event_type == "great_person_retired" for e in events)
+
+
+class TestDeadAgentsTransientClear:
+    """W10: _dead_agents_this_turn must be [] before Phase 1 begins."""
+
+    def test_dead_agents_cleared_before_phase_1(self, make_world, monkeypatch):
+        world = make_world(num_civs=2)
+        # Plant stale data to simulate a prior turn's leftover
+        world._dead_agents_this_turn = [{"agent_id": 999, "event_type": "death"}]
+
+        captured = {}
+
+        original_phase_env = phase_environment
+
+        def checking_phase_env(w, **kwargs):
+            captured["dead_agents"] = getattr(w, '_dead_agents_this_turn', None)
+            return original_phase_env(w, **kwargs)
+
+        monkeypatch.setattr(
+            "chronicler.simulation.phase_environment", checking_phase_env
+        )
+        # run_turn requires action_selector and narrator positional args
+        run_turn(world, lambda *_: ActionType.DEVELOP, lambda *_: "", seed=42)
+
+        assert captured["dead_agents"] == [], (
+            f"_dead_agents_this_turn should be [] before Phase 1, "
+            f"got {captured['dead_agents']}"
+        )

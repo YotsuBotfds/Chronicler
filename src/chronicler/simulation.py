@@ -1575,6 +1575,10 @@ def run_turn(
     # attribute might not exist or carry stale data.
     world._conquered_this_turn = set()
 
+    # W10 fix: Clear dead-agents transient so a failed tick_agents on the
+    # prior turn does not cause spurious martyrdom boosts.
+    world._dead_agents_this_turn = []
+
     # Phase 1: Environment
     turn_events.extend(phase_environment(world, seed=seed, acc=acc))
 
