@@ -241,6 +241,50 @@ class TestSeverityAtWarBankruptcy:
             f"Direct-mode war bankruptcy drain should be >= {expected_drain}, got {actual_drain}"
 
 
+class TestSeverityAtCollapsesite:
+    """B3: asabiya collapse must apply get_severity_multiplier to military/economy halving."""
+
+    def test_collapse_uses_severity_at_mult_1(self, make_world):
+        """At mult=1.0 (zero stress), collapsed stats match current military // 2."""
+        world = make_world(num_civs=2)
+        civ = world.civilizations[0]
+        civ.civ_stress = 0
+        civ.military = 61  # odd value to test floor-half target
+        civ.economy = 60
+        civ.asabiya = 0.05
+        civ.stability = 15
+        extra = Region(name="extra_r", terrain="plains",
+                       carrying_capacity=60, resources="fertile",
+                       controller=civ.name)
+        world.regions.append(extra)
+        civ.regions.append("extra_r")
+
+        from chronicler.simulation import phase_consequences
+        phase_consequences(world, acc=None)
+
+        assert civ.military == clamp(61 // 2, STAT_FLOOR["military"], 100)
+        assert civ.economy == clamp(60 // 2, STAT_FLOOR["economy"], 100)
+
+    def test_collapse_severity_amplifies_loss(self, stressed_world):
+        """At mult>1.0 (high stress), collapsed stats are lower than // 2 baseline."""
+        world = stressed_world
+        civ = world.civilizations[0]
+        civ.military = 60
+        civ.economy = 60
+        civ.asabiya = 0.05
+        civ.stability = 15
+
+        baseline_target = clamp(60 // 2, STAT_FLOOR["military"], 100)  # 30
+
+        from chronicler.simulation import phase_consequences
+        phase_consequences(world, acc=None)
+
+        assert civ.military < baseline_target, (
+            f"Collapse with severity mult>1.0 should produce military below {baseline_target}, "
+            f"got {civ.military}"
+        )
+
+
 class TestSeverityMultiplierBasics:
     """Basic sanity checks for the severity multiplier itself."""
 

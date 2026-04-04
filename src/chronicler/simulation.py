@@ -1186,8 +1186,13 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
-                collapsed_military = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
-                collapsed_economy = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
+                mult = get_severity_multiplier(civ, world)
+                base_mil_target = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
+                base_eco_target = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
+                mil_loss = int((civ.military - base_mil_target) * mult)
+                eco_loss = int((civ.economy - base_eco_target) * mult)
+                collapsed_military = clamp(civ.military - mil_loss, STAT_FLOOR["military"], 100)
+                collapsed_economy = clamp(civ.economy - eco_loss, STAT_FLOOR["economy"], 100)
                 if acc is not None:
                     acc.add(civ_idx, civ, "military", collapsed_military - civ.military, "guard-shock")
                     acc.add(civ_idx, civ, "economy", collapsed_economy - civ.economy, "guard-shock")
