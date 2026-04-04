@@ -211,6 +211,7 @@ K_STUBBORN_STREAK_LIMIT = "action.stubborn_streak_limit"
 K_POWER_STRUGGLE_FACTOR = "action.power_struggle_factor"
 K_SECONDARY_TRAIT_BOOST = "action.secondary_trait_boost"
 K_RIVAL_WAR_BOOST = "action.rival_war_boost"
+K_GRUDGE_CAP = "action.grudge_war_cap"
 K_MOVE_CAPITAL_TREASURY_REQ = "action.move_capital_treasury_requirement"
 K_FUND_INSTABILITY_TREASURY_REQ = "action.fund_instability_treasury_requirement"
 K_INVEST_CULTURE_THRESHOLD = "action.invest_culture_culture_threshold"
@@ -328,7 +329,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_MARTIAL_TRADITION_BONUS, K_NAVAL_POWER_BONUS,
     K_WEIGHT_CAP, K_STREAK_LIMIT, K_STUBBORN_STREAK_LIMIT,
     K_POWER_STRUGGLE_FACTOR, K_SECONDARY_TRAIT_BOOST,
-    K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
+    K_RIVAL_WAR_BOOST, K_GRUDGE_CAP, K_MOVE_CAPITAL_TREASURY_REQ,
     K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
     # War frequency calibration (M47d)
     K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR,

@@ -857,3 +857,38 @@ class TestWarStartTurns:
 
         assert engine_world.war_start_turns[key] == 3, \
             "war_start_turns should preserve the original start turn, not overwrite"
+
+
+class TestGrudgeCap:
+    """W17: grudge WAR weight accumulation must be capped."""
+
+    def test_three_grudges_capped_at_2x(self):
+        from chronicler.action_engine import _grudge_war_multiplier
+        grudges = [
+            {"rival_civ": "A", "intensity": 1.0},
+            {"rival_civ": "B", "intensity": 1.0},
+            {"rival_civ": "C", "intensity": 1.0},
+        ]
+        result = _grudge_war_multiplier(grudges, cap=2.0)
+        assert result == pytest.approx(2.0), (
+            f"Grudge multiplier should be capped at 2.0, got {result}"
+        )
+
+    def test_single_grudge_uncapped(self):
+        from chronicler.action_engine import _grudge_war_multiplier
+        grudges = [{"rival_civ": "A", "intensity": 1.0}]
+        result = _grudge_war_multiplier(grudges, cap=2.0)
+        assert result == pytest.approx(1.5), (
+            f"Single grudge should give 1.5x, got {result}"
+        )
+
+    def test_low_intensity_grudges_ignored(self):
+        from chronicler.action_engine import _grudge_war_multiplier
+        grudges = [
+            {"rival_civ": "A", "intensity": 0.3},
+            {"rival_civ": "B", "intensity": 0.4},
+        ]
+        result = _grudge_war_multiplier(grudges, cap=2.0)
+        assert result == pytest.approx(1.0), (
+            f"Low-intensity grudges should not boost, got {result}"
+        )

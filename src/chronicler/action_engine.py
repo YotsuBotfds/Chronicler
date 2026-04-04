@@ -25,7 +25,7 @@ from chronicler.tuning import (
     K_MARTIAL_TRADITION_BONUS, K_NAVAL_POWER_BONUS,
     K_WEIGHT_CAP, K_STREAK_LIMIT, K_STUBBORN_STREAK_LIMIT,
     K_POWER_STRUGGLE_FACTOR, K_SECONDARY_TRAIT_BOOST,
-    K_RIVAL_WAR_BOOST, K_MOVE_CAPITAL_TREASURY_REQ,
+    K_RIVAL_WAR_BOOST, K_GRUDGE_CAP, K_MOVE_CAPITAL_TREASURY_REQ,
     K_FUND_INSTABILITY_TREASURY_REQ, K_INVEST_CULTURE_THRESHOLD,
     K_WAR_DAMPER_THRESHOLD, K_WAR_DAMPER_FLOOR,
     K_WAR_WEARINESS_DIVISOR,
@@ -844,6 +844,20 @@ SECONDARY_TRAIT_ACTION: dict[str, ActionType] = {
 }
 
 
+def _grudge_war_multiplier(grudges: list[dict], cap: float) -> float:
+    """Multiplicative WAR boost from active grudges, capped.
+
+    Grudges are dicts with "intensity" and "rival_civ" keys
+    (see Leader.grudges in models.py).
+    """
+    product = 1.0
+    for grudge in grudges:
+        intensity = grudge.get("intensity", 0.0)
+        if intensity >= 0.5:
+            product *= (1.0 + intensity * 0.5)
+    return min(product, cap)
+
+
 class ActionEngine:
     def __init__(self, world: WorldState):
         self.world = world
@@ -958,17 +972,18 @@ class ActionEngine:
                 rival_boost = get_override(self.world, K_RIVAL_WAR_BOOST, 1.5)
                 if rival_rel and rival_rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
                     weights[ActionType.WAR] *= rival_boost
-        # Grudge bias: each high-intensity grudge boosts WAR weight toward the rival civ
+        # Grudge bias: accumulated grudge boost on WAR, capped at K_GRUDGE_CAP
         if civ.leader.grudges and weights[ActionType.WAR] > 0:
+            # Filter to grudges targeting hostile/suspicious neighbors
+            active_grudges = []
             for grudge in civ.leader.grudges:
-                intensity = grudge.get("intensity", 0.0)
-                if intensity >= 0.5:
-                    # Check whether the grudge target is still a hostile neighbor
-                    rival_civ = grudge.get("rival_civ")
-                    if rival_civ and civ.name in self.world.relationships:
-                        rel = self.world.relationships[civ.name].get(rival_civ)
-                        if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
-                            weights[ActionType.WAR] *= (1.0 + intensity * 0.5)
+                rival_civ = grudge.get("rival_civ")
+                if rival_civ and civ.name in self.world.relationships:
+                    rel = self.world.relationships[civ.name].get(rival_civ)
+                    if rel and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
+                        active_grudges.append(grudge)
+            grudge_cap = get_override(self.world, K_GRUDGE_CAP, 2.0)
+            weights[ActionType.WAR] *= _grudge_war_multiplier(active_grudges, grudge_cap)
         # M17d: Tradition weight biases
         if "martial" in civ.traditions and ActionType.WAR in weights:
             weights[ActionType.WAR] *= 1.2
