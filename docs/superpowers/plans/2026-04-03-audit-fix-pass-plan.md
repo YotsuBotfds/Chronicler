@@ -482,7 +482,7 @@ fn test_same_inputs_produce_identical_jitter() {
 
 - [ ] **Step 8: Run tests**
 
-Run: `cargo nextest run --manifest-path chronicler-agents/Cargo.toml -E "test(spatial_stream) | test(stream_offsets)"`
+Run: `cargo nextest run --manifest-path chronicler-agents/Cargo.toml -E "binary(test_spatial_streams) | test(stream_offsets)"`
 Expected: all pass (3 new spatial stream tests + existing offset uniqueness test with the new entry).
 
 - [ ] **Step 9: Run full Rust test suite**
