@@ -418,7 +418,7 @@ pub fn update_attractor_weights(attractors: &mut RegionAttractors, region: &Regi
 use rand::SeedableRng;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
-use crate::agent::SPATIAL_POSITION_STREAM_OFFSET;
+use crate::agent::{SPATIAL_POSITION_STREAM_OFFSET, NEWBORN_POSITION_STREAM_OFFSET};
 
 // Movement constants [CALIBRATE M61b]
 pub const MAX_DRIFT_PER_TICK: f32 = 0.04;
@@ -656,6 +656,25 @@ pub fn spatial_drift_step(
     }
 }
 
+/// Derive a per-agent spatial seed from the master seed and agent id.
+#[inline]
+fn spatial_seed(master_seed: &[u8; 32], agent_id: u32) -> [u8; 32] {
+    let mut seed = *master_seed;
+    let id_bytes = agent_id.to_le_bytes();
+    seed[0] ^= id_bytes[0];
+    seed[1] ^= id_bytes[1];
+    seed[2] ^= id_bytes[2];
+    seed[3] ^= id_bytes[3];
+    seed
+}
+
+/// Standard packed stream ID for spatial RNG.
+#[inline]
+fn spatial_stream(region_id: u16, turn: u32, offset: u64) -> u64 {
+    debug_assert!(offset <= u16::MAX as u64, "stream offset exceeds packed RNG stream range");
+    ((region_id as u64) << 48) | ((turn as u64) << 16) | offset
+}
+
 /// Reset agent position after migration: place near highest-affinity attractor
 /// for the agent's occupation, with deterministic jitter.
 pub fn migration_reset_position(
@@ -688,13 +707,9 @@ pub fn migration_reset_position(
         return (0.5, 0.5);
     }
 
-    let mut rng = ChaCha8Rng::from_seed(*master_seed);
-    rng.set_stream(
-        agent_id as u64 * 1000
-            + dest_region_id as u64 * 100
-            + turn as u64
-            + SPATIAL_POSITION_STREAM_OFFSET,
-    );
+    let seed = spatial_seed(master_seed, agent_id);
+    let mut rng = ChaCha8Rng::from_seed(seed);
+    rng.set_stream(spatial_stream(dest_region_id, turn, SPATIAL_POSITION_STREAM_OFFSET));
     let jx: f32 = rng.gen::<f32>() * 2.0 * MIGRATION_JITTER - MIGRATION_JITTER;
     let jy: f32 = rng.gen::<f32>() * 2.0 * MIGRATION_JITTER - MIGRATION_JITTER;
 
@@ -720,13 +735,9 @@ pub fn newborn_position(
     master_seed: &[u8; 32],
     turn: u32,
 ) -> (f32, f32) {
-    let mut rng = ChaCha8Rng::from_seed(*master_seed);
-    rng.set_stream(
-        child_id as u64 * 1000
-            + region_id as u64 * 100
-            + turn as u64
-            + SPATIAL_POSITION_STREAM_OFFSET,
-    );
+    let seed = spatial_seed(master_seed, child_id);
+    let mut rng = ChaCha8Rng::from_seed(seed);
+    rng.set_stream(spatial_stream(region_id, turn, NEWBORN_POSITION_STREAM_OFFSET));
     let jx: f32 = rng.gen::<f32>() * 2.0 * BIRTH_JITTER - BIRTH_JITTER;
     let jy: f32 = rng.gen::<f32>() * 2.0 * BIRTH_JITTER - BIRTH_JITTER;
 
