@@ -2,11 +2,16 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-04-03 (2026-04-03 full audit remediation closeout)
+> **Last updated:** 2026-04-04 (2026-04-03 audit fix pass closeout)
 
 ---
 
-## Current Focus (2026-04-03)
+## Current Focus (2026-04-04)
+
+- **2026-04-03 cross-cutting audit fix pass is complete on `main`.**
+  The five verified follow-up fixes from `docs/superpowers/specs/2026-04-03-audit-fix-pass-design.md` and `docs/superpowers/plans/2026-04-03-audit-fix-pass-plan.md` are now landed and pushed: `B1` holy-war clergy boosts now survive `compute_conversion_signals()` through the Phase 10 faction tick, `B3` asabiya-collapse military/economy losses now honor the M18 severity multiplier, `B6` migration/newborn spatial placement now uses packed region/turn streams plus per-agent seeds with a distinct newborn offset, `W17` grudge-driven WAR weighting is capped through a dedicated helper/tuning key, and `W10` now clears `_dead_agents_this_turn` at turn start so stale martyrdom state cannot leak across a failed agent tick.
+- **Validation for the 2026-04-03 audit fix pass is complete.**
+  Focused regression coverage for the five fixes passed, the broader Python validation surface reached `2579` passing tests and `4` skipped tests while one unrelated pre-existing failure outside this pass remained in the full shell run, and Rust validation reported `812 passed, 2 skipped`.
 
 - **2026-04-03 full audit remediation is complete in the working tree.**
   Four parallel lanes plus a stitched integration follow-up closed the live plan in `docs/superpowers/plans/2026-04-03-full-audit-remediation-plan.md`: shadow-mode output is wired back through `main.py` / `AgentBridge` without adding any shadow write-back, settlement transients now have the required multi-turn reset coverage, the simulation/economy/politics/action/faction/infrastructure cluster landed its confirmed correctness fixes including the neutral-by-default trade-route behavior and the real post-cap action-weight fix, the bridge/FFI lane hardened civ-signal validation and relationship-slot handling without changing the intended stability/shadow ownership rules, Great Person/analytics/narrative/bundle/model hygiene fixes are in place, and the viewer/live shell regressions from the same audit are closed with green tests/lint/build.
