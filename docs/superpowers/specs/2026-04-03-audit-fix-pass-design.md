@@ -47,13 +47,13 @@ collapsed_military = clamp(civ.military - mil_loss, STAT_FLOOR["military"], 100)
 collapsed_economy = clamp(civ.economy - eco_loss, STAT_FLOOR["economy"], 100)
 ```
 
-At `mult=1.0`, loss equals `civ.military - base_mil_target` which is the same delta as current `civ.military // 2`. At `mult > 1.0` (high world stress, the default live range per emergence.py:112), loss exceeds baseline — the collapse hits harder under stress. At `mult < 1.0` (only reachable via tuning override), loss is softened.
+At `mult=1.0`, loss equals `civ.military - base_mil_target` which preserves the current collapsed target exactly (floor-half target, ceil-half loss for odd values). At `mult > 1.0` (high world stress, the default live range per emergence.py:112), loss exceeds the current collapse result — the collapse hits harder under stress. At `mult < 1.0` (only reachable via tuning override), loss is softened.
 
 Both the accumulator path (`guard-shock`) and the direct-mutation path (`else` branch) use the same computed `collapsed_military`/`collapsed_economy` values.
 
 ### Test
 
-Primary test in `test_severity.py`: trigger asabiya collapse with `mult > 1.0` (e.g., high `civ_stress`), assert military/economy loss exceeds the `// 2` baseline. Secondary: same collapse with `mult = 1.0` (zero `civ_stress`), assert result matches current `// 2` behavior exactly.
+Primary test in `test_severity.py`: trigger asabiya collapse with `mult > 1.0` (e.g., high `civ_stress`), assert the collapsed stat is lower than the current collapse result (`military // 2`). Secondary: same collapse with `mult = 1.0` (zero `civ_stress`), assert collapsed stat matches current `military // 2` target exactly for both even and odd input values.
 
 ### Files touched
 
@@ -112,9 +112,11 @@ Register `NEWBORN_POSITION_STREAM_OFFSET = 2100` in agent.rs `STREAM_OFFSETS` bl
 ### Test
 
 Add a Rust test (in `determinism.rs` or new `test_spatial_streams.rs`):
-1. Two `(agent_id, region_id, turn)` triples that collide under old arithmetic — verify they produce different positions under the new scheme.
-2. Migration and newborn for the same agent/region/turn produce different positions (different offsets).
-3. Same agent/region/turn with same offset produces identical output (determinism).
+1. Two `(agent_id, region_id, turn)` triples that collide under old arithmetic — verify the derived seeds (via `spatial_seed`) are distinct and the jitter outputs differ.
+2. Migration and newborn for the same agent/region/turn produce distinct jitter values (different stream offsets via `spatial_stream`).
+3. Same agent/region/turn with same offset produces identical jitter output (determinism).
+
+Test against derived seeds and jitter values, not final clamped positions — clamping can collapse distinct RNG outputs to the same coordinates at boundary values.
 
 ### Files touched
 
@@ -135,12 +137,17 @@ action_engine.py:962-971 multiplies WAR weight per grudge: `weights[WAR] *= (1.0
 Cap the accumulated grudge multiplier product. Extract a tiny helper for testability:
 
 ```python
-def _grudge_war_multiplier(grudges: list, cap: float) -> float:
-    """Multiplicative WAR boost from active grudges, capped."""
+def _grudge_war_multiplier(grudges: list[dict], cap: float) -> float:
+    """Multiplicative WAR boost from active grudges, capped.
+
+    Grudges are dicts with "intensity" and "rival_civ" keys
+    (see Leader.grudges in models.py).
+    """
     product = 1.0
     for grudge in grudges:
-        if grudge.intensity >= 0.5:
-            product *= (1.0 + grudge.intensity * 0.5)
+        intensity = grudge.get("intensity", 0.0)
+        if intensity >= 0.5:
+            product *= (1.0 + intensity * 0.5)
     return min(product, cap)
 ```
 
@@ -176,7 +183,7 @@ Add `world._dead_agents_this_turn = []` to the turn-start initialization block i
 
 ### Test
 
-Test in `test_simulation.py`: assert `_dead_agents_this_turn` is `[]` after the turn-start init block runs, before Phase 1 begins. This can check the attribute immediately after `run_turn`'s init section or use a hook/mock to inspect state before `phase_environment`.
+Test in `test_simulation.py`: monkeypatch `phase_environment` to assert `getattr(world, '_dead_agents_this_turn', None) == []` on entry, providing a precise "cleared before Phase 1" proof. This verifies the reset happens in the turn-start init block, not merely that the attribute is empty at end-of-turn.
 
 ### Files touched
 
