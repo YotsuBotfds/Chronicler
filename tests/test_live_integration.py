@@ -700,8 +700,14 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
                 break
 
     assert "great_persons" in captured_kwargs
+    assert captured_kwargs["great_persons"] is not None
+    assert any(gp.name == "Kiran" for gp in captured_kwargs["great_persons"])
     assert "agent_name_map" in captured_kwargs
     assert captured_kwargs["agent_name_map"] is not None
     assert captured_kwargs["agent_name_map"].get(42) == "Kiran"
+    assert captured_kwargs.get("gini_by_civ") is None
     assert captured_kwargs.get("social_edges") is None
+    assert captured_kwargs.get("dissolved_edges_by_turn") is None
+    assert captured_kwargs.get("displacement_by_region") is None
     assert captured_kwargs.get("dynasty_registry") is None
+    assert captured_kwargs.get("economy_result") is None

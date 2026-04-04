@@ -1011,6 +1011,13 @@ class TestApiNarrationIntegration:
         assert "economy_result" in captured_kwargs
         assert "displacement_by_region" in captured_kwargs
         assert "dynasty_registry" in captured_kwargs
+        assert captured_kwargs["social_edges"] is not None
+        assert captured_kwargs["dissolved_edges_by_turn"] is not None
+        assert captured_kwargs["agent_name_map"] is not None
+        assert captured_kwargs["gini_by_civ"] is not None
+        assert captured_kwargs["economy_result"] is not None
+        assert captured_kwargs["displacement_by_region"] is not None
+        assert captured_kwargs["dynasty_registry"] is not None
 
     def test_run_narrate_passes_bundle_derived_context(self, tmp_path):
         """_run_narrate passes agent_name_map from great_persons, None for bridge-only inputs."""
@@ -1086,6 +1093,7 @@ class TestApiNarrationIntegration:
         assert captured_kwargs.get("displacement_by_region") is None
         assert captured_kwargs.get("dynasty_registry") is None
         assert captured_kwargs.get("economy_result") is None
+        assert captured_kwargs.get("gini_by_civ") is None
 
 
 # ── M54c Task 4: Politics Runtime Wiring Tests ─────────────────────
