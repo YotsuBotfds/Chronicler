@@ -529,67 +529,57 @@ In `src/chronicler/tuning.py`, add after the existing action weight keys (near l
 K_GRUDGE_CAP = "action.grudge_war_cap"
 ```
 
-Also add `K_GRUDGE_CAP` to the `_ALL_KEYS` tuple (search for `K_RIVAL_WAR_BOOST` in `_ALL_KEYS` and add `K_GRUDGE_CAP` adjacent to it).
+Also add `K_GRUDGE_CAP` to the `KNOWN_OVERRIDES` set (search for `K_RIVAL_WAR_BOOST` in `KNOWN_OVERRIDES` near line 331 and add `K_GRUDGE_CAP` adjacent to it).
 
 - [ ] **Step 2: Write the failing test**
+
+The test targets the extracted helper directly, since `compute_weights` applies a global 2.5x cap (base * 2.5 = 0.50) that would mask the grudge overflow. Testing the helper isolates the grudge multiplier from downstream capping.
 
 Add to `tests/test_action_engine.py`:
 
 ```python
-from chronicler.tuning import K_GRUDGE_CAP
+from chronicler.action_engine import _grudge_war_multiplier
 
 
 class TestGrudgeCap:
     """W17: grudge WAR weight accumulation must be capped."""
 
-    def test_three_grudges_capped_at_2x(self, make_world):
-        world = make_world(num_civs=4)
-        civ = world.civilizations[0]
-        civ.military = 50
-        civ.economy = 50
-        civ.stability = 50
-        civ.leader = Leader(name="TestLeader", trait="balanced")
-        # Clear rival so rival_boost doesn't interfere
-        civ.leader.rival_civ = None
-        # No traditions, no tech focus — isolate grudges
-        civ.traditions = []
-        # Ensure WAR is eligible (need a hostile neighbor)
-        other = world.civilizations[1]
-        world.relationships[civ.name] = {}
-        for i, target_civ in enumerate(world.civilizations[1:], 1):
-            world.relationships[civ.name][target_civ.name] = Relationship(
-                disposition=Disposition.HOSTILE)
-
-        # Three max-intensity grudges against hostile neighbors
-        civ.leader.grudges = [
-            {"rival_civ": world.civilizations[1].name, "intensity": 1.0},
-            {"rival_civ": world.civilizations[2].name, "intensity": 1.0},
-            {"rival_civ": world.civilizations[3].name, "intensity": 1.0},
+    def test_three_grudges_capped_at_2x(self):
+        # Three max-intensity grudges: uncapped product = 1.5^3 = 3.375
+        grudges = [
+            {"rival_civ": "A", "intensity": 1.0},
+            {"rival_civ": "B", "intensity": 1.0},
+            {"rival_civ": "C", "intensity": 1.0},
         ]
+        result = _grudge_war_multiplier(grudges, cap=2.0)
+        assert result == pytest.approx(2.0), (
+            f"Grudge multiplier should be capped at 2.0, got {result}"
+        )
 
-        from chronicler.action_engine import ActionEngine
-        engine = ActionEngine(world)
-        weights = engine.compute_weights(civ)
+    def test_single_grudge_uncapped(self):
+        # One max-intensity grudge: product = 1.5, under the 2.0 cap
+        grudges = [{"rival_civ": "A", "intensity": 1.0}]
+        result = _grudge_war_multiplier(grudges, cap=2.0)
+        assert result == pytest.approx(1.5), (
+            f"Single grudge should give 1.5x, got {result}"
+        )
 
-        base_weight = 0.2  # ACTION_WEIGHT_BASE
-        grudge_cap = 2.0   # K_GRUDGE_CAP default
-
-        # Without the cap, 3 grudges at intensity=1.0 would give 1.5^3 = 3.375x
-        # With the cap at 2.0, WAR weight from grudges alone <= base * 2.0
-        # (other modifiers may still apply after grudges, but grudge contribution is capped)
-        # The test checks that WAR doesn't reach the uncapped value
-        uncapped_war = base_weight * 3.375  # 0.675
-
-        assert weights[ActionType.WAR] < uncapped_war, (
-            f"WAR weight {weights[ActionType.WAR]:.4f} should be below uncapped "
-            f"{uncapped_war:.4f} — grudge cap not applied"
+    def test_low_intensity_grudges_ignored(self):
+        # Grudges below 0.5 intensity should not contribute
+        grudges = [
+            {"rival_civ": "A", "intensity": 0.3},
+            {"rival_civ": "B", "intensity": 0.4},
+        ]
+        result = _grudge_war_multiplier(grudges, cap=2.0)
+        assert result == pytest.approx(1.0), (
+            f"Low-intensity grudges should not boost, got {result}"
         )
 ```
 
 - [ ] **Step 3: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_action_engine.py::TestGrudgeCap -v`
-Expected: FAIL — current code applies 3.375x uncapped.
+Expected: FAIL — `_grudge_war_multiplier` does not exist yet (ImportError).
 
 - [ ] **Step 4: Add _grudge_war_multiplier helper and replace the grudge loop**
 
@@ -698,7 +688,8 @@ class TestDeadAgentsTransientClear:
         monkeypatch.setattr(
             "chronicler.simulation.phase_environment", checking_phase_env
         )
-        run_turn(world, seed=42)
+        # run_turn requires action_selector and narrator positional args
+        run_turn(world, lambda *_: ActionType.DEVELOP, lambda *_: "", seed=42)
 
         assert captured["dead_agents"] == [], (
             f"_dead_agents_this_turn should be [] before Phase 1, "
@@ -709,7 +700,7 @@ class TestDeadAgentsTransientClear:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_simulation.py::TestDeadAgentsTransientClear -v`
-Expected: FAIL — the stale list persists into Phase 1.
+Expected: FAIL — `captured["dead_agents"]` contains the stale planted data instead of `[]`.
 
 - [ ] **Step 3: Add the turn-start clear**
 
