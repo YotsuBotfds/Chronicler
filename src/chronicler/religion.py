@@ -238,7 +238,7 @@ def compute_conversion_signals(
       conversion slot.
     - Rate = BASE_CONVERSION_RATE × priest_ratio × doctrine modifiers
              × named-prophet bonus + conquest boost.
-    - Reads and clears the one-shot ``conquest_conversion_active`` flag.
+    - Reads the one-shot ``conquest_conversion_active`` flag (cleared at turn start by ``run_turn()`` in simulation.py, not here).
     - Falls back to the controller civ's majority faith when no priests
       are present but a conquest boost > 0 is active.
     - Writes results to ``region.conversion_rate_signal`` and
@@ -295,10 +295,8 @@ def compute_conversion_signals(
     results: list[tuple[int, float, int, bool]] = []
 
     for region_idx, region in enumerate(regions):
-        # One-shot conquest flag — read and clear
+        # One-shot conquest flag — read (cleared at turn start by simulation.py)
         conquest_active = region.conquest_conversion_active
-        if conquest_active:
-            region.conquest_conversion_active = False
 
         majority_faith = majority_beliefs.get(region_idx, 0xFF)
         priest_counts = priest_faith_by_region.get(region_idx, Counter())

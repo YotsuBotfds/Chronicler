@@ -609,3 +609,49 @@ class TestSecessionViability:
         civ.regions = ["plains1", "desert1"]
         cap = total_effective_capacity(civ, world)
         assert cap > 0
+
+
+class TestHolyWarClergyBoost:
+    """B1 regression: conquest_conversion_active must survive compute_conversion_signals
+    so that tick_factions can read it and apply EVT_HOLY_WAR_WON to clergy influence."""
+
+    def test_clergy_boost_after_conversion_signals(self, make_world):
+        from chronicler.models import Event, FactionType, Region
+        from chronicler.factions import tick_factions, EVT_HOLY_WAR_WON
+        from chronicler.religion import compute_conversion_signals
+
+        world = make_world(num_civs=2)
+        civ = world.civilizations[0]
+        region_name = civ.regions[0]
+
+        # Set the one-shot conquest flag on the civ's region
+        region_map = {r.name: r for r in world.regions}
+        region_map[region_name].conquest_conversion_active = True
+
+        # Add a war-win event on the current turn
+        world.turn = 10
+        world.events_timeline.append(Event(
+            turn=10, event_type="war", actors=[civ.name, world.civilizations[1].name],
+            description=f"{civ.name} attacked {world.civilizations[1].name}: attacker_wins.",
+            importance=8,
+        ))
+
+        clergy_before = civ.factions.influence[FactionType.CLERGY]
+
+        # Phase 10 order: compute_conversion_signals runs first, then tick_factions
+        compute_conversion_signals(
+            regions=world.regions,
+            majority_beliefs={},
+            belief_registry=[],
+            snapshot=None,
+        )
+        tick_factions(world)
+
+        clergy_after = civ.factions.influence[FactionType.CLERGY]
+        # After normalization the raw +0.04 is diluted, but clergy must still
+        # increase (it decreases without the fix because military's +0.05
+        # gets spread and clergy gets nothing).
+        assert clergy_after > clergy_before, (
+            f"clergy influence should increase from holy-war bonus "
+            f"but went from {clergy_before} to {clergy_after}"
+        )
