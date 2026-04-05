@@ -3,7 +3,7 @@
 Tests cover:
 - GreatPerson.agent_bonds field existence (model-level)
 - apply_relationship_ops → get_agent_relationships round-trip (Rust FFI)
-- M40 compatibility: read_social_edges / replace_social_edges round-trip (AgentBridge shim)
+- Relationship ops: read_social_edges / apply_relationship_ops round-trip (AgentBridge)
 - Determinism: two identical tick sequences produce identical relationship state
 """
 import pyarrow as pa
@@ -195,18 +195,15 @@ class TestApplyRelationshipOpsRoundTrip:
 
 
 # ---------------------------------------------------------------------------
-# Test 3: M40 compatibility — AgentBridge.read_social_edges / replace_social_edges
+# Test 3: Relationship ops — AgentBridge.read_social_edges / apply_relationship_ops
 # ---------------------------------------------------------------------------
 
-class TestM40ReadReplaceSocialEdges:
-    """Tests the M40 compatibility shim on AgentBridge.
+class TestRelationshipOpsOnBridge:
+    """Tests relationship operations on AgentBridge via apply_relationship_ops.
 
-    NOTE: replace_social_edges / read_social_edges (the M40 projection layer)
-    only operates on named characters registered in the Rust promotion registry.
-    Regular agents that haven't been promoted do not appear in this projection.
-    Tests here use a MockBridge matching the interface (same pattern as
-    test_relationships.py) to test the Python-side coordinator, and use the
-    Rust-level AgentSimulator directly for the shim's own no-named-chars behavior.
+    NOTE: read_social_edges (the M40 projection layer) only operates on named
+    characters registered in the Rust promotion registry. Regular agents that
+    haven't been promoted do not appear in this projection.
     """
 
     def test_read_social_edges_returns_list_on_bridge(self, sample_world):
@@ -224,8 +221,8 @@ class TestM40ReadReplaceSocialEdges:
         for edge in edges:
             assert len(edge) == 4  # (agent_a, agent_b, relationship, formed_turn)
 
-    def test_replace_social_edges_empty_no_error(self, sample_world):
-        """replace_social_edges([]) on AgentBridge doesn't error on a fresh bridge."""
+    def test_apply_relationship_ops_empty_no_error(self, sample_world):
+        """apply_relationship_ops([]) on AgentBridge doesn't error on a fresh bridge."""
         from chronicler.agent_bridge import AgentBridge
         for region in sample_world.regions:
             if region.controller is not None:
@@ -233,39 +230,13 @@ class TestM40ReadReplaceSocialEdges:
         bridge = AgentBridge(sample_world, mode="hybrid")
         bridge.tick(sample_world)
         # Should not raise
-        bridge.replace_social_edges([])
-        result = bridge.read_social_edges()
-        assert result == []
-
-    def test_replace_social_edges_no_named_chars_ignored(self, sample_world):
-        """replace_social_edges with non-named-character IDs silently drops them.
-
-        The M40 projection layer only stores edges for named (promoted) characters.
-        Providing IDs of regular agents results in 0 edges stored, not an error.
-        """
-        from chronicler.agent_bridge import AgentBridge
-        for region in sample_world.regions:
-            if region.controller is not None:
-                region.population = region.carrying_capacity
-        bridge = AgentBridge(sample_world, mode="hybrid")
-        bridge.tick(sample_world)
-
-        snap = bridge.get_snapshot()
-        ids = snap.column("id").to_pylist()
-        assert len(ids) >= 2, "Need at least 2 agents"
-        id_a, id_b = int(ids[0]), int(ids[1])
-
-        # These agents haven't been promoted, so the shim should ignore the edge.
-        bridge.replace_social_edges([(id_a, id_b, 1, 10)])
-        result = bridge.read_social_edges()
-        # No named characters → no edges in M40 projection
-        assert isinstance(result, list)
+        bridge.apply_relationship_ops([])
 
     def test_coordinator_round_trip_via_mock_bridge(self):
-        """form_and_sync_relationships writes back via replace_social_edges (mock bridge).
+        """form_and_sync_relationships writes back via apply_relationship_ops (mock bridge).
 
         This mirrors the existing test_relationships.py pattern and verifies the
-        coordinator's interaction with the M40-compatible bridge interface.
+        coordinator's interaction with the ops-based bridge interface.
         """
         from chronicler.models import WorldState, GreatPerson
         from chronicler.relationships import form_and_sync_relationships, REL_RIVAL
@@ -273,12 +244,11 @@ class TestM40ReadReplaceSocialEdges:
         class MockBridge:
             def __init__(self):
                 self._edges = []
-                self.replaced = None
+                self.ops = None
             def read_social_edges(self):
                 return list(self._edges)
-            def replace_social_edges(self, edges):
-                self._edges = edges
-                self.replaced = edges
+            def apply_relationship_ops(self, ops):
+                self.ops = ops
 
         world = WorldState(name="TestWorld", seed=42, turn=10, regions=[], civilizations=[], relationships={})
         # Two civs at war with agent-source GPs
@@ -309,8 +279,8 @@ class TestM40ReadReplaceSocialEdges:
         bridge = MockBridge()
         dissolved = form_and_sync_relationships(world, bridge, {100, 200}, {}, {})
         assert len(dissolved) == 0
-        assert bridge.replaced is not None
-        assert any(e[2] == REL_RIVAL for e in bridge.replaced)
+        assert bridge.ops is not None
+        assert any(op["bond_type"] == REL_RIVAL for op in bridge.ops)
 
 
 # ---------------------------------------------------------------------------

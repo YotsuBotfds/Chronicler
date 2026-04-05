@@ -1037,7 +1037,7 @@ def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
     return events
 
 
-def check_restoration(world: WorldState) -> list[Event]:
+def check_restoration(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any exiled civs can be restored."""
     events: list[Event] = []
     civ_map = world.civ_map
@@ -1106,12 +1106,21 @@ def check_restoration(world: WorldState) -> list[Event]:
             )
             world.civilizations.append(restored_civ)
         else:
-            restored_civ.population = restored_population
-            restored_civ.military = 20
-            restored_civ.economy = 20
-            restored_civ.culture = 30
-            restored_civ.stability = 50
-            restored_civ.treasury = 0
+            if acc is not None:
+                rc_idx = civ_index(world, restored_civ.name)
+                acc.add(rc_idx, restored_civ, "population", restored_population - restored_civ.population, "keep")
+                acc.add(rc_idx, restored_civ, "military", 20 - restored_civ.military, "keep")
+                acc.add(rc_idx, restored_civ, "economy", 20 - restored_civ.economy, "keep")
+                acc.add(rc_idx, restored_civ, "culture", 30 - restored_civ.culture, "keep")
+                acc.add(rc_idx, restored_civ, "stability", 50 - restored_civ.stability, "keep")
+                acc.add(rc_idx, restored_civ, "treasury", 0 - restored_civ.treasury, "keep")
+            else:
+                restored_civ.population = restored_population
+                restored_civ.military = 20
+                restored_civ.economy = 20
+                restored_civ.culture = 30
+                restored_civ.stability = 50
+                restored_civ.treasury = 0
             restored_civ.tech_era = restored_era
             restored_civ.leader = restored_leader
             restored_civ.regions = [target_region]

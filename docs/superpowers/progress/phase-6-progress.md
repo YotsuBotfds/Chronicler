@@ -8,6 +8,8 @@
 
 ## Current Focus (2026-04-04)
 
+- **2026-04-04 audit verification rewrite is complete in the working tree.**
+  The untracked `docs/superpowers/audits/4-4-26opusaudit.md` draft was rechecked against the live repo after the 2026-04-03 remediation pass and rewritten as a verification memo instead of a raw claim dump. The rewritten audit now explicitly drops stale or overstated items such as the "double-count tithe" claim, keeps only source-backed current findings, and breaks the remaining follow-up into four parallel remediation lanes: hybrid accumulator hardening, ecology and demographics alignment, spatial and Great Person cleanup, and Rust RNG or compatibility cleanup.
 - **2026-04-03 cross-cutting audit fix pass is complete on `main`.**
   The five verified follow-up fixes from `docs/superpowers/specs/2026-04-03-audit-fix-pass-design.md` and `docs/superpowers/plans/2026-04-03-audit-fix-pass-plan.md` are now landed and pushed: `B1` holy-war clergy boosts now survive `compute_conversion_signals()` through the Phase 10 faction tick, `B3` asabiya-collapse military/economy losses now honor the M18 severity multiplier, `B6` migration/newborn spatial placement now uses packed region/turn streams plus per-agent seeds with a distinct newborn offset, `W17` grudge-driven WAR weighting is capped through a dedicated helper/tuning key, and `W10` now clears `_dead_agents_this_turn` at turn start so stale martyrdom state cannot leak across a failed agent tick.
 - **Validation for the 2026-04-03 audit fix pass is complete.**

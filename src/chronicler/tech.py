@@ -116,28 +116,37 @@ def check_tech_advancement(civ: Civilization, world: WorldState, acc=None) -> Ev
     new_era = _next_era(civ.tech_era)
     assert new_era is not None
     civ.tech_era = new_era
-    apply_era_bonus(civ, new_era)
+    if acc is not None:
+        apply_era_bonus(civ, new_era, acc=acc, civ_idx=civ_index(world, civ.name))
+    else:
+        apply_era_bonus(civ, new_era)
     return Event(
         turn=world.turn, event_type="tech_advancement", actors=[civ.name],
         description=f"{civ.name} advances to the {new_era.value} era", importance=7,
     )
 
 
-def apply_era_bonus(civ: Civilization, era: TechEra) -> None:
+def apply_era_bonus(civ: Civilization, era: TechEra, acc=None, civ_idx: int | None = None) -> None:
     bonuses = ERA_BONUSES.get(era, {})
     for stat, amount in bonuses.items():
         if isinstance(amount, int) and hasattr(civ, stat):
-            current = getattr(civ, stat)
-            setattr(civ, stat, clamp(current + amount, STAT_FLOOR.get(stat, 0), 100))
+            if acc is not None and civ_idx is not None:
+                acc.add(civ_idx, civ, stat, amount, "keep")
+            else:
+                current = getattr(civ, stat)
+                setattr(civ, stat, clamp(current + amount, STAT_FLOOR.get(stat, 0), 100))
 
 
-def remove_era_bonus(civ: Civilization, era: TechEra) -> None:
+def remove_era_bonus(civ: Civilization, era: TechEra, acc=None, civ_idx: int | None = None) -> None:
     """Reverse of apply_era_bonus — subtract integer stat bonuses for an era."""
     bonuses = ERA_BONUSES.get(era, {})
     for stat, amount in bonuses.items():
         if isinstance(amount, int) and hasattr(civ, stat):
-            current = getattr(civ, stat)
-            setattr(civ, stat, clamp(current - amount, STAT_FLOOR.get(stat, 0), 100))
+            if acc is not None and civ_idx is not None:
+                acc.add(civ_idx, civ, stat, -amount, "keep")
+            else:
+                current = getattr(civ, stat)
+                setattr(civ, stat, clamp(current - amount, STAT_FLOOR.get(stat, 0), 100))
 
 
 def tech_war_multiplier(attacker_era: TechEra, defender_era: TechEra) -> float:

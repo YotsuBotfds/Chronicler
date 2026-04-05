@@ -826,7 +826,7 @@ def test_agents_off_produces_empty_relationships():
     class NullBridge:
         def read_social_edges(self):
             return []
-        def replace_social_edges(self, edges):
+        def apply_relationship_ops(self, ops):
             pass
 
     world = WorldState(name="TestWorld", seed=42, turn=50, regions=[], civilizations=[], relationships={})

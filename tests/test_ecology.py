@@ -341,6 +341,70 @@ class TestFamineCheck:
         assert len(famine_events) == 0
 
 
+class TestFamineSeverityScaling:
+    """V4 regression: famine population loss must scale with severity multiplier."""
+
+    def _make_famine_world(self, pop=50, civ_stress=0):
+        """Build a world that will trigger famine (low grain yield)."""
+        from chronicler.models import Leader, Civilization
+        r = Region(
+            name="TestRegion", terrain="plains", carrying_capacity=100,
+            resources="fertile", population=pop, controller="TestCiv",
+            ecology=RegionEcology(soil=0.10, water=0.15, forest_cover=0.3),
+        )
+        r.resource_types = [ResourceType.GRAIN, EMPTY_SLOT, EMPTY_SLOT]
+        r.resource_base_yields = [0.10, 0.0, 0.0]
+        civ = Civilization(
+            name="TestCiv", population=pop, military=30, economy=40,
+            culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
+            regions=["TestRegion"],
+        )
+        civ.civ_stress = civ_stress
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        return w
+
+    def test_high_severity_civ_loses_more_famine_pop(self):
+        """A civ with high civ_stress should lose more population to famine
+        than a civ with zero stress, because the severity multiplier scales
+        the famine_pop drain."""
+        from chronicler.ecology import _check_famine_yield
+
+        # Low stress (mult ~1.0)
+        w_low = self._make_famine_world(pop=50, civ_stress=0)
+        pop_before_low = w_low.regions[0].population
+        _check_famine_yield(
+            w_low,
+            {"TestRegion": [0.0, 0.0, 0.0]},
+            ClimatePhase.DROUGHT,
+            threshold=0.12,
+            subsistence_base=0.15,
+        )
+        pop_after_low = w_low.regions[0].population
+        loss_low = pop_before_low - pop_after_low
+
+        # High stress (mult > 1.0): stress=20, divisor=20, scale=0.5 -> mult=1.5
+        w_high = self._make_famine_world(pop=50, civ_stress=20)
+        pop_before_high = w_high.regions[0].population
+        _check_famine_yield(
+            w_high,
+            {"TestRegion": [0.0, 0.0, 0.0]},
+            ClimatePhase.DROUGHT,
+            threshold=0.12,
+            subsistence_base=0.15,
+        )
+        pop_after_high = w_high.regions[0].population
+        loss_high = pop_before_high - pop_after_high
+
+        assert loss_low > 0, "Famine should cause some population loss"
+        assert loss_high > loss_low, (
+            f"High-severity civ should lose more pop ({loss_high}) "
+            f"than low-severity civ ({loss_low})"
+        )
+        # Verify exact values: base=5, low mult=1.0 -> loss=5; high mult=1.5 -> loss=int(7.5)=7
+        assert loss_low == 5, f"Expected 5 pop loss at zero stress, got {loss_low}"
+        assert loss_high == 7, f"Expected 7 pop loss at stress=20 (mult=1.5), got {loss_high}"
+
+
 class TestFeedbackLoops:
     def _run_turns(self, world, phase, n):
         from chronicler.ecology import tick_ecology

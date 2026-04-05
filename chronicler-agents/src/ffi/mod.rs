@@ -539,16 +539,19 @@ impl AgentSimulator {
                 let n_priest = if pop > spawned { pop - spawned } else { 0 };
 
                 // M33: personality assignment at initial spawn
+                // V9: use packed stream scheme (region << 48 | turn << 16 | offset)
+                // Initial spawn happens at turn 0, so turn component is 0.
                 let mut personality_rng = ChaCha8Rng::from_seed(self.master_seed);
                 personality_rng.set_stream(
-                    region_id as u64 * 1000 + crate::agent::PERSONALITY_STREAM_OFFSET,
+                    ((region_id as u64) << 48) | crate::agent::PERSONALITY_STREAM_OFFSET,
                 );
                 let civ_mean = [0.0f32; 3]; // Civ means not yet available at initial spawn
 
                 // M53: mixed age distribution at initial spawn (was all age=0)
+                // V9: use packed stream scheme (turn=0 at initial spawn)
                 let mut age_rng = ChaCha8Rng::from_seed(self.master_seed);
                 age_rng.set_stream(
-                    region_id as u64 * 1000 + crate::agent::INITIAL_AGE_STREAM_OFFSET,
+                    ((region_id as u64) << 48) | crate::agent::INITIAL_AGE_STREAM_OFFSET,
                 );
 
                 // M37: use controller civ's faith_id as initial belief if provided
@@ -1036,104 +1039,6 @@ impl AgentSimulator {
             }
         }
         None
-    }
-
-    /// M40 compatibility shim. Translates full-graph replacement into incremental ops.
-    /// DEPRECATED — use apply_relationship_ops directly. Will be removed in M50b.
-    pub fn replace_social_edges(&mut self, batch: PyRecordBatch) -> PyResult<()> {
-        let batch = batch.into_inner();
-        let named_ids: std::collections::HashSet<u32> = self.registry.characters.iter()
-            .map(|c| c.agent_id).collect();
-        let id_to_slot = self.pool.build_id_to_slot();
-
-        // 1. Read current projected state (compound key = (a, b, relationship_type))
-        let mut current: std::collections::HashSet<(u32, u32, u8)> = std::collections::HashSet::new();
-        for slot in 0..self.pool.capacity() {
-            if !self.pool.alive[slot] { continue; }
-            let agent_id = self.pool.ids[slot];
-            if !named_ids.contains(&agent_id) { continue; }
-            let count = self.pool.rel_count[slot] as usize;
-            for i in 0..count {
-                let bt = self.pool.rel_bond_types[slot][i];
-                if bt > 4 { continue; } // Only M40-compatible types
-                let target_id = self.pool.rel_target_ids[slot][i];
-                if crate::relationships::is_asymmetric(bt) {
-                    current.insert((agent_id, target_id, bt));
-                } else if agent_id < target_id {
-                    current.insert((agent_id, target_id, bt));
-                }
-            }
-        }
-
-        // 2. Parse incoming batch
-        let mut incoming: std::collections::HashSet<(u32, u32, u8)> = std::collections::HashSet::new();
-        let mut incoming_turns: std::collections::HashMap<(u32, u32, u8), u16> = std::collections::HashMap::new();
-        if batch.num_rows() > 0 {
-            let a_col = require_batch_column::<arrow::array::UInt32Array>(&batch, 0, "agent_a")?;
-            let b_col = require_batch_column::<arrow::array::UInt32Array>(&batch, 1, "agent_b")?;
-            let r_col = require_batch_column::<arrow::array::UInt8Array>(&batch, 2, "relationship")?;
-            let t_col = require_batch_column::<arrow::array::UInt16Array>(&batch, 3, "formed_turn")?;
-            for i in 0..batch.num_rows() {
-                let a = a_col.value(i);
-                let b = b_col.value(i);
-                let r = r_col.value(i);
-                let t = t_col.value(i);
-                // Guard: only named characters
-                if !named_ids.contains(&a) || !named_ids.contains(&b) { continue; }
-                let key = if crate::relationships::is_asymmetric(r) {
-                    (a, b, r)
-                } else {
-                    (a.min(b), a.max(b), r)
-                };
-                incoming.insert(key);
-                incoming_turns.insert(key, t);
-            }
-        }
-
-        // 3. Diff: removals = current - incoming
-        for &(a, b, bt) in current.difference(&incoming) {
-            if crate::relationships::is_asymmetric(bt) {
-                // Mentor: remove from mentor side only
-                if let Some(slot_a) = id_to_slot.get(&a).copied() {
-                    crate::relationships::remove_directed(&mut self.pool, slot_a, b, bt);
-                }
-            } else {
-                // Symmetric: remove whatever side still exists
-                if let Some(slot_a) = id_to_slot.get(&a).copied() {
-                    if self.pool.alive[slot_a] {
-                        crate::relationships::remove_directed(&mut self.pool, slot_a, b, bt);
-                    }
-                }
-                if let Some(slot_b) = id_to_slot.get(&b).copied() {
-                    if self.pool.alive[slot_b] {
-                        crate::relationships::remove_directed(&mut self.pool, slot_b, a, bt);
-                    }
-                }
-            }
-        }
-
-        // 4. Additions = incoming - current
-        for &(a, b, bt) in incoming.difference(&current) {
-            let ft = incoming_turns.get(&(a, b, bt)).copied().unwrap_or(0);
-            let sent: i8 = 50; // Default sentiment (M40 has no sentiment)
-            if crate::relationships::is_asymmetric(bt) {
-                if let Some(slot_a) = id_to_slot.get(&a).copied() {
-                    if self.pool.alive[slot_a] {
-                        crate::relationships::upsert_directed(&mut self.pool, slot_a, b, bt, sent, ft);
-                    }
-                }
-            } else {
-                if let Some(slot_a) = id_to_slot.get(&a).copied() {
-                    if let Some(slot_b) = id_to_slot.get(&b).copied() {
-                        if self.pool.alive[slot_a] && self.pool.alive[slot_b] {
-                            crate::relationships::upsert_symmetric(&mut self.pool, slot_a, slot_b, bt, sent, ft);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
     }
 
     /// M50a: Apply batched relationship operations from an Arrow RecordBatch.
@@ -2820,6 +2725,55 @@ mod tests {
         assert!(bond_types.contains(&1), "Rival bond must be present");
         assert!(bond_types.contains(&3), "ExileBond must be present");
         assert!(bond_types.contains(&4), "CoReligionist must be present");
+    }
+
+    // ---------------------------------------------------------------------------
+    // V9: Initial spawn packed stream regression tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn test_spawn_stream_packing_distinct_per_region() {
+        // V9: Verify that packed stream IDs for personality and age RNG
+        // produce distinct values for different regions (turn=0 at initial spawn).
+        let personality_r0 = ((0u64) << 48) | crate::agent::PERSONALITY_STREAM_OFFSET;
+        let personality_r1 = ((1u64) << 48) | crate::agent::PERSONALITY_STREAM_OFFSET;
+        let personality_r2 = ((2u64) << 48) | crate::agent::PERSONALITY_STREAM_OFFSET;
+        let age_r0 = ((0u64) << 48) | crate::agent::INITIAL_AGE_STREAM_OFFSET;
+        let age_r1 = ((1u64) << 48) | crate::agent::INITIAL_AGE_STREAM_OFFSET;
+
+        // Different regions produce different stream IDs
+        assert_ne!(personality_r0, personality_r1);
+        assert_ne!(personality_r1, personality_r2);
+        assert_ne!(age_r0, age_r1);
+
+        // Personality and age streams don't collide in the same region
+        assert_ne!(personality_r0, age_r0);
+        assert_ne!(personality_r1, age_r1);
+    }
+
+    #[test]
+    fn test_spawn_stream_packing_deterministic_rng() {
+        // V9: Verify that initial spawn RNG with packed streams produces
+        // deterministic, region-differentiated results.
+        use rand::SeedableRng;
+        use rand::Rng;
+        use rand_chacha::ChaCha8Rng;
+
+        let seed = [42u8; 32];
+
+        let gen_personality = |region_id: u64| -> [f32; 3] {
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            rng.set_stream((region_id << 48) | crate::agent::PERSONALITY_STREAM_OFFSET);
+            [rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>()]
+        };
+
+        // Same region, same seed → same result (deterministic)
+        assert_eq!(gen_personality(0), gen_personality(0));
+        assert_eq!(gen_personality(5), gen_personality(5));
+
+        // Different regions → different results
+        assert_ne!(gen_personality(0), gen_personality(1));
+        assert_ne!(gen_personality(1), gen_personality(2));
     }
 
 }

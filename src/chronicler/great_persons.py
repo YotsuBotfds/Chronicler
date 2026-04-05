@@ -1,4 +1,4 @@
-"""Great Person generation, lifecycle, and modifier registry."""
+"""Great Person generation, lifecycle, and pilgrimage subsystem."""
 from __future__ import annotations
 
 import random
@@ -29,34 +29,6 @@ def _append_deed(gp: "GreatPerson", text: str, *, region: str | None = None, tur
     gp.deeds.append(GreatPersonDeed(text=text, region=region, turn=turn, civ=civ))
     if len(gp.deeds) > DEEDS_CAP:
         gp.deeds = gp.deeds[-DEEDS_CAP:]
-
-
-# ---------------------------------------------------------------------------
-# Task 2: Modifier registry
-# ---------------------------------------------------------------------------
-
-ROLE_MODIFIERS: dict[str, dict] = {
-    "general":   {"domain": "military", "stat": "military",        "value": 10},
-    "merchant":  {"domain": "trade",    "stat": "trade_income",    "value": 3,          "per": "route"},
-    "scientist": {"domain": "tech",     "stat": "tech_cost",       "value": -0.30,      "mode": "multiplier"},
-    "prophet":   {"domain": "culture",  "stat": "movement_spread", "value": "accelerated", "mode": "behavioral"},
-}
-
-
-def get_modifiers(civ: Civilization, domain: str) -> list[dict]:
-    """Return all active modifier dicts for *civ* that apply to *domain*."""
-    results = []
-    for gp in civ.great_persons:
-        if not gp.active or gp.is_hostage:
-            continue
-        if gp.role not in ROLE_MODIFIERS:
-            continue
-        mod_template = ROLE_MODIFIERS[gp.role]
-        if mod_template["domain"] != domain:
-            continue
-        mod = {"source": f"{gp.role}_{gp.name}", **mod_template}
-        results.append(mod)
-    return results
 
 
 # ---------------------------------------------------------------------------

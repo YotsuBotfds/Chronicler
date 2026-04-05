@@ -365,18 +365,16 @@ def tick_pandemic(
         trade_pairs.add((a, b))
         trade_pairs.add((b, a))
 
-    infected_controllers = set()
-    for p in world.pandemic_state:
-        region = region_map.get(p.region_name)
-        if region and region.controller:
-            infected_controllers.add(region.controller)
-
+    # V6: Removed global infected_controllers set. Spread now checks only the
+    # source region's controller, not all infected controllers. This prevents
+    # cross-contamination via third-party trade connections.
     new_infections: list[PandemicRegion] = []
     rng_spread = random.Random(world.seed + world.turn * 1019)
     for p in world.pandemic_state:
         source_region = region_map.get(p.region_name)
         if source_region is None:
             continue
+        source_ctrl = source_region.controller
         for adj_name in source_region.adjacencies:
             if adj_name in already_infected_or_recovered:
                 continue
@@ -384,7 +382,7 @@ def tick_pandemic(
             if adj_region is None or adj_region.controller is None:
                 continue
             adj_ctrl = adj_region.controller
-            if any((ctrl, adj_ctrl) in trade_pairs for ctrl in infected_controllers):
+            if source_ctrl and (source_ctrl, adj_ctrl) in trade_pairs:
                 active_infra = len([i for i in adj_region.infrastructure if i.active])
                 severity = min(3, 1 + active_infra // 2)
                 duration = rng_spread.randint(4, 6)
@@ -619,7 +617,7 @@ _REGRESSION_TRIGGERS = {
 }
 
 
-def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> list[Event]:
+def check_tech_regression(world: WorldState, black_swan_fired: bool = False, acc=None) -> list[Event]:
     """Check regression triggers for all civs. Phase 10, after consequences.
 
     Base regression probabilities are reduced by culture-based resistance:
@@ -673,7 +671,10 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False) -> 
         old_era = civ.tech_era
         new_era = _prev_era(old_era)
         assert new_era is not None
-        remove_era_bonus(civ, old_era)
+        if acc is not None:
+            remove_era_bonus(civ, old_era, acc=acc, civ_idx=civ_index(world, civ.name))
+        else:
+            remove_era_bonus(civ, old_era)
         # M21: Remove tech focus effects on regression
         if civ.active_focus:
             from chronicler.tech_focus import TechFocus, remove_focus_effects

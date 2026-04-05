@@ -569,8 +569,11 @@ pub fn propagate_packets(
                 let sender_id = pool.ids[sender_slot];
                 let receiver_id = pool.ids[receiver_slot];
 
-                let mut key_seed = *master_seed;
-                let key_hash = {
+                // V10: Use set_stream() discipline instead of XOR-into-seed.
+                // Knowledge transmission depends on more components than the standard
+                // packed stream scheme, so we hash them into a composite stream ID
+                // using the same LCG constants but pass the result to set_stream().
+                let stream = {
                     let mut h: u64 = sender_id as u64;
                     h = h.wrapping_mul(6364136223846793005).wrapping_add(receiver_id as u64);
                     h = h.wrapping_mul(6364136223846793005).wrapping_add(info_type as u64);
@@ -580,11 +583,8 @@ pub fn propagate_packets(
                     h = h.wrapping_mul(6364136223846793005).wrapping_add(agent::KNOWLEDGE_STREAM_OFFSET);
                     h
                 };
-                let hash_bytes = key_hash.to_le_bytes();
-                for i in 0..8 {
-                    key_seed[i] ^= hash_bytes[i];
-                }
-                let mut rng = ChaCha8Rng::from_seed(key_seed);
+                let mut rng = ChaCha8Rng::from_seed(*master_seed);
+                rng.set_stream(stream);
                 let roll: f32 = rng.gen();
 
                 if roll < chance {
@@ -834,4 +834,51 @@ pub fn knowledge_phase(
     }
 
     stats
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+    use rand::Rng;
+    use rand_chacha::ChaCha8Rng;
+
+    #[test]
+    fn test_knowledge_stream_via_set_stream_deterministic() {
+        // V10: Verify that knowledge transmission RNG using set_stream()
+        // produces deterministic results for the same input parameters.
+        let seed = [42u8; 32];
+        let gen_roll = |sender: u32, receiver: u32, info: u8, region: u16, sturn: u16, cturn: u32| -> f32 {
+            let stream = {
+                let mut h: u64 = sender as u64;
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(receiver as u64);
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(info as u64);
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(region as u64);
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(sturn as u64);
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(cturn as u64);
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(agent::KNOWLEDGE_STREAM_OFFSET);
+                h
+            };
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            rng.set_stream(stream);
+            rng.gen::<f32>()
+        };
+
+        // Same inputs → same result (deterministic)
+        let a = gen_roll(1, 2, 1, 0, 5, 10);
+        let b = gen_roll(1, 2, 1, 0, 5, 10);
+        assert_eq!(a, b, "same inputs must produce identical rolls");
+
+        // Different sender → different result
+        let c = gen_roll(3, 2, 1, 0, 5, 10);
+        assert_ne!(a, c, "different sender must produce different roll");
+
+        // Different receiver → different result
+        let d = gen_roll(1, 4, 1, 0, 5, 10);
+        assert_ne!(a, d, "different receiver must produce different roll");
+
+        // Different turn → different result
+        let e = gen_roll(1, 2, 1, 0, 5, 11);
+        assert_ne!(a, e, "different turn must produce different roll");
+    }
 }

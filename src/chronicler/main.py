@@ -46,7 +46,7 @@ from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_na
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, SettlementSummary, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
 from chronicler.narrative import NarrativeEngine
-from chronicler.simulation import apply_injected_event, run_turn
+from chronicler.simulation import run_turn
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
 from chronicler.intelligence import compute_accuracy, get_perceived_stat
@@ -319,12 +319,6 @@ def execute_run(
     _pending = pending_injections if pending_injections is not None else []
 
     for turn_num in range(start_turn, num_turns):
-        # Drain pending injections before each turn
-        while _pending:
-            event_type, target_civ = _pending.pop(0)
-            injected_events = apply_injected_event(event_type, target_civ, world)
-            world.events_timeline.extend(injected_events)
-
         named_events_before = len(world.named_events)
 
         # Create action engine fresh each turn (needs current world state)
@@ -333,7 +327,7 @@ def execute_run(
         def action_selector(civ, world, _engine=action_engine):
             return _engine.select_action(civ, seed=world.seed)
 
-        # Run one turn
+        # Run one turn — pending injections drain inside run_turn with accumulator
         chronicle_text = run_turn(
             world,
             action_selector=action_selector,
@@ -344,6 +338,7 @@ def execute_run(
             ecology_runtime=ecology_runtime,
             politics_runtime=politics_runtime,
             force_settlement_detection=(turn_num == num_turns - 1),
+            pending_injections=_pending,
         )
 
         # Capture per-turn snapshot for viewer bundle

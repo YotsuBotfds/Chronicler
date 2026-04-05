@@ -1407,6 +1407,7 @@ fn tick_region_demographics(
                 sat,
                 occ,
                 region.soil,
+                region.water,
                 pop_over_capacity,
             );
             debug.expected_births += fert_rate;

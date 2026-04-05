@@ -66,16 +66,19 @@ pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, diseas
 /// Fertility with age taper: full rate through midlife, then a gradual decline.
 /// Replaces hard cutoff at FERTILITY_AGE_MAX which caused entire cohorts to drop out
 /// of the breeding pool simultaneously, creating generational handoff failures.
-pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32) -> f32 {
-    fertility_rate_with_pressure(age, satisfaction, occupation, soil, 1.0)
+pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32, water: f32) -> f32 {
+    fertility_rate_with_pressure(age, satisfaction, occupation, soil, water, 1.0)
 }
 
 /// Fertility rate adjusted for carrying-capacity pressure in the current region.
+/// V5: Added `water` parameter — ecology_mod now incorporates both soil and water,
+/// matching the ecology model where both are co-equal reproductive resources.
 pub fn fertility_rate_with_pressure(
     age: u16,
     satisfaction: f32,
     occupation: u8,
     soil: f32,
+    water: f32,
     pop_over_capacity: f32,
 ) -> f32 {
     let age_mult = if age < FERTILITY_AGE_MIN {
@@ -95,7 +98,7 @@ pub fn fertility_rate_with_pressure(
         / FERTILITY_SATISFACTION_RAMP)
         .clamp(0.0, 1.0);
     let base = if occupation == 0 { FERTILITY_BASE_FARMER } else { FERTILITY_BASE_OTHER };
-    let ecology_mod = 0.5 + soil * 0.5;
+    let ecology_mod = 0.5 + (soil * 0.5 + water * 0.5) * 0.5;
     let crowding_mod = crowding_fertility_modifier(pop_over_capacity);
     base * ecology_mod * age_mult * sat_gate * crowding_mod
 }
@@ -176,9 +179,9 @@ mod tests {
 
     #[test]
     fn test_fertility_satisfaction_gate_ramps_smoothly() {
-        let low = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.11, 0, 1.0, 1.0);
-        let mid = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.05, 0, 1.0, 1.0);
-        let high = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD + 0.01, 0, 1.0, 1.0);
+        let low = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.11, 0, 1.0, 1.0, 1.0);
+        let mid = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.05, 0, 1.0, 1.0, 1.0);
+        let high = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD + 0.01, 0, 1.0, 1.0, 1.0);
 
         assert_eq!(low, 0.0);
         assert!(mid > 0.0 && mid < high);
@@ -247,26 +250,27 @@ mod tests {
 
     #[test]
     fn test_fertility_eligible_farmer() {
-        let rate = fertility_rate(25, 0.6, 0, 0.8);
-        let expected = FERTILITY_BASE_FARMER * 0.9;  // M53: use constant, not hardcoded
+        // V5: soil=0.8, water=0.8 → ecology_mod = 0.5 + (0.4+0.4)*0.5 = 0.9
+        let rate = fertility_rate(25, 0.6, 0, 0.8, 0.8);
+        let expected = FERTILITY_BASE_FARMER * 0.9;
         assert!((rate - expected).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_eligible_soldier() {
-        let rate = fertility_rate(25, 0.6, 1, 0.8);
-        let expected = FERTILITY_BASE_OTHER * 0.9;  // M53: use constant, not hardcoded
+        let rate = fertility_rate(25, 0.6, 1, 0.8, 0.8);
+        let expected = FERTILITY_BASE_OTHER * 0.9;
         assert!((rate - expected).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_too_young() {
-        assert!(fertility_rate(15, 0.8, 0, 0.8) == 0.0);
+        assert!(fertility_rate(15, 0.8, 0, 0.8, 0.8) == 0.0);
     }
 
     #[test]
     fn test_fertility_too_old() {
-        assert!(fertility_rate(81, 0.8, 0, 0.8) == 0.0);  // past FERTILITY_TAPER_AGE_MAX (80)
+        assert!(fertility_rate(81, 0.8, 0, 0.8, 0.8) == 0.0);  // past FERTILITY_TAPER_AGE_MAX (80)
     }
 
     #[test]
@@ -274,28 +278,29 @@ mod tests {
         let below_ramp = FERTILITY_SATISFACTION_THRESHOLD - FERTILITY_SATISFACTION_RAMP - 0.01;
         let mid_ramp = FERTILITY_SATISFACTION_THRESHOLD - FERTILITY_SATISFACTION_RAMP / 2.0;
         let gate = FERTILITY_SATISFACTION_THRESHOLD;
-        assert_eq!(fertility_rate(25, below_ramp, 0, 0.8), 0.0);
-        assert!(fertility_rate(25, mid_ramp, 0, 0.8) > 0.0);
-        assert!(fertility_rate(25, gate, 0, 0.8) > fertility_rate(25, mid_ramp, 0, 0.8));
+        assert_eq!(fertility_rate(25, below_ramp, 0, 0.8, 0.8), 0.0);
+        assert!(fertility_rate(25, mid_ramp, 0, 0.8, 0.8) > 0.0);
+        assert!(fertility_rate(25, gate, 0, 0.8, 0.8) > fertility_rate(25, mid_ramp, 0, 0.8, 0.8));
     }
 
     #[test]
     fn test_fertility_bad_soil() {
-        let rate = fertility_rate(25, 0.6, 0, 0.0);
+        // V5: soil=0.0, water=0.0 → ecology_mod = 0.5 + (0+0)*0.5 = 0.5
+        let rate = fertility_rate(25, 0.6, 0, 0.0, 0.0);
         let expected = FERTILITY_BASE_FARMER * 0.5;
         assert!((rate - expected).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_crowding_soft_start_preserves_baseline() {
-        let crowded = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 1.05);
-        let baseline = fertility_rate(25, 0.6, 0, 0.8);
+        let crowded = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 1.05);
+        let baseline = fertility_rate(25, 0.6, 0, 0.8, 0.8);
         assert!((crowded - baseline).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_crowding_strongly_suppresses_births() {
-        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 2.0);
+        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 2.0);
         let full = FERTILITY_BASE_FARMER * 0.9;
         let crowding_mult = (FERTILITY_CROWDING_ZERO - 2.0)
             / (FERTILITY_CROWDING_ZERO - FERTILITY_CROWDING_SOFT_START);
@@ -309,19 +314,20 @@ mod tests {
             0.6,
             0,
             0.8,
+            0.8,
             FERTILITY_CROWDING_ZERO,
         ) == 0.0);
     }
 
     #[test]
     fn test_fertility_boundary_age_min() {
-        assert!(fertility_rate(16, 0.6, 0, 0.8) > 0.0);
+        assert!(fertility_rate(16, 0.6, 0, 0.8, 0.8) > 0.0);
     }
 
     #[test]
     fn test_fertility_full_at_55() {
         // Age 55 remains inside the full-rate fertility window.
-        let rate = fertility_rate(55, 0.6, 0, 0.8);
+        let rate = fertility_rate(55, 0.6, 0, 0.8, 0.8);
         let expected = FERTILITY_BASE_FARMER * 0.9;
         assert!((rate - expected).abs() < 0.001);
     }
@@ -329,7 +335,7 @@ mod tests {
     #[test]
     fn test_fertility_full_at_60() {
         // Age 60 = last full-rate year after the handoff retune.
-        let rate = fertility_rate(60, 0.6, 0, 0.8);
+        let rate = fertility_rate(60, 0.6, 0, 0.8, 0.8);
         let expected = FERTILITY_BASE_FARMER * 0.9;
         assert!((rate - expected).abs() < 0.001);
     }
@@ -337,7 +343,7 @@ mod tests {
     #[test]
     fn test_fertility_taper_at_61() {
         // Age 61 = first taper year: 1.0 - 1/20
-        let rate = fertility_rate(61, 0.6, 0, 0.8);
+        let rate = fertility_rate(61, 0.6, 0, 0.8, 0.8);
         let full = FERTILITY_BASE_FARMER * 0.9;
         let taper = 1.0 - 1.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
         assert!((rate - full * taper).abs() < 0.001);
@@ -346,7 +352,7 @@ mod tests {
     #[test]
     fn test_fertility_taper_midpoint() {
         // Age 70 sits midway through the taper (60..80): 1.0 - 10/20
-        let rate = fertility_rate(70, 0.6, 0, 0.8);
+        let rate = fertility_rate(70, 0.6, 0, 0.8, 0.8);
         let full = FERTILITY_BASE_FARMER * 0.9;
         let taper = 1.0 - 10.0 / (FERTILITY_TAPER_AGE_MAX - FERTILITY_FULL_AGE_MAX) as f32;
         assert!((rate - full * taper).abs() < 0.001);
@@ -355,13 +361,31 @@ mod tests {
     #[test]
     fn test_fertility_taper_at_80() {
         // Age 80 = end of taper: 1.0 - 20/20 = 0.0
-        assert!(fertility_rate(80, 0.6, 0, 0.8) == 0.0);
+        assert!(fertility_rate(80, 0.6, 0, 0.8, 0.8) == 0.0);
     }
 
     #[test]
     fn test_fertility_past_taper() {
         // Age 81 = past taper range
-        assert!(fertility_rate(81, 0.6, 0, 0.8) == 0.0);
+        assert!(fertility_rate(81, 0.6, 0, 0.8, 0.8) == 0.0);
+    }
+
+    #[test]
+    fn test_fertility_water_aware() {
+        // V5 regression: water contributes to ecology_mod alongside soil.
+        // High water should produce higher fertility than low water, all else equal.
+        let rate_high_water = fertility_rate(25, 0.6, 0, 0.8, 0.8);
+        let rate_low_water = fertility_rate(25, 0.6, 0, 0.8, 0.0);
+        assert!(rate_high_water > rate_low_water,
+            "high water ({}) should produce higher fertility than low water ({})",
+            rate_high_water, rate_low_water);
+        // Verify exact values:
+        // soil=0.8, water=0.8: ecology_mod = 0.5 + (0.4+0.4)*0.5 = 0.9
+        // soil=0.8, water=0.0: ecology_mod = 0.5 + (0.4+0.0)*0.5 = 0.7
+        let expected_high = FERTILITY_BASE_FARMER * 0.9;
+        let expected_low = FERTILITY_BASE_FARMER * 0.7;
+        assert!((rate_high_water - expected_high).abs() < 0.001);
+        assert!((rate_low_water - expected_low).abs() < 0.001);
     }
 
     #[test]

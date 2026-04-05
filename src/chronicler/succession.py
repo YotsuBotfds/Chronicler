@@ -268,7 +268,7 @@ def apply_exile_pretender_drain(world: WorldState, acc=None) -> None:
                 civ.culture = min(civ.culture + 3, 100)
 
 
-def check_exile_restoration(world: WorldState) -> list[Event]:
+def check_exile_restoration(world: WorldState, acc=None) -> list[Event]:
     """Check whether any exile restores to power in their origin civ.
 
     Probability scales with recognition count and fires when origin stability < 20.
@@ -330,7 +330,12 @@ def check_exile_restoration(world: WorldState) -> list[Event]:
                     regnal_ordinal=ordinal,
                     predecessor_name=incumbent.name,
                 )
-                origin.stability = min(origin.stability + 15, 100)
+                if acc is not None:
+                    from chronicler.utils import civ_index
+                    origin_idx = civ_index(world, origin.name)
+                    acc.add(origin_idx, origin, "stability", 15, "keep")
+                else:
+                    origin.stability = min(origin.stability + 15, 100)
                 events.append(Event(
                     turn=world.turn,
                     event_type="restoration",

@@ -4,6 +4,7 @@ from chronicler.adjacency import (
     is_chokepoint, connected_components,
 )
 from chronicler.models import Region
+from chronicler.world_gen import generate_regions
 
 
 def _make_regions(names_and_adj: dict[str, list[str]]) -> list[Region]:
@@ -136,3 +137,37 @@ def test_compute_adjacencies_k_nearest_fills_gaps_only():
     compute_adjacencies(regions, k=3)
     # Inland should still get connections from k-nearest
     assert len([r for r in regions if r.name == "Inland"][0].adjacencies) >= 1
+
+
+# ---------------------------------------------------------------------------
+# V7: Deterministic region coordinate tests
+# ---------------------------------------------------------------------------
+
+
+def test_generate_regions_have_coordinates():
+    """All generated regions must have non-None x/y coordinates."""
+    regions = generate_regions(count=8, seed=42)
+    for r in regions:
+        assert r.x is not None, f"Region {r.name} has x=None"
+        assert r.y is not None, f"Region {r.name} has y=None"
+        assert 0 <= r.x <= 100
+        assert 0 <= r.y <= 100
+
+
+def test_generate_regions_coordinates_deterministic():
+    """Same seed must produce identical coordinates."""
+    regions_a = generate_regions(count=8, seed=99)
+    regions_b = generate_regions(count=8, seed=99)
+    for a, b in zip(regions_a, regions_b):
+        assert a.name == b.name
+        assert a.x == b.x
+        assert a.y == b.y
+
+
+def test_generate_regions_different_seeds_differ():
+    """Different seeds must produce different coordinate layouts."""
+    regions_a = generate_regions(count=8, seed=42)
+    regions_b = generate_regions(count=8, seed=99)
+    coords_a = [(r.x, r.y) for r in regions_a]
+    coords_b = [(r.x, r.y) for r in regions_b]
+    assert coords_a != coords_b

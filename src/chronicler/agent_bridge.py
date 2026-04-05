@@ -2326,27 +2326,6 @@ class AgentBridge:
         formed = batch.column("formed_turn").to_pylist()
         return list(zip(agent_a, agent_b, rel, formed))
 
-    def replace_social_edges(self, edges: list[tuple]) -> None:
-        """Replace all social edges in Rust. Each edge is (agent_a, agent_b, relationship, formed_turn)."""
-        if self._sim is None:
-            return
-        if not edges:
-            batch = pa.RecordBatch.from_arrays([
-                pa.array([], type=pa.uint32()),
-                pa.array([], type=pa.uint32()),
-                pa.array([], type=pa.uint8()),
-                pa.array([], type=pa.uint16()),
-            ], names=["agent_a", "agent_b", "relationship", "formed_turn"])
-        else:
-            agent_a, agent_b, rel, formed = zip(*edges)
-            batch = pa.record_batch([
-                pa.array(agent_a, type=pa.uint32()),
-                pa.array(agent_b, type=pa.uint32()),
-                pa.array(rel, type=pa.uint8()),
-                pa.array(formed, type=pa.uint16()),
-            ], names=["agent_a", "agent_b", "relationship", "formed_turn"])
-        self._sim.replace_social_edges(batch)
-
     def apply_relationship_ops(self, ops: list[dict]) -> None:
         """Apply batched relationship ops to the Rust store.
         Each op: {"op_type": int, "agent_a": int, "agent_b": int,

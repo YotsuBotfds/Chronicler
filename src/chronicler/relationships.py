@@ -94,15 +94,10 @@ def _sync_hostage_agent_civ(
 
 
 def _sync_relationship_edges(bridge, current_edges: list[tuple], next_edges: list[tuple]) -> None:
-    """Apply relationship diffs through ops when available.
+    """Apply relationship diffs through incremental ops.
 
-    Falls back to the legacy full-graph replace shim for older test doubles.
+    Requires bridge to implement apply_relationship_ops().
     """
-    apply_ops = getattr(bridge, "apply_relationship_ops", None)
-    if not callable(apply_ops):
-        bridge.replace_social_edges(next_edges)
-        return
-
     current_by_key = {(a, b, rel): (a, b, rel, formed_turn) for a, b, rel, formed_turn in current_edges}
     next_by_key = {(a, b, rel): (a, b, rel, formed_turn) for a, b, rel, formed_turn in next_edges}
 
@@ -129,7 +124,7 @@ def _sync_relationship_edges(bridge, current_edges: list[tuple], next_edges: lis
         })
 
     if ops:
-        apply_ops(ops)
+        bridge.apply_relationship_ops(ops)
 
 
 def compute_belief_data(

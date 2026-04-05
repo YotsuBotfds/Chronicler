@@ -93,6 +93,10 @@ def generate_regions(count: int = 8, seed: int = 42) -> list[Region]:
             carrying_capacity=t["capacity"],
             resources=t["resources"],
         )
+        # V7: Assign deterministic spatial coordinates so adjacency k-nearest
+        # uses real Euclidean distances instead of collapsing to (0,0).
+        region.x = rng.uniform(0, 100)
+        region.y = rng.uniform(0, 100)
         defaults = TERRAIN_ECOLOGY_DEFAULTS.get(region.terrain)
         if defaults:
             region.ecology = defaults.model_copy()

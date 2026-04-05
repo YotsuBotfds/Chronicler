@@ -389,10 +389,10 @@ class TestSeverityMultiplierWiring:
             threshold=0.12,
             subsistence_base=0.15,
         )
-        # Base famine pop loss is 5. Ecology is exempt from severity multiplier
-        # for population loss (per CLAUDE.md), so pop -= 5 flat.
+        # V4: Base famine pop loss is 5, severity mult = 1.5 (stress=20).
+        # Population loss: int(5 * 1.5) = 7. So 80 - 7 = 73.
         assert len(events) == 1
-        assert civ.population == 75
+        assert civ.population == 73
 
     def test_random_event_damage_amplified(self):
         """Random event damage should be amplified by stress."""
@@ -711,6 +711,76 @@ class TestPandemicSeverityMultiplier:
         # Multiplier = 1.0, so base values apply
         assert civ.population == 80 - 6
         assert civ.economy == 70 - 4
+
+
+class TestPandemicSourceControllerGating:
+    """V6 regression: pandemic spread should use the source region's controller
+    for trade-pair checks, not ALL infected controllers globally.
+
+    Scenario: Three civs A, B, C. A trades with B (only). B trades with C (only).
+    A is infected. B is adjacent to A and C.
+
+    Old bug: B's infection would let C get infected because B (an infected
+    controller) trades with C. But the *source* of B's adjacency to C is B
+    itself — and B trades with C, so that's actually correct.
+
+    The real bug scenario: A is infected, C is adjacent to A (not to B), and
+    C trades with B but NOT A. Under the old code, A's infection could jump
+    to C because B (infected) trades with C. Under the fix, only A's controller
+    (A) is checked — and A doesn't trade with C, so no spread.
+    """
+
+    def test_no_cross_contamination_via_third_party_trade(self):
+        """Infection in A should NOT spread to C even if B (infected) trades with C,
+        because the source region's controller (A) doesn't trade with C."""
+        from chronicler.emergence import tick_pandemic
+
+        world = _make_world()
+        civs = [_make_civ(name=n, regions=[n]) for n in ["A", "B", "C"]]
+        # A adjacent to B and C; B adjacent to A; C adjacent to A
+        regions = [_make_region(name=n, controller=n) for n in ["A", "B", "C"]]
+        regions[0].adjacencies = ["B", "C"]  # A adj to B and C
+        regions[1].adjacencies = ["A"]       # B adj to A
+        regions[2].adjacencies = ["A"]       # C adj to A
+        world.regions = regions
+        world.civilizations = civs
+
+        # Trade routes: A-B and B-C (but NOT A-C)
+        from chronicler.models import Relationship, Disposition
+        world.relationships = {}
+        for c in civs:
+            world.relationships[c.name] = {}
+            for o in civs:
+                if o.name != c.name:
+                    treaties = []
+                    if {c.name, o.name} in [{"A", "B"}, {"B", "C"}]:
+                        treaties = ["trade"]
+                    world.relationships[c.name][o.name] = Relationship(
+                        disposition=Disposition.FRIENDLY, treaties=treaties,
+                    )
+
+        # Both A and B are infected
+        world.pandemic_state = [
+            PandemicRegion(region_name="A", severity=1, turns_remaining=4),
+            PandemicRegion(region_name="B", severity=1, turns_remaining=4),
+        ]
+
+        # Provide explicit routes so we control exactly which pairs exist
+        tick_pandemic(world, routes=[("A", "B"), ("B", "C")])
+
+        infected_names = {p.region_name for p in world.pandemic_state}
+        # C should NOT be infected from A's source (A doesn't trade with C)
+        # But C IS adjacent to A. Under the old code, B (infected) trades with C,
+        # so A→C would wrongly fire. Under the fix, only source_ctrl=A is checked
+        # against adj_ctrl=C, and (A, C) is not in trade_pairs.
+        #
+        # However, B→A spread check won't create new A (already infected).
+        # The key assertion: C is not infected by A's spread.
+        # Note: B has adjacency ["A"] only, not ["A","C"], so B cannot spread to C either.
+        assert "C" not in infected_names, (
+            f"C should not be infected — A doesn't trade with C. "
+            f"Infected: {infected_names}"
+        )
 
 
 class TestPandemicIntegration:

@@ -115,20 +115,22 @@ class TestPythonRoundTrip:
         with pytest.raises((RuntimeError, ValueError), match="set_region_state"):
             sim.tick(0, _make_dummy_signals())
 
-    def test_replace_social_edges_rejects_type_mismatch(self):
+    def test_apply_relationship_ops_rejects_type_mismatch(self):
         sim = AgentSimulator(num_regions=1, seed=42)
         bad_batch = pa.record_batch(
             [
-                pa.array([1], type=pa.uint32()),
-                pa.array([2], type=pa.uint32()),
-                pa.array([1], type=pa.uint16()),
-                pa.array([5], type=pa.uint16()),
+                pa.array([0], type=pa.uint8()),      # op_type
+                pa.array([1], type=pa.uint32()),      # agent_a
+                pa.array([2], type=pa.uint32()),      # agent_b
+                pa.array([1], type=pa.uint16()),      # bond_type (wrong type: u16 instead of u8)
+                pa.array([50], type=pa.int8()),       # sentiment
+                pa.array([5], type=pa.uint16()),      # formed_turn
             ],
-            names=["agent_a", "agent_b", "relationship", "formed_turn"],
+            names=["op_type", "agent_a", "agent_b", "bond_type", "sentiment", "formed_turn"],
         )
 
-        with pytest.raises((RuntimeError, ValueError), match="relationship"):
-            sim.replace_social_edges(bad_batch)
+        with pytest.raises((RuntimeError, ValueError), match="bond_type"):
+            sim.apply_relationship_ops(bad_batch)
 
 
 class TestBuildSignalsValidation:

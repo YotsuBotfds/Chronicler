@@ -1172,7 +1172,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         from chronicler.politics import check_proxy_detection, check_restoration
         from chronicler.politics import check_twilight_absorption, update_decline_tracking
         collapse_events.extend(check_proxy_detection(world, acc=acc))
-        collapse_events.extend(check_restoration(world))
+        collapse_events.extend(check_restoration(world, acc=acc))
         collapse_events.extend(check_twilight_absorption(world))
         update_decline_tracking(world)
 
@@ -1257,7 +1257,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         check_lifespan_expiry(civ, world)
 
     # M17b: Exile restoration checks
-    collapse_events.extend(check_exile_restoration(world))
+    collapse_events.extend(check_exile_restoration(world, acc=acc))
 
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
@@ -1544,6 +1544,7 @@ def run_turn(
     ecology_runtime: object | None = None,
     politics_runtime: object | None = None,
     force_settlement_detection: bool = False,
+    pending_injections: list | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
     from chronicler.accumulator import StatAccumulator
@@ -1556,6 +1557,13 @@ def run_turn(
     turn_events: list[Event] = []
     acc = StatAccumulator()
     clear_active_trade_routes_snapshot(world)
+
+    # Drain pending injections now that accumulator exists
+    if pending_injections:
+        while pending_injections:
+            event_type, target_civ = pending_injections.pop(0)
+            injected_events = apply_injected_event(event_type, target_civ, world, acc=acc)
+            world.events_timeline.extend(injected_events)
 
     # --- M18: Start-of-turn snapshots ---
     for civ in world.civilizations:
@@ -1869,7 +1877,7 @@ def run_turn(
     from chronicler.emergence import check_tech_regression
     from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
     black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
-    turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn))
+    turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn, acc=acc))
 
     # --- M18: Stress computation (feeds next turn) ---
     from chronicler.emergence import compute_all_stress
