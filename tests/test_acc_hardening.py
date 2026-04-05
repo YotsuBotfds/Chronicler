@@ -290,7 +290,7 @@ class TestRestorationAccRouting:
         assert triggered, "Expected exile restoration to trigger in 200 seed attempts"
 
     def test_restoration_dead_civ_revival_routes_through_acc(self):
-        """check_restoration routes stat resets through acc for existing dead civs."""
+        """check_restoration routes stat resets through acc without doubling population."""
         from chronicler.politics import check_restoration
 
         absorber = _make_civ(
@@ -361,6 +361,12 @@ class TestRestorationAccRouting:
                 # Should have deltas for the stats being reset
                 assert "stability" in stat_names or "military" in stat_names or "economy" in stat_names, \
                     f"Expected keep mutations for stat resets, got stats: {stat_names}"
+                # Population is recomputed via sync_civ_population(), not keep.
+                assert "population" not in stat_names
+
+                # Applying keep should not double the restored population.
+                acc.apply_keep(world)
+                assert dead_civ.population == 30
                 break
 
         assert triggered, "Expected restoration to trigger in 500 seed attempts"

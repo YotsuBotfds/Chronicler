@@ -1108,7 +1108,9 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
         else:
             if acc is not None:
                 rc_idx = civ_index(world, restored_civ.name)
-                acc.add(rc_idx, restored_civ, "population", restored_population - restored_civ.population, "keep")
+                # Population is recomputed below via sync_civ_population() after
+                # the region controller transfer. Routing it through keep would
+                # double-apply the restoration once apply_keep() runs.
                 acc.add(rc_idx, restored_civ, "military", 20 - restored_civ.military, "keep")
                 acc.add(rc_idx, restored_civ, "economy", 20 - restored_civ.economy, "keep")
                 acc.add(rc_idx, restored_civ, "culture", 30 - restored_civ.culture, "keep")
