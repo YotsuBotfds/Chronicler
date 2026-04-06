@@ -332,6 +332,9 @@ impl AgentSimulator {
         let seceded_col = rb
             .column_by_name("seceded_this_turn")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        let catastrophe_deaths_col = rb
+            .column_by_name("catastrophe_deaths_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt16Array>());
 
         // M55a: Spatial substrate columns
         let is_capital_col = rb
@@ -476,6 +479,7 @@ impl AgentSimulator {
                     controller_changed_this_turn: controller_changed_col.map_or(false, |arr| arr.value(i)),
                     war_won_this_turn: war_won_col.map_or(false, |arr| arr.value(i)),
                     seceded_this_turn: seceded_col.map_or(false, |arr| arr.value(i)),
+                    catastrophe_deaths_this_turn: catastrophe_deaths_col.map_or(0, |arr| arr.value(i)),
                     // M55a
                     is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
@@ -667,6 +671,7 @@ impl AgentSimulator {
                 r.controller_changed_this_turn = controller_changed_col.map_or(false, |arr| arr.value(i));
                 r.war_won_this_turn = war_won_col.map_or(false, |arr| arr.value(i));
                 r.seceded_this_turn = seceded_col.map_or(false, |arr| arr.value(i));
+                r.catastrophe_deaths_this_turn = catastrophe_deaths_col.map_or(0, |arr| arr.value(i));
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 // M58a: Per-good stockpile

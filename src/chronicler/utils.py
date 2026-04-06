@@ -65,12 +65,21 @@ def sync_all_populations(world) -> None:
         sync_civ_population(civ, world)
 
 
-def distribute_pop_loss(regions, total_loss: int) -> None:
-    """Distribute population loss proportionally across regions."""
+def stage_region_catastrophe_deaths(region, amount: int) -> None:
+    """Queue a one-turn catastrophe death count for bridge-backed agent modes."""
+    if amount <= 0:
+        return
+    current = int(getattr(region, "_catastrophe_deaths_this_turn", 0) or 0)
+    region._catastrophe_deaths_this_turn = current + int(amount)
+
+
+def distribute_pop_loss(regions, total_loss: int) -> list[int]:
+    """Distribute population loss proportionally across regions and return per-region drains."""
     total_pop = sum(r.population for r in regions)
     if total_pop <= 0:
-        return
+        return [0 for _ in regions]
     remaining = total_loss
+    actual_drains: list[int] = []
     for i, r in enumerate(regions):
         if i == len(regions) - 1:
             drain = remaining
@@ -79,6 +88,8 @@ def distribute_pop_loss(regions, total_loss: int) -> None:
         actual = min(drain, r.population)
         r.population = max(r.population - actual, 0)
         remaining -= actual
+        actual_drains.append(actual)
+    return actual_drains
 
 
 def drain_region_pop(region, amount: int) -> int:

@@ -39,7 +39,7 @@ from chronicler.utils import STAT_FLOOR
 if TYPE_CHECKING:
     from chronicler.models import Civilization, WorldState
 
-UNBOUNDED_STATS = {"treasury", "asabiya", "prestige"}
+UNBOUNDED_STATS = {"treasury", "asabiya", "prestige", "population"}
 
 STAT_TO_OCCUPATION = {
     "military": 1,   # Soldier
@@ -114,7 +114,7 @@ class StatAccumulator:
         for stat, total in net.items():
             if total <= 0:
                 continue
-            target = total // 2
+            target = int(total // 2)
             remaining_reduction = total - target
 
             for idx in range(len(self._changes) - 1, start_index - 1, -1):

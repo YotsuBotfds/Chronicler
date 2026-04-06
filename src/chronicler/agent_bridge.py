@@ -350,10 +350,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
     controller_changed_vals = [getattr(r, '_controller_changed_this_turn', False) for r in world.regions]
     war_won_vals = [getattr(r, '_war_won_this_turn', False) for r in world.regions]
     seceded_vals = [getattr(r, '_seceded_this_turn', False) for r in world.regions]
+    catastrophe_death_vals = [
+        max(0, min(int(getattr(r, '_catastrophe_deaths_this_turn', 0) or 0), 0xFFFF))
+        for r in world.regions
+    ]
     for r in world.regions:
         r._controller_changed_this_turn = False
         r._war_won_this_turn = False
         r._seceded_this_turn = False
+        r._catastrophe_deaths_this_turn = 0
 
     # M55a: is_capital — any alive civ has this region as capital
     alive_civs = [c for c in world.civilizations if c.regions]
@@ -494,6 +499,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "controller_changed_this_turn": pa.array(controller_changed_vals, type=pa.bool_()),
         "war_won_this_turn": pa.array(war_won_vals, type=pa.bool_()),
         "seceded_this_turn": pa.array(seceded_vals, type=pa.bool_()),
+        "catastrophe_deaths_this_turn": pa.array(catastrophe_death_vals, type=pa.uint16()),
         # M55a: Spatial substrate signals
         "is_capital": pa.array(is_capital_flags, type=pa.bool_()),
         "temple_prestige": pa.array(temple_prestiges, type=pa.float32()),

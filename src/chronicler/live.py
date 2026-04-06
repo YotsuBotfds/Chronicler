@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import queue
 import threading
@@ -266,6 +267,77 @@ class LiveServer:
             "type": "error",
             "message": message,
         }))
+
+    def _narrate_range_sync(
+        self,
+        init_data: dict[str, Any],
+        client_config: dict[str, Any],
+        start_turn: int,
+        end_turn: int,
+    ) -> dict[str, Any] | None:
+        from chronicler.curator import curate
+        from chronicler.llm import create_clients
+        from chronicler.models import Event, NamedEvent, TurnSnapshot
+        from chronicler.narrative import NarrativeEngine
+
+        all_events = [Event.model_validate(e) for e in init_data.get("events_timeline", [])]
+        all_named = [NamedEvent.model_validate(e) for e in init_data.get("named_events", [])]
+        all_history = [TurnSnapshot.model_validate(s) for s in init_data.get("history", [])]
+        seed = init_data.get("metadata", {}).get("seed", 0)
+        range_events = [e for e in all_events if start_turn <= e.turn <= end_turn]
+
+        named_chars = set()
+        for civ_data in init_data.get("world_state", {}).get("civilizations", []):
+            for gp in civ_data.get("great_persons", []):
+                if gp.get("active") and gp.get("agent_id") is not None:
+                    named_chars.add(gp.get("name", ""))
+
+        from chronicler.models import GreatPerson as _GP
+        all_great_persons = []
+        for civ_data in init_data.get("world_state", {}).get("civilizations", []):
+            for gp_data in civ_data.get("great_persons", []):
+                all_great_persons.append(_GP(**gp_data))
+        for gp_data in init_data.get("world_state", {}).get("retired_persons", []):
+            all_great_persons.append(_GP(**gp_data))
+
+        agent_name_map = (
+            {gp.agent_id: gp.name for gp in all_great_persons if gp.agent_id is not None}
+            if all_great_persons else None
+        )
+
+        moments, _ = curate(
+            range_events,
+            all_named,
+            all_history,
+            budget=1,
+            seed=seed,
+            named_characters=named_chars if named_chars else None,
+        )
+        if not moments:
+            return None
+
+        _, narrative_client = create_clients(
+            local_url=client_config.get("local_url", "http://localhost:1234/v1"),
+            sim_model=client_config.get("sim_model"),
+            narrative_model=client_config.get("narrative_model"),
+            narrator=client_config.get("narrator", "local"),
+        )
+        engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
+        entries = engine.narrate_batch(
+            moments,
+            all_history,
+            great_persons=all_great_persons if all_great_persons else None,
+            agent_name_map=agent_name_map,
+            social_edges=None,
+            dissolved_edges_by_turn=None,
+            displacement_by_region=None,
+            dynasty_registry=None,
+            economy_result=None,
+            gini_by_civ=None,
+        )
+        if not entries:
+            return None
+        return entries[0].model_dump()
 
     def start(self) -> None:
         """Start the WebSocket server in a daemon thread."""
@@ -568,9 +640,10 @@ class LiveServer:
                         if not self._init_data:
                             await self._send_error(websocket, "narrate_range requires initialized history")
                             continue
+                        init_data = copy.deepcopy(self._init_data)
                         history_turns = [
                             snap.get("turn")
-                            for snap in self._init_data.get("history", [])
+                            for snap in init_data.get("history", [])
                             if isinstance(snap, dict) and self._is_int(snap.get("turn"))
                         ]
                         if not history_turns:
@@ -589,72 +662,22 @@ class LiveServer:
                             "start_turn": start_turn,
                             "end_turn": end_turn,
                         }))
-
-                        from chronicler.models import Event, NamedEvent, TurnSnapshot
-                        from chronicler.curator import curate
-                        from chronicler.narrative import NarrativeEngine
-                        from chronicler.llm import create_clients
-
-                        all_events = [Event.model_validate(e) for e in self._init_data.get("events_timeline", [])]
-                        all_named = [NamedEvent.model_validate(e) for e in self._init_data.get("named_events", [])]
-                        all_history = [TurnSnapshot.model_validate(s) for s in self._init_data.get("history", [])]
-                        seed = self._init_data.get("metadata", {}).get("seed", 0)
-
-                        range_events = [e for e in all_events if start_turn <= e.turn <= end_turn]
-
-                        # M40: Collect named character names
-                        named_chars = set()
-                        for civ_data in self._init_data.get("world_state", {}).get("civilizations", []):
-                            for gp in civ_data.get("great_persons", []):
-                                if gp.get("active") and gp.get("agent_id") is not None:
-                                    named_chars.add(gp.get("name", ""))
-
-                        # Reconstruct great_persons from _init_data world state
-                        from chronicler.models import GreatPerson as _GP
-                        all_great_persons = []
-                        for civ_data in self._init_data.get("world_state", {}).get("civilizations", []):
-                            for gp_data in civ_data.get("great_persons", []):
-                                all_great_persons.append(_GP(**gp_data))
-                        for gp_data in self._init_data.get("world_state", {}).get("retired_persons", []):
-                            all_great_persons.append(_GP(**gp_data))
-
-                        agent_name_map = (
-                            {gp.agent_id: gp.name for gp in all_great_persons if gp.agent_id is not None}
-                            if all_great_persons else None
+                        metadata = init_data.get("metadata")
+                        client_config = self._resolve_client_config(
+                            metadata if isinstance(metadata, dict) else None
                         )
-
-                        moments, _ = curate(
-                            range_events, all_named, all_history, budget=1, seed=seed,
-                            named_characters=named_chars if named_chars else None,
+                        entry = await asyncio.to_thread(
+                            self._narrate_range_sync,
+                            init_data,
+                            client_config,
+                            start_turn,
+                            end_turn,
                         )
-                        if moments:
-                            metadata = self._init_data.get("metadata")
-                            client_config = self._resolve_client_config(
-                                metadata if isinstance(metadata, dict) else None
-                            )
-                            _, narrative_client = create_clients(
-                                local_url=client_config.get("local_url", "http://localhost:1234/v1"),
-                                sim_model=client_config.get("sim_model"),
-                                narrative_model=client_config.get("narrative_model"),
-                                narrator=client_config.get("narrator", "local"),
-                            )
-                            engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
-                            entries = engine.narrate_batch(
-                                moments, all_history,
-                                great_persons=all_great_persons if all_great_persons else None,
-                                agent_name_map=agent_name_map,
-                                social_edges=None,
-                                dissolved_edges_by_turn=None,
-                                displacement_by_region=None,
-                                dynasty_registry=None,
-                                economy_result=None,
-                                gini_by_civ=None,
-                            )
-                            if entries:
-                                await websocket.send(json.dumps({
-                                    "type": "narration_complete",
-                                    "entry": entries[0].model_dump(),
-                                }))
+                        if entry is not None:
+                            await websocket.send(json.dumps({
+                                "type": "narration_complete",
+                                "entry": entry,
+                            }))
                         continue
 
                     # Other commands only accepted while paused

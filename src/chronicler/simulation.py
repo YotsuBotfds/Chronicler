@@ -61,6 +61,7 @@ from chronicler.utils import (
     distribute_pop_loss,
     drain_region_pop,
     add_region_pop,
+    stage_region_catastrophe_deaths,
 )
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
@@ -90,6 +91,16 @@ from chronicler.tuning import (
 from chronicler.arcs import classify_arc
 
 logger = logging.getLogger(__name__)
+
+
+def _agent_pool_tracks_population(world: WorldState) -> bool:
+    """Return True when the Rust agent pool must see population shocks/deaths."""
+    return getattr(world, "agent_mode", None) in {"demographics-only", "shadow", "hybrid"}
+
+
+def _agents_own_population(world: WorldState) -> bool:
+    """Return True when Python-side population deltas must defer to Rust demographics."""
+    return getattr(world, "agent_mode", None) in {"demographics-only", "hybrid"}
 
 
 def _require_phase_acc_for_hybrid(world: WorldState, acc, phase_name: str) -> None:
@@ -180,12 +191,15 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             for civ in affected:
                 mult = get_severity_multiplier(civ, world)
                 civ_idx = civ_index(world, civ.name)
-                if acc is not None:
-                    acc.add(civ_idx, civ, "population", -int(10 * mult), "guard")
-                else:
-                    civ_regions = [r for r in world.regions if r.controller == civ.name]
-                    distribute_pop_loss(civ_regions, int(10 * mult))
-                    sync_civ_population(civ, world)
+                # Direct mutation keeps Python-side phases honest, and the
+                # one-turn catastrophe-death transient makes the same loss
+                # survive Rust write-back in bridge-backed agent modes.
+                civ_regions = [r for r in world.regions if r.controller == civ.name]
+                actual_drains = distribute_pop_loss(civ_regions, int(10 * mult))
+                if _agent_pool_tracks_population(world):
+                    for region, actual in zip(civ_regions, actual_drains):
+                        stage_region_catastrophe_deaths(region, actual)
+                sync_civ_population(civ, world)
                 drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
                 if acc is not None:
                     acc.add(civ_idx, civ, "stability", -drain, "signal")
@@ -519,7 +533,7 @@ def phase_production(world: WorldState, acc=None) -> None:
             if civ_regions:
                 growth = max(5, 5 * len(civ_regions))
                 per_region = max(1, growth // len(civ_regions))
-                if acc is not None and world.agent_mode != "off":
+                if acc is not None and _agents_own_population(world):
                     acc.add(civ_idx, civ, "population", per_region * len(civ_regions), "guard")
                 else:
                     for r in civ_regions:
@@ -527,7 +541,7 @@ def phase_production(world: WorldState, acc=None) -> None:
                     sync_civ_population(civ, world)
         elif civ.stability <= 5 and civ.population > 1:
             if civ_regions:
-                if acc is not None and world.agent_mode != "off":
+                if acc is not None and _agents_own_population(world):
                     acc.add(civ_idx, civ, "population", -5, "guard")
                 else:
                     target = max(civ_regions, key=lambda r: r.population)
@@ -536,7 +550,7 @@ def phase_production(world: WorldState, acc=None) -> None:
         # Passive repopulation: empty controlled regions slowly recover
         if civ_regions:
             empty_count = sum(1 for r in civ_regions if r.population == 0)
-            if acc is not None and world.agent_mode != "off":
+            if acc is not None and _agents_own_population(world):
                 if empty_count > 0:
                     acc.add(civ_idx, civ, "population", 3 * empty_count, "guard")
             else:
@@ -867,7 +881,7 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
         from chronicler.ecology import effective_capacity
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            if acc is not None:
+            if acc is not None and _agents_own_population(world):
                 acc.add(civ_idx, civ, "population", 10, "guard")
             else:
                 target = max(civ_regions, key=lambda r: effective_capacity(r) - r.population)
@@ -929,7 +943,10 @@ def apply_injected_event(
         pop_loss = int(10 * mult)
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            distribute_pop_loss(civ_regions, pop_loss)
+            actual_drains = distribute_pop_loss(civ_regions, pop_loss)
+            if _agent_pool_tracks_population(world):
+                for region, actual in zip(civ_regions, actual_drains):
+                    stage_region_catastrophe_deaths(region, actual)
             sync_civ_population(civ, world)
         if acc is not None:
             acc.add(civ_idx, civ, "stability", -drain, "signal")
@@ -1186,6 +1203,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
                 for region in world.regions:
                     if region.name in lost:
                         region.controller = None
+                        region._controller_changed_this_turn = True
                 mult = get_severity_multiplier(civ, world)
                 base_mil_target = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
                 base_eco_target = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
@@ -1878,6 +1896,12 @@ def run_turn(
     from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
     black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
     turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn, acc=acc))
+
+    # Third apply_keep flush: tech regression's remove_era_bonus routes through
+    # acc as "keep" (V1 fix), but runs after the Phase 10 flush at line ~1797.
+    # Without this flush, era-bonus removals are silently dropped in hybrid mode.
+    if world.agent_mode == "hybrid" and acc is not None:
+        acc.apply_keep(world)
 
     # --- M18: Stress computation (feeds next turn) ---
     from chronicler.emergence import compute_all_stress

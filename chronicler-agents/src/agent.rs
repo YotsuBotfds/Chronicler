@@ -113,6 +113,8 @@ pub const INITIAL_AGE_STREAM_OFFSET: u64 = 1400;
 pub const SPATIAL_POSITION_STREAM_OFFSET: u64 = 2000;
 // M55a audit fix: separate stream for newborn placement vs migration placement
 pub const NEWBORN_POSITION_STREAM_OFFSET: u64 = 2100;
+// M60 follow-up: catastrophe death selection before the main tick
+pub const CATASTROPHE_STREAM_OFFSET: u64 = 2200;
 // Note: SPATIAL_DRIFT_STREAM_OFFSET (2001) removed — spatial drift is deterministic
 // (attractor-based), not RNG-driven. Offset 2001 is retired; do not reuse.
 // M58a: Merchant route selection (reserved, not consumed in M58a)

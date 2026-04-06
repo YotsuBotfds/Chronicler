@@ -2,6 +2,7 @@
 
 use rand::Rng;
 use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
@@ -40,6 +41,169 @@ pub struct AgentEvent {
     pub formed_turn: u32,
 }
 
+struct DeathApplyContext {
+    id_to_slot: std::collections::HashMap<u32, usize>,
+    parent_to_children: std::collections::HashMap<u32, Vec<usize>>,
+    full_dead_ids: std::collections::HashSet<u32>,
+}
+
+fn build_death_apply_context(
+    pool: &AgentPool,
+    deaths: &[(usize, u16)],
+) -> DeathApplyContext {
+    let mut id_to_slot: std::collections::HashMap<u32, usize> =
+        std::collections::HashMap::with_capacity(pool.alive_count());
+    for slot in 0..pool.capacity() {
+        if pool.is_alive(slot) {
+            id_to_slot.insert(pool.ids[slot], slot);
+        }
+    }
+
+    let mut parent_to_children: std::collections::HashMap<u32, Vec<usize>> =
+        std::collections::HashMap::new();
+    for slot in 0..pool.capacity() {
+        if pool.is_alive(slot) {
+            let pid0 = pool.parent_id_0[slot];
+            if pid0 != crate::agent::PARENT_NONE {
+                parent_to_children.entry(pid0).or_default().push(slot);
+            }
+            let pid1 = pool.parent_id_1[slot];
+            if pid1 != crate::agent::PARENT_NONE && pid1 != pid0 {
+                parent_to_children.entry(pid1).or_default().push(slot);
+            }
+        }
+    }
+
+    let full_dead_ids: std::collections::HashSet<u32> = deaths
+        .iter()
+        .map(|&(slot, _)| pool.ids[slot])
+        .collect();
+
+    DeathApplyContext {
+        id_to_slot,
+        parent_to_children,
+        full_dead_ids,
+    }
+}
+
+fn apply_death_batch(
+    pool: &mut AgentPool,
+    deaths: &[(usize, u16)],
+    turn: u32,
+    context: &DeathApplyContext,
+    events: &mut Vec<AgentEvent>,
+    household_stats: &mut crate::household::HouseholdStats,
+    memory_intents: &mut Vec<crate::memory::MemoryIntent>,
+) {
+    for &(slot, region) in deaths {
+        if !pool.is_alive(slot) {
+            continue;
+        }
+
+        let dying_agent_id = pool.ids[slot];
+        events.push(AgentEvent {
+            agent_id: pool.id(slot),
+            event_type: 0,
+            region,
+            target_region: 0,
+            civ_affinity: pool.civ_affinity(slot),
+            occupation: pool.occupation(slot),
+            belief: pool.beliefs[slot],
+            turn,
+            target_agent_id: 0,
+            formed_turn: 0,
+        });
+
+        let (_inheritance_events, spouse_intents) = crate::household::household_death_transfer(
+            pool,
+            slot,
+            &context.full_dead_ids,
+            &context.id_to_slot,
+            &context.parent_to_children,
+            household_stats,
+        );
+        memory_intents.extend(spouse_intents);
+
+        if let Some(children) = context.parent_to_children.get(&dying_agent_id) {
+            for &child_slot in children {
+                if pool.is_alive(child_slot) {
+                    memory_intents.push(crate::memory::MemoryIntent {
+                        agent_slot: child_slot,
+                        expected_agent_id: pool.ids[child_slot],
+                        event_type: crate::memory::MemoryEventType::DeathOfKin as u8,
+                        source_civ: pool.civ_affinities[child_slot],
+                        intensity: crate::agent::DEATHOFKIN_DEFAULT_INTENSITY,
+                        is_legacy: false,
+                        decay_factor_override: None,
+                    });
+                }
+            }
+        }
+
+        let legacy_memories = crate::memory::extract_legacy_memories(pool, slot);
+        if !legacy_memories.is_empty() {
+            let legacy_decay =
+                crate::memory::factor_from_half_life(crate::agent::LEGACY_HALF_LIFE);
+            if let Some(children) = context.parent_to_children.get(&dying_agent_id) {
+                for &child_slot in children {
+                    if pool.is_alive(child_slot) && pool.ids[child_slot] != 0 {
+                        for &(event_type, source_civ, halved_intensity) in &legacy_memories {
+                            memory_intents.push(crate::memory::MemoryIntent {
+                                agent_slot: child_slot,
+                                expected_agent_id: pool.ids[child_slot],
+                                event_type,
+                                source_civ,
+                                intensity: halved_intensity,
+                                is_legacy: true,
+                                decay_factor_override: Some(legacy_decay),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        pool.kill(slot);
+    }
+}
+
+fn collect_catastrophe_deaths(
+    pool: &AgentPool,
+    regions: &[RegionState],
+    master_seed: [u8; 32],
+    turn: u32,
+) -> Vec<(usize, u16)> {
+    let mut deaths: Vec<(usize, u16)> = Vec::new();
+
+    for (region_idx, region) in regions.iter().enumerate() {
+        let requested = region.catastrophe_deaths_this_turn as usize;
+        if requested == 0 {
+            continue;
+        }
+
+        let mut eligible: Vec<usize> = (0..pool.capacity())
+            .filter(|&slot| pool.is_alive(slot) && pool.region(slot) as usize == region_idx)
+            .collect();
+        if eligible.is_empty() {
+            continue;
+        }
+
+        let mut rng = ChaCha8Rng::from_seed(master_seed);
+        rng.set_stream(
+            ((region_idx as u64) << 48)
+                | ((turn as u64) << 16)
+                | (crate::agent::CATASTROPHE_STREAM_OFFSET as u64),
+        );
+        eligible.shuffle(&mut rng);
+        eligible.truncate(requested.min(eligible.len()));
+        eligible.sort_unstable();
+
+        deaths.extend(eligible.into_iter().map(|slot| (slot, region.region_id)));
+    }
+
+    deaths
+}
+
 fn mark_war_survivors(
     pool: &mut AgentPool,
     region_groups: &[Vec<usize>],
@@ -76,14 +240,37 @@ pub fn try_tick_agents(
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
+    let mut household_stats = crate::household::HouseholdStats::default();
+    let mut memory_intents: Vec<crate::memory::MemoryIntent> = Vec::new();
+
+    // -----------------------------------------------------------------------
+    // 0.0 Catastrophe deaths — apply before the main tick so direct Python
+    // phase losses survive write-back in bridge-backed modes.
+    // -----------------------------------------------------------------------
+    let catastrophe_deaths = collect_catastrophe_deaths(pool, regions, master_seed, turn);
+    let catastrophe_dead_ids: std::collections::HashSet<u32> = catastrophe_deaths
+        .iter()
+        .map(|&(slot, _)| pool.ids[slot])
+        .collect();
+    if !catastrophe_deaths.is_empty() {
+        let catastrophe_context = build_death_apply_context(pool, &catastrophe_deaths);
+        apply_death_batch(
+            pool,
+            &catastrophe_deaths,
+            turn,
+            &catastrophe_context,
+            &mut events,
+            &mut household_stats,
+            &mut memory_intents,
+        );
+    }
 
     // -----------------------------------------------------------------------
     // M48: Collect alive slots and decay memories as FIRST operation
     // -----------------------------------------------------------------------
     let alive_slots: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
     crate::memory::decay_memories(pool, &alive_slots);
-    let mut memory_intents: Vec<crate::memory::MemoryIntent> = Vec::with_capacity(alive_slots.len());
-    let mut household_stats = crate::household::HouseholdStats::default();
+    memory_intents.reserve(alive_slots.len());
 
     // -----------------------------------------------------------------------
     // 0. Skill growth — iterate all alive agents
@@ -542,32 +729,14 @@ pub fn try_tick_agents(
     demo_debug.max_endemic = endemic_max;
 
     // -----------------------------------------------------------------------
-    // M48: Build agent_id → slot reverse index for DeathOfKin lookups.
-    // Must be built BEFORE deaths so we can find children of dying parents.
+    // Build one shared death context for the demographic pass so death, kin,
+    // inheritance, and legacy-memory handling stay in sync.
     // -----------------------------------------------------------------------
-    let mut id_to_slot: std::collections::HashMap<u32, usize> =
-        std::collections::HashMap::with_capacity(pool.alive_count());
-    for slot in 0..pool.capacity() {
-        if pool.is_alive(slot) {
-            id_to_slot.insert(pool.ids[slot], slot);
-        }
-    }
-
-    // Build parent_id → Vec<child_slot> reverse index for DeathOfKin
-    let mut parent_to_children: std::collections::HashMap<u32, Vec<usize>> =
-        std::collections::HashMap::new();
-    for slot in 0..pool.capacity() {
-        if pool.is_alive(slot) {
-            let pid0 = pool.parent_id_0[slot];
-            if pid0 != crate::agent::PARENT_NONE {
-                parent_to_children.entry(pid0).or_default().push(slot);
-            }
-            let pid1 = pool.parent_id_1[slot];
-            if pid1 != crate::agent::PARENT_NONE && pid1 != pid0 {
-                parent_to_children.entry(pid1).or_default().push(slot);
-            }
-        }
-    }
+    let all_demo_deaths: Vec<(usize, u16)> = demo_results
+        .iter()
+        .flat_map(|(dr, _)| dr.deaths.iter().copied())
+        .collect();
+    let death_context = build_death_apply_context(pool, &all_demo_deaths);
 
     // -----------------------------------------------------------------------
     // M55a: Snapshot parent positions before death pass for newborn placement
@@ -577,7 +746,7 @@ pub fn try_tick_agents(
         for (dr, _) in &demo_results {
             for birth in &dr.births {
                 if birth.birth_parent_id != crate::agent::PARENT_NONE {
-                    if let Some(&parent_slot) = id_to_slot.get(&birth.birth_parent_id) {
+                    if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.birth_parent_id) {
                         if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
                             pmap.entry(birth.birth_parent_id)
                                 .or_insert((pool.x[parent_slot], pool.y[parent_slot]));
@@ -589,81 +758,19 @@ pub fn try_tick_agents(
         pmap
     };
 
-    // M57b: Precompute full dead set for inheritance eligibility.
-    let full_dead_ids: std::collections::HashSet<u32> = demo_results
-        .iter()
-        .flat_map(|(dr, _)| dr.deaths.iter().map(|&(slot, _)| pool.ids[slot]))
-        .collect();
-
     // Sequential apply: deaths, age increments, births
     let mut kin_bond_failures: u32 = 0;
     for (dr, _) in &demo_results {
         // Deaths
-        for &(slot, region) in &dr.deaths {
-            events.push(AgentEvent {
-                agent_id: pool.id(slot),
-                event_type: 0,
-                region,
-                target_region: 0,
-                civ_affinity: pool.civ_affinity(slot),
-                occupation: pool.occupation(slot),
-                belief: pool.beliefs[slot],
-                turn,
-                target_agent_id: 0,
-                formed_turn: 0,
-            });
-
-            // M57b: Inheritance transfer — MUST run before DeathOfKin and pool.kill
-            let (_inheritance_events, spouse_intents) = crate::household::household_death_transfer(
-                pool, slot, &full_dead_ids, &id_to_slot, &parent_to_children,
-                &mut household_stats,
-            );
-            memory_intents.extend(spouse_intents);
-
-            // M48: DeathOfKin intent for each living child of the dying agent
-            let dying_agent_id = pool.ids[slot];
-            if let Some(children) = parent_to_children.get(&dying_agent_id) {
-                for &child_slot in children {
-                    // Only emit for children still alive at this point
-                    if pool.is_alive(child_slot) {
-                        memory_intents.push(crate::memory::MemoryIntent {
-                            agent_slot: child_slot,
-                            expected_agent_id: pool.ids[child_slot],
-                            event_type: crate::memory::MemoryEventType::DeathOfKin as u8,
-                            source_civ: pool.civ_affinities[child_slot],
-                            intensity: crate::agent::DEATHOFKIN_DEFAULT_INTENSITY,
-                            is_legacy: false,
-                            decay_factor_override: None,
-                        });
-                    }
-                }
-            }
-
-            // M51: Legacy memory transfer — extract top memories from dying agent
-            let legacy_memories = crate::memory::extract_legacy_memories(pool, slot);
-            if !legacy_memories.is_empty() {
-                let legacy_decay = crate::memory::factor_from_half_life(crate::agent::LEGACY_HALF_LIFE);
-                if let Some(children) = parent_to_children.get(&dying_agent_id) {
-                    for &child_slot in children {
-                        if pool.is_alive(child_slot) && pool.ids[child_slot] != 0 {
-                            for &(event_type, source_civ, halved_intensity) in &legacy_memories {
-                                memory_intents.push(crate::memory::MemoryIntent {
-                                    agent_slot: child_slot,
-                                    expected_agent_id: pool.ids[child_slot],
-                                    event_type,
-                                    source_civ,
-                                    intensity: halved_intensity,
-                                    is_legacy: true,
-                                    decay_factor_override: Some(legacy_decay),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            pool.kill(slot);
-        }
+        apply_death_batch(
+            pool,
+            &dr.deaths,
+            turn,
+            &death_context,
+            &mut events,
+            &mut household_stats,
+            &mut memory_intents,
+        );
 
         // Age increments
         for &slot in &dr.aged {
@@ -696,7 +803,7 @@ pub fn try_tick_agents(
             }
             // M50a/M57a: auto-form kin bonds to both parents
             if birth.birth_parent_id != crate::agent::PARENT_NONE {
-                if let Some(&parent_slot) = id_to_slot.get(&birth.birth_parent_id) {
+                if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.birth_parent_id) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
@@ -707,7 +814,7 @@ pub fn try_tick_agents(
             if birth.other_parent_id != crate::agent::PARENT_NONE
                 && birth.other_parent_id != birth.birth_parent_id
             {
-                if let Some(&parent_slot) = id_to_slot.get(&birth.other_parent_id) {
+                if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.other_parent_id) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.other_parent_id {
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
@@ -754,7 +861,7 @@ pub fn try_tick_agents(
                 if idx == 1 && pid == parents_for_intent[0] {
                     continue; // same parent in both slots — already emitted
                 }
-                if let Some(&parent_slot) = id_to_slot.get(&pid) {
+                if let Some(&parent_slot) = death_context.id_to_slot.get(&pid) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == pid {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: parent_slot,
@@ -779,11 +886,16 @@ pub fn try_tick_agents(
     let post_alive: Vec<usize> = (0..pool.capacity())
         .filter(|&s| pool.is_alive(s))
         .collect();
-    let dead_ids = &full_dead_ids;
+    let dead_ids: std::collections::HashSet<u32> = death_context
+        .full_dead_ids
+        .iter()
+        .copied()
+        .chain(catastrophe_dead_ids.iter().copied())
+        .collect();
     let mut death_dissolved_count: u32 = 0;
     if !dead_ids.is_empty() {
         let (dissolution_events, removed) =
-            crate::formation::death_cleanup_sweep(pool, &post_alive, dead_ids, turn);
+            crate::formation::death_cleanup_sweep(pool, &post_alive, &dead_ids, turn);
         events.extend(dissolution_events);
         death_dissolved_count = removed;
     }
@@ -1711,6 +1823,40 @@ mod tests {
             assert_eq!(e.civ_affinity, 0);
             assert_eq!(e.turn, 0);
         }
+    }
+
+    #[test]
+    fn test_catastrophe_deaths_apply_before_tick() {
+        let mut pool = AgentPool::new(0);
+        let mut region = make_healthy_region(0);
+        region.catastrophe_deaths_this_turn = 40;
+        let regions = vec![region];
+        let signals = make_default_signals(1, 1);
+
+        for _ in 0..40 {
+            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        }
+
+        let mut seed = [0u8; 32];
+        seed[0] = 12;
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        let (events, _, _, _, _, _, _) = tick_agents(
+            &mut pool,
+            &regions,
+            &signals,
+            seed,
+            0,
+            &mut percentiles,
+            &mut Vec::new(),
+            &[],
+            &mut crate::spatial::SpatialDiagnostics::default(),
+            &[],
+            None,
+        );
+
+        let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
+        assert_eq!(death_events.len(), 40);
+        assert_eq!(pool.alive_count(), 0);
     }
 
     #[test]

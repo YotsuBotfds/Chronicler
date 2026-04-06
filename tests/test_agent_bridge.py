@@ -253,6 +253,30 @@ class TestSharedModeFixtures:
         assert world.agent_mode == "hybrid"
         assert bridge.get_snapshot().num_rows >= 0
 
+    def test_hybrid_catastrophe_deaths_survive_write_back(self, make_world):
+        world = make_world(num_civs=1)
+        world.agent_mode = "hybrid"
+        region = world.regions[0]
+        civ = world.civilizations[0]
+        region.population = 30
+        civ.population = 30
+
+        bridge = AgentBridge(world, mode="hybrid")
+        initial_agents = bridge.get_snapshot().num_rows
+        assert initial_agents == 30
+
+        region.population = 0
+        civ.population = 1
+        region._catastrophe_deaths_this_turn = initial_agents
+        world.turn = 1
+
+        bridge.tick(world)
+
+        assert world.regions[0].population == 0
+        assert world.civilizations[0].population == 1
+        death_events = [e for e in world.agent_events_raw if e.event_type == "death"]
+        assert len(death_events) == initial_agents
+
     def test_demographics_only_20_turns(self, sample_world):
         # Seed region populations from carrying_capacity so the bridge has agents to tick
         for region in sample_world.regions:
@@ -974,6 +998,18 @@ class TestM48TransientMemorySignals:
         vals2 = batch2.column("seceded_this_turn").to_pylist()
         assert vals2[2] is False
 
+    def test_catastrophe_deaths_clear_after_read(self, sample_world):
+        """_catastrophe_deaths_this_turn must not persist across batch builds."""
+        sample_world.regions[0]._catastrophe_deaths_this_turn = 7
+        batch1 = build_region_batch(sample_world)
+        vals1 = batch1.column("catastrophe_deaths_this_turn").to_pylist()
+        assert vals1[0] == 7
+        assert all(v == 0 for v in vals1[1:])
+
+        batch2 = build_region_batch(sample_world)
+        vals2 = batch2.column("catastrophe_deaths_this_turn").to_pylist()
+        assert vals2[0] == 0
+
     def test_all_three_signals_default_false(self, sample_world):
         """When no signals are set, all columns default to False."""
         batch = build_region_batch(sample_world)
@@ -982,12 +1018,16 @@ class TestM48TransientMemorySignals:
             vals = batch.column(col_name).to_pylist()
             assert all(v is False for v in vals), f"{col_name} should default to all False"
 
+        catastrophe_vals = batch.column("catastrophe_deaths_this_turn").to_pylist()
+        assert all(v == 0 for v in catastrophe_vals)
+
     def test_batch_has_correct_arrow_types(self, sample_world):
         """M48 columns must be Boolean Arrow type."""
         import pyarrow as pa
         batch = build_region_batch(sample_world)
         for col_name in ["controller_changed_this_turn", "war_won_this_turn", "seceded_this_turn"]:
             assert batch.schema.field(col_name).type == pa.bool_()
+        assert batch.schema.field("catastrophe_deaths_this_turn").type == pa.uint16()
 
     def test_multiple_signals_on_different_regions(self, sample_world):
         """Multiple signals on different regions are all captured and cleared."""

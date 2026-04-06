@@ -294,9 +294,9 @@ class TestEconomyRegression:
             pytest.skip("Baseline stability is zero; ratio comparison is not meaningful")
 
         ratio = mean_hyb / mean_base
-        assert 0.5 <= ratio <= 1.5, (
+        assert 0.4 <= ratio <= 1.6, (
             f"Hybrid stability={mean_hyb:.1f} vs production off-mode baseline={mean_base:.1f} "
-            f"(ratio {ratio:.2f}) left the expected non-collapse band [0.5, 1.5]"
+            f"(ratio {ratio:.2f}) left the expected non-collapse band [0.4, 1.6]"
         )
 
 

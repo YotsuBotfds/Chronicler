@@ -136,6 +136,7 @@ def test_agents_off_no_consumer_counters(tmp_path):
     result = subprocess.run(
         [
             sys.executable, "-m", "chronicler.main",
+            "--simulate-only",
             "--seed", "42", "--turns", "5", "--agents", "off",
             "--output", str(out_dir / "chronicle.md"),
         ],

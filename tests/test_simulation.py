@@ -115,6 +115,56 @@ class TestPhaseProduction:
         sync_all_populations(sample_world)
         assert civ.population == after
 
+    def test_shadow_population_growth_updates_regions_when_accumulator_present(self, sample_world):
+        from chronicler.utils import sync_all_populations
+
+        civ = sample_world.civilizations[0]
+        civ.population = 20
+        civ.economy = 80
+        civ.stability = 60
+        sample_world.agent_mode = "shadow"
+
+        controlled_regions = [r for r in sample_world.regions if r.controller == civ.name]
+        assert controlled_regions
+        for region in controlled_regions:
+            region.population = 10
+        sync_all_populations(sample_world)
+        before = sum(region.population for region in controlled_regions)
+
+        acc = StatAccumulator()
+        phase_production(sample_world, acc=acc)
+
+        after = sum(region.population for region in controlled_regions)
+        assert after > before
+        assert not any(change.stat == "population" for change in acc._changes)
+        sync_all_populations(sample_world)
+        assert civ.population == after
+
+    def test_demographics_only_population_growth_stays_agent_owned(self, sample_world):
+        from chronicler.utils import sync_all_populations
+
+        civ = sample_world.civilizations[0]
+        civ.population = 20
+        civ.economy = 80
+        civ.stability = 60
+        sample_world.agent_mode = "demographics-only"
+
+        controlled_regions = [r for r in sample_world.regions if r.controller == civ.name]
+        assert controlled_regions
+        for region in controlled_regions:
+            region.population = 10
+        sync_all_populations(sample_world)
+        before = sum(region.population for region in controlled_regions)
+
+        acc = StatAccumulator()
+        phase_production(sample_world, acc=acc)
+
+        after = sum(region.population for region in controlled_regions)
+        assert after == before
+        pop_changes = [change for change in acc._changes if change.stat == "population"]
+        assert pop_changes
+        assert all(change.category == "guard" for change in pop_changes)
+
 
 class TestAutomaticEffects:
     def test_low_stability_recovery_routes_as_guard_shock(self, sample_world):
@@ -453,6 +503,31 @@ class TestPhaseConsequences:
         assert seen["acc"] is acc
 
 
+class TestEventEffectPopulationRouting:
+    def test_shadow_random_migration_updates_population_directly(self, sample_world):
+        from chronicler.utils import sync_all_populations
+
+        civ = sample_world.civilizations[0]
+        sample_world.agent_mode = "shadow"
+        controlled_regions = [r for r in sample_world.regions if r.controller == civ.name]
+        assert len(controlled_regions) >= 2
+        controlled_regions[0].population = 25
+        controlled_regions[1].population = 5
+        sync_all_populations(sample_world)
+        before = sum(region.population for region in controlled_regions)
+
+        acc = StatAccumulator()
+        _apply_event_effects("migration", civ, sample_world, acc=acc)
+
+        after = sum(region.population for region in controlled_regions)
+        assert after == before + 10
+        assert civ.population == after
+        assert not any(change.stat == "population" for change in acc._changes)
+        stability_changes = [change for change in acc._changes if change.stat == "stability"]
+        assert len(stability_changes) == 1
+        assert stability_changes[0].category == "signal"
+
+
 class TestRunTurn:
     def test_turn_increments(self, sample_world):
         def stub_selector(civ, world):
@@ -506,7 +581,7 @@ class TestRunTurn:
         assert sample_world._agent_snapshot is None
         assert "Failed to fetch agent snapshot for Phase 10 consumers" in caplog.text
 
-    def test_collapse_events_passed_to_narrator(self, sample_world):
+    def test_collapse_events_passed_to_narrator(self, sample_world, monkeypatch):
         """Narrator must receive collapse events (critical fix: was previously missed)."""
         # Force a collapse for the first civ
         civ = sample_world.civilizations[0]
@@ -515,6 +590,17 @@ class TestRunTurn:
         civ.regions = [r.name for r in sample_world.regions[:3]]
         for r in sample_world.regions[:3]:
             r.controller = civ.name
+        # Keep the collapse preconditions stable through the full turn loop.
+        sample_world.event_probabilities = {k: 0.0 for k in sample_world.event_probabilities}
+        sample_world.active_conditions.append(
+            ActiveCondition(
+                condition_type="drought",
+                affected_civs=[civ.name],
+                duration=3,
+                severity=50,
+            )
+        )
+        monkeypatch.setattr("chronicler.simulation.apply_asabiya_dynamics", lambda world: None)
 
         narrator_events = []
 

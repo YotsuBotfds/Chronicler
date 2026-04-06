@@ -711,3 +711,89 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
     assert captured_kwargs.get("displacement_by_region") is None
     assert captured_kwargs.get("dynasty_registry") is None
     assert captured_kwargs.get("economy_result") is None
+
+
+@pytest.mark.asyncio
+async def test_narrate_range_offloads_work_and_keeps_queue_drain_alive(running_live_server, monkeypatch):
+    """Long narration should not block the live queue drain loop."""
+    from chronicler.models import Event, NarrativeMoment, NarrativeRole
+    from chronicler.narrative import NarrativeEngine
+
+    worker_started = threading.Event()
+    release_worker = threading.Event()
+
+    running_live_server._init_data["world_state"]["civilizations"] = []
+    running_live_server._init_data["world_state"]["retired_persons"] = []
+    running_live_server._init_data["history"] = [{
+        "turn": 1,
+        "civ_stats": {},
+        "region_control": {},
+        "relationships": {},
+    }]
+    running_live_server._init_data["events_timeline"] = [{
+        "turn": 1,
+        "event_type": "campaign",
+        "actors": ["TestCiv"],
+        "description": "A great campaign",
+        "importance": 8,
+        "source": "agent",
+    }]
+
+    known_moment = NarrativeMoment(
+        anchor_turn=1,
+        turn_range=(1, 1),
+        events=[Event(
+            turn=1,
+            event_type="campaign",
+            actors=["TestCiv"],
+            description="A great campaign",
+            importance=8,
+            source="agent",
+        )],
+        named_events=[],
+        score=8.0,
+        causal_links=[],
+        narrative_role=NarrativeRole.CLIMAX,
+        bonus_applied=0.0,
+    )
+
+    monkeypatch.setattr(
+        "chronicler.curator.curate",
+        lambda *args, **kwargs: ([known_moment], []),
+    )
+    monkeypatch.setattr(
+        "chronicler.llm.create_clients",
+        lambda **kwargs: (None, object()),
+    )
+
+    def slow_narrate_batch(self_engine, moments, history, **kwargs):
+        worker_started.set()
+        assert release_worker.wait(timeout=5.0)
+        return []
+
+    monkeypatch.setattr(NarrativeEngine, "narrate_batch", slow_narrate_batch)
+
+    async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+        init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+        assert json.loads(init_raw)["state"] == "running"
+
+        await ws.send(json.dumps({
+            "type": "narrate_range",
+            "start_turn": 1,
+            "end_turn": 1,
+        }))
+
+        started_msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert started_msg["type"] == "narration_started"
+
+        await asyncio.wait_for(asyncio.to_thread(worker_started.wait, 5.0), timeout=6.0)
+        running_live_server.status_queue.put({
+            "type": "paused",
+            "turn": 1,
+            "civs": ["TestCiv"],
+        })
+
+        paused_msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert paused_msg["type"] == "paused"
+
+        release_worker.set()

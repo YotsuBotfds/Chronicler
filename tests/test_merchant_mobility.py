@@ -254,7 +254,7 @@ def test_conservation_diagnostics_extractor():
     result.conservation["in_transit_delta"] = 0.1
 
     diag = extract_conservation_diagnostics(result)
-    assert diag["conservation_repair_events"] is True
+    assert diag["conservation_repair_events"] == 1.0
     assert diag["in_transit_delta"] == 0.1
     assert diag["conservation_error_abs_turn"] == 0.0
 

@@ -62,6 +62,7 @@ pub struct RegionState {
     pub controller_changed_this_turn: bool,
     pub war_won_this_turn: bool,
     pub seceded_this_turn: bool,
+    pub catastrophe_deaths_this_turn: u16,
     // M54a: Ecology schema — read-only inputs from Python
     pub disease_baseline: f32,           // set by world_gen, immutable after init
     pub capacity_modifier: f32,          // set by climate phase each turn
@@ -120,6 +121,7 @@ impl RegionState {
             controller_changed_this_turn: false,
             war_won_this_turn: false,
             seceded_this_turn: false,
+            catastrophe_deaths_this_turn: 0,
             // M54a ecology defaults
             disease_baseline: 0.0,
             capacity_modifier: 1.0,
@@ -186,6 +188,7 @@ mod tests {
         assert!(!r.has_irrigation);
         assert!(!r.has_mines);
         assert_eq!(r.active_focus, 0);
+        assert_eq!(r.catastrophe_deaths_this_turn, 0);
         // Rust-owned persistent state
         assert!((r.prev_turn_water - 0.0).abs() < f32::EPSILON);
         assert_eq!(r.soil_pressure_streak, 0);

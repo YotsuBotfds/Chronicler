@@ -13,7 +13,7 @@ def test_existing_ecology_works_with_disease_fields():
         assert 0.0 <= r.ecology.water <= 1.0
         # Allow f32 precision loss: severity round-trips through Rust f32
         assert r.endemic_severity >= r.disease_baseline - 1e-6
-        assert r.endemic_severity <= 0.15
+        assert r.endemic_severity <= 0.15 + 1e-6
 
 
 def test_effective_yields_ceiling():
