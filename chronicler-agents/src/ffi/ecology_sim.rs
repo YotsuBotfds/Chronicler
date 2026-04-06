@@ -5,9 +5,6 @@
 //! Does NOT create or manage an AgentPool.
 //! Reuses the same ecology.rs core as AgentSimulator.
 
-use std::sync::Arc;
-
-use arrow::array::{UInt8Builder, UInt16Builder};
 use arrow::record_batch::RecordBatch;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -15,7 +12,6 @@ use pyo3_arrow::PyRecordBatch;
 
 use crate::region::RegionState;
 use super::batch::{arrow_err, build_ecology_batches, apply_patch_to_regions, recompute_region_yields, RecomputeContext};
-use super::schema::ecology_region_schema;
 
 #[pyclass]
 pub struct EcologySimulator {
@@ -420,7 +416,6 @@ impl EcologySimulator {
 
         // Store recompute context.
         self.recompute_ctx = RecomputeContext {
-            turn,
             climate_phase,
             season_id: crate::ecology::season_id_from_turn(turn),
             valid: true,

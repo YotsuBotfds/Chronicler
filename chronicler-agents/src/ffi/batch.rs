@@ -1004,7 +1004,6 @@ pub(crate) fn tick_politics_impl(
 /// Avoids widening the patch schema with season/climate columns.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RecomputeContext {
-    pub(crate) turn: u32,
     pub(crate) climate_phase: u8,
     pub(crate) season_id: u8,
     pub(crate) valid: bool,

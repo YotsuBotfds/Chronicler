@@ -8,6 +8,11 @@
 
 ## Current Focus (2026-04-05)
 
+- **2026-04-05 Rust warning cleanup follow-up is complete in the working tree.**
+  The post-push warning sweep removed dead FFI imports/helpers, dropped an unused `RecomputeContext.turn` field, cleaned unused test locals/imports, and marked the intentionally reserved agent-stream/protocol constants as explicitly retained so the Rust build stops emitting warning noise without changing runtime behavior.
+- **Rust validation for the warning cleanup follow-up is green.**
+  `cargo test --manifest-path chronicler-agents/Cargo.toml --no-run` now finishes cleanly without warning output, and `cargo nextest run --manifest-path chronicler-agents/Cargo.toml` PASS (`817 passed, 2 skipped`) after prepending `C:\Users\tateb\AppData\Local\Python\pythoncore-3.14-64` to `PATH` for the local Windows Python DLL bootstrap quirk.
+
 - **2026-04-05 shadow population routing and live narration offload are complete in the working tree.**
   Shadow mode was still dropping aggregate population growth/loss/repopulation and random-event migration bonuses because those paths routed `population` through `guard` whenever `agent_mode != "off"`, even though shadow has no population write-back and `shadow.arrow` logs aggregate stats from the live Python world. The production and random-migration paths now treat only `hybrid` / `demographics-only` as agent-owned demographics; shadow falls back to direct Python mutation so the aggregate baseline stays truthful while the Rust side still runs in parallel. `live.py` now snapshots `_init_data` and sends `narrate_range` through `asyncio.to_thread(...)`, which keeps the WebSocket loop responsive while long narration runs.
 - **Focused validation for the shadow/live follow-up is green.**

@@ -42,17 +42,6 @@ use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::politics::PoliticsConfig;
 
-fn require_batch_column<'a, T: 'static>(
-    batch: &'a RecordBatch,
-    idx: usize,
-    name: &str,
-) -> PyResult<&'a T> {
-    batch.columns()
-        .get(idx)
-        .and_then(|column| column.as_any().downcast_ref::<T>())
-        .ok_or_else(|| PyValueError::new_err(format!("missing or wrong type for column {idx} ({name})")))
-}
-
 // ---------------------------------------------------------------------------
 // AgentSimulator
 // ---------------------------------------------------------------------------
@@ -1704,7 +1693,6 @@ impl AgentSimulator {
 
         // Store recompute context for apply_region_postpass_patch.
         self.recompute_ctx = RecomputeContext {
-            turn,
             climate_phase,
             season_id: crate::ecology::season_id_from_turn(turn),
             valid: true,

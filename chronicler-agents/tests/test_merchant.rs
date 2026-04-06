@@ -11,7 +11,6 @@ use chronicler_agents::knowledge::{
 use chronicler_agents::{AgentPool, Occupation, RegionState};
 
 /// Trip phase constants (mirrored from agent.rs which is crate-private).
-const TRIP_PHASE_IDLE: u8 = 0;
 const TRIP_PHASE_LOADING: u8 = 1;
 const TRIP_PHASE_TRANSIT: u8 = 2;
 
@@ -982,7 +981,6 @@ fn test_packet_aware_merchant_no_deadlock_20_turns() {
 
     let mut total_completed = 0u32;
     let mut total_bootstrap = 0u32;
-    let mut total_packet_driven = 0u32;
 
     for turn in 0..20u32 {
         let mut buf = DeliveryBuffer::new(4);
@@ -991,7 +989,6 @@ fn test_packet_aware_merchant_no_deadlock_20_turns() {
         );
         total_completed += stats.completed_trips;
         total_bootstrap += stats.plans_bootstrap;
-        total_packet_driven += stats.plans_packet_driven;
 
         let _k = chronicler_agents::knowledge::knowledge_phase(
             &mut pool, &regions, &[turn as u8; 32], turn,

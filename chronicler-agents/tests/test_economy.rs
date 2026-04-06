@@ -13,8 +13,7 @@
 use chronicler_agents::economy::{
     EconomyConfig, EconomyRegionInput, HybridDeliveryInput, RegionAgentCounts, TradeRouteInput,
     tick_economy_core, NUM_GOODS,
-    SLOT_GRAIN, SLOT_FISH, SLOT_SALT, SLOT_TIMBER, SLOT_ORE, SLOT_BOTANICALS,
-    SLOT_PRECIOUS, SLOT_EXOTIC,
+    SLOT_GRAIN, SLOT_FISH, SLOT_SALT, SLOT_TIMBER,
 };
 use chronicler_agents::merchant::DeliveryBuffer;
 
@@ -602,9 +601,6 @@ fn test_observability_import_timing() {
 #[test]
 fn test_river_trade_increases_flow() {
     let config = default_config();
-    // Two regions, one with river and one without.
-    let r0 = make_region(0, 0, 2.0); // grain surplus
-    let r1 = make_region(1, 5, 1.0); // ore, needs food
 
     // Without river.
     let routes_no_river = vec![
@@ -686,8 +682,6 @@ fn test_no_farmers_no_production() {
 #[test]
 fn test_winter_increases_transport_cost() {
     let config = default_config();
-    let r0 = make_region(0, 0, 2.0);
-    let r1 = make_region(1, 5, 1.0);
     let routes = vec![
         TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false },
     ];

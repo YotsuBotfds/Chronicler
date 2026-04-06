@@ -93,17 +93,22 @@ pub const PERSONALITY_LABEL_THRESHOLD: f32 = 0.5;
 // This guarantees no cross-system collisions regardless of turn count.
 pub const DECISION_STREAM_OFFSET: u64     = 0;
 pub const DEMOGRAPHICS_STREAM_OFFSET: u64 = 100;
+#[allow(dead_code)] // reserved to keep the stream registry collision-free as migration RNG wiring evolves
 pub const MIGRATION_STREAM_OFFSET: u64    = 200;
 // Phase 6 additions (reserved, wired when systems land):
 pub const CULTURE_DRIFT_STREAM_OFFSET: u64 = 500;
 pub const CONVERSION_STREAM_OFFSET: u64   = 600;
 pub const PERSONALITY_STREAM_OFFSET: u64  = 700;
+#[allow(dead_code)] // reserved to avoid reusing the goods-allocation stream slot before the Rust path lands
 pub const GOODS_ALLOC_STREAM_OFFSET: u64  = 800;
 // M48: Memory system (reserved, not consumed in M48 — deterministic writes)
+#[allow(dead_code)] // reserved for future memory RNG without letting another system collide with the slot
 pub const MEMORY_STREAM_OFFSET: u64 = 900;
 // M48: Mule promotion (reserved for Rust, but M48 uses Python-side RNG)
+#[allow(dead_code)] // reserved for mule promotion parity if the Rust path starts sampling
 pub const MULE_STREAM_OFFSET: u64 = 1300;
 // M50 — Relationship formation / dissolution (not consumed in M50a)
+#[allow(dead_code)] // reserved for relationship RNG so the slot does not get reused accidentally
 pub const RELATIONSHIP_STREAM_OFFSET: u64 = 1100;
 // M53: Initial age seeding (one-time spawn path only)
 // Restored to its pre-M55a stream so the long-run demographic calibration
@@ -118,12 +123,14 @@ pub const CATASTROPHE_STREAM_OFFSET: u64 = 2200;
 // Note: SPATIAL_DRIFT_STREAM_OFFSET (2001) removed — spatial drift is deterministic
 // (attractor-based), not RNG-driven. Offset 2001 is retired; do not reuse.
 // M58a: Merchant route selection (reserved, not consumed in M58a)
+#[allow(dead_code)] // reserved for merchant route planning RNG; kept to preserve the published offset map
 pub const MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700;
 // M-AF1: Schism-driven conversion (separate stream from natural conversion)
 pub const SCHISM_CONVERSION_STREAM_OFFSET: u64 = 1000;
 // M59a: Information packet propagation
 pub const KNOWLEDGE_STREAM_OFFSET: u64 = 1800;
 // M57a: Marriage formation
+#[allow(dead_code)] // reserved for marriage RNG; kept even though v1 does not consume it yet
 pub const MARRIAGE_STREAM_OFFSET: u64 = 1600;  // reserved, not consumed in v1
 pub const MARRIAGE_CADENCE: u32 = 4;            // marriage scan runs every 4th turn per region
 pub const MARRIAGE_RADIUS: f32 = 0.25;          // spatial proximity threshold (unit square)
@@ -232,6 +239,7 @@ pub const PERSECUTION_DEFAULT_INTENSITY: i8 = -90;    // [FROZEN M53 SOFT]
 pub const MIGRATION_DEFAULT_INTENSITY: i8 = -30;      // [FROZEN M53 SOFT]
 pub const PROSPERITY_DEFAULT_INTENSITY: i8 = 50;      // [FROZEN M53 SOFT]
 pub const VICTORY_DEFAULT_INTENSITY: i8 = 60;         // [FROZEN M53 SOFT]
+#[allow(dead_code)] // reserved for promotion-memory writes if they are restored
 pub const PROMOTION_DEFAULT_INTENSITY: i8 = 70;       // [FROZEN M53 SOFT]
 pub const BIRTHOFKIN_DEFAULT_INTENSITY: i8 = 40;      // [FROZEN M53 SOFT]
 pub const DEATHOFKIN_DEFAULT_INTENSITY: i8 = -80;     // [FROZEN M53 SOFT]
@@ -394,6 +402,7 @@ pub const SYNTHESIS_BUDGET_MAX: u8 = 100;  // [FROZEN M53 SOFT]
 pub const LIFE_EVENT_DISSOLUTION: u8 = 6;  // [FROZEN M53 SOFT]
 
 // M56b: Urban effects constants [CALIBRATE M61b]
+#[allow(dead_code)] // mirrored for future shared grid sizing without changing the constant's public location
 pub const SETTLEMENT_GRID_SIZE: usize = 10; // mirrors settlements.py:GRID_SIZE
 pub const URBAN_SAFETY_RESTORATION_MULT: f32 = 0.97;
 pub const URBAN_SOCIAL_RESTORATION_MULT: f32 = 1.04;
@@ -414,6 +423,7 @@ pub const TRIP_GOOD_SLOT_NONE: u8 = 255;
 
 // M59a: Packet slot constants
 pub const PACKET_SLOTS: usize = 4;
+#[allow(dead_code)] // sentinel kept as a protocol constant even when current code paths use zero literals
 pub const PACKET_TYPE_EMPTY: u8 = 0;
 pub const MAX_HOP_COUNT: u8 = 31;
 
