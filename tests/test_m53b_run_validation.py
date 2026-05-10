@@ -394,6 +394,57 @@ def test_main_records_comparison_regression_without_failing_unless_requested(mon
     assert manifest["gate_exit_code"] == 0
 
 
+def test_main_records_optional_regression_diagnostics_as_no_regression_for_subset(monkeypatch, tmp_path):
+    runner = _load_runner()
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+        "strict_regression_failed_checks": [],
+    }
+    current = _report(determinism="SKIP")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+        "strict_regression_failed_checks": ["latest_satisfaction_mean"],
+    }
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(runner.json.dumps(baseline), encoding="utf-8")
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=runner.json.dumps(current), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_subset", lambda args, cwd, env: tmp_path)
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        [
+            "m53b_run_validation.py",
+            "--profile",
+            "subset",
+            "--output-root",
+            str(tmp_path.parent),
+            "--baseline-report",
+            str(baseline_path),
+            "--fail-on-regression",
+        ],
+    )
+
+    runner.main()
+
+    manifest = runner.json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    comparison = runner.json.loads(Path(manifest["comparison_path"]).read_text(encoding="utf-8"))
+    assert manifest["comparison_status"] == "NO_REGRESSION"
+    assert manifest["comparison_exit_code"] == 0
+    assert manifest["comparison_reasons"] == []
+    assert comparison["strict_regression_downgrade"] is True
+    assert comparison["strict_regression_failed_checks_added"] == ["latest_satisfaction_mean"]
+
+
 def test_main_rejects_fail_on_regression_without_baseline(monkeypatch):
     runner = _load_runner()
     monkeypatch.setattr(

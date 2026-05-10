@@ -241,7 +241,7 @@ Canonical validation gates also preserve:
 - **gate_summary_*.md** — concise human-readable gate summary, also published to the GitHub Actions step summary
 - **run_manifest.json** — profile, seed/turn scale, report paths, gate status, optional comparison status, and reproducibility metadata
 
-Report comparison writes optional **compare_decision_*.json** and **compare_summary_*.md** artifacts for baseline-vs-current gate changes, new/resolved required failures, strict-regression downgrades, and numeric diagnostic deltas.
+Report comparison writes optional **compare_decision_*.json** and **compare_summary_*.md** artifacts for baseline-vs-current gate changes, new/resolved required failures, strict-regression downgrades, and numeric diagnostic deltas. Comparator hard failures follow the selected validation profile: subset and determinism comparisons still show optional full-profile regression diagnostics, but `--fail-on-regression` only exits nonzero for diagnostics required by that profile.
 
 Full-profile regression reports include strict-vs-calibrated diagnostics such as `strict_regression_failed_checks`, `calibrated_floor_relaxed_checks`, and `regression_floor_diagnostics` so calibrated-floor passes explain exactly which strict floors still need tuning.
 
