@@ -71,6 +71,9 @@ def test_readme_documents_no_rust_and_native_test_lanes():
     assert "full = 200 seeds x 500 turns" in readme
     assert "scripts/m53b_run_validation.py --profile full" in readme
     assert "--require-strict-regression" in readme
+    assert "python -m chronicler.validation_compare" in readme
+    assert "--fail-on-regression" in readme
+    assert "compare_decision_*.json" in readme
 
 
 def test_validation_gate_workflow_builds_native_extension_as_wheel():
