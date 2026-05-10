@@ -108,7 +108,7 @@ def test_profile_defaults_match_documented_validation_scales():
     assert (override.seeds, override.turns) == (3, 7)
 
 
-def test_validate_batch_writes_report_and_enforces_profile_gate(monkeypatch, tmp_path):
+def test_validate_batch_writes_report_and_profile_gate_artifacts(monkeypatch, tmp_path):
     runner = _load_runner()
     report_text = runner.json.dumps(
         _report(artifacts="PARTIAL", regression="FAIL", determinism="SKIP")
@@ -119,11 +119,20 @@ def test_validate_batch_writes_report_and_enforces_profile_gate(monkeypatch, tmp
 
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
 
-    subset_path = runner.validate_batch(tmp_path, "subset.json", Path.cwd(), {}, "subset")
-    assert subset_path.read_text() == report_text
+    subset = runner.validate_batch(tmp_path, "subset.json", Path.cwd(), {}, "subset")
+    assert subset["report_path"].read_text() == report_text
+    assert subset["decision_path"].name == "gate_decision_subset.json"
+    assert subset["summary_path"].name == "gate_summary_subset.md"
+    assert subset["decision"]["ok"] is True
+    assert subset["decision"]["informational_non_pass"]
+    assert "determinism" in subset["summary_path"].read_text(encoding="utf-8")
 
-    with pytest.raises(SystemExit, match="Validation gate failed for profile full"):
-        runner.validate_batch(tmp_path, "full.json", Path.cwd(), {}, "full")
+    full = runner.validate_batch(tmp_path, "full.json", Path.cwd(), {}, "full")
+    assert full["decision"]["ok"] is False
+    assert full["decision"]["exit_code"] == 2
+    assert full["decision_path"].exists()
+    assert full["summary_path"].exists()
+    assert "Validation gate: full" in full["summary_path"].read_text(encoding="utf-8")
 
 
 def test_validate_batch_can_require_strict_regression(monkeypatch, tmp_path):
@@ -142,13 +151,82 @@ def test_validate_batch_can_require_strict_regression(monkeypatch, tmp_path):
 
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
 
-    runner.validate_batch(tmp_path, "default.json", Path.cwd(), {}, "full")
-    with pytest.raises(SystemExit, match="regression=NON_STRICT"):
-        runner.validate_batch(
-            tmp_path,
-            "strict.json",
-            Path.cwd(),
-            {},
-            "full",
-            require_strict_regression=True,
-        )
+    default = runner.validate_batch(tmp_path, "default.json", Path.cwd(), {}, "full")
+    assert default["decision"]["ok"] is True
+    strict = runner.validate_batch(
+        tmp_path,
+        "strict.json",
+        Path.cwd(),
+        {},
+        "full",
+        require_strict_regression=True,
+    )
+    assert strict["decision"]["ok"] is False
+    assert strict["decision"]["required_failures"][0]["status"] == "NON_STRICT"
+
+
+def test_validate_batch_preserves_structured_report_from_nonzero_validate_cli(monkeypatch, tmp_path):
+    runner = _load_runner()
+    report_text = runner.json.dumps(_report(regression="ERROR", determinism="SKIP"))
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=1, stdout=report_text, stderr="boom")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    subset = runner.validate_batch(tmp_path, "subset.json", Path.cwd(), {}, "subset")
+    assert subset["report_path"].read_text() == report_text
+    assert subset["decision"]["ok"] is True
+    assert subset["decision"]["oracle_statuses"]["regression"] == {"status": "ERROR"}
+    assert subset["decision"]["informational_non_pass"] == [
+        {"oracle": "regression", "status": "ERROR"},
+        {"oracle": "determinism", "status": "SKIP"},
+    ]
+    assert subset["decision_path"].exists()
+    assert subset["summary_path"].exists()
+
+
+def test_validate_batch_synthesizes_evidence_for_invalid_validate_cli_output(monkeypatch, tmp_path):
+    runner = _load_runner()
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=1, stdout="not-json", stderr="boom")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result = runner.validate_batch(tmp_path, "full.json", Path.cwd(), {}, "full")
+    report = runner.json.loads(result["report_path"].read_text(encoding="utf-8"))
+    assert report["status"] == "ERROR"
+    assert report["results"]["validation_cli"]["status"] == "ERROR"
+    assert result["decision"]["ok"] is False
+    assert result["decision"]["exit_code"] == 2
+    assert {item["status"] for item in result["decision"]["required_failures"]} == {"MISSING"}
+    assert result["decision_path"].exists()
+    assert result["summary_path"].exists()
+
+
+def test_main_writes_manifest_before_gate_failure(monkeypatch, tmp_path):
+    runner = _load_runner()
+    report_text = runner.json.dumps(_report(regression="FAIL", determinism="SKIP"))
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        ["m53b_run_validation.py", "--profile", "full", "--output-root", str(tmp_path.parent)],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+    assert exc_info.value.code == 2
+
+    manifest = runner.json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["gate_status"] == "FAIL"
+    assert manifest["gate_exit_code"] == 2
+    assert Path(manifest["report_path"]).exists()
+    assert Path(manifest["decision_path"]).exists()
+    assert Path(manifest["summary_path"]).exists()

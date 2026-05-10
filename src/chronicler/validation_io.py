@@ -46,6 +46,32 @@ REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX = 0.05
 REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN = 0.80
 
 
+def _rounded_delta(value: float | None, target: float) -> float | None:
+    return round(value - target, 6) if value is not None else None
+
+
+def _floor_diagnostic(
+    value: float | None,
+    *,
+    strict_min: float,
+    calibrated_min: float,
+    max_value: float,
+    strict_ok: bool,
+    calibrated_ok: bool,
+) -> dict:
+    return {
+        "value": round(value, 6) if value is not None else None,
+        "strict_min": strict_min,
+        "calibrated_min": calibrated_min,
+        "max": max_value,
+        "strict_ok": strict_ok,
+        "calibrated_ok": calibrated_ok,
+        "strict_min_delta": _rounded_delta(value, strict_min),
+        "calibrated_min_delta": _rounded_delta(value, calibrated_min),
+        "max_delta": round(max_value - value, 6) if value is not None else None,
+    }
+
+
 class ValidationRequestError(ValueError):
     """Invalid validation request or batch path."""
 
@@ -2427,6 +2453,61 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         and civ_survival_ok
         and treasury_ok
     )
+    strict_checks = [
+        ("satisfaction_mean", satisfaction_mean_ok),
+        ("latest_satisfaction_mean", latest_satisfaction_mean_ok),
+        ("satisfaction_std", satisfaction_std_ok),
+        ("rebellion_rate_per_agent_turn", rebellion_rate_ok),
+        ("migration_rate_per_agent_turn", migration_rate_ok),
+        ("gini_in_range_fraction", gini_ok),
+        ("occupation", occupation_ok),
+        ("civ_survival", civ_survival_ok),
+        ("treasury", treasury_ok),
+    ]
+    calibrated_checks = [
+        ("satisfaction_mean", satisfaction_mean_calibrated_ok),
+        ("latest_satisfaction_mean", latest_satisfaction_mean_calibrated_ok),
+        ("satisfaction_std", satisfaction_std_ok),
+        ("rebellion_rate_per_agent_turn", rebellion_rate_ok),
+        ("migration_rate_per_agent_turn", migration_rate_calibrated_ok),
+        ("gini_in_range_fraction", gini_ok),
+        ("occupation", occupation_ok),
+        ("civ_survival", civ_survival_ok),
+        ("treasury", treasury_ok),
+    ]
+    strict_regression_failed_checks = [name for name, ok in strict_checks if not ok]
+    calibrated_floor_failed_checks = [name for name, ok in calibrated_checks if not ok]
+    regression_floor_diagnostics = {
+        "satisfaction_mean": _floor_diagnostic(
+            satisfaction_mean,
+            strict_min=REGRESSION_SATISFACTION_MEAN_MIN,
+            calibrated_min=REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN,
+            max_value=REGRESSION_SATISFACTION_MEAN_MAX,
+            strict_ok=satisfaction_mean_ok,
+            calibrated_ok=satisfaction_mean_calibrated_ok,
+        ),
+        "latest_satisfaction_mean": _floor_diagnostic(
+            latest_satisfaction_mean,
+            strict_min=REGRESSION_SATISFACTION_MEAN_MIN,
+            calibrated_min=REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN,
+            max_value=REGRESSION_SATISFACTION_MEAN_MAX,
+            strict_ok=latest_satisfaction_mean_ok,
+            calibrated_ok=latest_satisfaction_mean_calibrated_ok,
+        ),
+        "migration_rate_per_agent_turn": _floor_diagnostic(
+            migration_rate,
+            strict_min=REGRESSION_MIGRATION_RATE_MIN,
+            calibrated_min=REGRESSION_MIGRATION_RATE_CALIBRATED_MIN,
+            max_value=REGRESSION_MIGRATION_RATE_MAX,
+            strict_ok=migration_rate_ok,
+            calibrated_ok=migration_rate_calibrated_ok,
+        ),
+    }
+    calibrated_floor_relaxed_checks = [
+        name
+        for name, diagnostic in regression_floor_diagnostics.items()
+        if not diagnostic["strict_ok"] and diagnostic["calibrated_ok"]
+    ]
     overall_ok = strict_overall_ok or calibrated_floor_ok
     regression_adjudication = (
         "strict"
@@ -2439,6 +2520,10 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         "regression_adjudication": regression_adjudication,
         "strict_regression_ok": strict_overall_ok,
         "calibrated_floor_ok": calibrated_floor_ok,
+        "strict_regression_failed_checks": strict_regression_failed_checks,
+        "calibrated_floor_failed_checks": calibrated_floor_failed_checks,
+        "calibrated_floor_relaxed_checks": calibrated_floor_relaxed_checks,
+        "regression_floor_diagnostics": regression_floor_diagnostics,
         "satisfaction_mean": round(satisfaction_mean, 4) if satisfaction_mean is not None else None,
         "satisfaction_std": round(satisfaction_std, 4) if satisfaction_std is not None else None,
         "latest_satisfaction_mean": (
@@ -2451,7 +2536,11 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         ),
         "latest_satisfaction_mean_ok": latest_satisfaction_mean_ok,
         "latest_satisfaction_mean_calibrated_ok": latest_satisfaction_mean_calibrated_ok,
+        "satisfaction_mean_ok": satisfaction_mean_ok,
+        "satisfaction_mean_calibrated_ok": satisfaction_mean_calibrated_ok,
         "migration_rate_per_agent_turn": round(migration_rate, 6),
+        "migration_rate_ok": migration_rate_ok,
+        "migration_rate_calibrated_ok": migration_rate_calibrated_ok,
         "rebellion_rate_per_agent_turn": round(rebellion_rate, 6),
         "gini_in_range_fraction": round(sum(1 for g in final_ginis if 0.30 <= g <= 0.70) / len(final_ginis), 4) if final_ginis else None,
         "occupation_ok": occupation_ok,
