@@ -192,6 +192,14 @@ python -m chronicler.validation_gate --profile full \
   --decision-output output/m53/full/full_gate/batch_42/gate_decision_full.json \
   --summary-output output/m53/full/full_gate/batch_42/gate_summary_full.md
 
+# Compare two validation reports without rerunning simulation/oracles.
+# Add --fail-on-regression to return exit 2 for new required failures or strict-regression downgrades.
+python -m chronicler.validation_compare --profile full \
+  --baseline-report output/m53/previous/full_gate/batch_42/validate_report_full.json \
+  --current-report output/m53/full/full_gate/batch_42/validate_report_full.json \
+  --decision-output output/m53/full/full_gate/batch_42/compare_decision_full.json \
+  --summary-output output/m53/full/full_gate/batch_42/compare_summary_full.md
+
 # Canonical profile gates. Omit --seeds/--turns to use profile defaults:
 # subset = 20 seeds x 200 turns; full = 200 seeds x 500 turns;
 # determinism profiles = two duplicate-seed runs x 200 turns.
@@ -229,6 +237,8 @@ Canonical validation gates also preserve:
 - **gate_decision_*.json** — machine-readable profile adjudication, required failures, informational non-PASS statuses, and exit code
 - **gate_summary_*.md** — concise human-readable gate summary, also published to the GitHub Actions step summary
 - **run_manifest.json** — profile, seed/turn scale, report paths, gate status, and reproducibility metadata
+
+Report comparison writes optional **compare_decision_*.json** and **compare_summary_*.md** artifacts for baseline-vs-current gate changes, new/resolved required failures, strict-regression downgrades, and numeric diagnostic deltas.
 
 Full-profile regression reports include strict-vs-calibrated diagnostics such as `strict_regression_failed_checks`, `calibrated_floor_relaxed_checks`, and `regression_floor_diagnostics` so calibrated-floor passes explain exactly which strict floors still need tuning.
 
