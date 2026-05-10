@@ -206,6 +206,9 @@ python -m chronicler.validation_compare --profile full \
 python scripts/m53b_run_validation.py --profile subset --output-root output/m53/subset
 python scripts/m53b_run_validation.py --profile full --output-root output/m53/full
 python scripts/m53b_run_validation.py --profile full --output-root output/m53/full-strict --require-strict-regression
+python scripts/m53b_run_validation.py --profile full --output-root output/m53/full-compare \
+  --baseline-report output/m53/previous/full_gate/batch_42/validate_report_full.json \
+  --fail-on-regression
 ```
 
 For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.
@@ -236,7 +239,7 @@ Canonical validation gates also preserve:
 - **validate_report_*.json** — raw oracle results for the selected profile
 - **gate_decision_*.json** — machine-readable profile adjudication, required failures, informational non-PASS statuses, and exit code
 - **gate_summary_*.md** — concise human-readable gate summary, also published to the GitHub Actions step summary
-- **run_manifest.json** — profile, seed/turn scale, report paths, gate status, and reproducibility metadata
+- **run_manifest.json** — profile, seed/turn scale, report paths, gate status, optional comparison status, and reproducibility metadata
 
 Report comparison writes optional **compare_decision_*.json** and **compare_summary_*.md** artifacts for baseline-vs-current gate changes, new/resolved required failures, strict-regression downgrades, and numeric diagnostic deltas.
 

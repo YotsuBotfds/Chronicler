@@ -103,6 +103,19 @@ def test_validation_gate_workflow_publishes_gate_summary():
     assert workflow.index("Publish validation gate summary") < workflow.index("Upload validation reports")
 
 
+def test_validation_gate_workflow_publishes_compare_summary_when_baseline_is_used():
+    workflow = _read(".github/workflows/validation-gate.yml")
+
+    assert "baseline_report:" in workflow
+    assert "fail_on_regression:" in workflow
+    assert "--baseline-report" in workflow
+    assert "--fail-on-regression" in workflow
+    assert "compare_summary_*.md" in workflow
+    assert "BASELINE_REPORT=\"${{ github.event.inputs.baseline_report" not in workflow
+    assert "BASELINE_REPORT_INPUT" in workflow
+    assert "baseline_report || ''" in workflow
+
+
 def test_validation_gate_workflow_exposes_strict_regression_ratchet():
     workflow = _read(".github/workflows/validation-gate.yml")
 
