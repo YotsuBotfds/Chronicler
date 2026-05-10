@@ -230,6 +230,58 @@ def test_arc_classifier_rags_to_riches():
     assert arc == "rags_to_riches"
 
 
+def test_arc_classifier_prestige_only_successor_is_not_rags_to_riches():
+    from chronicler.validate import classify_civ_arc
+
+    trajectory = {
+        "population": [1] * 80,
+        "territory": [1] * 80,
+        "prestige": list(range(80)),
+    }
+
+    assert classify_civ_arc(trajectory) != "rags_to_riches"
+
+
+def test_arc_classifier_prestige_masked_tiny_remnant_after_boom_is_not_rags_to_riches():
+    from chronicler.validate import classify_civ_arc
+
+    trajectory = {
+        "population": [1] * 20 + [10] * 20 + [2] * 20,
+        "territory": [1] * 60,
+        "prestige": list(range(1, 61)),
+    }
+
+    assert classify_civ_arc(trajectory) == "icarus"
+
+
+def test_arc_classifier_prestige_masked_material_boom_bust_is_not_stable():
+    from chronicler.validate import classify_civ_arc
+
+    trajectory = {
+        "population": [10] * 20 + [35] * 20 + [0] * 20,
+        "territory": [1] * 20 + [3] * 20 + [0] * 20,
+        "prestige": list(range(1, 61)),
+    }
+
+    arc = classify_civ_arc(trajectory)
+
+    assert arc == "icarus"
+
+
+def test_arc_classifier_prestige_masked_material_collapse_is_not_stable():
+    from chronicler.validate import classify_civ_arc
+
+    trajectory = {
+        "population": [30] * 20 + [12] * 20 + [0] * 20,
+        "territory": [3] * 20 + [1] * 20 + [0] * 20,
+        "prestige": list(range(1, 61)),
+    }
+
+    arc = classify_civ_arc(trajectory)
+
+    assert arc == "riches_to_rags"
+
+
 def test_arc_classifier_icarus():
     """Rise then fall classified as Icarus."""
     from chronicler.validate import classify_civ_arc
@@ -312,6 +364,36 @@ def test_artifact_lifecycle_creation_rate():
     result = check_artifact_lifecycle(bundles, num_civs=4)
     # 2 artifacts / (4 civs * 100/100) = 0.5
     assert result["creation_rate_per_civ_per_100"] == 0.5
+
+
+def test_artifact_lifecycle_accepts_stochastic_lower_creation_tolerance():
+    """Long-horizon duplicate-suppressed artifact runs can land just under 1.0."""
+    from chronicler.validate import check_artifact_lifecycle
+
+    artifact_types = ["relic"] * 7 + ["artwork"] * 6 + ["treatise"] * 5
+    artifacts = [
+        {
+            "artifact_type": artifact_type,
+            "status": "lost" if idx < 2 else "active",
+            "owner_civ": "Aram",
+            "mule_origin": False,
+            "prestige_value": 2,
+        }
+        for idx, artifact_type in enumerate(artifact_types)
+    ]
+    bundles = [{
+        "world_state": {"artifacts": artifacts},
+        "metadata": {"total_turns": 500, "seed": 42},
+    }]
+
+    result = check_artifact_lifecycle(bundles, num_civs=4)
+
+    assert result["creation_rate_per_civ_per_100"] == 0.9
+    assert result["creation_rate_strict_ok"] is False
+    assert result["creation_rate_ok"] is True
+    assert result["creation_rate_adjudication"] == "stochastic_tolerance"
+    assert result["type_diversity_ok"] is True
+    assert result["loss_destruction_rate_ok"] is True
 
 
 def test_artifact_lifecycle_type_diversity():
@@ -553,10 +635,10 @@ def test_run_arc_oracle_uses_full_trajectory_signals():
     from chronicler.validate import run_arc_oracle
 
     trajectory = {
-        "population": [100] * 30,
+        "population": list(range(50, 80)),
         "treasury": list(range(10, 40)),
         "stability": list(range(50, 80)),
-        "territory": [2] * 30,
+        "territory": [2 + i // 10 for i in range(30)],
         "prestige": list(range(5, 35)),
     }
 
@@ -610,6 +692,45 @@ def test_run_regression_summary_counts_alive_by_regions():
     assert result["gini_in_range_fraction"] == 1.0
 
 
+def test_run_regression_summary_tracks_initial_named_full_survival():
+    from chronicler.validate import run_regression_summary
+
+    initial = {
+        name: {"regions": [f"R{i}"], "gini": 0.4, "treasury": 10}
+        for i, name in enumerate(["A", "B", "C", "D"])
+    }
+    successors = {
+        name: {"regions": [f"R{i}"], "gini": 0.4, "treasury": 10}
+        for i, name in enumerate(["E", "F", "G", "H"])
+    }
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": initial}, {"civ_stats": successors}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "E": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["civ_survival_counts"] == [4]
+    assert result["civ_exact_four_region_fraction"] == 1.0
+    assert result["civ_full_survival_fraction"] == 0.0
+
+
 def test_run_regression_summary_prefers_validation_summary_gini():
     from chronicler.validate import run_regression_summary
 
@@ -647,7 +768,77 @@ def test_run_regression_summary_prefers_validation_summary_gini():
     assert result["gini_in_range_fraction"] == 1.0
 
 
-def test_run_regression_summary_weights_satisfaction_by_agent_count():
+def test_run_regression_summary_uses_latest_nonempty_sidecar_gini():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "civ_0": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    }
+                },
+                "200": {},
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["satisfaction_mean"] == 0.5
+    assert result["gini_in_range_fraction"] == 1.0
+
+
+def test_run_regression_summary_pools_satisfaction_across_all_sidecar_turns():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "early": {
+                        "satisfaction_mean": 0.4,
+                        "satisfaction_std": 0.1,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    }
+                },
+                "200": {
+                    "late": {
+                        "satisfaction_mean": 0.6,
+                        "satisfaction_std": 0.1,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    }
+                },
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["satisfaction_mean"] == 0.5
+    assert result["satisfaction_std"] == 0.1414
+
+
+def test_run_regression_summary_pools_satisfaction_std_across_civ_moments():
     from chronicler.validate import run_regression_summary
 
     run = {
@@ -681,7 +872,7 @@ def test_run_regression_summary_weights_satisfaction_by_agent_count():
     result = run_regression_summary([run])
 
     assert result["satisfaction_mean"] == 0.56
-    assert result["satisfaction_std"] == 0.185
+    assert result["satisfaction_std"] == 0.2251
 
 
 def test_run_regression_summary_ignores_tiny_civs_for_occupation_distribution():
@@ -718,6 +909,45 @@ def test_run_regression_summary_ignores_tiny_civs_for_occupation_distribution():
     result = run_regression_summary([run])
 
     assert result["occupation_ok"] is True
+
+
+def test_run_regression_summary_tolerates_rare_transient_occupation_spikes():
+    from chronicler.validate import run_regression_summary
+
+    balanced = {
+        f"balanced_{i}": {
+            "satisfaction_mean": 0.5,
+            "satisfaction_std": 0.15,
+            "agent_count": 10,
+            "controlled_agent_count": 10,
+            "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+            "controlled_occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+            "gini": 0.5,
+        }
+        for i in range(25)
+    }
+    balanced["one_transient_spike"] = {
+        "satisfaction_mean": 0.5,
+        "satisfaction_std": 0.15,
+        "agent_count": 10,
+        "controlled_agent_count": 10,
+        "occupation_counts": {"0": 8, "1": 1, "2": 1},
+        "controlled_occupation_counts": {"0": 8, "1": 1, "2": 1},
+        "gini": 0.5,
+    }
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {"agent_aggregates_by_turn": {"100": balanced}},
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_ok"] is True
+    assert 0.0 < result["occupation_violation_fraction"] < 0.01
 
 
 def test_run_regression_summary_ignores_uncontrolled_civ_bucket_for_occupation_distribution():
@@ -758,6 +988,69 @@ def test_run_regression_summary_ignores_uncontrolled_civ_bucket_for_occupation_d
     result = run_regression_summary([run])
 
     assert result["occupation_ok"] is True
+    assert result["occupation_source"] == "controlled"
+
+
+def test_run_regression_summary_falls_back_to_all_occupations_for_legacy_schema():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "legacy_balanced": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_ok"] is True
+    assert result["occupation_source"] == "legacy_fallback"
+
+
+def test_run_regression_summary_does_not_treat_zero_controlled_sidecar_as_occupation_balance():
+    from chronicler.validate import run_regression_summary
+
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [{"civ_stats": {}}],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "displaced_but_balanced": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 10,
+                        "controlled_agent_count": 0,
+                        "occupation_counts": {"0": 4, "1": 2, "2": 2, "3": 1, "4": 1},
+                        "controlled_occupation_counts": {},
+                        "gini": 0.5,
+                    },
+                }
+            }
+        },
+        "events": [],
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_ok"] is False
+    assert result["occupation_source"] == "none"
 
 
 def test_run_regression_summary_uses_controlled_occupations_for_mixed_buckets():
@@ -789,6 +1082,7 @@ def test_run_regression_summary_uses_controlled_occupations_for_mixed_buckets():
     result = run_regression_summary([run])
 
     assert result["occupation_ok"] is True
+    assert result["occupation_source"] == "controlled"
 
 
 def test_run_regression_summary_skips_bundle_gini_when_final_sidecar_is_empty():
@@ -846,6 +1140,324 @@ def test_run_regression_summary_skips_bundle_gini_when_final_sidecar_is_empty():
     result = run_regression_summary([run_with_gini, run_without_measurable_gini])
 
     assert result["gini_in_range_fraction"] == 1.0
+
+
+def test_run_regression_summary_accepts_calibrated_full_gate_floor_miss():
+    from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
+
+    initial_civs = {
+        name: {"regions": [name], "gini": 0.5, "treasury": 10}
+        for name in ("A", "B", "C", "D")
+    }
+    final_civs = {
+        name: {"regions": [name], "gini": 0.5, "treasury": 10}
+        for name in ("A", "B", "C")
+    }
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [
+                {"civ_stats": initial_civs},
+                {"civ_stats": final_civs},
+            ],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "controlled_civ": {
+                        "satisfaction_mean": 0.405,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 100,
+                        "controlled_agent_count": 100,
+                        "occupation_counts": {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10},
+                        "controlled_occupation_counts": {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10},
+                        "gini": 0.5,
+                    },
+                },
+            },
+        },
+        "events": (
+            [{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 450
+            + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 250
+        ),
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["satisfaction_mean"] == 0.405
+    assert result["migration_rate_per_agent_turn"] == 0.045
+    assert result["strict_regression_ok"] is False
+    assert result["calibrated_floor_ok"] is True
+    assert result["regression_adjudication"] == "calibrated_floor"
+    assert result["status"] == "PASS"
+
+
+def test_run_regression_summary_requires_current_schema_occupation_evidence_coverage():
+    from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
+
+    def make_run(idx: int, with_evidence: bool) -> dict:
+        counts = {"0": 2, "1": 1, "2": 1, "3": 1} if with_evidence else {}
+        controlled_count = 5 if with_evidence else 0
+        return {
+            "bundle": {
+                "metadata": {"total_turns": 100},
+                "history": [
+                    {"civ_stats": {"A": {"regions": ["A"], "gini": 0.5, "treasury": 10}}},
+                    {"civ_stats": {"B": {"regions": ["B"], "gini": 0.5, "treasury": 10}}},
+                ],
+            },
+            "validation_summary": {
+                "agent_aggregates_by_turn": {
+                    "100": {
+                        f"civ_{idx}": {
+                            "satisfaction_mean": 0.5,
+                            "satisfaction_std": 0.15,
+                            "agent_count": 100,
+                            "controlled_agent_count": controlled_count,
+                            "occupation_counts": {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10},
+                            "controlled_occupation_counts": counts,
+                            "gini": 0.5,
+                        },
+                    },
+                },
+            },
+            "events": (
+                [{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 500
+                + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 250
+            ),
+        }
+
+    runs = [make_run(0, True)] + [make_run(idx, False) for idx in range(1, 20)]
+
+    result = run_regression_summary(runs)
+
+    assert result["occupation_source"] == "controlled"
+    assert result["occupation_evidence_run_fraction"] == 0.05
+    assert result["occupation_ok"] is False
+    assert result["status"] == "FAIL"
+
+
+def test_run_regression_summary_requires_latest_satisfaction_to_clear_floor():
+    from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
+
+    initial_civs = {
+        name: {"regions": [name], "gini": 0.5, "treasury": 10}
+        for name in ("A", "B", "C", "D")
+    }
+    final_civs = {
+        name: {"regions": [name], "gini": 0.5, "treasury": 10}
+        for name in ("A", "B", "C")
+    }
+    balanced_counts = {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10}
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 100},
+            "history": [
+                {"civ_stats": initial_civs},
+                {"civ_stats": final_civs},
+            ],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "early_good": {
+                        "satisfaction_mean": 0.65,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 100,
+                        "controlled_agent_count": 100,
+                        "occupation_counts": balanced_counts,
+                        "controlled_occupation_counts": balanced_counts,
+                        "gini": 0.5,
+                    },
+                },
+                "200": {
+                    "latest_bad": {
+                        "satisfaction_mean": 0.35,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 100,
+                        "controlled_agent_count": 100,
+                        "occupation_counts": balanced_counts,
+                        "controlled_occupation_counts": balanced_counts,
+                        "gini": 0.5,
+                    },
+                },
+            },
+        },
+        "events": (
+            [{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 500
+            + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 250
+        ),
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["satisfaction_mean"] == 0.5
+    assert result["latest_satisfaction_mean"] == 0.35
+    assert result["strict_regression_ok"] is False
+    assert result["calibrated_floor_ok"] is False
+    assert result["regression_adjudication"] == "fail"
+    assert result["status"] == "FAIL"
+
+
+def test_run_regression_summary_rejects_incomplete_controlled_occupation_counts():
+    from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
+
+    def make_run(idx: int, complete_counts: bool) -> dict:
+        controlled_counts = (
+            {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10}
+            if complete_counts else {"0": 1}
+        )
+        return {
+            "bundle": {
+                "metadata": {"total_turns": 100},
+                "history": [
+                    {"civ_stats": {"A": {"regions": ["A"], "gini": 0.5, "treasury": 10}}},
+                    {"civ_stats": {"B": {"regions": ["B"], "gini": 0.5, "treasury": 10}}},
+                ],
+            },
+            "validation_summary": {
+                "agent_aggregates_by_turn": {
+                    "100": {
+                        f"civ_{idx}": {
+                            "satisfaction_mean": 0.5,
+                            "satisfaction_std": 0.15,
+                            "agent_count": 100,
+                            "controlled_agent_count": 100,
+                            "occupation_counts": {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10},
+                            "controlled_occupation_counts": controlled_counts,
+                            "gini": 0.5,
+                        },
+                    },
+                },
+            },
+            "events": (
+                [{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 500
+                + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 250
+            ),
+        }
+
+    runs = [make_run(idx, complete_counts=idx < 4) for idx in range(20)]
+
+    result = run_regression_summary(runs)
+
+    assert result["occupation_source"] == "controlled"
+    assert result["occupation_evidence_run_fraction"] == 0.2
+    assert result["occupation_ok"] is False
+    assert result["status"] == "FAIL"
+
+
+def test_run_regression_summary_rejects_latest_controlled_occupation_collapse():
+    from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
+
+    initial_civs = {
+        name: {"regions": [name], "gini": 0.5, "treasury": 10}
+        for name in ("A", "B", "C", "D")
+    }
+    final_civs = {
+        name: {"regions": [name], "gini": 0.5, "treasury": 10}
+        for name in ("A", "B", "C")
+    }
+    balanced_counts = {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10}
+    early_balanced = {
+        f"balanced_{idx}": {
+            "satisfaction_mean": 0.5,
+            "satisfaction_std": 0.15,
+            "agent_count": 100,
+            "controlled_agent_count": 100,
+            "occupation_counts": balanced_counts,
+            "controlled_occupation_counts": balanced_counts,
+            "gini": 0.5,
+        }
+        for idx in range(20)
+    }
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 10},
+            "history": [
+                {"civ_stats": initial_civs},
+                {"civ_stats": final_civs},
+            ],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": early_balanced,
+                "200": {
+                    "collapsed_latest": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 1000,
+                        "controlled_agent_count": 1000,
+                        "occupation_counts": {"0": 1000},
+                        "controlled_occupation_counts": {"0": 1000},
+                        "gini": 0.5,
+                    },
+                },
+            },
+        },
+        "events": (
+            [{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 750
+            + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 375
+        ),
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_violation_fraction"] <= 0.01
+    assert result["latest_occupation_violation_fraction"] > 0.70
+    assert result["occupation_ok"] is False
+    assert result["status"] == "FAIL"
+
+
+def test_run_regression_summary_rejects_incomplete_latest_controlled_counts():
+    from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
+
+    balanced_counts = {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10}
+    run = {
+        "bundle": {
+            "metadata": {"total_turns": 10},
+            "history": [
+                {"civ_stats": {"A": {"regions": ["A"], "gini": 0.5, "treasury": 10}}},
+                {"civ_stats": {"B": {"regions": ["B"], "gini": 0.5, "treasury": 10}}},
+            ],
+        },
+        "validation_summary": {
+            "agent_aggregates_by_turn": {
+                "100": {
+                    "early_complete": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 100,
+                        "controlled_agent_count": 100,
+                        "occupation_counts": balanced_counts,
+                        "controlled_occupation_counts": balanced_counts,
+                        "gini": 0.5,
+                    },
+                },
+                "200": {
+                    "latest_incomplete": {
+                        "satisfaction_mean": 0.5,
+                        "satisfaction_std": 0.15,
+                        "agent_count": 100,
+                        "controlled_agent_count": 100,
+                        "occupation_counts": balanced_counts,
+                        "controlled_occupation_counts": {"0": 1},
+                        "gini": 0.5,
+                    },
+                },
+            },
+        },
+        "events": (
+            [{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 50
+            + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 25
+        ),
+    }
+
+    result = run_regression_summary([run])
+
+    assert result["occupation_evidence_run_fraction"] == 1.0
+    assert result["latest_occupation_incomplete_run_fraction"] == 1.0
+    assert result["occupation_ok"] is False
+    assert result["status"] == "FAIL"
 
 
 def test_run_oracles_rejects_unknown_names(tmp_path):

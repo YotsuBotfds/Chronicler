@@ -67,6 +67,8 @@ def test_readme_documents_no_rust_and_native_test_lanes():
     assert "cargo test --manifest-path chronicler-agents/Cargo.toml --quiet" in readme
     assert "EXTENSION_SUFFIXES" in readme
     assert "find_spec(\"chronicler_agents.chronicler_agents\")" in readme
+    assert readme.index("import chronicler_agents as ca") < readme.index("import pytest")
+    assert "full = 200 seeds x 500 turns" in readme
 
 
 def test_validation_gate_workflow_builds_native_extension_as_wheel():
@@ -77,10 +79,21 @@ def test_validation_gate_workflow_builds_native_extension_as_wheel():
     assert "python -m maturin develop --release" not in workflow
 
 
+def test_validation_gate_workflow_preserves_reports_as_artifacts():
+    workflow = _read(".github/workflows/validation-gate.yml")
+
+    assert "actions/upload-artifact@v4" in workflow
+    assert "permissions:\n  contents: read" in workflow
+    assert "if: always()" in workflow
+    assert "output/github-validation/${{ github.run_id }}" in workflow
+    assert "retention-days: 30" in workflow
+
+
 def test_github_tests_workflow_has_no_rust_and_native_jobs():
     workflow = _read(".github/workflows/tests.yml")
 
     assert "python-no-rust" in workflow
+    assert "permissions:\n  contents: read" in workflow
     assert "python-native" in workflow
     assert "Assert native extension is absent" in workflow
     assert "Run Python tests with real native extension preloaded" in workflow
