@@ -1,11 +1,17 @@
 """Tests for strict, atomic validation artifact IO helpers."""
 from __future__ import annotations
 
+import errno
 import json
 import os
+import stat
 from pathlib import Path
 
 import pytest
+
+
+def _mode(path: Path) -> int:
+    return stat.S_IMODE(path.stat().st_mode)
 
 
 def test_strict_json_loads_rejects_nonfinite_constants():
@@ -89,6 +95,152 @@ def test_atomic_write_text_replaces_from_same_directory(monkeypatch, tmp_path):
     assert temp_path.parent == target.parent
     assert replaced_path == target
     assert not temp_path.exists()
+
+
+def test_atomic_write_text_uses_umask_permissions_for_new_artifacts(tmp_path):
+    from chronicler import artifact_io
+
+    target = tmp_path / "artifact.txt"
+    old_umask = os.umask(0o027)
+    try:
+        artifact_io.atomic_write_text(target, "content")
+    finally:
+        os.umask(old_umask)
+
+    assert _mode(target) == 0o640
+
+
+def test_atomic_write_text_does_not_mutate_process_umask(monkeypatch, tmp_path):
+    from chronicler import artifact_io
+
+    def forbidden_umask(mask):  # pragma: no cover - should not be called
+        raise AssertionError("atomic writes must not mutate process-global umask")
+
+    monkeypatch.setattr(artifact_io.os, "umask", forbidden_umask, raising=False)
+
+    artifact_io.atomic_write_text(tmp_path / "artifact.txt", "content")
+
+
+def test_atomic_write_text_preserves_existing_target_permissions(tmp_path):
+    from chronicler import artifact_io
+
+    target = tmp_path / "artifact.txt"
+    target.write_text("old", encoding="utf-8")
+    target.chmod(0o640)
+
+    artifact_io.atomic_write_text(target, "new")
+
+    assert target.read_text(encoding="utf-8") == "new"
+    assert _mode(target) == 0o640
+
+
+def test_atomic_write_text_applies_existing_private_mode_before_writing(monkeypatch, tmp_path):
+    from chronicler import artifact_io
+
+    target = tmp_path / "artifact.txt"
+    target.write_text("old-secret", encoding="utf-8")
+    target.chmod(0o600)
+    original_set_mode = artifact_io._set_open_file_mode
+    observed: dict[str, object] = {}
+
+    def recording_set_mode(file_descriptor, temp_path, mode):
+        observed["mode_before_set"] = _mode(temp_path)
+        observed["content_before_set"] = Path(temp_path).read_text(encoding="utf-8")
+        original_set_mode(file_descriptor, temp_path, mode)
+        observed["mode_after_set"] = _mode(temp_path)
+        observed["content_after_set"] = Path(temp_path).read_text(encoding="utf-8")
+
+    monkeypatch.setattr(artifact_io, "_set_open_file_mode", recording_set_mode)
+    old_umask = os.umask(0o022)
+    try:
+        artifact_io.atomic_write_text(target, "new-secret")
+    finally:
+        os.umask(old_umask)
+
+    assert observed == {
+        "mode_before_set": 0o600,
+        "content_before_set": "",
+        "mode_after_set": 0o600,
+        "content_after_set": "",
+    }
+    assert target.read_text(encoding="utf-8") == "new-secret"
+    assert _mode(target) == 0o600
+
+
+def test_atomic_write_text_replaces_symlink_without_exposing_private_target_mode(tmp_path):
+    from chronicler import artifact_io
+
+    private_target = tmp_path / "private-target.txt"
+    private_target.write_text("private-target", encoding="utf-8")
+    private_target.chmod(0o600)
+    symlink_path = tmp_path / "artifact-link.txt"
+    symlink_path.symlink_to(private_target)
+
+    old_umask = os.umask(0o022)
+    try:
+        artifact_io.atomic_write_text(symlink_path, "replacement")
+    finally:
+        os.umask(old_umask)
+
+    assert not symlink_path.is_symlink()
+    assert symlink_path.read_text(encoding="utf-8") == "replacement"
+    assert _mode(symlink_path) == 0o600
+    assert private_target.read_text(encoding="utf-8") == "private-target"
+    assert _mode(private_target) == 0o600
+
+
+def test_atomic_write_text_fsyncs_parent_directory_after_replace(monkeypatch, tmp_path):
+    from chronicler import artifact_io
+
+    target = tmp_path / "artifact.txt"
+    original_open = os.open
+    original_close = os.close
+    original_fsync = os.fsync
+    parent_dir_fds: set[int] = set()
+    fsynced_fds: set[int] = set()
+    closed_fds: set[int] = set()
+
+    def recording_open(path, flags, *args):
+        fd = original_open(path, flags, *args)
+        if Path(path) == target.parent:
+            parent_dir_fds.add(fd)
+        return fd
+
+    def recording_fsync(fd):
+        fsynced_fds.add(fd)
+        return original_fsync(fd)
+
+    def recording_close(fd):
+        closed_fds.add(fd)
+        return original_close(fd)
+
+    monkeypatch.setattr(artifact_io.os, "open", recording_open)
+    monkeypatch.setattr(artifact_io.os, "fsync", recording_fsync)
+    monkeypatch.setattr(artifact_io.os, "close", recording_close)
+
+    artifact_io.atomic_write_text(target, "durable")
+
+    assert parent_dir_fds
+    assert parent_dir_fds <= fsynced_fds
+    assert parent_dir_fds <= closed_fds
+
+
+def test_atomic_write_text_treats_unsupported_parent_directory_fsync_as_best_effort(monkeypatch, tmp_path):
+    from chronicler import artifact_io
+
+    target = tmp_path / "artifact.txt"
+    original_open = os.open
+
+    def open_with_unsupported_directory_fsync(path, flags, *args):
+        if Path(path) == target.parent:
+            raise PermissionError(errno.EACCES, "directory fsync unsupported")
+        return original_open(path, flags, *args)
+
+    monkeypatch.setattr(artifact_io.os, "open", open_with_unsupported_directory_fsync)
+
+    artifact_io.atomic_write_text(target, "content")
+
+    assert target.read_text(encoding="utf-8") == "content"
 
 
 def test_atomic_write_text_preserves_existing_target_when_replace_fails(monkeypatch, tmp_path):
