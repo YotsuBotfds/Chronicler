@@ -11,6 +11,7 @@ from typing import Any
 
 from chronicler.validation_gate import (
     PROFILE_CHOICES,
+    REQUIRED_ORACLES_BY_PROFILE,
     ValidationGateInputError,
     adjudicate_validation_report,
     load_validation_report,
@@ -194,12 +195,13 @@ def compare_validation_reports(
     )
 
     metric_deltas = _regression_metric_deltas(baseline_report, current_report)
+    regression_oracle_required = "regression" in REQUIRED_ORACLES_BY_PROFILE[profile]
     regression_reasons: list[str] = []
     if new_required_failures:
         regression_reasons.append("new_required_failures")
-    if strict_downgrade:
+    if regression_oracle_required and strict_downgrade:
         regression_reasons.append("strict_regression_downgrade")
-    if added_strict:
+    if regression_oracle_required and added_strict:
         regression_reasons.append("strict_regression_failed_checks_added")
 
     regression_detected = bool(regression_reasons)

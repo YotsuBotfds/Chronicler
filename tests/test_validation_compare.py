@@ -132,6 +132,103 @@ def test_compare_detects_missing_strict_evidence_as_downgrade():
     assert result["exit_code"] == 2
 
 
+def test_optional_regression_diagnostics_do_not_fail_subset_comparison():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+        "strict_regression_failed_checks": [],
+    }
+    current = _report(determinism="SKIP")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+        "strict_regression_failed_checks": ["latest_satisfaction_mean"],
+    }
+
+    result = compare_validation_reports("subset", baseline, current, fail_on_regression=True)
+
+    assert result["strict_regression_downgrade"] is True
+    assert result["strict_regression_failed_checks_added"] == ["latest_satisfaction_mean"]
+    assert result["regression_adjudication_change"] == {
+        "baseline": "strict",
+        "current": "calibrated_floor",
+    }
+    assert result["regression_detected"] is False
+    assert result["regression_reasons"] == []
+    assert result["exit_code"] == 0
+
+
+def test_optional_regression_diagnostics_do_not_fail_determinism_comparison():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _report(determinism="PASS")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+    }
+    current = _report(determinism="PASS")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+        "strict_regression_failed_checks": ["migration_rate_per_agent_turn"],
+    }
+
+    result = compare_validation_reports("determinism-off", baseline, current, fail_on_regression=True)
+
+    assert result["regression_detected"] is False
+    assert result["regression_reasons"] == []
+    assert result["strict_regression_downgrade"] is True
+    assert result["strict_regression_failed_checks_added"] == ["migration_rate_per_agent_turn"]
+    assert result["exit_code"] == 0
+
+
+def test_require_strict_regression_still_fails_full_profile_comparison():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+    }
+    current = _report(determinism="SKIP")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+    }
+
+    result = compare_validation_reports(
+        "full",
+        baseline,
+        current,
+        require_strict_regression=True,
+        fail_on_regression=True,
+    )
+
+    assert result["current_decision"]["ok"] is False
+    assert result["new_required_failures"] == [
+        {
+            "oracle": "regression",
+            "status": "NON_STRICT",
+            "reason": "strict regression required but adjudication=calibrated_floor",
+            "adjudication": "calibrated_floor",
+        }
+    ]
+    assert "new_required_failures" in result["regression_reasons"]
+    assert result["exit_code"] == 2
+
+
 def test_compare_cli_writes_json_and_markdown_outputs(tmp_path, capsys):
     from chronicler import validation_compare
 
