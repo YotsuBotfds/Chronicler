@@ -15,7 +15,7 @@ from chronicler.utils import stable_hash_int
 
 CULTURAL_PRODUCTION_CHANCE = 0.45
 GP_PRESTIGE_THRESHOLD = 25
-GP_SCIENTIST_ARTIFACT_CHANCE = 0.60  # [CALIBRATE M57]
+GP_SCIENTIST_ARTIFACT_CHANCE = 0.80  # [CALIBRATE P2] restore non-relic artifact volume after duplicate burst caps.
 PORTABLE_CAPTURE_LOSS_CHANCE = 0.14  # [CALIBRATE M57]
 RELIC_CONVERSION_BONUS = 0.15
 PROSPERITY_STABILITY_THRESHOLD = 55
@@ -234,6 +234,23 @@ def _process_conquest(world, intent: ArtifactLifecycleIntent, events: list) -> N
                     ))
 
 
+def _anchored_region_controller(world, artifact: Artifact) -> str | None:
+    """Return live controller for an anchored artifact's site, if any."""
+    region_name = artifact.anchor_region or artifact.origin_region
+    if not region_name:
+        return None
+    for region in getattr(world, "regions", []):
+        if region.name == region_name:
+            controller = getattr(region, "controller", None)
+            if not controller:
+                return None
+            for civ in getattr(world, "civilizations", []):
+                if civ.name == controller and region_name in getattr(civ, "regions", []):
+                    return controller
+            return None
+    return None
+
+
 def _process_civ_destruction(world, intent: ArtifactLifecycleIntent, events: list) -> None:
     """Handle artifacts when a civ is destroyed without absorber."""
     for a in world.artifacts:
@@ -242,6 +259,25 @@ def _process_civ_destruction(world, intent: ArtifactLifecycleIntent, events: lis
         if a.holder_name is not None:
             gp = _find_gp(world, a.holder_name, a.holder_born_turn)
             if gp and gp.active:
+                continue
+        if a.anchored:
+            controller = _anchored_region_controller(world, a)
+            if controller and controller != intent.losing_civ:
+                a.owner_civ = controller
+                a.holder_name = None
+                a.holder_born_turn = None
+                region_name = a.anchor_region or a.origin_region
+                _add_history(
+                    a,
+                    f"Claimed by {controller} as guardian of {region_name} after {intent.losing_civ} fell, turn {world.turn}",
+                )
+                events.append(Event(
+                    turn=world.turn,
+                    event_type="artifact_captured",
+                    actors=[controller, intent.losing_civ, a.name],
+                    description=f"{a.name} passed to {controller} when {intent.losing_civ} fell",
+                    importance=7,
+                ))
                 continue
         a.status = ArtifactStatus.LOST
         a.owner_civ = None

@@ -696,6 +696,57 @@ class TestCivDestruction:
         assert world.artifacts[0].owner_civ is None
         assert any(e.event_type == "artifact_lost" for e in events)
 
+    def test_no_absorber_transfers_anchored_artifact_to_live_region_controller(self):
+        from chronicler.models import Civilization, Leader
+
+        world = _make_world_with_civ()
+        world.regions[0].controller = "Conqueror"
+        world.civilizations.append(Civilization(
+            name="Conqueror",
+            leader=Leader(name="ConquerorLeader", trait="steady", reign_start=0),
+            regions=["Region1"],
+            capital_region="Region1",
+        ))
+        artifact = _make_active_artifact(
+            world,
+            ArtifactType.RELIC,
+            anchored=True,
+            owner_civ="TestCiv",
+        )
+        world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
+            action="civ_destruction", losing_civ="TestCiv", gaining_civ=None,
+            region="", is_capital=True, is_full_absorption=True, is_destructive=False,
+        ))
+        world.turn = 50
+
+        events = tick_artifacts(world)
+
+        assert artifact.status == ArtifactStatus.ACTIVE
+        assert artifact.owner_civ == "Conqueror"
+        assert any(e.event_type == "artifact_captured" for e in events)
+        assert any("guardian of Region1" in h for h in artifact.history)
+
+    def test_no_absorber_does_not_transfer_anchored_artifact_to_stale_controller(self):
+        world = _make_world_with_civ()
+        world.regions[0].controller = "GhostController"
+        artifact = _make_active_artifact(
+            world,
+            ArtifactType.RELIC,
+            anchored=True,
+            owner_civ="TestCiv",
+        )
+        world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
+            action="civ_destruction", losing_civ="TestCiv", gaining_civ=None,
+            region="", is_capital=True, is_full_absorption=True, is_destructive=False,
+        ))
+        world.turn = 50
+
+        events = tick_artifacts(world)
+
+        assert artifact.status == ArtifactStatus.LOST
+        assert artifact.owner_civ is None
+        assert any(e.event_type == "artifact_lost" for e in events)
+
     def test_live_holder_survives_civ_destruction(self):
         world = _make_world_with_civ()
         _make_active_artifact(
