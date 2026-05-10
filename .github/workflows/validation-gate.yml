@@ -57,6 +57,16 @@ jobs:
             --profile "$PROFILE" \
             --output-root "output/github-validation/${{ github.run_id }}"
 
+      - name: Publish validation gate summary
+        if: always()
+        shell: bash
+        run: |
+          while IFS= read -r summary; do
+            echo "## Validation gate summary: $summary" >> "$GITHUB_STEP_SUMMARY"
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done < <(if [ -d "output/github-validation/${{ github.run_id }}" ]; then find "output/github-validation/${{ github.run_id }}" -name 'gate_summary_*.md' -type f | sort; fi)
+
       - name: Upload validation reports
         if: always()
         uses: actions/upload-artifact@v4

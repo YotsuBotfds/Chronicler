@@ -187,6 +187,10 @@ python -m chronicler.validate --batch-dir output/some_batch --oracles all
 # Exit 0 = selected profile passes, 2 = required oracle failed, 1 = bad input.
 python -m chronicler.validation_gate --profile full --report output/m53/full/full_gate/batch_42/validate_report_full.json
 python -m chronicler.validation_gate --profile full --report output/m53/full/full_gate/batch_42/validate_report_full.json --require-strict-regression
+python -m chronicler.validation_gate --profile full \
+  --report output/m53/full/full_gate/batch_42/validate_report_full.json \
+  --decision-output output/m53/full/full_gate/batch_42/gate_decision_full.json \
+  --summary-output output/m53/full/full_gate/batch_42/gate_summary_full.md
 
 # Canonical profile gates. Omit --seeds/--turns to use profile defaults:
 # subset = 20 seeds x 200 turns; full = 200 seeds x 500 turns;
@@ -218,6 +222,14 @@ Each run produces:
 
 Batch analysis writes:
 - **batch_report.json** — aggregated metrics and checkpoint summaries for a batch directory
+
+Canonical validation gates also preserve:
+- **validate_report_*.json** — raw oracle results for the selected profile
+- **gate_decision_*.json** — machine-readable profile adjudication, required failures, informational non-PASS statuses, and exit code
+- **gate_summary_*.md** — concise human-readable gate summary, also published to the GitHub Actions step summary
+- **run_manifest.json** — profile, seed/turn scale, report paths, gate status, and reproducibility metadata
+
+Full-profile regression reports include strict-vs-calibrated diagnostics such as `strict_regression_failed_checks`, `calibrated_floor_relaxed_checks`, and `regression_floor_diagnostics` so calibrated-floor passes explain exactly which strict floors still need tuning.
 
 ## License
 

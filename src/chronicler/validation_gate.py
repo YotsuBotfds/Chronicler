@@ -66,12 +66,20 @@ def _strict_regression_failure(report: dict[str, Any]) -> dict[str, Any] | None:
     if result.get("strict_regression_ok") is True or result.get("regression_adjudication") == "strict":
         return None
     adjudication = str(result.get("regression_adjudication") or "unknown")
-    return {
+    failure: dict[str, Any] = {
         "oracle": "regression",
         "status": "NON_STRICT",
         "reason": f"strict regression required but adjudication={adjudication}",
         "adjudication": adjudication,
     }
+    for key in (
+        "strict_regression_failed_checks",
+        "calibrated_floor_failed_checks",
+        "calibrated_floor_relaxed_checks",
+    ):
+        if key in result:
+            failure[key] = result[key]
+    return failure
 
 
 def adjudicate_validation_report(
@@ -144,6 +152,103 @@ def format_gate_summary(decision: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _decision_exit_code(decision: dict[str, Any]) -> int:
+    return 0 if decision["ok"] else 2
+
+
+def _oracle_statuses(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    statuses: dict[str, dict[str, Any]] = {}
+    results = report.get("results", {})
+    if not isinstance(results, dict):
+        return statuses
+    for oracle in sorted(results):
+        item = _oracle_item(report, oracle)
+        item.pop("oracle", None)
+        statuses[oracle] = item
+    return statuses
+
+
+def build_gate_decision_payload(
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    *,
+    report_path: Path | None = None,
+) -> dict[str, Any]:
+    """Build a stable machine-readable gate decision artifact."""
+    oracle_statuses = _oracle_statuses(report)
+    for oracle in decision["required_oracles"]:
+        oracle_statuses.setdefault(oracle, {"status": "MISSING"})
+    return {
+        "schema_version": 1,
+        "profile": decision["profile"],
+        "ok": decision["ok"],
+        "exit_code": _decision_exit_code(decision),
+        "report_path": str(report_path) if report_path is not None else None,
+        "batch_dir": report.get("batch_dir"),
+        "required_oracles": decision["required_oracles"],
+        "required_failures": decision["required_failures"],
+        "informational_non_pass": decision["informational_non_pass"],
+        "oracle_statuses": oracle_statuses,
+        "require_strict_regression": decision.get("require_strict_regression", False),
+    }
+
+
+def _markdown_table(items: list[dict[str, Any]]) -> list[str]:
+    if not items:
+        return ["_None._"]
+    rows = ["| Oracle | Status | Adjudication | Reason |", "| --- | --- | --- | --- |"]
+    for item in items:
+        rows.append(
+            "| "
+            + " | ".join(
+                str(item.get(key, "")).replace("|", "\\|")
+                for key in ("oracle", "status", "adjudication", "reason")
+            )
+            + " |"
+        )
+    return rows
+
+
+def format_gate_markdown(
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    *,
+    report_path: Path | None = None,
+) -> str:
+    """Format a concise Markdown summary suitable for CI job summaries."""
+    status = "PASS" if decision["ok"] else "FAIL"
+    lines = [
+        f"# Validation gate: {decision['profile']}",
+        "",
+        f"**Status:** {status}",
+        f"**Exit code:** {_decision_exit_code(decision)}",
+    ]
+    if report_path is not None:
+        lines.append(f"**Report:** `{report_path}`")
+    if report.get("batch_dir"):
+        lines.append(f"**Batch:** `{report['batch_dir']}`")
+    lines.extend(["", "## Required failures", ""])
+    lines.extend(_markdown_table(decision["required_failures"]))
+    lines.extend(["", "## Informational non-PASS", ""])
+    lines.extend(_markdown_table(decision["informational_non_pass"]))
+    lines.extend(["", "## Oracle statuses", "", "| Oracle | Status | Adjudication | Reason |", "| --- | --- | --- | --- |"])
+    for oracle, item in _oracle_statuses(report).items():
+        lines.append(
+            "| "
+            + " | ".join(
+                str(value).replace("|", "\\|")
+                for value in (
+                    oracle,
+                    item.get("status", ""),
+                    item.get("adjudication", ""),
+                    item.get("reason", ""),
+                )
+            )
+            + " |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 # Backwards-compatible private name used by the historical validation runner tests.
 _format_gate_failure = format_gate_failure
 
@@ -180,6 +285,21 @@ def _error_payload(profile: str | None, report_path: Path | None, reason: str) -
     }
 
 
+def _write_text_output(path: Path, content: str, *, label: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        raise ValidationGateInputError(f"could not write {label}: {exc}") from exc
+
+
+def _reject_same_output_paths(decision_path: Path | None, summary_path: Path | None) -> None:
+    if decision_path is None or summary_path is None:
+        return
+    if decision_path.resolve() == summary_path.resolve():
+        raise ValidationGateInputError("decision-output and summary-output must be different paths")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _ValidationGateArgumentParser(description="Gate an existing Chronicler validation report")
     parser.add_argument("--profile", required=True)
@@ -190,6 +310,16 @@ def main(argv: list[str] | None = None) -> int:
         help="For full profile reports, fail calibrated-floor regression passes.",
     )
     parser.add_argument("--text", action="store_true", help="Print a terminal summary instead of JSON")
+    parser.add_argument(
+        "--decision-output",
+        type=Path,
+        help="Optional path for the machine-readable gate decision JSON artifact.",
+    )
+    parser.add_argument(
+        "--summary-output",
+        type=Path,
+        help="Optional path for the Markdown gate summary artifact.",
+    )
     args = None
     try:
         args = parser.parse_args(argv)
@@ -207,11 +337,30 @@ def main(argv: list[str] | None = None) -> int:
         ))
         return 1
 
+    try:
+        _reject_same_output_paths(args.decision_output, args.summary_output)
+        payload = build_gate_decision_payload(decision, report, report_path=args.report)
+        if args.decision_output is not None:
+            _write_text_output(
+                args.decision_output,
+                json.dumps(payload, indent=2) + "\n",
+                label="decision-output",
+            )
+        if args.summary_output is not None:
+            _write_text_output(
+                args.summary_output,
+                format_gate_markdown(decision, report, report_path=args.report),
+                label="summary-output",
+            )
+    except ValidationGateInputError as exc:
+        _dump_json(_error_payload(args.profile, args.report, str(exc)))
+        return 1
+
     if args.text:
         sys.stdout.write(format_gate_summary(decision) + "\n")
     else:
-        _dump_json(decision)
-    return 0 if decision["ok"] else 2
+        _dump_json(payload)
+    return _decision_exit_code(decision)
 
 
 __all__ = [
@@ -219,7 +368,9 @@ __all__ = [
     "PROFILE_CHOICES",
     "ValidationGateInputError",
     "adjudicate_validation_report",
+    "build_gate_decision_payload",
     "format_gate_failure",
+    "format_gate_markdown",
     "format_gate_summary",
     "load_validation_report",
     "main",

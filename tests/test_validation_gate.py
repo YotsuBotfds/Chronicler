@@ -100,6 +100,9 @@ def test_strict_regression_ratchet_rejects_calibrated_floor_pass():
         "regression_adjudication": "calibrated_floor",
         "strict_regression_ok": False,
         "calibrated_floor_ok": True,
+        "strict_regression_failed_checks": ["satisfaction_mean", "migration_rate_per_agent_turn"],
+        "calibrated_floor_relaxed_checks": ["satisfaction_mean", "migration_rate_per_agent_turn"],
+        "calibrated_floor_failed_checks": [],
     }
 
     decision = adjudicate_validation_report(
@@ -114,6 +117,15 @@ def test_strict_regression_ratchet_rejects_calibrated_floor_pass():
     assert failure["oracle"] == "regression"
     assert failure["status"] == "NON_STRICT"
     assert failure["adjudication"] == "calibrated_floor"
+    assert failure["strict_regression_failed_checks"] == [
+        "satisfaction_mean",
+        "migration_rate_per_agent_turn",
+    ]
+    assert failure["calibrated_floor_relaxed_checks"] == [
+        "satisfaction_mean",
+        "migration_rate_per_agent_turn",
+    ]
+    assert failure["calibrated_floor_failed_checks"] == []
     assert "strict" in failure["reason"]
 
 
@@ -198,6 +210,113 @@ def test_cli_json_exit_codes(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "ERROR"
     assert "unknown profile" in payload["reason"]
+
+    same_output = tmp_path / "same-output"
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(pass_report),
+        "--decision-output",
+        str(same_output),
+        "--summary-output",
+        str(same_output),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "must be different paths" in payload["reason"]
+
+
+def test_gate_decision_payload_includes_statuses_paths_and_required_failures(tmp_path):
+    from chronicler.validation_gate import adjudicate_validation_report, build_gate_decision_payload
+
+    report = _report(needs="SKIP", determinism="SKIP")
+    report["batch_dir"] = "/tmp/batch"
+    report["results"]["needs"]["reason"] = "no_needs_sidecars"
+    report_path = tmp_path / "validate_report_subset.json"
+
+    decision = adjudicate_validation_report("subset", report)
+    payload = build_gate_decision_payload(decision, report, report_path=report_path)
+
+    assert payload["schema_version"] == 1
+    assert payload["profile"] == "subset"
+    assert payload["ok"] is False
+    assert payload["exit_code"] == 2
+    assert payload["report_path"] == str(report_path)
+    assert payload["batch_dir"] == "/tmp/batch"
+    assert payload["oracle_statuses"]["needs"] == {
+        "status": "SKIP",
+        "reason": "no_needs_sidecars",
+    }
+    assert payload["oracle_statuses"]["determinism"] == {"status": "SKIP"}
+    assert payload["required_failures"] == [
+        {"oracle": "needs", "status": "SKIP", "reason": "no_needs_sidecars"}
+    ]
+
+
+def test_cli_writes_decision_and_summary_outputs_on_gate_failure(tmp_path, capsys):
+    from chronicler import validation_gate
+
+    report_path = tmp_path / "fail.json"
+    report = _report(needs="SKIP", determinism="SKIP")
+    report["batch_dir"] = "/tmp/batch"
+    report["results"]["needs"]["reason"] = "no_needs_sidecars"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    decision_path = tmp_path / "decision.json"
+    summary_path = tmp_path / "summary.md"
+
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(report_path),
+        "--decision-output",
+        str(decision_path),
+        "--summary-output",
+        str(summary_path),
+    ]) == 2
+
+    stdout_payload = json.loads(capsys.readouterr().out)
+    decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert stdout_payload == decision_payload
+    assert decision_payload["exit_code"] == 2
+    assert decision_payload["required_failures"][0]["reason"] == "no_needs_sidecars"
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "# Validation gate: subset" in summary
+    assert "needs" in summary
+    assert "no_needs_sidecars" in summary
+
+
+def test_cli_writes_decision_and_summary_outputs_on_pass_with_informational_non_pass(tmp_path, capsys):
+    from chronicler import validation_gate
+
+    report_path = tmp_path / "pass.json"
+    report = _report(determinism="SKIP")
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    decision_path = tmp_path / "decision.json"
+    summary_path = tmp_path / "summary.md"
+
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(report_path),
+        "--decision-output",
+        str(decision_path),
+        "--summary-output",
+        str(summary_path),
+    ]) == 0
+
+    stdout_payload = json.loads(capsys.readouterr().out)
+    decision_payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert stdout_payload == decision_payload
+    assert decision_payload["ok"] is True
+    assert decision_payload["exit_code"] == 0
+    assert decision_payload["informational_non_pass"] == [{"oracle": "determinism", "status": "SKIP"}]
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "**Status:** PASS" in summary
+    assert "Informational non-PASS" in summary
+    assert "determinism" in summary
 
 
 def test_cli_text_summary_reports_informational_non_pass(tmp_path, capsys):

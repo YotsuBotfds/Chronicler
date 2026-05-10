@@ -1185,7 +1185,31 @@ def test_run_regression_summary_accepts_calibrated_full_gate_floor_miss():
     result = run_regression_summary([run])
 
     assert result["satisfaction_mean"] == 0.405
+    assert result["latest_satisfaction_mean"] == 0.405
     assert result["migration_rate_per_agent_turn"] == 0.045
+    assert result["satisfaction_mean_ok"] is False
+    assert result["satisfaction_mean_calibrated_ok"] is True
+    assert result["latest_satisfaction_mean_ok"] is False
+    assert result["latest_satisfaction_mean_calibrated_ok"] is True
+    assert result["migration_rate_ok"] is False
+    assert result["migration_rate_calibrated_ok"] is True
+    assert result["strict_regression_failed_checks"] == [
+        "satisfaction_mean",
+        "latest_satisfaction_mean",
+        "migration_rate_per_agent_turn",
+    ]
+    assert result["calibrated_floor_failed_checks"] == []
+    assert result["calibrated_floor_relaxed_checks"] == [
+        "satisfaction_mean",
+        "latest_satisfaction_mean",
+        "migration_rate_per_agent_turn",
+    ]
+    diagnostics = result["regression_floor_diagnostics"]
+    assert diagnostics["satisfaction_mean"]["strict_min_delta"] == -0.045
+    assert diagnostics["satisfaction_mean"]["calibrated_min_delta"] == 0.005
+    assert diagnostics["latest_satisfaction_mean"]["strict_min_delta"] == -0.045
+    assert diagnostics["migration_rate_per_agent_turn"]["strict_min_delta"] == -0.005
+    assert diagnostics["migration_rate_per_agent_turn"]["calibrated_min_delta"] == 0.0
     assert result["strict_regression_ok"] is False
     assert result["calibrated_floor_ok"] is True
     assert result["regression_adjudication"] == "calibrated_floor"
@@ -1293,6 +1317,14 @@ def test_run_regression_summary_requires_latest_satisfaction_to_clear_floor():
 
     assert result["satisfaction_mean"] == 0.5
     assert result["latest_satisfaction_mean"] == 0.35
+    assert result["strict_regression_failed_checks"] == ["latest_satisfaction_mean"]
+    assert result["calibrated_floor_failed_checks"] == ["latest_satisfaction_mean"]
+    assert result["calibrated_floor_relaxed_checks"] == []
+    diagnostics = result["regression_floor_diagnostics"]["latest_satisfaction_mean"]
+    assert diagnostics["strict_ok"] is False
+    assert diagnostics["calibrated_ok"] is False
+    assert diagnostics["strict_min_delta"] == -0.1
+    assert diagnostics["calibrated_min_delta"] == -0.05
     assert result["strict_regression_ok"] is False
     assert result["calibrated_floor_ok"] is False
     assert result["regression_adjudication"] == "fail"

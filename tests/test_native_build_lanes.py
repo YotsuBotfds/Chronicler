@@ -89,6 +89,15 @@ def test_validation_gate_workflow_preserves_reports_as_artifacts():
     assert "retention-days: 30" in workflow
 
 
+def test_validation_gate_workflow_publishes_gate_summary():
+    workflow = _read(".github/workflows/validation-gate.yml")
+
+    assert "GITHUB_STEP_SUMMARY" in workflow
+    assert "gate_summary_*.md" in workflow
+    assert "Publish validation gate summary" in workflow
+    assert workflow.index("Publish validation gate summary") < workflow.index("Upload validation reports")
+
+
 def test_github_tests_workflow_has_no_rust_and_native_jobs():
     workflow = _read(".github/workflows/tests.yml")
 
