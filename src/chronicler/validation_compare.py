@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import argparse
 import html
-import json
 import math
 import sys
 from pathlib import Path
 from typing import Any
 
+from chronicler.artifact_io import ArtifactIOError, atomic_write_json, atomic_write_text, strict_json_dumps
 from chronicler.validation_gate import (
     PROFILE_CHOICES,
     REQUIRED_ORACLES_BY_PROFILE,
@@ -236,8 +236,10 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 
 def _dump_json(payload: dict[str, Any]) -> None:
-    json.dump(payload, sys.stdout, indent=2, allow_nan=False)
-    sys.stdout.write("\n")
+    try:
+        sys.stdout.write(strict_json_dumps(payload))
+    except ArtifactIOError:  # pragma: no cover - defensive fallback for malformed error payloads
+        sys.stdout.write('{"status":"ERROR","reason":"could not serialize JSON output"}\n')
 
 
 def _error_payload(reason: str) -> dict[str, Any]:
@@ -345,9 +347,8 @@ def format_comparison_markdown(result: dict[str, Any]) -> str:
 
 def _write_text_output(path: Path, content: str, *, label: str) -> None:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-    except OSError as exc:
+        atomic_write_text(path, content)
+    except ArtifactIOError as exc:
         raise ValidationGateInputError(f"could not write {label}: {exc}") from exc
 
 
@@ -382,11 +383,10 @@ def main(argv: list[str] | None = None) -> int:
         result["baseline_report_path"] = str(args.baseline_report)
         result["current_report_path"] = str(args.current_report)
         if args.decision_output is not None:
-            _write_text_output(
-                args.decision_output,
-                json.dumps(result, indent=2, allow_nan=False) + "\n",
-                label="decision-output",
-            )
+            try:
+                atomic_write_json(args.decision_output, result)
+            except ArtifactIOError as exc:
+                raise ValidationGateInputError(f"could not write decision-output: {exc}") from exc
         if args.summary_output is not None:
             _write_text_output(
                 args.summary_output,

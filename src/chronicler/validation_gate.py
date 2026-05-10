@@ -12,10 +12,17 @@ execution from profile-specific release semantics:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from chronicler.artifact_io import (
+    ArtifactIOError,
+    atomic_write_json,
+    atomic_write_text,
+    strict_json_dumps,
+    strict_json_loads,
+)
 
 REQUIRED_ORACLES_BY_PROFILE = {
     "subset": ["community", "needs", "cohort"],
@@ -271,7 +278,7 @@ _format_gate_failure = format_gate_failure
 
 def load_validation_report(report_path: Path) -> dict[str, Any]:
     try:
-        report = json.loads(report_path.read_text(encoding="utf-8"))
+        report = strict_json_loads(report_path.read_text(encoding="utf-8"), label="report JSON")
     except FileNotFoundError as exc:
         raise ValidationGateInputError(f"report path does not exist: {report_path}") from exc
     except IsADirectoryError as exc:
@@ -280,16 +287,18 @@ def load_validation_report(report_path: Path) -> dict[str, Any]:
         raise ValidationGateInputError(f"could not decode report as UTF-8: {exc}") from exc
     except OSError as exc:
         raise ValidationGateInputError(f"could not read report: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise ValidationGateInputError(f"invalid report JSON: {exc.msg}") from exc
+    except ArtifactIOError as exc:
+        raise ValidationGateInputError(f"invalid report JSON: {exc}") from exc
     if not isinstance(report, dict):
         raise ValidationGateInputError("report JSON must be an object")
     return report
 
 
 def _dump_json(payload: dict[str, Any]) -> None:
-    json.dump(payload, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    try:
+        sys.stdout.write(strict_json_dumps(payload))
+    except ArtifactIOError as exc:  # pragma: no cover - defensive fallback for malformed error payloads
+        sys.stdout.write('{"status":"ERROR","reason":"could not serialize JSON output"}\n')
 
 
 def _error_payload(profile: str | None, report_path: Path | None, reason: str) -> dict[str, Any]:
@@ -303,9 +312,8 @@ def _error_payload(profile: str | None, report_path: Path | None, reason: str) -
 
 def _write_text_output(path: Path, content: str, *, label: str) -> None:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-    except OSError as exc:
+        atomic_write_text(path, content)
+    except ArtifactIOError as exc:
         raise ValidationGateInputError(f"could not write {label}: {exc}") from exc
 
 
@@ -375,11 +383,10 @@ def main(argv: list[str] | None = None) -> int:
         _reject_colliding_output_paths(args.report, args.decision_output, args.summary_output)
         payload = build_gate_decision_payload(decision, report, report_path=args.report)
         if args.decision_output is not None:
-            _write_text_output(
-                args.decision_output,
-                json.dumps(payload, indent=2) + "\n",
-                label="decision-output",
-            )
+            try:
+                atomic_write_json(args.decision_output, payload)
+            except ArtifactIOError as exc:
+                raise ValidationGateInputError(f"could not write decision-output: {exc}") from exc
         if args.summary_output is not None:
             _write_text_output(
                 args.summary_output,

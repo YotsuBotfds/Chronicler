@@ -75,6 +75,7 @@ def test_readme_documents_no_rust_and_native_test_lanes():
     assert "--fail-on-regression" in readme
     assert "compare_decision_*.json" in readme
     assert "Comparator hard failures follow the selected validation profile" in readme
+    assert "validation JSON artifacts are written with strict JSON serialization and atomic same-directory replacement" in readme
 
 
 def test_validation_gate_workflow_builds_native_extension_as_wheel():

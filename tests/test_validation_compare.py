@@ -366,7 +366,8 @@ def test_compare_cli_rejects_nonfinite_metric_deltas(tmp_path, capsys):
     ]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "ERROR"
-    assert "non-finite numeric diagnostic" in payload["reason"]
+    assert "invalid current report JSON" in payload["reason"]
+    assert "non-finite JSON constant" in payload["reason"]
 
 
 def test_compare_markdown_escapes_adjudication_values():
@@ -419,7 +420,8 @@ def test_compare_cli_rejects_one_sided_nonfinite_metric(tmp_path, capsys):
     ]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "ERROR"
-    assert "non-finite numeric diagnostic" in payload["reason"]
+    assert "invalid current report JSON" in payload["reason"]
+    assert "non-finite JSON constant" in payload["reason"]
 
 
 def test_compare_cli_rejects_nonfinite_adjudication_without_partial_json(tmp_path, capsys):
@@ -453,7 +455,8 @@ def test_compare_cli_rejects_nonfinite_adjudication_without_partial_json(tmp_pat
     captured = capsys.readouterr().out
     payload = json.loads(captured)
     assert payload["status"] == "ERROR"
-    assert "non-finite numeric diagnostic" in payload["reason"]
+    assert "invalid current report JSON" in payload["reason"]
+    assert "non-finite JSON constant" in payload["reason"]
 
 
 def test_compare_markdown_escapes_markdown_image_syntax_in_adjudication():
@@ -536,6 +539,31 @@ def test_compare_cli_rejects_huge_integer_diagnostics(tmp_path, capsys):
     ]) == 1
     payload = json.loads(capsys.readouterr().out)
     assert "non-finite numeric diagnostic" in payload["reason"]
+
+
+def test_compare_cli_rejects_duplicate_keys_in_report_json(tmp_path, capsys):
+    from chronicler import validation_compare
+
+    baseline_path = tmp_path / "baseline.json"
+    current_path = tmp_path / "current.json"
+    baseline_path.write_text(json.dumps(_report()), encoding="utf-8")
+    current_path.write_text(
+        '{"results": {"needs": {"status": "FAIL"}, "needs": {"status": "PASS"}}}',
+        encoding="utf-8",
+    )
+
+    assert validation_compare.main([
+        "--profile",
+        "subset",
+        "--baseline-report",
+        str(baseline_path),
+        "--current-report",
+        str(current_path),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "invalid current report JSON" in payload["reason"]
+    assert "duplicate JSON key: needs" in payload["reason"]
 
 
 def test_compare_cli_rejects_bad_inputs_and_output_collisions(tmp_path, capsys):

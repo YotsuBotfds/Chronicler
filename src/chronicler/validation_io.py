@@ -13,6 +13,8 @@ from collections import Counter, defaultdict
 from math import ceil
 from pathlib import Path
 
+from .artifact_io import ArtifactIOError, strict_json_dumps
+
 SCRUB_KEYS = {"generated_at"}
 BUNDLE_FILENAME = "chronicle_bundle.json"
 EVENT_NAME_TO_CODE = {
@@ -2650,6 +2652,14 @@ def _error_report(batch_dir: Path, oracles: list[str], reason: str) -> dict:
     }
 
 
+def _dump_report(report: dict) -> None:
+    sys.stdout.write(strict_json_dumps(report))
+
+
+def _serialization_error_report(batch_dir: Path, oracles: list[str], exc: ArtifactIOError) -> dict:
+    return _error_report(batch_dir, oracles, f"could not serialize validation report: {exc}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="M53b validation oracle runner")
     parser.add_argument("--batch-dir", required=True, type=Path)
@@ -2658,11 +2668,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = run_oracles(args.batch_dir, args.oracles)
     except (ValidationRequestError, ValidationDependencyError) as exc:
-        json.dump(_error_report(args.batch_dir, args.oracles, str(exc)), sys.stdout, indent=2)
-        sys.stdout.write("\n")
+        _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1
-    json.dump(report, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    try:
+        _dump_report(report)
+    except ArtifactIOError as exc:
+        _dump_report(_serialization_error_report(args.batch_dir, args.oracles, exc))
+        return 1
     if any(result.get("status") == "ERROR" for result in report["results"].values()):
         return 1
     return 0

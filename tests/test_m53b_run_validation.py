@@ -246,6 +246,25 @@ def test_validate_batch_synthesizes_evidence_for_invalid_validate_cli_output(mon
     assert result["summary_path"].exists()
 
 
+def test_validate_batch_synthesizes_evidence_for_strict_json_violations(monkeypatch, tmp_path):
+    runner = _load_runner()
+
+    for stdout_text, expected_reason in (
+        ('{"results": {"needs": {"status": "PASS"}}, "metric": NaN}', "non-finite JSON constant"),
+        ('{"results": {"needs": {"status": "FAIL"}, "needs": {"status": "PASS"}}}', "duplicate JSON key: needs"),
+    ):
+        def fake_run(*args, **kwargs):
+            return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=stdout_text, stderr="")
+
+        monkeypatch.setattr(runner.subprocess, "run", fake_run)
+        result = runner.validate_batch(tmp_path, f"{expected_reason.split()[0]}.json", Path.cwd(), {}, "full")
+        report = runner.json.loads(result["report_path"].read_text(encoding="utf-8"))
+        assert report["status"] == "ERROR"
+        assert expected_reason in report["reason"]
+        assert result["decision"]["ok"] is False
+        assert '"metric": NaN' not in result["report_path"].read_text(encoding="utf-8")
+
+
 def test_validate_batch_writes_comparison_artifacts_when_baseline_is_provided(monkeypatch, tmp_path):
     runner = _load_runner()
     baseline = _report(determinism="SKIP")
