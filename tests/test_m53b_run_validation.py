@@ -124,3 +124,31 @@ def test_validate_batch_writes_report_and_enforces_profile_gate(monkeypatch, tmp
 
     with pytest.raises(SystemExit, match="Validation gate failed for profile full"):
         runner.validate_batch(tmp_path, "full.json", Path.cwd(), {}, "full")
+
+
+def test_validate_batch_can_require_strict_regression(monkeypatch, tmp_path):
+    runner = _load_runner()
+    report = _report(determinism="SKIP")
+    report["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+    }
+    report_text = runner.json.dumps(report)
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    runner.validate_batch(tmp_path, "default.json", Path.cwd(), {}, "full")
+    with pytest.raises(SystemExit, match="regression=NON_STRICT"):
+        runner.validate_batch(
+            tmp_path,
+            "strict.json",
+            Path.cwd(),
+            {},
+            "full",
+            require_strict_regression=True,
+        )

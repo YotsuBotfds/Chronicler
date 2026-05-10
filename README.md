@@ -183,6 +183,11 @@ cargo nextest run --manifest-path chronicler-agents/Cargo.toml
 # Validate a generated batch directory with bundled oracles
 python -m chronicler.validate --batch-dir output/some_batch --oracles all
 
+# Gate an existing validation report without rerunning simulation/oracles.
+# Exit 0 = selected profile passes, 2 = required oracle failed, 1 = bad input.
+python -m chronicler.validation_gate --profile full --report output/m53/full/full_gate/batch_42/validate_report_full.json
+python -m chronicler.validation_gate --profile full --report output/m53/full/full_gate/batch_42/validate_report_full.json --require-strict-regression
+
 # Canonical profile gates. Omit --seeds/--turns to use profile defaults:
 # subset = 20 seeds x 200 turns; full = 200 seeds x 500 turns;
 # determinism profiles = two duplicate-seed runs x 200 turns.
