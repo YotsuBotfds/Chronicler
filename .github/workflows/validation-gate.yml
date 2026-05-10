@@ -13,6 +13,11 @@ on:
           - full
           - determinism-off
           - determinism-hybrid
+      require_strict_regression:
+        description: Fail full-profile calibrated-floor regression passes
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: "0 8 * * 0"
 
@@ -53,9 +58,15 @@ jobs:
         shell: bash
         run: |
           PROFILE="${{ github.event.inputs.profile || 'full' }}"
+          STRICT_REGRESSION="${{ github.event.inputs.require_strict_regression || 'false' }}"
+          EXTRA_ARGS=()
+          if [[ "$STRICT_REGRESSION" == "true" ]]; then
+            EXTRA_ARGS+=(--require-strict-regression)
+          fi
           python scripts/m53b_run_validation.py \
             --profile "$PROFILE" \
-            --output-root "output/github-validation/${{ github.run_id }}"
+            --output-root "output/github-validation/${{ github.run_id }}" \
+            "${EXTRA_ARGS[@]}"
 
       - name: Publish validation gate summary
         if: always()

@@ -16,6 +16,38 @@ def _write_minimal_bundle(seed_dir, seed: int = 42, total_turns: int = 20):
     (seed_dir / "chronicle_bundle.json").write_text(json.dumps(bundle), encoding="utf-8")
 
 
+def test_run_oracles_rejects_unknown_names_even_when_all_is_present(tmp_path):
+    from chronicler.validate import ValidationRequestError, run_oracles
+
+    with pytest.raises(ValidationRequestError, match="unknown_oracles: bogus"):
+        run_oracles(tmp_path, ["all", "bogus"])
+
+
+def test_run_oracles_rejects_mixing_all_with_explicit_oracles(tmp_path):
+    from chronicler.validate import ValidationRequestError, run_oracles
+
+    with pytest.raises(ValidationRequestError, match="all cannot be combined"):
+        run_oracles(tmp_path, ["all", "needs"])
+
+
+def test_validate_main_returns_nonzero_for_unknown_oracle_combined_with_all(tmp_path, capsys):
+    from chronicler import validate
+
+    assert validate.main(["--batch-dir", str(tmp_path), "--oracles", "all", "bogus"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "unknown_oracles: bogus" in payload["reason"]
+
+
+def test_validation_io_main_matches_facade_unknown_oracle_behavior(tmp_path, capsys):
+    from chronicler import validation_io
+
+    assert validation_io.main(["--batch-dir", str(tmp_path), "--oracles", "all", "bogus"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "unknown_oracles: bogus" in payload["reason"]
+
+
 def test_determinism_scrubbed_comparison():
     """Scrubbed comparison ignores generated_at timestamp."""
     bundle_a = {"metadata": {"generated_at": "2026-03-21T10:00:00Z", "seed": 42},

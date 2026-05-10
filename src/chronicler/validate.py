@@ -27,11 +27,14 @@ SEED_RUN_ORACLES = set(ORACLE_RUNNERS) - {"determinism"}
 
 def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
     selected = set(oracles)
-    if "all" in selected:
-        return set(ORACLE_RUNNERS)
-    unknown = sorted(selected - set(ORACLE_RUNNERS))
+    allowed = set(ORACLE_RUNNERS) | {"all"}
+    unknown = sorted(selected - allowed)
     if unknown:
         raise ValidationRequestError(f"unknown_oracles: {', '.join(unknown)}")
+    if "all" in selected:
+        if len(selected) > 1:
+            raise ValidationRequestError("all cannot be combined with explicit oracles")
+        return set(ORACLE_RUNNERS)
     return selected
 
 

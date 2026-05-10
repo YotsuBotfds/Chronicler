@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -43,6 +44,25 @@ def test_subset_gate_passes_when_only_non_required_oracles_are_non_pass():
         "regression",
         "determinism",
     }
+
+
+def test_report_level_error_fails_closed_even_if_required_oracles_pass():
+    from chronicler.validation_gate import adjudicate_validation_report
+
+    report = _report()
+    report["status"] = "ERROR"
+    report["reason"] = "validation runner failed late"
+
+    decision = adjudicate_validation_report("subset", report)
+
+    assert decision["ok"] is False
+    assert decision["required_failures"] == [
+        {
+            "oracle": "validation_report",
+            "status": "ERROR",
+            "reason": "validation runner failed late",
+        }
+    ]
 
 
 @pytest.mark.parametrize("status", ["FAIL", "PARTIAL", "SKIP", "ERROR"])
@@ -226,6 +246,75 @@ def test_cli_json_exit_codes(tmp_path, capsys):
     assert payload["status"] == "ERROR"
     assert "must be different paths" in payload["reason"]
 
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(pass_report),
+        "--decision-output",
+        str(pass_report),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "decision-output must be different from report" in payload["reason"]
+
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(pass_report),
+        "--summary-output",
+        str(pass_report),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "summary-output must be different from report" in payload["reason"]
+
+
+def test_cli_rejects_hardlink_output_collisions(tmp_path, capsys):
+    from chronicler import validation_gate
+
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps(_report()), encoding="utf-8")
+
+    decision_hardlink = tmp_path / "decision-hardlink.json"
+    try:
+        os.link(report_path, decision_hardlink)
+    except OSError as exc:  # pragma: no cover - platform/filesystem guard
+        pytest.skip(f"hardlinks unavailable: {exc}")
+
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(report_path),
+        "--decision-output",
+        str(decision_hardlink),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "decision-output must be different from report" in payload["reason"]
+    assert json.loads(report_path.read_text(encoding="utf-8"))["results"]["needs"]["status"] == "PASS"
+
+    decision_path = tmp_path / "decision.json"
+    summary_hardlink = tmp_path / "summary-hardlink.md"
+    decision_path.write_text("placeholder", encoding="utf-8")
+    os.link(decision_path, summary_hardlink)
+
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(report_path),
+        "--decision-output",
+        str(decision_path),
+        "--summary-output",
+        str(summary_hardlink),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "decision-output and summary-output must be different paths" in payload["reason"]
+
 
 def test_gate_decision_payload_includes_statuses_paths_and_required_failures(tmp_path):
     from chronicler.validation_gate import adjudicate_validation_report, build_gate_decision_payload
@@ -252,6 +341,25 @@ def test_gate_decision_payload_includes_statuses_paths_and_required_failures(tmp
     assert payload["required_failures"] == [
         {"oracle": "needs", "status": "SKIP", "reason": "no_needs_sidecars"}
     ]
+
+
+def test_gate_markdown_escapes_multiline_table_cells(tmp_path):
+    from chronicler.validation_gate import adjudicate_validation_report, format_gate_markdown
+
+    report = _report(needs="FAIL")
+    report["results"]["needs"]["reason"] = "first line\nsecond | pipe\rthird"
+
+    decision = adjudicate_validation_report("subset", report)
+    markdown = format_gate_markdown(decision, report, report_path=tmp_path / "report.json")
+
+    assert "first line<br>second \\| pipe<br>third" in markdown
+    assert "first line\nsecond" not in markdown
+    for line in markdown.splitlines():
+        if line.startswith("| needs |"):
+            assert line.count("|") == 6
+            break
+    else:
+        raise AssertionError("needs row not found")
 
 
 def test_cli_writes_decision_and_summary_outputs_on_gate_failure(tmp_path, capsys):
