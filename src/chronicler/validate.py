@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
+from .artifact_io import ArtifactIOError, strict_json_dumps
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
 from .validation_oracles import *  # noqa: F401,F403
@@ -83,8 +83,11 @@ def _error_report(batch_dir: Path, oracles: list[str], reason: str) -> dict:
 
 
 def _dump_report(report: dict) -> None:
-    json.dump(report, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    sys.stdout.write(strict_json_dumps(report))
+
+
+def _serialization_error_report(batch_dir: Path, oracles: list[str], exc: ArtifactIOError) -> dict:
+    return _error_report(batch_dir, oracles, f"could not serialize validation report: {exc}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -98,7 +101,11 @@ def main(argv: list[str] | None = None) -> int:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1
 
-    _dump_report(report)
+    try:
+        _dump_report(report)
+    except ArtifactIOError as exc:
+        _dump_report(_serialization_error_report(args.batch_dir, args.oracles, exc))
+        return 1
     if any(result.get("status") == "ERROR" for result in report["results"].values()):
         return 1
     return 0

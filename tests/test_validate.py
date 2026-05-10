@@ -1555,6 +1555,92 @@ def test_run_oracles_regression_skips_when_agent_events_sidecar_missing(tmp_path
     assert report["results"]["regression"]["reason"] == "incomplete_agent_event_inputs"
 
 
+def test_validate_main_rejects_nonfinite_serialized_report(monkeypatch, tmp_path, capsys):
+    from chronicler import validate
+
+    monkeypatch.setattr(
+        validate,
+        "run_oracles",
+        lambda batch_dir, oracles: {
+            "batch_dir": str(batch_dir),
+            "oracles": list(oracles),
+            "results": {"needs": {"status": "PASS", "metric": float("nan")}},
+        },
+    )
+
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", "needs"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "could not serialize validation report" in payload["reason"]
+
+
+def test_validation_io_main_rejects_nonfinite_serialized_report(monkeypatch, tmp_path, capsys):
+    from chronicler import validation_io
+
+    monkeypatch.setattr(
+        validation_io,
+        "run_oracles",
+        lambda batch_dir, oracles: {
+            "batch_dir": str(batch_dir),
+            "oracles": list(oracles),
+            "results": {"needs": {"status": "PASS", "metric": float("nan")}},
+        },
+    )
+
+    exit_code = validation_io.main(["--batch-dir", str(tmp_path), "--oracles", "needs"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "could not serialize validation report" in payload["reason"]
+
+
+def test_validate_main_rejects_nonstring_keys_that_would_duplicate_in_json(monkeypatch, tmp_path, capsys):
+    from chronicler import validate
+
+    monkeypatch.setattr(
+        validate,
+        "run_oracles",
+        lambda batch_dir, oracles: {
+            "batch_dir": str(batch_dir),
+            "oracles": list(oracles),
+            "results": {"needs": {1: "int", "1": "str", "status": "PASS"}},
+        },
+    )
+
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", "needs"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "could not serialize validation report" in payload["reason"]
+    assert "JSON object keys must be strings" in payload["reason"]
+
+
+def test_validation_io_main_rejects_nonstring_keys_that_would_duplicate_in_json(monkeypatch, tmp_path, capsys):
+    from chronicler import validation_io
+
+    monkeypatch.setattr(
+        validation_io,
+        "run_oracles",
+        lambda batch_dir, oracles: {
+            "batch_dir": str(batch_dir),
+            "oracles": list(oracles),
+            "results": {"needs": {None: "none", "null": "str", "status": "PASS"}},
+        },
+    )
+
+    exit_code = validation_io.main(["--batch-dir", str(tmp_path), "--oracles", "needs"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "ERROR"
+    assert "could not serialize validation report" in payload["reason"]
+    assert "JSON object keys must be strings" in payload["reason"]
+
+
 def test_validate_main_returns_nonzero_for_unknown_oracle(tmp_path, capsys):
     from chronicler.validate import main
 

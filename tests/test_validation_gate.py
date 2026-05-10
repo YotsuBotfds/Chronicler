@@ -271,6 +271,59 @@ def test_cli_json_exit_codes(tmp_path, capsys):
     assert "summary-output must be different from report" in payload["reason"]
 
 
+def test_cli_rejects_nonfinite_and_duplicate_key_report_json(tmp_path, capsys):
+    from chronicler import validation_gate
+
+    nonfinite = tmp_path / "nonfinite.json"
+    nonfinite.write_text('{"results": {"needs": {"status": "PASS"}}, "metric": NaN}', encoding="utf-8")
+
+    assert validation_gate.main(["--profile", "subset", "--report", str(nonfinite)]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "non-finite JSON constant" in payload["reason"]
+
+    duplicate = tmp_path / "duplicate.json"
+    duplicate.write_text(
+        '{"results": {"needs": {"status": "FAIL"}, "needs": {"status": "PASS"}}}',
+        encoding="utf-8",
+    )
+
+    assert validation_gate.main(["--profile", "subset", "--report", str(duplicate)]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "duplicate JSON key: needs" in payload["reason"]
+
+
+def test_cli_preserves_existing_output_when_json_serialization_fails(tmp_path, capsys):
+    from chronicler import validation_gate
+
+    report_path = tmp_path / "report.json"
+    report_path.write_text(
+        json.dumps({"results": {"needs": {"status": "PASS", "reason": float("nan")}}}),
+        encoding="utf-8",
+    )
+    decision_path = tmp_path / "decision.json"
+    summary_path = tmp_path / "summary.md"
+    decision_path.write_text("old-decision", encoding="utf-8")
+    summary_path.write_text("old-summary", encoding="utf-8")
+
+    assert validation_gate.main([
+        "--profile",
+        "subset",
+        "--report",
+        str(report_path),
+        "--decision-output",
+        str(decision_path),
+        "--summary-output",
+        str(summary_path),
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert "non-finite JSON constant" in payload["reason"]
+    assert decision_path.read_text(encoding="utf-8") == "old-decision"
+    assert summary_path.read_text(encoding="utf-8") == "old-summary"
+
+
 def test_cli_rejects_hardlink_output_collisions(tmp_path, capsys):
     from chronicler import validation_gate
 

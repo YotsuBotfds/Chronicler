@@ -22,6 +22,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from chronicler.artifact_io import (
+    ArtifactIOError,
+    atomic_write_json,
+    atomic_write_text,
+    strict_json_dumps,
+    strict_json_loads,
+)
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
     PROFILE_CHOICES,
@@ -186,10 +193,10 @@ def _validation_error_report(
 
 def _report_from_validation_process(proc: subprocess.CompletedProcess[str], batch_dir: Path) -> tuple[dict[str, Any], str]:
     try:
-        report = json.loads(proc.stdout)
+        report = strict_json_loads(proc.stdout, label="validation subprocess JSON")
         if not isinstance(report, dict):
             raise ValueError("validation report JSON must be an object")
-    except (json.JSONDecodeError, ValueError) as exc:
+    except (ArtifactIOError, ValueError) as exc:
         reason = f"validation subprocess produced invalid JSON: {exc}"
         report = _validation_error_report(
             batch_dir,
@@ -197,7 +204,7 @@ def _report_from_validation_process(proc: subprocess.CompletedProcess[str], batc
             returncode=proc.returncode,
             stderr=proc.stderr,
         )
-        return report, json.dumps(report, indent=2) + "\n"
+        return report, strict_json_dumps(report)
     if proc.returncode != 0:
         validation_subprocess = report.setdefault("validation_subprocess", {})
         if not isinstance(validation_subprocess, dict):
@@ -207,7 +214,7 @@ def _report_from_validation_process(proc: subprocess.CompletedProcess[str], batc
         tail = _stderr_tail(proc.stderr)
         if tail is not None:
             validation_subprocess["stderr_tail"] = tail
-    return report, json.dumps(report, indent=2) + "\n"
+    return report, strict_json_dumps(report)
 
 
 def _paths_collide(left: Path, right: Path) -> bool:
@@ -262,8 +269,8 @@ def _comparison_error_result(
         "fail_on_regression": fail_on_regression,
         "exit_code": 1,
     }
-    comparison_path.write_text(json.dumps(comparison, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-    comparison_summary_path.write_text(_comparison_error_summary(profile, reason), encoding="utf-8")
+    atomic_write_json(comparison_path, comparison)
+    atomic_write_text(comparison_summary_path, _comparison_error_summary(profile, reason))
     print(f"Validation comparison error written to {comparison_path}")
     return {
         "comparison_path": comparison_path,
@@ -305,8 +312,8 @@ def compare_batch_report(
     comparison["current_report_path"] = str(current_report)
     comparison_path = batch_dir / f"compare_decision_{profile}.json"
     comparison_summary_path = batch_dir / f"compare_summary_{profile}.md"
-    comparison_path.write_text(json.dumps(comparison, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-    comparison_summary_path.write_text(format_comparison_markdown(comparison), encoding="utf-8")
+    atomic_write_json(comparison_path, comparison)
+    atomic_write_text(comparison_summary_path, format_comparison_markdown(comparison))
     print(f"Validation comparison decision written to {comparison_path}")
     print(f"Validation comparison summary written to {comparison_summary_path}")
     if comparison["regression_detected"]:
@@ -356,7 +363,7 @@ def validate_batch(
     ]
     proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False)
     report, report_text = _report_from_validation_process(proc, batch_dir)
-    report_path.write_text(report_text, encoding="utf-8")
+    atomic_write_text(report_path, report_text)
     print(f"Validation report written to {report_path}")
     decision = adjudicate_validation_report(
         profile,
@@ -364,8 +371,8 @@ def validate_batch(
         require_strict_regression=require_strict_regression,
     )
     decision_payload = build_gate_decision_payload(decision, report, report_path=report_path)
-    decision_path.write_text(json.dumps(decision_payload, indent=2) + "\n", encoding="utf-8")
-    summary_path.write_text(format_gate_markdown(decision, report, report_path=report_path), encoding="utf-8")
+    atomic_write_json(decision_path, decision_payload)
+    atomic_write_text(summary_path, format_gate_markdown(decision, report, report_path=report_path))
     print(f"Validation gate decision written to {decision_path}")
     print(f"Validation gate summary written to {summary_path}")
     print(format_gate_summary(decision))
@@ -500,8 +507,8 @@ def main() -> None:
         "comparison_reasons": comparison["regression_reasons"] if comparison is not None else [],
         "comparison_error": comparison.get("reason") if comparison is not None and comparison.get("status") == "ERROR" else None,
     }
-    (batch_dir / "run_manifest.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(json.dumps(summary, indent=2))
+    atomic_write_json(batch_dir / "run_manifest.json", summary)
+    print(strict_json_dumps(summary), end="")
     if not validation_result["decision"]["ok"]:
         print(_format_gate_failure(validation_result["decision"]), file=sys.stderr)
         raise SystemExit(validation_result["decision"]["exit_code"])
