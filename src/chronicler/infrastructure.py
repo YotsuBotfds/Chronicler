@@ -36,6 +36,25 @@ MAX_TEMPLES_PER_REGION = 1
 MAX_TEMPLES_PER_CIV = 3
 TEMPLE_CONVERSION_BOOST = 0.50
 
+
+def _has_prior_temple_relic(world: "WorldState", region_name: str) -> bool:
+    from chronicler.models import ArtifactType as _AT
+
+    for artifact in getattr(world, "artifacts", []):
+        if artifact.artifact_type != _AT.RELIC:
+            continue
+        if artifact.origin_region != region_name and artifact.anchor_region != region_name:
+            continue
+        if not artifact.origin_event.startswith("Sacred relic consecrated in the temple"):
+            continue
+        return True
+    return False
+
+
+def _should_emit_temple_relic(world: "WorldState", region_name: str) -> bool:
+    return not _has_prior_temple_relic(world, region_name)
+
+
 BUILD_SPECS: dict[IType, BuildSpec] = {
     IType.ROADS:          BuildSpec(cost=10, turns=2, terrain_req=None, terrain_exclude=None),
     IType.FORTIFICATIONS: BuildSpec(cost=15, turns=3, terrain_req=None, terrain_exclude=None),
@@ -157,7 +176,7 @@ def tick_infrastructure(world: WorldState) -> list:
                     importance=4,
                 ))
                 # M52: Temple relic creation (only for temples, not other infrastructure)
-                if completed.type == IType.TEMPLES:
+                if completed.type == IType.TEMPLES and _should_emit_temple_relic(world, region.name):
                     from chronicler.models import ArtifactIntent, ArtifactType as _AT
                     world._artifact_intents.append(ArtifactIntent(
                         artifact_type=_AT.RELIC,

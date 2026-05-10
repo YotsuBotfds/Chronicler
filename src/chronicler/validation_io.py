@@ -1937,7 +1937,7 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         return {"status": "SKIP", "reason": "incomplete_agent_event_inputs"}
 
     satisfaction_weighted_sum = 0.0
-    satisfaction_std_weighted_sum = 0.0
+    satisfaction_second_moment_sum = 0.0
     satisfaction_weight_total = 0
     occupation_shares: list[float] = []
     final_ginis: list[float] = []
@@ -1958,8 +1958,12 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                 count = int(civ_data.get("agent_count", 0))
                 if count <= 0:
                     continue
-                satisfaction_weighted_sum += float(civ_data.get("satisfaction_mean", 0.0)) * count
-                satisfaction_std_weighted_sum += float(civ_data.get("satisfaction_std", 0.0)) * count
+                satisfaction_mean = float(civ_data.get("satisfaction_mean", 0.0))
+                satisfaction_std = float(civ_data.get("satisfaction_std", 0.0))
+                satisfaction_weighted_sum += satisfaction_mean * count
+                satisfaction_second_moment_sum += (
+                    satisfaction_std ** 2 + satisfaction_mean ** 2
+                ) * count
                 satisfaction_weight_total += count
                 occupation_count = int(civ_data.get("controlled_agent_count", count))
                 occupation_counts = civ_data.get(
@@ -2023,10 +2027,10 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         satisfaction_weighted_sum / satisfaction_weight_total
         if satisfaction_weight_total else None
     )
-    satisfaction_std = (
-        satisfaction_std_weighted_sum / satisfaction_weight_total
-        if satisfaction_weight_total else None
-    )
+    satisfaction_std = None
+    if satisfaction_weight_total and satisfaction_mean is not None:
+        variance = satisfaction_second_moment_sum / satisfaction_weight_total - satisfaction_mean ** 2
+        satisfaction_std = max(variance, 0.0) ** 0.5
     occupation_ok = all(0.0 < share <= 0.70 for share in occupation_shares) if occupation_shares else False
     satisfaction_mean_ok = 0.45 <= satisfaction_mean <= 0.65 if satisfaction_mean is not None else False
     satisfaction_std_ok = 0.10 <= satisfaction_std <= 0.25 if satisfaction_std is not None else False

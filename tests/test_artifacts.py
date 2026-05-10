@@ -150,6 +150,69 @@ class TestArtifactIntent:
         assert intent.action == "conquest_transfer"
 
 
+class TestTempleRelicDuplicateGate:
+    def _complete_temple(self, world):
+        from chronicler.infrastructure import tick_infrastructure
+        from chronicler.models import InfrastructureType, PendingBuild
+
+        region = world.regions[0]
+        region.pending_build = PendingBuild(
+            type=InfrastructureType.TEMPLES,
+            builder_civ=world.civilizations[0].name,
+            started_turn=0,
+            turns_remaining=1,
+            faith_id=1,
+        )
+        tick_infrastructure(world)
+
+    def _existing_temple_relic(self, world, status=ArtifactStatus.ACTIVE):
+        region = world.regions[0]
+        civ = world.civilizations[0]
+        world.artifacts.append(Artifact(
+            artifact_id=1,
+            name="Existing Relic",
+            artifact_type=ArtifactType.RELIC,
+            anchored=True,
+            origin_turn=1,
+            origin_event=f"Sacred relic consecrated in the temple of {region.name}",
+            origin_region=region.name,
+            creator_name=None,
+            creator_civ=civ.name,
+            owner_civ=civ.name,
+            holder_name=None,
+            holder_born_turn=None,
+            anchor_region=region.name,
+            prestige_value=3,
+            status=status,
+            history=["created"],
+        ))
+
+    def test_temple_replacement_does_not_emit_duplicate_region_relic(self):
+        world = _make_world_with_civ()
+        self._existing_temple_relic(world, status=ArtifactStatus.ACTIVE)
+
+        self._complete_temple(world)
+
+        assert [i for i in world._artifact_intents if i.trigger == "temple_construction"] == []
+
+    def test_prior_lost_temple_relic_still_blocks_new_region_relic(self):
+        world = _make_world_with_civ()
+        self._existing_temple_relic(world, status=ArtifactStatus.LOST)
+
+        self._complete_temple(world)
+
+        assert [i for i in world._artifact_intents if i.trigger == "temple_construction"] == []
+
+    def test_first_temple_completion_emits_region_relic_when_no_prior_relic_exists(self):
+        world = _make_world_with_civ()
+
+        self._complete_temple(world)
+
+        intents = [i for i in world._artifact_intents if i.trigger == "temple_construction"]
+        assert len(intents) == 1
+        assert intents[0].region_name == world.regions[0].name
+
+
 class TestWorldStateArtifactFields:
     def test_world_state_has_artifacts_field(self):
         world = WorldState(name="TestWorld", seed=42)
@@ -813,6 +876,32 @@ class TestGPPromotionIntent:
         emit_gp_artifact_intent(world, civ, gp)
         assert len(world._artifact_intents) == 1
         assert world._artifact_intents[0].artifact_type == ArtifactType.RELIC
+
+    def test_agent_prophet_promotion_burst_emits_one_relic_per_civ_type_tick(self):
+        from chronicler.artifacts import GP_PRESTIGE_THRESHOLD, emit_gp_artifact_intent
+
+        world = _make_world_with_civ()
+        civ = world.civilizations[0]
+        civ.prestige = GP_PRESTIGE_THRESHOLD + 10
+        world.turn = 58
+        world._artifact_intents = []
+
+        for idx in range(5):
+            gp = GreatPerson(
+                name=f"Prophet {idx}",
+                role="prophet",
+                trait="wise",
+                civilization="TestCiv",
+                origin_civilization="TestCiv",
+                born_turn=idx,
+                source="agent",
+                agent_id=1000 + idx,
+            )
+            emit_gp_artifact_intent(world, civ, gp)
+
+        relic_intents = [i for i in world._artifact_intents if i.artifact_type == ArtifactType.RELIC]
+        assert len(relic_intents) == 1
+        assert relic_intents[0].creator_name == "Prophet 0"
 
     def test_scientist_promotion_uses_deterministic_gate(self):
         from chronicler.artifacts import (

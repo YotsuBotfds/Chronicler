@@ -160,8 +160,8 @@ cd ..
 python - <<'PY'
 from importlib import util
 from importlib.machinery import EXTENSION_SUFFIXES
-import pytest
 import chronicler_agents as ca
+import pytest
 
 spec = util.find_spec("chronicler_agents.chronicler_agents")
 origin = spec.origin if spec else ""
@@ -182,6 +182,12 @@ cargo nextest run --manifest-path chronicler-agents/Cargo.toml
 
 # Validate a generated batch directory with bundled oracles
 python -m chronicler.validate --batch-dir output/some_batch --oracles all
+
+# Canonical profile gates. Omit --seeds/--turns to use profile defaults:
+# subset = 20 seeds x 200 turns; full = 200 seeds x 500 turns;
+# determinism profiles = two duplicate-seed runs x 200 turns.
+python scripts/m53b_run_validation.py --profile subset --output-root output/m53/subset
+python scripts/m53b_run_validation.py --profile full --output-root output/m53/full
 ```
 
 For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.

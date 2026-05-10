@@ -401,6 +401,16 @@ _GP_ROLE_TO_ARTIFACT = {
 }
 
 
+def _agent_gp_artifact_type_already_emitted_this_tick(world, civ_name: str, artifact_type: ArtifactType) -> bool:
+    for intent in getattr(world, "_artifact_intents", []):
+        if intent.trigger != "gp_promotion":
+            continue
+        if intent.civ_name != civ_name or intent.artifact_type != artifact_type:
+            continue
+        return True
+    return False
+
+
 def emit_gp_artifact_intent(world, civ, gp) -> None:
     """Emit artifact creation intent for a newly promoted GP, if prestige threshold is met."""
     if civ.prestige < GP_PRESTIGE_THRESHOLD:
@@ -424,6 +434,12 @@ def emit_gp_artifact_intent(world, civ, gp) -> None:
             return
 
     artifact_type, character_held = mapping
+    if getattr(gp, "source", "aggregate") == "agent" and _agent_gp_artifact_type_already_emitted_this_tick(
+        world,
+        civ.name,
+        artifact_type,
+    ):
+        return
     region = gp.origin_region or civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
 
     world._artifact_intents.append(ArtifactIntent(

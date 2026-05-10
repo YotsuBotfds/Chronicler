@@ -37,6 +37,23 @@ REQUIRED_ORACLES_BY_PROFILE = {
     "determinism-hybrid": ["determinism"],
 }
 
+PROFILE_DEFAULTS = {
+    "subset": {"seeds": 20, "turns": 200},
+    "full": {"seeds": 200, "turns": 500},
+    "determinism-off": {"seeds": 2, "turns": 200},
+    "determinism-hybrid": {"seeds": 2, "turns": 200},
+}
+
+
+def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
+    """Fill omitted seeds/turns from the selected validation profile."""
+    defaults = PROFILE_DEFAULTS[args.profile]
+    if args.seeds is None:
+        args.seeds = defaults["seeds"]
+    if args.turns is None:
+        args.turns = defaults["turns"]
+    return args
+
 
 def _oracle_status(report: dict, oracle: str) -> str:
     result = report.get("results", {}).get(oracle)
@@ -195,10 +212,10 @@ def main() -> None:
     )
     parser.add_argument("--output-root", type=Path, default=Path("output/m53/canonical"))
     parser.add_argument("--seed-start", type=int, default=42)
-    parser.add_argument("--seeds", type=int, default=20)
-    parser.add_argument("--turns", type=int, default=200)
+    parser.add_argument("--seeds", type=int, default=None)
+    parser.add_argument("--turns", type=int, default=None)
     parser.add_argument("--parallel", type=int, default=12)
-    args = parser.parse_args()
+    args = apply_profile_defaults(parser.parse_args())
 
     cwd = Path.cwd()
     env = _build_env()

@@ -647,7 +647,7 @@ def test_run_regression_summary_prefers_validation_summary_gini():
     assert result["gini_in_range_fraction"] == 1.0
 
 
-def test_run_regression_summary_weights_satisfaction_by_agent_count():
+def test_run_regression_summary_pools_satisfaction_std_across_civ_moments():
     from chronicler.validate import run_regression_summary
 
     run = {
@@ -681,7 +681,7 @@ def test_run_regression_summary_weights_satisfaction_by_agent_count():
     result = run_regression_summary([run])
 
     assert result["satisfaction_mean"] == 0.56
-    assert result["satisfaction_std"] == 0.185
+    assert result["satisfaction_std"] == 0.2251
 
 
 def test_run_regression_summary_ignores_tiny_civs_for_occupation_distribution():

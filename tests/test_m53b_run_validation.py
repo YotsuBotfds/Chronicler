@@ -94,6 +94,20 @@ def test_determinism_profiles_require_determinism_pass():
     assert runner.adjudicate_validation_report("determinism-off", _report(determinism="SKIP"))["ok"] is False
 
 
+def test_profile_defaults_match_documented_validation_scales():
+    runner = _load_runner()
+
+    subset = runner.apply_profile_defaults(runner.argparse.Namespace(profile="subset", seeds=None, turns=None))
+    full = runner.apply_profile_defaults(runner.argparse.Namespace(profile="full", seeds=None, turns=None))
+    det = runner.apply_profile_defaults(runner.argparse.Namespace(profile="determinism-hybrid", seeds=None, turns=None))
+    override = runner.apply_profile_defaults(runner.argparse.Namespace(profile="full", seeds=3, turns=7))
+
+    assert (subset.seeds, subset.turns) == (20, 200)
+    assert (full.seeds, full.turns) == (200, 500)
+    assert (det.seeds, det.turns) == (2, 200)
+    assert (override.seeds, override.turns) == (3, 7)
+
+
 def test_validate_batch_writes_report_and_enforces_profile_gate(monkeypatch, tmp_path):
     runner = _load_runner()
     report_text = runner.json.dumps(
