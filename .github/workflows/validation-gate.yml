@@ -18,6 +18,16 @@ on:
         required: false
         default: false
         type: boolean
+      baseline_report:
+        description: Optional baseline validation report path for comparison
+        required: false
+        default: ""
+        type: string
+      fail_on_regression:
+        description: Fail when baseline comparison detects a regression
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: "0 8 * * 0"
 
@@ -55,13 +65,26 @@ jobs:
           python -m pip install target/wheels/*.whl
 
       - name: Run canonical validation gate
+        env:
+          PROFILE_INPUT: ${{ github.event.inputs.profile || 'full' }}
+          STRICT_REGRESSION_INPUT: ${{ github.event.inputs.require_strict_regression || 'false' }}
+          BASELINE_REPORT_INPUT: ${{ github.event.inputs.baseline_report || '' }}
+          FAIL_ON_REGRESSION_INPUT: ${{ github.event.inputs.fail_on_regression || 'false' }}
         shell: bash
         run: |
-          PROFILE="${{ github.event.inputs.profile || 'full' }}"
-          STRICT_REGRESSION="${{ github.event.inputs.require_strict_regression || 'false' }}"
+          PROFILE="$PROFILE_INPUT"
+          STRICT_REGRESSION="$STRICT_REGRESSION_INPUT"
+          BASELINE_REPORT="$BASELINE_REPORT_INPUT"
+          FAIL_ON_REGRESSION="$FAIL_ON_REGRESSION_INPUT"
           EXTRA_ARGS=()
           if [[ "$STRICT_REGRESSION" == "true" ]]; then
             EXTRA_ARGS+=(--require-strict-regression)
+          fi
+          if [[ -n "$BASELINE_REPORT" ]]; then
+            EXTRA_ARGS+=(--baseline-report "$BASELINE_REPORT")
+          fi
+          if [[ "$FAIL_ON_REGRESSION" == "true" ]]; then
+            EXTRA_ARGS+=(--fail-on-regression)
           fi
           python scripts/m53b_run_validation.py \
             --profile "$PROFILE" \
@@ -77,6 +100,11 @@ jobs:
             cat "$summary" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
           done < <(if [ -d "output/github-validation/${{ github.run_id }}" ]; then find "output/github-validation/${{ github.run_id }}" -name 'gate_summary_*.md' -type f | sort; fi)
+          while IFS= read -r summary; do
+            echo "## Validation comparison summary: $summary" >> "$GITHUB_STEP_SUMMARY"
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done < <(if [ -d "output/github-validation/${{ github.run_id }}" ]; then find "output/github-validation/${{ github.run_id }}" -name 'compare_summary_*.md' -type f | sort; fi)
 
       - name: Upload validation reports
         if: always()

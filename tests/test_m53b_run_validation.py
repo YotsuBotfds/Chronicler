@@ -246,6 +246,265 @@ def test_validate_batch_synthesizes_evidence_for_invalid_validate_cli_output(mon
     assert result["summary_path"].exists()
 
 
+def test_validate_batch_writes_comparison_artifacts_when_baseline_is_provided(monkeypatch, tmp_path):
+    runner = _load_runner()
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+        "strict_regression_failed_checks": [],
+    }
+    current = _report(determinism="SKIP")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+        "strict_regression_failed_checks": ["latest_satisfaction_mean"],
+    }
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(runner.json.dumps(baseline), encoding="utf-8")
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=runner.json.dumps(current), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result = runner.validate_batch(
+        tmp_path,
+        "current.json",
+        Path.cwd(),
+        {},
+        "full",
+        baseline_report=baseline_path,
+        fail_on_regression=True,
+    )
+
+    assert result["decision"]["ok"] is True
+    assert result["comparison"]["regression_detected"] is True
+    assert result["comparison"]["exit_code"] == 2
+    assert result["comparison_path"].name == "compare_decision_full.json"
+    assert result["comparison_summary_path"].name == "compare_summary_full.md"
+    assert runner.json.loads(result["comparison_path"].read_text(encoding="utf-8"))["regression_reasons"] == [
+        "strict_regression_downgrade",
+        "strict_regression_failed_checks_added",
+    ]
+    assert "strict_regression_downgrade" in result["comparison_summary_path"].read_text(encoding="utf-8")
+
+
+def test_main_writes_comparison_manifest_and_exits_on_fail_on_regression(monkeypatch, tmp_path):
+    runner = _load_runner()
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+        "strict_regression_failed_checks": [],
+    }
+    current = _report(determinism="SKIP")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+        "strict_regression_failed_checks": ["latest_satisfaction_mean"],
+    }
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(runner.json.dumps(baseline), encoding="utf-8")
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=runner.json.dumps(current), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        [
+            "m53b_run_validation.py",
+            "--profile",
+            "full",
+            "--output-root",
+            str(tmp_path.parent),
+            "--baseline-report",
+            str(baseline_path),
+            "--fail-on-regression",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+    assert exc_info.value.code == 2
+
+    manifest = runner.json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["gate_status"] == "PASS"
+    assert manifest["comparison_status"] == "REGRESSION"
+    assert manifest["comparison_exit_code"] == 2
+    assert manifest["comparison_reasons"] == [
+        "strict_regression_downgrade",
+        "strict_regression_failed_checks_added",
+    ]
+    assert Path(manifest["comparison_path"]).exists()
+    assert Path(manifest["comparison_summary_path"]).exists()
+
+
+def test_main_records_comparison_regression_without_failing_unless_requested(monkeypatch, tmp_path):
+    runner = _load_runner()
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "strict",
+        "strict_regression_ok": True,
+    }
+    current = _report(determinism="SKIP")
+    current["results"]["regression"] = {
+        "status": "PASS",
+        "regression_adjudication": "calibrated_floor",
+        "strict_regression_ok": False,
+        "calibrated_floor_ok": True,
+    }
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(runner.json.dumps(baseline), encoding="utf-8")
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=runner.json.dumps(current), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        [
+            "m53b_run_validation.py",
+            "--profile",
+            "full",
+            "--output-root",
+            str(tmp_path.parent),
+            "--baseline-report",
+            str(baseline_path),
+        ],
+    )
+
+    runner.main()
+
+    manifest = runner.json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["comparison_status"] == "REGRESSION"
+    assert manifest["comparison_exit_code"] == 0
+    assert manifest["gate_exit_code"] == 0
+
+
+def test_main_rejects_fail_on_regression_without_baseline(monkeypatch):
+    runner = _load_runner()
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        ["m53b_run_validation.py", "--profile", "full", "--fail-on-regression"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+
+    assert exc_info.value.code == 2
+
+
+def test_validate_batch_rejects_baseline_output_collision_before_overwrite(monkeypatch, tmp_path):
+    runner = _load_runner()
+    current_path = tmp_path / "current.json"
+    current_path.write_text("baseline-original", encoding="utf-8")
+
+    def fake_run(*args, **kwargs):  # pragma: no cover - should not be reached
+        raise AssertionError("validation subprocess should not run after unsafe baseline collision")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    with pytest.raises(runner.ValidationGateInputError, match="baseline-report must be different"):
+        runner.validate_batch(
+            tmp_path,
+            "current.json",
+            Path.cwd(),
+            {},
+            "full",
+            baseline_report=current_path,
+        )
+    assert current_path.read_text(encoding="utf-8") == "baseline-original"
+
+
+def test_main_preserves_manifest_when_comparison_input_is_bad_and_gate_fails(monkeypatch, tmp_path):
+    runner = _load_runner()
+    report_text = runner.json.dumps(_report(regression="FAIL", determinism="SKIP"))
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text("not-json", encoding="utf-8")
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        [
+            "m53b_run_validation.py",
+            "--profile",
+            "full",
+            "--output-root",
+            str(tmp_path.parent),
+            "--baseline-report",
+            str(baseline_path),
+            "--require-strict-regression",
+            "--fail-on-regression",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+    assert exc_info.value.code == 2
+
+    manifest = runner.json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["gate_status"] == "FAIL"
+    assert manifest["gate_exit_code"] == 2
+    assert manifest["comparison_status"] == "ERROR"
+    assert manifest["comparison_exit_code"] == 1
+    assert "invalid report JSON" in manifest["comparison_error"]
+    comparison = runner.json.loads(Path(manifest["comparison_path"]).read_text(encoding="utf-8"))
+    assert comparison["require_strict_regression"] is True
+    assert Path(manifest["comparison_summary_path"]).exists()
+
+
+def test_main_exits_one_when_gate_passes_but_comparison_input_is_bad(monkeypatch, tmp_path):
+    runner = _load_runner()
+    report_text = runner.json.dumps(_report(determinism="SKIP"))
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text("not-json", encoding="utf-8")
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    monkeypatch.setattr(
+        runner.sys,
+        "argv",
+        [
+            "m53b_run_validation.py",
+            "--profile",
+            "full",
+            "--output-root",
+            str(tmp_path.parent),
+            "--baseline-report",
+            str(baseline_path),
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+    assert exc_info.value.code == 1
+    manifest = runner.json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["gate_status"] == "PASS"
+    assert manifest["comparison_status"] == "ERROR"
+
+
 def test_main_writes_manifest_before_gate_failure(monkeypatch, tmp_path):
     runner = _load_runner()
     report_text = runner.json.dumps(_report(regression="FAIL", determinism="SKIP"))

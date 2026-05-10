@@ -22,14 +22,17 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
     PROFILE_CHOICES,
     REQUIRED_ORACLES_BY_PROFILE,
+    ValidationGateInputError,
     adjudicate_validation_report,
     build_gate_decision_payload,
     format_gate_failure as _format_gate_failure,
     format_gate_markdown,
     format_gate_summary,
+    load_validation_report,
 )
 
 
@@ -207,6 +210,116 @@ def _report_from_validation_process(proc: subprocess.CompletedProcess[str], batc
     return report, json.dumps(report, indent=2) + "\n"
 
 
+def _paths_collide(left: Path, right: Path) -> bool:
+    if left.resolve() == right.resolve():
+        return True
+    try:
+        return left.exists() and right.exists() and left.samefile(right)
+    except OSError:
+        return False
+
+
+def _reject_baseline_output_collisions(baseline_report: Path, output_paths: list[tuple[str, Path]]) -> None:
+    for label, output_path in output_paths:
+        if _paths_collide(baseline_report, output_path):
+            raise ValidationGateInputError(f"baseline-report must be different from {label}")
+
+
+def _markdown_escape(text: str) -> str:
+    escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    for char in ("\\", "`", "*", "_", "[", "]", "(", ")", "!"):
+        escaped = escaped.replace(char, f"\\{char}")
+    return escaped
+
+
+def _comparison_error_summary(profile: str, reason: str) -> str:
+    safe_reason = _markdown_escape(reason)
+    return f"# Validation report comparison: {profile}\n\n**Status:** ERROR\n\n{safe_reason}\n"
+
+
+def _comparison_error_result(
+    profile: str,
+    baseline_report: Path,
+    current_report: Path,
+    batch_dir: Path,
+    *,
+    reason: str,
+    fail_on_regression: bool,
+    require_strict_regression: bool = False,
+) -> dict[str, Any]:
+    comparison_path = batch_dir / f"compare_decision_{profile}.json"
+    comparison_summary_path = batch_dir / f"compare_summary_{profile}.md"
+    comparison = {
+        "schema_version": 1,
+        "profile": profile,
+        "status": "ERROR",
+        "reason": reason,
+        "baseline_report_path": str(baseline_report),
+        "current_report_path": str(current_report),
+        "regression_detected": False,
+        "regression_reasons": [],
+        "require_strict_regression": require_strict_regression,
+        "fail_on_regression": fail_on_regression,
+        "exit_code": 1,
+    }
+    comparison_path.write_text(json.dumps(comparison, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    comparison_summary_path.write_text(_comparison_error_summary(profile, reason), encoding="utf-8")
+    print(f"Validation comparison error written to {comparison_path}")
+    return {
+        "comparison_path": comparison_path,
+        "comparison_summary_path": comparison_summary_path,
+        "comparison": comparison,
+    }
+
+
+def compare_batch_report(
+    profile: str,
+    baseline_report: Path,
+    current_report: Path,
+    batch_dir: Path,
+    *,
+    require_strict_regression: bool = False,
+    fail_on_regression: bool = False,
+) -> dict[str, Any]:
+    try:
+        baseline = load_validation_report(baseline_report)
+        current = load_validation_report(current_report)
+        comparison = compare_validation_reports(
+            profile,
+            baseline,
+            current,
+            require_strict_regression=require_strict_regression,
+            fail_on_regression=fail_on_regression,
+        )
+    except ValidationGateInputError as exc:
+        return _comparison_error_result(
+            profile,
+            baseline_report,
+            current_report,
+            batch_dir,
+            reason=str(exc),
+            fail_on_regression=fail_on_regression,
+            require_strict_regression=require_strict_regression,
+        )
+    comparison["baseline_report_path"] = str(baseline_report)
+    comparison["current_report_path"] = str(current_report)
+    comparison_path = batch_dir / f"compare_decision_{profile}.json"
+    comparison_summary_path = batch_dir / f"compare_summary_{profile}.md"
+    comparison_path.write_text(json.dumps(comparison, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    comparison_summary_path.write_text(format_comparison_markdown(comparison), encoding="utf-8")
+    print(f"Validation comparison decision written to {comparison_path}")
+    print(f"Validation comparison summary written to {comparison_summary_path}")
+    if comparison["regression_detected"]:
+        print("Validation comparison: REGRESSION " + ",".join(comparison["regression_reasons"]))
+    else:
+        print("Validation comparison: NO REGRESSION")
+    return {
+        "comparison_path": comparison_path,
+        "comparison_summary_path": comparison_summary_path,
+        "comparison": comparison,
+    }
+
+
 def validate_batch(
     batch_dir: Path,
     report_name: str,
@@ -215,8 +328,23 @@ def validate_batch(
     profile: str,
     *,
     require_strict_regression: bool = False,
+    baseline_report: Path | None = None,
+    fail_on_regression: bool = False,
 ) -> dict[str, Any]:
     report_path = batch_dir / report_name
+    decision_path = batch_dir / f"gate_decision_{profile}.json"
+    summary_path = batch_dir / f"gate_summary_{profile}.md"
+    if baseline_report is not None:
+        _reject_baseline_output_collisions(
+            baseline_report,
+            [
+                ("current-report", report_path),
+                ("gate-decision", decision_path),
+                ("gate-summary", summary_path),
+                ("compare-decision", batch_dir / f"compare_decision_{profile}.json"),
+                ("compare-summary", batch_dir / f"compare_summary_{profile}.md"),
+            ],
+        )
     cmd = [
         sys.executable,
         "-m",
@@ -235,20 +363,30 @@ def validate_batch(
         report,
         require_strict_regression=require_strict_regression,
     )
-    decision_path = batch_dir / f"gate_decision_{profile}.json"
-    summary_path = batch_dir / f"gate_summary_{profile}.md"
     decision_payload = build_gate_decision_payload(decision, report, report_path=report_path)
     decision_path.write_text(json.dumps(decision_payload, indent=2) + "\n", encoding="utf-8")
     summary_path.write_text(format_gate_markdown(decision, report, report_path=report_path), encoding="utf-8")
     print(f"Validation gate decision written to {decision_path}")
     print(f"Validation gate summary written to {summary_path}")
     print(format_gate_summary(decision))
-    return {
+    comparison_result: dict[str, Any] = {}
+    if baseline_report is not None:
+        comparison_result = compare_batch_report(
+            profile,
+            baseline_report,
+            report_path,
+            batch_dir,
+            require_strict_regression=require_strict_regression,
+            fail_on_regression=fail_on_regression,
+        )
+    result = {
         "report_path": report_path,
         "decision_path": decision_path,
         "summary_path": summary_path,
         "decision": decision_payload,
     }
+    result.update(comparison_result)
+    return result
 
 
 def main() -> None:
@@ -268,7 +406,19 @@ def main() -> None:
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
     )
+    parser.add_argument(
+        "--baseline-report",
+        type=Path,
+        help="Optional prior validation report to compare against after the current gate runs.",
+    )
+    parser.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help="When --baseline-report is set, exit 2 for comparator-detected regressions.",
+    )
     args = apply_profile_defaults(parser.parse_args())
+    if args.fail_on_regression and args.baseline_report is None:
+        parser.error("--fail-on-regression requires --baseline-report")
 
     cwd = Path.cwd()
     env = _build_env()
@@ -282,6 +432,8 @@ def main() -> None:
             env,
             args.profile,
             require_strict_regression=args.require_strict_regression,
+            baseline_report=args.baseline_report,
+            fail_on_regression=args.fail_on_regression,
         )
     elif args.profile == "full":
         batch_dir = run_full(args, cwd, env)
@@ -292,6 +444,8 @@ def main() -> None:
             env,
             args.profile,
             require_strict_regression=args.require_strict_regression,
+            baseline_report=args.baseline_report,
+            fail_on_regression=args.fail_on_regression,
         )
     elif args.profile == "determinism-off":
         batch_dir = run_determinism(args, cwd, env, "off")
@@ -302,6 +456,8 @@ def main() -> None:
             env,
             args.profile,
             require_strict_regression=args.require_strict_regression,
+            baseline_report=args.baseline_report,
+            fail_on_regression=args.fail_on_regression,
         )
     else:
         batch_dir = run_determinism(args, cwd, env, "hybrid")
@@ -312,8 +468,11 @@ def main() -> None:
             env,
             args.profile,
             require_strict_regression=args.require_strict_regression,
+            baseline_report=args.baseline_report,
+            fail_on_regression=args.fail_on_regression,
         )
 
+    comparison = validation_result.get("comparison")
     summary = {
         "profile": args.profile,
         "batch_dir": str(batch_dir),
@@ -328,12 +487,26 @@ def main() -> None:
         "parallel": args.parallel,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
+        "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,
+        "fail_on_regression": args.fail_on_regression,
+        "comparison_path": str(validation_result["comparison_path"]) if comparison is not None else None,
+        "comparison_summary_path": str(validation_result["comparison_summary_path"]) if comparison is not None else None,
+        "comparison_status": (
+            "ERROR" if comparison and comparison.get("status") == "ERROR"
+            else "REGRESSION" if comparison and comparison["regression_detected"]
+            else "NO_REGRESSION" if comparison else None
+        ),
+        "comparison_exit_code": comparison["exit_code"] if comparison is not None else None,
+        "comparison_reasons": comparison["regression_reasons"] if comparison is not None else [],
+        "comparison_error": comparison.get("reason") if comparison is not None and comparison.get("status") == "ERROR" else None,
     }
     (batch_dir / "run_manifest.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
     if not validation_result["decision"]["ok"]:
         print(_format_gate_failure(validation_result["decision"]), file=sys.stderr)
         raise SystemExit(validation_result["decision"]["exit_code"])
+    if comparison is not None and comparison["exit_code"] != 0:
+        raise SystemExit(comparison["exit_code"])
 
 
 if __name__ == "__main__":
