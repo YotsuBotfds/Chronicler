@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import numpy as np
 import pyarrow as pa
-from chronicler_agents import AgentSimulator
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.ffi_constants import TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID
 from chronicler.great_persons import _append_deed
@@ -19,6 +18,21 @@ from chronicler.utils import resolve_civ_faith_id
 
 if TYPE_CHECKING:
     from chronicler.models import WorldState
+
+
+def _load_agent_simulator_class():
+    """Import the Rust AgentSimulator only when constructing an AgentBridge."""
+    try:
+        from chronicler_agents import AgentSimulator
+    except ImportError as exc:
+        raise RuntimeError(
+            "chronicler_agents Rust extension is required for --agents modes. "
+            "Build/install it from chronicler-agents with `maturin develop --release`."
+        ) from exc
+    if not isinstance(AgentSimulator, type):
+        raise RuntimeError("chronicler_agents AgentSimulator is not a real native extension class")
+    return AgentSimulator
+
 
 logger = logging.getLogger(__name__)
 
@@ -853,6 +867,7 @@ class AgentBridge:
                  validation_sidecar: bool = False,
                  output_dir: Path | None = None,
                  relationship_stats: bool = False):
+        AgentSimulator = _load_agent_simulator_class()
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         self._mode = mode
         world._agent_bridge = self

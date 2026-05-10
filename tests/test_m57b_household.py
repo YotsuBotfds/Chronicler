@@ -3,6 +3,14 @@ import pytest
 from chronicler.analytics import extract_household_stats
 
 
+def _require_chronicler_agents():
+    chronicler_agents = pytest.importorskip("chronicler_agents")
+    if not isinstance(getattr(chronicler_agents, "AgentSimulator", None), type):
+        pytest.skip("chronicler_agents is not a real native extension")
+    return chronicler_agents
+
+
+
 def test_extract_household_stats_empty():
     result = extract_household_stats([{"metadata": {}}])
     assert result["per_turn"] == []
@@ -22,6 +30,7 @@ def test_extract_household_stats_round_trip():
 
 
 def test_household_stats_reset_each_tick(tmp_path):
+    _require_chronicler_agents()
     """M57b: Verify household counters reset each tick (not accumulated).
     Two-tick assertion: counters from tick 1 must not bleed into tick 2.
     Reads from the bundle file since RunResult does not carry the world."""

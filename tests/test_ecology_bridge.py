@@ -1,7 +1,20 @@
 """M54a: Ecology bridge tests — schema round-trip across Python and Rust."""
 import pyarrow as pa
 import pytest
-from chronicler_agents import AgentSimulator
+
+try:
+    import chronicler_agents as _chronicler_agents
+except ImportError:
+    _chronicler_agents = None
+
+AgentSimulator = getattr(_chronicler_agents, "AgentSimulator", None)
+EcologySimulator = getattr(_chronicler_agents, "EcologySimulator", None)
+
+requires_chronicler_agents = pytest.mark.skipif(
+    not isinstance(AgentSimulator, type) or not isinstance(EcologySimulator, type),
+    reason="requires chronicler_agents Rust extension",
+)
+
 from chronicler.agent_bridge import build_region_batch
 from chronicler.models import Infrastructure, InfrastructureType, Region
 
@@ -91,6 +104,7 @@ def _make_ecology_region_batch(
 # FFI round-trip tests
 # ---------------------------------------------------------------------------
 
+@requires_chronicler_agents
 class TestEcologySchemaFFIRoundTrip:
     """Verify M54a ecology columns survive the Python -> Arrow -> Rust round-trip."""
 
@@ -357,6 +371,7 @@ class TestBuildRegionBatchEcology:
 # ---------------------------------------------------------------------------
 
 
+@requires_chronicler_agents
 class TestAgentSimulatorTickEcology:
     """Test tick_ecology() on AgentSimulator returns correct batches."""
 
@@ -492,6 +507,7 @@ class TestAgentSimulatorTickEcology:
 # ---------------------------------------------------------------------------
 
 
+@requires_chronicler_agents
 class TestApplyRegionPostpassPatch:
     """Test apply_region_postpass_patch() on AgentSimulator."""
 
@@ -591,18 +607,17 @@ class TestApplyRegionPostpassPatch:
 # ---------------------------------------------------------------------------
 
 
+@requires_chronicler_agents
 class TestEcologySimulator:
     """Test the off-mode EcologySimulator (no AgentPool)."""
 
     def test_create_ecology_simulator(self):
         """EcologySimulator can be created without args."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         assert eco is not None
 
     def test_set_region_state_initializes(self):
         """set_region_state initializes regions without spawning agents."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         batch = _make_ecology_region_batch(num_regions=3, capacity=40)
         eco.set_region_state(batch)
@@ -610,7 +625,6 @@ class TestEcologySimulator:
 
     def test_tick_ecology_returns_two_batches(self):
         """tick_ecology returns (region_batch, event_batch) with correct schemas."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         batch = _make_ecology_region_batch(num_regions=2, capacity=30)
         eco.set_region_state(batch)
@@ -638,7 +652,6 @@ class TestEcologySimulator:
 
     def test_tick_ecology_before_set_region_state_errors(self):
         """tick_ecology() before set_region_state() raises."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         with pytest.raises((RuntimeError, ValueError), match="set_region_state"):
             eco.tick_ecology(
@@ -649,7 +662,6 @@ class TestEcologySimulator:
 
     def test_ecology_sim_matches_agent_sim_output(self):
         """EcologySimulator and AgentSimulator produce identical ecology results."""
-        from chronicler_agents import EcologySimulator
 
         batch = _make_ecology_region_batch(num_regions=2, capacity=30)
 
@@ -682,7 +694,6 @@ class TestEcologySimulator:
 
     def test_ecology_sim_apply_postpass_patch(self):
         """EcologySimulator supports apply_region_postpass_patch."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         batch = _make_ecology_region_batch(num_regions=2, capacity=30)
         eco.set_region_state(batch)
@@ -711,7 +722,6 @@ class TestEcologySimulator:
 
     def test_ecology_sim_set_ecology_config(self):
         """set_ecology_config accepts all EcologyConfig fields."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         eco.set_ecology_config(
             soil_degradation=0.005, soil_recovery=0.05,
@@ -739,7 +749,6 @@ class TestEcologySimulator:
 
     def test_ecology_sim_set_river_topology(self):
         """set_river_topology accepts a list of river paths."""
-        from chronicler_agents import EcologySimulator
         eco = EcologySimulator()
         eco.set_river_topology([[0, 1, 2], [3, 4]])
 
@@ -821,12 +830,12 @@ class TestWriteBackCoverage:
 # ---------------------------------------------------------------------------
 
 
+@requires_chronicler_agents
 class TestPostPassPatchMultiTurn:
     """Verify post-pass patches apply correctly across multiple ecology ticks."""
 
     def test_patch_persists_across_ticks(self):
         """A post-pass patch at turn N should be reflected in turn N+1 state."""
-        from chronicler_agents import EcologySimulator
 
         eco = EcologySimulator()
         batch = _make_ecology_region_batch(
@@ -888,12 +897,12 @@ class TestPostPassPatchMultiTurn:
 # ---------------------------------------------------------------------------
 
 
+@requires_chronicler_agents
 class TestAgentsOffRustPath:
     """Verify --agents=off exercises the Rust ecology path via EcologySimulator."""
 
     def test_ecology_simulator_full_lifecycle(self):
         """EcologySimulator: set_region_state -> tick -> patch -> tick works."""
-        from chronicler_agents import EcologySimulator
 
         eco = EcologySimulator()
         batch = _make_ecology_region_batch(

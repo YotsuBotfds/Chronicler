@@ -1,0 +1,95 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  python-no-rust:
+    name: Python no-Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install pytest pytest-asyncio
+
+      - name: Assert native extension is absent
+        run: |
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.find_spec("chronicler_agents")
+          if spec is not None:
+              raise SystemExit(f"no-Rust lane unexpectedly sees chronicler_agents at {spec.origin}")
+          PY
+
+      - name: Run Python tests without Rust extension
+        run: python -m pytest -q
+
+  python-native:
+    name: Python native
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install pytest pytest-asyncio "maturin>=1.5,<2"
+
+      - name: Build Rust extension wheel
+        run: |
+          cd chronicler-agents
+          python -m maturin build --release
+          python -m pip install target/wheels/*.whl
+
+      - name: Run Python tests with real native extension preloaded
+        run: |
+          python - <<'PY'
+          from importlib import util
+          from importlib.machinery import EXTENSION_SUFFIXES
+          import chronicler_agents as ca
+          import pytest
+
+          spec = util.find_spec("chronicler_agents.chronicler_agents")
+          origin = spec.origin if spec else ""
+          if not origin.endswith(tuple(EXTENSION_SUFFIXES)):
+              raise SystemExit(f"chronicler_agents native submodule is not a compiled extension: {origin!r}")
+
+          for name in ("AgentSimulator", "EcologySimulator", "PoliticsSimulator"):
+              cls = getattr(ca, name, None)
+              if not isinstance(cls, type):
+                  raise SystemExit(f"{name} is not a real native class: {cls!r}")
+
+          raise SystemExit(pytest.main(["-q"]))
+          PY
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path chronicler-agents/Cargo.toml --quiet

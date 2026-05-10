@@ -77,6 +77,8 @@ def _create_ecology_runtime(world):
     """
     try:
         from chronicler_agents import EcologySimulator
+        if not isinstance(EcologySimulator, type):
+            return None
         from chronicler.agent_bridge import configure_ecology_runtime
         eco_sim = EcologySimulator()
         # Wire river topology and ecology config from tuning overrides
@@ -94,6 +96,8 @@ def _create_politics_runtime(world):
     """
     try:
         from chronicler_agents import PoliticsSimulator
+        if not isinstance(PoliticsSimulator, type):
+            return None
         from chronicler.politics import configure_politics_runtime
         pol_sim = PoliticsSimulator()
         configure_politics_runtime(pol_sim, world)

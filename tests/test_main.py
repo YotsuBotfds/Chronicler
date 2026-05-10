@@ -995,14 +995,26 @@ class TestApiNarrationIntegration:
         args = self._make_args(str(tmp_path))
         args.agents = "hybrid"
 
-        with patch.object(
-            NarrativeEngine, "narrate_batch", spy_narrate_batch,
-        ):
-            execute_run(
-                args,
-                sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
-                narrative_client=api_client,
-            )
+        import sys
+        mock_bridge = TestAgentsWiring()._mock_agent_bridge()
+        mock_ab_module = MagicMock()
+        mock_ab_module.AgentBridge = MagicMock(return_value=mock_bridge)
+        saved = sys.modules.get("chronicler.agent_bridge")
+        sys.modules["chronicler.agent_bridge"] = mock_ab_module
+        try:
+            with patch.object(
+                NarrativeEngine, "narrate_batch", spy_narrate_batch,
+            ):
+                execute_run(
+                    args,
+                    sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
+                    narrative_client=api_client,
+                )
+        finally:
+            if saved is None:
+                sys.modules.pop("chronicler.agent_bridge", None)
+            else:
+                sys.modules["chronicler.agent_bridge"] = saved
 
         assert "social_edges" in captured_kwargs
         assert "dissolved_edges_by_turn" in captured_kwargs

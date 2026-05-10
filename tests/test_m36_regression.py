@@ -5,23 +5,17 @@ Slow tests: python -m pytest tests/test_m36_regression.py -v -m slow
 """
 from __future__ import annotations
 
-import sys
 import statistics
 from collections import Counter
-from unittest.mock import MagicMock
-
-# Prefer the real Rust extension when available; fall back to a stub so the
-# pure-Python portions of this suite still import cleanly on machines without it.
-try:
-    import chronicler_agents as _ca
-except Exception:
-    _ca = MagicMock()
-    sys.modules.setdefault("chronicler_agents", _ca)
 
 import pytest
 import pyarrow as pa
 
-_AGENTS_AVAILABLE = not isinstance(_ca, MagicMock)
+try:
+    from chronicler_agents import AgentSimulator as _AgentSimulator
+    _AGENTS_AVAILABLE = isinstance(_AgentSimulator, type)
+except Exception:
+    _AGENTS_AVAILABLE = False
 
 
 SEEDS = range(200)

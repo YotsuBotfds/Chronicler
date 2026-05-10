@@ -2,19 +2,12 @@
 persecution, schisms, and pilgrimages."""
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock
-
-# Stub out the Rust extension so tests run without a compiled wheel
-if "chronicler_agents" not in sys.modules:
-    sys.modules["chronicler_agents"] = MagicMock()
-
 import pytest
 import pyarrow as pa
 
 try:
-    import chronicler_agents as _ca
-    _AGENTS_AVAILABLE = not isinstance(_ca, MagicMock)
+    from chronicler_agents import AgentSimulator as _AgentSimulator
+    _AGENTS_AVAILABLE = isinstance(_AgentSimulator, type)
 except Exception:
     _AGENTS_AVAILABLE = False
 

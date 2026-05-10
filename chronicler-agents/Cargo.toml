@@ -2,13 +2,14 @@
 name = "chronicler-agents"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.85"
 
 [lib]
 name = "chronicler_agents"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.28", features = ["extension-module"] }
+pyo3 = "0.28"
 pyo3-arrow = "0.17"
 arrow = { version = "58", default-features = false, features = ["ffi"] }
 rand = "0.8"
@@ -16,8 +17,12 @@ rand_chacha = "0.3"
 rand_distr = "0.4"
 rayon = "1.10"
 
+[features]
+default = []
+jemalloc = ["dep:tikv-jemallocator"]
+
 [target.'cfg(not(target_os = "windows"))'.dependencies]
-tikv-jemallocator = "0.6"
+tikv-jemallocator = { version = "0.6", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
