@@ -69,6 +69,8 @@ def test_readme_documents_no_rust_and_native_test_lanes():
     assert "find_spec(\"chronicler_agents.chronicler_agents\")" in readme
     assert readme.index("import chronicler_agents as ca") < readme.index("import pytest")
     assert "full = 200 seeds x 500 turns" in readme
+    assert "scripts/m53b_run_validation.py --profile full" in readme
+    assert "--require-strict-regression" in readme
 
 
 def test_validation_gate_workflow_builds_native_extension_as_wheel():
@@ -96,6 +98,14 @@ def test_validation_gate_workflow_publishes_gate_summary():
     assert "gate_summary_*.md" in workflow
     assert "Publish validation gate summary" in workflow
     assert workflow.index("Publish validation gate summary") < workflow.index("Upload validation reports")
+
+
+def test_validation_gate_workflow_exposes_strict_regression_ratchet():
+    workflow = _read(".github/workflows/validation-gate.yml")
+
+    assert "require_strict_regression:" in workflow
+    assert "--require-strict-regression" in workflow
+    assert "inputs.require_strict_regression" in workflow
 
 
 def test_github_tests_workflow_has_no_rust_and_native_jobs():

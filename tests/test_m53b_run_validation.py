@@ -2,7 +2,9 @@
 
 from pathlib import Path
 import importlib.util
+import os
 import subprocess
+import sys
 
 import pytest
 
@@ -108,6 +110,38 @@ def test_profile_defaults_match_documented_validation_scales():
     assert (override.seeds, override.turns) == (3, 7)
 
 
+def test_build_env_prepends_absolute_repo_src(monkeypatch):
+    runner = _load_runner()
+
+    monkeypatch.setenv("PYTHONPATH", "/already/on/path")
+    env = runner._build_env()
+
+    parts = env["PYTHONPATH"].split(os.pathsep)
+    assert parts[:2] == [str(runner.SRC), "/already/on/path"]
+    assert env["PYTHONHASHSEED"] == "0"
+
+
+@pytest.mark.parametrize("module", ["chronicler.main", "chronicler.validate"])
+def test_m53b_child_module_commands_resolve_from_non_repo_cwd(monkeypatch, tmp_path, module):
+    runner = _load_runner()
+
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    env = runner._build_env()
+    outside_cwd = tmp_path / "outside"
+    outside_cwd.mkdir()
+
+    proc = subprocess.run(
+        [sys.executable, "-m", module, "--help"],
+        cwd=outside_cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_validate_batch_writes_report_and_profile_gate_artifacts(monkeypatch, tmp_path):
     runner = _load_runner()
     report_text = runner.json.dumps(
@@ -120,7 +154,7 @@ def test_validate_batch_writes_report_and_profile_gate_artifacts(monkeypatch, tm
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
 
     subset = runner.validate_batch(tmp_path, "subset.json", Path.cwd(), {}, "subset")
-    assert subset["report_path"].read_text() == report_text
+    assert runner.json.loads(subset["report_path"].read_text(encoding="utf-8")) == runner.json.loads(report_text)
     assert subset["decision_path"].name == "gate_decision_subset.json"
     assert subset["summary_path"].name == "gate_summary_subset.md"
     assert subset["decision"]["ok"] is True
@@ -175,7 +209,9 @@ def test_validate_batch_preserves_structured_report_from_nonzero_validate_cli(mo
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
 
     subset = runner.validate_batch(tmp_path, "subset.json", Path.cwd(), {}, "subset")
-    assert subset["report_path"].read_text() == report_text
+    report = runner.json.loads(subset["report_path"].read_text(encoding="utf-8"))
+    assert report["validation_subprocess"]["returncode"] == 1
+    assert report["validation_subprocess"]["stderr_tail"] == "boom"
     assert subset["decision"]["ok"] is True
     assert subset["decision"]["oracle_statuses"]["regression"] == {"status": "ERROR"}
     assert subset["decision"]["informational_non_pass"] == [
@@ -198,9 +234,14 @@ def test_validate_batch_synthesizes_evidence_for_invalid_validate_cli_output(mon
     report = runner.json.loads(result["report_path"].read_text(encoding="utf-8"))
     assert report["status"] == "ERROR"
     assert report["results"]["validation_cli"]["status"] == "ERROR"
+    assert report["validation_subprocess"] == {"returncode": 1, "stderr_tail": "boom"}
     assert result["decision"]["ok"] is False
     assert result["decision"]["exit_code"] == 2
-    assert {item["status"] for item in result["decision"]["required_failures"]} == {"MISSING"}
+    failures = result["decision"]["required_failures"]
+    assert failures[0]["oracle"] == "validation_report"
+    assert failures[0]["status"] == "ERROR"
+    assert "invalid JSON" in failures[0]["reason"]
+    assert {item["status"] for item in failures[1:]} == {"MISSING"}
     assert result["decision_path"].exists()
     assert result["summary_path"].exists()
 

@@ -197,6 +197,7 @@ python -m chronicler.validation_gate --profile full \
 # determinism profiles = two duplicate-seed runs x 200 turns.
 python scripts/m53b_run_validation.py --profile subset --output-root output/m53/subset
 python scripts/m53b_run_validation.py --profile full --output-root output/m53/full
+python scripts/m53b_run_validation.py --profile full --output-root output/m53/full-strict --require-strict-regression
 ```
 
 For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.

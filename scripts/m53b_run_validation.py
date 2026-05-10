@@ -41,7 +41,7 @@ def _run(cmd: list[str], cwd: Path, env: dict[str, str]) -> None:
 def _build_env() -> dict[str, str]:
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = "src" if not existing else f"src{os.pathsep}{existing}"
+    env["PYTHONPATH"] = str(SRC) if not existing else f"{SRC}{os.pathsep}{existing}"
     env["PYTHONHASHSEED"] = "0"
     return env
 
@@ -142,7 +142,22 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
     return batch_dir
 
 
-def _validation_error_report(batch_dir: Path, *, reason: str, returncode: int | None = None) -> dict[str, Any]:
+STDERR_TAIL_CHARS = 8000
+
+
+def _stderr_tail(stderr: str | None) -> str | None:
+    if not stderr:
+        return None
+    return stderr[-STDERR_TAIL_CHARS:]
+
+
+def _validation_error_report(
+    batch_dir: Path,
+    *,
+    reason: str,
+    returncode: int | None = None,
+    stderr: str | None = None,
+) -> dict[str, Any]:
     report: dict[str, Any] = {
         "batch_dir": str(batch_dir),
         "oracles": ["all"],
@@ -155,8 +170,14 @@ def _validation_error_report(batch_dir: Path, *, reason: str, returncode: int | 
         "status": "ERROR",
         "reason": reason,
     }
-    if returncode is not None:
-        report["validation_subprocess"] = {"returncode": returncode}
+    tail = _stderr_tail(stderr)
+    if returncode is not None or tail is not None:
+        validation_subprocess: dict[str, Any] = {}
+        if returncode is not None:
+            validation_subprocess["returncode"] = returncode
+        if tail is not None:
+            validation_subprocess["stderr_tail"] = tail
+        report["validation_subprocess"] = validation_subprocess
     return report
 
 
@@ -167,11 +188,23 @@ def _report_from_validation_process(proc: subprocess.CompletedProcess[str], batc
             raise ValueError("validation report JSON must be an object")
     except (json.JSONDecodeError, ValueError) as exc:
         reason = f"validation subprocess produced invalid JSON: {exc}"
-        report = _validation_error_report(batch_dir, reason=reason, returncode=proc.returncode)
+        report = _validation_error_report(
+            batch_dir,
+            reason=reason,
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
         return report, json.dumps(report, indent=2) + "\n"
     if proc.returncode != 0:
-        report.setdefault("validation_subprocess", {})["returncode"] = proc.returncode
-    return report, proc.stdout
+        validation_subprocess = report.setdefault("validation_subprocess", {})
+        if not isinstance(validation_subprocess, dict):
+            validation_subprocess = {}
+            report["validation_subprocess"] = validation_subprocess
+        validation_subprocess["returncode"] = proc.returncode
+        tail = _stderr_tail(proc.stderr)
+        if tail is not None:
+            validation_subprocess["stderr_tail"] = tail
+    return report, json.dumps(report, indent=2) + "\n"
 
 
 def validate_batch(

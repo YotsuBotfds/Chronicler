@@ -104,6 +104,12 @@ def adjudicate_validation_report(
 
     required_failures: list[dict[str, Any]] = []
     informational_non_pass: list[dict[str, Any]] = []
+    if report.get("status") == "ERROR":
+        required_failures.append({
+            "oracle": "validation_report",
+            "status": "ERROR",
+            "reason": str(report.get("reason") or "report_status_error"),
+        })
     for oracle in all_oracles:
         status = _oracle_status(report, oracle)
         item = _oracle_item(report, oracle, status)
@@ -193,6 +199,16 @@ def build_gate_decision_payload(
     }
 
 
+def _markdown_cell(value: Any) -> str:
+    return (
+        str(value)
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\n", "<br>")
+        .replace("|", "\\|")
+    )
+
+
 def _markdown_table(items: list[dict[str, Any]]) -> list[str]:
     if not items:
         return ["_None._"]
@@ -201,7 +217,7 @@ def _markdown_table(items: list[dict[str, Any]]) -> list[str]:
         rows.append(
             "| "
             + " | ".join(
-                str(item.get(key, "")).replace("|", "\\|")
+                _markdown_cell(item.get(key, ""))
                 for key in ("oracle", "status", "adjudication", "reason")
             )
             + " |"
@@ -236,7 +252,7 @@ def format_gate_markdown(
         lines.append(
             "| "
             + " | ".join(
-                str(value).replace("|", "\\|")
+                _markdown_cell(value)
                 for value in (
                     oracle,
                     item.get("status", ""),
@@ -293,11 +309,29 @@ def _write_text_output(path: Path, content: str, *, label: str) -> None:
         raise ValidationGateInputError(f"could not write {label}: {exc}") from exc
 
 
-def _reject_same_output_paths(decision_path: Path | None, summary_path: Path | None) -> None:
-    if decision_path is None or summary_path is None:
-        return
-    if decision_path.resolve() == summary_path.resolve():
-        raise ValidationGateInputError("decision-output and summary-output must be different paths")
+def _paths_collide(left: Path, right: Path) -> bool:
+    if left.resolve() == right.resolve():
+        return True
+    try:
+        return left.exists() and right.exists() and left.samefile(right)
+    except OSError:
+        return False
+
+
+def _reject_colliding_output_paths(
+    report_path: Path,
+    decision_path: Path | None,
+    summary_path: Path | None,
+) -> None:
+    if decision_path is not None:
+        if _paths_collide(decision_path, report_path):
+            raise ValidationGateInputError("decision-output must be different from report")
+    if summary_path is not None:
+        if _paths_collide(summary_path, report_path):
+            raise ValidationGateInputError("summary-output must be different from report")
+    if decision_path is not None and summary_path is not None:
+        if _paths_collide(decision_path, summary_path):
+            raise ValidationGateInputError("decision-output and summary-output must be different paths")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -338,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        _reject_same_output_paths(args.decision_output, args.summary_output)
+        _reject_colliding_output_paths(args.report, args.decision_output, args.summary_output)
         payload = build_gate_decision_payload(decision, report, report_path=args.report)
         if args.decision_output is not None:
             _write_text_output(
