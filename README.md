@@ -13,7 +13,7 @@ The LLM **only narrates** — it never makes simulation decisions. You can run w
 ## Requirements
 
 - **Python 3.13+**
-- **Rust toolchain** (for the `chronicler-agents` crate — optional, needed for agent mode)
+- **Rust 1.85+ toolchain** (for the `chronicler-agents` crate — optional, needed for agent mode)
 - **LM Studio** or an API key for narration (optional — simulation runs without it)
 
 ## Current Status
@@ -60,15 +60,18 @@ python -m pip install -e .
 python -m pip install -e ".[api]"      # Claude API
 python -m pip install -e ".[gemini]"   # Gemini API
 
-# (Optional) Rust agent crate
+# (Optional) Rust agent crate / native extension
+python -m pip install "maturin>=1.5,<2"
 cd chronicler-agents
-python -m pip install maturin
-maturin develop --release
+python -m maturin develop --release
 cd ..
+
+# Verify the installed extension
+python -c "import chronicler_agents; print('chronicler_agents import OK')"
 
 ```
 
-When rebuilding the Rust extension, use the virtual environment's Python (`.venv\Scripts\python.exe` on Windows) or Python may load a stale `chronicler_agents` build.
+When rebuilding the Rust extension, use the virtual environment's Python (`.venv\Scripts\python.exe` on Windows) or Python may load a stale `chronicler_agents` build. Without an activated environment, run `../.venv/bin/python -m maturin develop --release` from `chronicler-agents/` on Unix or `..\.venv\Scripts\python.exe -m maturin develop --release` on Windows.
 
 ## Quick Start
 
@@ -143,17 +146,45 @@ Available presets: `pangaea`, `archipelago`, `golden-age`, `dark-age`, `ice-age`
 ## Testing and Validation
 
 ```bash
-# Python test suite
-pytest
+# No-Rust Python lane: run from an environment where chronicler_agents is absent.
+# Pure-Python tests should pass; native-only tests should skip.
+python -m pytest -q
 
-# Rust test suite
-cargo nextest run
+# Native Python lane: build chronicler_agents into the same Python environment.
+python -m pip install "maturin>=1.5,<2"
+cd chronicler-agents
+python -m maturin develop --release
+cd ..
+
+# Preload/verify the real extension, then run Python tests.
+python - <<'PY'
+from importlib import util
+from importlib.machinery import EXTENSION_SUFFIXES
+import pytest
+import chronicler_agents as ca
+
+spec = util.find_spec("chronicler_agents.chronicler_agents")
+origin = spec.origin if spec else ""
+if not origin.endswith(tuple(EXTENSION_SUFFIXES)):
+    raise SystemExit(f"chronicler_agents native submodule is not a compiled extension: {origin!r}")
+
+for name in ("AgentSimulator", "EcologySimulator", "PoliticsSimulator"):
+    cls = getattr(ca, name, None)
+    if not isinstance(cls, type):
+        raise SystemExit(f"{name} is not a real native class: {cls!r}")
+
+raise SystemExit(pytest.main(["-q"]))
+PY
+
+# Rust test suite. cargo-nextest is optional; cargo test is the portable default.
+cargo test --manifest-path chronicler-agents/Cargo.toml --quiet
+cargo nextest run --manifest-path chronicler-agents/Cargo.toml
 
 # Validate a generated batch directory with bundled oracles
 python -m chronicler.validate --batch-dir output/some_batch --oracles all
 ```
 
-For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation.
+For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.
 
 ## Project Structure
 

@@ -10,7 +10,9 @@ matching the legacy Python formulas, within specified tolerances:
 import pyarrow as pa
 import pytest
 
-from chronicler_agents import EcologySimulator
+chronicler_agents = pytest.importorskip("chronicler_agents")
+AgentSimulator = chronicler_agents.AgentSimulator
+EcologySimulator = chronicler_agents.EcologySimulator
 
 from tests.legacy_ecology_oracle import (
     TERRAIN_ECOLOGY_CAPS,
@@ -334,7 +336,6 @@ def _run_rust_ecology_tick(
     Uses AgentSimulator rather than EcologySimulator because AgentSimulator
     correctly reads the endemic_severity column from the input batch.
     """
-    from chronicler_agents import AgentSimulator
     eco = AgentSimulator(num_regions=1, seed=42)
 
     batch = pa.record_batch({

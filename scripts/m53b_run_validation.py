@@ -30,6 +30,56 @@ def _build_env() -> dict[str, str]:
     return env
 
 
+REQUIRED_ORACLES_BY_PROFILE = {
+    "subset": ["community", "needs", "cohort"],
+    "full": ["community", "needs", "era", "cohort", "artifacts", "arcs", "regression"],
+    "determinism-off": ["determinism"],
+    "determinism-hybrid": ["determinism"],
+}
+
+
+def _oracle_status(report: dict, oracle: str) -> str:
+    result = report.get("results", {}).get(oracle)
+    if not isinstance(result, dict):
+        return "MISSING"
+    status = result.get("status")
+    return str(status) if status else "MISSING"
+
+
+def adjudicate_validation_report(profile: str, report: dict) -> dict:
+    """Apply profile-specific gate semantics to a validation JSON report."""
+    required_oracles = REQUIRED_ORACLES_BY_PROFILE[profile]
+    results = report.get("results", {})
+    all_oracles = list(results) if isinstance(results, dict) else []
+    for oracle in required_oracles:
+        if oracle not in all_oracles:
+            all_oracles.append(oracle)
+
+    required_failures = []
+    informational_non_pass = []
+    for oracle in all_oracles:
+        status = _oracle_status(report, oracle)
+        item = {"oracle": oracle, "status": status}
+        if oracle in required_oracles:
+            if status != "PASS":
+                required_failures.append(item)
+        elif status != "PASS":
+            informational_non_pass.append(item)
+
+    return {
+        "profile": profile,
+        "ok": not required_failures,
+        "required_oracles": required_oracles,
+        "required_failures": required_failures,
+        "informational_non_pass": informational_non_pass,
+    }
+
+
+def _format_gate_failure(decision: dict) -> str:
+    failures = ", ".join(f"{item['oracle']}={item['status']}" for item in decision["required_failures"])
+    return f"Validation gate failed for profile {decision['profile']}: {failures}"
+
+
 def _batch_dir_for(output_root: Path, seed_start: int) -> Path:
     return output_root / f"batch_{seed_start}"
 
@@ -108,7 +158,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
     return batch_dir
 
 
-def validate_batch(batch_dir: Path, report_name: str, cwd: Path, env: dict[str, str]) -> Path:
+def validate_batch(batch_dir: Path, report_name: str, cwd: Path, env: dict[str, str], profile: str) -> Path:
     report_path = batch_dir / report_name
     cmd = [
         sys.executable,
@@ -122,6 +172,17 @@ def validate_batch(batch_dir: Path, report_name: str, cwd: Path, env: dict[str, 
     proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=True)
     report_path.write_text(proc.stdout, encoding="utf-8")
     print(f"Validation report written to {report_path}")
+    report = json.loads(proc.stdout)
+    decision = adjudicate_validation_report(profile, report)
+    if not decision["ok"]:
+        raise SystemExit(_format_gate_failure(decision))
+    if decision["informational_non_pass"]:
+        print(
+            "Informational non-PASS statuses: "
+            + ", ".join(
+                f"{item['oracle']}={item['status']}" for item in decision["informational_non_pass"]
+            )
+        )
     return report_path
 
 
@@ -144,16 +205,16 @@ def main() -> None:
 
     if args.profile == "subset":
         batch_dir = run_subset(args, cwd, env)
-        report_path = validate_batch(batch_dir, "validate_report_subset.json", cwd, env)
+        report_path = validate_batch(batch_dir, "validate_report_subset.json", cwd, env, args.profile)
     elif args.profile == "full":
         batch_dir = run_full(args, cwd, env)
-        report_path = validate_batch(batch_dir, "validate_report_full.json", cwd, env)
+        report_path = validate_batch(batch_dir, "validate_report_full.json", cwd, env, args.profile)
     elif args.profile == "determinism-off":
         batch_dir = run_determinism(args, cwd, env, "off")
-        report_path = validate_batch(batch_dir, "validate_report_determinism_off.json", cwd, env)
+        report_path = validate_batch(batch_dir, "validate_report_determinism_off.json", cwd, env, args.profile)
     else:
         batch_dir = run_determinism(args, cwd, env, "hybrid")
-        report_path = validate_batch(batch_dir, "validate_report_determinism_hybrid.json", cwd, env)
+        report_path = validate_batch(batch_dir, "validate_report_determinism_hybrid.json", cwd, env, args.profile)
 
     summary = {
         "profile": args.profile,

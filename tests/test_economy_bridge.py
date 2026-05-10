@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 import numpy as np
 import pyarrow as pa
 import pytest
-from chronicler_agents import AgentSimulator
 
 from chronicler.agent_bridge import build_region_batch, configure_economy_runtime
 from chronicler.economy import (
@@ -23,6 +22,14 @@ from chronicler.economy import (
 )
 from chronicler.factions import compute_tithe_base
 from chronicler.models import Region, RegionStockpile
+
+
+def _native_class(name: str):
+    chronicler_agents = pytest.importorskip("chronicler_agents")
+    cls = getattr(chronicler_agents, name, None)
+    if not isinstance(cls, type):
+        pytest.skip("chronicler_agents is not a real native extension")
+    return cls
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +368,7 @@ def test_tick_economy_emits_zero_tithe_base_for_controlled_zero_agent_civ(sample
     civ_b.last_income = 123
     sample_world.turn = 0
 
+    AgentSimulator = _native_class("AgentSimulator")
     sim = AgentSimulator(num_regions=len(sample_world.regions), seed=sample_world.seed)
     configure_economy_runtime(sim, sample_world)
     sim.set_region_state(build_region_batch(sample_world))

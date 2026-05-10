@@ -8,6 +8,14 @@ import pytest
 from chronicler.models import Disposition
 
 
+def _require_chronicler_agents():
+    chronicler_agents = pytest.importorskip("chronicler_agents")
+    if not isinstance(getattr(chronicler_agents, "AgentSimulator", None), type):
+        pytest.skip("chronicler_agents is not a real native extension")
+    return chronicler_agents
+
+
+
 def _configure_two_region_world(sample_world):
     """Prepare two adjacent controlled regions with neutral diplomacy."""
     civ_a = sample_world.civilizations[0].name
@@ -42,6 +50,7 @@ def _make_args(tmp_path, seed=42, turns=10, agents="off"):
 
 
 def test_thread_count_determinism(tmp_path):
+    _require_chronicler_agents()
     """Same seed with different thread counts produces identical merchant stats."""
     import os
     from chronicler.main import execute_run
@@ -128,8 +137,8 @@ def test_economy_result_has_in_transit_delta():
 @pytest.fixture
 def sim_fixture():
     """Minimal AgentSimulator for delivery diagnostics tests."""
-    from chronicler_agents import AgentSimulator
-    return AgentSimulator(num_regions=3, seed=42)
+    chronicler_agents = _require_chronicler_agents()
+    return chronicler_agents.AgentSimulator(num_regions=3, seed=42)
 
 
 def test_get_delivery_diagnostics_returns_batch(sim_fixture):
@@ -156,6 +165,7 @@ def test_get_delivery_diagnostics_empty_without_buffer(sim_fixture):
 
 
 def test_multi_turn_delivery_conservation(tmp_path):
+    _require_chronicler_agents()
     """Multi-turn hybrid run: verify conservation dict structure each turn.
 
     Running 10+ turns of the full simulation loop with --agents=hybrid and

@@ -26,6 +26,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow-running multi-seed simulations (deselect with -m 'not slow')",
+    "native: marks tests that require the chronicler_agents Rust extension",
 ]
 
 [build-system]

@@ -34,25 +34,30 @@ REM Create virtual environment
 if not exist ".venv" (
     echo [2/4] Creating virtual environment...
     python -m venv .venv
+    if errorlevel 1 exit /b 1
 ) else (
     echo [2/4] Virtual environment already exists
 )
 
 REM Activate
 call .venv\Scripts\activate.bat
+if errorlevel 1 exit /b 1
 
 REM Install Python dependencies
 echo [3/4] Installing Python dependencies...
-pip install -e . --quiet
+python -m pip install -e . --quiet
+if errorlevel 1 exit /b 1
 
 if %INSTALL_API%==1 (
     echo   Installing Claude API support...
-    pip install -e ".[api]" --quiet
+    python -m pip install -e ".[api]" --quiet
+    if errorlevel 1 exit /b 1
 )
 
 if %INSTALL_GEMINI%==1 (
     echo   Installing Gemini API support...
-    pip install -e ".[gemini]" --quiet
+    python -m pip install -e ".[gemini]" --quiet
+    if errorlevel 1 exit /b 1
 )
 
 REM Build Rust agent crate
@@ -70,10 +75,14 @@ if errorlevel 1 (
 )
 
 echo [4/4] Building Rust agent crate...
-pip install maturin --quiet
+python -m pip install "maturin>=1.5,<2" --quiet
+if errorlevel 1 exit /b 1
 cd chronicler-agents
-maturin develop --release
+if errorlevel 1 exit /b 1
+python -m maturin develop --release
+if errorlevel 1 exit /b 1
 cd ..
+if errorlevel 1 exit /b 1
 
 :done
 echo.

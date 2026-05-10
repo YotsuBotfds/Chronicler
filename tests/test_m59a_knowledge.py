@@ -7,6 +7,14 @@ import sys
 import pytest
 
 
+def _require_chronicler_agents():
+    chronicler_agents = pytest.importorskip("chronicler_agents")
+    if not isinstance(getattr(chronicler_agents, "AgentSimulator", None), type):
+        pytest.skip("chronicler_agents is not a real native extension")
+    return chronicler_agents
+
+
+
 def test_knowledge_stats_property_exists():
     """Verify the knowledge_stats property exists on AgentBridge."""
     from chronicler.agent_bridge import AgentBridge
@@ -52,6 +60,7 @@ def test_extract_knowledge_stats_with_data():
 
 
 def test_knowledge_deterministic_cross_process(tmp_path):
+    _require_chronicler_agents()
     """Cross-process determinism proxy: same seed in two separate processes
     must produce identical knowledge_stats aggregate counters."""
     bundles = []
@@ -155,6 +164,7 @@ def test_agents_off_no_consumer_counters(tmp_path):
 
 
 def test_hybrid_determinism_with_knowledge_stats(tmp_path):
+    _require_chronicler_agents()
     """Same seed in hybrid mode: two runs produce identical bundles."""
     from chronicler.main import execute_run
 

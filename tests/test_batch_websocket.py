@@ -58,10 +58,12 @@ class TestBatchWebSocket:
         server._batch_cancel_event.set()
         assert server._batch_cancel_event.is_set()
 
-    def test_batch_progress_messages(self):
+    def test_batch_progress_messages(self, tmp_path):
         """Verify that progress callback puts messages on snapshot_queue."""
         server = LiveServer(port=0)
         progress_calls = []
+        batch_dir = tmp_path / "batch_1"
+        batch_dir.mkdir()
 
         msg = {
             "type": "batch_start",
@@ -81,7 +83,7 @@ class TestBatchWebSocket:
                 if cb:
                     cb(1, 2, 1)
                     cb(2, 2, 2)
-                return Path("/tmp/batch_1")
+                return batch_dir
 
             mock_batch.side_effect = fake_batch
             mock_report.return_value = {"metadata": {}, "anomalies": []}

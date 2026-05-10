@@ -7,7 +7,7 @@
 #   --api         Install Claude API narration support
 #   --gemini      Install Gemini API narration support
 
-set -e
+set -euo pipefail
 
 NO_RUST=0
 INSTALL_API=0
@@ -49,29 +49,32 @@ if [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate
 elif [ -f ".venv/Scripts/activate" ]; then
     source .venv/Scripts/activate
+else
+    echo "ERROR: Virtual environment activation script not found. Remove .venv and rerun setup."
+    exit 1
 fi
 
 # Install Python dependencies
 echo "[3/4] Installing Python dependencies..."
-pip install -e . --quiet
+python -m pip install -e . --quiet
 
 if [ "$INSTALL_API" -eq 1 ]; then
     echo "  Installing Claude API support..."
-    pip install -e ".[api]" --quiet
+    python -m pip install -e ".[api]" --quiet
 fi
 
 if [ "$INSTALL_GEMINI" -eq 1 ]; then
     echo "  Installing Gemini API support..."
-    pip install -e ".[gemini]" --quiet
+    python -m pip install -e ".[gemini]" --quiet
 fi
 
 # Build Rust agent crate
 if [ "$NO_RUST" -eq 0 ]; then
     if command -v cargo &>/dev/null; then
         echo "[4/4] Building Rust agent crate..."
-        pip install maturin --quiet
+        python -m pip install "maturin>=1.5,<2" --quiet
         cd chronicler-agents
-        maturin develop --release 2>&1 | tail -n 1
+        python -m maturin develop --release
         cd ..
     else
         echo "[4/4] Rust toolchain not found — skipping agent crate"

@@ -2,13 +2,6 @@
 return lifecycle, and duration constants."""
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock
-
-# Stub out the Rust extension so tests run without a compiled wheel
-if "chronicler_agents" not in sys.modules:
-    sys.modules["chronicler_agents"] = MagicMock()
-
 import pyarrow as pa
 import pytest
 

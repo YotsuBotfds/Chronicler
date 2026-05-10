@@ -111,12 +111,14 @@ pub use knowledge::{observe_packets, propagate_packets, commit_buffered, decay_p
 #[doc(hidden)]
 pub use knowledge::{usable_trade_packets, strongest_threat_for_region};
 
-// jemalloc: cfg-gated to non-Windows. Windows dev uses system allocator.
-// Performance benchmarks run on WSL/Linux where jemalloc is active.
-#[cfg(not(target_os = "windows"))]
+// jemalloc is opt-in for standalone performance runs. It is intentionally not
+// enabled by default for PyO3 extension builds because jemalloc can fail to
+// dlopen on Linux Python runners with "cannot allocate memory in static TLS
+// block".
+#[cfg(all(feature = "jemalloc", not(target_os = "windows")))]
 use tikv_jemallocator::Jemalloc;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(all(feature = "jemalloc", not(target_os = "windows")))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
