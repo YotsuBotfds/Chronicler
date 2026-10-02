@@ -4,7 +4,7 @@
 //! - single-region production and demand
 //! - two-region trade allocation with stable route ordering
 //! - tatonnement convergence behavior
-//! - pre-transit observability vs post-lifecycle stockpiles
+//! - delivered import observability vs post-lifecycle stockpiles
 //! - salt preservation during storage decay
 //! - stockpile cap and clamp_floor_loss
 //! - civ fiscal outputs from merchant wealth / priest counts
@@ -30,8 +30,8 @@ fn make_region(region_id: u16, rt: u8, yield_0: f32) -> EconomyRegionInput {
         region_id,
         terrain: 0, // plains
         storage_population: 100,
-        resource_type_0: rt,
-        resource_effective_yield_0: yield_0,
+        resource_types: [rt, 255, 255],
+        resource_yields: [yield_0, 0.0, 0.0],
         stockpile: [0.0; NUM_GOODS],
     }
 }
@@ -551,14 +551,13 @@ fn test_exact_determinism() {
 }
 
 // ---------------------------------------------------------------------------
-// Pre-transit observability vs post-lifecycle stockpiles
+// Delivered import observability vs post-lifecycle stockpiles
 // ---------------------------------------------------------------------------
 
 #[test]
 fn test_observability_import_timing() {
-    // imports_by_category uses pre-transit-decay category-level imports.
-    // stockpile_levels uses post-lifecycle goods.
-    // These should differ when transit decay is nonzero.
+    // Imports measure goods actually delivered after transit decay.
+    // Stockpile levels additionally reflect consumption, storage decay and cap.
     let config = default_config();
     // Region 0: grain producer with surplus.
     let r0 = make_region(0, 0, 3.0); // high grain yield
@@ -581,17 +580,13 @@ fn test_observability_import_timing() {
         &[0u8, 1u8], &config, 1.0, false, None,
     );
 
-    // If grain was traded, region 1 should have food imports.
     let obs1 = &out.observability[1];
-    if obs1.imports_food > 0.0 {
-        // The pre-transit import amount should be >= post-transit delivered amount.
-        // (Transit decay for grain is 5%, so imports_food > stockpile addition.)
-        // The observability imports_food is pre-transit-decay category-level.
-        // The stockpile_food is post-lifecycle (after consumption, decay, cap).
-        // We can't directly compare them since consumption changes stockpile_food,
-        // but we can verify both are populated.
-        assert!(obs1.imports_food > 0.0);
-    }
+    assert!(obs1.imports_food > 0.0);
+    // Region 1 starts without food and produces none, so sufficiency is based
+    // on exactly the reported delivered imports (below the 2.0 clamp here).
+    assert!((out.region_results[1].food_sufficiency - obs1.imports_food / 25.0).abs() < 0.0001);
+    assert!((obs1.imports_food + out.conservation.transit_loss as f32
+        - obs1.imports_food / (1.0 - chronicler_agents::economy::TRANSIT_DECAY[SLOT_GRAIN])).abs() < 0.0001);
 }
 
 // ---------------------------------------------------------------------------
@@ -957,4 +952,151 @@ fn test_hybrid_trade_route_count_matches_abstract_semantics() {
         output.region_results[2].trade_route_count, 0,
         "non-exporting region should have 0"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Ecology/goods integration: multi-slot labor and physical inventory accounting
+// ---------------------------------------------------------------------------
+
+fn assert_conserved(regions: &[EconomyRegionInput], out: &chronicler_agents::economy::EconomyOutput) {
+    let initial: f64 = regions.iter().flat_map(|r| r.stockpile).map(f64::from).sum();
+    let final_stock: f64 = out.region_results.iter().flat_map(|r| r.stockpile).map(f64::from).sum();
+    let c = &out.conservation;
+    let residual = initial + c.production - final_stock - c.consumption
+        - c.storage_loss - c.transit_loss - c.cap_overflow - c.in_transit_delta.unwrap_or(0.0);
+    assert!(residual.abs() < 0.001, "stock-flow residual: {residual}");
+    assert!(c.clamp_floor_loss < 0.001, "valid flows must not overdraw stock");
+    for region in &out.region_results {
+        assert!(region.stockpile.iter().all(|q| q.is_finite() && *q >= 0.0));
+    }
+}
+
+#[test]
+fn test_all_three_slots_share_finite_farmer_labor() {
+    let mut region = make_region(0, 0, 1.0);
+    region.resource_types = [0, 1, 5]; // grain, timber, ore
+    region.resource_yields = [1.0, 2.0, 3.0];
+    let regions = vec![region];
+    // No consumers isolates production and storage decay.
+    let agents = vec![make_agents(0, 60, 0, 0, 0)];
+    let out = tick_economy_core(&regions, &agents, &[], &[0.0], &[0], 1,
+        &[0], &default_config(), 1.0, false, None);
+    // 20 workers per slot: 20 grain, 40 timber, 60 ore, not 360 total.
+    assert!((out.conservation.production - 120.0).abs() < 0.001);
+    assert!((out.region_results[0].stockpile[SLOT_GRAIN] - 19.4).abs() < 0.001);
+    assert!((out.region_results[0].stockpile[SLOT_TIMBER] - 39.8).abs() < 0.001);
+    assert!((out.region_results[0].stockpile[chronicler_agents::economy::SLOT_ORE] - 60.0).abs() < 0.001);
+    assert_conserved(&regions, &out);
+}
+
+#[test]
+fn test_dormant_slot_keeps_labor_share_and_empty_slots_do_not() {
+    let mut region = make_region(0, 0, 0.0);
+    region.resource_types = [0, 3, 255];
+    region.resource_yields = [0.0, 2.0, 1000.0];
+    let regions = vec![region];
+    let agents = vec![make_agents(0, 60, 0, 0, 0)];
+    let out = tick_economy_core(&regions, &agents, &[], &[0.0], &[0], 1,
+        &[0], &default_config(), 1.0, false, None);
+    assert!((out.conservation.production - 60.0).abs() < 0.001);
+    assert_eq!(out.region_results[0].stockpile[SLOT_GRAIN], 0.0);
+    assert!((out.region_results[0].stockpile[SLOT_FISH] - 56.4).abs() < 0.001);
+    assert_conserved(&regions, &out);
+}
+
+#[test]
+fn test_repeated_resource_good_accumulates_without_multiplying_labor() {
+    let mut region = make_region(0, 0, 1.0);
+    region.resource_types = [0, 0, 0];
+    region.resource_yields = [1.0; 3];
+    let regions = vec![region];
+    let agents = vec![make_agents(0, 60, 0, 0, 0)];
+    let out = tick_economy_core(&regions, &agents, &[], &[0.0], &[0], 1,
+        &[0], &default_config(), 1.0, false, None);
+    assert!((out.conservation.production - 60.0).abs() < 0.001);
+    assert!((out.region_results[0].stockpile[SLOT_GRAIN] - 58.2).abs() < 0.001);
+    assert_conserved(&regions, &out);
+}
+
+#[test]
+fn test_stored_food_relaxes_scarcity_and_can_supply_exports() {
+    let routes = vec![TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false }];
+    let agents = vec![make_agents(20, 5, 0, 20, 0), make_agents(100, 0, 0, 0, 0)];
+    let scarce = vec![make_region(0, 0, 1.0), make_region(1, 255, 0.0)];
+    let scarce_out = tick_economy_core(&scarce, &agents, &routes, &[0.0], &[0], 1,
+        &[0, 0], &default_config(), 1.0, false, None);
+    let mut stocked = vec![make_region(0, 0, 1.0), make_region(1, 255, 0.0)];
+    stocked[0].stockpile[SLOT_FISH] = 40.0; // stock good differs from production good
+    let stocked_out = tick_economy_core(&stocked, &agents, &routes, &[0.0], &[0], 1,
+        &[0, 0], &default_config(), 1.0, false, None);
+    assert_eq!(scarce_out.observability[1].imports_food, 0.0);
+    assert!(stocked_out.observability[1].imports_food > 0.0);
+    assert!(stocked_out.region_results[0].farmer_income_modifier < scarce_out.region_results[0].farmer_income_modifier);
+    assert!(stocked_out.region_results[1].food_sufficiency > scarce_out.region_results[1].food_sufficiency);
+    assert_conserved(&stocked, &stocked_out);
+}
+
+#[test]
+fn test_multigood_trade_preserves_good_identity_and_oracle_equivalence() {
+    let mut source = make_region(0, 0, 1.0);
+    source.resource_types = [0, 3, 1]; // grain, fish, timber
+    source.resource_yields = [2.0, 1.0, 3.0];
+    source.stockpile[chronicler_agents::economy::SLOT_ORE] = 50.0;
+    source.stockpile[SLOT_SALT] = 30.0;
+    let regions = vec![source, make_region(1, 255, 0.0), make_region(2, 255, 0.0)];
+    let agents = vec![make_agents(50, 60, 1, 40, 0), make_agents(50, 0, 20, 0, 0), make_agents(20, 0, 10, 0, 0)];
+    let routes = vec![
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: true },
+        TradeRouteInput { origin_region_id: 0, dest_region_id: 2, is_river: false },
+    ];
+    let config = default_config();
+    let abstract_out = tick_economy_core(&regions, &agents, &routes, &[0.0], &[0], 1,
+        &[0, 0, 0], &config, 1.0, false, None);
+    assert_conserved(&regions, &abstract_out);
+    // Neither recipient produces raw materials; both shipped timber and stored
+    // ore must survive as distinct goods rather than being relabeled grain.
+    for ri in 1..3 {
+        assert!(abstract_out.region_results[ri].stockpile[SLOT_TIMBER] > 0.0);
+        assert!(abstract_out.region_results[ri].stockpile[chronicler_agents::economy::SLOT_ORE] > 0.0);
+    }
+    let delivery = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(3), 3);
+    let hybrid_out = tick_economy_core(&regions, &agents, &routes, &[0.0], &[0], 1,
+        &[0, 0, 0], &config, 1.0, false, Some(&delivery));
+    assert_conserved(&regions, &hybrid_out);
+    for ri in 0..3 {
+        assert!((hybrid_out.oracle_food_sufficiency.as_ref().unwrap()[ri]
+            - abstract_out.region_results[ri].food_sufficiency).abs() < 0.0001);
+        assert!((hybrid_out.oracle_margins.as_ref().unwrap()[ri]
+            - abstract_out.region_results[ri].merchant_margin).abs() < 0.0001);
+        assert!((hybrid_out.oracle_trade_volume.as_ref().unwrap()[ri][0]
+            - abstract_out.observability[ri].imports_food).abs() < 0.0001);
+    }
+}
+
+#[test]
+fn test_zero_harvest_has_neutral_farmer_income() {
+    let regions = vec![make_region(0, 0, 0.0)];
+    let agents = vec![make_agents(100, 60, 0, 0, 0)];
+    let out = tick_economy_core(&regions, &agents, &[], &[0.0], &[0], 1,
+        &[0], &default_config(), 1.0, false, None);
+    assert_eq!(out.region_results[0].farmer_income_modifier, 1.0);
+    assert_eq!(out.region_results[0].food_sufficiency, 0.0);
+    assert_eq!(out.conservation.production, 0.0);
+    assert_conserved(&regions, &out);
+}
+
+#[test]
+fn test_empty_hybrid_delivery_has_no_realized_trade_but_runs_oracle() {
+    let regions = vec![make_region(0, 0, 3.0), make_region(1, 1, 1.0)];
+    let agents = vec![make_agents(100, 80, 0, 10, 0), make_agents(100, 20, 0, 10, 0)];
+    let routes = vec![TradeRouteInput { origin_region_id: 0, dest_region_id: 1, is_river: false }];
+    let delivery = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(2), 2);
+    let out = tick_economy_core(&regions, &agents, &routes, &[0.0], &[0], 1,
+        &[0, 0], &default_config(), 1.0, false, Some(&delivery));
+    assert_eq!(out.observability[1].imports_food, 0.0);
+    assert_eq!(out.region_results[1].food_sufficiency, 0.0);
+    assert_eq!(out.conservation.in_transit_delta, Some(0.0));
+    assert!(out.oracle_trade_volume.as_ref().unwrap()[1][0] > 0.0);
+    assert!(out.oracle_food_sufficiency.as_ref().unwrap()[1] > 0.0);
+    assert_conserved(&regions, &out);
 }

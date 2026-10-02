@@ -395,7 +395,9 @@ def accumulate_stockpile(
 ) -> float:
     """Add (production - exports + imports) to stockpile per good. Mutates in place.
 
-    Returns total clamp floor loss (goods lost to non-negative clamping).
+    Returns the inventory deficit covered by non-negative clamping.
+    This diagnostic is an artificial source, not a physical loss; valid bounded
+    exports keep it zero. The legacy field name is retained for compatibility.
     """
     clamp_floor_loss = 0.0
     all_keys = set(goods.keys()) | set(production.keys()) | set(exports.keys()) | set(imports.keys())
@@ -547,17 +549,54 @@ class EconomyResult:
 def compute_production(
     resource_type: int,
     resource_yield: float,
-    farmer_count: int,
+    farmer_count: float,
 ) -> tuple[str | None, float]:
     """Compute goods output for a region.
 
-    Returns (category, amount). Only primary resource slot (index 0) is used.
+    Returns (category, amount) for the supplied allocation of farmer labor.
     """
     category = map_resource_to_category(resource_type)
     if category is None:
         return None, 0.0
     amount = resource_yield * farmer_count
     return category, amount
+
+
+def compute_allocated_production(
+    resource_types: list[int], resource_yields: list[float], farmer_count: int,
+) -> dict[str, float]:
+    """Split finite farmer labor equally across occupied, valid resource slots.
+
+    Dormant/suspended slots keep their allocation: a zero harvest cannot create
+    extra labor for another good. Duplicate good slots aggregate their output.
+    """
+    slots = [(rtype, resource_yields[i]) for i, rtype in enumerate(resource_types)
+             if map_resource_to_good(rtype) is not None]
+    goods: dict[str, float] = {}
+    if not slots:
+        return goods
+    labor = max(farmer_count, 0) / len(slots)
+    for rtype, resource_yield in slots:
+        good = map_resource_to_good(rtype)
+        goods[good] = goods.get(good, 0.0) + max(resource_yield, 0.0) * labor
+    return goods
+
+
+def _category_totals(goods: dict[str, float]) -> dict[str, float]:
+    return {cat: sum(goods.get(good, 0.0) for good in FIXED_GOODS
+                     if good in CATEGORY_GOODS[cat]) for cat in CATEGORIES}
+
+
+def _decompose_category_flow(
+    flow: dict[str, float], available_goods: dict[str, float],
+) -> dict[str, float]:
+    """Draw category exports proportionally from the origin's available goods."""
+    totals = _category_totals(available_goods)
+    return {
+        good: flow[cat] * available_goods.get(good, 0.0) / totals[cat]
+        for cat in CATEGORIES if totals[cat] > 0.0
+        for good in FIXED_GOODS if good in CATEGORY_GOODS[cat]
+    }
 
 
 def compute_demand(
@@ -842,7 +881,8 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
     """Pack world-state inputs for the Rust economy kernel.
 
     One row per region. Columns: region_id, terrain, storage_population,
-    resource_type_0, resource_effective_yield_0, stockpile_<good> x8.
+    resource_type_<slot>, resource_yield_<slot> x3, stockpile_<good> x8.
+    Yields are the read-only, current-turn ecology preview, not potential yields.
     Does NOT include agent counts — Rust derives those from the live pool.
     """
     import pyarrow as pa
@@ -853,11 +893,14 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
         "region_id": pa.array(range(len(regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in regions], type=pa.uint8()),
         "storage_population": pa.array([r.population for r in regions], type=pa.uint16()),
-        "resource_type_0": pa.array([r.resource_types[0] for r in regions], type=pa.uint8()),
-        "resource_effective_yield_0": pa.array(
-            [r.resource_effective_yields[0] for r in regions], type=pa.float32(),
-        ),
     }
+    for slot in range(3):
+        data[f"resource_type_{slot}"] = pa.array(
+            [r.resource_types[slot] for r in regions], type=pa.uint8(),
+        )
+        data[f"resource_yield_{slot}"] = pa.array(
+            [r.resource_current_yields[slot] for r in regions], type=pa.float32(),
+        )
     for good in FIXED_GOODS:
         data[f"stockpile_{good}"] = pa.array(
             [r.stockpile.goods.get(good, 0.0) for r in regions], type=pa.float32(),
@@ -1186,9 +1229,9 @@ def compute_economy(
 ) -> EconomyResult:
     """Phase 2 goods sub-sequence: production -> demand -> prices -> trade -> signals.
 
-    Two-pass price model:
-    - Pre-trade prices (from production alone) drive margin computation
-    - Post-trade prices (from production + imports) produce final signals
+    Prices use accessible inventory before consumption: starting stocks plus
+    current harvest, minus exports, plus delivered imports (after transit decay).
+    Callers prepare resource_current_yields using the read-only ecology preview.
     """
     if active_trade_routes is None:
         from chronicler.resources import get_active_trade_routes
@@ -1222,6 +1265,9 @@ def compute_economy(
 
     # --- Step 2a: Production + Step 2b: Demand ---
     region_production: dict[str, dict[str, float]] = {}
+    region_per_good_production: dict[str, dict[str, float]] = {}
+    available_goods: dict[str, dict[str, float]] = {}
+    available_supply: dict[str, dict[str, float]] = {}
     region_demand: dict[str, dict[str, float]] = {}
     region_agent_data: dict[str, dict] = {}
 
@@ -1233,30 +1279,33 @@ def compute_economy(
         )
         region_agent_data[rname] = agent_data
 
-        prod = _empty_category_dict()
-        cat, amount = compute_production(
-            region.resource_types[0], region.resource_effective_yields[0], agent_data["farmer_count"],
+        produced = compute_allocated_production(
+            region.resource_types, region.resource_current_yields, agent_data["farmer_count"],
         )
-        if cat is not None:
-            prod[cat] = amount
-            result.conservation["production"] += amount
-        region_production[rname] = prod
+        region_per_good_production[rname] = produced
+        region_production[rname] = _category_totals(produced)
+        result.conservation["production"] += sum(produced.values())
+        available_goods[rname] = {
+            good: region.stockpile.goods.get(good, 0.0) + produced.get(good, 0.0)
+            for good in FIXED_GOODS
+        }
+        available_supply[rname] = _category_totals(available_goods[rname])
 
         demand = compute_demand(
             agent_data["population"], agent_data["soldier_count"], agent_data["wealthy_count"],
         )
         region_demand[rname] = demand
 
-    # --- Step 2c: Pre-trade prices (initial from local production only) ---
+    # --- Step 2c: Pre-trade prices (accessible stock plus current harvest) ---
     pre_trade_prices: dict[str, dict[str, float]] = {}
     for rname in region_production:
-        pre_trade_prices[rname] = compute_prices(region_production[rname], region_demand[rname])
+        pre_trade_prices[rname] = compute_prices(available_supply[rname], region_demand[rname])
 
     # --- Step 2d: Exportable surplus (constant across tatonnement passes) ---
     exportable_surplus: dict[str, dict[str, float]] = {}
     for rname in region_production:
         exportable_surplus[rname] = {
-            cat: max(region_production[rname][cat] - region_demand[rname][cat], 0.0)
+            cat: max(available_supply[rname][cat] - region_demand[rname][cat], 0.0)
             for cat in CATEGORIES
         }
 
@@ -1338,12 +1387,19 @@ def compute_economy(
                     amount = cat_flows[cat]
                     region_exports[origin_name][cat] += amount
                     region_imports.setdefault(dest, _empty_category_dict())
-                    region_imports[dest][cat] += amount
+                shipped_goods = _decompose_category_flow(cat_flows, available_goods[origin_name])
+                delivered = _category_totals({
+                    good: apply_transit_decay(amount, good)
+                    for good, amount in shipped_goods.items()
+                })
+                for cat in CATEGORIES:
+                    region_imports[dest][cat] += delivered[cat]
 
-        # Recompute prices from production + imports with damping
+        # Recompute accessible-inventory prices with damping
         for rname in region_production:
             supply = {
-                cat: region_production[rname][cat] + region_imports.get(rname, _empty_category_dict())[cat]
+                cat: available_supply[rname][cat] - region_exports[rname][cat]
+                     + region_imports.get(rname, _empty_category_dict())[cat]
                 for cat in CATEGORIES
             }
             new_prices = compute_prices(supply, region_demand[rname])
@@ -1377,65 +1433,27 @@ def compute_economy(
                     if origin_name not in result.inbound_sources[dest]:
                         result.inbound_sources[dest].append(origin_name)
 
-    # M43a: Decompose category-level flows to per-good with transit decay
-    # Pre-seed with empty dicts for all known regions; import targets may include
-    # regions outside region_production (handled by setdefault in the loop below).
-    region_per_good_imports: dict[str, dict[str, float]] = {rname: {} for rname in region_production}
-    region_per_good_exports: dict[str, dict[str, float]] = {}
-    region_per_good_production: dict[str, dict[str, float]] = {}
-
-    for region in regions:
-        rname = region.name
-        # Per-good production
-        if region.resource_types[0] != 255:
-            good = map_resource_to_good(region.resource_types[0])
-            cat = map_resource_to_category(region.resource_types[0])
-            if good is not None and cat is not None:
-                region_per_good_production[rname] = {good: region_production.get(rname, _empty_category_dict()).get(cat, 0.0)}
-            else:
-                region_per_good_production[rname] = {}
-        else:
-            region_per_good_production[rname] = {}
-
-        # Per-good exports
-        if region.resource_types[0] != 255:
-            good = map_resource_to_good(region.resource_types[0])
-            cat = map_resource_to_category(region.resource_types[0])
-            if good is not None and cat is not None:
-                region_per_good_exports[rname] = {good: region_exports.get(rname, _empty_category_dict()).get(cat, 0.0)}
-            else:
-                region_per_good_exports[rname] = {}
-        else:
-            region_per_good_exports[rname] = {}
-
-    # Per-good imports with transit decay (per-route, per-good, decay before aggregate).
-    # NOTE: Only decomposes flows matching the origin's primary resource category.
-    # Non-primary-category flows (if any) are silently dropped. Correct today due to
-    # single-resource-slot constraint (M41 Decision 14). A future multi-slot milestone
-    # would need to decompose across all production categories to maintain conservation.
-    for origin_name, route_flows_for_origin in all_route_flows.items():
-        origin_region = region_map.get(origin_name)
-        if origin_region is None or origin_region.resource_types[0] == 255:
-            continue
-        source_good = map_resource_to_good(origin_region.resource_types[0])
-        source_cat = map_resource_to_category(origin_region.resource_types[0])
-        if source_good is None or source_cat is None:
-            continue
-        for route, cat_flows in route_flows_for_origin.items():
-            _, dest_name = route
-            shipped = cat_flows.get(source_cat, 0.0)
-            if shipped <= 0.0:
-                continue
-            delivered = apply_transit_decay(shipped, source_good)
-            result.conservation["transit_loss"] += shipped - delivered
-            dest_imports = region_per_good_imports.setdefault(dest_name, {})
-            dest_imports[source_good] = dest_imports.get(source_good, 0.0) + delivered
+    # Decompose final flows exactly as in allocation. Each origin exports only
+    # from starting stocks + harvest; incoming goods cannot be re-exported in
+    # the same tick. Transit losses are accounted once, on this final pass.
+    region_per_good_imports = {rname: {} for rname in region_production}
+    region_per_good_exports = {rname: {} for rname in region_production}
+    for origin_name, route_flows in all_route_flows.items():
+        for (_, dest_name), cat_flows in route_flows.items():
+            shipped_goods = _decompose_category_flow(cat_flows, available_goods[origin_name])
+            for good, shipped in shipped_goods.items():
+                delivered = apply_transit_decay(shipped, good)
+                result.conservation["transit_loss"] += shipped - delivered
+                exports = region_per_good_exports[origin_name]
+                exports[good] = exports.get(good, 0.0) + shipped
+                imports = region_per_good_imports.setdefault(dest_name, {})
+                imports[good] = imports.get(good, 0.0) + delivered
 
     # --- Step 2f: Post-trade prices ---
     post_trade_prices: dict[str, dict[str, float]] = {}
     for rname in region_production:
         post_trade_supply = {
-            cat: region_production[rname][cat] + region_imports[rname][cat]
+            cat: available_supply[rname][cat] - region_exports[rname][cat] + region_imports[rname][cat]
             for cat in CATEGORIES
         }
         post_trade_prices[rname] = compute_prices(post_trade_supply, region_demand[rname])
@@ -1495,16 +1513,17 @@ def compute_economy(
         agent_data = region_agent_data.get(rname, {})
         post_prices = post_trade_prices.get(rname, _empty_category_dict())
         demand = region_demand.get(rname, _empty_category_dict())
-        post_supply = {
-            cat: region_production.get(rname, _empty_category_dict())[cat]
-                 + region_imports.get(rname, _empty_category_dict())[cat]
-            for cat in CATEGORIES
-        }
-
-        result.farmer_income_modifiers[rname] = derive_farmer_income_modifier(
-            region.resource_types[0], post_supply, demand,
-            farmer_count=agent_data.get("farmer_count", 0),
-        )
+        # All producing slots contribute to the farmer's sale-price signal.
+        production = region_production[rname]
+        total_production = sum(production.values())
+        if agent_data.get("farmer_count", 0) == 0 or total_production <= 0.0:
+            result.farmer_income_modifiers[rname] = 1.0
+        else:
+            price_ratio = sum(production[cat] * post_prices[cat] / BASE_PRICE
+                              for cat in CATEGORIES) / total_production
+            result.farmer_income_modifiers[rname] = max(
+                FARMER_INCOME_MODIFIER_FLOOR, min(price_ratio, FARMER_INCOME_MODIFIER_CAP),
+            )
 
         routes = origin_routes.get(rname, [])
         total_raw_margin = 0.0

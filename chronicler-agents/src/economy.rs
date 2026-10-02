@@ -172,8 +172,9 @@ pub struct EconomyRegionInput {
     pub region_id: u16,
     pub terrain: u8,
     pub storage_population: u16,
-    pub resource_type_0: u8,
-    pub resource_effective_yield_0: f32,
+    pub resource_types: [u8; 3],
+    /// Realized, current-turn ecology yields (not potential effective yields).
+    pub resource_yields: [f32; 3],
     pub stockpile: [f32; NUM_GOODS],
 }
 
@@ -341,6 +342,10 @@ pub struct EconomyOutput {
 struct RegionWorkState {
     /// Per-category production [food, raw_material, luxury].
     production: [f32; NUM_CATEGORIES],
+    /// Realized production retained per good through the entire stock-flow lifecycle.
+    per_good_production: [f32; NUM_GOODS],
+    /// Starting inventory plus production, aggregated by category.
+    available: [f32; NUM_CATEGORIES],
     /// Per-category demand.
     demand: [f32; NUM_CATEGORIES],
     /// Per-category prices (updated during tatonnement).
@@ -353,10 +358,6 @@ struct RegionWorkState {
     exports: [f32; NUM_CATEGORIES],
     /// Per-good stockpile (mutable copy from input).
     stockpile: [f32; NUM_GOODS],
-    /// Good slot of the region's primary resource (or NUM_GOODS if none).
-    primary_good_slot: usize,
-    /// Category of the region's primary resource.
-    primary_category: usize,
 }
 
 /// Per-route working data for trade kernel.
@@ -413,18 +414,55 @@ fn compute_transport_cost(
 ) -> f32 {
     let cost_a = terrain_cost(terrain_a);
     let cost_b = terrain_cost(terrain_b);
-    let mut cost = TRANSPORT_COST_BASE * (cost_a + cost_b) / 2.0;
-    if is_river {
-        cost *= RIVER_DISCOUNT;
-    }
+    let mut cost = TRANSPORT_COST_BASE * cost_a.max(cost_b);
+    let river = if is_river { RIVER_DISCOUNT } else { 1.0 };
     let both_coastal = terrain_a == TERRAIN_COAST && terrain_b == TERRAIN_COAST;
-    if both_coastal {
-        cost *= COASTAL_DISCOUNT;
-    }
+    let coastal = if both_coastal { COASTAL_DISCOUNT } else { 1.0 };
+    // Match the Python oracle: the harder terrain governs the route and the
+    // best available waterway discount applies (discounts do not compound).
+    cost *= river.min(coastal);
     if is_winter {
         cost *= WINTER_MODIFIER;
     }
     cost * trade_friction
+}
+
+/// Split a category shipment across the origin's actual goods. All routes use
+/// the same fixed starting inventory mix, so total exports remain bounded by
+/// that inventory and category demand is reserved proportionally.
+fn route_good_shipments(origin: &RegionWorkState, route: &RouteWork) -> [f32; NUM_GOODS] {
+    let mut shipments = [0.0; NUM_GOODS];
+    for g in 0..NUM_GOODS {
+        let cat = GOOD_CATEGORY[g];
+        if origin.available[cat] > 0.0 {
+            let inventory = origin.stockpile[g] + origin.per_good_production[g];
+            shipments[g] = route.flow[cat] * (inventory / origin.available[cat]);
+        }
+    }
+    shipments
+}
+
+/// Resolve abstract category flows to physical imports/exports exactly once.
+/// Imports are delivered quantities, exports are gross shipments. The same
+/// decomposition drives realized stockpiles and the hybrid oracle.
+fn abstract_good_flows(
+    work: &[RegionWorkState],
+    routes: &[RouteWork],
+) -> (Vec<[f32; NUM_GOODS]>, Vec<[f32; NUM_GOODS]>, f64) {
+    let mut imports = vec![[0.0; NUM_GOODS]; work.len()];
+    let mut exports = vec![[0.0; NUM_GOODS]; work.len()];
+    let mut transit_loss = 0.0;
+    for route in routes {
+        let shipments = route_good_shipments(&work[route.origin_idx], route);
+        for g in 0..NUM_GOODS {
+            let shipped = shipments[g];
+            let delivered = shipped * (1.0 - TRANSIT_DECAY[g]);
+            exports[route.origin_idx][g] += shipped;
+            imports[route.dest_idx][g] += delivered;
+            transit_loss += (shipped - delivered) as f64;
+        }
+    }
+    (imports, exports, transit_loss)
 }
 
 /// Run the tatonnement pricing equilibrium + route allocation on the given
@@ -521,11 +559,12 @@ fn run_abstract_allocation(
             }
 
             for rw_idx in rstart..rend {
-                let dest_idx = route_works[rw_idx].dest_idx;
-                for c in 0..NUM_CATEGORIES {
-                    let amount = route_works[rw_idx].flow[c];
-                    work[ri].exports[c] += amount;
-                    work[dest_idx].imports[c] += amount;
+                let route = &route_works[rw_idx];
+                let shipments = route_good_shipments(&work[ri], route);
+                for g in 0..NUM_GOODS {
+                    let cat = GOOD_CATEGORY[g];
+                    work[ri].exports[cat] += shipments[g];
+                    work[route.dest_idx].imports[cat] += shipments[g] * (1.0 - TRANSIT_DECAY[g]);
                 }
             }
         }
@@ -534,7 +573,7 @@ fn run_abstract_allocation(
             let w = &work[ri];
             let mut new_prices = [0.0f32; NUM_CATEGORIES];
             for c in 0..NUM_CATEGORIES {
-                let supply = (w.production[c] + w.imports[c]).max(SUPPLY_FLOOR);
+                let supply = (w.available[c] - w.exports[c] + w.imports[c]).max(SUPPLY_FLOOR);
                 new_prices[c] = config.base_price * (w.demand[c] / supply);
             }
             for c in 0..NUM_CATEGORIES {
@@ -572,6 +611,9 @@ fn run_abstract_allocation(
 ///
 /// This is the sequential, deterministic economy kernel.  No rayon, no RNG.
 /// Route order is stable: sorted by (origin_region_id, dest_region_id).
+/// Inputs must contain finite nonnegative inventory and valid, inventory-backed
+/// hybrid departure debits. The merchant ledger revalidates cargo at departure;
+/// clamp_floor_loss diagnoses invalid overdraw rather than a physical sink.
 pub fn tick_economy_core(
     region_inputs: &[EconomyRegionInput],
     agent_counts: &[RegionAgentCounts],
@@ -611,18 +653,27 @@ pub fn tick_economy_core(
     let mut work: Vec<RegionWorkState> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
-        let slot = rt_to_slot(inp.resource_type_0);
-        let cat = if slot < NUM_GOODS { slot_to_category(slot) } else { CAT_FOOD };
-
-        // Production: single resource slot.
+        // Split a finite farmer labor budget equally across occupied slots.
+        // Dormant/zero-yield resources retain their share; invalid/empty slots
+        // do not. This preserves seasonal ecology shocks without multiplying
+        // every farmer into three full-time producers.
+        let active_slots = inp.resource_types.iter()
+            .filter(|&&rt| rt_to_slot(rt) < NUM_GOODS).count();
+        let labor_per_slot = ac.farmer_count as f32 / active_slots.max(1) as f32;
         let mut production = [0.0f32; NUM_CATEGORIES];
-        let amount = if slot < NUM_GOODS {
-            inp.resource_effective_yield_0 * ac.farmer_count as f32
-        } else {
-            0.0
-        };
-        production[cat] = amount;
-        conservation.production += amount as f64;
+        let mut per_good_production = [0.0f32; NUM_GOODS];
+        for resource_idx in 0..3 {
+            let slot = rt_to_slot(inp.resource_types[resource_idx]);
+            if slot >= NUM_GOODS { continue; }
+            let amount = inp.resource_yields[resource_idx].max(0.0) * labor_per_slot;
+            per_good_production[slot] += amount;
+            production[slot_to_category(slot)] += amount;
+            conservation.production += amount as f64;
+        }
+        let mut available = production;
+        for g in 0..NUM_GOODS {
+            available[GOOD_CATEGORY[g]] += inp.stockpile[g];
+        }
 
         // Demand.
         let demand = [
@@ -634,26 +685,26 @@ pub fn tick_economy_core(
         // Pre-trade prices.
         let mut prices = [0.0f32; NUM_CATEGORIES];
         for c in 0..NUM_CATEGORIES {
-            let s = production[c].max(SUPPLY_FLOOR);
+            let s = available[c].max(SUPPLY_FLOOR);
             prices[c] = config.base_price * (demand[c] / s);
         }
 
         // Exportable surplus.
         let mut surplus = [0.0f32; NUM_CATEGORIES];
         for c in 0..NUM_CATEGORIES {
-            surplus[c] = (production[c] - demand[c]).max(0.0);
+            surplus[c] = (available[c] - demand[c]).max(0.0);
         }
 
         work.push(RegionWorkState {
             production,
+            per_good_production,
+            available,
             demand,
             prices,
             surplus,
             imports: [0.0; NUM_CATEGORIES],
             exports: [0.0; NUM_CATEGORIES],
             stockpile: inp.stockpile,
-            primary_good_slot: slot,
-            primary_category: cat,
         });
     }
 
@@ -665,6 +716,7 @@ pub fn tick_economy_core(
 
     // Shared outputs from Phase B consumed by Phase C and signal derivation.
     let mut per_good_imports: Vec<[f32; NUM_GOODS]> = vec![[0.0; NUM_GOODS]; n_regions];
+    let mut per_good_exports: Vec<[f32; NUM_GOODS]> = vec![[0.0; NUM_GOODS]; n_regions];
     let mut upstream_sources: Vec<UpstreamSource> = Vec::new();
     // Per-good net mobility (hybrid only): imports + returns - departures per region.
     let mut per_good_net_mobility: Vec<[f32; NUM_GOODS]> = vec![[0.0; NUM_GOODS]; n_regions];
@@ -779,6 +831,7 @@ pub fn tick_economy_core(
                     0.0
                 };
                 per_good_net_mobility[ri][g] = imports_g + returns_g - departures_g;
+                work[ri].available[GOOD_CATEGORY[g]] += returns_g;
             }
         }
 
@@ -893,22 +946,10 @@ pub fn tick_economy_core(
             }
         }
 
-        // Per-good import decomposition with transit decay.
-        for rw in route_works.iter() {
-            let origin_slot = work[rw.origin_idx].primary_good_slot;
-            if origin_slot >= NUM_GOODS {
-                continue;
-            }
-            let origin_cat = work[rw.origin_idx].primary_category;
-            let shipped = rw.flow[origin_cat];
-            if shipped <= 0.0 {
-                continue;
-            }
-            let decay_rate = TRANSIT_DECAY[origin_slot];
-            let delivered = shipped * (1.0 - decay_rate);
-            conservation.transit_loss += (shipped - delivered) as f64;
-            per_good_imports[rw.dest_idx][origin_slot] += delivered;
-        }
+        let (imports, exports, transit_loss) = abstract_good_flows(&work, &route_works);
+        per_good_imports = imports;
+        per_good_exports = exports;
+        conservation.transit_loss += transit_loss;
     }
 
     // -----------------------------------------------------------------------
@@ -983,7 +1024,7 @@ pub fn tick_economy_core(
             for ri in 0..n_regions {
                 let sw = &shadow_work[ri];
                 for c in 0..NUM_CATEGORIES {
-                    let supply = (sw.production[c] + sw.imports[c]).max(SUPPLY_FLOOR);
+                    let supply = (sw.available[c] - sw.exports[c] + sw.imports[c]).max(SUPPLY_FLOOR);
                     shadow_post_trade_prices[ri][c] = config.base_price * (sw.demand[c] / supply);
                 }
             }
@@ -1008,21 +1049,10 @@ pub fn tick_economy_core(
                 }
             }
 
-            // Oracle food sufficiency: mirror the realized abstract path exactly.
-            // 1. Decompose per-good imports from shadow route_works (using origin's
-            //    primary_good_slot, same as the abstract path at line ~893).
-            // 2. Run Step 1 stockpile lifecycle: stockpile + production - exports + imports.
-            // 3. Derive food_suff from post-lifecycle stockpile.
-            let mut oracle_per_good_imports = vec![[0.0f32; NUM_GOODS]; n_regions];
-            for rw in shadow_route_works.iter() {
-                let origin_slot = shadow_work[rw.origin_idx].primary_good_slot;
-                if origin_slot >= NUM_GOODS { continue; }
-                let origin_cat = shadow_work[rw.origin_idx].primary_category;
-                let shipped = rw.flow[origin_cat];
-                if shipped <= 0.0 { continue; }
-                let delivered = shipped * (1.0 - TRANSIT_DECAY[origin_slot]);
-                oracle_per_good_imports[rw.dest_idx][origin_slot] += delivered;
-            }
+            // Use the same per-good stock-flow decomposition as the realized
+            // abstract path, including all occupied resource slots and stocks.
+            let (oracle_per_good_imports, oracle_per_good_exports, _) =
+                abstract_good_flows(&shadow_work, &shadow_route_works);
 
             let mut food_suff = vec![0.0f32; n_regions];
             for ri in 0..n_regions {
@@ -1031,15 +1061,9 @@ pub fn tick_economy_core(
 
                 // Step 1: stockpile + production - exports + imports.
                 let mut shadow_stockpile = region_inputs[ri].stockpile;
-                let mut per_good_prod = [0.0f32; NUM_GOODS];
-                let mut per_good_exp = [0.0f32; NUM_GOODS];
-                if sw.primary_good_slot < NUM_GOODS {
-                    per_good_prod[sw.primary_good_slot] = sw.production[sw.primary_category];
-                    per_good_exp[sw.primary_good_slot] = sw.exports[sw.primary_category];
-                }
                 for g in 0..NUM_GOODS {
-                    let new_val = shadow_stockpile[g] + per_good_prod[g]
-                        - per_good_exp[g] + oracle_per_good_imports[ri][g];
+                    let new_val = shadow_stockpile[g] + sw.per_good_production[g]
+                        - oracle_per_good_exports[ri][g] + oracle_per_good_imports[ri][g];
                     shadow_stockpile[g] = new_val.max(0.0);
                 }
 
@@ -1065,7 +1089,7 @@ pub fn tick_economy_core(
     for ri in 0..n_regions {
         let w = &work[ri];
         for c in 0..NUM_CATEGORIES {
-            let supply = (w.production[c] + w.imports[c]).max(SUPPLY_FLOOR);
+            let supply = (w.available[c] - w.exports[c] + w.imports[c]).max(SUPPLY_FLOOR);
             post_trade_prices[ri][c] = config.base_price * (w.demand[c] / supply);
         }
     }
@@ -1082,23 +1106,15 @@ pub fn tick_economy_core(
         let ac = &agent_counts[ri];
         let w = &work[ri];
 
-        // Per-good production and exports (map category amounts to good slot).
-        let mut per_good_production = [0.0f32; NUM_GOODS];
-        let mut per_good_exports = [0.0f32; NUM_GOODS];
-        if w.primary_good_slot < NUM_GOODS {
-            per_good_production[w.primary_good_slot] = w.production[w.primary_category];
-            per_good_exports[w.primary_good_slot] = w.exports[w.primary_category];
-        }
-
         // Step 1: Accumulate stockpile.
         // Hybrid: old + production + net_mobility (imports + returns - departures)
         // Abstract: old + production - exports + imports
         let mut stockpile = w.stockpile;
         for g in 0..NUM_GOODS {
             let new_val = if hybrid_delivery.is_some() {
-                stockpile[g] + per_good_production[g] + per_good_net_mobility[ri][g]
+                stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g]
             } else {
-                stockpile[g] + per_good_production[g] - per_good_exports[g]
+                stockpile[g] + w.per_good_production[g] - per_good_exports[ri][g]
                     + per_good_imports[ri][g]
             };
             if new_val < 0.0 {
@@ -1176,14 +1192,19 @@ pub fn tick_economy_core(
         }
 
         // Step 6: Derive signals.
-        // farmer_income_modifier: demand / max(post_supply, 0.1) for the primary resource's category.
-        let farmer_income_modifier = if w.primary_good_slot < NUM_GOODS {
-            let cat = w.primary_category;
-            let post_supply = (w.production[cat] + w.imports[cat]).max(SUPPLY_FLOOR);
-            let raw = w.demand[cat] / post_supply;
-            raw.clamp(config.farmer_income_modifier_floor, config.farmer_income_modifier_cap)
+        // Weight the scarcity return by what farmers actually produced. A
+        // failed harvest supplies no goods to sell and earns a neutral signal.
+        let total_production: f32 = w.production.iter().sum();
+        let farmer_income_modifier = if total_production > 0.0 {
+            let mut weighted_income = 0.0;
+            for c in 0..NUM_CATEGORIES {
+                let post_supply = (w.available[c] - w.exports[c] + w.imports[c]).max(SUPPLY_FLOOR);
+                weighted_income += w.production[c] * (w.demand[c] / post_supply);
+            }
+            (weighted_income / total_production)
+                .clamp(config.farmer_income_modifier_floor, config.farmer_income_modifier_cap)
         } else {
-            config.farmer_income_modifier_floor
+            1.0
         };
 
         // merchant_margin and merchant_trade_income: mode-dependent derivation.
@@ -1287,7 +1308,7 @@ pub fn tick_economy_core(
         });
 
         // Step 7: Derive observability.
-        // imports_by_category: from pre-transit-decay category-level imports (tatonnement accumulation).
+        // imports_by_category: delivered quantities after good-specific transit decay.
         let imports_food = w.imports[CAT_FOOD];
         let imports_raw_material = w.imports[CAT_RAW_MATERIAL];
         let imports_luxury = w.imports[CAT_LUXURY];
@@ -1405,8 +1426,8 @@ mod tests {
             region_id: 0,
             terrain: 0,
             storage_population: 100,
-            resource_type_0: 0,
-            resource_effective_yield_0: 1.0,
+            resource_types: [0, 255, 255],
+            resource_yields: [1.0, 0.0, 0.0],
             stockpile: [0.0; NUM_GOODS],
         }];
         let agents = vec![RegionAgentCounts {
@@ -1435,6 +1456,10 @@ mod tests {
         assert!((compute_transport_cost(0, 0, true, false, 1.0) - 0.05).abs() < 0.001);
         // Coastal: (0.6+0.6)/2 * 0.10 * 0.6 = 0.036
         assert!((compute_transport_cost(TERRAIN_COAST, TERRAIN_COAST, false, false, 1.0) - 0.036).abs() < 0.001);
+        // Mixed terrain uses the harder endpoint, not the average.
+        assert!((compute_transport_cost(0, 1, false, false, 1.0) - 0.20).abs() < 0.001);
+        // River and coastal discounts choose the better discount, not both.
+        assert!((compute_transport_cost(TERRAIN_COAST, TERRAIN_COAST, true, false, 1.0) - 0.03).abs() < 0.001);
         // Winter: 0.10 * 1.5 = 0.15
         assert!((compute_transport_cost(0, 0, false, true, 1.0) - 0.15).abs() < 0.001);
     }

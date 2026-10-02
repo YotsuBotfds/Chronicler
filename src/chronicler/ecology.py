@@ -42,6 +42,7 @@ from chronicler.resources import (
 from chronicler.utils import civ_index
 
 if TYPE_CHECKING:
+    from chronicler.economy import EconomyResult
     from chronicler.models import Region, WorldState
 
 TERRAIN_ECOLOGY_DEFAULTS: dict[str, RegionEcology] = {
@@ -118,21 +119,40 @@ def _check_famine_yield(
     threshold: float,
     subsistence_base: float,
     acc=None,
+    *,
+    economy_result: EconomyResult | None = None,
 ) -> list[Event]:
-    """M34: Region-level famine check based on food yield."""
+    """Use current food availability in agent modes; retain aggregate fallback.
+
+    The economy measures availability before consumption, including reserves and
+    delivered imports. Raw yields cannot determine whether those people ate.
+    Missing agent economy data is not evidence of famine, and a previous turn's
+    result must never be reused here.
+    """
     from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
     from chronicler.emergence import get_severity_multiplier
 
     events: list[Event] = []
+    agent_mode = world.agent_mode in ("hybrid", "shadow", "demographics-only")
+    agents_own_population = world.agent_mode in ("hybrid", "demographics-only")
     for region in world.regions:
         if region.controller is None or region.famine_cooldown > 0:
             continue
         if region.population <= 0:
             continue
 
-        yields = region_yields.get(region.name, [0.0, 0.0, 0.0])
-        if not check_food_yield(region, yields, climate_phase, threshold, subsistence_base):
-            continue  # No famine
+        if agent_mode:
+            sufficiency = (
+                economy_result.food_sufficiency.get(region.name)
+                if economy_result is not None else None
+            )
+            # Native f32 arithmetic can put a fully covered meal just below 1.
+            if sufficiency is None or sufficiency >= 1.0 - 1e-6:
+                continue
+        else:
+            yields = region_yields.get(region.name, [0.0, 0.0, 0.0])
+            if not check_food_yield(region, yields, climate_phase, threshold, subsistence_base):
+                continue
 
         civ = next((c for c in world.civilizations if c.name == region.controller), None)
         if civ is None:
@@ -141,16 +161,15 @@ def _check_famine_yield(
         # --- Famine effects ---
         mult = get_severity_multiplier(civ, world)
 
-        # C-3 fix: Always apply famine population loss as a direct mutation,
-        # not through the accumulator.  "guard" category is skipped in hybrid
-        # mode, but refugee additions (below) are always direct mutations.
-        # Routing the loss through guard created a conservation violation:
-        # hybrid mode gained population (refugees) without the matching loss.
-        # V4: Apply severity multiplier to population loss for consistency —
-        # famine drains a civ stat (population), not an ecology metric.
-        famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5) * mult)
-        actual_drain = drain_region_pop(region, famine_pop)
-        sync_civ_population(civ, world)
+        # Hybrid/demographics-only populations are owned by the Rust pool.
+        # Python-only losses and refugees are overwritten by its write-back and
+        # must not create a second population model. Food signals already reach
+        # agent behavior. Aggregate and shadow retain macro population effects.
+        actual_drain = 0
+        if not agents_own_population:
+            famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5) * mult)
+            actual_drain = drain_region_pop(region, famine_pop)
+            sync_civ_population(civ, world)
         drain = int(get_override(world, K_FAMINE_STABILITY, 3))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
@@ -323,8 +342,14 @@ def compute_resource_yields(
     climate_phase: "ClimatePhase",
     worker_count: int,
     world: "WorldState | None" = None,
+    *,
+    deplete_reserves: bool = True,
 ) -> list[float]:
-    """Compute current yield per resource slot. Mutates resource_reserves for minerals."""
+    """Compute realized slot yields, optionally applying mineral depletion.
+
+    Phase 2 previews with ``deplete_reserves=False``; Phase 9 owns the single
+    ecology/depletion tick. All other yield factors are identical in both paths.
+    """
     phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
     yields = [0.0, 0.0, 0.0]
 
@@ -356,7 +381,7 @@ def compute_resource_yields(
         if rtype in MINERAL_TYPES:
             reserves = region.resource_reserves[slot]
             # Depletion — only if there are workers and reserves remain
-            if reserves > 0.01 and worker_count > 0:
+            if deplete_reserves and reserves > 0.01 and worker_count > 0:
                 target_workers = max(1, effective_capacity(region) // 3)
                 extraction = base * (worker_count / target_workers)
                 depletion_rate = get_override(world, K_DEPLETION_RATE, 0.009) if world else 0.009
@@ -374,6 +399,23 @@ def compute_resource_yields(
         yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
 
     return yields
+
+
+def refresh_resource_yields(world: WorldState, climate_phase: ClimatePhase) -> None:
+    """Publish Phase 2 harvest yields without advancing ecology or depletion.
+
+    Current season, climate and Phase 1 damage affect this harvest immediately.
+    Soil/water/forest changes and extraction in Phase 9 affect the next harvest.
+    Recomputing also initializes turn zero and resumed saves, where these
+    transient yields are absent. It is safe to repeat this preview.
+    """
+    from chronicler.resources import get_season_id
+
+    season_id = get_season_id(world.turn)
+    for region in world.regions:
+        region.resource_current_yields = compute_resource_yields(
+            region, season_id, climate_phase, 0, world, deplete_reserves=False,
+        )
 
 
 def _pressure_multiplier(region: Region) -> float:
@@ -610,7 +652,10 @@ def update_depletion_feedback(region: "Region", world: "WorldState | None") -> l
     return events
 
 
-def _tick_ecology_python(world: WorldState, climate_phase: ClimatePhase, acc) -> list[Event]:
+def _tick_ecology_python(
+    world: WorldState, climate_phase: ClimatePhase, acc,
+    economy_result: EconomyResult | None = None,
+) -> list[Event]:
     """Pure-Python ecology tick (original implementation, used when no Rust runtime)."""
     from chronicler.resources import get_season_id as _get_season_id_fn
     current_season_id = _get_season_id_fn(world.turn)
@@ -707,10 +752,13 @@ def _tick_ecology_python(world: WorldState, climate_phase: ClimatePhase, acc) ->
     for region in world.regions:
         worker_count = region.population // 5 if region.population > 0 else 0
         yields = compute_resource_yields(region, season_id, climate_phase, worker_count, world)
+        region.resource_current_yields = yields
         region_yields[region.name] = yields
 
-    # M34: Yield-based famine check
-    events = _check_famine_yield(world, region_yields, climate_phase, famine_threshold, subsistence_base, acc)
+    events = _check_famine_yield(
+        world, region_yields, climate_phase, famine_threshold, subsistence_base, acc,
+        economy_result=economy_result,
+    )
 
     from chronicler.traditions import apply_soil_floor
     apply_soil_floor(world)
@@ -738,7 +786,8 @@ _CLIMATE_PHASE_TO_U8 = {"temperate": 0, "warming": 1, "drought": 2, "cooling": 3
 
 
 def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
-                 ecology_runtime=None) -> list[Event]:
+                 ecology_runtime=None, *,
+                 economy_result: EconomyResult | None = None) -> list[Event]:
     """Phase 9 ecology tick.
 
     When an AgentSimulator/EcologySimulator runtime is supplied, delegate core
@@ -747,8 +796,8 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
     and tests do not hard-require the native ``chronicler_agents`` extension.
     """
     if ecology_runtime is not None:
-        return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime)
-    return _tick_ecology_python(world, climate_phase, acc)
+        return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime, economy_result)
+    return _tick_ecology_python(world, climate_phase, acc, economy_result)
 
 
 def _make_transient_ecology_runtime(world: "WorldState"):
@@ -770,7 +819,8 @@ def _make_transient_ecology_runtime(world: "WorldState"):
 
 
 def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
-                       ecology_runtime) -> list[Event]:
+                       ecology_runtime,
+                       economy_result: EconomyResult | None = None) -> list[Event]:
     """Rust-backed ecology tick with Python post-pass."""
     # 1. Rust ecology tick
     climate_u8 = _CLIMATE_PHASE_TO_U8.get(climate_phase.value, 0)
@@ -799,6 +849,7 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
 
     famine_events = _check_famine_yield(
         world, region_yields, climate_phase, famine_threshold, subsistence_base, acc,
+        economy_result=economy_result,
     )
 
     from chronicler.traditions import apply_soil_floor

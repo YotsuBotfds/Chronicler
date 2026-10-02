@@ -1923,7 +1923,11 @@ impl AgentSimulator {
         let ri_terrain = col_u8!(&ri_rb, "terrain");
         let ri_storage_pop = col_u16!(&ri_rb, "storage_population");
         let ri_rt0 = col_u8!(&ri_rb, "resource_type_0");
-        let ri_ey0 = col_f32!(&ri_rb, "resource_effective_yield_0");
+        let ri_rt1 = col_u8!(&ri_rb, "resource_type_1");
+        let ri_rt2 = col_u8!(&ri_rb, "resource_type_2");
+        let ri_y0 = col_f32!(&ri_rb, "resource_yield_0");
+        let ri_y1 = col_f32!(&ri_rb, "resource_yield_1");
+        let ri_y2 = col_f32!(&ri_rb, "resource_yield_2");
 
         // Fixed good slot columns
         const GOOD_NAMES: [&str; 8] = ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"];
@@ -1942,8 +1946,8 @@ impl AgentSimulator {
                 region_id: ri_region_ids.value(i),
                 terrain: ri_terrain.value(i),
                 storage_population: ri_storage_pop.value(i),
-                resource_type_0: ri_rt0.value(i),
-                resource_effective_yield_0: ri_ey0.value(i),
+                resource_types: [ri_rt0.value(i), ri_rt1.value(i), ri_rt2.value(i)],
+                resource_yields: [ri_y0.value(i), ri_y1.value(i), ri_y2.value(i)],
                 stockpile,
             });
         }
@@ -2052,14 +2056,19 @@ impl AgentSimulator {
         }
 
         // --- M58b: Build hybrid delivery input if in hybrid economy mode ---
-        // Note: On the first tick, the delivery buffer is empty (no merchant trips completed yet),
-        // so HybridDeliveryInput will have zero departures/arrivals/returns. The economy kernel
-        // still runs the hybrid code path but with no trade data — effectively producing abstract-
-        // equivalent results. This is the correct cold-start behavior.
+        // The route graph and persistent buffer may not exist before the first
+        // merchant tick. Hybrid cold-start still means zero realized deliveries;
+        // passing None would accidentally execute instantaneous abstract trade.
         let hybrid_delivery = if self.hybrid_economy_mode {
-            self.merchant_delivery_buf.as_ref().map(|buf| {
-                crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions)
-            })
+            let empty_buffer;
+            let buf = match self.merchant_delivery_buf.as_ref() {
+                Some(buf) => buf,
+                None => {
+                    empty_buffer = crate::merchant::DeliveryBuffer::new(n_regions);
+                    &empty_buffer
+                }
+            };
+            Some(crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions))
         } else {
             None
         };
