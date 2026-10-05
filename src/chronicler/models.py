@@ -8,9 +8,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
+
+from chronicler.experimental.fisheries import FisheryConfig
+
+StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
 
 # --- Enums ---
@@ -300,6 +304,15 @@ class Region(BaseModel):
     resource_types: list[int] = Field(default_factory=lambda: [255, 255, 255])
     resource_base_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     resource_reserves: list[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0])
+    fishery_stocks: list[StockFraction] = Field(
+        default_factory=lambda: [1.0, 1.0, 1.0], min_length=3, max_length=3,
+    )
+    fishery_yield_ratios: list[StockFraction] = Field(
+        default_factory=lambda: [1.0, 1.0, 1.0], min_length=3, max_length=3,
+    )  # Persisted previous ecology tick's catch constraint for Phase 2 economy.
+    fishery_catch_budgets: list[Annotated[float, Field(ge=0, allow_inf_nan=False)] | None] = Field(
+        default_factory=lambda: [None, None, None], min_length=3, max_length=3,
+    )  # None means no experiment tick has supplied a catch budget yet.
     river_mask: int = 0
     # M35b: Disease, Depletion & Environmental Events
     disease_baseline: float = 0.01
@@ -713,6 +726,7 @@ class WorldState(BaseModel):
     peace_turns: int = 0
     balance_of_power_turns: int = 0
     climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
+    fishery_experiment: FisheryConfig = Field(default_factory=FisheryConfig)
     fog_of_war: bool = False
     retired_persons: list[GreatPerson] = Field(default_factory=list)
     # M40: Dissolved edges per turn for narration (not serialized to bundle)

@@ -1565,6 +1565,11 @@ def run_turn(
     pending_injections: list | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
+    from chronicler.experimental.fisheries import require_fishery_runtime
+    require_fishery_runtime(world, ecology_runtime)
+    if world.fishery_experiment.enabled and agent_bridge is not None:
+        require_fishery_runtime(world, agent_bridge.ecology_simulator)
+        require_fishery_runtime(world, agent_bridge._sim)
     from chronicler.accumulator import StatAccumulator
     from chronicler.resources import (
         clear_active_trade_routes_snapshot,

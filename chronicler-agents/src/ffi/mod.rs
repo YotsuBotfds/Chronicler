@@ -1726,6 +1726,11 @@ impl AgentSimulator {
     // M54c: Politics FFI surface
     // -----------------------------------------------------------------------
 
+    /// Optional default-off ecology experiment: patch actual fish catch only.
+    pub fn apply_fishery_yield_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        batch::apply_fishery_yield_patch(&mut self.regions, &batch.into_inner())
+    }
+
     /// Set politics configuration from individual field arguments.
     #[allow(clippy::too_many_arguments)]
     pub fn set_politics_config(
@@ -1985,6 +1990,26 @@ impl AgentSimulator {
                 merchant_count,
                 wealthy_count,
             });
+        }
+
+        // Optional experiment: production may not exceed last ecology's fish catch.
+        // Adjust only kernel input, leaving permanent effective yields untouched.
+        if let Some(column) = ri_rb.column_by_name("fishery_catch_budget") {
+            use arrow::array::Array;
+            let budgets = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("fishery_catch_budget must be Float32"))?;
+            for i in 0..n_regions {
+                if budgets.is_null(i) { continue; }
+                let budget = budgets.value(i);
+                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_type_0 != 3 {
+                    return Err(PyValueError::new_err("invalid fishery catch budget"));
+                }
+                let farmers = agent_counts[i].farmer_count;
+                if farmers > 0 {
+                    region_inputs[i].resource_effective_yield_0 =
+                        region_inputs[i].resource_effective_yield_0.min(budget / farmers as f32);
+                }
+            }
         }
 
         // M58a: Second pass — count transit merchants by their origin region (anchor counting)

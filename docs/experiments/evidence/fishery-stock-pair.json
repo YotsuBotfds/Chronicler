@@ -1,0 +1,214 @@
+{
+  "baseline_commit": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "fixture_seed": 42,
+  "turns": 12,
+  "mode": "pure Python full turns; DEVELOP selector; no narrative calls",
+  "comparison_exclusions": [
+    "fishery_experiment",
+    "fishery_stocks",
+    "fishery_yield_ratios",
+    "fishery_catch_budgets"
+  ],
+  "disabled_equals_untouched_public_main": true,
+  "enabled_repeat_deterministic": true,
+  "enabled_stock_lower_than_control": true,
+  "control": {
+    "canonical_state_sha256": "bb83bf05b81782ddb2e0cfd186974e88a0f565e7e6c45eb456714108447871d5",
+    "fish_trace": [
+      {
+        "turn": 1,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 2,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 3,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 4,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 5,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 6,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 7,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 8,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 9,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 10,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 11,
+        "stock": 1,
+        "catch_budget": null
+      },
+      {
+        "turn": 12,
+        "stock": 1,
+        "catch_budget": null
+      }
+    ],
+    "terminal_turn": 12
+  },
+  "off": {
+    "canonical_state_sha256": "bb83bf05b81782ddb2e0cfd186974e88a0f565e7e6c45eb456714108447871d5",
+    "fish_trace": [
+      {
+        "turn": 1,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 2,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 3,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 4,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 5,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 6,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 7,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 8,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 9,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 10,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 11,
+        "stock": 1.0,
+        "catch_budget": null
+      },
+      {
+        "turn": 12,
+        "stock": 1.0,
+        "catch_budget": null
+      }
+    ],
+    "terminal_turn": 12
+  },
+  "on": {
+    "canonical_state_sha256": "bb83bf05b81782ddb2e0cfd186974e88a0f565e7e6c45eb456714108447871d5",
+    "fish_trace": [
+      {
+        "turn": 1,
+        "stock": 0.94375,
+        "catch_budget": 90.0
+      },
+      {
+        "turn": 2,
+        "stock": 0.8897499999999999,
+        "catch_budget": 90.0
+      },
+      {
+        "turn": 3,
+        "stock": 0.8391599999999999,
+        "catch_budget": 88.0
+      },
+      {
+        "turn": 4,
+        "stock": 0.7905935999999999,
+        "catch_budget": 88.0
+      },
+      {
+        "turn": 5,
+        "stock": 0.7439698559999999,
+        "catch_budget": 88.0
+      },
+      {
+        "turn": 6,
+        "stock": 0.6992110617599998,
+        "catch_budget": 88.0
+      },
+      {
+        "turn": 7,
+        "stock": 0.6672426192895998,
+        "catch_budget": 70.4
+      },
+      {
+        "turn": 8,
+        "stock": 0.6365529145180158,
+        "catch_budget": 70.4
+      },
+      {
+        "turn": 9,
+        "stock": 0.6070907979372951,
+        "catch_budget": 70.4
+      },
+      {
+        "turn": 10,
+        "stock": 0.5898071660198033,
+        "catch_budget": 52.800000000000004
+      },
+      {
+        "turn": 11,
+        "stock": 0.5732148793790112,
+        "catch_budget": 52.800000000000004
+      },
+      {
+        "turn": 12,
+        "stock": 0.5572862842038507,
+        "catch_budget": 52.800000000000004
+      }
+    ],
+    "terminal_turn": 12
+  },
+  "scope": "No comparison with private frozen candidate b665e198; no hybrid continuation claim"
+}
