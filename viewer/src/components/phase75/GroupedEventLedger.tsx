@@ -10,6 +10,8 @@ export interface GroupedEventLedgerProps {
   selectedCivilization?: string | null;
   /** Supply exported civilization names; otherwise names come from visible actors. */
   civilizations?: readonly string[];
+  /** Use an external shared selector; Reset filters keeps its actor scope. */
+  lockCivilization?: boolean;
   pageSize?: number;
   onSelectEvent?: (event: Event, sourceIndex: number) => void;
 }
@@ -25,7 +27,7 @@ export function GroupedEventLedger(props: GroupedEventLedgerProps) {
   return <LedgerQuery key={JSON.stringify([props.selectedCivilization ?? null])} {...props} />;
 }
 
-function LedgerQuery({ events, currentTurn, selectedCivilization, civilizations, pageSize = EVENT_LEDGER_PAGE_SIZE,
+function LedgerQuery({ events, currentTurn, selectedCivilization, civilizations, lockCivilization = false, pageSize = EVENT_LEDGER_PAGE_SIZE,
   onSelectEvent }: GroupedEventLedgerProps) {
   const id = useId();
   const [eventType, setEventType] = useState<string | null>(null);
@@ -73,6 +75,7 @@ function LedgerQuery({ events, currentTurn, selectedCivilization, civilizations,
         <option value="">All types</option>{types.map(type => <option key={type} value={JSON.stringify(type)}>{type || "Unspecified type"}</option>)}
       </select></div>
       <div><label htmlFor={`${id}-civ`}>Civilization</label><select id={`${id}-civ`} style={controlStyle}
+        disabled={lockCivilization}
         value={civilization === null ? "" : JSON.stringify(civilization)}
         onChange={e => setCivilization(e.target.value === "" ? null : JSON.parse(e.target.value) as string)}>
         <option value="">All civilizations</option>{civs.map(civ => <option key={civ} value={JSON.stringify(civ)}>{civ || "Empty actor name"}</option>)}
