@@ -105,6 +105,11 @@ for competing departures, death, exactly-once release, and slot reuse.
 
 ## Executed verification
 
+Aggregate follow-up completed full default suites on unchanged executable repair
+cc2179a: native Python 2951 passed/4 skipped; Rust default 821 passed/2 ignored.
+See mutual-aid-aggregate-gate.md/json for exact reasons and separate unaffected
+default-off equality versus corrected public-native accounting.
+
 | Lane | Result |
 |---|---|
 | Initial Python-only aid suites | 39 passed, 7 skipped |

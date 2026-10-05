@@ -1,0 +1,132 @@
+{
+  "aggregate_default_suite_gate": "passed_with_documented_existing_skips",
+  "private_only": true,
+  "publication_held": true,
+  "executable_repair_commit": "cc2179a17c4da529315d3bae53015d48b8c75e3e",
+  "tested_tree": "bf81fbfa24404416ee35b25a79beeb3141fe1c72",
+  "reviewed_delivery_before_aggregate": "41d679d1fee70fb765c0196a7ac033330c952be7",
+  "all_262_tested_source_and_build_hashes_unchanged": true,
+  "native_repaired_sha256": "8f4ee68be6ce797854df323418789169ee113ee4f5f0e4508028dffee4a3e931",
+  "public_base_source": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "public_native_sha256": "dbdb0e194deb726c16073bc7c3e4ec5fe23694e575fd201b605ffb54bf2a6672",
+  "full_native_python": {
+    "command": "CHRONICLER_UNTOUCHED_SOURCE=/workspace/Chronicler .venv/bin/python [verify real native classes and binary] pytest.main([-q,-rs,--junitxml=...])",
+    "collected": 2955,
+    "passed": 2951,
+    "failed": 0,
+    "skipped": 4,
+    "exit_code": 0,
+    "duration_seconds": 118.265,
+    "skips": [
+      {
+        "test": "tests.test_m36_regression.TestInvestCultureAcceleration.test_invest_culture_directional",
+        "message": "Insufficient data: invest_culture seeds=50, no-invest seeds=0"
+      },
+      {
+        "test": "tests.test_m38b_regression.TestFullCascade.test_full_cascade_end_to_end",
+        "message": "Requires full world setup"
+      },
+      {
+        "test": "tests.test_m38b_regression.TestPilgrimageFrequency.test_pilgrimage_frequency_calibration",
+        "message": "Calibration test"
+      },
+      {
+        "test": "tests.test_m51_legacy_integration.test_legacy_determinism",
+        "message": "chronicler_agents Rust extension not built"
+      }
+    ],
+    "native_missing_api_note": "The M51 test catches ImportError for APIs not exported by chronicler_agents (AgentPool, Occupation, MemoryIntent etc). Its extension-not-built skip wording is misleading; the compiled extension was present and verified. No new API was added to satisfy this unrelated test."
+  },
+  "full_rust_default": {
+    "command": "PYO3_PYTHON=/usr/bin/python3.13 LIBRARY_PATH=/workspace/python-libs cargo test --locked --manifest-path chronicler-agents/Cargo.toml --quiet",
+    "profile": "default/debug",
+    "passed": 821,
+    "failed": 0,
+    "ignored": 2,
+    "exit_code": 0,
+    "ignored_tests": [
+      "regression_6k_24r_under_3s",
+      "regression_10k_24r_under_6s"
+    ],
+    "ignored_note": "Existing #[ignore] performance benchmarks, outside the default suite."
+  },
+  "unaffected_exact_default_off_equivalence": [
+    {
+      "seed": 42,
+      "turns": 100,
+      "num_regions": 8,
+      "num_civs": 3,
+      "agent_mode": "off",
+      "exact_normalized_world_equality": true,
+      "canonical_json_sha256": "2b4f916b35e248d2aec2774b31603d8abd3afdf22c18006c079d35ad06d4e5fe"
+    },
+    {
+      "seed": 77,
+      "turns": 100,
+      "num_regions": 8,
+      "num_civs": 3,
+      "agent_mode": "off",
+      "exact_normalized_world_equality": true,
+      "canonical_json_sha256": "c4841c231dc7d210d645284a43f80bd12d105813e1eeee20bad630f308548333"
+    },
+    {
+      "seed": 1337,
+      "turns": 100,
+      "num_regions": 8,
+      "num_civs": 3,
+      "agent_mode": "off",
+      "exact_normalized_world_equality": true,
+      "canonical_json_sha256": "76d36edaef85c6bf548243f2265cd70a32b9fef430dded5339c88f5352974544"
+    },
+    {
+      "seed": 2026,
+      "turns": 100,
+      "num_regions": 8,
+      "num_civs": 3,
+      "agent_mode": "off",
+      "exact_normalized_world_equality": true,
+      "canonical_json_sha256": "3bae21b8073e35cdbcaa3f9e492bcd25b732c05f737241b1975cfd690fc43744"
+    }
+  ],
+  "same_repaired_kernel_disabled_python_control": {
+    "turns": 15,
+    "all_normalized_history_fields_equal": true,
+    "native_commitments_compared": true,
+    "source": "tests/test_mutual_aid_adversarial.py"
+  },
+  "affected_cases_corrected_accounting": {
+    "aid_imported": false,
+    "aid_enabled": false,
+    "public_probe": "receipts/public-base-cargo-probe.json",
+    "repaired_probe": "receipts/repaired-cargo-probe.json",
+    "departure_overdraw": {
+      "turn": 5,
+      "salt_stock": 4.3744096755981445,
+      "public_departure": 6.0,
+      "public_raw_negative_stock": -1.6255903244018555,
+      "public_clamp_floor_loss": 1.6255903244018555,
+      "repaired_departure": 4.0,
+      "repaired_clamp_floor_loss": 0.0
+    },
+    "death_trip_leak": {
+      "agent_id": 41,
+      "turn": 5,
+      "region": 4,
+      "node": "Way2",
+      "return_origin": "A",
+      "return_good": "grain",
+      "returned_qty": 1.0,
+      "public_final_outstanding": 0.9999997019767761,
+      "public_final_live_cargo": 0.0,
+      "repaired_final_outstanding": 0.0,
+      "repaired_final_live_cargo": 0.0
+    }
+  },
+  "comparison_separation": "Exact equality is asserted only for unaffected aggregate controls and Python sources using the same repaired kernel. Bug-triggering public-vs-repaired native runs assert corrected accounting rather than history equality.",
+  "remaining_limits": [
+    "Four listed Python skips and two ignored Rust performance benchmarks",
+    "No full hybrid checkpoint continuation or new ecology scenario",
+    "No full large-batch simulation validation profile",
+    "No publication or policy/default changes"
+  ]
+}

@@ -479,5 +479,7 @@
     "No calibrated famine, population benefit, policy tuning, or full validation profile",
     "Historical aggregate logs outside input archive were not inspected; reported aggregate control was freshly executed",
     "Original-native behavior equality is not asserted after intentional lifecycle repairs"
-  ]
+  ],
+  "aggregate_followup": "mutual-aid-aggregate-gate.json",
+  "aggregate_default_suite_gate": "passed_with_documented_existing_skips"
 }
