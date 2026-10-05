@@ -226,6 +226,26 @@ class RegionStockpile(BaseModel):
     goods: dict[str, float] = Field(default_factory=dict)
 
 
+class MutualAidState(BaseModel):
+    """Lagged local food-stress memory, scoped to the current controller."""
+
+    controller: str
+    stress_streak: int = Field(default=0, ge=0)
+    last_observed_turn: int
+    food_sufficiency: float = Field(ge=0.0, le=2.0)
+
+
+class MutualAidTransfer(BaseModel):
+    turn: int
+    controller: str
+    donor: str
+    recipient: str
+    sent: dict[str, float]
+    received: dict[str, float]
+    transit_loss: float
+    treasury_cost: int
+
+
 class RegionAsabiya(BaseModel):
     """Per-region asabiya state with frontier diagnostics (M55b)."""
     asabiya: float = 0.5
@@ -736,6 +756,11 @@ class WorldState(BaseModel):
     tuning_overrides: dict[str, float] = Field(default_factory=dict)
     # M27: Agent integration
     agent_mode: str | None = None       # None/"off", "demographics-only", "shadow", "hybrid"
+    # Experimental social response; saved separately from ecology/demography.
+    mutual_aid_enabled: bool = False
+    mutual_aid_state: dict[str, MutualAidState] = Field(default_factory=dict)
+    mutual_aid_last_dispatch_turn: int | None = None
+    mutual_aid_last_transfers: list[MutualAidTransfer] = Field(default_factory=list)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers

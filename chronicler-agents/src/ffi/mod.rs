@@ -2447,6 +2447,50 @@ impl AgentSimulator {
         Ok(stats)
     }
 
+    /// Read-only physical stock commitments for external redistribution.
+    /// Hybrid stocks still include Loading reservations and departures awaiting
+    /// the next economy tick. Arrivals/returns are not yet spendable; older
+    /// in-transit cargo has already been debited and must not be subtracted again.
+    /// Abstract economy modes expose zero commitments (shadow cargo is virtual).
+    pub fn get_stockpile_commitments(&self) -> PyResult<PyRecordBatch> {
+        use arrow::array::Float32Builder;
+        use crate::economy::NUM_GOODS;
+
+        let n = self.num_regions;
+        let mut rid = UInt16Builder::with_capacity(n * NUM_GOODS);
+        let mut slot = UInt8Builder::with_capacity(n * NUM_GOODS);
+        let mut reserved = Float32Builder::with_capacity(n * NUM_GOODS);
+        let mut departure = Float32Builder::with_capacity(n * NUM_GOODS);
+        for region in 0..n {
+            for good in 0..NUM_GOODS {
+                rid.append_value(region as u16);
+                slot.append_value(good as u8);
+                let (res, dep) = if self.hybrid_economy_mode {
+                    let res = self.merchant_ledger.as_ref()
+                        .and_then(|ledger| ledger.reserved.get(region))
+                        .map_or(0.0, |goods| goods[good]);
+                    let dep = self.merchant_delivery_buf.as_ref()
+                        .and_then(|buf| buf.departure_debits.get(region))
+                        .map_or(0.0, |goods| goods[good]);
+                    (res, dep)
+                } else { (0.0, 0.0) };
+                reserved.append_value(res);
+                departure.append_value(dep);
+            }
+        }
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("region_id", DataType::UInt16, false),
+            Field::new("good_slot", DataType::UInt8, false),
+            Field::new("reserved", DataType::Float32, false),
+            Field::new("pending_departure", DataType::Float32, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![
+            Arc::new(rid.finish()), Arc::new(slot.finish()),
+            Arc::new(reserved.finish()), Arc::new(departure.finish()),
+        ]).map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
+
     /// M58b: Non-draining read of cumulative delivery counters.
     /// Run-lifetime monotonic — per-turn deltas derived by diffing consecutive reads.
     #[pyo3(name = "get_delivery_diagnostics")]
@@ -2519,6 +2563,45 @@ mod tests {
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    #[test]
+    fn test_stockpile_commitments_read_only_and_hybrid_scoped() {
+        use arrow::array::Float32Array;
+        use crate::merchant::{DeliveryBuffer, ShadowLedger};
+        let mut sim = AgentSimulator::new(2, 42);
+        let mut ledger = ShadowLedger::new(2);
+        ledger.reserved[0][0] = 7.0;
+        ledger.in_transit_out[0][0] = 99.0; // older cargo not debited twice
+        ledger.pending_delivery[1][0] = 123.0; // cumulative, not spendable stocks
+        let mut buffer = DeliveryBuffer::new(2);
+        buffer.record_departure(0, 1, 5.0);
+        buffer.record_arrival(0, 1, 0, 9.0);
+        buffer.record_return(0, 0, 3.0);
+        sim.merchant_ledger = Some(ledger);
+        sim.merchant_delivery_buf = Some(buffer);
+        let read = |sim: &AgentSimulator, column: &str| -> Vec<f32> {
+            let batch = sim.get_stockpile_commitments().unwrap().into_inner();
+            assert_eq!(batch.num_rows(), 16);
+            batch.column_by_name(column).unwrap().as_any()
+                .downcast_ref::<Float32Array>().unwrap().values().to_vec()
+        };
+        assert_eq!(read(&sim, "reserved"), vec![0.0; 16]);
+        assert_eq!(read(&sim, "pending_departure"), vec![0.0; 16]);
+        sim.set_hybrid_economy_mode(true);
+        let res = read(&sim, "reserved");
+        let dep = read(&sim, "pending_departure");
+        assert_eq!(res[0], 7.0);
+        assert_eq!(res.iter().sum::<f32>(), 7.0);
+        assert_eq!(dep[1], 5.0);
+        assert_eq!(dep.iter().sum::<f32>(), 5.0);
+        assert_eq!(read(&sim, "reserved"), res);
+        assert_eq!(read(&sim, "pending_departure"), dep);
+        let buffer = sim.merchant_delivery_buf.as_ref().unwrap();
+        assert_eq!(buffer.arrival_imports.len(), 1);
+        assert_eq!(buffer.return_credits[0][0], 3.0);
+        assert_eq!(buffer.diagnostics.total_departures[0][1], 5.0);
+        assert_eq!(sim.merchant_ledger.as_ref().unwrap().in_transit_out[0][0], 99.0);
+    }
 
     #[test]
     fn test_personality_label_bold() {

@@ -1627,10 +1627,15 @@ def run_turn(
     set_active_trade_routes_snapshot(world, phase2_trade_routes)
 
     economy_result = None
+    snapshot = None
     if agent_bridge is not None:
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
+            if world.mutual_aid_enabled:
+                from chronicler.mutual_aid import dispatch_mutual_aid, read_stockpile_commitments
+                commitments = read_stockpile_commitments(world, agent_bridge._sim)
+                turn_events.extend(dispatch_mutual_aid(world, snapshot, acc=acc, commitments=commitments))
             from chronicler.resources import get_season_id
             from chronicler.economy import (
                 build_economy_region_input_batch,
@@ -1673,6 +1678,10 @@ def run_turn(
                     world, stockpiles, economy_tracker, economy_result, region_map,
                 )
                 turn_events.extend(shock_events)
+
+    if world.mutual_aid_enabled:
+        from chronicler.mutual_aid import observe_mutual_aid
+        observe_mutual_aid(world, economy_result, snapshot)
 
     # Phase 2: Automatic Effects (NEW)
     turn_events.extend(apply_automatic_effects(world, acc=acc, cross_routes=phase2_trade_routes))
