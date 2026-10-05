@@ -1,0 +1,74 @@
+{
+  "manifest_version": 1,
+  "lane": "replay/checkpoint reliability",
+  "branch": "checkpoint-replay-validator",
+  "baseline": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "baseline_scope": "Public baseline including PR13 only; private frozen b665e198 science not read or used",
+  "transfer_files": [
+    "src/chronicler/checkpoint_replay.py",
+    "tests/test_checkpoint_replay.py",
+    "docs/checkpoint-replay.md",
+    "docs/handoffs/checkpoint-replay-evidence.json",
+    "docs/handoffs/checkpoint-replay-transfer.json"
+  ],
+  "commit_resolution": "git log -1 --format=%H -- src/chronicler/checkpoint_replay.py",
+  "implemented": [
+    "Opt-in Python-only off-mode validator with deterministic ActionEngine, no-op narration, and absolute turn seed schedule",
+    "Versioned envelope with schema/source/Python/platform/dependency compatibility checks and payload integrity digests",
+    "Exact tracked tech-focus delta sidecar preserves clamped bonus reversal without changing raw WorldState save/load",
+    "Checkpoint-boundary and every-resumed-turn full persisted-state/event/sidecar comparisons; first divergence location and hashes",
+    "Native/agent modes and incomplete turn boundaries fail explicitly; missing active focus tracking is never inferred",
+    "Strict JSON, nested world types and unknown field checks; semantic key-collision rejection; atomic file writes",
+    "CLI source and existing evidence preservation on success/error paths"
+  ],
+  "verified_findings": [
+    "Raw WorldState save/load omits _focus_applied_deltas: metallurgy applied at military 99 adds 1, but raw reload removes 15 and produces 85; envelope continuation restores 99",
+    "Resource-suspension enum-name keys normalize to integer keys under existing Region semantics; canonical comparison avoids false divergence",
+    "Agent/native internal state, seed/turn context, registries, bridge demand windows and economy tracker history are not fully exported by the existing Python snapshot boundary"
+  ],
+  "validation": {
+    "command": ".venv/bin/python -m pytest -q tests/test_checkpoint_replay.py tests/test_models.py tests/test_simulation.py tests/test_main.py tests/test_tech_focus.py tests/test_artifact_io.py",
+    "result": "283 passed in 4.89s",
+    "focused_tests": 67,
+    "existing_tests": 216,
+    "cross_process": "Actual CLI checkpoint at seed 42/turn 12 under PYTHONHASHSEED=11; separate process loads and reaches turn 30 under PYTHONHASHSEED=97 with identical final hash",
+    "long_traces": "Seeds 1/42/73; 4 civilizations, 8 regions; 250 turns; split 0/12/249 respectively; all PASS, 489 resumed turns compared plus checkpoint boundaries",
+    "evidence": "docs/handoffs/checkpoint-replay-evidence.json",
+    "local_full_artifacts": "output/checkpoint-replay-final/seed_{1,42,73}_split_{0,12,249}/checkpoint.json and report.json",
+    "native_tests": "Not required for this explicit Python-only path; native checkpoint support is not implemented",
+    "older_pydantic": "Compatibility with declared Pydantic 2.x APIs reviewed; runtime tested on 2.12.5, not executed against older installations"
+  },
+  "reviewers": [
+    {
+      "tier": 1,
+      "task": "/root/replay_contract_review",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "fresh": true,
+      "scope": "Persistence and continuation contract audit with concrete capped-focus repro",
+      "outcome": "Focus-sidecar, unknown-field, and boundary-guard findings implemented"
+    },
+    {
+      "tier": 2,
+      "task": "/root/replay_implementation_review",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "fresh": true,
+      "scope": "Independent implementation/tests review and fix verification",
+      "outcome": "Early-argument source/evidence overwrite and invalid-UTF8 findings fixed; 67 focused tests passed on verification; no remaining blockers in reviewed scope"
+    }
+  ],
+  "integration_contract": {
+    "default_behavior": "Existing simulation modules, production CLI, WorldState.save/load and dependencies unchanged",
+    "sidecar": "Civilization-order-indexed _focus_applied_deltas only; no inferred historical values",
+    "unsupported": ["native-off", "hybrid", "shadow", "demographics-only", "narrative/memory/viewer-history continuation", "injections or interactive callbacks"],
+    "transfer_caution": "PASS is trace-specific. Source/schema/runtime fingerprint changes invalidate checkpoint loading; regenerate evidence after integration with other lanes",
+    "mechanisms_untouched": ["fishery stock", "mutual aid", "fertility memory"],
+    "promotion": "Local commit only; no public push, merge, default promotion, or Drive action"
+  },
+  "remaining_limitations": [
+    "Full native/agent state serialization and restoration is absent; these modes reject explicitly",
+    "Existing raw production resume still omits focus tracking; this isolated tool does not modify its semantics",
+    "Direct save_checkpoint callers must provide a completed Python-only turn boundary; the validator controls its own runtime path"
+  ]
+}
