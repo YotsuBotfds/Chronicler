@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
   inspectSettlementHistory, isSettlementId, settlementOptions, settlementPopulationHistory,
   type RecordedSettlementValue, type SettlementSnapshot,
@@ -24,6 +24,15 @@ function PopulationSamples({ history, requestedTurn, settlementId, onSeek }: Omi
   const [page, setPage] = useState(0);
   const rows = settlementPopulationHistory(history, requestedTurn, settlementId);
   const visiblePage = Math.min(page, Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1));
+  const previousButton = useRef<HTMLButtonElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
+  const pendingFocus = useRef<"previous" | "next" | null>(null);
+  useLayoutEffect(() => {
+    if (pendingFocus.current) {
+      (pendingFocus.current === "previous" ? previousButton : nextButton).current?.focus();
+      pendingFocus.current = null;
+    }
+  }, [visiblePage]);
   return <>
     <p className="phase75-detail-copy">Recorded population samples through turn {turnLabel(requestedTurn)}, in source order. Gaps have no measured value. No growth curve is interpolated.</p>
     <div style={{ overflowX: "auto" }}>
@@ -40,8 +49,14 @@ function PopulationSamples({ history, requestedTurn, settlementId, onSeek }: Omi
     <p>{rows.length === 0 ? "No timestamped historical samples in this window."
       : `${visiblePage * PAGE_SIZE + 1}–${Math.min((visiblePage + 1) * PAGE_SIZE, rows.length)} of ${rows.length} historical samples`}</p>
     <div className="phase75-stat-row">
-      <button type="button" disabled={visiblePage === 0} onClick={() => setPage(visiblePage - 1)}>Previous samples</button>
-      <button type="button" disabled={(visiblePage + 1) * PAGE_SIZE >= rows.length} onClick={() => setPage(visiblePage + 1)}>Next samples</button>
+      <button ref={previousButton} type="button" disabled={visiblePage === 0} onClick={event => {
+        if (visiblePage === 1 && document.activeElement === event.currentTarget) pendingFocus.current = "next";
+        setPage(visiblePage - 1);
+      }}>Previous samples</button>
+      <button ref={nextButton} type="button" disabled={(visiblePage + 1) * PAGE_SIZE >= rows.length} onClick={event => {
+        if ((visiblePage + 2) * PAGE_SIZE >= rows.length && document.activeElement === event.currentTarget) pendingFocus.current = "previous";
+        setPage(visiblePage + 1);
+      }}>Next samples</button>
     </div>
   </>;
 }

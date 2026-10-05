@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { GroupedEventLedger } from "../components/phase75/GroupedEventLedger";
 import { SettlementInspector } from "../components/phase75/SettlementInspector";
 import { combinedCivilizations, combinedEvents, combinedHistories, defaultSettlement,
@@ -8,6 +8,7 @@ import "./combined-inspection.css";
 /** Isolated fixture composition. Ordinary viewer entry points never import it. */
 export function CombinedInspectionDemo() {
   const id = useId();
+  const turnControl = useRef<HTMLInputElement>(null);
   const [requestedTurn, setRequestedTurn] = useState(3);
   const [civilization, setCivilization] = useState<ExampleCivilization>("Alpha");
   const [settlementId, setSettlementId] = useState<number | null>(7);
@@ -23,7 +24,7 @@ export function CombinedInspectionDemo() {
           Events match civilization actor names; they contain no settlement IDs. Settlement selection does not imply an event-to-settlement link.</p>
         <div className="combined-controls">
           <label htmlFor={`${id}-turn`}>Requested turn: <output>{requestedTurn}</output>
-            <input id={`${id}-turn`} aria-label="Requested turn" type="range" min={1} max={32} step={1}
+            <input ref={turnControl} id={`${id}-turn`} aria-label="Requested turn" type="range" min={1} max={32} step={1}
               value={requestedTurn} onChange={event => setRequestedTurn(Number(event.target.value))} />
           </label>
           <label htmlFor={`${id}-civilization`}>Example civilization
@@ -48,7 +49,8 @@ export function CombinedInspectionDemo() {
           <GroupedEventLedger key={`ledger:${artifact}`} events={combinedEvents} currentTurn={requestedTurn}
             selectedCivilization={civilization} civilizations={combinedCivilizations} lockCivilization />
           <SettlementInspector key={`settlement:${artifact}:${civilization}`} history={combinedHistories[civilization]}
-            requestedTurn={requestedTurn} settlementId={settlementId} onSelectSettlement={setSettlementId} onSeek={setRequestedTurn} />
+            requestedTurn={requestedTurn} settlementId={settlementId} onSelectSettlement={setSettlementId}
+            onSeek={turn => { setRequestedTurn(turn); turnControl.current?.focus(); }} />
         </>}
       </div>
     </div>

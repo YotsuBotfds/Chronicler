@@ -139,6 +139,22 @@ describe("isolated combined inspection", () => {
     expect(within(ledger()).getByRole("status")).toHaveTextContent("of 58 events");
   });
 
+  it("keeps keyboard focus on usable sample navigation and returns population seeks to the shared turn control", () => {
+    render(<CombinedInspectionDemo />); settlement("9"); turn(25); disclose("Recorded population history");
+    const next = within(inspector()).getByRole("button", { name: "Next samples" });
+    const previous = within(inspector()).getByRole("button", { name: "Previous samples" });
+    next.focus(); fireEvent.click(next);
+    expect(previous).toHaveFocus(); expect(next).toBeDisabled();
+    fireEvent.click(previous);
+    expect(next).toHaveFocus(); expect(previous).toBeDisabled();
+    const seek = within(inspector()).getByRole("button", { name: "Inspect settlement at turn 2" });
+    seek.focus(); fireEvent.click(seek);
+    expect(screen.getByLabelText("Requested turn")).toHaveFocus();
+    expect(screen.getByLabelText("Requested turn")).toHaveValue("2");
+    expect(population()).toHaveTextContent("40");
+    expect(within(ledger()).getByRole("status")).toHaveTextContent("1–2 of 2 events");
+  });
+
   it("close/reopen and source reload discard interrupted local UI while respecting changed shared controls", () => {
     render(<CombinedInspectionDemo />);
     fireEvent.click(within(ledger()).getByRole("button", { name: "Next events" })); expandGroups();

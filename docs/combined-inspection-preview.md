@@ -45,6 +45,10 @@ gaps never acquire inferred values. Beta ID 21 has a distinct population and reg
 Close/reopen discards interrupted local UI while using the current shared controls;
 Reload synthetic fixture restores Alpha/7/turn 3 and remounts both panels.
 
+Keyboard pagination transfers focus to the available sample-navigation button at
+each boundary. A population-row seek moves focus to the shared Requested turn
+slider so it remains usable after the exact-turn table remounts.
+
 Focused verification:
 
 ```sh

@@ -141,14 +141,21 @@ def main() -> None:
             expect(inspector.get_by_text("/history/23/active_settlements/0/population_estimate", exact=True)).to_be_visible()
             table = inspector.get_by_role("table")
             sample_turns = [int(value) for value in table.locator("tbody tr td:first-child").all_text_contents()]
-            inspector.get_by_role("button", name="Next samples", exact=True).click()
+            next_samples = inspector.get_by_role("button", name="Next samples", exact=True)
+            previous_samples = inspector.get_by_role("button", name="Previous samples", exact=True)
+            next_samples.focus(); next_samples.press("Enter")
+            expect(previous_samples).to_be_focused()
             sample_turns += [int(value) for value in table.locator("tbody tr td:first-child").all_text_contents()]
             assert sample_turns == [value for value in range(1, 26) if value != 4], sample_turns
+            previous_samples.press("Enter")
+            expect(next_samples).to_be_focused()
             screenshot("05-stale-history-provenance")
             scrub(24)
             expect(inspector.get_by_role("status")).to_contain_text("source turn 23 · observation age 1 turns")
-            inspector.get_by_role("button", name="Inspect settlement at turn 2", exact=True).click()
+            seek = inspector.get_by_role("button", name="Inspect settlement at turn 2", exact=True)
+            seek.focus(); seek.press("Enter")
             expect(slider).to_have_value("2")
+            expect(slider).to_be_focused()
             population("40")
             expect(ledger.get_by_role("status")).to_contain_text("1–2 of 2 events")
             scrub(6)
