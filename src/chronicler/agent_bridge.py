@@ -105,12 +105,23 @@ class AgentMemoryRecord:
 
 def compute_gini(wealth_array: np.ndarray) -> float:
     """Gini coefficient from a 1D array of non-negative values."""
-    sorted_w = np.sort(wealth_array)
+    sorted_w = np.sort(np.asarray(wealth_array, dtype=np.float64))
     n = len(sorted_w)
-    if n == 0 or sorted_w.sum() == 0:
+    if n == 0:
         return 0.0
-    index = np.arange(1, n + 1)
-    return float((2.0 * (index * sorted_w).sum() / (n * sorted_w.sum())) - (n + 1) / n)
+    if not np.isfinite(sorted_w).all():
+        return float("nan")
+    scale = sorted_w[-1]
+    if scale == 0:
+        return 0.0
+    # Each sorted gap separates i poorer and n-i richer residents. Summing
+    # these nonnegative pairwise differences avoids cancellation near equality.
+    # Scale before reductions to avoid overflow, but subtract before scaling to
+    # preserve adjacent-float gaps that normalizing each value could round away.
+    total = (sorted_w / scale).sum()
+    index = np.arange(1, n, dtype=np.float64)
+    gaps = np.diff(sorted_w) / scale
+    return float(np.dot(index * (n - index), gaps) / (n * total))
 
 
 def civ_personality_mean(
