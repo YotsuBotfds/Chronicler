@@ -416,14 +416,14 @@ def apply_automatic_effects(
             civ.merc_pressure_turns = 0
     # Mercenary hiring: underdog priority in active wars
     for merc in world.mercenary_companies:
-        if not merc["available"] or merc["hired_by"]:
+        if merc["strength"] <= 0 or not merc["available"] or merc["hired_by"]:
             continue
         # Find weakest belligerent with treasury
         candidates = []
         for war in world.active_wars:
             for civ_name in war:
                 c = get_civ(world, civ_name)
-                if c and c.treasury >= 10:
+                if c and c.regions and c.treasury >= 10:
                     candidates.append(c)
         if candidates:
             candidates.sort(key=lambda c: (c.military, -c.treasury))
@@ -444,10 +444,13 @@ def apply_automatic_effects(
     # Disband hired mercs whose war ended
     for merc in list(world.mercenary_companies):
         if merc["hired_by"]:
+            hirer = get_civ(world, merc["hired_by"])
             still_at_war = any(merc["hired_by"] in w for w in world.active_wars)
-            if not still_at_war:
-                merc["hired_by"] = None
-                merc["available"] = True
+            if not still_at_war or hirer is None or not hirer.regions:
+                # M13 contracts disband rather than returning to the hire pool.
+                # Military may have changed through combat or other effects;
+                # do not infer a reversible grant from the current scalar.
+                world.mercenary_companies.remove(merc)
     # Remove dead mercs
     world.mercenary_companies = [m for m in world.mercenary_companies if m["strength"] > 0]
 
