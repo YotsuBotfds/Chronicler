@@ -237,9 +237,11 @@ class TestComputeAccuracy:
         assert compute_accuracy(c1, c2, world) == pytest.approx(0.55)
 
     def test_hostage_gp_bonus(self):
-        gp = GreatPerson(name="Prince", role="hostage", trait="noble",
-                         civilization="Civ2", origin_civilization="Civ2",
-                         alive=True, active=True, born_turn=1, is_hostage=True)
+        from chronicler.relationships import capture_hostage
+
+        gp = GreatPerson(name="Prince", role="general", trait="noble",
+                         civilization="Civ1", origin_civilization="Civ1",
+                         alive=True, active=True, born_turn=1)
         # Use military-dominant faction so no faction bonus
         military_factions = FactionState(influence={
             FactionType.MILITARY: 0.6,
@@ -249,7 +251,10 @@ class TestComputeAccuracy:
         c1 = _civ("Civ1", great_persons=[gp], factions=military_factions)
         c2 = _civ("Civ2")
         world = WorldState(name="t", seed=42, civilizations=[c1, c2])
-        # no adjacency, just hostage(0.3)
+        capture_hostage(c1, c2, world)
+        # No adjacency; the hostage reports home from the captor's roster.
+        assert gp not in c1.great_persons
+        assert gp in c2.great_persons
         assert compute_accuracy(c1, c2, world) == pytest.approx(0.3)
 
     def test_grudge_bonus(self):

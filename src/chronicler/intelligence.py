@@ -93,11 +93,17 @@ def compute_accuracy(observer: Civilization, target: Civilization,
 
     # M17 great person bonuses
     for gp in observer.great_persons:
-        if gp.alive and gp.active:
+        if gp.alive and gp.active and not gp.is_hostage:
             if gp.role == "merchant":
                 accuracy += 0.05
-            if gp.is_hostage and gp.civilization == target.name:
-                accuracy += 0.3
+
+    # Hostages live on the captor's roster and report home about that captor.
+    # This is one contact source per pair, regardless of the number held.
+    if any(gp.alive and gp.active and gp.is_hostage
+           and gp.origin_civilization == observer.name
+           and gp.civilization == target.name
+           for gp in target.great_persons):
+        accuracy += 0.3
 
     # M17 grudge bonus
     for g in observer.leader.grudges:
