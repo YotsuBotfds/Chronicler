@@ -41,6 +41,11 @@ def run_fixture(source: Path, enabled: bool, turns: int) -> dict:
         trace.append({"turn": world.turn, "stock": getattr(region, "fishery_stocks", [1])[0],
                       "catch_budget": getattr(region, "fishery_catch_budgets", [None])[0]})
     state = world.model_dump(mode="json")
+    # Preserve every shared field; remove only verified dormant aid additions.
+    for field, default in (("mutual_aid_enabled", False), ("mutual_aid_state", {}),
+                           ("mutual_aid_last_dispatch_turn", None), ("mutual_aid_last_transfers", [])):
+        if field in state:
+            assert state.pop(field) == default, (field, "aid unexpectedly active")
     state.pop("fishery_experiment", None)
     for row in state["regions"]:
         for field in EXPERIMENT_FIELDS:
@@ -90,7 +95,9 @@ def main():
     depletion = on["fish_trace"][-1]["stock"] < off["fish_trace"][-1]["stock"]
     report = {"baseline_commit": baseline_head, "fixture_seed": 42, "turns": args.turns,
               "mode": "pure Python full turns; DEVELOP selector; no narrative calls",
-              "comparison_exclusions": ["fishery_experiment", *EXPERIMENT_FIELDS],
+              "comparison_exclusions": ["fishery_experiment", *EXPERIMENT_FIELDS,
+                                        "mutual_aid_enabled", "mutual_aid_state",
+                                        "mutual_aid_last_dispatch_turn", "mutual_aid_last_transfers"],
               "disabled_equals_untouched_public_main": off_matches,
               "enabled_repeat_deterministic": on_deterministic,
               "enabled_stock_lower_than_control": depletion,

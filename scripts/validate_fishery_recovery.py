@@ -22,6 +22,12 @@ TOLERANCE = 1e-9
 
 def canonical_hash(world) -> str:
     state = world.model_dump(mode="json")
+    # Joint integration adds dormant aid metadata to this fishery-only fixture.
+    # Assert its exact defaults before projecting shared baseline values.
+    for field, default in (("mutual_aid_enabled", False), ("mutual_aid_state", {}),
+                           ("mutual_aid_last_dispatch_turn", None), ("mutual_aid_last_transfers", [])):
+        if field in state:
+            assert state.pop(field) == default, (field, "aid unexpectedly active")
     state.pop("fishery_experiment", None)
     for region in state["regions"]:
         for field in SCHEMA_ADDITIONS:

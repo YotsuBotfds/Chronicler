@@ -88,6 +88,9 @@ content/formatting to unchanged independent golden hashes. It also repairs the
 aid-only legacy control's fishery metadata comparison. Goldens and production
 serialization are unchanged. Raw artifact failure evidence remains in delivery;
 projected equality is not described as unmodified raw artifact equality.
+The two standalone fishery public-base validation scripts similarly assert and
+remove only the newly added dormant aid metadata from their shared-value hashes.
+Their before-failure and after-pass receipts remain separate.
 
 The corrected cargo control separates intentional base corrections from flag
 effects; its full shared world values, native snapshots, stocks/cargo/treasury
