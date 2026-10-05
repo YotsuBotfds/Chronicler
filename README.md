@@ -213,6 +213,8 @@ python scripts/m53b_run_validation.py --profile full --output-root output/m53/fu
 
 For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.
 
+See [ecology/goods coupling validation](docs/validation/economy-coupling.md) for harvest timing, finite resource labor, reserve-aware famine, and reproducible paired/native accounting experiments.
+
 ## Project Structure
 
 ```

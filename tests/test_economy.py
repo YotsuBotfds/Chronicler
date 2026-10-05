@@ -1,4 +1,5 @@
 """Unit tests for M42 goods production & trade economy module."""
+import pytest
 
 import math
 from unittest.mock import MagicMock
@@ -361,6 +362,7 @@ def _make_test_world():
     plains.adjacencies = ["Hills"]
     plains.resource_types = [0, 1, 3]
     plains.resource_effective_yields = [1.5, 0.5, 0.3]
+    plains.resource_current_yields = [1.5, 0.5, 0.3]
     plains.terrain = "plains"
     plains.population = 70
     plains.stockpile = RegionStockpile(goods={"grain": 10.0})
@@ -370,6 +372,7 @@ def _make_test_world():
     hills.adjacencies = ["Plains"]
     hills.resource_types = [5, 1, 4]
     hills.resource_effective_yields = [0.8, 0.6, 0.4]
+    hills.resource_current_yields = [0.8, 0.6, 0.4]
     hills.terrain = "mountains"
     hills.population = 65
     hills.stockpile = RegionStockpile(goods={"ore": 5.0})
@@ -477,15 +480,12 @@ def test_compute_economy_agents_off():
 
 
 def test_conservation_exports_equal_imports():
-    """Total exports == total imports per category (conservation law)."""
+    """Exports equal delivered imports plus transit loss (conservation law)."""
     world, region_map = _make_test_world()
     snapshot = _make_test_snapshot()
     result = compute_economy(world, snapshot, region_map, agent_mode=True,
                              active_trade_routes=[("Agraria", "Ironhold")])
 
-    for cat in CATEGORIES:
-        total_exports = sum(rg.exports[cat] for rg in result.region_goods.values())
-        total_imports = sum(rg.imports[cat] for rg in result.region_goods.values())
-        assert abs(total_exports - total_imports) < 1e-9, (
-            f"Conservation violated for {cat}: exports={total_exports} != imports={total_imports}"
-        )
+    total_exports = sum(sum(rg.exports.values()) for rg in result.region_goods.values())
+    total_imports = sum(sum(rg.imports.values()) for rg in result.region_goods.values())
+    assert total_exports - total_imports == pytest.approx(result.conservation["transit_loss"])

@@ -150,7 +150,11 @@ pub fn economy_region_input_schema() -> Schema {
         Field::new("terrain", DataType::UInt8, false),
         Field::new("storage_population", DataType::UInt16, false),
         Field::new("resource_type_0", DataType::UInt8, false),
-        Field::new("resource_effective_yield_0", DataType::Float32, false),
+        Field::new("resource_type_1", DataType::UInt8, false),
+        Field::new("resource_type_2", DataType::UInt8, false),
+        Field::new("resource_yield_0", DataType::Float32, false),
+        Field::new("resource_yield_1", DataType::Float32, false),
+        Field::new("resource_yield_2", DataType::Float32, false),
     ];
     for good in &["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"] {
         fields.push(Field::new(format!("stockpile_{good}"), DataType::Float32, false));

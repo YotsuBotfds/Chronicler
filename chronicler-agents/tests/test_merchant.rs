@@ -411,8 +411,8 @@ fn test_region_input(
         region_id,
         terrain,
         storage_population,
-        resource_type_0,
-        resource_effective_yield_0: yield_0,
+        resource_types: [resource_type_0, 255, 255],
+        resource_yields: [yield_0, 0.0, 0.0],
         stockpile,
     }
 }
@@ -1087,4 +1087,118 @@ fn test_packet_gated_routing_deterministic_same_seed() {
     if let (Some(i1), Some(i2)) = (intent1, intent2) {
         assert_eq!(i1.dest_region, i2.dest_region, "Same packets → same destination");
     }
+}
+
+#[test]
+fn test_loading_cargo_revalidated_after_economy_consumption_and_debited_once() {
+    let config = EconomyConfig::default();
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    regions[0].stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let mut ledger = ShadowLedger::new(4);
+    let mut buf = DeliveryBuffer::new(4);
+    // Turn 0: reserve cargo against the current stock.
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger,
+        &[0; 32], Some(&mut buf));
+    assert_eq!(pool.trip_phase[0], TRIP_PHASE_LOADING);
+    let originally_reserved = pool.trip_cargo_qty[0];
+    assert!(originally_reserved > 0.97);
+
+    // Turn 1 economy consumes almost all stock before the merchant departs.
+    let agent_counts = vec![
+        test_agent_counts(18, 0, 0, 1, 0),
+        test_agent_counts(0, 0, 0, 0, 0),
+        test_agent_counts(0, 0, 0, 0, 0),
+        test_agent_counts(0, 0, 0, 0, 0),
+    ];
+    let before_departure_inputs: Vec<_> = regions.iter().enumerate().map(|(i, r)|
+        test_region_input(i as u16, 255, 100, 0, 0.0, r.stockpile)).collect();
+    let delivery = HybridDeliveryInput::from_buffer(&buf, 4);
+    let out = tick_economy_core(&before_departure_inputs, &agent_counts, &[], &[0.0], &[0],
+        1, &[0; 4], &config, 1.0, false, Some(&delivery));
+    for (region, result) in regions.iter_mut().zip(&out.region_results) {
+        region.stockpile = result.stockpile;
+    }
+    let available_at_departure = regions[0].stockpile[0];
+    assert!((available_at_departure - 0.97).abs() < 0.0001);
+    buf.clear();
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger,
+        &[0; 32], Some(&mut buf));
+    assert_eq!(pool.trip_phase[0], TRIP_PHASE_TRANSIT);
+    assert!((pool.trip_cargo_qty[0] - available_at_departure).abs() < 0.0001);
+    assert!(pool.trip_cargo_qty[0] < originally_reserved);
+    assert_eq!(ledger.reserved[0][0], 0.0);
+    assert!((buf.departure_debits[0][0] - available_at_departure).abs() < 0.0001);
+    // Departure only records a debit; it does not mutate macro inventory.
+    assert_eq!(regions[0].stockpile[0], available_at_departure);
+
+    // Subsequent turns apply the debit exactly once and eventually deliver the
+    // same reduced cargo. Inventory + in-flight delta balances each turn.
+    let no_consumers: Vec<_> = (0..4).map(|_| test_agent_counts(0, 0, 0, 0, 0)).collect();
+    let mut total_transit_loss = 0.0;
+    for _ in 0..4 {
+        let inputs: Vec<_> = regions.iter().enumerate().map(|(i, r)|
+            test_region_input(i as u16, 255, 100, 0, 0.0, r.stockpile)).collect();
+        let old_stock: f64 = inputs.iter().flat_map(|r| r.stockpile).map(f64::from).sum();
+        let delivery = HybridDeliveryInput::from_buffer(&buf, 4);
+        let out = tick_economy_core(&inputs, &no_consumers, &[], &[0.0], &[0],
+            1, &[0; 4], &config, 1.0, false, Some(&delivery));
+        let new_stock: f64 = out.region_results.iter().flat_map(|r| r.stockpile).map(f64::from).sum();
+        let c = &out.conservation;
+        assert!(c.clamp_floor_loss < 0.00001);
+        assert!((old_stock + c.production - new_stock - c.transit_loss - c.consumption
+            - c.storage_loss - c.cap_overflow - c.in_transit_delta.unwrap()).abs() < 0.0001);
+        total_transit_loss += c.transit_loss;
+        for (region, result) in regions.iter_mut().zip(&out.region_results) {
+            assert!(result.stockpile.iter().all(|q| q.is_finite() && *q >= 0.0));
+            region.stockpile = result.stockpile;
+        }
+        buf.clear();
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger,
+            &[0; 32], Some(&mut buf));
+    }
+    assert!((total_transit_loss - f64::from(available_at_departure * TRANSIT_DECAY[0])).abs() < 0.0001);
+    assert_eq!(buf.diagnostics.total_departures[0][0], available_at_departure);
+    assert_eq!(regions[0].stockpile[0], 0.0);
+}
+
+#[test]
+fn test_departure_preserves_other_reservations_and_current_turn_debits() {
+    use chronicler_agents::merchant::depart_merchant;
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    regions[0].stockpile[0] = 8.0;
+    let mut ledger = ShadowLedger::new(4);
+    let mut buf = DeliveryBuffer::new(4);
+    pool.trip_phase[0] = TRIP_PHASE_LOADING;
+    pool.trip_origin_region[0] = 0;
+    pool.trip_dest_region[0] = 3;
+    pool.trip_good_slot[0] = 0;
+    pool.trip_cargo_qty[0] = 10.0;
+    pool.trip_path[0][0] = 1;
+    pool.trip_path_len[0] = 1;
+    // Own stale ten-unit reservation, another reservation for three units,
+    // and two units already departed but not yet debited by the economy.
+    ledger.reserve(0, 0, 13.0);
+    buf.record_departure(0, 0, 2.0);
+    assert!(depart_merchant(&mut pool, 0, &graph, &regions, &mut ledger, Some(&mut buf)));
+    assert_eq!(pool.trip_cargo_qty[0], 3.0);
+    assert_eq!(ledger.reserved[0][0], 3.0);
+    assert_eq!(buf.departure_debits[0][0], 5.0);
+    assert_eq!(ledger.reserved[0][0] + buf.departure_debits[0][0], regions[0].stockpile[0]);
+}
+
+#[test]
+fn test_loading_cargo_cancels_when_stock_is_consumed() {
+    use chronicler_agents::merchant::depart_merchant;
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    let mut ledger = ShadowLedger::new(4);
+    let mut buf = DeliveryBuffer::new(4);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger,
+        &[0; 32], Some(&mut buf));
+    assert_eq!(pool.trip_phase[0], TRIP_PHASE_LOADING);
+    regions[0].stockpile = [0.0; NUM_GOODS];
+    assert!(!depart_merchant(&mut pool, 0, &graph, &regions, &mut ledger, Some(&mut buf)));
+    assert_eq!(pool.trip_phase[0], 0);
+    assert_eq!(pool.trip_cargo_qty[0], 0.0);
+    assert_eq!(ledger.reserved[0][0], 0.0);
+    assert_eq!(buf.departure_debits[0][0], 0.0);
 }

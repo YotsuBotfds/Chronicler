@@ -625,11 +625,13 @@ pub fn advance_one_hop(pool: &mut AgentPool, slot: usize, master_seed: &[u8; 32]
 }
 
 /// Transition Loading -> Transit (departure).
-/// Validates next hop first; cancels reservation if invalid.
+/// Validates the next hop and rechecks inventory after intervening economy
+/// consumption/decay. A stale reservation may shrink or be canceled.
 pub fn depart_merchant(
     pool: &mut AgentPool,
     slot: usize,
     graph: &RouteGraph,
+    regions: &[RegionState],
     ledger: &mut ShadowLedger,
     delivery_buf: Option<&mut DeliveryBuffer>,
 ) -> bool {
@@ -646,10 +648,27 @@ pub fn depart_merchant(
         return false;
     }
 
-    // Depart: reserved -> in_transit
+    // Loading reservations span turns, while the economy may consume or decay
+    // stock in between. Release this reservation before measuring availability
+    // so only other loading cargo and not-yet-applied departures are withheld.
     let origin = pool.trip_origin_region[slot] as usize;
     let good = pool.trip_good_slot[slot] as usize;
-    ledger.depart(origin, good, pool.trip_cargo_qty[slot], delivery_buf);
+    let requested = pool.trip_cargo_qty[slot];
+    ledger.cancel_reservation(origin, good, requested);
+    let available = match delivery_buf.as_deref() {
+        Some(buf) => ledger.available_hybrid(origin, good, &regions[origin].stockpile, buf),
+        None => ledger.available(origin, good, &regions[origin].stockpile),
+    };
+    let qty = requested.min(available);
+    if qty <= 0.0 {
+        reset_trip_fields(pool, slot);
+        return false;
+    }
+    pool.trip_cargo_qty[slot] = qty;
+    ledger.reserve(origin, good, qty);
+    // Depart: reserved -> in_transit. Macro stock is debited once, when the
+    // following economy tick consumes the delivery buffer.
+    ledger.depart(origin, good, qty, delivery_buf);
     pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
     true
 }
@@ -767,7 +786,7 @@ pub fn merchant_mobility_phase(
     // Phase c: Loading invalidation + departure
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_LOADING { continue; }
-        depart_merchant(pool, slot, graph, ledger, delivery_buf.as_deref_mut());
+        depart_merchant(pool, slot, graph, regions, ledger, delivery_buf.as_deref_mut());
     }
 
     // Phase d-e: Advance Transit merchants + process arrivals
@@ -1129,7 +1148,7 @@ mod tests {
             &[1, 2], &[2, 1], &[false; 2], &[1.0; 2], 3,
         );
 
-        let departed = depart_merchant(&mut pool, s, &graph, &mut ledger, None);
+        let departed = depart_merchant(&mut pool, s, &graph, &make_test_regions(3), &mut ledger, None);
         assert!(!departed);
         assert_eq!(pool.trip_phase[s], TRIP_PHASE_IDLE);
         assert_eq!(ledger.reserved[0][0], 0.0);

@@ -2,7 +2,7 @@
 
 Turn phases:
 1. Environment — climate, conditions, terrain transitions, black swans
-2. Economy / automatic effects — goods economy, trade routes, income, tribute, treasury
+2. Economy / automatic effects — realized harvest, goods economy, trade routes, income, tribute, treasury
 3. Production
 4. Technology
 5. Action selection + resolution (action engine)
@@ -1631,6 +1631,15 @@ def run_turn(
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
+            # Harvest uses this turn's climate/season and current ecology, with
+            # no depletion or ecology mutation here. Phase 9 advances those
+            # once for the following harvest. Recompute transient yields even
+            # on turn zero and after restoring a save.
+            from chronicler.climate import get_climate_phase
+            from chronicler.ecology import refresh_resource_yields
+            refresh_resource_yields(
+                world, get_climate_phase(world.turn, world.climate_config),
+            )
             from chronicler.resources import get_season_id
             from chronicler.economy import (
                 build_economy_region_input_batch,
@@ -1721,7 +1730,10 @@ def run_turn(
         from chronicler.agent_bridge import build_region_batch
         _eco_rt.set_region_state(build_region_batch(world))
 
-    turn_events.extend(tick_ecology(world, climate_phase, acc=acc, ecology_runtime=_eco_rt))
+    turn_events.extend(tick_ecology(
+        world, climate_phase, acc=acc, ecology_runtime=_eco_rt,
+        economy_result=economy_result,
+    ))
 
     conquered_civs = getattr(world, '_conquered_this_turn', set())
     world._conquered_this_turn = set()  # clear immediately before bridge consumption
