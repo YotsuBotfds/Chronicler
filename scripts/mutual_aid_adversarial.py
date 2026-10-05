@@ -139,6 +139,17 @@ def run_adversarial(enabled: bool, treasury: int = 2) -> dict:
             bridge.sync_regions(world)
             bridge.tick_agents(world)
             normalized = world.model_dump(mode="json")
+            # The fishery experiment is dormant in this aid-only control. Keep
+            # every legacy field exact and verify added defaults before removal.
+            if "fishery_experiment" in normalized:
+                assert normalized.pop("fishery_experiment") == {
+                    "enabled": False, "reserve_turns": 8., "recovery_rate": .04,
+                    "harvest_fraction": .25, "reference_workers": 200,
+                }
+                for region in normalized["regions"]:
+                    assert region.pop("fishery_stocks") == [1., 1., 1.]
+                    assert region.pop("fishery_yield_ratios") == [1., 1., 1.]
+                    assert region.pop("fishery_catch_budgets") == [None, None, None]
             for key in ("mutual_aid_enabled", "mutual_aid_state", "mutual_aid_last_dispatch_turn",
                         "mutual_aid_last_transfers"):
                 normalized.pop(key, None)

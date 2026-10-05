@@ -8,6 +8,7 @@ import pytest
 
 from chronicler import governance_kernel_harness as harness
 from scripts.benchmark_headless import rng_trace, run
+from scripts.third_wave_controls import legacy_artifact_bytes
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
@@ -59,7 +60,10 @@ def test_complete_corrected_outputs_with_dormant_governance(
         run(expected["spec"], tmp_path / "artifacts", on_turn=capture)
     assert turns == expected["turn_sha256"]
     assert trace == expected["rng"]
-    emitted = {path.name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                           "bytes": path.stat().st_size}
+    # Third-wave schema fields intentionally change raw state/bundle bytes.
+    # Assert their exact dormant defaults; all original content still matches
+    # the unchanged independently captured corrected-baseline byte oracle.
+    emitted = {path.name: {"sha256": hashlib.sha256(legacy_artifact_bytes(path)).hexdigest(),
+                           "bytes": len(legacy_artifact_bytes(path))}
                for path in sorted((tmp_path / "artifacts").iterdir()) if path.is_file()}
     assert emitted == ARTIFACTS["workloads"][name]
