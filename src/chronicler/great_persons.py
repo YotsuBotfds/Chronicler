@@ -59,11 +59,17 @@ _GREAT_PERSON_CAP = 50
 
 
 def _is_on_cooldown(civ_name: str, role: str, world: WorldState) -> bool:
+    """Compare the last spawn turn with this civ's current role cooldown."""
     cooldowns = world.great_person_cooldowns.get(civ_name, {})
     last_spawn_turn = cooldowns.get(role)
     if last_spawn_turn is None:
         return False
     cooldown_duration = ROLE_COOLDOWNS.get(role, 20)
+    tradition = {"general": "martial", "merchant": "diplomatic"}.get(role)
+    if tradition is not None:
+        civ = next((c for c in world.civilizations if c.name == civ_name), None)
+        if civ is not None and tradition in civ.traditions:
+            cooldown_duration = 18
     return (world.turn - last_spawn_turn) < cooldown_duration
 
 
