@@ -10,7 +10,7 @@ Run from the repository with the development dependencies installed:
 
 ```sh
 PYTHONPATH=src .venv/bin/python -m chronicler.checkpoint_replay \
-  --seed 42 --civs 4 --regions 8 --turns 250 --split 12 \
+  --seed 42 --civs 4 --regions 8 --turns 250 --split 13 \
   --output-dir output/replay-seed42
 ```
 
@@ -64,6 +64,13 @@ not cause a false divergence. Sequence order and all other persisted values
 are compared exactly. Pending turn signals and residual agent-backed state are
 rejected. Direct callers of `save_checkpoint` must supply a completed
 Python-only turn boundary; the validator owns and enforces its execution path.
+
+After integrating the mercenary disband correction, seed 42 with four
+civilizations and eight regions has an empty-region stockpile bootstrap pending
+at turn 12. This boundary returns ERROR and writes no checkpoint; turn 13
+completes the bootstrap and is the tested positive boundary in the example.
+Earlier split-12 traces below describe the original public-baseline lane, not
+the integrated runtime. Source fingerprint changes require fresh checkpoints.
 
 Existing `WorldState.save/load`, production CLI defaults, and simulation
 mechanisms are unchanged. A raw production resume still has the limitations

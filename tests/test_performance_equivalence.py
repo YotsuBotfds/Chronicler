@@ -1,6 +1,6 @@
 """Exact corrected-baseline regression oracles for the snapshot optimization.
 
-Golden data was captured from eef5719 before importing the optimization.
+Golden data was captured from 423a67c before importing the optimization.
 The edf7299 artifacts remain frozen as historical pre-bugfix evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
 checked; no approximate float comparisons or relaxed precision are used.
@@ -17,7 +17,7 @@ from scripts.benchmark_headless import FixedDateTime, rng_trace, run
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_eef5719.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_423a67c.json").read_text())
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 

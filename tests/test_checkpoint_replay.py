@@ -13,7 +13,7 @@ from chronicler.tech_focus import TechFocus, apply_focus_effects, remove_focus_e
 from chronicler.world_gen import generate_world
 
 
-@pytest.mark.parametrize("seed,split", [(1, 0), (42, 12), (73, 39)])
+@pytest.mark.parametrize("seed,split", [(1, 0), (42, 13), (73, 39)])
 def test_uninterrupted_matches_every_resumed_turn(seed, split, tmp_path):
     world = generate_world(seed=seed, num_civs=4, num_regions=8)
     original = world.model_dump()
@@ -24,6 +24,27 @@ def test_uninterrupted_matches_every_resumed_turn(seed, split, tmp_path):
     assert all(row["uninterrupted"] == row["resumed"] for row in report["turn_digests"])
     assert world.model_dump() == original
     assert world.turn == 0
+
+
+def test_real_pending_stockpile_boundary_rejects_api_and_cli(tmp_path, capsys):
+    # The reviewed mercenary correction changes this trace. At turn 12 an
+    # expansion into an empty region requests bootstrap on the next turn.
+    # The request is transient and intentionally outside the envelope contract.
+    world = generate_world(seed=42, num_civs=4, num_regions=8)
+    original = world.model_dump()
+    with pytest.raises(replay.CheckpointError, match="completed stockpile bootstrap"):
+        replay.validate_replay(world, turns=30, split=12, checkpoint_path=tmp_path / "api.json")
+    assert world.model_dump() == original
+    assert not (tmp_path / "api.json").exists()
+    output = tmp_path / "cli"
+    assert replay.main([
+        "--seed", "42", "--turns", "30", "--split", "12", "--output-dir", str(output),
+    ]) == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "ERROR"
+    assert report["reason"] == "checkpoint requires a completed stockpile bootstrap"
+    assert json.loads((output / "report.json").read_text()) == report
+    assert not (output / "checkpoint.json").exists()
 
 
 def test_focus_sidecar_preserves_capped_bonus_removal(make_world, tmp_path):
@@ -327,7 +348,7 @@ def test_real_cli_and_cross_process_resume_with_different_hashseeds(tmp_path):
     environment = dict(os.environ, PYTHONPATH=str(root / "src"), PYTHONHASHSEED="11")
     result = subprocess.run([
         sys.executable, "-m", "chronicler.checkpoint_replay", "--seed", "42",
-        "--turns", "30", "--split", "12", "--output-dir", str(tmp_path),
+        "--turns", "30", "--split", "13", "--output-dir", str(tmp_path),
     ], env=environment, cwd=root, text=True, capture_output=True, check=True)
     report = json.loads(result.stdout)
     assert report["status"] == "PASS"
