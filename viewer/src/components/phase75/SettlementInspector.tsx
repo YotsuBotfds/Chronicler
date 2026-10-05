@@ -46,7 +46,7 @@ function PopulationSamples({ history, requestedTurn, settlementId, onSeek }: Omi
         </tr>)}</tbody>
       </table>
     </div>
-    <p>{rows.length === 0 ? "No timestamped historical samples in this window."
+    <p aria-live="polite" aria-atomic="true">{rows.length === 0 ? "No timestamped historical samples in this window."
       : `${visiblePage * PAGE_SIZE + 1}–${Math.min((visiblePage + 1) * PAGE_SIZE, rows.length)} of ${rows.length} historical samples`}</p>
     <div className="phase75-stat-row">
       <button ref={previousButton} type="button" disabled={visiblePage === 0} onClick={event => {
@@ -73,7 +73,7 @@ export function SettlementInspector({ history, requestedTurn, settlementId, onSe
   return <section className="phase75-panel" aria-labelledby={labelId}>
     <header className="phase75-inspector-header">
       <div className="phase75-overline">Historical settlement · as of turn {turnLabel(requestedTurn)}</div>
-      <h3 id={labelId}>{summary?.name.value ?? (settlementId === null ? "Settlement inspector" : `Settlement #${settlementId}`)}</h3>
+      <h2 id={labelId} style={{ fontFamily: "var(--phase75-serif)", margin: "4px 0 0", fontSize: "1.08rem" }}>{summary?.name.value ?? (settlementId === null ? "Settlement inspector" : `Settlement #${settlementId}`)}</h2>
       {onClose && <button type="button" onClick={onClose}>Close settlement inspector</button>}
       <label className="phase75-field"><span>Settlement</span>
         <select value={isSettlementId(settlementId) ? settlementId : ""} onChange={(event) => onSelectSettlement(event.target.value === "" ? null : Number(event.target.value))}>
@@ -95,7 +95,7 @@ export function SettlementInspector({ history, requestedTurn, settlementId, onSe
         <Value label="Centroid Y" observation={summary.centroidY} />
       </dl>}
       <div className="phase75-mini-card">
-        <h4>Lifecycle in this snapshot</h4>
+        <h3>Lifecycle in this snapshot</h3>
         <p>Founding: {inspection.founded.value === null ? `Unavailable — ${inspection.founded.unavailable}`
           : inspection.founded.value ? "Recorded in this snapshot" : "Not listed in this snapshot"}</p>
         <p>Dissolution: {inspection.dissolved.value === null ? `Unavailable — ${inspection.dissolved.unavailable}`
@@ -115,7 +115,7 @@ export function SettlementInspector({ history, requestedTurn, settlementId, onSe
           {summary && Object.entries(summary).map(([field, observation]) => <li key={field}>{field}: <code>{observation.source}</code></li>)}
         </ul>
       </details>
-      <div className="phase75-empty-state"><h4>Additional settlement details unavailable</h4>
+      <div className="phase75-empty-state"><h3>Additional settlement details unavailable</h3>
         <p className="phase75-detail-copy">Infrastructure, pull factors, notable residents, peak population, and last detection time are not exported in these historical summaries.</p>
       </div>
     </div>

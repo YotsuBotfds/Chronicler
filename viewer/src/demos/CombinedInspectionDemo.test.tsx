@@ -29,6 +29,9 @@ describe("isolated combined inspection", () => {
     expect(within(ledger()).getByLabelText("Civilization")).toBeDisabled();
     expect(within(ledger()).getByLabelText("Civilization")).toHaveValue(JSON.stringify("Alpha"));
     expect(within(ledger()).getByRole("status")).toHaveTextContent("1–24 of 58 events · Page 1 of 3");
+    expect(within(ledger()).getByRole("status")).toHaveAttribute("aria-atomic", "true");
+    expect(within(inspector()).getByRole("heading", { name: "River Quay", level: 2 })).toBeInTheDocument();
+    expect(within(inspector()).getByRole("heading", { name: "Lifecycle in this snapshot", level: 3 })).toBeInTheDocument();
     turn(32); expandGroups();
     expect(screen.queryByText(/FUTURE SENTINEL|Future civilization|future_sentinel/)).not.toBeInTheDocument();
   });
@@ -145,8 +148,12 @@ describe("isolated combined inspection", () => {
     const previous = within(inspector()).getByRole("button", { name: "Previous samples" });
     next.focus(); fireEvent.click(next);
     expect(previous).toHaveFocus(); expect(next).toBeDisabled();
+    const count = within(inspector()).getByText("21–24 of 24 historical samples");
+    expect(count).toHaveAttribute("aria-live", "polite");
+    expect(count).toHaveAttribute("aria-atomic", "true");
     fireEvent.click(previous);
     expect(next).toHaveFocus(); expect(previous).toBeDisabled();
+    expect(count).toHaveTextContent("1–20 of 24 historical samples");
     const seek = within(inspector()).getByRole("button", { name: "Inspect settlement at turn 2" });
     seek.focus(); fireEvent.click(seek);
     expect(screen.getByLabelText("Requested turn")).toHaveFocus();

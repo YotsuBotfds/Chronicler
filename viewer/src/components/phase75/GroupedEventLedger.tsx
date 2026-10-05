@@ -18,6 +18,8 @@ export interface GroupedEventLedgerProps {
 
 const controlStyle = { padding: "8px", borderRadius: "8px", border: "1px solid var(--phase75-edge-strong)",
   background: "var(--phase75-bg)", color: "var(--phase75-ink)", width: "100%", minWidth: 0 };
+// Empty turn fields rely on their boundary to identify the editable area.
+const turnControlStyle = { ...controlStyle, borderColor: "var(--phase75-gold)" };
 
 /** Standalone, static-artifact ledger. Mount only after the production gate opens.
  * Use an artifact key when replacing the source array to reset local UI state.
@@ -80,16 +82,16 @@ function LedgerQuery({ events, currentTurn, selectedCivilization, civilizations,
         onChange={e => setCivilization(e.target.value === "" ? null : JSON.parse(e.target.value) as string)}>
         <option value="">All civilizations</option>{civs.map(civ => <option key={civ} value={JSON.stringify(civ)}>{civ || "Empty actor name"}</option>)}
       </select></div>
-      <div><label htmlFor={`${id}-from`}>From turn</label><input id={`${id}-from`} style={controlStyle} type="number" min={0} step={1} value={fromTurn}
+      <div><label htmlFor={`${id}-from`}>From turn</label><input id={`${id}-from`} style={turnControlStyle} type="number" min={0} step={1} value={fromTurn}
         aria-invalid={!result.validRange} aria-describedby={!result.validRange ? `${id}-range` : undefined}
         onChange={e => setFromTurn(e.target.value)} /></div>
-      <div><label htmlFor={`${id}-through`}>Through turn</label><input id={`${id}-through`} style={controlStyle} type="number" min={0} step={1} value={throughTurn}
+      <div><label htmlFor={`${id}-through`}>Through turn</label><input id={`${id}-through`} style={turnControlStyle} type="number" min={0} step={1} value={throughTurn}
         aria-invalid={!result.validRange} aria-describedby={!result.validRange ? `${id}-range` : undefined}
         onChange={e => setThroughTurn(e.target.value)} /></div>
     </div>
     <button className="phase75-ghost-button" type="button" onClick={reset} style={{ marginTop: 12 }}>Reset filters</button>
     {!result.validRange && <p role="alert" id={`${id}-range`}>Choose nonnegative whole turns with From turn no later than Through turn.</p>}
-    <p role="status" aria-live="polite">{result.start}–{result.end} of {result.total} events · Page {result.page} of {result.pageCount}</p>
+    <p role="status" aria-live="polite" aria-atomic="true">{result.start}–{result.end} of {result.total} events · Page {result.page} of {result.pageCount}</p>
     {result.total === 0 && <p className="phase75-empty-state">No events match these filters through the current turn.</p>}
     <div className="phase75-feed" key={`${queryKey}:${result.page}`}>
       {result.groups.map((group, groupIndex) => <EventGroup key={group.key} group={group}
