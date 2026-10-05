@@ -1,0 +1,485 @@
+{
+  "private_qualification_only": true,
+  "publication_held": true,
+  "input": {
+    "drive_id": "1jBFoY9DN7VP4Jg2ijnlYTgMXrmCr50rn",
+    "archive_size": 633949,
+    "sha256": "3c150a9a02c93059ff3b73fe184209562dbdf63ce27821ab2bb25021c9097e5f",
+    "members": 31,
+    "manifest_payloads_verified": 30,
+    "source_build_files_verified": 19,
+    "reviewed_candidate_reference": "58ee08bc690537cd0e42bbd696e46f2941336c3f",
+    "candidate_git_object_available": false
+  },
+  "base": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "restored_commit": "960d39ed0f4cd717bdca5486b522792c44d659fb",
+  "restored_tree": "cc6211e1be40678b71078c56b54e35db7ce793a0",
+  "failure_fixture_commit": "1392fd4229270a5a3089591ea1b8f843946cb530",
+  "repaired_source_commit": "cc2179a17c4da529315d3bae53015d48b8c75e3e",
+  "repaired_source_tree": "bf81fbfa24404416ee35b25a79beeb3141fe1c72",
+  "branch": "qualification/mutual-aid-long-cargo",
+  "native_before_repair": {
+    "path": "/workspace/Chronicler-qualification/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "bf9ebd4b50a655df38610545f0c779c5495c7450b0e26006189f649885e9b08a"
+  },
+  "native_intermediate_departure_only": {
+    "path": "/workspace/Chronicler-qualification/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "88bae019a04f8583608fdf69f7c92df9263bab9e28b7651c83225e5160dc72bf"
+  },
+  "native_repaired": {
+    "path": "/workspace/Chronicler-qualification/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "8f4ee68be6ce797854df323418789169ee113ee4f5f0e4508028dffee4a3e931"
+  },
+  "python_version": "3.13.5",
+  "runtime_packages": "receipts/native-python-packages.txt",
+  "rustc": "receipts/rustc.txt",
+  "tests": {
+    "python_only_initial": {
+      "passed": 39,
+      "skipped": 7
+    },
+    "python_native_focused_final": {
+      "passed": 313,
+      "skipped": 0
+    },
+    "python_only_final": {
+      "passed": 297,
+      "skipped": 16
+    },
+    "rust_lib": {
+      "passed": 373,
+      "failed": 0
+    },
+    "rust_merchant_integration": {
+      "passed": 38,
+      "failed": 0
+    },
+    "independent_sol": {
+      "model": "gpt-6.1-sol",
+      "verdict": "approved minimal repair; no blocking defect",
+      "python_qualification_passed": 11,
+      "rust_death_regression_passed": 1,
+      "updated_prior15_passed": 5
+    }
+  },
+  "fresh_aggregate_control": {
+    "base": "edf72991cad58d6670b1f382c33d50d903a6054a",
+    "seed": 42,
+    "turns": 4,
+    "agents": "off",
+    "exact_normalized_world_equality": true
+  },
+  "disabled_hybrid_python_control": {
+    "turns": 15,
+    "same_repaired_native": true,
+    "all_normalized_history_fields_equal": true
+  },
+  "original_180_30_failure_rerun": {
+    "enabled_turns": 28,
+    "disabled_turns": 28,
+    "passed": true
+  },
+  "fixtures": [
+    {
+      "receipt": "native-3-42-True-None.json",
+      "hops": 3,
+      "seed": 42,
+      "enabled": true,
+      "disruption": null,
+      "turns": 28,
+      "max_stock_error": 2.1653650819075665e-06,
+      "peak_cargo": {
+        "grain": 9.0,
+        "salt": 11.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [
+        [
+          "A",
+          "First"
+        ],
+        [
+          "A",
+          "Second"
+        ],
+        [
+          "B",
+          "First"
+        ],
+        [
+          "B",
+          "Second"
+        ]
+      ],
+      "aid_count": 5,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 14.0,
+        "salt": 15.0
+      },
+      "arrivals_raw": {
+        "grain": 14.0,
+        "salt": 15.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "transit_losses": {
+        "grain": 0.7000000000000006,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-4-42-False-None.json",
+      "hops": 4,
+      "seed": 42,
+      "enabled": false,
+      "disruption": null,
+      "turns": 28,
+      "max_stock_error": 1.4944038042585817e-06,
+      "peak_cargo": {
+        "grain": 13.0,
+        "salt": 11.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [],
+      "aid_count": 0,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 17.0,
+        "salt": 15.0
+      },
+      "arrivals_raw": {
+        "grain": 17.0,
+        "salt": 14.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 1.0
+      },
+      "transit_losses": {
+        "grain": 0.8500000000000008,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-4-42-True-None.json",
+      "hops": 4,
+      "seed": 42,
+      "enabled": true,
+      "disruption": null,
+      "turns": 28,
+      "max_stock_error": 1.4944038042585817e-06,
+      "peak_cargo": {
+        "grain": 13.0,
+        "salt": 11.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [
+        [
+          "A",
+          "First"
+        ],
+        [
+          "A",
+          "Second"
+        ],
+        [
+          "B",
+          "First"
+        ],
+        [
+          "B",
+          "Second"
+        ]
+      ],
+      "aid_count": 4,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 17.0,
+        "salt": 15.0
+      },
+      "arrivals_raw": {
+        "grain": 17.0,
+        "salt": 14.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 1.0
+      },
+      "transit_losses": {
+        "grain": 0.8500000000000008,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-4-42-True-cancel.json",
+      "hops": 4,
+      "seed": 42,
+      "enabled": true,
+      "disruption": "cancel",
+      "turns": 28,
+      "max_stock_error": 2.866301688442263e-06,
+      "peak_cargo": {
+        "grain": 16.0,
+        "salt": 9.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [
+        [
+          "A",
+          "First"
+        ],
+        [
+          "A",
+          "Second"
+        ],
+        [
+          "B",
+          "First"
+        ],
+        [
+          "B",
+          "Second"
+        ]
+      ],
+      "aid_count": 4,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 16.0,
+        "salt": 9.0
+      },
+      "arrivals_raw": {
+        "grain": 16.0,
+        "salt": 8.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 1.0
+      },
+      "transit_losses": {
+        "grain": 0.8000000000000007,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-4-42-True-death.json",
+      "hops": 4,
+      "seed": 42,
+      "enabled": true,
+      "disruption": "death",
+      "turns": 28,
+      "max_stock_error": 1.4944038042585817e-06,
+      "peak_cargo": {
+        "grain": 0.0,
+        "salt": 4.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [],
+      "aid_count": 0,
+      "long_trip_completed": false,
+      "departures": {
+        "grain": 0.0,
+        "salt": 4.0
+      },
+      "arrivals_raw": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 4.0
+      },
+      "transit_losses": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-4-42-True-return.json",
+      "hops": 4,
+      "seed": 42,
+      "enabled": true,
+      "disruption": "return",
+      "turns": 28,
+      "max_stock_error": 1.4944038042585817e-06,
+      "peak_cargo": {
+        "grain": 7.0,
+        "salt": 11.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [
+        [
+          "A",
+          "First"
+        ],
+        [
+          "A",
+          "Second"
+        ]
+      ],
+      "aid_count": 4,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 7.0,
+        "salt": 15.0
+      },
+      "arrivals_raw": {
+        "grain": 7.0,
+        "salt": 11.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 4.0
+      },
+      "transit_losses": {
+        "grain": 0.3500000000000003,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-5-42-True-None.json",
+      "hops": 5,
+      "seed": 42,
+      "enabled": true,
+      "disruption": null,
+      "turns": 28,
+      "max_stock_error": 2.1653650819075665e-06,
+      "peak_cargo": {
+        "grain": 8.0,
+        "salt": 13.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [
+        [
+          "A",
+          "First"
+        ],
+        [
+          "A",
+          "Second"
+        ],
+        [
+          "B",
+          "First"
+        ],
+        [
+          "B",
+          "Second"
+        ]
+      ],
+      "aid_count": 6,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 11.0,
+        "salt": 16.0
+      },
+      "arrivals_raw": {
+        "grain": 11.0,
+        "salt": 15.0
+      },
+      "returns": {
+        "grain": 0.0,
+        "salt": 1.0
+      },
+      "transit_losses": {
+        "grain": 0.5500000000000005,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    },
+    {
+      "receipt": "native-5-77-True-None.json",
+      "hops": 5,
+      "seed": 77,
+      "enabled": true,
+      "disruption": null,
+      "turns": 28,
+      "max_stock_error": 2.4063364492121764e-06,
+      "peak_cargo": {
+        "grain": 12.0,
+        "salt": 15.0
+      },
+      "final_cargo": {
+        "grain": 0.0,
+        "salt": 0.0
+      },
+      "aid_edges": [
+        [
+          "A",
+          "First"
+        ],
+        [
+          "A",
+          "Second"
+        ],
+        [
+          "B",
+          "First"
+        ],
+        [
+          "B",
+          "Second"
+        ]
+      ],
+      "aid_count": 9,
+      "long_trip_completed": true,
+      "departures": {
+        "grain": 13.0,
+        "salt": 17.0
+      },
+      "arrivals_raw": {
+        "grain": 12.0,
+        "salt": 15.0
+      },
+      "returns": {
+        "grain": 1.0,
+        "salt": 2.0
+      },
+      "transit_losses": {
+        "grain": 0.6000000000000005,
+        "salt": 0.0
+      },
+      "clamp_floor_loss": 0.0
+    }
+  ],
+  "scope": "chronicler-agents/src/ffi/mod.rs         |   5 +\n chronicler-agents/src/merchant.rs        |  35 ++++\n chronicler-agents/src/tick.rs            |  58 ++++++\n chronicler-agents/tests/test_merchant.rs |  41 ++++\n scripts/mutual_aid_long_cargo.py         | 327 +++++++++++++++++++++++++++++++\n tests/test_mutual_aid_adversarial.py     |  34 ++--\n tests/test_mutual_aid_long_cargo.py      |  99 ++++++++++\n 7 files changed, 584 insertions(+), 15 deletions(-)",
+  "remaining_gaps": [
+    "No full hybrid checkpoint or restoration qualification",
+    "Zero-production direct ABI fixture; route margins and graph are explicit scenario inputs",
+    "Native ingress counters are shared evidence; direct Rust state/buffer assertions complement the independent stock oracle",
+    "No calibrated famine, population benefit, policy tuning, or full validation profile",
+    "Historical aggregate logs outside input archive were not inspected; reported aggregate control was freshly executed",
+    "Original-native behavior equality is not asserted after intentional lifecycle repairs"
+  ],
+  "aggregate_followup": "mutual-aid-aggregate-gate.json",
+  "aggregate_default_suite_gate": "passed_with_documented_existing_skips"
+}

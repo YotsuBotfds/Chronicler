@@ -1088,3 +1088,44 @@ fn test_packet_gated_routing_deterministic_same_seed() {
         assert_eq!(i1.dest_region, i2.dest_region, "Same packets → same destination");
     }
 }
+
+// Regression: economy consumption between reservation and departure must not
+// manufacture physical cargo, including competing Loading merchants.
+#[test]
+fn test_hybrid_loading_rechecks_stock_after_economy_consumption() {
+    for consumers in [2, 5] {
+        let (mut pool, mut regions, graph) = setup_linear_world();
+        pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        regions[0].stockpile = [2.5, 0., 0., 0., 0., 0., 0., 0.];
+        for r in &mut regions[1..] { r.stockpile = [0.; NUM_GOODS]; }
+        let mut ledger = ShadowLedger::new(4);
+        let mut buf = DeliveryBuffer::new(4);
+        buf.physical_stock = true;
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+        assert_eq!(ledger.reserved[0][0], 2.);
+        let input = vec![test_region_input(0, 255, 20, 0, 0., regions[0].stockpile)];
+        let counts = vec![test_agent_counts(consumers, 0, 0, 2, 0)];
+        let output = tick_economy_core(&input, &counts, &[], &[0.], &[0], 1,
+            &[0], &EconomyConfig::default(), 1., false, Some(&HybridDeliveryInput::from_buffer(&buf, 1)));
+        regions[0].stockpile = output.region_results[0].stockpile;
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+        let expected_departures = if consumers == 2 { 1. } else { 0. };
+        assert_eq!(buf.departure_debits[0][0], expected_departures);
+        assert_eq!(ledger.in_transit_out[0][0], expected_departures);
+        assert!(ledger.reserved[0][0] + buf.departure_debits[0][0] <= regions[0].stockpile[0]);
+        assert_eq!(buf.diagnostics.total_returns[0][0], 0.);
+        assert!(buf.arrival_imports.is_empty());
+    }
+}
+
+#[test]
+fn test_shadow_loading_does_not_apply_physical_stock_recheck() {
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    let mut ledger = ShadowLedger::new(4);
+    let mut buf = DeliveryBuffer::new(4);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+    regions[0].stockpile = [0.; NUM_GOODS];
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+    assert_eq!(ledger.in_transit_out[0][0], 1.);
+    assert_eq!(pool.trip_phase[0], TRIP_PHASE_TRANSIT);
+}

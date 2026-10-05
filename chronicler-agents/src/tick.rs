@@ -94,6 +94,7 @@ fn apply_death_batch(
     events: &mut Vec<AgentEvent>,
     household_stats: &mut crate::household::HouseholdStats,
     memory_intents: &mut Vec<crate::memory::MemoryIntent>,
+    merchant_state: &mut Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,
 ) {
     for &(slot, region) in deaths {
         if !pool.is_alive(slot) {
@@ -163,6 +164,9 @@ fn apply_death_batch(
             }
         }
 
+        if let Some((_, ledger, buf)) = merchant_state.as_mut() {
+            crate::merchant::release_trip_on_death(pool, slot, ledger, buf);
+        }
         pool.kill(slot);
     }
 }
@@ -262,6 +266,7 @@ pub fn try_tick_agents(
             &mut events,
             &mut household_stats,
             &mut memory_intents,
+            &mut merchant_state,
         );
     }
 
@@ -770,6 +775,7 @@ pub fn try_tick_agents(
             &mut events,
             &mut household_stats,
             &mut memory_intents,
+            &mut merchant_state,
         );
 
         // Age increments
@@ -1060,6 +1066,18 @@ pub fn try_tick_agents(
     knowledge_stats.merchant_no_usable_packets = merchant_stats.no_usable_packets;
     knowledge_stats.migration_choices_changed_by_threat = migration_threat_changed;
 
+    // Mobility runs before demographics. Report the surviving cargo after
+    // deaths have released their trips and before returning to the economy.
+    if merchant_state.is_some() {
+        merchant_stats.active_trips = 0;
+        merchant_stats.total_in_transit_qty = 0.0;
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) && pool.trip_phase[slot] == crate::agent::TRIP_PHASE_TRANSIT {
+                merchant_stats.active_trips += 1;
+                merchant_stats.total_in_transit_qty += pool.trip_cargo_qty[slot];
+            }
+        }
+    }
     Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))
 }
 
@@ -1659,6 +1677,46 @@ mod tests {
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
+        }
+    }
+
+    #[test]
+    fn test_death_releases_loading_and_transit_once_before_slot_reuse() {
+        use crate::merchant::{DeliveryBuffer, RouteGraph, ShadowLedger, merchant_mobility_phase};
+        for transit in [false, true] {
+            let mut pool = AgentPool::new(1);
+            let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0., 0., 0., 0, 0, 0, 0);
+            let mut regions: Vec<_> = (0..4).map(RegionState::new).collect();
+            regions[0].stockpile[0] = 10.;
+            regions[3].merchant_route_margin = 1.;
+            let graph = RouteGraph::from_edges(&[0, 1, 2], &[1, 2, 3], &[false; 3], &[1.; 3], 4);
+            let mut ledger = ShadowLedger::new(4);
+            let mut buf = DeliveryBuffer::new(4);
+            buf.physical_stock = true;
+            merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+            if transit {
+                merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+            }
+            let deaths = vec![(slot, pool.regions[slot])];
+            let context = build_death_apply_context(&pool, &deaths);
+            let mut state = Some((&graph, &mut ledger, &mut buf));
+            let mut events = Vec::new();
+            let mut households = crate::household::HouseholdStats::default();
+            let mut memories = Vec::new();
+            for _ in 0..2 {
+                apply_death_batch(&mut pool, &deaths, 2, &context, &mut events, &mut households, &mut memories, &mut state);
+            }
+            assert_eq!(events.len(), 1);
+            assert_eq!(ledger.reserved[0][0], 0.);
+            assert_eq!(ledger.in_transit_out[0][0], 0.);
+            assert_eq!(buf.departure_debits[0][0], if transit { 1. } else { 0. });
+            assert_eq!(buf.return_credits[0][0], if transit { 1. } else { 0. });
+            assert_eq!(buf.diagnostics.total_returns[0][0], if transit { 1. } else { 0. });
+            assert!(buf.arrival_imports.is_empty());
+            assert_eq!(pool.trip_phase[slot], crate::agent::TRIP_PHASE_IDLE);
+            let reused = pool.spawn(0, 0, Occupation::Merchant, 20, 0., 0., 0., 0, 0, 0, 0);
+            assert_eq!(reused, slot);
+            assert_eq!(pool.trip_cargo_qty[reused], 0.);
         }
     }
 

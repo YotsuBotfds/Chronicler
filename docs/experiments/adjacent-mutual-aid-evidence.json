@@ -1,0 +1,1931 @@
+{
+  "public_base": "edf7299",
+  "private_candidate_comparison": false,
+  "python": "3.13.5",
+  "baseline_native_sha256": "2b3ad3a10aa442864741eb8874857c8871e9f09d6f834ccc9e92d4c496c325e2",
+  "feature_native_sha256": "3244b32ba7468377fab74e03f46ce7494d8c3ce74d42280c52e6cc13398ba70f",
+  "baseline_native_has_stockpile_commitments": false,
+  "feature_native_has_stockpile_commitments": true,
+  "controls": {
+    "off": {
+      "seed": 42,
+      "turns": 4,
+      "regions": 3,
+      "civs": 1,
+      "baseline_source": "/tmp/chronicler-aid-untouched-source/src/chronicler/__init__.py",
+      "baseline_native": "/tmp/chronicler-aid-untouched-native/chronicler_agents/__init__.py",
+      "feature_source": "/workspace/chronicler-social-aid/src/chronicler/__init__.py",
+      "feature_native": "/workspace/chronicler-social-aid/.venv/lib/python3.13/site-packages/chronicler_agents/__init__.py",
+      "worlds_equal": true,
+      "agent_snapshots_equal": true,
+      "worlds_sha256": "a6554a76717dda2c5667602d30b76b225f687741d01057c1b7a2cb57091a5751",
+      "agent_snapshots_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "raw_baseline_file": "/tmp/chronicler-control-base-off.json",
+      "raw_feature_file": "/tmp/chronicler-control-feature-off.json"
+    },
+    "hybrid": {
+      "seed": 42,
+      "turns": 4,
+      "regions": 3,
+      "civs": 1,
+      "baseline_source": "/tmp/chronicler-aid-untouched-source/src/chronicler/__init__.py",
+      "baseline_native": "/tmp/chronicler-aid-untouched-native/chronicler_agents/__init__.py",
+      "feature_source": "/workspace/chronicler-social-aid/src/chronicler/__init__.py",
+      "feature_native": "/workspace/chronicler-social-aid/.venv/lib/python3.13/site-packages/chronicler_agents/__init__.py",
+      "worlds_equal": true,
+      "agent_snapshots_equal": true,
+      "worlds_sha256": "8d5bec2aaa5943ef7790d12dea4f96f8e36832db5f2166f406bc55cfd914ae42",
+      "agent_snapshots_sha256": "f96e38dcf3d564789537f72b57ffc05e88761b9e550a5bb22b27b6a513955dc5",
+      "raw_baseline_file": "/tmp/chronicler-control-base-hybrid.json",
+      "raw_feature_file": "/tmp/chronicler-control-feature-hybrid.json"
+    }
+  },
+  "fixtures": {
+    "python": {
+      "0": {
+        "dispatch_turns": [],
+        "control": {
+          "backend": "python",
+          "enabled": false,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 3.0,
+                "cap_overflow": 47.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 48.5,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.5,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 47.045,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4549999999999983,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 45.63365,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4113499999999988,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 44.2646405,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3690095000000042,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        },
+        "treatment": {
+          "backend": "python",
+          "enabled": true,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 1
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 3.0,
+                "cap_overflow": 47.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 2
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 48.5,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.5,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 47.045,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4549999999999983,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 45.63365,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4113499999999988,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 44.2646405,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3690095000000042,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        }
+      },
+      "1": {
+        "dispatch_turns": [
+          3
+        ],
+        "control": {
+          "backend": "python",
+          "enabled": false,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 3.0,
+                "cap_overflow": 47.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 48.5,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.5,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 47.045,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4549999999999983,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 45.63365,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4113499999999988,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 44.2646405,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3690095000000042,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        },
+        "treatment": {
+          "backend": "python",
+          "enabled": true,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 1
+              },
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 3.0,
+                "cap_overflow": 47.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 2
+              },
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 48.5,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.5,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 47.045,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4549999999999983,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.2375
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 43.20865,
+                "Mine": 0.0
+              },
+              "transfers": [
+                {
+                  "turn": 3,
+                  "controller": "Cooperative",
+                  "donor": "Granary",
+                  "recipient": "Mine",
+                  "sent": {
+                    "grain": 2.5
+                  },
+                  "received": {
+                    "grain": 2.375
+                  },
+                  "transit_loss": 0.125,
+                  "treasury_cost": 1
+                }
+              ],
+              "conservation_residual": -1.4210854715202004e-14,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 12.375,
+                "storage_loss": 1.336350000000003,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 41.9123905,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.296259499999998,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        }
+      },
+      "10": {
+        "dispatch_turns": [
+          3,
+          4
+        ],
+        "control": {
+          "backend": "python",
+          "enabled": false,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 3.0,
+                "cap_overflow": 47.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 48.5,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.5,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 47.045,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4549999999999983,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 45.63365,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4113499999999988,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 44.2646405,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3690095000000042,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        },
+        "treatment": {
+          "backend": "python",
+          "enabled": true,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 1
+              },
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 3.0,
+                "cap_overflow": 47.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 2
+              },
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 48.5,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.5,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 47.045,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.4549999999999983,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.2375
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 9,
+              "food_stocks": {
+                "Granary": 43.20865,
+                "Mine": 0.0
+              },
+              "transfers": [
+                {
+                  "turn": 3,
+                  "controller": "Cooperative",
+                  "donor": "Granary",
+                  "recipient": "Mine",
+                  "sent": {
+                    "grain": 2.5
+                  },
+                  "received": {
+                    "grain": 2.375
+                  },
+                  "transit_loss": 0.125,
+                  "treasury_cost": 1
+                }
+              ],
+              "conservation_residual": -1.4210854715202004e-14,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 12.375,
+                "storage_loss": 1.336350000000003,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.2375
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 8,
+              "food_stocks": {
+                "Granary": 39.4873905,
+                "Mine": 0.0
+              },
+              "transfers": [
+                {
+                  "turn": 4,
+                  "controller": "Cooperative",
+                  "donor": "Granary",
+                  "recipient": "Mine",
+                  "sent": {
+                    "grain": 2.5
+                  },
+                  "received": {
+                    "grain": 2.375
+                  },
+                  "transit_loss": 0.125,
+                  "treasury_cost": 1
+                }
+              ],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 20.0,
+                "transit_loss": 0.0,
+                "consumption": 12.375,
+                "storage_loss": 1.2212595000000022,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": 0.0,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        }
+      }
+    },
+    "native": {
+      "0": {
+        "dispatch_turns": [],
+        "control": {
+          "backend": "native",
+          "enabled": false,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 2.8799972534179688,
+                "cap_overflow": 43.12000274658203,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 44.62000274658203,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3799972534179688,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 39.401405334472656,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.218597412109375,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 34.33936309814453,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.062042236328125,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 29.429183959960938,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 0.9101791381835938,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        },
+        "treatment": {
+          "backend": "native",
+          "enabled": true,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 1
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 2.8799972534179688,
+                "cap_overflow": 43.12000274658203,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 2
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 44.62000274658203,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3799972534179688,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 39.401405334472656,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.218597412109375,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 34.33936309814453,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.062042236328125,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 29.429183959960938,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 0.9101791381835938,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        }
+      },
+      "1": {
+        "dispatch_turns": [
+          3
+        ],
+        "control": {
+          "backend": "native",
+          "enabled": false,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 2.8799972534179688,
+                "cap_overflow": 43.12000274658203,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 44.62000274658203,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3799972534179688,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 39.401405334472656,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.218597412109375,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 34.33936309814453,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.062042236328125,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 29.429183959960938,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 0.9101791381835938,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        },
+        "treatment": {
+          "backend": "native",
+          "enabled": true,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 1
+              },
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 2.8799972534179688,
+                "cap_overflow": 43.12000274658203,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 2
+              },
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 44.62000274658203,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3799972534179688,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 1,
+              "food_stocks": {
+                "Granary": 39.401405334472656,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.218597412109375,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.23749999701976776
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 31.914363861083984,
+                "Mine": 0.0
+              },
+              "transfers": [
+                {
+                  "turn": 3,
+                  "controller": "Cooperative",
+                  "donor": "Granary",
+                  "recipient": "Mine",
+                  "sent": {
+                    "grain": 2.5
+                  },
+                  "received": {
+                    "grain": 2.375
+                  },
+                  "transit_loss": 0.125,
+                  "treasury_cost": 1
+                }
+              ],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 12.375,
+                "storage_loss": 0.9870414733886719,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 0,
+              "food_stocks": {
+                "Granary": 27.076932907104492,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 0.8374309539794922,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        }
+      },
+      "10": {
+        "dispatch_turns": [
+          3,
+          4
+        ],
+        "control": {
+          "backend": "native",
+          "enabled": false,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 2.8799972534179688,
+                "cap_overflow": 43.12000274658203,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 44.62000274658203,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3799972534179688,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 39.401405334472656,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.218597412109375,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 34.33936309814453,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.062042236328125,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {},
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 29.429183959960938,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 0.9101791381835938,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        },
+        "treatment": {
+          "backend": "native",
+          "enabled": true,
+          "seed": 42,
+          "scope": "economy only; fixed population, no behavior/demography/narration",
+          "history": [
+            {
+              "turn": 0,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 1
+              },
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 50.0,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 2.8799972534179688,
+                "cap_overflow": 43.12000274658203,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 1,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 2
+              },
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 44.62000274658203,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.3799972534179688,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 2,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.0
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 10,
+              "food_stocks": {
+                "Granary": 39.401405334472656,
+                "Mine": 0.0
+              },
+              "transfers": [],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 10.0,
+                "storage_loss": 1.218597412109375,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 3,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.23749999701976776
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 9,
+              "food_stocks": {
+                "Granary": 31.914363861083984,
+                "Mine": 0.0
+              },
+              "transfers": [
+                {
+                  "turn": 3,
+                  "controller": "Cooperative",
+                  "donor": "Granary",
+                  "recipient": "Mine",
+                  "sent": {
+                    "grain": 2.5
+                  },
+                  "received": {
+                    "grain": 2.375
+                  },
+                  "transit_loss": 0.125,
+                  "treasury_cost": 1
+                }
+              ],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 12.375,
+                "storage_loss": 0.9870414733886719,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            },
+            {
+              "turn": 4,
+              "sufficiency": {
+                "Granary": 2.0,
+                "Mine": 0.23749999701976776
+              },
+              "stress_streak": {
+                "Granary": 0,
+                "Mine": 3
+              },
+              "treasury": 8,
+              "food_stocks": {
+                "Granary": 24.651933670043945,
+                "Mine": 0.0
+              },
+              "transfers": [
+                {
+                  "turn": 4,
+                  "controller": "Cooperative",
+                  "donor": "Granary",
+                  "recipient": "Mine",
+                  "sent": {
+                    "grain": 2.5
+                  },
+                  "received": {
+                    "grain": 2.375
+                  },
+                  "transit_loss": 0.125,
+                  "treasury_cost": 1
+                }
+              ],
+              "conservation_residual": 0.0,
+              "economy_conservation": {
+                "production": 12.0,
+                "transit_loss": 0.0,
+                "consumption": 12.375,
+                "storage_loss": 0.7624301910400391,
+                "cap_overflow": 0.0,
+                "clamp_floor_loss": 0.0,
+                "in_transit_delta": null,
+                "treasury_tax": 0.0,
+                "treasury_tithe": 0.0
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "reviewers": {
+    "Tier 1 correctness": "/root/tier1_correctness_review: cargo and demand findings remediated; 39 independent nonnative tests passed; no remaining scoped blocker",
+    "Tier 2 mechanism": "/root/tier2_mechanism_review: integer treasury projection remediated; 39 independent nonnative tests passed; source novelty confirmed; model/claim limits documented"
+  },
+  "checks": {
+    "mutual_aid_pytest": "41 passed, includes 2 native tests",
+    "focused_economy_traditions_population_pytest": "238 passed before addition of full-turn aid test; same runtime code",
+    "simulation_main_pytest": "154 passed",
+    "rust_readonly_query": "1 passed; LIBRARY_PATH=/usr/lib/python3.13/config-3.13-x86_64-linux-gnu required for linker",
+    "native_build": "maturin develop --release --locked passed",
+    "cli_smoke": "hybrid aid, simulate-only, seed42, 4 turns, 1 civ, 3 regions passed"
+  },
+  "limits": [
+    "Tiny fixtures only; no broad world sweep",
+    "No private b665e198 comparison",
+    "No demographic/famine-prevention claim",
+    "Python aid state persistence does not establish full native hybrid continuation"
+  ]
+}

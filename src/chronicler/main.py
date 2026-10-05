@@ -259,6 +259,11 @@ def execute_run(
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
+    mutual_aid = getattr(args, "mutual_aid", None)
+    if mutual_aid is not None:
+        world.mutual_aid_enabled = mutual_aid
+    if world.mutual_aid_enabled and agent_mode == "off":
+        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -897,6 +902,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--agents", type=str, default="off",
                         choices=["off", "demographics-only", "shadow", "hybrid"],
                         help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
+    parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
+                        help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
