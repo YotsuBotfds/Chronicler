@@ -1,0 +1,13 @@
+{
+  "failed_parent": {"returncode": 1},
+  "missing_exit": {"returncode": null},
+  "bool_exit": {"returncode": false},
+  "incomplete_status": {"status": "running"},
+  "missing_seed": {"seeds": [7]},
+  "duplicate_seed": {"seeds": [7, 7]},
+  "short_run": {"turns": 10},
+  "stale_native": {"native_sha256": "0000000000000000000000000000000000000000000000000000000000000000"},
+  "failed_worker": {"executions": [{"seed": 7, "status": "complete", "returncode": 0, "terminal_turn": 20}, {"seed": 8, "status": "failed", "returncode": 1, "terminal_turn": 10}]},
+  "missing_worker": {"executions": [{"seed": 7, "status": "complete", "returncode": 0, "terminal_turn": 20}]},
+  "duplicate_worker": {"executions": [{"seed": 7, "status": "complete", "returncode": 0, "terminal_turn": 20}, {"seed": 7, "status": "complete", "returncode": 0, "terminal_turn": 20}]}
+}
