@@ -45,8 +45,8 @@ def test_multiturn_native_stress_cargo_reserve_funding_and_recovery():
     assert rows[5]["memory_after"]["Mine"]["stress_streak"] == 0
     assert all(not r["transfers"] for r in rows[6:])
     # The streak resets at recovery and must be reacquired from fresh stress.
-    assert rows[10]["memory_after"]["Mine"]["stress_streak"] == 0
-    assert [r["memory_after"]["Mine"]["stress_streak"] for r in rows[11:14]] == [1, 2, 3]
+    assert rows[8]["memory_after"]["Mine"]["stress_streak"] == 0
+    assert [r["memory_after"]["Mine"]["stress_streak"] for r in rows[9:12]] == [1, 2, 3]
     assert rows[14]["prior_memory"]["Mine"]["stress_streak"] == 3
     assert rows[14]["treasury_before"] == 0
     assert all(r["economy_conservation"]["clamp_floor_loss"] == 0 for r in rows)
@@ -58,14 +58,15 @@ def test_multiturn_native_stress_cargo_reserve_funding_and_recovery():
 def test_multiturn_recovery_blocks_funded_aid_then_reactivation():
     rows = _run(True, 20)["history"]
     exhausted = _run(True, 2)["history"]
-    for funded, limited in zip(rows[:14], exhausted[:14], strict=True):
+    for funded, limited in zip(rows[:12], exhausted[:12], strict=True):
         for key in ("stocks_before", "stocks_after_aid", "native_commitments",
                     "sufficiency", "agent_snapshot", "delivery_diagnostics"):
             assert funded[key] == limited[key]
-    assert [r["turn"] for r in rows if r["transfers"]] == [4, 5, 14]
-    assert all(r["treasury_before"] > 0 and not r["transfers"] for r in rows[6:14])
+    assert [r["turn"] for r in rows if r["transfers"]] == [4, 5, 12]
+    assert all(r["treasury_before"] > 0 and not r["transfers"] for r in rows[6:12])
     assert rows[5]["memory_after"]["Mine"]["stress_streak"] == 0
-    assert rows[14]["prior_memory"]["Mine"]["stress_streak"] == 3
+    assert rows[12]["prior_memory"]["Mine"]["stress_streak"] == 3
+    assert rows[12]["memory_after"]["Mine"]["stress_streak"] == 0
 
 
 @pytest.mark.native
@@ -80,12 +81,17 @@ def test_multiturn_disabled_aid_is_noop():
 
 
 @pytest.mark.native
-def test_multiturn_disabled_matches_untouched_public_source_and_native():
-    """Requires an explicit pristine edf7299 export and its original native build."""
+def test_multiturn_disabled_matches_untouched_public_source_with_same_repaired_native():
+    """Isolate default-off Python aid changes from intentional native repairs.
+
+    Original-native byte-for-byte equivalence is no longer expected after cargo
+    lifecycle repairs. Both Python sources use the exact same compiled package.
+    """
     baseline_root = os.environ.get("CHRONICLER_UNTOUCHED_SOURCE")
-    baseline_native = os.environ.get("CHRONICLER_UNTOUCHED_NATIVE")
-    if not baseline_root or not baseline_native:
-        pytest.skip("Provide CHRONICLER_UNTOUCHED_SOURCE and CHRONICLER_UNTOUCHED_NATIVE for the untouched control")
+    if not baseline_root:
+        pytest.skip("Provide CHRONICLER_UNTOUCHED_SOURCE for the untouched Python control")
+    native = pytest.importorskip("chronicler_agents")
+    baseline_native = Path(native.__file__).resolve().parent.parent
     root = Path(__file__).resolve().parents[1]
     script = root / "scripts/mutual_aid_adversarial.py"
     def run(source, native):
@@ -97,12 +103,10 @@ def test_multiturn_disabled_matches_untouched_public_source_and_native():
     feature = _run(False, 2)
     assert Path(baseline["source"]).resolve() == (Path(baseline_root) / "src/chronicler/__init__.py").resolve()
     assert Path(baseline["native"]).resolve().is_relative_to(Path(baseline_native).resolve())
-    assert baseline["native_has_stockpile_commitments"] is False
+    assert baseline["native"] == feature["native"]
+    assert baseline["native_has_stockpile_commitments"] is True
     assert feature["native_has_stockpile_commitments"] is True
     for b, f in zip(baseline["history"], feature["history"], strict=True):
-        # The old native build cannot expose this newly added read-only diagnostic.
-        b = {k: v for k, v in b.items() if k != "native_commitments"}
-        f = {k: v for k, v in f.items() if k != "native_commitments"}
         assert b == f
 
 

@@ -192,7 +192,8 @@ def run_native(hops=4, seed=42, enabled=True, disruption=None, turns=28):
     # Aid adjacency differs from the explicit directed merchant network. Both are scenario inputs.
     adjacency = {n: (["First", "Second"] if n in ("A", "B") else (["A", "B"] if n in ("First", "Second") else [])) for n in names}
     population = {n: (10 if n == "First" else 20) if n in ("A", "B", "First", "Second") else 0 for n in names}
-    world = world_for(names, adjacency, {"A": {"grain": 180., "salt": 30.}, "B": {"grain": 30., "salt": 180.}}, population, enabled, seed)
+    initial = {"A": {"grain": 50., "salt": 50.}, "B": {"grain": 50., "salt": 50.}}
+    world = world_for(names, adjacency, initial, population, enabled, seed)
     chain = list(range(2, len(names) - 2))
     edges = [(0, chain[0]), (1, chain[0])] + list(zip(chain, chain[1:])) + [(chain[-1], len(names) - 2), (chain[-1], len(names) - 1)]
     bridge = AgentBridge(world, mode="hybrid")
@@ -273,6 +274,8 @@ def run_native(hops=4, seed=42, enabled=True, disruption=None, turns=28):
             bridge.set_economy_result(result)
             batch = build_region_batch(world, result)
             batch = batch.set_column(batch.schema.get_field_index("merchant_route_margin"), "merchant_route_margin", pa.array([.0] * (len(names) - 2) + [.9, .8], type=pa.float32()))
+            if disruption == "death" and turn == 2:
+                batch = batch.set_column(batch.schema.get_field_index("catastrophe_deaths_this_turn"), "catastrophe_deaths_this_turn", pa.array([100] * len(names), type=pa.uint16()))
             sim.set_region_state(batch)
             active_edges = edges
             if disruption == "cancel" and turn == 1:
@@ -284,18 +287,30 @@ def run_native(hops=4, seed=42, enabled=True, disruption=None, turns=28):
             sim.set_merchant_route_graph(route_batch(active_edges))
             sim.tick(turn, build_signals(world, economy_result=result))
             stats = sim.get_merchant_trip_stats()
-            close(stats["total_in_transit_qty"], sum(r["total_departures"] - r["total_arrivals"] - r["total_returns"] for r in diagnostic(sim).values()), TOL)
+            knowledge = sim.get_knowledge_stats()
+            try:
+                close(stats["total_in_transit_qty"], sum(r["total_departures"] - r["total_arrivals"] - r["total_returns"] for r in diagnostic(sim).values()), TOL)
+            except AssertionError as error:
+                target = Path(__file__).resolve().parents[1] / "qualification-receipts"
+                failure = {"error": str(error), "turn": turn, "native": identity,
+                           "hops": hops, "seed": seed, "enabled": enabled, "disruption": disruption,
+                           "history": history, "stats": stats, "before_snapshot": snap.to_pylist(),
+                           "after_snapshot": pa.record_batch(sim.get_snapshot()).to_pylist(),
+                           "diagnostics": list(diagnostic(sim).values())}
+                (target / f"failure-flight-{hops}-{seed}-{enabled}-{disruption}.json").write_text(json.dumps(failure, indent=2))
+                raise
             history.append({"turn": turn, "aid": aid, "commitments": commitments_raw,
                             "after_economy_commitments": after_commitments,
                             "delivery_delta": [{"region_id": key[0], "good": key[1], **v} for key, v in delta.items() if key[1] in GOODS],
                             "cargo": dict(cargo), "oracle_ledger": ledger, "oracle_errors": errors,
                             "native_conservation": c, "economy_replay_ledger": replay_ledger,
-                            "stocks_after_economy": actual, "trip_stats": stats, "edges": active_edges})
+                            "stocks_after_economy": actual, "trip_stats": stats,
+                            "knowledge_stats": knowledge, "edges": active_edges})
             last_settled = settled
     finally:
         bridge.close()
     return {"lane": "native-direct-ABI", "native": identity, "hops": hops, "seed": seed, "enabled": enabled,
-            "disruption": disruption, "turns": turns, "initial_stocks": {"A": {"grain": 180., "salt": 30.}, "B": {"grain": 30., "salt": 180.}},
+            "disruption": disruption, "turns": turns, "initial_stocks": initial,
             "route_margin_input": {"First": .9, "Second": .8}, "history": history,
             "full_hybrid_continuation_tested": False}
 
@@ -305,7 +320,7 @@ if __name__ == "__main__":
     p.add_argument("--lane", choices=["policy", "native"], required=True)
     p.add_argument("--hops", type=int, choices=[3, 4, 5], default=4)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--disruption", choices=["cancel", "return"])
+    p.add_argument("--disruption", choices=["cancel", "return", "death"])
     p.add_argument("--disabled", action="store_true")
     args = p.parse_args()
     receipt = run_policy(not args.disabled) if args.lane == "policy" else run_native(args.hops, args.seed, not args.disabled, args.disruption)

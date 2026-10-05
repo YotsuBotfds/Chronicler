@@ -1855,6 +1855,9 @@ impl AgentSimulator {
     /// instead of running abstract tatonnement trade allocation.
     pub fn set_hybrid_economy_mode(&mut self, enabled: bool) {
         self.hybrid_economy_mode = enabled;
+        if let Some(buf) = self.merchant_delivery_buf.as_mut() {
+            buf.physical_stock = enabled;
+        }
     }
 
     /// Run the economy tick: returns five Arrow batches.
@@ -2353,6 +2356,7 @@ impl AgentSimulator {
             if self.merchant_ledger.is_none() {
                 self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(self.regions.len()));
                 self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(self.regions.len()));
+                self.merchant_delivery_buf.as_mut().unwrap().physical_stock = self.hybrid_economy_mode;
             }
             return Ok(());
         }
@@ -2397,6 +2401,7 @@ impl AgentSimulator {
         if self.merchant_ledger.is_none() {
             self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(num_regions));
             self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(num_regions));
+            self.merchant_delivery_buf.as_mut().unwrap().physical_stock = self.hybrid_economy_mode;
         }
         Ok(())
     }
