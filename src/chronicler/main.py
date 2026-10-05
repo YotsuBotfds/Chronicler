@@ -49,7 +49,7 @@ from chronicler.narrative import NarrativeEngine
 from chronicler.simulation import run_turn
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
-from chronicler.intelligence import compute_accuracy, get_perceived_stat
+from chronicler.intelligence import compute_accuracy, _get_perceived_stat_with_accuracy
 
 DEFAULT_CONFIG = {
     "seed": 42,
@@ -347,6 +347,9 @@ def execute_run(
 
         # Capture per-turn snapshot for viewer bundle
         # M24: cache accuracy for snapshot
+        # Name-keyed cache entries can collide in externally supplied worlds.
+        # Keep live reads for those worlds to preserve even discarded RNG draws.
+        _unique_civ_names = len({c.name for c in world.civilizations}) == len(world.civilizations)
         _acc_cache: dict[tuple[str, str], float] = {}
         for _obs in world.civilizations:
             for _tgt in world.civilizations:
@@ -434,7 +437,13 @@ def execute_run(
                     tgt_name: {
                         stat: pv - getattr(tgt, stat)
                         for stat in ("military", "economy", "stability")
-                        if (pv := get_perceived_stat(obs, tgt, stat, world)) is not None
+                        if (pv := _get_perceived_stat_with_accuracy(
+                            obs, tgt, stat, world,
+                            accuracy=(
+                                _acc_cache[(obs_name, tgt_name)] if _unique_civ_names
+                                else compute_accuracy(obs, tgt, world)
+                            ),
+                        )) is not None
                     }
                     for tgt in world.civilizations
                     for tgt_name in [tgt.name]

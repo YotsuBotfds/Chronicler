@@ -122,7 +122,21 @@ def get_perceived_stat(observer: Civilization, target: Civilization,
     Deterministic: same observer/target/turn/stat → same result.
     max_value: upper clamp bound (default 100 for stats; use higher for treasury).
     """
-    accuracy = compute_accuracy(observer, target, world)
+    return _get_perceived_stat_with_accuracy(
+        observer, target, stat, world, max_value,
+        accuracy=compute_accuracy(observer, target, world),
+    )
+
+
+def _get_perceived_stat_with_accuracy(observer: Civilization, target: Civilization,
+                                      stat: str, world: WorldState,
+                                      max_value: int = 100, *, accuracy: float) -> int | None:
+    """Apply perception noise using accuracy from the same read-only snapshot.
+
+    Internal snapshot fast path: the caller must not mutate accuracy inputs
+    between computing accuracy and this read. Ordinary simulation reads use
+    get_perceived_stat, which always recomputes from the current world.
+    """
     if accuracy == 0.0:
         return None
 

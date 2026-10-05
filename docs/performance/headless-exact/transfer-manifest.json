@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "base_revision": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "branch": "perf/headless-exact",
+  "commit_identity": "Commit containing this manifest; production bytes additionally pinned below.",
+  "scope": "Public-only exact headless snapshot perception reuse; compatible duplicate-name fallback.",
+  "private_baseline_excluded": "b665e198",
+  "transfer_action": "Review or cherry-pick this isolated commit onto an edf7299-compatible public descendant. No default promotion or public push authorized.",
+  "production_files": [
+    "src/chronicler/intelligence.py",
+    "src/chronicler/main.py"
+  ],
+  "benchmark_files": [
+    "scripts/benchmark_headless.py",
+    "scripts/benchmark_perception.py"
+  ],
+  "regression_files": [
+    "tests/test_performance_equivalence.py",
+    "tests/fixtures/performance/duplicates_edf7299.json",
+    "tests/fixtures/performance/perception_edf7299.json",
+    "tests/fixtures/performance/public_edf7299.json"
+  ],
+  "evidence_files": [
+    "docs/performance/headless-exact/README.md",
+    "docs/performance/headless-exact/baseline.json",
+    "docs/performance/headless-exact/candidate-final.json",
+    "docs/performance/headless-exact/candidate-initial.json",
+    "docs/performance/headless-exact/comparison-final.json",
+    "docs/performance/headless-exact/final-regression-tests.log",
+    "docs/performance/headless-exact/focused-tests.log",
+    "docs/performance/headless-exact/paired-final.json",
+    "docs/performance/headless-exact/paired-initial.json",
+    "docs/performance/headless-exact/python-suite.log",
+    "docs/performance/headless-exact/tier1-review.md",
+    "docs/performance/headless-exact/tier2-review.md",
+    "docs/performance/headless-exact/tier3-review.md"
+  ],
+  "file_sha256": {
+    "src/chronicler/intelligence.py": "98fd8ff07f83c8fceab334d26ed96d7e895acd5a2958fb12848851c70d0546d2",
+    "src/chronicler/main.py": "9974aac579cc6d463e07468e835854228c8e19df75211e7ea119835e56443dce",
+    "scripts/benchmark_headless.py": "ed7a9739e0f89877af6735be26ae2abe9f435133fb9c7ad7a070fd1853290140",
+    "scripts/benchmark_perception.py": "90324c5d9166f8efab65b0559d63022ac19a2b8be34ce9f17a0d939b54ac7678",
+    "tests/test_performance_equivalence.py": "a05e64a527a9e913afc3156a30de298f98e6646fb819378c4e9e26e0f551f71e",
+    "tests/fixtures/performance/duplicates_edf7299.json": "208fe80262440d75d235b227bcde69f3367e6e1e7ea946c9e3bec18e0e525c32",
+    "tests/fixtures/performance/perception_edf7299.json": "4e8bc3259853862680dc379af73749c47f9788699a4b2526cd1b158501f31595",
+    "tests/fixtures/performance/public_edf7299.json": "f46e8a3f81fdd132663bee1c26d75bb6488d7943b62c7f9f31a646ce2a9d2f85",
+    "docs/performance/headless-exact/README.md": "6241efae5052b677453adae25db36b40be438855086153966484d45500bcbcf3",
+    "docs/performance/headless-exact/baseline.json": "1b496bc026086229b968f305904dffa4125eda935dc77b0d6a124eff2ec91189",
+    "docs/performance/headless-exact/candidate-final.json": "df8949e66e88dc7a9a490f72b85c61b222eca6013f8181ca4dd8eb5a1a34b1d3",
+    "docs/performance/headless-exact/candidate-initial.json": "39be4ec01f0d81bc813f2fd1f575e1eb89c431d466d6aada539a13edf82dec91",
+    "docs/performance/headless-exact/comparison-final.json": "c88f201b8673041f5d845cd3e732cd22a1081481d6f73aec5989685261e7ee57",
+    "docs/performance/headless-exact/final-regression-tests.log": "18092df798975178fa5e155b2a68bea263e89e47ba7e5e59df07831c7a245a23",
+    "docs/performance/headless-exact/focused-tests.log": "72391611e97a4a95a698e16ac184ecaf6b805748f2a9e206ec21464f43bd915f",
+    "docs/performance/headless-exact/paired-final.json": "f01d9bb6a64a8a2b8d1ebc129871912a7c9d462060c1bc28ed90b8c0e3f98a08",
+    "docs/performance/headless-exact/paired-initial.json": "7fb71425031f12d392a58665dfc1fb866a582ac44681d437b0823983385bdc38",
+    "docs/performance/headless-exact/python-suite.log": "c10881a8dfb9f4d38fd9618fedad5492732522e6297a2cb7b7ed4b3bc7193184",
+    "docs/performance/headless-exact/tier1-review.md": "c684fe7bc74446268c542030e3149ff18f626c3f3e7a4ede5a79a213c61975bd",
+    "docs/performance/headless-exact/tier2-review.md": "1d0842df579529cc8ae9f3f1f130f57f035c0d1693ee0c7476e8f1b82dff4f55",
+    "docs/performance/headless-exact/tier3-review.md": "dec08fb65dd10c13b152b386397af8b47fc1e3375ef0117ea0241f69c17445ed"
+  },
+  "validation": {
+    "non_slow_python_suite": {
+      "passed": 2813,
+      "skipped": 121,
+      "deselected": 9
+    },
+    "final_dedicated_regressions": {
+      "passed": 60
+    },
+    "tier2_independent_tests": {
+      "passed": 97
+    },
+    "tier2_exact_boundary_comparisons": 4392,
+    "exact_turn_comparisons": 120,
+    "complete_artifact_files_compared": 20,
+    "ordered_rng_traces_equal": true
+  },
+  "measured_source_manifest": "docs/performance/headless-exact/candidate-final.json",
+  "performance_claim": "Fewer repeated accuracy calls; final fixed-world perception microbenchmark 1.275x. No universal end-to-end or meaningful memory claim.",
+  "unmeasured": [
+    "native ecology/politics and hybrid agent paths",
+    "paid narration",
+    "interactive/live/resume/injection performance",
+    "private science baseline"
+  ],
+  "preserved": [
+    "output bytes with harness-fixed generated_at",
+    "RNG seeds/draw order",
+    "float precision/operation order",
+    "simulation algorithms",
+    "state-write frequency",
+    "public baseline source/evidence",
+    "uv.lock",
+    "owned fishery/mutual-aid/fertility mechanisms"
+  ],
+  "external_actions": {
+    "drive": "paused; no uploads or modifications",
+    "public_push": false,
+    "merge": false,
+    "default_promotion": false,
+    "paid_services": false,
+    "security_or_credential_changes": false
+  },
+  "remaining_blockers": [],
+  "local_raw_evidence": "output/performance (preserved, not tracked); transfer archive includes it"
+}

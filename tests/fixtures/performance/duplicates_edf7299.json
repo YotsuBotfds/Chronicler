@@ -1,0 +1,15 @@
+{
+  "baseline": "edf7299",
+  "turn_sha256": [
+    "06c017f3b226db0f1e942bfced5e28b949ca2f7d2284b5ead3e343c58fceb7fb",
+    "3e53fe3fa41ed19a559ca7048bc102ac708f8ec6480f337db6e49f9aeb0a69cb"
+  ],
+  "rng": {
+    "sha256": "8586c8797c80524f41f0a8f1b3d9cf194cc16153936345d7c2ea31241ac6fc95",
+    "counts": {
+      "seed": 6,
+      "random": 12
+    },
+    "instances": 6
+  }
+}
