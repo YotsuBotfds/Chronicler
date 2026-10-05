@@ -687,29 +687,40 @@ def _significant_slope_pattern(
 
 
 def _agent_count_by_turn(validation_summary: dict | None) -> dict[int, int]:
-    if not validation_summary:
+    if not isinstance(validation_summary, dict):
         return {}
     counts: dict[int, int] = {}
-    for turn_str, civ_aggs in validation_summary.get("agent_aggregates_by_turn", {}).items():
-        counts[int(turn_str)] = sum(
-            int(civ_data.get("agent_count", 0))
+    aggregates = validation_summary.get("agent_aggregates_by_turn", {})
+    if not isinstance(aggregates, dict):
+        return counts
+    for turn_str, civ_aggs in aggregates.items():
+        turn = _aggregate_turn_key(turn_str)
+        if turn is None:
+            continue
+        if not isinstance(civ_aggs, dict) or any(
+            not isinstance(civ_data, dict) or _population_count(civ_data.get("agent_count")) is None
             for civ_data in civ_aggs.values()
-        )
+        ):
+            continue
+        counts[turn] = sum(civ_data["agent_count"] for civ_data in civ_aggs.values())
     return counts
 
 
 def _final_ginis_from_validation_summary(validation_summary: dict | None) -> list[float]:
-    if not validation_summary:
+    if not isinstance(validation_summary, dict):
         return []
     agent_aggregates = validation_summary.get("agent_aggregates_by_turn", {})
-    if not agent_aggregates:
+    if not isinstance(agent_aggregates, dict):
         return []
-    for turn in sorted((int(turn) for turn in agent_aggregates.keys()), reverse=True):
+    for turn in _aggregate_turns_descending(agent_aggregates):
         turn_aggregates = agent_aggregates.get(str(turn), {})
+        if not isinstance(turn_aggregates, dict):
+            continue
         ginis = [
             float(civ_data["gini"])
             for civ_data in turn_aggregates.values()
-            if int(civ_data.get("agent_count", 0)) > 0
+            if isinstance(civ_data, dict)
+            and (_population_count(civ_data.get("agent_count")) or 0) > 0
             and civ_data.get("gini") is not None
         ]
         if ginis:
@@ -2065,12 +2076,108 @@ def run_arc_oracle(seed_runs: list[dict]) -> dict:
     }
 
 
+def _population_count(value: object) -> int | None:
+    """Accept explicit, nonnegative integer counts, never floors or coercions."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _aggregate_turn_key(value: object) -> int | None:
+    """Accept only canonical nonnegative JSON turn keys, without coercion."""
+    if not isinstance(value, str):
+        return None
+    try:
+        turn = int(value)
+    except ValueError:
+        return None
+    return turn if turn >= 0 and str(turn) == value else None
+
+
+def _aggregate_turns_descending(aggregates: dict) -> list[int]:
+    turns = (_aggregate_turn_key(key) for key in aggregates)
+    return sorted((turn for turn in turns if turn is not None), reverse=True)
+
+
+def _final_living_population(run: dict) -> dict:
+    """Read terminal population without mistaking territory or old samples for life.
+
+    Hybrid region populations require an explicit matching world-state turn
+    before they can establish terminal native-pool population. Other
+    modes (including shadow and demographics-only) do not have that contract,
+    so they require an explicit terminal native aggregate. An empty terminal
+    aggregate is evidence of zero agents, not permission to rewind the sample.
+    """
+    bundle = run.get("bundle") or {}
+    world = bundle.get("world_state", {})
+    metadata = bundle.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    terminal_turn = _population_count(metadata.get("total_turns"))
+    evidence = {
+        "seed": run.get("seed", metadata.get("seed")),
+        "population": None,
+        "source": None,
+        "turn": terminal_turn,
+        "agent_mode": world.get("agent_mode") if isinstance(world, dict) else None,
+        "reason": None,
+    }
+    if terminal_turn is None:
+        evidence["reason"] = "missing_or_invalid_terminal_turn"
+        return evidence
+    if not isinstance(world, dict):
+        evidence["reason"] = "invalid_world_state"
+        return evidence
+    if "turn" in world and _population_count(world["turn"]) != terminal_turn:
+        evidence["reason"] = "world_state_turn_does_not_match_terminal_turn"
+        return evidence
+
+    if (
+        world.get("agent_mode") == "hybrid"
+        and _population_count(world.get("turn")) == terminal_turn
+        and "regions" in world
+    ):
+        regions = world["regions"]
+        if not isinstance(regions, list) or any(
+            not isinstance(region, dict) or _population_count(region.get("population")) is None
+            for region in regions
+        ):
+            evidence["reason"] = "invalid_final_region_population"
+            return evidence
+        evidence["population"] = sum(region["population"] for region in regions)
+        evidence["source"] = "world_state.regions"
+        return evidence
+
+    summary = run.get("validation_summary")
+    if summary is not None and not isinstance(summary, dict):
+        evidence["reason"] = "invalid_validation_summary"
+        return evidence
+    aggregates = (summary or {}).get("agent_aggregates_by_turn", {})
+    if not isinstance(aggregates, dict):
+        evidence["reason"] = "invalid_terminal_agent_aggregate"
+        return evidence
+    if str(terminal_turn) not in aggregates:
+        evidence["reason"] = "missing_terminal_agent_aggregate"
+        return evidence
+    terminal = aggregates[str(terminal_turn)]
+    if not isinstance(terminal, dict):
+        evidence["reason"] = "invalid_terminal_agent_aggregate"
+        return evidence
+    if any(
+        not isinstance(civ_data, dict) or _population_count(civ_data.get("agent_count")) is None
+        for civ_data in terminal.values()
+    ):
+        evidence["reason"] = "invalid_terminal_agent_count"
+        return evidence
+    evidence["population"] = sum(civ_data["agent_count"] for civ_data in terminal.values())
+    evidence["source"] = "terminal_agent_aggregate"
+    return evidence
+
+
 def run_regression_summary(seed_runs: list[dict]) -> dict:
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
     has_agent_event_inputs = any(run.get("events") for run in seed_runs)
     has_aggregate_inputs = any(
-        (run.get("validation_summary") or {}).get("agent_aggregates_by_turn")
+        isinstance(run.get("validation_summary"), dict)
+        and run["validation_summary"].get("agent_aggregates_by_turn")
         for run in seed_runs
     )
     if not has_agent_event_inputs and not has_aggregate_inputs:
@@ -2095,6 +2202,7 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     latest_incomplete_controlled_occupation_runs = 0
     final_ginis: list[float] = []
     final_civ_survivals: list[int] = []
+    living_population_evidence = [_final_living_population(run) for run in seed_runs]
     full_initial_survival_flags: list[bool] = []
     negative_treasury_runs = 0
     total_agent_turns = 0.0
@@ -2102,8 +2210,11 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     rebellion_events = 0
 
     for run in seed_runs:
-        validation_summary = run.get("validation_summary") or {}
+        validation_summary = run.get("validation_summary")
+        validation_summary = validation_summary if isinstance(validation_summary, dict) else {}
         agent_aggregates = validation_summary.get("agent_aggregates_by_turn", {})
+        if not isinstance(agent_aggregates, dict):
+            agent_aggregates = {}
         run_final_ginis = _final_ginis_from_validation_summary(validation_summary)
         run_has_current_occupation_schema = False
         run_has_controlled_occupation_evidence = False
@@ -2111,10 +2222,12 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         run_latest_has_controlled_occupation_evidence = False
         run_latest_has_incomplete_controlled_occupation = False
         if agent_aggregates:
-            for turn_aggregates in agent_aggregates.values():
+            for turn_key, turn_aggregates in agent_aggregates.items():
+                if _aggregate_turn_key(turn_key) is None or not isinstance(turn_aggregates, dict):
+                    continue
                 for civ_data in turn_aggregates.values():
-                    count = int(civ_data.get("agent_count", 0))
-                    if count <= 0:
+                    count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
+                    if count is None or count <= 0:
                         continue
                     satisfaction_mean = float(civ_data.get("satisfaction_mean", 0.0))
                     satisfaction_std = float(civ_data.get("satisfaction_std", 0.0))
@@ -2152,9 +2265,9 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                         for occ_count in all_occupation_counts.values():
                             fallback_occupation_shares.append(float(occ_count) / count)
 
-            for turn in sorted((int(turn) for turn in agent_aggregates.keys()), reverse=True):
+            for turn in _aggregate_turns_descending(agent_aggregates):
                 latest_aggregates = agent_aggregates.get(str(turn), {})
-                if not latest_aggregates:
+                if not isinstance(latest_aggregates, dict) or not latest_aggregates:
                     continue
                 turn_satisfaction_weighted_sum = 0.0
                 turn_satisfaction_second_moment_sum = 0.0
@@ -2167,8 +2280,8 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                 turn_latest_has_controlled_occupation_evidence = False
                 turn_latest_has_incomplete_controlled_occupation = False
                 for civ_data in latest_aggregates.values():
-                    count = int(civ_data.get("agent_count", 0))
-                    if count <= 0:
+                    count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
+                    if count is None or count <= 0:
                         continue
                     satisfaction_mean = float(civ_data.get("satisfaction_mean", 0.0))
                     satisfaction_std = float(civ_data.get("satisfaction_std", 0.0))
@@ -2240,7 +2353,11 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                 latest_incomplete_controlled_occupation_runs += 1
             if sampled_counts:
                 avg_agents = _mean(list(sampled_counts.values()))
-                total_turns = int(run["bundle"].get("metadata", {}).get("total_turns", 0) or 0)
+                metadata = run["bundle"].get("metadata")
+                total_turns = (
+                    _population_count(metadata.get("total_turns"))
+                    if isinstance(metadata, dict) else None
+                ) or 0
                 total_agent_turns += avg_agents * total_turns
 
         history = run["bundle"].get("history", [])
@@ -2420,6 +2537,15 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     )
     civ_survival_ok = zero_survival_fraction == 0.0 and full_survival_fraction <= 0.20
     treasury_ok = negative_treasury_runs <= max(1, int(len(seed_runs) * 0.30))
+    measured_populations = [
+        evidence["population"] for evidence in living_population_evidence
+        if evidence["population"] is not None
+    ]
+    extinct_world_count = sum(population == 0 for population in measured_populations)
+    population_unknown_count = len(seed_runs) - len(measured_populations)
+    # Preserve the existing no-total-extinction intent without a new tunable
+    # survival-size floor. Unknown terminal evidence must not earn a pass.
+    living_population_ok = extinct_world_count == 0 and population_unknown_count == 0
 
     rebellion_rate_ok = (
         REGRESSION_REBELLION_RATE_MIN <= rebellion_rate <= REGRESSION_REBELLION_RATE_MAX
@@ -2442,6 +2568,7 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         and gini_ok
         and occupation_ok
         and civ_survival_ok
+        and living_population_ok
         and treasury_ok
     )
     calibrated_floor_ok = (
@@ -2453,6 +2580,7 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         and gini_ok
         and occupation_ok
         and civ_survival_ok
+        and living_population_ok
         and treasury_ok
     )
     strict_checks = [
@@ -2464,6 +2592,7 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         ("gini_in_range_fraction", gini_ok),
         ("occupation", occupation_ok),
         ("civ_survival", civ_survival_ok),
+        ("living_population", living_population_ok),
         ("treasury", treasury_ok),
     ]
     calibrated_checks = [
@@ -2475,6 +2604,7 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         ("gini_in_range_fraction", gini_ok),
         ("occupation", occupation_ok),
         ("civ_survival", civ_survival_ok),
+        ("living_population", living_population_ok),
         ("treasury", treasury_ok),
     ]
     strict_regression_failed_checks = [name for name, ok in strict_checks if not ok]
@@ -2563,6 +2693,20 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
             if latest_occupation_incomplete_run_fraction is not None else None
         ),
         "latest_occupation_ok": latest_occupation_ok,
+        "reason": (
+            "terminal_population_extinction" if extinct_world_count else
+            "missing_or_invalid_terminal_population_evidence" if population_unknown_count else None
+        ),
+        "living_population_ok": living_population_ok,
+        "final_living_population_by_seed": living_population_evidence,
+        "final_living_population_counts": [evidence["population"] for evidence in living_population_evidence],
+        "extinct_world_count": extinct_world_count,
+        "extinct_world_fraction": (
+            round(extinct_world_count / len(measured_populations), 4)
+            if measured_populations else None
+        ),
+        "population_unknown_run_count": population_unknown_count,
+        "population_evidence_run_fraction": round(len(measured_populations) / len(seed_runs), 4),
         "civ_survival_counts": final_civ_survivals,
         "civ_zero_survival_fraction": round(zero_survival_fraction, 4) if final_civ_survivals else None,
         "civ_full_survival_fraction": round(full_survival_fraction, 4) if full_initial_survival_flags or final_civ_survivals else None,
