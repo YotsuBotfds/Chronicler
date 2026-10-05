@@ -6,8 +6,11 @@ exposes belief distributions and conversion deltas; resources.py exposes routes.
 
 Call ``start_reign`` at accession using a unique reign ID (not ruler name), then
 ``evaluate_ambitions`` once in late Phase 10 after action resolution. Returned
-legitimacy is an input to the later M66a computation, effective for governance at
-N+1; political capital is passed through, never charged by ambitions. The caller
+legitimacy is a clamped preview for this evaluation, effective for governance at
+N+1. G03 consumes keyed outcome deltas; it alone allocates capital. Capital is
+passed through, never charged by ambitions. Reign-long contribution retention
+is an unresolved integration policy: do not use the preview to overwrite G03's
+legitimacy computation or count an ambition again as a victory. The caller
 owns any succession legitimacy reset before supplying the accession snapshot.
 
 Policy gaps are explicit inputs: military/clergy eligibility, attainable targets,
@@ -323,8 +326,24 @@ class EvidenceEvent:
 
 
 @dataclass(frozen=True)
+class AmbitionContributionKey:
+    """Stable identity for one objective's terminal contribution to G03.
+
+    Integration can deduplicate by this key across retries and serialization.
+    A globally unique caller reign ID distinguishes even same-turn accessions.
+    Terminal success/failure shares one key because an objective settles once.
+    """
+    civ_id: str
+    ruler_id: str
+    accession_turn: int
+    accession_event_cursor: int
+    ambition_type: AmbitionType
+
+
+@dataclass(frozen=True)
 class AmbitionOutcome:
     """Adapter-ready named event and prerequisite tag; no shared Event writes."""
+    contribution_key: AmbitionContributionKey
     turn: int
     civ_id: str
     ruler_id: str
@@ -451,7 +470,8 @@ def evaluate_ambitions(reign: RulerAmbitions, snapshot: AmbitionSnapshot,
     """Resolve each active goal once; completion wins on the inclusive deadline.
 
     Clamp the combined normalized delta once, rather than ordering completions
-    and failures around the bounds. Persist the returned reign and legitimacy.
+    and failures around the bounds. Persist the returned reign and send keyed
+    outcome deltas to G03; legitimacy is only the clamped preview for this call.
     Outcomes use the evaluation turn; historical evidence retains its own turn.
     """
     _check_snapshot(reign, snapshot)
@@ -473,7 +493,9 @@ def evaluate_ambitions(reign: RulerAmbitions, snapshot: AmbitionSnapshot,
             event_type = 'ambition_fulfilled' if completed else 'ambition_failed'
             tag = f'ambition_{"completed" if completed else "failed"}_{ambition.ambition_type.value}'
             delta = calibration.completion_legitimacy if completed else -calibration.failure_legitimacy
-            outcomes.append(AmbitionOutcome(snapshot.turn, snapshot.civ_id, snapshot.ruler_id,
+            key = AmbitionContributionKey(reign.civ_id, reign.ruler_id, reign.accession_turn,
+                                          reign.accession_event_cursor, ambition.ambition_type)
+            outcomes.append(AmbitionOutcome(key, snapshot.turn, snapshot.civ_id, snapshot.ruler_id,
                                             ambition.ambition_type, ambition.target, event_type, tag, delta))
             tags += (tag,)
     delta = math.fsum(outcome.legitimacy_delta for outcome in outcomes)

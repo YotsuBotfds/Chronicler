@@ -294,6 +294,24 @@ def test_external_tags_are_sorted_unique_and_do_not_require_agent_memory():
     assert not hasattr(current, 'agent_id')
 
 
+def test_contribution_keys_are_stable_distinct_and_reign_scoped():
+    current = reign(goal(T.CONQUER_REGION), goal(T.ESTABLISH_TRADE))
+    state = snapshot(turn=27, owned_regions=('Border',))
+    first = evaluate_ambitions(current, state, calibration())
+    assert first.outcomes == evaluate_ambitions(current, state, calibration()).outcomes
+    keys = [outcome.contribution_key for outcome in first.outcomes]
+    assert len(set(keys)) == 2
+    assert keys[0].civ_id == 'Civ'
+    assert keys[0].ruler_id == 'reign-1'
+    assert keys[0].accession_turn == 7
+    assert keys[0].accession_event_cursor == 10
+    assert keys[0].ambition_type == T.CONQUER_REGION
+    new_reign = replace(current, ruler_id='reign-2')
+    new_result = evaluate_ambitions(new_reign, replace(state, ruler_id='reign-2'), calibration())
+    assert set(keys).isdisjoint(outcome.contribution_key for outcome in new_result.outcomes)
+    assert evaluate_ambitions(first.reign, state, calibration()).outcomes == ()
+
+
 @pytest.mark.parametrize('changes', [ {'turn': 6}, {'event_cursor': 9}, {'civ_id': 'Other'}, {'ruler_id': 'new'} ])
 def test_evaluation_rejects_wrong_reign_or_backwards_snapshot(changes):
     with pytest.raises(ValueError):
