@@ -1,0 +1,187 @@
+{
+  "world_state": {
+    "name": "Region inspection fixture",
+    "seed": 1701,
+    "turn": 5,
+    "regions": [
+      {
+        "name": "Delta/~east",
+        "terrain": "plains",
+        "carrying_capacity": 80,
+        "resources": "fertile",
+        "controller": null,
+        "x": 0.3,
+        "y": 0.4,
+        "ecology": {
+          "soil": 0.99,
+          "water": 0.99,
+          "forest_cover": 0.99
+        },
+        "stockpile": {
+          "goods": {
+            "grain": 0,
+            "salt": 7
+          }
+        }
+      },
+      {
+        "name": "Upland",
+        "terrain": "forest",
+        "carrying_capacity": 60,
+        "resources": "timber",
+        "controller": "Boreal",
+        "x": 0.7,
+        "y": 0.6,
+        "stockpile": {
+          "goods": {
+            "timber": 3
+          }
+        }
+      }
+    ],
+    "civilizations": [],
+    "relationships": {},
+    "events_timeline": [],
+    "named_events": [],
+    "scenario_name": "synthetic inspection"
+  },
+  "history": [
+    {
+      "turn": 1,
+      "civ_stats": {},
+      "region_control": {
+        "Delta/~east": "Aurora",
+        "Upland": "Boreal"
+      },
+      "relationships": {},
+      "ecology": {
+        "Delta/~east": {
+          "soil": 0.8,
+          "water": 0,
+          "forest_cover": 0.4
+        },
+        "Upland": {
+          "soil": 0.7
+        }
+      }
+    },
+    {
+      "turn": 3,
+      "civ_stats": {},
+      "region_control": {
+        "Delta/~east": "Boreal",
+        "Upland": "Boreal"
+      },
+      "relationships": {},
+      "ecology": {
+        "Delta/~east": {
+          "soil": 0,
+          "forest_cover": 0.2
+        }
+      }
+    },
+    {
+      "turn": 5,
+      "civ_stats": {},
+      "region_control": {
+        "Delta/~east": null
+      },
+      "relationships": {},
+      "ecology": {
+        "Delta/~east": {
+          "water": 0.1,
+          "forest_cover": 0.1
+        }
+      }
+    }
+  ],
+  "events_timeline": [
+    {
+      "turn": 1,
+      "event_type": "trade",
+      "actors": [
+        "Aurora"
+      ],
+      "description": "Aurora records a trade; region unspecified.",
+      "consequences": [],
+      "importance": 2
+    },
+    {
+      "turn": 2,
+      "event_type": "drought",
+      "actors": [
+        "Aurora"
+      ],
+      "description": "Controller is unrecorded at this turn.",
+      "consequences": [],
+      "importance": 4
+    },
+    {
+      "turn": 3,
+      "event_type": "war",
+      "actors": [
+        "Boreal"
+      ],
+      "description": "Boreal records a war; region unspecified.",
+      "consequences": [],
+      "importance": 5
+    },
+    {
+      "turn": 3,
+      "event_type": "trade",
+      "actors": [
+        "Aurora"
+      ],
+      "description": "Former controller event should not match.",
+      "consequences": [],
+      "importance": 2
+    }
+  ],
+  "named_events": [
+    {
+      "name": "Delta drought",
+      "turn": 2,
+      "event_type": "drought",
+      "actors": [
+        "Aurora"
+      ],
+      "region": "Delta/~east",
+      "description": "Explicit regional observation during a snapshot gap.",
+      "importance": 4
+    },
+    {
+      "name": "Upland trade",
+      "turn": 3,
+      "event_type": "trade",
+      "actors": [
+        "Boreal"
+      ],
+      "region": "Upland",
+      "description": "A different region.",
+      "importance": 3
+    },
+    {
+      "name": "Unlocated war",
+      "turn": 3,
+      "event_type": "war",
+      "actors": [
+        "Boreal"
+      ],
+      "region": null,
+      "description": "No regional attribution.",
+      "importance": 5
+    }
+  ],
+  "chronicle_entries": {},
+  "era_reflections": {},
+  "metadata": {
+    "seed": 1701,
+    "total_turns": 5,
+    "generated_at": "2026-01-01T00:00:00Z",
+    "sim_model": "fixture",
+    "narrative_model": "none",
+    "scenario_name": "synthetic inspection",
+    "interestingness_score": null,
+    "bundle_version": 3
+  }
+}

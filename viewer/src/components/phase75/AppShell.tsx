@@ -20,6 +20,8 @@ import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/
 import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
 import { InterventionPanel } from "../InterventionPanel";
+import { RegionHistoryInspector } from "../RegionHistoryInspector";
+import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { buildTradeLinks, percentToTurn, turnToPercent } from "./appShellHelpers";
 import "./app-shell.css";
 
@@ -46,6 +48,7 @@ interface AppShellProps {
   surface: AppSurface;
   onSurfaceChange: (surface: AppSurface) => void;
   bundle: Bundle | null;
+  artifactIdentity?: ArtifactIdentity | null;
   bundleLoading: boolean;
   error: string | null;
   isLive: boolean;
@@ -581,6 +584,7 @@ export function AppShell({
   surface,
   onSurfaceChange,
   bundle,
+  artifactIdentity,
   bundleLoading,
   error,
   isLive,
@@ -631,6 +635,7 @@ export function AppShell({
     batch: true,
   });
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [batchSelectionPath, setBatchSelectionPath] = useState<string | null>(null);
 
   const [scenario, setScenario] = useState("");
@@ -960,6 +965,20 @@ export function AppShell({
         selectedCivilization={selectedCivilization}
         civilizations={civilizations}
       />
+
+      {bundle && !isLive && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
+        <details className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
+          <summary>Inspect region history</summary>
+          {historyOpen && <RegionHistoryInspector
+            key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+            bundle={bundle}
+            artifactIdentity={artifactIdentity}
+            selectedRegion={selectedRegion?.name}
+            currentTurn={currentTurn}
+            onSeek={onSeek}
+          />}
+        </details>
+      )}
 
       <div className="phase75-workspace">
         <LeftRail

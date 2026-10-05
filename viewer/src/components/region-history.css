@@ -1,0 +1,34 @@
+.region-history-disclosure {
+  margin: 16px 0;
+  border: 1px solid var(--phase75-edge);
+  border-radius: 14px;
+  background: var(--phase75-panel);
+}
+.region-history-disclosure > summary { padding: 14px 18px; cursor: pointer; color: var(--phase75-cyan-strong); }
+.region-history { padding: 0 18px 18px; }
+.region-history h2, .region-history h3 { margin: 16px 0 8px; font-size: 1.1rem; }
+.region-history p, .region-history small { color: var(--phase75-muted-strong); }
+.region-history p { margin: 8px 0 14px; line-height: 1.5; }
+.region-history-provenance { display: grid; gap: 8px; padding: 12px; background: rgba(0, 0, 0, .2); overflow-wrap: anywhere; }
+.region-history-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 18px 0; }
+.region-history-controls label { display: grid; gap: 6px; }
+.region-history-controls select { max-width: 100%; min-width: 150px; }
+.region-history-controls input[type="number"] { width: 110px; }
+.region-history-controls .region-history-checkbox { display: flex; align-items: center; padding: 8px 0; }
+.region-history button, .region-history input, .region-history select { font: inherit; color: var(--phase75-ink); background: #1d2426; border: 1px solid var(--phase75-edge-strong); padding: 6px 8px; border-radius: 6px; }
+.region-history button { cursor: pointer; }
+.region-history button:disabled { opacity: .45; cursor: default; }
+.region-history button:focus-visible, .region-history input:focus-visible, .region-history select:focus-visible { outline: 2px solid var(--phase75-cyan); outline-offset: 2px; }
+.region-history-table { overflow-x: auto; }
+.region-history table { border-collapse: collapse; width: 100%; min-width: 680px; font-size: .9rem; }
+.region-history td, .region-history th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--phase75-edge); vertical-align: top; }
+.region-history th { color: var(--phase75-muted-strong); }
+.region-history code { font-size: .85rem; overflow-wrap: anywhere; }
+.region-history-table code { white-space: nowrap; }
+.region-history tr[aria-current="true"] { background: rgba(126, 190, 195, .09); }
+.region-history-pages { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.region-history-chart { min-width: 0; }
+@media (max-width: 600px) {
+  .region-history-controls > label { max-width: 100%; }
+  .region-history-controls { align-items: stretch; }
+}
