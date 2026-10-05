@@ -64,6 +64,8 @@ class AmbitionType(str, Enum):
     DIPLOMATIC_TRIUMPH = 'diplomatic_triumph'
 
 
+_AMBITION_INDEX = {kind: index for index, kind in enumerate(AmbitionType)}
+
 def _integer(value: int, name: str) -> None:
     if type(value) is not int or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
@@ -225,7 +227,7 @@ class AmbitionCalibration:
             raise ValueError('duplicate ambition weight')
         for _, weight in weights:
             _number(weight, 'weight')
-        object.__setattr__(self, 'weights', tuple(sorted(weights, key=lambda item: item[0].value)))
+        object.__setattr__(self, 'weights', tuple(sorted(weights, key=lambda item: _AMBITION_INDEX[item[0]])))
 
 
 @dataclass(frozen=True)
@@ -293,7 +295,7 @@ class RulerAmbitions:
         _name(self.ruler_id, 'ruler_id')
         _integer(self.accession_turn, 'accession_turn')
         _integer(self.accession_event_cursor, 'accession_event_cursor')
-        ambitions = tuple(sorted(self.ambitions, key=lambda item: item.ambition_type.value))
+        ambitions = tuple(sorted(self.ambitions, key=lambda item: _AMBITION_INDEX[item.ambition_type]))
         if len(ambitions) > 3 or len({a.ambition_type for a in ambitions}) != len(ambitions):
             raise ValueError('reign requires at most three distinct ambition types')
         if any((a.generated_turn, a.generated_event_cursor) != (self.accession_turn, self.accession_event_cursor) for a in ambitions):
@@ -411,7 +413,7 @@ def generate_ambitions(snapshot: AmbitionSnapshot, calibration: AmbitionCalibrat
         duration = calibration.minimum_duration + min(int(draw.duration * span), span - 1)
         result.append(Ambition(kind, target, snapshot.turn, snapshot.turn + duration,
                                snapshot.event_cursor, predicate))
-    return tuple(sorted(result, key=lambda item: item.ambition_type.value))
+    return tuple(sorted(result, key=lambda item: _AMBITION_INDEX[item.ambition_type]))
 
 
 def start_reign(snapshot: AmbitionSnapshot, calibration: AmbitionCalibration,

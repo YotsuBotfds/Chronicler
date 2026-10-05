@@ -72,7 +72,8 @@ def test_generation_is_stable_under_collection_order_and_does_not_consume_rng():
     assert result == generate_ambitions(replace(state, conquerable_regions=('A', 'Z'),
         frontier_regions=('A', 'B'), attainable_trade_partners=('Other', 'Z')),
         calibration(), draws())
-    assert [a.ambition_type.value for a in result] == sorted(a.ambition_type.value for a in result)
+    assert [a.ambition_type for a in result] == sorted(
+        (a.ambition_type for a in result), key=tuple(T).index)
     assert len(set(a.ambition_type for a in result)) == 3
     assert random.getstate() == rng_before
     with pytest.raises(FrozenInstanceError):
@@ -376,3 +377,14 @@ def test_invalid_religious_predicates_and_ambition_flags():
         reign(goal(T.CONQUER_REGION), goal(T.CONQUER_REGION))
     with pytest.raises(ValueError):
         reign(goal(T.CONQUER_REGION), accession_turn=8)
+
+
+def test_fixed_draw_uses_roadmap_enum_index_before_weighted_selection():
+    # Enum: conquer then build; lexical: build then conquer. The first
+    # selection has the long deadline, exposing order independently of output sort.
+    config = calibration(ambitions_per_ruler=2, weights=(
+        (T.BUILD_MONUMENT, 1.), (T.CONQUER_REGION, 1.)))
+    result = generate_ambitions(snapshot(), config,
+        (Draw(0., 0., .999), Draw(0., 0., 0.)))
+    assert [a.ambition_type for a in result] == [T.CONQUER_REGION, T.BUILD_MONUMENT]
+    assert [a.deadline_turn for a in result] == [47, 27]
