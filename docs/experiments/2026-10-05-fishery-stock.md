@@ -127,7 +127,7 @@ existing accounting. A future total-food conservation claim must include all
 those buffers plus biological replenishment and discarded catch. These focused
 fixtures do not establish full-world or full-hybrid conservation/continuation.
 
-## Run and next paired validation
+## Run and bounded validation
 
 Enable programmatically or in a world JSON, without changing repository defaults:
 
@@ -144,14 +144,21 @@ python scripts/validate_fishery_experiment.py \
   --baseline-src /path/to/clean/edf7299/checkout/src --output /tmp/fishery-pair.json
 ```
 
-Next: one predeclared 40-turn coastal paired seed, identical initial state and
-worker inputs, fixed current parameters, high effort for turns 0–19 and a pause
-for turns 20–39. Compare stock, replenishment, harvest debit, current catch,
-lagged production, yield-triggered famine, and **separately** stockpile sufficiency.
-For hybrid validation, include cargo, pending deliveries, and clamp corrections
-in the goods ledger and use complete native-state capture before making resume
-claims. Build an untouched-main native binary for that control. Do not sweep
-parameters or compare with `b665e198`.
+The proposed 40-turn pair is now complete: fixed 800-farmer harvest on turns
+0–19, then zero-farmer rest on turns 20–39. The controlled Python Phase 2 → Phase 9
+fixture matches disabled behavior to untouched `edf7299` each turn, verifies
+biomass and goods accounting, and resumes exactly across a turn-20 JSON reload.
+Stock falls to 0.108394 after harvesting and recovers to 0.605908 after rest.
+Actual food production is bounded by the prior catch credit. Famine predicates,
+cooldown-limited famine events, and stockpile sufficiency are reported separately.
+See the [completed validation and transfer record](2026-10-05-fishery-recovery-validation.md).
+
+This is a phase-kernel validation with prescribed snapshots and fixture-only zero
+famine population loss, not a full native simulation. No merchants or routes are
+present; cargo and pending-delivery buffers are explicitly zero, while storage,
+consumption, cap overflow, and floor-correction ledger terms are included.
+Full hybrid continuation remains unvalidated and would require complete native
+state and all runtime buffers. No parameter sweep or `b665e198` comparison occurred.
 
 Two fresh independent reviewers were used: Tier 1 mechanism/accounting and Tier 2
 native/turn-order integration. Their material findings prompted catch budgets and
