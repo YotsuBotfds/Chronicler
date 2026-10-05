@@ -1,6 +1,7 @@
-"""Exact public-baseline regression oracles for the snapshot optimization.
+"""Exact corrected-baseline regression oracles for the snapshot optimization.
 
-Golden data was captured from edf7299, not from the candidate implementation.
+Golden data was captured from eef5719 before importing the optimization.
+The edf7299 artifacts remain frozen as historical pre-bugfix evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
 checked; no approximate float comparisons or relaxed precision are used.
 """
@@ -16,12 +17,12 @@ from scripts.benchmark_headless import FixedDateTime, rng_trace, run
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "public_edf7299.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_eef5719.json").read_text())
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
 @pytest.mark.parametrize("name", BASELINE["workloads"])
-def test_public_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
+def test_corrected_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
     # Fix the lane even in environments where the optional Rust extension exists.
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
@@ -39,6 +40,17 @@ def test_public_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
         run(expected["spec"], tmp_path / "artifacts", on_turn=capture)
     assert turns == expected["turn_sha256"]
     assert trace == expected["rng"]
+
+
+def test_corrected_oracle_keeps_unaffected_workload_exact():
+    historical = json.loads((FIXTURES / "public_edf7299.json").read_text())
+    assert BASELINE["workloads"]["single"] == historical["workloads"]["single"]
+    # Real captures first affect snapshot intelligence at these turns. The
+    # corresponding lifecycle tests assert the new +0.3 source and its expiry.
+    for name, first_changed_index in (("standard", 0), ("wide", 3)):
+        old = historical["workloads"][name]["turn_sha256"]
+        new = BASELINE["workloads"][name]["turn_sha256"]
+        assert next(i for i, pair in enumerate(zip(old, new)) if pair[0] != pair[1]) == first_changed_index
 
 
 @pytest.mark.parametrize("case", PERCEPTIONS["cases"])
