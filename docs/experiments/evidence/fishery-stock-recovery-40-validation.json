@@ -1,0 +1,208 @@
+{
+  "feature_implementation_commit": "90ad340aef7380a890677bc8fa1f623ea5c08909",
+  "baseline": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "branch": "experiment/ecology-fishery-stock",
+  "engine_or_default_changes": false,
+  "model_or_effort_changes": false,
+  "raw_evidence": {
+    "path": "docs/experiments/evidence/fishery-stock-recovery-40.json",
+    "sha256": "f7d5dba0399d22a1dcd305736cfc8b4b3747275eae57c9225bbfcb2e93912ca3"
+  },
+  "harness_sha256": "341c5a044aa08cbad1ebd6cca222d4e99cd1965ad3b293161dd80dd03b68ba3d",
+  "checks": {
+    "off_equals_untouched_edf7299_each_turn": true,
+    "enabled_resume_equals_uninterrupted_each_turn": true,
+    "resumed_state_roundtrip_verified": true,
+    "harvest_depletes_stock": true,
+    "rest_restores_stock": true
+  },
+  "on_summary": {
+    "stock_at_end_of_harvest": 0.10839436017442522,
+    "stock_at_end_of_rest": 0.6059081371364894,
+    "total_food_production": 2307.8202663344277,
+    "total_harvest_debit": 2365.630591760788,
+    "total_replenishment": 1735.0836111791712,
+    "total_discarded_catch": 57.81032542636012,
+    "yield_famine_turns": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "famine_event_turns": [
+      7,
+      12,
+      17
+    ],
+    "stockpile_shortage_turns": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "stockpile_shortage_without_yield_famine_turns": [
+      5,
+      6,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "max_goods_balance_residual": 0.0,
+    "max_biomass_balance_residual": 1.1368683772161603e-13,
+    "max_combined_balance_residual": 9.094947017729282e-13,
+    "final_pending_catch": 0.0,
+    "final_goods": 0.0
+  },
+  "off_summary": {
+    "stock_at_end_of_harvest": null,
+    "stock_at_end_of_rest": null,
+    "total_food_production": 16000.0,
+    "total_harvest_debit": null,
+    "total_replenishment": null,
+    "total_discarded_catch": null,
+    "yield_famine_turns": [],
+    "famine_event_turns": [],
+    "stockpile_shortage_turns": [
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "stockpile_shortage_without_yield_famine_turns": [
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "max_goods_balance_residual": 0.0,
+    "max_biomass_balance_residual": null,
+    "max_combined_balance_residual": null,
+    "final_pending_catch": null,
+    "final_goods": 0.0
+  },
+  "preserved_prior_evidence": [
+    {
+      "path": "docs/experiments/evidence/fishery-stock-pair.json",
+      "sha256": "78ccb0890190cd381b5cc0a5cacd3feccc626ae831d4b4d04ea10ca5dbf2c717",
+      "unchanged_from_90ad340": true
+    },
+    {
+      "path": "docs/experiments/evidence/fishery-stock-validation.json",
+      "sha256": "19078e4e6021226a366802d710823ad009cbfcd51619091c1aba786e99166617",
+      "unchanged_from_90ad340": true
+    },
+    {
+      "path": "docs/experiments/evidence/fishery-stock-runtime.txt",
+      "sha256": "7d5075c801f9ea7f8b6a922af929617072ceac67276cf30081150b40f0e68fb6",
+      "unchanged_from_90ad340": true
+    }
+  ],
+  "tests": {
+    "command": ".venv/bin/python -m pytest tests/test_fishery_recovery_validation.py tests/test_fishery_experiment.py -q",
+    "result": "142 passed in 4.92s; no skips"
+  },
+  "independent_result_review": {
+    "tier": 3,
+    "agent": "review_recovery_results",
+    "result": "No blocking issues; independent small control reruns and per-turn goods/biomass/combined ledger reconstruction corroborated recorded values; four focused fixtures passed"
+  },
+  "packaging_preflight_review": {
+    "tier": 4,
+    "agent": "review_transfer_scope",
+    "guard_fixes": [
+      "Verify each intermediate commit path/mode and linear isolated history",
+      "No-overwrite creation for archive and both sidecars",
+      "Preserve output symlink identity for rejection"
+    ],
+    "final_archive_review": "Recorded with delivered archive sidecars after committed packaging"
+  },
+  "scope": "Controlled Python Phase 2 -> Phase 9; prescribed workforce; no native agent/demographic tick. Cargo and delivery buffers are zero by construction. No full hybrid continuation or cross-b665e198 comparison.",
+  "limitations": [
+    "Famine population-loss override zero is fixture-only and equal across controls",
+    "Zero-worker potential-yield convention is not evidence of food adequacy",
+    "Cargo/delivery buffers zero by construction; nonzero full hybrid ledger not tested",
+    "Python JSON continuation with reattached prescribed snapshots only; full hybrid continuation unvalidated",
+    "No parameter sweep, promotion, upload or public push"
+  ]
+}
