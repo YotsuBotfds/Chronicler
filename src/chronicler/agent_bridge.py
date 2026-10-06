@@ -1081,16 +1081,18 @@ class AgentBridge:
                 logger.exception("Failed to collect relationship stats from Rust tick")
 
         # M57b: household stats collection (always in agent modes)
+        # Native map iteration is not export order. Canonicalize completed
+        # records at history ingestion, leaving values and nested maps intact.
         try:
             h_stats = self._sim.get_household_stats()
-            self._household_stats_history.append(h_stats)
+            self._household_stats_history.append(dict(sorted(h_stats.items())))
         except Exception:
             logger.exception("Failed to collect household stats from Rust tick")
 
         # M58a: merchant trip stats collection
         try:
             m_stats = self._sim.get_merchant_trip_stats()
-            self._merchant_trip_stats_history.append(m_stats)
+            self._merchant_trip_stats_history.append(dict(sorted(m_stats.items())))
         except Exception:
             pass
 
@@ -1128,7 +1130,7 @@ class AgentBridge:
                 normalized_k_stats[key] = int(value) if key in int_keys else float(value)
             normalized_k_stats["created_by_type"] = created_by_type
             normalized_k_stats["transmitted_by_type"] = transmitted_by_type
-            self._knowledge_stats_history.append(normalized_k_stats)
+            self._knowledge_stats_history.append(dict(sorted(normalized_k_stats.items())))
         except Exception:
             logger.exception("Failed to collect knowledge stats from Rust tick")
 
