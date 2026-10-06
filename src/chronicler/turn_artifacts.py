@@ -12,16 +12,13 @@ from typing import TYPE_CHECKING, Literal, Mapping, cast
 
 import pyarrow as pa
 
+from chronicler.bridge_contract import FloatColumn, IntColumn
+
 if TYPE_CHECKING:
     from chronicler.economy import EconomyResult
     from chronicler.models import AgentEventRecord
 
 Stage = Literal["phase10_entry"]
-IntColumn = Literal[
-    "id", "region", "civ_affinity", "occupation", "belief",
-    "cultural_value_0", "cultural_value_1", "cultural_value_2", "settlement_id",
-]
-FloatColumn = Literal["x", "y", "loyalty_trait", "loyalty"]
 
 
 @dataclass(frozen=True, slots=True)
