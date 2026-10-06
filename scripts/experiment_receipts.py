@@ -16,10 +16,7 @@ from chronicler.experiment_receipt_inspector import (
 
 
 def _transport(path: Path) -> es.TransportPolicy:
-    with path.open("rb") as source:
-        data = source.read(4097)
-    if len(data) > 4096:
-        raise es.TransportDomainError("transport policy exceeds the 4096-byte bootstrap limit")
+    data = es.read_regular_file_bytes(path, max_bytes=4096, label="transport policy")
     return es.transport_policy_from_text(data.decode("utf-8"))
 
 

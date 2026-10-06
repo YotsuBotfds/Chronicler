@@ -18,7 +18,7 @@ from chronicler.campaign_snapshot_adapter import (
 from chronicler.experiment_sessions import (
     CampaignSession, Envelope, IntegrityError, SessionError, TransportDomainError,
     TransportPolicy, create_campaign_session, decode_envelope, encode_session,
-    transport_policy_from_payload,
+    read_regular_file_bytes, transport_policy_from_payload,
 )
 from chronicler.turn_artifacts import AgentRows
 
@@ -82,14 +82,15 @@ def validate_snapshot_byte_limit(max_snapshot_bytes: int) -> int:
 
 
 def read_bounded_bytes(path: Path, *, limit: int, label: str) -> bytes:
-    """Bound the actual opened stream, independent of stale or misleading stat."""
+    """Read once through the public nonblocking regular-file descriptor reader.
+
+    Direct limits are exact positive integers at most64MiB, and labels are exact
+    nonblank strings, matching the public reader's supported domain. Read symlinks
+    retain that reader's semantics; source byte bounds do not bound Arrow expansion.
+    """
     if type(limit) is not int or limit < 1:
         raise SessionError("file read limit must be a positive exact integer")
-    with Path(path).open("rb") as source:
-        data = source.read(limit + 1)
-    if len(data) > limit:
-        raise TransportDomainError(f"the {label} exceeds the {limit}-byte limit")
-    return data
+    return read_regular_file_bytes(Path(path), max_bytes=limit, label=label)
 
 
 def read_snapshot(path: Path, *, max_snapshot_bytes: int) -> pa.RecordBatch:

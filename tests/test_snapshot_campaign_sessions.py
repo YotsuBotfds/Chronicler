@@ -94,18 +94,36 @@ def test_snapshot_bound_requires_explicit_exact_supported_int_before_reads(monke
         bridge.read_snapshot(Path("absent"), max_snapshot_bytes=bound)
 
 
-def test_bounded_handle_read_ignores_metadata_and_rejects_before_arrow(monkeypatch):
+def test_bounded_handle_read_ignores_metadata_and_rejects_before_arrow(monkeypatch, tmp_path):
     reads = []
-    class Tracked(io.BytesIO):
+    class Tracked:
+        def __init__(self, handle):
+            self.handle = handle
+        def __enter__(self):
+            self.handle.__enter__()
+            return self
+        def __exit__(self, *args):
+            return self.handle.__exit__(*args)
+        def fileno(self):
+            return self.handle.fileno()
+        @property
+        def closed(self):
+            return self.handle.closed
         def read(self, size=-1):
             reads.append(size)
-            return super().read(size)
-    stream = Tracked(b"x" * 11)
-    monkeypatch.setattr(Path, "open", lambda *args, **kwargs: stream)
+            return self.handle.read(size)
+    path = tmp_path / "misleading"
+    path.write_bytes(b"x" * 11)
+    stream = None
+    def opened(descriptor, *args, **kwargs):
+        nonlocal stream
+        stream = Tracked(open(descriptor, *args, **kwargs))
+        return stream
+    monkeypatch.setattr(es, "open", opened, raising=False)
     monkeypatch.setattr(Path, "stat", forbidden)
     monkeypatch.setattr(pa.ipc, "open_file", forbidden)
     with pytest.raises(es.TransportDomainError):
-        bridge.read_snapshot(Path("misleading"), max_snapshot_bytes=10)
+        bridge.read_snapshot(path, max_snapshot_bytes=10)
     assert reads == [11] and stream.closed
 
 

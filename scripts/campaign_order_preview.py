@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import stat
 import sys
@@ -24,13 +23,7 @@ def _regular(path: Path) -> None:
 
 def _read(path: Path, limit: int) -> bytes:
     _regular(path)
-    with path.open("rb") as source:
-        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
-            raise PreviewError("opened input must be a regular file")
-        data = source.read(limit + 1)
-    if len(data) > limit:
-        raise es.TransportDomainError(f"input exceeds the {limit}-byte limit")
-    return data
+    return es.read_regular_file_bytes(path, max_bytes=limit, label="input")
 
 
 def _alternatives(data: bytes, transport: es.TransportPolicy, maximum: int) -> tuple:

@@ -107,7 +107,19 @@ numbers, nonfinite data and invalid integer types. Count is checked before recor
 decoding. Transport bootstrap reads at most 4097 bytes, accepting at most 4096;
 alternatives read at most `transport.max_bytes + 1`, accepting at most the bound.
 Only explicit regular files are supported; links, directories and special files
-fail the preflight. Inherited special-file/open timing races are not repaired.
+fail the retained initial `lstat` preflight. Transport and alternatives then use
+public `read_regular_file_bytes` with label `input`: one nonblocking descriptor
+open, same-descriptor regular-file validation, one bounded read, and closure
+before decoding. Exchanging a prechecked regular path for a FIFO therefore
+refuses without waiting for a writer. The session path keeps its preflight and
+one public loader call, whose reader has the same nonblocking boundary.
+
+The preflight is not atomic symlink containment. A pathname may change after
+`lstat`; the public reader follows a read symlink introduced afterward. Initial
+links remain refused. Replacement after descriptor opening uses that opened
+version and does not trigger a reread or a current-head promise. Unsupported
+nonblocking platforms propagate the public reader's typed refusal; there is no
+blocking fallback.
 
 The accepted public session loader is called once. `cli_observation` retains
 its actual observed file digest, generation and turn. The output describes those
@@ -132,6 +144,15 @@ The focused tests cover full direct-kernel receipt equivalence, exact hand
 arithmetic, independent stock grants, reverse/concurrent equivalence, canonical
 permutations, failure nonmutation, strict off/import controls, actual regular-file
 CLI observations, one-read replacement, and identical literal-path process output
-at hash seeds 0/42/101. Existing inherited I/O defects remain a separate owner’s
-work; no whole-tree pass is claimed. Later composition with accepted I/O requires
-rerunning read/preview/nonmutation gates on that actual combined source.
+at hash seeds 0/42/101. Consumer boundary tests also cover real FIFOs without a
+writer, deterministic substitutions, opened-version observations, descriptor
+closure and independent unbounded-read negative controls. No whole-tree pass or
+global allocation/deadline guarantee is claimed.
+
+The shared reader deliberately changes only intake diagnostics: an oversized
+transport or alternatives input now says `the input exceeds the N-byte transport
+limit` instead of `input exceeds the N-byte limit`. A nonregular descriptor
+introduced after preflight raises `SessionError` (`the input must be a regular
+file`); the old local post-open check used `PreviewError` and could block before
+reaching that check. Initial preflight diagnostics, ordinary read exceptions,
+strict decode/domain errors and supported command output remain unchanged.

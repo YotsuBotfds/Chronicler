@@ -73,11 +73,27 @@ The path can subsequently name a different version. Four separate reads establis
 no simultaneous multi-file snapshot, freshness or durable provenance transaction.
 There is no reread-until-stable loop or commit.
 
+All four input reads use the shared `read_bounded_bytes` delegation to the unchanged
+public `experiment_sessions.read_regular_file_bytes`: nonblocking open, regular-file
+validation on the opened descriptor, then at most limit+1 bytes once. Initial FIFOs
+and regular-to-FIFO pre-open exchanges refuse without waiting for a writer. Regular
+read symlinks remain accepted; no pathname containment is promised. Direct helper
+calls now require an exact positive limit at most64MiB and an exact nonblank string
+label. Old arbitrary larger limits and unvalidated labels are explicitly tightened,
+with no compatibility claim for those direct calls. Prior `Path(path)` coercion is
+preserved. Supported transport/side/snapshot/session callers fit the admitted domain.
+
+The saved-session refusal occurs after supplied admission preparation; it does not
+imply zero earlier admission calls. Saved-session decoding/replay has not occurred
+at that refusal. The verifier still submits no new turn and writes nothing. Q's
+guarded replay elsewhere is a point-in-time observation, not a durability proof.
+
 Source byte caps do not bound Arrow decompression expansion, allocation, execution
-time or output size. The standalone accepted snapshot parent inherits older9b
-I/O limitations; this script uses public bounded reads rather than its unbounded
-`load_session`. It claims no FIFO/nonblocking behavior and repairs no dependency.
+time or output size. Nonblocking open does not guarantee arbitrary-filesystem
+latency or coherent concurrent in-place writes. There is no reread/retry, lock or
+simultaneous multi-file capture. The observed full-file digest remains bound to the
+single saved-session byte string, even when the pathname is replaced later.
 Authenticated provenance, atomic receipt persistence, native/scientific validation,
 production activation and provider work remain separate unprovided contracts.
-After composition with newer accepted session I/O, replay, nonmutation and observed
-version controls must be repeated against that actual composed tree.
+Actual-tree integration rechecks replay, nonmutation and observed-version controls
+against the reviewed composed source.

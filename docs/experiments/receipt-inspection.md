@@ -20,15 +20,22 @@ python scripts/experiment_receipts.py --enable --path memome.json \
 ```
 
 `transport.json` has the unchanged version/four-bound shape documented in
-[session-workflow.md](session-workflow.md). Its opened stream is read at most
-4097 bytes and rejected above the 4096-byte bootstrap cap before parsing. The
-existing public strict policy parser rejects duplicate, nonfinite, float and
-invalid exact-kind fields. Session history/record/integer/file bounds are those
-of the existing loader. At the accepted `9b3fb5b5` baseline, `load_session` calls
-unbounded `Path.read_bytes()` and allocates the entire file before checking
-`transport.max_bytes`. This inspector does not repair or duplicate that reader.
-A claim of bounded session-source allocation requires separate review and
-integration of the session-read-bounds refinement through the same public API.
+[session-workflow.md](session-workflow.md). Its bytes come from public
+`read_regular_file_bytes` with a 4096-byte cap and label `transport policy`:
+one nonblocking descriptor open, same-descriptor regular-file validation, a read
+request of 4097 bytes, and closure before UTF-8/policy decoding. A FIFO needs no
+writer to refuse; a regular pathname exchanged for a FIFO also refuses. Regular
+read symlinks remain supported. Unsupported nonblocking platforms propagate the
+shared reader's refusal, without a blocking fallback. The existing strict policy
+parser rejects duplicate, nonfinite, float and invalid exact-kind fields.
+
+The current public session loader uses the same descriptor reader with
+`transport.max_bytes`, requests at most `max_bytes + 1`, refuses over-cap bytes
+before decoding and retains the digest of its one actual read. Inspection does
+not duplicate that load or reserve pathname currentness. Replacement after a
+file descriptor opens uses those opened bytes, including malformed old bytes;
+it does not mix in a newer pathname version. Session history/record/integer/file
+bounds remain those of the existing loader.
 The bootstrap policy byte cap, decoded record/history/integer bounds and output
 turn-interval cap are distinct. `max_turns` is not an output-byte or allocator
 overhead cap; one selected turn may retain many records. Full history
@@ -102,3 +109,15 @@ exact large integers, digest identities, untouched files/generations/directories
 resealed tampering, strict inputs, default-off forbidden hooks, fresh-process
 imports and hash-seed determinism. No simulation, provider access, HTML/viewer
 wiring, production registration, native change or milestone acceptance is added.
+
+The bootstrap delegation deliberately changes two input diagnostics: oversized
+policy bytes now report `the transport policy exceeds the 4096-byte transport
+limit` instead of `transport policy exceeds the 4096-byte bootstrap limit`;
+a directory reports `the transport policy is a directory: PATH` through the
+same `IsADirectoryError` type. FIFO/special-file intake reports the shared
+`SessionError` regular-file refusal. Ordinary open/read errors propagate, and
+UTF-8/domain/parser errors, selection rules, successful reports, off output and
+argparse behavior retain their existing contracts. Boundary evidence separately
+records these input-only changes and compares all other supported command
+streams and complete post-file bytes/modes/mtimes against accepted Q at seeds
+0 and 42.

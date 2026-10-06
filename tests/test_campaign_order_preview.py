@@ -370,7 +370,8 @@ class CliTests(unittest.TestCase):
     def test_bounded_reads_at_most_limit_plus_one(self):
         driver = cli_module()
         requests = []
-        original = Path.open
+        import builtins
+        original = builtins.open
         class Handle:
             def __init__(self, handle): self.handle = handle
             def __enter__(self): return self
@@ -379,8 +380,8 @@ class CliTests(unittest.TestCase):
             def read(self, size):
                 requests.append(size)
                 return self.handle.read(size)
-        def tracked(path, *args, **kwargs): return Handle(original(path, *args, **kwargs))
-        with mock.patch.object(Path, "open", tracked):
+        def tracked(descriptor, *args, **kwargs): return Handle(original(descriptor, *args, **kwargs))
+        with mock.patch.object(builtins, "open", tracked):
             driver._read(self.policy, 4096)
             driver._read(self.alternatives, self.transport.max_bytes)
         self.assertEqual(requests, [4097, self.transport.max_bytes + 1])

@@ -262,14 +262,29 @@ def test_cli_strict_transport_errors_and_missing_inputs_are_json_exit3(tmp_path,
     assert json.loads(capsys.readouterr().err)["error"] == "SessionError"
 
 
-def test_policy_actual_handle_read_is_bounded_before_decode_without_stat(monkeypatch):
+def test_policy_actual_handle_read_is_bounded_before_decode_without_stat(monkeypatch, tmp_path):
+    import builtins
     reads = []
-    class Tracked(io.BytesIO):
+    original = builtins.open
+    (tmp_path / "misleading-size").write_bytes(b" " * 4097)
+    monkeypatch.chdir(tmp_path)
+    class Tracked:
+        def __init__(self, descriptor, *args, **kwargs):
+            self.handle = original(descriptor, *args, **kwargs)
+        def __enter__(self): return self
+        def __exit__(self, *args): self.handle.close()
+        def fileno(self): return self.handle.fileno()
+        @property
+        def closed(self): return self.handle.closed
         def read(self, size=-1):
             reads.append(size)
-            return super().read(size)
-    stream = Tracked(b" " * 4097)
-    monkeypatch.setattr(Path, "open", lambda *args, **kwargs: stream)
+            return self.handle.read(size)
+    stream = None
+    def tracked(descriptor, *args, **kwargs):
+        nonlocal stream
+        stream = Tracked(descriptor, *args, **kwargs)
+        return stream
+    monkeypatch.setattr(builtins, "open", tracked)
     monkeypatch.setattr(Path, "stat", forbidden)
     monkeypatch.setattr(es, "transport_policy_from_text", forbidden)
     with pytest.raises(es.TransportDomainError):

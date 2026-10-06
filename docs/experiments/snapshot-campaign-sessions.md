@@ -24,6 +24,11 @@ disabled receipt, including when file paths are supplied. No file opens and no
 kernel calls occur. Enabled creation requires every input and an absent session
 destination:
 
+Creation retains its existing argparse behavior: optional syntax/type errors can
+exit2 before disabled dispatch. The separate verifier retains its exact-enable/
+help early dispatch and enabled syntax JSON exit3; this reader change does not
+unify those CLI contracts.
+
 ```sh
 python scripts/snapshot_campaign_session.py --enable \
   --snapshot captured.arrow --side-inputs side.json --transport transport.json \
@@ -51,14 +56,29 @@ four bounds described in [session-workflow.md](session-workflow.md), for example
 {"version":"chronicler-session-transport-v1","max_bytes":8388608,"max_records":200000,"max_history":10000,"max_int_bits":4096}
 ```
 
-All three file inputs use bounded reads on the opened handle, without trusting
-file metadata. Transport JSON has a 4096-byte bootstrap cap; side JSON uses the
+All three file inputs delegate through `read_bounded_bytes` to the unchanged public
+`experiment_sessions.read_regular_file_bytes`. It opens nonblocking, validates a
+regular file on that same descriptor, then reads at most limit+1 once without
+trusting pathname metadata. This refuses an initial FIFO or one exchanged before
+open without waiting for a writer. Regular read symlinks remain supported; this
+does not provide pathname containment or alter destination/lock protections.
+Transport JSON has a 4096-byte bootstrap cap; side JSON uses the
 explicit transport `max_bytes`; Arrow uses the mandatory `max_snapshot_bytes`
 argument (exact positive integer, excluding bool, at most 67108864). Excess is
 rejected before parsing. JSON uses the existing public strict transport/submission
 parsers and `parse_side_inputs`, rejecting duplicate keys, nonfinite values,
 floats, booleans in integer fields and missing/unknown keys. Arrow buffers are
 copied out of the closed source; no borrowed file handle escapes.
+Direct `read_bounded_bytes(path, *, limit, label)` calls retain the name/signature,
+prior `Path(path)` coercion and exact-positive-limit validation. Its admitted domain
+now follows the public reader: limit at most64MiB, label an exact nonblank string.
+Previously arbitrary positive limits and unvalidated labels were accepted; those
+direct calls are explicitly tightened and are not claimed compatible. Above-cap,
+bool/nonpositive limits or malformed labels refuse before open, without clamping
+or expanding the shared cap. All supported creator/verifier calls fit this domain.
+Descriptor binding does not guarantee arbitrary-filesystem latency or coherent
+concurrent in-place writes. Inputs are separate observations, not a simultaneous
+multi-file capture or authenticated source freshness transaction.
 The Arrow cap bounds source file bytes before parsing. It does not bound
 decompression expansion, copied/serialized Arrow buffer allocations or allocator
 overhead; those require a separate explicit resource contract (AM-06).
