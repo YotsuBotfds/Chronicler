@@ -1223,7 +1223,8 @@ def test_kernel_and_existing_fixtures_are_reused_not_copied():
     importers = [path for path in (ROOT / "src").rglob("*.py")
                  if path.name != "campaign_snapshot_adapter.py"
                  and "campaign_snapshot_adapter" in path.read_text("utf-8")]
-    assert importers == []
+    assert {path.relative_to(ROOT).as_posix() for path in importers} == {
+        "src/chronicler/snapshot_campaign_sessions.py"}
     # Existing snapshot-contract and campaign fixtures are reused unchanged.
     assert SNAPSHOT_FIELD_NAMES == tuple(SNAPSHOT_SCHEMA.names)
     assert len(SNAPSHOT_FIELD_NAMES) == 23 and SNAPSHOT_FIELD_NAMES[0] == "id"
