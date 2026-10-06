@@ -247,11 +247,28 @@ Open items that still need an authorized decision:
 
 1. **The measured result does not carry its own opening carry.** `run_kernel_frame`
    publishes only the new carry, so a measurement needs the opening separately.
-   The opt-in script obtains it by observing the example's call in-process; that
-   wrapper is process-global while it is installed, so it is unsuitable for
-   concurrent embedded use. **Decision needed:** whether a future reviewed change
-   should expose the opening, or whether interception-by-wrapper becomes the
-   accepted convention.
+   The opt-in script observes direct harness calls using a private harness view
+   in a copy of its experiment function's globals. The real harness entry point
+   and original function globals remain untouched, including during overlapping
+   invocations and failures. This handles the exact existing example's two
+   direct calls; helper-local imports and closure-bound harness references in
+   arbitrary alternate examples are not intercepted. A call with no observed
+   frame is refused explicitly. The trusted Python source loader compiles the
+   file's bytes into a fresh unattached module namespace; it never calls Python's
+   `runpy.run_path`, changes `sys.argv`, or installs a temporary `sys.modules`
+   entry. This also avoids crossed restoration during actual concurrent loads.
+   The script's historical `runpy.run_path` injection seam is retained as a
+   private loader object for the unchanged baseline tests, not as general runpy
+   API compatibility. Source encoding declarations, filenames in tracebacks,
+   Python-function validation and exception propagation remain supported.
+   Trusted source can still run ordinary imports or explicitly change process
+   state itself: this is no arbitrary-code containment or global-import isolation
+   guarantee. Shared `--output` files are not coordinated. Actual-source threaded
+   tests enforce overlapping loads with A finishing before B, validate each
+   caller's own opening/result, check argv and a preexisting temporary-module slot
+   during and after loads, and cover a loading failure beside a successful caller.
+   **Decision needed:** whether a future harness
+   API should expose the opening directly. No harness contract changed here.
 2. **`accession_pool_applied` is derived, not declared.** It is true exactly when
    the accrual opening balance differs from the post-spend balance, which only the
    harness's explicit accession carry/reset policy produces. The measurement never

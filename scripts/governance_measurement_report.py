@@ -18,8 +18,12 @@ default-off notice listing every M67 obligation that stays unavailable.
 ``--run-example`` invokes the exact existing ``examples/governance_four_kernel.py``
 experiment unchanged, then measures its already-produced result. Because that
 example builds its opening carry internally, the script observes the explicit
-frozen opening the example handed to the harness by wrapping ``run_kernel_frame``
-in-process for the duration of the call and restoring it in a ``finally`` block.
+frozen opening the example handed to the harness through a private harness view
+in a copy of this invocation's experiment-function globals. The real harness
+module and the original example-function globals are never modified.
+Trusted source is loaded in a fresh unattached module namespace without changing
+sys.argv or installing a temporary sys.modules entry. Ordinary imports performed
+by the trusted example retain their normal Python behaviour.
 No kernel behaviour changes and no example source is modified. The measurement
 itself (``chronicler.governance_measurements.measure_governance_result``) never
 calls ``run_kernel_frame``, reads an observation or a draw, or consumes an RNG.
@@ -30,9 +34,9 @@ scientific result, not M67 qualification and not Phase 9 authorization.
 from __future__ import annotations
 
 import argparse
-import runpy
 import sys
 from pathlib import Path
+from types import FunctionType, ModuleType, SimpleNamespace
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -43,13 +47,37 @@ from chronicler import governance_measurements as gm  # noqa: E402
 EXAMPLE_PATH = REPO_ROOT / "examples" / "governance_four_kernel.py"
 
 
+def _load_trusted_source(filename: str) -> dict:
+    """Execute trusted Python source without runpy's process-global bookkeeping.
+
+    This is neither code containment nor general runpy API compatibility. Bytes
+    are compiled directly to preserve Python source encoding declarations and
+    filename-bearing exceptions. The module is never registered in sys.modules.
+    """
+    namespace = vars(ModuleType("<run_path>"))
+    namespace.update(__file__=filename, __cached__=None, __loader__=None,
+                     __package__="", __spec__=None)
+    code = compile(Path(filename).read_bytes(), filename, "exec")
+    exec(code, namespace)
+    return namespace
+
+
+# Historical test injection seam: the accepted tests replace this object's
+# run_path operation (or the object itself). This private object is not Python's
+# runpy module, and its default implementation never calls that module.
+runpy = SimpleNamespace(run_path=_load_trusted_source)
+
+
 def run_example(example_path: Path = EXAMPLE_PATH) -> tuple[harness.HarnessCarry,
                                                           harness.HarnessResult]:
     """Run the exact existing example; return its opening carry and result.
 
-    The example is executed unmodified. ``run_kernel_frame`` is wrapped for the
-    duration of the call so the opening carry it passed is observable, and the
-    original entry point is always restored.
+    The existing example source is unmodified. Only its experiment function's
+    direct module-global harness references use this invocation's recording
+    view. Helper/closure imports are not intercepted; arbitrary alternate
+    examples using those patterns are outside this adapter's contract.
+    The trusted-source loader changes neither argv nor temporary module slots;
+    example code itself is not contained and may perform ordinary global imports.
     """
     if not example_path.is_file():
         raise SystemExit(f"missing example: {example_path.name}")
@@ -57,6 +85,8 @@ def run_example(example_path: Path = EXAMPLE_PATH) -> tuple[harness.HarnessCarry
     experiment = namespace.get("experiment")
     if not callable(experiment):
         raise SystemExit("example does not expose an experiment() callable")
+    if not isinstance(experiment, FunctionType):
+        raise SystemExit("example experiment must be a Python function")
     openings: list[harness.HarnessCarry] = []
     original = harness.run_kernel_frame
 
@@ -64,11 +94,13 @@ def run_example(example_path: Path = EXAMPLE_PATH) -> tuple[harness.HarnessCarry
         openings.append(kwargs["opening"])
         return original(*args, **kwargs)
 
-    harness.run_kernel_frame = recording
-    try:
-        result = experiment()
-    finally:
-        harness.run_kernel_frame = original
+    view = SimpleNamespace(**{**vars(harness), "run_kernel_frame": recording})
+    bindings = {name: view if value is harness else value
+                for name, value in experiment.__globals__.items()}
+    isolated = FunctionType(experiment.__code__, bindings, experiment.__name__,
+                            experiment.__defaults__, experiment.__closure__)
+    isolated.__kwdefaults__ = experiment.__kwdefaults__
+    result = isolated()
     if not openings:
         raise SystemExit("example invoked no kernel frame")
     return openings[-1], result
