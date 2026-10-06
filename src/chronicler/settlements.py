@@ -1,7 +1,17 @@
 # src/chronicler/settlements.py
 """M56a: Settlement detection, matching, lifecycle, and diagnostics."""
+from __future__ import annotations
+
 import logging
 import math
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from chronicler.turn_artifacts import AgentRows
+
+# Omitted view preserves standalone scratch-field callers; explicit None is an
+# unavailable coordinated observation and must not resurrect a legacy snapshot.
+_UNSET_AGENT_ROWS = object()
 
 logger = logging.getLogger(__name__)
 
@@ -324,11 +334,15 @@ def process_lifecycle(
     return events
 
 
-def _parse_snapshot_by_region(snapshot, num_regions: int) -> dict[int, list[tuple[float, float]]]:
+def _parse_snapshot_by_region(
+    snapshot, num_regions: int, *, agent_rows: AgentRows | None = None,
+) -> dict[int, list[tuple[float, float]]]:
     """Extract per-region agent positions from Arrow snapshot."""
-    regions = snapshot.column("region").to_pylist()
-    xs = snapshot.column("x").to_pylist()
-    ys = snapshot.column("y").to_pylist()
+    if agent_rows is not None and agent_rows.batch is not snapshot:
+        raise ValueError("Settlement view must wrap the supplied snapshot")
+    regions = agent_rows.ints("region") if agent_rows is not None else snapshot.column("region").to_pylist()
+    xs = agent_rows.floats("x") if agent_rows is not None else snapshot.column("x").to_pylist()
+    ys = agent_rows.floats("y") if agent_rows is not None else snapshot.column("y").to_pylist()
 
     by_region: dict[int, list[tuple[float, float]]] = {r: [] for r in range(num_regions)}
     for i in range(len(regions)):
@@ -342,6 +356,8 @@ def run_settlement_tick(
     world,
     source_turn: int,
     force: bool = False,
+    *,
+    agent_rows: AgentRows | None = _UNSET_AGENT_ROWS,
 ) -> list[Event]:
     """Entry point called every turn from run_turn().
 
@@ -349,7 +365,16 @@ def run_settlement_tick(
     writes diagnostics on every turn. Processes each region independently so
     component_ids stay region-local and never collide.
     """
-    snapshot = getattr(world, '_agent_snapshot', None)
+    if agent_rows is _UNSET_AGENT_ROWS:
+        snapshot = getattr(world, '_agent_snapshot', None)
+        agent_rows = None
+    elif agent_rows is None:
+        snapshot = None
+    else:
+        if (agent_rows.stamp.source_turn != source_turn
+                or agent_rows.stamp.stage != "phase10_entry"):
+            raise ValueError("Settlement agent rows have a different observation stamp")
+        snapshot = agent_rows.batch
 
     # No snapshot → off mode
     if snapshot is None:
@@ -385,7 +410,7 @@ def run_settlement_tick(
 
     # --- Detection pass ---
     num_regions = len(world.regions)
-    by_region = _parse_snapshot_by_region(snapshot, num_regions)
+    by_region = _parse_snapshot_by_region(snapshot, num_regions, agent_rows=agent_rows)
 
     world._settlement_founded_this_turn = []
     world._settlement_dissolved_this_turn = []

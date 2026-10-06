@@ -1024,7 +1024,10 @@ class AgentBridge:
         settlement_batch = build_settlement_batch(world)
         self._sim.set_settlement_footprints(settlement_batch)
 
-    def tick_agents(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
+    def tick_agents(
+        self, world: WorldState, shocks=None, demands=None, conquered=None, *,
+        death_output: list[AgentEventRecord] | None = None,
+    ) -> list:
         """Phase 2 of the split bridge: send signals and run agent tick.
 
         Assumes sync_regions() was already called this turn.
@@ -1038,9 +1041,12 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
-        return self._process_tick_results(agent_events, world)
+        return self._process_tick_results(agent_events, world, death_output=death_output)
 
-    def tick(self, world: WorldState, shocks=None, demands=None, conquered=None) -> list:
+    def tick(
+        self, world: WorldState, shocks=None, demands=None, conquered=None, *,
+        death_output: list[AgentEventRecord] | None = None,
+    ) -> list:
         """Compatibility wrapper: full sync + agent tick in one call.
 
         Use sync_regions() + tick_agents() separately when ecology runs between them.
@@ -1055,10 +1061,17 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         agent_events = self._sim.tick(world.turn, signals)
-        return self._process_tick_results(agent_events, world)
+        return self._process_tick_results(agent_events, world, death_output=death_output)
 
-    def _process_tick_results(self, agent_events, world: WorldState) -> list:
-        """Shared post-tick processing for both tick() and tick_agents()."""
+    def _process_tick_results(
+        self, agent_events, world: WorldState, *,
+        death_output: list[AgentEventRecord] | None = None,
+    ) -> list:
+        """Shared post-tick processing; optionally publish ordered borrowed deaths.
+
+        The coordinator supplies a fresh output list for each invocation. The
+        legacy world list remains available to standalone bridge callers.
+        """
         # M53: relationship stats collection (all modes)
         if self._collect_rel_stats:
             try:
@@ -1129,6 +1142,8 @@ class AgentBridge:
 
             raw_events = self._convert_events(agent_events, world.turn)
             world._dead_agents_this_turn = [e for e in raw_events if e.event_type == "death"]
+            if death_output is not None:
+                death_output.extend(world._dead_agents_this_turn)
             death_events = self._process_deaths(raw_events, world)  # step 2
             world.agent_events_raw.extend(raw_events)
 
@@ -1203,6 +1218,8 @@ class AgentBridge:
             self._process_promotions(promotions_batch, world)
             raw_events = self._convert_events(agent_events, world.turn)
             world._dead_agents_this_turn = [e for e in raw_events if e.event_type == "death"]
+            if death_output is not None:
+                death_output.extend(world._dead_agents_this_turn)
             self._process_deaths(raw_events, world)
             world.agent_events_raw.extend(raw_events)
             self._event_window.append(raw_events)
