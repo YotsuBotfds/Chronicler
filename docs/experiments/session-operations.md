@@ -56,7 +56,7 @@ receipt fields and exact intended digest before attempting the commit.
 
 | Status | Meaning |
 | --- | --- |
-| `committed_durable` | The one public commit returned after its directory-fsync gate for the exact intended identity. Another writer may advance the target before this receipt is delivered. |
+| `committed_durable` | The public directory-fsync gate completed for the exact intended identity, including a typed completed-cleanup outcome. Another writer may advance the target before this receipt is delivered. |
 | `replay_no_write` | Identical historical submission; this operation did not commit. `base` identifies the observed generation/file digest and turn; `intended` is null. The observed version need not remain current. |
 | `stale_conflict` | Another cooperating writer moved the expected file. No retry, reload, rebase or second commit occurs. |
 | `rejected` | Validation, kernel, platform or prepublication persistence failure, with the original typed error. |
@@ -68,9 +68,13 @@ original type and an `operation_receipt` attribute containing the status and
 error type/detail. This preserves `TransportDomainError`, `IntegrityError`,
 `StaleGenerationError`, `UnsupportedPlatformError`, `PersistenceError` and
 `DurabilityUncertain`, as well as ordinary file and kernel errors. Known
-precommit errors retain rejection/stale status. An unexpected commit exception
-(for example, unlock/descriptor cleanup after publication) is conservatively
-`commit_outcome_unknown`; no failed return is assumed to prove unchanged bytes.
+precommit errors retain rejection/stale status. An unexpected commit exception without a confirmed completed identity is
+conservatively `commit_outcome_unknown`; no failed return is assumed to prove
+unchanged bytes. Accepted `CommittedCleanupError` instead carries an exact
+completed publication after successful directory fsync. Its result must match
+the operation's entire intended envelope and identity to report
+`committed_durable`; the exception retains its cleanup cause. Cleanup never
+triggers another submission.
 Ordinary read errors before attempting commit remain `rejected`. Nothing is
 clamped, rounded, automatically recovered or retried. M68a late replay retains
 the latest ledger, including when the caller resubmits its original noncanonical
@@ -129,13 +133,18 @@ The transport document is the existing exact five-field policy JSON. The
 submission document is one complete accepted campaign `Tick` or memome `Batch`;
 use the formats in [session workflow](session-workflow.md). The driver reads the
 transport document with a 4096-byte budget, then the submission with the explicit
-transport byte budget. Both reads use opened-file `limit + 1` checks before
-parsing, without relying on file metadata. Session loading and persistence use
-the accepted library unchanged, including its transport checks and limitations.
-On this branch's accepted baseline the loader/current-destination check still
-allocate the full session bytes before checking the cap. Bounded session
-preallocation acceptance requires integration with the independently reviewed
-session-read-bounds refinement; this module adds no duplicate private reader.
+transport byte budget. Both reads delegate to the accepted public
+`read_regular_file_bytes` reader: one nonblocking open, descriptor regular-file
+check, and `limit + 1` read before parsing, without trusting pathname size.
+FIFO and other nonregular inputs are refused before operation work; directories
+retain `IsADirectoryError`, and ordinary open/read errors keep their types.
+Read symlinks retain the accepted library behavior. Session loading and
+persistence use the same accepted library unchanged. Bounds cover serialized
+reads, not arbitrary-filesystem latency or concurrent in-place mutation.
+Input oversize diagnostics now read `the <label> exceeds the <limit>-byte
+transport limit` instead of `<label> exceeds the <limit>-byte limit`; this is an
+input-only wording change, with the same `TransportDomainError`, rejected
+receipt and exit 3. It does not change operation or cleanup diagnostics.
 Source-byte limits are distinct from decoded record/history limits and stdout
 size; the transport cap is not a report-byte or total-memory guarantee.
 
@@ -197,3 +206,156 @@ python -B -m pytest -p no:cacheprovider -q \
 
 These synthetic gates establish an operator composition contract, not scientific,
 native-byte, production or milestone acceptance.
+
+## Preview one choice, submit once, and inspect the saved receipt
+
+Use a supported interpreter and a new empty temporary directory. From the
+checkout root, set `CHECKOUT` to its absolute path and `PYTHON` to the interpreter:
+
+```sh
+export CHECKOUT="$PWD"
+export PYTHON="${PYTHON:-python3}"
+export PYTHONPATH="$CHECKOUT/src"
+example_dir=$(mktemp -d)
+cd "$example_dir"
+```
+
+The following preparation writes only scratch input documents. It uses the
+existing five-participant memome demo, with two explicit alternatives sharing
+proposal `choice`, recipient `basic-1`, slot 1 and supplied draw 199. No ranking
+or automatic choice policy is involved.
+
+<!-- r007-step: prepare -->
+```sh
+"$PYTHON" - <<'PY'
+from dataclasses import asdict
+import json
+from pathlib import Path
+from chronicler import experiment_sessions as es
+from chronicler.memome_candidate_preview import CONTRACT
+
+encode = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+Path('transport.json').write_bytes(encode(asdict(es.documented_transport_policy())))
+proposal = {'proposal_id': 'choice', 'recipient': 'basic-1', 'slot': 1, 'candidate': 3, 'draw': 199}
+choices = [
+    {'label': 'candidate 3', 'batch': {'turn': 1, 'proposals': [proposal]}},
+    {'label': 'candidate 0', 'batch': {'turn': 1, 'proposals': [dict(proposal, candidate=0)]}},
+]
+Path('choices.json').write_bytes(encode({'contract': CONTRACT, 'alternatives': choices}))
+PY
+```
+
+The explicit create subcommand now mutates the scratch experiment, establishing
+generation 1/turn 0. Keep the exact opening bytes for the later comparison.
+
+<!-- r007-step: create -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/experiment_session.py" create --kernel m68a --path memome.json --transport transport.json --demo
+```
+
+<!-- r007-step: copy-opening -->
+```sh
+cp memome.json opening.json
+```
+
+<!-- r007-step: preview -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/memome_candidate_preview.py" --enable --path memome.json --transport transport.json --alternatives choices.json --max-alternatives 2 --format json
+```
+
+At this opening, candidate 3 has candidate weight 1, electorate weight 3,
+threshold 200 and draw 199: it is accepted and changes slot 1 from 1 to 3.
+Candidate 0 has reason `absent_candidate`, weight 0 and threshold 0; slot 1
+remains 1. Preview leaves the saved file untouched. Its observed identity is
+informational and is not an OCC or submission token.
+
+This example assumes no intervening writer between preview and apply. B's CAS
+protects the version B loads when apply starts; it does not bind the earlier
+preview. A review-bound submission under concurrent writers requires an
+explicit product/API decision. Do not add a shell precheck or an automatic
+re-preview/apply loop. Select the input batch explicitly by label from the
+input document; a preview report is never a submission.
+
+<!-- r007-step: select -->
+```sh
+"$PYTHON" - <<'PY'
+import json
+from pathlib import Path
+choices = json.loads(Path('choices.json').read_text())
+selected = next(row['batch'] for row in choices['alternatives'] if row['label'] == 'candidate 3')
+Path('submission.json').write_bytes(json.dumps(selected, sort_keys=True, separators=(',', ':')).encode())
+PY
+```
+
+<!-- r007-step: apply -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/session_operation.py" --enable apply --path memome.json --transport transport.json --submission submission.json
+```
+
+Expect `committed_durable`, base generation 1/turn 0 and intended generation
+2/turn 1. The intended full-file digest identifies the actual saved bytes,
+including their envelope and newline; it is not a hypothetical preview digest.
+The opening copy stays exact. Reopen the saved history for the full receipt:
+
+<!-- r007-step: inspect -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/experiment_receipts.py" --enable --path memome.json --transport transport.json --turn 1
+```
+
+The canonical admitted batch and every retained kernel receipt field must match
+candidate 3's hypothetical row: proposal ID, recipient, slot, previous value,
+candidate, draw, candidate/electorate weights, threshold and reason. The
+inspector's `participants_after` confirms basic-1's slot 1 is 3. This comparison
+links the displayed choice to the one saved result; it makes no scientific
+claim about the illustrative threshold.
+
+Re-submit the identical explicit batch once to exercise the historical replay
+contract. It returns `replay_no_write`, with intended null, and preserves
+generation 2/turn 1, every saved byte, mtime, and the original receipt. It does
+not append a second batch or update the trait again.
+
+<!-- r007-step: replay -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/session_operation.py" --enable apply --path memome.json --transport transport.json --submission submission.json
+```
+
+<!-- r007-step: inspect-replay -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/experiment_receipts.py" --enable --path memome.json --transport transport.json --turn 1
+```
+
+<!-- r007-step: compare -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/compare_experiment_sessions.py" --enable --left opening.json --right memome.json --transport transport.json --format json
+```
+
+Expect `left_history_prefix`, shared committed count 0, last shared committed
+turn null, and latest turns 0/1. Genesis is not a receipt. The result follows
+complete recorded history, rather than merely comparing generations. Inspection
+and comparison leave both saved files untouched.
+
+Separately, demonstrate an input-file refusal; do not continue a write sequence
+after it. This preparation writes only an oversized transport document, and
+the apply command must exit 3 with a pre-operation `rejected` receipt and no
+observed base or intended identity. The saved session and existing lock stay
+untouched.
+
+<!-- r007-step: invalid-prepare -->
+```sh
+"$PYTHON" - <<'PY'
+from pathlib import Path
+Path('oversized-policy.json').write_bytes(b'x' * 4097)
+PY
+```
+
+<!-- r007-step: invalid-refusal -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/session_operation.py" --enable apply --path memome.json --transport oversized-policy.json --submission submission.json
+```
+
+Malformed CLI syntax, pre-operation input refusal, typed operation failure, and
+output-delivery failure occur at different stages. Use the existing outcome
+and reconciliation tables above. An output failure after commit never
+justifies rerunning apply. This walkthrough assumes regular scratch inputs;
+R's B delegation does not repair other drivers' historical input-open limits,
+including the receipt-inspector and campaign-preview transport readers.

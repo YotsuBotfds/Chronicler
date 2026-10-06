@@ -3,6 +3,7 @@
 from contextlib import ExitStack, redirect_stdout, redirect_stderr
 from dataclasses import FrozenInstanceError, asdict, replace
 import hashlib
+import builtins
 import io
 import json
 import os
@@ -707,15 +708,20 @@ class SessionOperationCliTests(_SessionCase):
         driver = runpy.run_path(str(DRIVER))
         path = self.workdir / "input.json"
         path.write_bytes(b"x" * 65)
-        original_open = Path.open
+        original_open = builtins.open
         requests = []
         handles = []
 
         class Tracking:
-            def __enter__(self):
-                self.handle = original_open(path, "rb")
+            def __init__(self, descriptor, mode, *args, **kwargs):
+                self.handle = original_open(descriptor, mode, *args, **kwargs)
                 handles.append(self.handle)
+
+            def __enter__(self):
                 return self
+
+            def fileno(self):
+                return self.handle.fileno()
 
             def __exit__(self, *args):
                 self.handle.close()
@@ -724,7 +730,7 @@ class SessionOperationCliTests(_SessionCase):
                 requests.append(size)
                 return self.handle.read(size)
 
-        with mock.patch.object(Path, "open", return_value=Tracking()), mock.patch.object(
+        with mock.patch.object(builtins, "open", side_effect=Tracking), mock.patch.object(
                 Path, "stat", side_effect=AssertionError("no metadata-only bound")):
             with self.assertRaises(es.TransportDomainError):
                 driver["_read_bounded"](str(path), 64, "test")

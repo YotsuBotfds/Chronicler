@@ -21,11 +21,7 @@ def _emit(payload: dict, *, error: bool = False) -> None:
 
 
 def _read_bounded(path: str, limit: int, label: str) -> bytes:
-    with Path(path).open("rb") as handle:
-        data = handle.read(limit + 1)
-    if len(data) > limit:
-        raise es.TransportDomainError(f"{label} exceeds the {limit}-byte limit")
-    return data
+    return es.read_regular_file_bytes(path, max_bytes=limit, label=label)
 
 
 def _transport(path: str) -> es.TransportPolicy:
