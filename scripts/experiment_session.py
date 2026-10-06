@@ -35,12 +35,8 @@ def _emit(payload: dict) -> None:
 
 
 def _read_bounded(path: str, limit: int, label: str) -> bytes:
-    """Refuse an oversized submission before reading or parsing it."""
-    size = Path(path).stat().st_size
-    if size > limit:
-        raise es.TransportDomainError(
-            f"the {label} exceeds the {limit}-byte transport limit")
-    return Path(path).read_bytes()
+    """Read one regular descriptor within the byte cap before parsing."""
+    return es.read_regular_file_bytes(path, max_bytes=limit, label=label)
 
 
 def _transport(path: str) -> es.TransportPolicy:
@@ -222,6 +218,17 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {"create": _create, "apply": _apply, "inspect": _inspect, "verify": _verify}
     try:
         _emit(handlers[args.command](args))
+    except es.CommittedCleanupError as exc:
+        result = exc.result
+        _emit({"command": args.command, "committed": True, "status": "committed_durable",
+               "path": result.path, "generation": result.generation, "turn": result.turn,
+               "digest": result.digest, "session_digest": result.envelope.session_digest})
+        sys.stderr.write(json.dumps(
+            {"error": type(exc).__name__, "detail": str(exc),
+             "cleanup_error": type(exc.cleanup_error).__name__,
+             "cleanup_detail": str(exc.cleanup_error)},
+            sort_keys=True, separators=(",", ":")) + "\n")
+        return _EXIT_ERROR
     except es.SessionError as exc:
         # Includes TransportDomainError, ContractError and the persistence tree.
         sys.stderr.write(json.dumps({"error": type(exc).__name__, "detail": str(exc)},

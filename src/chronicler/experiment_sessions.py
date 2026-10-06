@@ -128,6 +128,29 @@ class DurabilityUncertain(PersistenceError):
     """The replace succeeded but the commit gate did not; read back before retrying."""
 
 
+class CommittedCleanupError(SessionError):
+    """Publication is durable; cleanup failed. Never automatically retry the write.
+
+    ``result`` identifies the completed publication, not necessarily the current
+    head. ``cleanup_error`` and the exception cause retain the original failure.
+    """
+
+    def __init__(self, result: CommitResult, cleanup_error: OSError) -> None:
+        self.result = result
+        self.cleanup_error = cleanup_error
+        super().__init__(
+            f"session generation {result.generation} committed durably at {result.path!r} "
+            f"with digest {result.digest}, but cleanup failed ({cleanup_error}); "
+            "read the file back to reconcile current identity; do not automatically retry")
+
+
+class _CleanupFailure(Exception):
+    """Internal marker: cleanup failed after the protected operation completed."""
+
+    def __init__(self, error: OSError) -> None:
+        self.error = error
+
+
 # ------------------------------------------------------------------- helpers
 
 
@@ -1273,14 +1296,42 @@ def decode_envelope_text(data: bytes, transport: TransportPolicy) -> Envelope:
 # ---------------------------------------------------------------- persistence
 
 
-def _read_session_bytes(target: Path, transport: TransportPolicy) -> bytes:
-    """Read under a validated byte budget, using the opened file rather than metadata."""
-    with target.open("rb") as handle:
-        raw = handle.read(transport.max_bytes + 1)
-    if len(raw) > transport.max_bytes:
-        raise TransportDomainError(
-            f"the session file exceeds the {transport.max_bytes}-byte transport limit")
+def read_regular_file_bytes(path: str | os.PathLike, *, max_bytes: int,
+                            label: str) -> bytes:
+    """Read at most ``max_bytes + 1`` from one nonblocking regular-file descriptor.
+
+    Type is checked on the opened descriptor, so a path substituted with a FIFO
+    cannot block between a metadata check and open. Read symlinks keep their
+    existing behavior. Ordinary open/read errors propagate unchanged.
+    """
+    _exact_int(max_bytes, "maximum file bytes", minimum=1)
+    _require(max_bytes <= MAX_TRANSPORT_BYTES, "maximum file bytes exceeds transport domain")
+    _exact_name(label, "file label")
+    if not hasattr(os, "O_NONBLOCK"):
+        raise UnsupportedPlatformError("bounded regular-file reads require nonblocking open")
+    flags = os.O_RDONLY | os.O_NONBLOCK
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    descriptor = os.open(path, flags)
+    try:
+        handle = open(descriptor, "rb", closefd=True)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    with handle:
+        mode = os.fstat(handle.fileno()).st_mode
+        if stat.S_ISDIR(mode):
+            raise IsADirectoryError(f"the {label} is a directory: {path}")
+        if not stat.S_ISREG(mode):
+            raise SessionError(f"the {label} must be a regular file")
+        raw = handle.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise TransportDomainError(f"the {label} exceeds the {max_bytes}-byte transport limit")
     return raw
+
+
+def _read_session_bytes(target: Path, transport: TransportPolicy) -> bytes:
+    return read_regular_file_bytes(target, max_bytes=transport.max_bytes, label="session file")
 
 
 def _require_destination_shape(target: Path) -> None:
@@ -1333,16 +1384,36 @@ def _exclusive_lock(lock_path: Path):
         # A link or a non-regular lock name is refused here, before any commit.
         raise PersistenceError(
             f"the session writer lock could not be opened: {exc}") from exc
+    primary = None
+    locked = False
+    cleanup = None
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise PersistenceError("the session writer lock must be a regular file")
         fcntl.flock(descriptor, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        locked = True
+        yield
+    except BaseException as exc:
+        primary = exc
+        raise
     finally:
-        os.close(descriptor)
+        if locked:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            except OSError as exc:
+                cleanup = exc
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            if cleanup is None:
+                cleanup = exc
+            else:
+                cleanup.add_note(f"writer lock close also failed: {exc}")
+        if cleanup is not None:
+            if primary is not None:
+                primary.add_note(f"writer lock cleanup also failed: {cleanup}")
+            else:
+                raise _CleanupFailure(cleanup) from cleanup
 
 
 def _create_temp_file(target: Path) -> tuple[int, Path]:
@@ -1360,10 +1431,20 @@ def _create_temp_file(target: Path) -> tuple[int, Path]:
 
 def _fsync_directory(directory: Path) -> None:
     descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    primary = None
     try:
         os.fsync(descriptor)
+    except BaseException as exc:
+        primary = exc
+        raise
     finally:
-        os.close(descriptor)
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            if primary is not None:
+                primary.add_note(f"directory close also failed: {exc}")
+            else:
+                raise _CleanupFailure(exc) from exc
 
 
 def _replace_durably(target: Path, data: bytes) -> None:
@@ -1435,21 +1516,38 @@ def commit_session(path: str | os.PathLike, session: CampaignSession | MemomeSes
     replace raises :class:`PersistenceError` with the prior bytes intact. A
     failure of the parent-directory fsync raises :class:`DurabilityUncertain`,
     which forbids any claim about the previous content and requires readback.
+    Cleanup failure after the commit gate raises :class:`CommittedCleanupError`
+    with the completed result; this outcome never authorizes an automatic retry.
     """
     _validate_transport(transport)
     target = Path(path)
     _require_supported_platform(target)
-    with _exclusive_lock(_lock_path(target)):
-        # The destination name is re-validated under the writer lock: a shape
-        # change between the first check and the lock must not be committed to.
-        _require_destination_shape(target)
-        _require_expected(target, expected_generation, expected_digest, transport)
-        generation = 1 if expected_generation is None else expected_generation + 1
-        envelope = encode_session(session, transport=transport, generation=generation)
-        data = encode_envelope_text(envelope, transport)
-        _replace_durably(target, data)
-    return CommitResult(str(target), envelope.generation, envelope.turn,
-                        _digest_bytes(data), envelope)
+    completed = None
+    try:
+        with _exclusive_lock(_lock_path(target)):
+            # Recheck the destination under the lock before validation/publication.
+            _require_destination_shape(target)
+            _require_expected(target, expected_generation, expected_digest, transport)
+            generation = 1 if expected_generation is None else expected_generation + 1
+            envelope = encode_session(session, transport=transport, generation=generation)
+            data = encode_envelope_text(envelope, transport)
+            result = CommitResult(str(target), envelope.generation, envelope.turn,
+                                  _digest_bytes(data), envelope)
+            try:
+                _replace_durably(target, data)
+            except _CleanupFailure:
+                # Only directory close after successful directory fsync emits this.
+                completed = result
+                raise
+            completed = result
+    except _CleanupFailure as exc:
+        if completed is not None:
+            error = CommittedCleanupError(completed, exc.error)
+            for note in getattr(exc, "__notes__", ()):
+                error.add_note(note)
+            raise error from exc.error
+        raise PersistenceError(f"session cleanup failed before publication: {exc.error}") from exc.error
+    return completed
 
 
 def load_session(path: str | os.PathLike, *,
@@ -1565,7 +1663,7 @@ def session_report(loaded: LoadedSession) -> dict:
 
 __all__ = [
     "ApplyResult", "BASELINE_SOURCE_HEAD", "BASELINE_SOURCE_TREE", "CampaignAdmission",
-    "CampaignSession", "CommitResult", "CONTRACT", "ContractError", "DurabilityUncertain",
+    "CampaignSession", "CommitResult", "CommittedCleanupError", "CONTRACT", "ContractError", "DurabilityUncertain",
     "ENVELOPE_VERSION", "Envelope", "IntegrityError", "KERNEL_CONTRACTS", "LoadedSession",
     "MAX_TRANSPORT_INT_BITS", "MemomeSession", "PersistenceError", "SESSION_COMMIT_ORDER",
     "SUPPORTED_TRANSPORT_VERSIONS", "SessionError", "StaleGenerationError",
@@ -1574,7 +1672,7 @@ __all__ = [
     "campaign_tick_from_payload", "commit_session", "create_campaign_session",
     "create_memome_session", "decode_envelope", "decode_envelope_text",
     "documented_transport_policy", "encode_envelope_text", "encode_session",
-    "load_session", "memome_batch_from_payload", "memome_session_from_payload",
+    "load_session", "read_regular_file_bytes", "memome_batch_from_payload", "memome_session_from_payload",
     "session_digest", "session_report", "session_turn", "submission_from_bytes",
     "transport_policy_from_payload", "transport_policy_from_text",
 ]

@@ -238,13 +238,23 @@ def apply_operation(path: str | os.PathLike, *, transport: es.TransportPolicy,
             raise RuntimeError("commit returned identities different from the intended file")
         return receipt
     except Exception as error:
-        if isinstance(error, es.DurabilityUncertain):
+        if isinstance(error, es.CommittedCleanupError):
+            result = error.result
+            committed = SessionIdentity(result.generation, result.digest,
+                                        result.envelope.session_digest, result.turn)
+            # Only the exact attempted publication can prove this operation durable.
+            matches = (commit_attempted and committed == intended and result.path == target
+                       and result.envelope == envelope)
+            status = "committed_durable" if matches else "commit_outcome_unknown"
+            if not matches:
+                error.add_note("completed publication metadata differs from this operation's intended identity")
+        elif isinstance(error, es.DurabilityUncertain):
             status = "durability_uncertain"
         elif isinstance(error, es.StaleGenerationError):
             status = "stale_conflict"
         elif commit_attempted and not isinstance(error, es.SessionError):
-            # An unlock/close failure can occur after publication. No private phase
-            # marker exists, so unexpected commit errors cannot prove no write.
+            # Unexpected commit exceptions provide no confirmed phase/identity,
+            # so they cannot prove no write or completion of the durable gate.
             status = "commit_outcome_unknown"
         else:
             status = "rejected"

@@ -3,6 +3,7 @@
 from contextlib import ExitStack
 from dataclasses import replace
 import hashlib
+import builtins
 import os
 from pathlib import Path
 import runpy
@@ -59,6 +60,9 @@ class TrackedHandle:
     def __exit__(self, *args):
         return self.handle.__exit__(*args)
 
+    def fileno(self):
+        return self.handle.fileno()
+
     def read(self, size=-1):
         self.requests.append((self.handle.fileno(), size))
         if self.before_read is not None:
@@ -83,16 +87,16 @@ class SessionReadBoundsTests(unittest.TestCase):
             expected_digest=hashlib.sha256(raw).hexdigest() if digest is None else digest)
 
     def track_open(self, requests, handles, before_read=None):
-        original = Path.open
+        original = builtins.open
 
-        def opened(path, mode="r", *args, **kwargs):
-            handle = original(path, mode, *args, **kwargs)
-            if path == self.target and mode == "rb":
+        def opened(descriptor, mode="r", *args, **kwargs):
+            handle = original(descriptor, mode, *args, **kwargs)
+            if type(descriptor) is int and mode == "rb":
                 handles.append(handle)
                 return TrackedHandle(handle, requests, before_read)
             return handle
 
-        return mock.patch.object(Path, "open", opened)
+        return mock.patch.object(builtins, "open", opened)
 
     def forbid_decode(self, stack):
         for name in ("decode_envelope_text", "_strict_loads", "decode_envelope"):
@@ -267,7 +271,7 @@ class SessionReadBoundsTests(unittest.TestCase):
         self.target.write_bytes(b"anything")
         for operation in ("load", "commit"):
             with self.subTest(operation=operation):
-                with mock.patch.object(Path, "open", side_effect=AssertionError(
+                with mock.patch.object(os, "open", side_effect=AssertionError(
                         "file must not open")), mock.patch.object(
                         es, "_exclusive_lock", side_effect=AssertionError("lock must not open")):
                     with self.assertRaises(es.SessionError) as raised:
@@ -287,7 +291,14 @@ class SessionReadBoundsTests(unittest.TestCase):
         for operation in ("load", "commit"):
             with self.subTest(operation=operation):
                 error = PermissionError("injected ordinary open failure")
-                with mock.patch.object(Path, "open", side_effect=error):
+                original_open = os.open
+
+                def failing_open(path, *args, **kwargs):
+                    if Path(path) == self.target:
+                        raise error
+                    return original_open(path, *args, **kwargs)
+
+                with mock.patch.object(os, "open", failing_open):
                     with self.assertRaises(PermissionError) as raised:
                         self.invoke(operation, policy, b"{}")
                 self.assertIs(raised.exception, error)

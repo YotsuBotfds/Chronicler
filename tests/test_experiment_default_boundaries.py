@@ -19,11 +19,11 @@ class DefaultBoundaries(unittest.TestCase):
         self.assertIs(operations.es,es);self.assertIs(inspector.es,es)
         self.assertEqual(Path(es.__file__).resolve(),(ROOT/'src/chronicler/experiment_sessions.py').resolve())
         with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory)/'large.json';path.write_bytes(b' '*513);policy=replace(es.documented_transport_policy(),max_bytes=512);original=Path.open;requests=[]
+            path=Path(directory)/'large.json';path.write_bytes(b' '*513);policy=replace(es.documented_transport_policy(),max_bytes=512);import builtins;original=builtins.open;requests=[]
             def opened(p,mode='r',*a,**kw):
                 handle=original(p,mode,*a,**kw)
-                return TrackedHandle(handle,requests) if p==path and mode=='rb' else handle
-            with mock.patch.object(Path,'open',opened),mock.patch.object(Path,'read_bytes',side_effect=AssertionError('unbounded reader reached')),mock.patch.object(es,'decode_envelope_text',side_effect=AssertionError('decode reached')):
+                return TrackedHandle(handle,requests) if type(p) is int and mode=='rb' else handle
+            with mock.patch.object(builtins,'open',opened),mock.patch.object(Path,'read_bytes',side_effect=AssertionError('unbounded reader reached')),mock.patch.object(es,'decode_envelope_text',side_effect=AssertionError('decode reached')):
                 with self.assertRaises(es.TransportDomainError):operations.apply_operation(path,transport=policy,submission=b'{}')
                 with self.assertRaises(es.TransportDomainError):inspector.inspect_receipts(path,enabled=True,transport=policy,turn=1)
             self.assertEqual([size for _,size in requests],[513,513])

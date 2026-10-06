@@ -105,8 +105,16 @@ def unlock_failure(path, transport_path, submission_path):
         try:
             operations.apply_operation(path, transport=transport,
                                         submission=Path(submission_path).read_bytes())
-        except OSError as error:
+        except es.CommittedCleanupError as error:
             receipt = error.operation_receipt
+            assert error.__cause__ is error.cleanup_error
+            assert isinstance(error.cleanup_error, OSError)
+            assert str(error.cleanup_error) == "injected postpublication unlock failure"
+            loaded = es.load_session(path, transport=transport)
+            assert error.result.generation == loaded.generation
+            assert error.result.digest == loaded.digest
+            assert error.result.envelope.session_digest == loaded.envelope.session_digest
+            assert error.result.turn == loaded.turn
         else:
             raise AssertionError("postpublication unlock failure did not surface")
     for descriptor in lock_descriptors:
@@ -507,7 +515,7 @@ class SessionOperationsTests(_SessionCase):
         self.assertEqual(es.load_session(self.target, transport=self.transport).generation, 2)
         self.assertEqual(self.reconcile(receipt).status, "different_valid_file")
 
-    def test_unexpected_postpublication_unlock_failure_is_unknown_in_test_owned_process(self):
+    def test_proven_postpublication_unlock_failure_is_durable_in_test_owned_process(self):
         session = fixture_session("m68a")
         self.create(session)
         transport_path = self.workdir / "transport.json"
@@ -519,8 +527,9 @@ class SessionOperationsTests(_SessionCase):
              str(self.target), str(transport_path), str(body_path)], capture_output=True, timeout=15)
         self.assertEqual(child.returncode, 0, child.stderr)
         payload = json.loads(child.stdout)
-        self.assertEqual(payload["status"], "commit_outcome_unknown")
-        self.assertEqual(payload["error"]["error_type"], "OSError")
+        self.assertEqual(payload["status"], "committed_durable")
+        self.assertEqual(payload["error"]["error_type"], "CommittedCleanupError")
+        self.assertIn("injected postpublication unlock failure", payload["error"]["detail"])
         expectation = operations.expectation_from_payload(payload["expectation"])
         before = self.target.read_bytes()
         observed = operations.reconcile_operation(self.target, transport=self.transport, expectation=expectation)
