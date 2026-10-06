@@ -1,0 +1,6 @@
+{
+  "status": "REJECTED",
+  "baseline_head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+  "candidate_head": "81a4a355c0755b168d66e839e009a8f6504d71b6",
+  "reason": "checkpoint source/Python/dependency runtime mismatch"
+}
