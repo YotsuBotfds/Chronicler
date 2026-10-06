@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+from chronicler.turn_artifacts import AgentRows, _check_agent_rows
 from chronicler.leaders import _pick_name, ALL_TRAITS
 from chronicler.religion import (
     PILGRIMAGE_DURATION_MIN,
@@ -312,12 +313,15 @@ def check_pilgrimages(
     temples: list,
     snapshot,
     current_turn: int,
+    *,
+    agent_rows: AgentRows | None = None,
 ) -> list:
     """Check for pilgrimage departures and returns.
 
     temples: list of (region_name, Infrastructure) tuples
     Returns a list of Event objects.
     """
+    _check_agent_rows(snapshot, agent_rows, source_turn=current_turn)
     from chronicler.models import Event
 
     events: list[Event] = []
@@ -325,20 +329,35 @@ def check_pilgrimages(
     # Build O(1) lookup: agent_id → row index in snapshot
     agent_idx_map: dict[int, int] = {}
     if snapshot is not None and snapshot.num_rows > 0:
-        ids = snapshot.column("id").to_pylist()
+        ids = (
+            agent_rows.ints("id")
+            if agent_rows is not None else snapshot.column("id").to_pylist()
+        )
         agent_idx_map = {aid: i for i, aid in enumerate(ids)}
 
     # Pre-extract snapshot columns for fast row lookup
-    _snap_occupation: list | None = None
-    _snap_loyalty_trait: list | None = None
-    _snap_loyalty: list | None = None
-    _snap_belief: list | None = None
+    _snap_occupation: list | tuple | None = None
+    _snap_loyalty_trait: list | tuple | None = None
+    _snap_loyalty: list | tuple | None = None
+    _snap_belief: list | tuple | None = None
     if snapshot is not None and snapshot.num_rows > 0:
-        _snap_occupation = snapshot.column("occupation").to_pylist()
-        _snap_loyalty_trait = snapshot.column("loyalty_trait").to_pylist()
-        _snap_loyalty = snapshot.column("loyalty").to_pylist()
+        _snap_occupation = (
+            agent_rows.ints("occupation")
+            if agent_rows is not None else snapshot.column("occupation").to_pylist()
+        )
+        _snap_loyalty_trait = (
+            agent_rows.floats("loyalty_trait")
+            if agent_rows is not None else snapshot.column("loyalty_trait").to_pylist()
+        )
+        _snap_loyalty = (
+            agent_rows.floats("loyalty")
+            if agent_rows is not None else snapshot.column("loyalty").to_pylist()
+        )
         try:
-            _snap_belief = snapshot.column("belief").to_pylist()
+            _snap_belief = (
+                agent_rows.ints("belief")
+                if agent_rows is not None else snapshot.column("belief").to_pylist()
+            )
         except (KeyError, Exception):
             _snap_belief = None
 
