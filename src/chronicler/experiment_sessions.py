@@ -1273,6 +1273,16 @@ def decode_envelope_text(data: bytes, transport: TransportPolicy) -> Envelope:
 # ---------------------------------------------------------------- persistence
 
 
+def _read_session_bytes(target: Path, transport: TransportPolicy) -> bytes:
+    """Read under a validated byte budget, using the opened file rather than metadata."""
+    with target.open("rb") as handle:
+        raw = handle.read(transport.max_bytes + 1)
+    if len(raw) > transport.max_bytes:
+        raise TransportDomainError(
+            f"the session file exceeds the {transport.max_bytes}-byte transport limit")
+    return raw
+
+
 def _require_destination_shape(target: Path) -> None:
     """The destination must be absent or a regular file, never a link or directory."""
     if target.is_symlink():
@@ -1405,7 +1415,7 @@ def _require_expected(target: Path, expected_generation: int | None,
     if not exists:
         raise StaleGenerationError(
             "the session destination is absent while a committed generation was expected")
-    raw = target.read_bytes()
+    raw = _read_session_bytes(target, transport)
     if _digest_bytes(raw) != expected_digest:
         raise StaleGenerationError(
             "the session destination digest differs from the expected digest")
@@ -1451,7 +1461,7 @@ def load_session(path: str | os.PathLike, *,
     """
     _validate_transport(transport)
     target = Path(path)
-    raw = target.read_bytes()
+    raw = _read_session_bytes(target, transport)
     envelope = decode_envelope_text(raw, transport)
     session = decode_envelope(envelope)
     return LoadedSession(str(target), envelope.generation, envelope.turn,

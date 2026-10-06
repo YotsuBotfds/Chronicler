@@ -115,6 +115,15 @@ Exceeding a byte, record, history, participant or integer bound raises
 Invalid *policy* values (a zero byte budget, an unknown version, a bound above
 the supported maximum) remain `SessionError`, because no payload is at fault.
 
+`load_session` and the existing-destination generation check in `commit_session`
+validate the caller's policy before file I/O, then read at most `max_bytes + 1`
+bytes from an opened file handle. The extra byte detects an oversized file before
+JSON parsing or reconstruction, without allocating the full file or trusting
+metadata that may be stale or incorrect. A file exactly at the limit is accepted
+for normal validation. Ordinary file I/O errors retain their existing behavior.
+An oversized destination is refused under the writer lock before any temporary
+session write; its bytes remain unchanged.
+
 ### Integer domain and the 121-bit cases
 
 `max_int_bits` bounds `int.bit_length()` for every transported integer. Because
