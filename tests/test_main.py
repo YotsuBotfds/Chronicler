@@ -8,6 +8,7 @@ from pathlib import Path
 from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG, _build_parser
 from chronicler.llm import AnthropicClient
 from chronicler.types import RunResult
+from chronicler.turn_artifacts import TurnObservation, TurnResult
 from chronicler.memory import MemoryStream
 
 
@@ -1147,7 +1148,10 @@ class TestPoliticsRuntimeWiring:
 
         def tracking_run_turn(*args, **kwargs):
             captured["politics_runtime"] = kwargs.get("politics_runtime")
-            return original_run_turn(*args, **kwargs)
+            world = args[0]
+            source_turn = world.turn
+            text = original_run_turn(*args, **kwargs)
+            return TurnResult(text, TurnObservation(source_turn, world.turn, None))
 
         mock_pol = MagicMock()
         # tick_politics returns 12 empty batches
@@ -1164,7 +1168,7 @@ class TestPoliticsRuntimeWiring:
         )
 
         with patch("chronicler.main._create_politics_runtime", return_value=mock_pol), \
-             patch("chronicler.main.run_turn", side_effect=tracking_run_turn):
+             patch("chronicler.main.run_turn_result", side_effect=tracking_run_turn):
             execute_run(args)
 
         assert captured.get("politics_runtime") is mock_pol

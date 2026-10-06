@@ -147,6 +147,8 @@ def _runtime_identity() -> dict[str, str]:
 def _require_supported(world: WorldState, runtime: str) -> None:
     if runtime != RUNTIME:
         raise CheckpointError(f"unsupported runtime {runtime!r}; only {RUNTIME} is validated")
+    # Support is determined independently of the retired snapshot/name aliases.
+    # Typed turn handoffs do not checkpoint native pools, RNG or bridge carry.
     if world.agent_mode not in (None, "off"):
         raise CheckpointError(
             f"unsupported agent mode {world.agent_mode!r}; native agent state/RNG is not checkpointed"
@@ -155,6 +157,7 @@ def _require_supported(world: WorldState, runtime: str) -> None:
         raise CheckpointError("native agent bridge cannot be checkpointed")
     if getattr(world, "_economy_result", None) is not None:
         raise CheckpointError("agent-backed economy state cannot be checkpointed")
+    # Fail closed for old/staged callers still carrying the compatibility aliases.
     if any(getattr(world, name, None) is not None for name in ("_agent_snapshot", "_named_agents")):
         raise CheckpointError("agent snapshot/registry cannot be checkpointed")
     if world.pending_shocks or world._artifact_intents or world._artifact_lifecycle_intents:

@@ -1,6 +1,7 @@
 """Snapshot accuracy reuse must follow real hostage lifecycle mutations."""
 import argparse
 import hashlib
+from chronicler.turn_artifacts import TurnObservation, TurnResult
 from pathlib import Path
 
 from chronicler.great_persons import kill_great_person
@@ -43,9 +44,9 @@ def test_snapshot_reuse_matches_live_reads_across_capture_release_and_death(
             capture_hostage(origin, captor, world)
         elif world.turn == 6:
             release_hostage(captor.great_persons[0], captor, origin, world)
-        return ""
+        return TurnResult("", TurnObservation(world.turn - 1, world.turn, None))
 
-    monkeypatch.setattr("chronicler.main.run_turn", tick)
+    monkeypatch.setattr("chronicler.main.run_turn_result", tick)
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda _world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda _world: None)
     monkeypatch.setattr("chronicler.bundle.datetime", FixedDateTime)

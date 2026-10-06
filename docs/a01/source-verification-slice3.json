@@ -1,0 +1,115 @@
+{
+  "source_archive": {
+    "drive_id": "1yMhTDMPYCgYvL97KJPTnIud5FvdAySL7",
+    "bytes": 7602981,
+    "sha256": "1c90eb5d7bf235861f0529893d9f586fbbc37adea97a62e519a61d1f98b7e601",
+    "payload_members_verified": 141,
+    "source_copies_matched": 127
+  },
+  "contract_archive": {
+    "drive_id": "1f8Z1JpJRo-5dd_7DiQ3dwD0LyIYKhdr-",
+    "bytes": 13316,
+    "sha256": "2b03768222bbbfac0e3a1e0dacc4b23bca0b6c671ffcc011262c09696ddd7ed3",
+    "payload_members_verified": 5
+  },
+  "head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+  "tree": "46f0e042302f33865b76bd71d5b1b2c3dcda1b4f",
+  "bundled_refs_retained": 24,
+  "source_identities_verified": [
+    {
+      "name": "public",
+      "head": "edf72991cad58d6670b1f382c33d50d903a6054a",
+      "tree": "c691269f9ca534cb16f14df82e69333239cb6080",
+      "parents": [
+        "f0ffbd2215cea8347b736bc37bdf4c9e611172f6",
+        "cebc6508ecf4968878a1de43b15f29bf6fa9157d"
+      ]
+    },
+    {
+      "name": "second_wave",
+      "head": "18c909eb3f9abd0b9e64b40e6cd1e09c5567e913",
+      "tree": "91f539664691bcf6eab2f1e20480cb38cd6ef77f",
+      "parents": [
+        "686b1db1196843d8011207df524a9c3879ed2251"
+      ]
+    },
+    {
+      "name": "fishery_feature",
+      "head": "127499d7113663b3c25832bf29f95a3074643579",
+      "tree": "36c077d19132c25f63baded46bd97128364211e8",
+      "parents": [
+        "90ad340aef7380a890677bc8fa1f623ea5c08909"
+      ]
+    },
+    {
+      "name": "fishery_publication_source",
+      "head": "a9c1745ef7e054decb3cf925182cf0b4d9633585",
+      "tree": "2a7c376ee61941d1e460ec45e8e581388f05fd2c",
+      "parents": [
+        "edf72991cad58d6670b1f382c33d50d903a6054a"
+      ]
+    },
+    {
+      "name": "aid_restoration",
+      "head": "960d39ed0f4cd717bdca5486b522792c44d659fb",
+      "tree": "cc6211e1be40678b71078c56b54e35db7ce793a0",
+      "parents": [
+        "edf72991cad58d6670b1f382c33d50d903a6054a"
+      ]
+    },
+    {
+      "name": "aid_executable",
+      "head": "cc2179a17c4da529315d3bae53015d48b8c75e3e",
+      "tree": "bf81fbfa24404416ee35b25a79beeb3141fe1c72",
+      "parents": [
+        "1392fd4229270a5a3089591ea1b8f843946cb530"
+      ]
+    },
+    {
+      "name": "aid_delivery_only",
+      "head": "070d92d08b55e5370031fbdde9e17256d3a8f591",
+      "tree": "1633b1a3ead029dfcee3a2742230193c5dc7f045",
+      "parents": [
+        "41d679d1fee70fb765c0196a7ac033330c952be7"
+      ]
+    },
+    {
+      "name": "fishery_merge",
+      "head": "847bcfa61665aac0c811059210809f22a998bb7b",
+      "tree": "317fccdb5049c262f6f10c354f22cba087fc4058",
+      "parents": [
+        "18c909eb3f9abd0b9e64b40e6cd1e09c5567e913",
+        "127499d7113663b3c25832bf29f95a3074643579"
+      ]
+    },
+    {
+      "name": "aid_merge",
+      "head": "3234661c2a716af1673bea6d3c784020bf10efdc",
+      "tree": "0409a815310ff4e4407c9287e122a7e2dc75afa6",
+      "parents": [
+        "847bcfa61665aac0c811059210809f22a998bb7b",
+        "070d92d08b55e5370031fbdde9e17256d3a8f591"
+      ]
+    },
+    {
+      "name": "corrected_control",
+      "head": "e42502038c9f9ecb274bb126fff22fa4ef4c731b",
+      "tree": "485faf49258779543cda9d21d23931abcf832bb4",
+      "parents": [
+        "18c909eb3f9abd0b9e64b40e6cd1e09c5567e913"
+      ]
+    },
+    {
+      "name": "final",
+      "head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+      "tree": "46f0e042302f33865b76bd71d5b1b2c3dcda1b4f",
+      "parents": [
+        "62f1eb909ce461c5a17422544de82b0cb414f116"
+      ]
+    }
+  ],
+  "git_fsck_exit": 0,
+  "remotes": [],
+  "workspace_instructions": "No AGENTS.md, CLAUDE.md or local SKILL.md in restored tree or workspace ancestors; Google Drive router and reviewed contract read",
+  "blocked_imports_accessed": []
+}

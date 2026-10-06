@@ -6,6 +6,7 @@ Every turn's complete snapshot/events/narrative and ordered RNG primitives are
 checked; no approximate float comparisons or relaxed precision are used.
 """
 import hashlib
+from chronicler.turn_artifacts import TurnObservation, TurnResult
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -101,9 +102,9 @@ def test_duplicate_names_preserve_discarded_rng_draws(tmp_path, monkeypatch):
 
     def tick(world, *args, **kwargs):
         world.turn += 1
-        return ""
+        return TurnResult("", TurnObservation(world.turn - 1, world.turn, None))
 
-    monkeypatch.setattr("chronicler.main.run_turn", tick)
+    monkeypatch.setattr("chronicler.main.run_turn_result", tick)
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.bundle.datetime", FixedDateTime)
