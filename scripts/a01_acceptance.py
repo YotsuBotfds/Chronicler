@@ -72,16 +72,21 @@ def _jsonl_difference(left, right):
     return None
 
 
-def compare(before_dir, after_dir):
+def compare(before_dir, after_dir, *, expected_candidate_head=None):
     before = json.loads((before_dir / "report.json").read_text())
     after = json.loads((after_dir / "report.json").read_text())
     problems = []
     if before["identity"]["head"] != BASELINE or before["identity"].get("dirty"):
         problems.append({"path": "baseline.head", "reason": "requires reviewed 2ab3b48 baseline"})
-    for key, committed in (("source_sha256", "committed_source_sha256"),
-                           ("native_source_sha256", "committed_native_source_sha256")):
-        if before["identity"][key] != before["identity"][committed]:
-            problems.append({"path": "baseline." + key, "reason": "baseline bytes differ from its Git tree"})
+    if after["identity"].get("dirty"):
+        problems.append({"path": "candidate.dirty", "reason": "requires a clean committed candidate"})
+    if expected_candidate_head is not None and after["identity"]["head"] != expected_candidate_head:
+        problems.append({"path": "candidate.head", "reason": "candidate differs from the requested commit"})
+    for arm, report in (("baseline", before), ("candidate", after)):
+        for key, committed in (("source_sha256", "committed_source_sha256"),
+                               ("native_source_sha256", "committed_native_source_sha256")):
+            if report["identity"][key] != report["identity"][committed]:
+                problems.append({"path": arm + "." + key, "reason": arm + " bytes differ from its Git tree"})
     for key in ("input", "environment", "driver_sha256", "runtime"):
         found = first_difference(before[key], after[key], key)
         if found:
@@ -388,9 +393,11 @@ def main():
     diff = commands.add_parser("compare")
     diff.add_argument("--baseline", type=Path, required=True)
     diff.add_argument("--candidate", type=Path, required=True)
+    diff.add_argument("--expected-candidate-head", help="Pin comparison to an exact reviewed candidate commit")
     args = parser.parse_args()
     try:
-        result = capture(args) if args.command == "capture" else compare(args.baseline, args.candidate)
+        result = capture(args) if args.command == "capture" else compare(
+            args.baseline, args.candidate, expected_candidate_head=args.expected_candidate_head)
     except (OSError, ValueError, RuntimeError) as exc:
         parser.exit(2, f"A01 evidence error: {exc}\n")
     print(json.dumps(result, indent=2))

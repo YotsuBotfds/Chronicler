@@ -246,7 +246,7 @@ def _evidence_reports(tmp_path):
     return directories
 
 
-@pytest.mark.parametrize("kind", ["fixture", "environment", "baseline", "dirty", "native", "artifact", "hidden_source"])
+@pytest.mark.parametrize("kind", ["fixture", "environment", "baseline", "dirty", "native", "artifact", "hidden_source", "candidate_dirty", "candidate_hidden_source", "candidate_head"])
 def test_evidence_comparison_rejects_identity_or_artifact_drift(kind, tmp_path):
     import json
     from scripts.a01_acceptance import compare
@@ -259,16 +259,19 @@ def test_evidence_comparison_rejects_identity_or_artifact_drift(kind, tmp_path):
         report["environment"]["python"] = "changed"
     elif kind == "baseline":
         report["identity"]["head"] = "edf7299"
-    elif kind == "dirty":
+    elif kind in ("dirty", "candidate_dirty"):
         report["identity"]["dirty"] = " M src/chronicler/main.py"
-    elif kind == "hidden_source":
+    elif kind in ("hidden_source", "candidate_hidden_source"):
         report["identity"]["source_sha256"] = {"main.py": "unreported-change"}
+    elif kind == "candidate_head":
+        report["identity"]["head"] = "unexpected-candidate"
     elif kind == "native":
         report["identity"]["native_source_sha256"] = {"changed.rs": "changed"}
     else:
         (candidate / "artifacts" / "unrecorded.json").write_text('{}')
     path.write_text(json.dumps(report))
-    result = compare(baseline, candidate)
+    result = compare(baseline, candidate, expected_candidate_head=(
+        "expected-candidate" if kind == "candidate_head" else None))
     assert not result["exact_comparison_passed"]
     assert result["first_divergence"] is not None
 
