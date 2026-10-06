@@ -480,6 +480,8 @@ def _tick_input(tick, state, graph, *, replay=False):
     _unique(tuple(c.source_id for c in tick.credits), "credit id")
     _unique(tuple(c.agent_id for c in tick.conditions), "condition agent")
     _unique(tuple(d.agent_id for d in tick.draws), "draw agent")
+    if type(tick.supply_sources) is not tuple:
+        raise ValueError("supply_sources must be a tuple")
     _unique(tick.supply_sources, "supply source")
     for region in tick.supply_sources:
         _int(region, "supply source")
@@ -492,6 +494,8 @@ def _tick_input(tick, state, graph, *, replay=False):
         _int(order.quantity, "replenishment quantity")
         if order.turn != tick.turn or order.kind not in ("march", "hold", "return", "replenish", "cancel"):
             raise ValueError("invalid order/date")
+        if type(order.agent_ids) is not tuple:
+            raise ValueError("agent_ids must be a tuple")
         _unique(order.agent_ids, "replenishment agent")
         for agent in order.agent_ids:
             _int(agent, "order agent")
@@ -588,20 +592,20 @@ def advance(session: Session, *, policy: Policy, topology: Topology, tick: Tick)
     replenishments = []
     for credit in tick.credits:
         stocks[credit.region] += credit.rations
-    for order in tick.orders:
-        if order.kind != "replenish":
-            continue
-        for agent in order.agent_ids:
-            member = members[agent]
-            available = stocks[member.region]
-            amount = min(order.quantity, policy.carried_limit - member.rations, available)
-            members[agent] = replace(member, rations=member.rations + amount)
-            stocks[member.region] -= amount
-            granted[agent] += amount
-            reason = "replenished" if amount == order.quantity else (
-                "kit_limit" if policy.carried_limit - member.rations <= available else "local_stock_shortfall")
-            replenishments.append(Replenishment(order.order_id, agent, member.region,
-                                               order.quantity, amount, available, stocks[member.region], reason))
+    # Soldier priority spans all requests, independent of caller-chosen order IDs.
+    requests = sorted(((agent, order) for order in tick.orders if order.kind == "replenish"
+                       for agent in order.agent_ids), key=lambda request: (request[0], request[1].order_id))
+    for agent, order in requests:
+        member = members[agent]
+        available = stocks[member.region]
+        amount = min(order.quantity, policy.carried_limit - member.rations, available)
+        members[agent] = replace(member, rations=member.rations + amount)
+        stocks[member.region] -= amount
+        granted[agent] += amount
+        reason = "replenished" if amount == order.quantity else (
+            "kit_limit" if policy.carried_limit - member.rations <= available else "local_stock_shortfall")
+        replenishments.append(Replenishment(order.order_id, agent, member.region,
+                                           order.quantity, amount, available, stocks[member.region], reason))
 
     conditions = {c.agent_id: c for c in tick.conditions}
     draws = {d.agent_id: d.value for d in tick.draws}

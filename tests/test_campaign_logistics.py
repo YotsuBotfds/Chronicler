@@ -213,6 +213,73 @@ def test_shared_stock_stable_id_priority_and_capacity(policy, topology):
     conserved(limited)
 
 
+@pytest.mark.parametrize("order_ids", [("z", "a"), ("a", "z")])
+def test_soldier_priority_spans_separate_replenishment_orders(policy, topology, order_ids):
+    session = session_for(policy, topology, (Soldier(20, 1, 0, 800), Soldier(10, 1, 0, 800)),
+                          (Stock(1, 1),))
+    low_order, high_order = order_ids
+    tick = tick_for(session, orders=(Order(high_order, 1, "replenish", (20,), 1),
+                                    Order(low_order, 1, "replenish", (10,), 1)))
+    result = advance(session, policy=policy, topology=topology, tick=tick)
+    assert result.receipt.replenishments == (
+        Replenishment(low_order, 10, 1, 1, 1, 1, 0, "replenished"),
+        Replenishment(high_order, 20, 1, 1, 0, 0, 0, "local_stock_shortfall"))
+    assert tuple(m.consumed for m in result.receipt.members) == (1, 0)
+    assert tuple(s.morale for s in result.session.state.soldiers) == (820, 680)
+    assert tuple(m.region_after for m in result.receipt.members) == (1, 1)
+    replay = advance(result.session, policy=policy, topology=topology, tick=tick)
+    assert replay.session is result.session and replay.receipt is result.receipt
+    reversed_tick = replace(tick, orders=tuple(reversed(tick.orders)))
+    assert advance(session, policy=policy, topology=topology, tick=reversed_tick) == result
+    conserved(result)
+
+
+def test_multiple_requests_per_soldier_preserve_global_priority(policy, topology):
+    session = session_for(policy, topology, (Soldier(20, 1, 0, 800), Soldier(10, 1, 0, 800)),
+                          (Stock(1, 2),))
+    result = step(session, policy, topology, orders=(
+        Order("a", 1, "replenish", (20,), 1),
+        Order("c", 1, "replenish", (10,), 1),
+        Order("b", 1, "replenish", (20, 10), 1)))
+    assert result.receipt.replenishments == (
+        Replenishment("b", 10, 1, 1, 1, 2, 1, "replenished"),
+        Replenishment("c", 10, 1, 1, 1, 1, 0, "replenished"),
+        Replenishment("a", 20, 1, 1, 0, 0, 0, "local_stock_shortfall"),
+        Replenishment("b", 20, 1, 1, 0, 0, 0, "local_stock_shortfall"))
+    assert tuple(s.rations for s in result.session.state.soldiers) == (1, 0)
+    conserved(result)
+
+
+@pytest.mark.parametrize("field", ["supply_sources", "agent_ids"])
+@pytest.mark.parametrize("invalid", ["", [], None, 0])
+def test_tuple_fields_reject_malformed_empty_values_before_publication(policy, topology, field, invalid):
+    session = session_for(policy, topology, stocks=(Stock(1, 1),))
+    tick = tick_for(session, orders=(Order("hold", 1, "hold"),
+                                    Order("kit", 1, "replenish", (10,), 1)),
+                    credits=(Credit("local-credit", 1, 1, 2),))
+    if field == "supply_sources":
+        malformed = replace(tick, supply_sources=invalid)
+    else:
+        malformed = replace(tick, orders=(replace(tick.orders[0], agent_ids=invalid), tick.orders[1]))
+    snapshot = tuple(canonical_bytes(value) for value in (session, policy, topology, malformed))
+    with pytest.raises(ValueError):
+        advance(session, policy=policy, topology=topology, tick=malformed)
+    assert snapshot == tuple(canonical_bytes(value) for value in (session, policy, topology, malformed))
+
+
+@pytest.mark.parametrize("field", ["supply_sources", "agent_ids"])
+def test_malformed_empty_strings_cannot_alias_valid_replay_payload(policy, topology, field):
+    session = session_for(policy, topology)
+    tick = tick_for(session, orders=(Order("hold", 1, "hold"),), sources=())
+    result = advance(session, policy=policy, topology=topology, tick=tick)
+    malformed = replace(tick, supply_sources="") if field == "supply_sources" else replace(
+        tick, orders=(replace(tick.orders[0], agent_ids=""),))
+    saved = canonical_bytes(result.session)
+    with pytest.raises(ValueError, match=f"{field} must be a tuple"):
+        advance(result.session, policy=policy, topology=topology, tick=malformed)
+    assert canonical_bytes(result.session) == saved
+
+
 def test_rally_never_marches_same_turn_and_hold_is_one_turn(policy, topology):
     session = session_for(policy, topology, (Soldier(10, 2, 8, 800), Soldier(20, 1, 8, 800)))
     held = step(session, policy, topology, orders=(Order("h", 1, "hold"),))

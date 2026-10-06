@@ -91,10 +91,13 @@ values are illustrative caller data, not production tuning constants.
 ## Frozen tick order and lifecycle
 
 1. Validate the state/cursor/configuration and the whole proposed tick.
-2. Admit orders and uniquely identified local stock credits. Apply replenishment
-   orders in order-ID order, then ascending stable soldier-ID order. Each grant
-   is bounded by requested amount, kit capacity, and stock at the member's
-   actual start location. Partial grants emit stock-shortfall or kit-limit codes.
+2. Admit orders and uniquely identified local stock credits. Apply all
+   replenishment requests in ascending stable soldier-ID order across every
+   order; order ID breaks ties only between requests for the same soldier.
+   Changing order IDs cannot change which soldier has priority for scarce stock.
+   Each grant is bounded by requested amount, kit capacity, and stock at the
+   member's actual start location. Partial grants emit stock-shortfall or
+   kit-limit codes.
 3. Consume `min(carried kit, ration demand)` for each active member. Compute
    supply distance from its frozen start region to the closest reachable source
    using sorted-neighbor shortest-path BFS; absence has a distinct stress/code.
