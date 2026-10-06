@@ -65,6 +65,7 @@ def _parser() -> argparse.ArgumentParser:
     apply.add_argument("--path", required=True)
     apply.add_argument("--transport", required=True)
     apply.add_argument("--submission", required=True)
+    apply.add_argument("--precondition", help="require the exact reviewed-base declaration")
     reconcile = commands.add_parser("reconcile", help="observe without writing")
     reconcile.add_argument("--path", required=True)
     reconcile.add_argument("--transport", required=True)
@@ -86,8 +87,15 @@ def main(argv: list[str] | None = None) -> int:
         transport = _transport(args.transport)
         if args.command == "apply":
             submission = _read_bounded(args.submission, transport.max_bytes, "submission")
-            receipt = operations.apply_operation(args.path, transport=transport,
-                                                  submission=submission)
+            if args.precondition is None:
+                receipt = operations.apply_operation(args.path, transport=transport,
+                                                      submission=submission)
+            else:
+                precondition = operations.apply_precondition_from_bytes(
+                    _read_bounded(args.precondition, transport.max_bytes, "apply precondition"),
+                    transport=transport)
+                receipt = operations.apply_operation(args.path, transport=transport,
+                                                      submission=submission, precondition=precondition)
         else:
             receipt = operations.reconcile_operation(
                 args.path, transport=transport,

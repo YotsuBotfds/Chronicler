@@ -15,6 +15,7 @@ from chronicler import experiment_sessions as es
 
 
 CONTRACT = "chronicler-session-operation-v1"
+APPLY_PRECONDITION_CONTRACT = "chronicler-session-apply-precondition-v1"
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,20 @@ class SessionIdentity:
 
     def as_payload(self) -> dict:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class ApplyPrecondition:
+    """Caller constraint on one reviewed observation; no reservation or approval."""
+
+    target: str
+    transport: es.TransportPolicy
+    kernel: str
+    kernel_contract: str
+    base: SessionIdentity
+
+    def as_payload(self) -> dict:
+        return {"contract": APPLY_PRECONDITION_CONTRACT, **asdict(self)}
 
 
 @dataclass(frozen=True)
@@ -156,6 +171,36 @@ def expectation_from_payload(payload: object) -> ReconcileExpectation:
         None if payload["intended"] is None else identity_from_payload(payload["intended"])))
 
 
+def _validate_precondition(precondition: object) -> ApplyPrecondition:
+    if type(precondition) is not ApplyPrecondition:
+        raise es.SessionError("an exact ApplyPrecondition record is required")
+    _validate_expectation(ReconcileExpectation(
+        precondition.target, precondition.transport, precondition.kernel,
+        precondition.kernel_contract, precondition.base, None))
+    return precondition
+
+
+def apply_precondition_from_bytes(data: bytes, *, transport: es.TransportPolicy) -> ApplyPrecondition:
+    """Strictly decode one closed reviewed-base declaration within the byte cap."""
+    _validate_transport(transport)
+    payload = es.submission_from_bytes(data, transport=transport, label="apply precondition")
+    fields = {"contract", "target", "transport", "kernel", "kernel_contract", "base"}
+    if type(payload) is not dict or set(payload) != fields:
+        raise es.SessionError(f"apply precondition fields must be exactly {sorted(fields)}")
+    if type(payload["contract"]) is not str or payload["contract"] != APPLY_PRECONDITION_CONTRACT:
+        raise es.ContractError("unsupported apply precondition contract")
+    return _validate_precondition(ApplyPrecondition(
+        payload["target"], es.transport_policy_from_payload(payload["transport"]),
+        payload["kernel"], payload["kernel_contract"], identity_from_payload(payload["base"])))
+
+
+def _require_reviewed_base(precondition: ApplyPrecondition, base: SessionIdentity,
+                           kernel: str, kernel_contract: str) -> None:
+    if (precondition.base, precondition.kernel, precondition.kernel_contract) != (
+            base, kernel, kernel_contract):
+        raise es.StaleGenerationError("reviewed base differs from the actual observed session identity or kernel")
+
+
 def _require_derivation(loaded: es.LoadedSession, applied: es.ApplyResult) -> None:
     """Refuse a candidate belonging to another genesis or committed prefix."""
     before, after = loaded.session, applied.session
@@ -180,7 +225,8 @@ def _require_derivation(loaded: es.LoadedSession, applied: es.ApplyResult) -> No
 
 
 def apply_operation(path: str | os.PathLike, *, transport: es.TransportPolicy,
-                    submission: bytes) -> OperationReceipt:
+                    submission: bytes,
+                    precondition: ApplyPrecondition | None = None) -> OperationReceipt:
     """Load, strictly parse and apply once; commit changed state exactly once.
 
     Success is either ``committed_durable`` (the existing commit gate completed)
@@ -189,7 +235,9 @@ def apply_operation(path: str | os.PathLike, *, transport: es.TransportPolicy,
     ``rejected`` or ``commit_outcome_unknown`` status. Identities are absent if their validation
     stage was not reached. Replays have no intended new generation. Receipts
     describe the observed/committed version, without promising current-head
-    freshness. An intended digest is calculated before commit.
+    freshness. An intended digest is calculated before commit. Optional reviewed
+    declarations bind target/policy before I/O and exact observation before
+    submission semantics; the existing loaded-generation/digest CAS remains.
     """
     base = intended = None
     kernel = kernel_contract = checked_transport = None
@@ -199,10 +247,18 @@ def apply_operation(path: str | os.PathLike, *, transport: es.TransportPolicy,
         if type(target) is not str or not target:
             raise es.SessionError("target must be an explicit nonempty text path")
         checked_transport = _validate_transport(transport)
+        if precondition is not None:
+            _validate_precondition(precondition)
+            if target != precondition.target:
+                raise es.SessionError("target must exactly match the declared reviewed-base path")
+            if checked_transport != precondition.transport:
+                raise es.ContractError("transport must match the declared reviewed-base policy")
         loaded = es.load_session(path, transport=transport)
         base = _loaded_identity(loaded)
         kernel = loaded.envelope.kernel
         kernel_contract = loaded.envelope.kernel_contract
+        if precondition is not None:
+            _require_reviewed_base(precondition, base, kernel, kernel_contract)
         payload = es.submission_from_bytes(submission, transport=transport,
                                            label="session operation submission")
         if type(loaded.session) is es.CampaignSession:
@@ -297,7 +353,8 @@ def reconcile_operation(path: str | os.PathLike, *, transport: es.TransportPolic
     return ReconciliationReceipt(status, target, expectation, current, False)
 
 
-__all__ = ["CONTRACT", "SessionIdentity", "ErrorInfo", "OperationReceipt",
+__all__ = ["CONTRACT", "APPLY_PRECONDITION_CONTRACT", "ApplyPrecondition",
+           "apply_precondition_from_bytes", "SessionIdentity", "ErrorInfo", "OperationReceipt",
            "ReconcileExpectation", "ReconciliationReceipt", "identity_from_payload",
            "expectation_from_payload", "apply_operation",
            "reconcile_operation"]

@@ -359,3 +359,122 @@ and reconciliation tables above. An output failure after commit never
 justifies rerunning apply. This walkthrough assumes regular scratch inputs;
 R's B delegation does not repair other drivers' historical input-open limits,
 including the receipt-inspector and campaign-preview transport readers.
+
+## Optionally require the reviewed base
+
+`ApplyPrecondition` is a frozen caller constraint with exactly `target`,
+`transport`, `kernel`, `kernel_contract`, and `base`. The base is the existing
+four-field `SessionIdentity`: generation, complete-file digest, session digest,
+and turn. Its closed JSON declaration additionally requires
+`contract: chronicler-session-apply-precondition-v1`.
+`apply_precondition_from_bytes(data, transport=...)` uses the accepted bounded
+strict parser and rejects duplicate, missing or extra fields, noninteger numeric
+values, bool aliases, subclasses in native records, and non-lowercase or partial
+SHA-256 identities. The policy is the complete exact transport record.
+
+Pass `precondition=...` to `apply_operation`, or `--precondition PATH` to enabled
+CLI apply. Omission or `None` preserves the existing behavior. The CLI still
+reads transport and submission bytes first; it then reads and strict-decodes the
+optional precondition within `transport.max_bytes` before invoking the operation.
+Reconcile has no new option. Off ignores poisonous paths, top-level help is
+unchanged, apply help documents the flag, and syntax errors retain argparse's
+exit 2. Valid-syntax precondition intake/parse failures retain JSON rejection and
+exit 3 without starting the operation. The accepted nonblocking descriptor
+reader handles FIFOs, byte caps, directories and ordinary I/O errors unchanged.
+
+Library apply validates the whole declaration and exact target/policy binding
+before loading. Malformed declarations or binding mismatches are `rejected`,
+with null base/intended. After exactly one verified load, a well-formed mismatch
+of any identity field or kernel/contract is `stale_conflict`: base describes the
+actual observed file, while intended is null. The caller retains the supplied
+old declaration separately. Checking precedes submission semantic decoding,
+kernel apply, candidate encoding, commit and lock work. The detail identifies a
+reviewed-base mismatch without asserting that another writer is its only cause.
+Target matching is textual after `os.fspath` on the explicit operation argument;
+there is no relative/absolute normalization, alias merging or rebinding.
+
+A matching changed-state apply retains the single public commit with the
+loaded generation and complete-file digest CAS. That final comparison protects
+writers racing after the observation. It remains separate from the initial
+guard, which rejects a file advanced before the operation read it. No automatic
+refresh, preview, rebase, retry, rollback or lock deletion occurs.
+
+Every attempted guarded apply checks the constraint, including replay. An old
+guard refuses after another writer commits the identical batch. A separately
+supplied matching observation can allow the existing `replay_no_write` result,
+with intended null, but replay never reserves the current head. Another writer
+can advance after the read or commit. Reformatting identical parsed payload
+changes exact file bytes and invalidates the full-file guard. Restoring exact
+bytes cannot prove absence of intervening history: this is no ABA-history proof,
+authentication, selected-batch approval or reserved preview capability.
+
+### Small extension of the existing memome walkthrough
+
+Use a fresh empty scratch directory with the same `CHECKOUT`, `PYTHON` and
+`PYTHONPATH` setup as above. Run the unchanged R `prepare`, `create`,
+`copy-opening`, and `select` blocks, producing the explicit `candidate 3` input.
+Capture a real preview emitted against that target; saving stdout here writes
+only the report file, not the experiment:
+
+<!-- q009-step: preview -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/memome_candidate_preview.py" --enable --path memome.json --transport transport.json --alternatives choices.json --max-alternatives 2 --format json > reviewed-preview.json
+```
+
+Build the declaration from those emitted observation fields. This command does
+not reread `memome.json` to manufacture a newer observation. The supplied policy
+and known kernel contract complete the declaration; the preview remains
+informational and still reports `submission_token: false`.
+
+<!-- q009-step: precondition -->
+```sh
+"$PYTHON" - <<'PY'
+import json
+from pathlib import Path
+from chronicler import experiment_sessions as es
+from chronicler import session_operations as operations
+
+preview = json.loads(Path('reviewed-preview.json').read_text())
+observed = preview['cli_observation']
+transport = es.transport_policy_from_text(Path('transport.json').read_text())
+base = operations.SessionIdentity(observed['generation'], observed['file_digest'],
+                                  preview['base_session_digest'], observed['turn'])
+precondition = operations.ApplyPrecondition(observed['path'], transport, 'm68a',
+                                           es.KERNEL_CONTRACTS['m68a'], base)
+Path('precondition.json').write_text(json.dumps(precondition.as_payload(), sort_keys=True, separators=(',', ':')))
+PY
+```
+
+<!-- q009-step: apply -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/session_operation.py" --enable apply --path memome.json --transport transport.json --submission submission.json --precondition precondition.json
+```
+
+<!-- q009-step: inspect -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/experiment_receipts.py" --enable --path memome.json --transport transport.json --turn 1
+```
+
+With no intervening change, expect the same complete candidate-3 receipt and
+actual slot value as R, committed generation 2/turn 1, and an intended full-file
+digest equal to the saved bytes. The declaration was built from the actual
+preview at generation 1/turn 0. P's campaign preview exposes the corresponding
+`cli_observation` and `base_session_digest` fields and uses the same schema with
+`m60a` and its known contract; no P or M output field is changed.
+
+Separately repeat the guarded apply using that unchanged old declaration after
+the commit. This is an explained refusal, even for the identical batch; do not
+continue a scripted mutation sequence after it:
+
+<!-- q009-step: stale-replay -->
+```sh
+"$PYTHON" "$CHECKOUT/scripts/session_operation.py" --enable apply --path memome.json --transport transport.json --submission submission.json --precondition precondition.json
+```
+
+Expect exit 3, `stale_conflict`, actual base generation 2/turn 1 and intended
+null; every saved byte, mtime and existing lock remains untouched. Supplying a
+fresh matching observation in a separate explicit request permits ordinary
+read-only replay without a head lease. The existing R walkthrough stays
+unchanged and still demonstrates unguarded historical replay. Existing outcome
+and output-delivery caveats above remain authoritative; no failure permits an
+automatic retry or implies rollback.
