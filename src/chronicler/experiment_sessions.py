@@ -1412,6 +1412,8 @@ def _exclusive_lock(lock_path: Path):
         if cleanup is not None:
             if primary is not None:
                 primary.add_note(f"writer lock cleanup also failed: {cleanup}")
+                for note in getattr(cleanup, "__notes__", ()):
+                    primary.add_note(note)
             else:
                 raise _CleanupFailure(cleanup) from cleanup
 

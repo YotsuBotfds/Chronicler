@@ -115,8 +115,11 @@ verified bytes even if another writer replaces the pathname afterward. It does
 not assert currentness, durability or suitability for blind submission and is
 not an OCC token. A later real operation must use the existing submission API
 and concurrency checks afresh. JSON and text output are assembled completely
-before stdout emission; validation errors emit only one JSON error on stderr
-and return exit 3. There is no apply or output-path option.
+before stdout emission. With valid CLI syntax, domain and input validation errors
+emit one JSON error on stderr and return exit 3 with no stdout. Malformed enabled
+CLI syntax, such as `--max-alternatives garbage`, `--format invalid` or `--path`
+without a value, is handled by standard `argparse`: exit 2, usage/error text on
+stderr and no stdout. There is no apply or output-path option.
 
 Alternative count, serialized input bytes and complete-session transport domain
 are bounded. Output bytes, replay time, decompression and global allocation are

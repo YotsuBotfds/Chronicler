@@ -246,6 +246,98 @@ class SessionIOBoundaryTests(unittest.TestCase):
         self.assertIn("secondary unlock", " ".join(failure.__notes__))
         self.assertFalse(self.target.exists())
 
+    def test_primary_fsync_and_both_writer_cleanup_diagnostics_survive(self):
+        self.commit()
+        original_fsync, original_close, original_flock = os.fsync, os.close, es.fcntl.flock
+        failure = OSError("primary directory fsync failure")
+        locks = set()
+
+        def failed_fsync(descriptor):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise failure
+            return original_fsync(descriptor)
+
+        def tracked_lock(descriptor, operation):
+            if operation == es.fcntl.LOCK_EX:
+                locks.add(descriptor)
+            if operation == es.fcntl.LOCK_UN:
+                raise OSError("secondary writer unlock failure")
+            return original_flock(descriptor, operation)
+
+        def failed_close(descriptor):
+            original_close(descriptor)
+            if descriptor in locks:
+                raise OSError("secondary writer close failure")
+
+        with mock.patch.object(os, "fsync", failed_fsync), mock.patch.object(
+                os, "close", failed_close), mock.patch.object(es.fcntl, "flock", tracked_lock):
+            with self.assertRaises(es.DurabilityUncertain) as caught:
+                operations.apply_operation(self.target, transport=self.transport,
+                                           submission=submission(first_input(self.session)))
+        error = caught.exception
+        self.assertIs(type(error), es.DurabilityUncertain)
+        self.assertIs(error.__cause__, failure)
+        self.assertIs(type(error.__cause__), OSError)
+        self.assertIn("writer lock cleanup also failed", " ".join(error.__notes__))
+        self.assertIn("secondary writer unlock failure", " ".join(error.__notes__))
+        self.assertIn("secondary writer close failure", " ".join(error.__notes__))
+        self.assertFalse(hasattr(error, "result"))
+        receipt = error.operation_receipt
+        self.assertEqual(receipt.status, "durability_uncertain")
+        before = self.target.read_bytes()
+        loaded = es.load_session(self.target, transport=self.transport)
+        self.assertEqual(loaded.generation, 2)
+        self.assertEqual(loaded.digest, receipt.intended.file_digest)
+        reconciled = operations.reconcile_operation(
+            self.target, transport=self.transport, expectation=receipt.expectation)
+        self.assertEqual(reconciled.status, "intended_visible_durability_unknown")
+        self.assertEqual(self.target.read_bytes(), before)
+        self.assertEqual(list(self.folder.glob(".*.tmp")), [])
+        for descriptor in locks:
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
+
+    def test_prepublication_primary_and_both_writer_cleanup_diagnostics_survive(self):
+        first = self.commit()
+        before = self.target.read_bytes()
+        advanced = es.apply_memome_batch(self.session, first_input(self.session)).session
+        original_close, original_flock = os.close, es.fcntl.flock
+        failure = es.SessionError("primary checkpoint rejection")
+        original_cause = OSError("original checkpoint rejection cause")
+        failure.__cause__ = original_cause
+        locks = set()
+
+        def tracked_lock(descriptor, operation):
+            if operation == es.fcntl.LOCK_EX:
+                locks.add(descriptor)
+            if operation == es.fcntl.LOCK_UN:
+                raise OSError("secondary writer unlock failure")
+            return original_flock(descriptor, operation)
+
+        def failed_close(descriptor):
+            original_close(descriptor)
+            if descriptor in locks:
+                raise OSError("secondary writer close failure")
+
+        with mock.patch.object(es, "encode_session", side_effect=failure), mock.patch.object(
+                os, "close", failed_close), mock.patch.object(es.fcntl, "flock", tracked_lock):
+            with self.assertRaises(es.SessionError) as caught:
+                es.commit_session(self.target, advanced, transport=self.transport,
+                                  expected_generation=first.generation, expected_digest=first.digest)
+        self.assertIs(caught.exception, failure)
+        self.assertIs(type(caught.exception), es.SessionError)
+        self.assertIs(caught.exception.__cause__, original_cause)
+        self.assertIn("writer lock cleanup also failed", " ".join(failure.__notes__))
+        self.assertIn("secondary writer unlock failure", " ".join(failure.__notes__))
+        self.assertIn("secondary writer close failure", " ".join(failure.__notes__))
+        self.assertFalse(hasattr(failure, "result"))
+        self.assertEqual(self.target.read_bytes(), before)
+        self.assertEqual(es.load_session(self.target, transport=self.transport).generation, 1)
+        self.assertEqual(list(self.folder.glob(".*.tmp")), [])
+        for descriptor in locks:
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
+
     def test_unexpected_postpublication_exception_retains_unknown_operation_receipt(self):
         self.commit()
         original = es.commit_session
