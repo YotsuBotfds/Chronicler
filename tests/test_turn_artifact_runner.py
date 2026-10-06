@@ -147,8 +147,11 @@ def test_rejects_wrong_explicit_handoff_stamp(
         elif error == "stage":
             rows.stamp = SimpleNamespace(source_turn=source_turn, stage="post_politics")
         world.turn += 1
-        return TurnResult("", TurnObservation(
-            source_turn - (error == "source"), world.turn + (error == "completed"), rows))
+        # Forge a foreign result to test the runner boundary independently of
+        # production constructors, which already reject these invalid labels.
+        return SimpleNamespace(chronicle_text="", observation=SimpleNamespace(
+            source_turn=source_turn - (error == "source"),
+            completed_turn=world.turn + (error == "completed"), phase10_agents=rows))
 
     monkeypatch.setattr("chronicler.main.run_turn_result", tick)
     with pytest.raises(AssertionError):

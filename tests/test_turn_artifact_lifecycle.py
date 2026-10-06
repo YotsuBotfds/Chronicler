@@ -1,9 +1,4 @@
-"""A01 slice-2 lifecycle checks.
-
-When slice 1 is absent these use test-only contract doubles and forwarding
-adapters. That dependency gate does not establish integrated consumer parity.
-No doubles are installed by production code or written to the typed module.
-"""
+"""Integrated A01 coordinator lifecycle and explicit handoff checks."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -22,94 +17,10 @@ import pytest
 BASE = "2ab3b4814abb665c7b3d5c255152cf5767bbf25a"
 
 
-def _install_dependency_mocks(monkeypatch):
-    """Explicit slice-1 dependency stand-in, reusable by external test runners."""
-    try:
-        return importlib.import_module("chronicler.turn_artifacts")
-    except ModuleNotFoundError as exc:
-        if exc.name != "chronicler.turn_artifacts":
-            raise
-
-    module = ModuleType("chronicler.turn_artifacts")
-    module.DEPENDENCY_GATE = "slice1 absent: contract mocks, no integrated acceptance"
-
-    @dataclass(frozen=True, slots=True)
-    class Stamp:
-        source_turn: int
-        stage: str
-
-    class AgentRows:
-        def __init__(self, *, batch, stamp):
-            self.batch, self.stamp = batch, stamp
-            self._cache = {}
-
-        def has(self, name):
-            return name in self.batch.schema.names
-
-        def ints(self, name):
-            if name not in self._cache:
-                self._cache[name] = tuple(self.batch.column(name).to_pylist())
-            return self._cache[name]
-
-        floats = ints
-
-    @dataclass(frozen=True, slots=True)
-    class Phase10Inputs:
-        source_turn: int
-        agents: object
-        named_agents: object
-        economy: object
-        deaths: tuple
-
-    @dataclass(slots=True)
-    class TurnArtifacts:
-        source_turn: int
-        economy: object = None
-        conquered_civ_ids: set = field(default_factory=set)
-        deaths: tuple = ()
-        phase10: object = None
-
-    @dataclass(frozen=True, slots=True)
-    class TurnObservation:
-        source_turn: int
-        completed_turn: int
-        phase10_agents: object
-
-    @dataclass(frozen=True, slots=True)
-    class TurnResult:
-        chronicle_text: str
-        observation: object
-
-    for cls in (Stamp, AgentRows, Phase10Inputs, TurnArtifacts, TurnObservation, TurnResult):
-        setattr(module, cls.__name__, cls)
-    monkeypatch.setitem(sys.modules, module.__name__, module)
-
-    # These only validate/strip the new keyword; old pure-consumer logic remains
-    # the oracle. They deliberately do not stand in for slice-1 decode sharing.
-    from chronicler import simulation, religion, great_persons
-    for owner, names in (
-        (simulation, ("apply_value_drift", "tick_cultural_assimilation")),
-        (religion, ("compute_majority_belief", "compute_civ_majority_faith",
-                    "compute_conversion_signals", "compute_persecution", "detect_schisms")),
-        (great_persons, ("check_pilgrimages",)),
-    ):
-        for name in names:
-            original = getattr(owner, name)
-
-            def adapter(*args, _original=original, agent_rows=None, **kwargs):
-                if agent_rows is not None:
-                    bound = inspect.signature(_original).bind_partial(*args, **kwargs)
-                    snapshot = bound.arguments.get("snapshot", bound.arguments.get("agent_snapshot"))
-                    assert snapshot is agent_rows.batch
-                return _original(*args, **kwargs)
-
-            monkeypatch.setattr(owner, name, adapter)
-    return module
-
-
 @pytest.fixture
-def api(monkeypatch):
-    return _install_dependency_mocks(monkeypatch)
+def api():
+    """Use the integrated production interfaces without dependency stand-ins."""
+    return importlib.import_module("chronicler.turn_artifacts")
 
 
 def _rows(api, batch, turn=0, stage="phase10_entry"):
@@ -360,8 +271,14 @@ def test_invalid_stamps_fail_before_mutation(api, make_world, turn, stage):
     from chronicler.settlements import run_settlement_tick
     w = make_world()
     before = w.model_dump_json()
-    rows = _rows(api, pa.record_batch({"region": [0]}), turn, stage)
-    payload = api.Phase10Inputs(0, rows, None, None, ())
+    batch = pa.record_batch({"region": [0]})
+    # Production containers reject malformed input before publication.
+    with pytest.raises(ValueError):
+        rows = _rows(api, batch, turn, stage)
+        api.Phase10Inputs(0, rows, None, None, ())
+    # Also exercise consumer boundaries with explicitly forged foreign inputs.
+    rows = SimpleNamespace(batch=batch, stamp=SimpleNamespace(source_turn=turn, stage=stage))
+    payload = SimpleNamespace(source_turn=0, agents=rows, named_agents=None, economy=None, deaths=())
     with pytest.raises(ValueError, match="stamp"):
         phase_consequences(w, phase10=payload)
     with pytest.raises(ValueError, match="stamp"):
@@ -421,7 +338,8 @@ def test_phase10_uses_explicit_payload_and_forwards_all_readers(api, monkeypatch
             def reader(*args, _name=name, _result=result, agent_rows=None, **kwargs):
                 assert agent_rows is rows
                 if _name == "compute_conversion_signals":
-                    assert kwargs["named_agents"] is named
+                    assert kwargs["named_agents"] is payload.named_agents
+                    assert kwargs["named_agents"] == named
                 calls.append(_name)
                 return _result
             monkeypatch.setattr(owner, name, reader)
