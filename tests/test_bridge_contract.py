@@ -9,7 +9,7 @@ from chronicler.bridge_contract import (
     validate_snapshot_schema,
 )
 from chronicler.culture import compute_civ_cultural_profile
-from chronicler.religion import compute_majority_belief
+from chronicler.religion import compute_conversion_signals, compute_majority_belief
 from chronicler.settlements import run_settlement_tick
 from chronicler.turn_artifacts import AgentRows, Stamp
 
@@ -86,6 +86,16 @@ def test_view_does_not_add_eager_missing_or_wrong_type_validation():
     assert rows.ints("belief") == ("raw", None)  # Existing decode is uncoerced.
     with pytest.raises(KeyError):
         rows.ints("region")
+
+
+@pytest.mark.parametrize("name", ["id", "occupation"])
+@pytest.mark.parametrize("cached", [False, True])
+def test_conversion_requires_columns_even_without_named_agents(name, cached):
+    batch = consumer_batch()
+    batch = batch.select([field for field in batch.schema.names if field != name])
+    kwargs = {"agent_rows": rows_for(batch)} if cached else {}
+    with pytest.raises(KeyError, match=name):
+        compute_conversion_signals([], {}, [], batch, named_agents={}, **kwargs)
 
 
 def test_settlement_interval_still_defers_missing_columns(sample_world):

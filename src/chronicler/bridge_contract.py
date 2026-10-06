@@ -7,8 +7,12 @@ checks names, count, order, Arrow types and nullability, ignoring metadata.
 
 Runtime consumers intentionally demand smaller subsets after their own gates:
 * culture: civ_affinity/region and cultural_value_0/1/2;
-* religion: region/civ_affinity, belief, and id/occupation for named agents;
-* pilgrimages: id/occupation/loyalty_trait/loyalty, with optional belief;
+* religion: regional reducers need region/belief; the civ reducer needs
+  civ_affinity/belief. Conversion signals need id/region/occupation/belief for
+  every nonempty snapshot, even without named agents. Schisms additionally
+  defer reads at the MAX_FAITHS gate;
+* pilgrimages: id/occupation/loyalty_trait/loyalty for nonempty snapshots;
+  belief is optional on missing-column or other decode failure;
 * settlements: region/x/y, after the detection interval gate;
 * runner urban counts: civ_affinity/settlement_id, optional region; the whole
   read is skipped when settlement_id is absent;
@@ -16,7 +20,11 @@ Runtime consumers intentionally demand smaller subsets after their own gates:
   only when wealth is present;
 * economy: region/occupation/wealth/civ_affinity; mutual aid: region;
 * sidecar aggregates: id/civ_affinity/satisfaction/occupation/region;
+  community diagnostics also read id/region after their own sidecar gate;
 * polity realignment: id/region/civ_affinity after the empty-batch gate.
+* legacy relationship formation: belief/region/id whenever a snapshot exists,
+  including empty batches; the coordinator skips it when Rust owns formation;
+* experimental fisheries: region/occupation when its snapshot path is active.
 
 The full native contract has no optional fields. The consumer compatibility
 paths above remain independent: do not call this validator from AgentRows,
