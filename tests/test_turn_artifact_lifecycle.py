@@ -326,7 +326,8 @@ def test_snapshot_failure_publishes_none_not_last_good(api, monkeypatch, sample_
     )
     output = sim.run_turn_result(sample_world, lambda *a: None, lambda *a: "", agent_bridge=bridge)
     assert output.observation.phase10_agents is None
-    assert sample_world._agent_snapshot is None and sample_world._dead_agents_this_turn == []
+    assert sample_world._agent_snapshot.num_rows == 1  # Legacy scratch is ignored, not republished.
+    assert sample_world._dead_agents_this_turn == []
     assert "Failed to fetch agent snapshot" in caplog.text
 
 

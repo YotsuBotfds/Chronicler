@@ -1574,13 +1574,12 @@ def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result) -> 
 
 
 def _capture_agent_snapshot(world: WorldState, agent_bridge: object):
-    """Capture Phase 10 rows, retaining the alias until the runner cutover."""
+    """Capture historical Phase 10 rows without publishing world scratch."""
     try:
-        world._agent_snapshot = agent_bridge._sim.get_snapshot()
+        return agent_bridge._sim.get_snapshot()
     except Exception:
-        world._agent_snapshot = None
         logger.exception("Failed to fetch agent snapshot for Phase 10 consumers")
-    return world._agent_snapshot
+        return None
 
 
 # --- Turn orchestrator ---
@@ -1849,17 +1848,13 @@ def run_turn_result(
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)
 
-    # Capture at the original post-bridge/post-bootstrap boundary. Compatibility
-    # aliases remain for the runner/checkpoint cutover in slice 3.
-    world._agent_snapshot = None
+    # Capture at the original post-bridge/post-bootstrap boundary. The runner
+    # receives these historical rows only through the explicit result handoff.
     phase10_snapshot = None
     if agent_bridge is not None:
         phase10_snapshot = _capture_agent_snapshot(world, agent_bridge)
 
-    # M37: Stash named_agents for Phase 10 religion computations
-    world._named_agents = agent_bridge.named_agents if agent_bridge else None
-
-    # M42: Stash economy_result for Phase 10 tick_factions
+    # Preserve the prior completed publication gate used by Phase 5 and replay.
     world._economy_result = economy_result
 
     artifacts.deaths = tuple(death_output)

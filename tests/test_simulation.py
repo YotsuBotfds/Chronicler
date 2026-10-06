@@ -576,9 +576,9 @@ class TestRunTurn:
         sample_world._agent_snapshot = "sentinel"
 
         with caplog.at_level("ERROR"):
-            _capture_agent_snapshot(sample_world, _Bridge())
+            assert _capture_agent_snapshot(sample_world, _Bridge()) is None
 
-        assert sample_world._agent_snapshot is None
+        assert sample_world._agent_snapshot == "sentinel"  # No coordinator scratch publication.
         assert "Failed to fetch agent snapshot for Phase 10 consumers" in caplog.text
 
     def test_collapse_events_passed_to_narrator(self, sample_world, monkeypatch):
