@@ -756,24 +756,6 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
     return _tick_ecology_python(world, climate_phase, acc)
 
 
-def _make_transient_ecology_runtime(world: "WorldState"):
-    """Create and initialize a one-shot EcologySimulator for this tick.
-
-    Used when tick_ecology is called without an explicit ecology_runtime
-    (e.g., tests, simple scripts).  Creates the simulator, syncs region
-    state, and configures river topology + ecology config.
-    """
-    from chronicler_agents import EcologySimulator
-    from chronicler.agent_bridge import build_region_batch, configure_ecology_runtime
-
-    eco_sim = EcologySimulator()
-    # Wire river topology and ecology config from tuning overrides
-    configure_ecology_runtime(eco_sim, world)
-    # Sync region state
-    eco_sim.set_region_state(build_region_batch(world))
-    return eco_sim
-
-
 def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
                        ecology_runtime) -> list[Event]:
     """Rust-backed ecology tick with Python post-pass."""
