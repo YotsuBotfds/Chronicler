@@ -43,10 +43,20 @@ def graph_distance(
     to_name: str,
 ) -> int:
     """Shortest path length, or -1 if disconnected."""
-    path = shortest_path(regions_or_adj, from_name, to_name)
-    if path is None:
-        return -1
-    return len(path) - 1
+    if from_name == to_name:
+        return 0
+    adj = regions_or_adj if isinstance(regions_or_adj, dict) else _build_adj_map(regions_or_adj)
+    visited: set[str] = {from_name}
+    queue: deque[tuple[str, int]] = deque([(from_name, 0)])
+    while queue:
+        current, distance = queue.popleft()
+        for neighbor in adj.get(current, set()):
+            if neighbor == to_name:
+                return distance + 1
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append((neighbor, distance + 1))
+    return -1
 
 
 def is_chokepoint(regions: list[Region], name: str) -> bool:

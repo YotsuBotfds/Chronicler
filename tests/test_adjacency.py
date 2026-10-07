@@ -43,6 +43,37 @@ def test_graph_distance_disconnected():
     assert graph_distance(regions, "A", "B") == -1
 
 
+def test_graph_distance_matches_shortest_path_on_directed_cycles_and_missing_nodes():
+    # Politics passes prebuilt maps; authored scenario edges can be directed.
+    adj = {
+        "A": ["B", "C"],
+        "B": ["D", "D"],
+        "C": ["B", "E"],
+        "D": ["A", "E"],
+        "E": ["Ghost"],
+        "Isolated": [],
+    }
+    assert graph_distance(adj, "A", "E") == 2
+    assert graph_distance(adj, "E", "A") == -1
+    assert graph_distance(adj, "E", "Ghost") == 1
+    assert graph_distance(adj, "Missing", "Missing") == 0
+    for source in (*adj, "Missing"):
+        for target in (*adj, "Ghost", "Missing"):
+            path = shortest_path(adj, source, target)
+            assert graph_distance(adj, source, target) == (-1 if path is None else len(path) - 1)
+
+
+def test_graph_distance_matches_shortest_path_for_region_input():
+    regions = _make_regions({
+        "A": ["B", "C"], "B": ["D", "D"], "C": ["B", "E"],
+        "D": ["A", "E"], "E": ["Ghost"], "Isolated": [],
+    })
+    for source in ("A", "B", "C", "D", "E", "Isolated", "Missing"):
+        for target in ("A", "B", "C", "D", "E", "Isolated", "Ghost", "Missing"):
+            path = shortest_path(regions, source, target)
+            assert graph_distance(regions, source, target) == (-1 if path is None else len(path) - 1)
+
+
 def test_is_chokepoint():
     # B is the only connection between A and C
     regions = _make_regions({"A": ["B"], "B": ["A", "C"], "C": ["B"]})
