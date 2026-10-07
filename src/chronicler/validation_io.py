@@ -1955,6 +1955,7 @@ def run_cohort_oracle(seed_runs: list[dict]) -> dict:
                 needs_snapshot["columns"],
                 event_type=EVENT_NAME_TO_CODE["rebellion"],
             )
+            del events_window
             strongest_effect = max(
                 abs(float(migration_result.get("effect_size", 0.0))),
                 abs(float(rebellion_result.get("effect_size", 0.0))),
