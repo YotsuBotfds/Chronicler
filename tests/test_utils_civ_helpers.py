@@ -1,8 +1,12 @@
 """Tests for civ_index() and get_civ() helpers in utils.py."""
 from __future__ import annotations
 
+from copy import deepcopy
+from types import SimpleNamespace
+
 import pytest
 from chronicler.models import WorldState, Civilization, Leader, TechEra, Region
+from chronicler.utils import sync_all_populations, sync_civ_population
 
 
 def _make_world(civ_names: list[str]) -> WorldState:
@@ -85,3 +89,72 @@ class TestGetCiv:
 
         assert get_civ(world, "Beta") is civ
         assert civ_index(world, "Beta") == 1
+
+
+class TestSyncAllPopulations:
+    def test_matches_per_civ_helper_on_world_state(self):
+        world = _make_world(["Alpha", "Beta", "Gamma"])
+        world.regions[0].population = 12.5
+        world.regions[1].population = 3
+        world.regions[2].controller = None
+        expected_world = deepcopy(world)
+        for civ in expected_world.civilizations:
+            sync_civ_population(civ, expected_world)
+
+        sync_all_populations(world)
+
+        assert [civ.population for civ in world.civilizations] == [
+            civ.population for civ in expected_world.civilizations
+        ]
+
+    def test_matches_per_civ_helper_with_duplicate_names_and_mixed_populations(self):
+        civs = [
+            SimpleNamespace(name="Alpha", regions=["stale"], population=-99),
+            SimpleNamespace(name="Alpha", regions=[], population=-99),
+            SimpleNamespace(name="Beta", regions=["B"], population=-99),
+            SimpleNamespace(name="Zero", regions=[], population=-99),
+            SimpleNamespace(name="Zero", regions=["missing"], population=-99),
+            SimpleNamespace(name="Missing", regions=[], population=-99),
+        ]
+        regions = [
+            SimpleNamespace(controller="Alpha", population=1e16),
+            SimpleNamespace(controller="Beta", population=3.25),
+            SimpleNamespace(controller="Unknown", population=500),
+            SimpleNamespace(controller="Alpha", population=1.0),
+            SimpleNamespace(controller=None, population=200),
+            SimpleNamespace(controller="Alpha", population=-1e16),
+            SimpleNamespace(controller="Beta", population=-7.25),
+        ]
+        world = SimpleNamespace(civilizations=civs, regions=regions)
+        expected_world = deepcopy(world)
+        for civ in expected_world.civilizations:
+            sync_civ_population(civ, expected_world)
+
+        sync_all_populations(world)
+
+        assert [civ.population for civ in world.civilizations] == [
+            civ.population for civ in expected_world.civilizations
+        ]
+        assert world.civilizations[2].population == 1  # negative total, owned regions
+        assert world.civilizations[3].population == 0  # no regions, no floor
+        assert world.civilizations[4].population == 1  # stale region list still floors
+        assert world.civilizations[5].population == 0  # unknown owner stays absent
+
+    def test_matches_per_civ_helper_with_empty_world_shapes(self):
+        for world in (
+            SimpleNamespace(civilizations=[], regions=[]),
+            SimpleNamespace(civilizations=[], regions=[
+                SimpleNamespace(controller="orphan", population=7),
+            ]),
+            SimpleNamespace(civilizations=[
+                SimpleNamespace(name="Alone", regions=["stale"], population=9),
+                SimpleNamespace(name="Gone", regions=[], population=9),
+            ], regions=[]),
+        ):
+            expected_world = deepcopy(world)
+            for civ in expected_world.civilizations:
+                sync_civ_population(civ, expected_world)
+            sync_all_populations(world)
+            assert [civ.population for civ in world.civilizations] == [
+                civ.population for civ in expected_world.civilizations
+            ]
