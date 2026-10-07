@@ -813,7 +813,7 @@ def detect_schisms(
         List of Event objects generated this call.
     """
     _check_agent_rows(snapshot, agent_rows, source_turn=current_turn)
-    from chronicler.models import Event, FactionType
+    from chronicler.models import Event
 
     if len(belief_registry) >= MAX_FAITHS:
         return []
