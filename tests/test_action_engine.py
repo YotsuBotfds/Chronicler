@@ -146,6 +146,26 @@ class TestEligibility:
 
 
 class TestPersonalityWeights:
+    def test_weight_initialization_preserves_getter_order_and_ineligible_zeroes(
+        self, engine_world, monkeypatch,
+    ):
+        engine = ActionEngine(engine_world)
+        civ = engine_world.civilizations[0]
+        eligible = [ActionType.DEVELOP, ActionType.DIPLOMACY]
+        getter_calls = []
+
+        def get_eligible_actions(actual_civ):
+            getter_calls.append(actual_civ)
+            return eligible
+
+        monkeypatch.setattr(engine, "get_eligible_actions", get_eligible_actions)
+        weights = engine.compute_weights(civ)
+
+        assert len(getter_calls) == 1 and getter_calls[0] is civ
+        assert list(weights) == list(ActionType)
+        assert all(weights[action] > 0 for action in eligible)
+        assert all(weights[action] == 0.0 for action in ActionType if action not in eligible)
+
     def test_aggressive_favors_war(self, engine_world):
         w = ActionEngine(engine_world).compute_weights(engine_world.civilizations[0])
         assert w[ActionType.WAR] > w[ActionType.DEVELOP]
