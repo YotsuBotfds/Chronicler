@@ -360,9 +360,9 @@ def apply_automatic_effects(
     # In accumulator mode, include already-queued keep mutations so the
     # zero-crossing check mirrors aggregate semantics instead of stale scalars.
     pending_war_treasury: dict[str, float] = {}
-    for pending_idx, pending_civ in enumerate(world.civilizations):
-        projected = float(pending_civ.treasury)
-        if acc is not None:
+    if acc is not None and world.active_wars:
+        for pending_idx, pending_civ in enumerate(world.civilizations):
+            projected = float(pending_civ.treasury)
             for change in getattr(acc, "_changes", ()):
                 if (
                     change.civ_id == pending_idx
@@ -370,7 +370,7 @@ def apply_automatic_effects(
                     and change.stat == "treasury"
                 ):
                     projected += change.delta
-        pending_war_treasury[pending_civ.name] = projected
+            pending_war_treasury[pending_civ.name] = projected
     for war in world.active_wars:
         for civ_name in war:
             c = get_civ(world, civ_name)
