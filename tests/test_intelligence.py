@@ -73,6 +73,22 @@ class TestSharesAdjacentRegion:
         )
         assert shares_adjacent_region(c1, c2, world) is expected
 
+    def test_incremental_lookup_keeps_earlier_name_and_first_duplicate(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["C", "B"])
+        first_b = _region("B", controller="Civ3")
+        c = _region("C", controller="Civ3")
+        second_b = _region("B", controller="Civ2")
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        c3 = _civ("Civ3", regions=["C"])
+        world = WorldState(
+            name="t", seed=42, regions=[r1, first_b, c, second_b],
+            civilizations=[c1, c2, c3],
+        )
+        assert shares_adjacent_region(c1, c2, world) is False
+        first_b.controller = "Civ2"
+        assert shares_adjacent_region(c1, c2, world) is True
+
     def test_reads_live_regions_when_cached_region_map_is_stale(self):
         r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
         old_b = _region("B", controller="Civ3")
