@@ -5,7 +5,7 @@ modules read from and write to WorldState, which serializes to JSON.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
