@@ -5,7 +5,8 @@ modules read from and write to WorldState, which serializes to JSON.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+# Keep field available to existing models module callers.
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
