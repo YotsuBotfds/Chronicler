@@ -5,6 +5,7 @@ import json
 import math
 import statistics
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
 
 from chronicler.action_engine import ACTION_WEIGHT_BASE
@@ -1629,7 +1630,7 @@ def format_delta_report(
 
     def _walk(base: dict, curr: dict, prefix: str = ""):
         nonlocal omitted
-        for key in sorted(set(list(base.keys()) + list(curr.keys()))):
+        for key in sorted(set(chain(base.keys(), curr.keys()))):
             if key in ("anomalies", "metadata"):
                 continue
             full_key = f"{prefix}.{key}" if prefix else key
