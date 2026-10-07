@@ -144,7 +144,7 @@ class TestSyncAllPopulations:
         for world in (
             SimpleNamespace(civilizations=[], regions=[]),
             SimpleNamespace(civilizations=[], regions=[
-                SimpleNamespace(controller="orphan", population=7),
+                SimpleNamespace(),  # no civ means no region attributes are read
             ]),
             SimpleNamespace(civilizations=[
                 SimpleNamespace(name="Alone", regions=["stale"], population=9),
@@ -158,3 +158,41 @@ class TestSyncAllPopulations:
             assert [civ.population for civ in world.civilizations] == [
                 civ.population for civ in expected_world.civilizations
             ]
+
+    def test_matches_per_civ_failure_timing_and_partial_state(self):
+        world = SimpleNamespace(
+            civilizations=[
+                SimpleNamespace(name="First", regions=["first"], population=-99),
+                SimpleNamespace(name="Broken", regions=["broken"], population=-99),
+                SimpleNamespace(name="Later", regions=["later"], population=-99),
+            ],
+            regions=[
+                SimpleNamespace(controller="First", population=5),
+                SimpleNamespace(controller="Broken", population=None),
+                SimpleNamespace(controller="Later", population=7),
+            ],
+        )
+        expected_world = deepcopy(world)
+        with pytest.raises(TypeError) as baseline_error:
+            for civ in expected_world.civilizations:
+                sync_civ_population(civ, expected_world)
+        with pytest.raises(TypeError) as current_error:
+            sync_all_populations(world)
+
+        assert str(current_error.value) == str(baseline_error.value)
+        assert [civ.population for civ in world.civilizations] == [
+            civ.population for civ in expected_world.civilizations
+        ] == [5, -99, -99]
+
+    def test_unknown_controller_does_not_read_its_population(self):
+        world = SimpleNamespace(
+            civilizations=[SimpleNamespace(name="Known", regions=["K"], population=-99)],
+            regions=[
+                SimpleNamespace(controller="Known", population=3),
+                SimpleNamespace(controller="Unknown"),  # no population attribute
+            ],
+        )
+        expected_world = deepcopy(world)
+        sync_civ_population(expected_world.civilizations[0], expected_world)
+        sync_all_populations(world)
+        assert world.civilizations[0].population == expected_world.civilizations[0].population == 3

@@ -72,10 +72,9 @@ def sync_all_populations(world) -> None:
         populations = populations_by_name.get(region.controller)
         if populations is not None:
             populations.append(region.population)
-    totals = {name: sum(populations) for name, populations in populations_by_name.items()}
 
     for civ in civs:
-        civ.population = totals[civ.name]
+        civ.population = sum(populations_by_name[civ.name])
         if civ.population < 1 and civ.regions:
             civ.population = 1
 
