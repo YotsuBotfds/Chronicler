@@ -22,7 +22,8 @@ from chronicler.models import Civilization, Leader, Region, WorldState
 
 def load_baseline():
     source = subprocess.run(
-        ["git", "show", f"{BASE_COMMIT}:src/chronicler/intelligence.py"],
+        ["git", "-c", f"safe.directory={REPO_ROOT.as_posix()}",
+         "show", f"{BASE_COMMIT}:src/chronicler/intelligence.py"],
         cwd=REPO_ROOT, check=True, stdout=subprocess.PIPE,
     ).stdout.decode("utf-8")
     function = next(
