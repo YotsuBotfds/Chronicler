@@ -842,7 +842,13 @@ class WorldState(BaseModel):
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
-        path.parent.mkdir(parents=True, exist_ok=True)
+        parent = path.parent
+        try:
+            parent_is_dir = parent.is_dir()
+        except OSError:
+            parent_is_dir = False
+        if not parent_is_dir:
+            parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
 
     @classmethod
