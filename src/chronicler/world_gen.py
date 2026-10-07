@@ -20,7 +20,7 @@ from chronicler.models import (
     WorldState,
 )
 from chronicler.ecology import effective_capacity, TERRAIN_ECOLOGY_DEFAULTS
-from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
+from chronicler.leaders import _compose_regnal_name
 
 # --- Name and trait pools ---
 
