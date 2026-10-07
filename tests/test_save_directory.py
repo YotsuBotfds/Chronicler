@@ -2,6 +2,7 @@
 
 from dataclasses import asdict
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -22,13 +23,18 @@ def save_case(request, sample_world):
 
 def _expected_bytes(kind, value) -> bytes:
     if kind == "world":
-        return value.model_dump_json(indent=2).encode("utf-8")
+        text = value.model_dump_json(indent=2)
+        return text.replace("\n", os.linesep).encode("utf-8")
     data = {
         "civilization_name": value.civilization_name,
         "entries": [asdict(entry) for entry in value.entries],
         "reflections": [asdict(entry) for entry in value.reflections],
     }
-    return json.dumps(data, indent=2).encode("utf-8")
+    # Path.write_text(newline=None) translates formatting newlines on Windows.
+    # json.dumps defaults to ensure_ascii=True, so the default text encoding
+    # used by MemoryStream.save produces the same bytes for this payload.
+    text = json.dumps(data, indent=2)
+    return text.replace("\n", os.linesep).encode("ascii")
 
 
 def test_save_creates_nested_parent_and_overwrites_exact_bytes(save_case, tmp_path):
