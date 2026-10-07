@@ -939,10 +939,9 @@ class ActionEngine:
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:
         eligible = self.get_eligible_actions(civ)
         base = ACTION_WEIGHT_BASE
-        weights: dict[ActionType, float] = {a: base for a in ActionType}
-        for action in ActionType:
-            if action not in eligible:
-                weights[action] = 0.0
+        weights: dict[ActionType, float] = {
+            a: base if a in eligible else 0.0 for a in ActionType
+        }
         trait = civ.leader.trait
         if trait == "stubborn":
             history = self.world.action_history.get(civ.name, [])
