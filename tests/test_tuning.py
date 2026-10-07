@@ -1,10 +1,14 @@
 """Tests for the tuning override system."""
 import warnings
+from collections import UserDict
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from chronicler.tuning import _flatten, load_tuning, get_override, K_DROUGHT_STABILITY
+from chronicler.tuning import (
+    _flatten, load_tuning, get_override, get_multiplier, K_DROUGHT_STABILITY,
+)
 
 
 def test_flatten_simple():
@@ -52,6 +56,71 @@ def test_get_override_returns_override(make_world):
 def test_get_override_returns_default(make_world):
     world = make_world(num_civs=2)
     assert get_override(world, "nonexistent.key", 10.0) == 10.0
+
+
+def test_tuning_lookups_follow_plain_dict_mutations(make_world):
+    world = make_world(num_civs=2)
+    key = "multiplier.test"
+    assert get_override(world, key, 10.0) == 10.0
+    assert get_multiplier(world, key) == 1.0
+
+    world.tuning_overrides[key] = 2.5
+    assert get_override(world, key, 10.0) == 2.5
+    assert get_multiplier(world, key) == 2.5
+
+    world.tuning_overrides[key] = 3.5
+    assert get_override(world, key, 10.0) == 3.5
+    assert get_multiplier(world, key) == 3.5
+
+
+def test_tuning_lookups_keep_dict_subclass_get_dispatch():
+    calls = []
+
+    class CustomDict(dict):
+        def get(self, key, default=None):
+            calls.append((key, default))
+            return 7.5
+
+    world = SimpleNamespace(tuning_overrides=CustomDict())
+    assert get_override(world, "key", 10.0) == 7.5
+    assert get_multiplier(world, "key") == 7.5
+    assert calls == [("key", 10.0), ("key", 1.0)]
+
+
+def test_tuning_lookups_keep_custom_mapping_and_nonmapping_fallback():
+    calls = []
+
+    class CustomMapping(UserDict):
+        def get(self, key, default=None):
+            calls.append((key, default))
+            return super().get(key, default)
+
+    world = SimpleNamespace(tuning_overrides=CustomMapping({"key": 4.5}))
+    assert get_override(world, "key", 10.0) == 4.5
+    assert get_multiplier(world, "key") == 4.5
+    assert calls == [("key", 10.0), ("key", 1.0)]
+
+    class GetOnly:
+        def get(self, *_args):
+            raise AssertionError("nonmapping get should not be called")
+
+    world.tuning_overrides = GetOnly()
+    assert get_override(world, "key", 10.0) == 10.0
+    assert get_multiplier(world, "key") == 1.0
+
+
+def test_tuning_lookups_read_dynamic_overrides_on_each_call():
+    class DynamicWorld:
+        def __init__(self):
+            self.values = iter(({"key": 2.0}, {"key": 3.0}))
+
+        @property
+        def tuning_overrides(self):
+            return next(self.values)
+
+    world = DynamicWorld()
+    assert get_override(world, "key", 10.0) == 2.0
+    assert get_multiplier(world, "key") == 3.0
 
 
 def test_m35b_disease_constants_registered():
