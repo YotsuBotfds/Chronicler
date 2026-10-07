@@ -167,6 +167,35 @@ class TestPhaseProduction:
 
 
 class TestAutomaticEffects:
+    def test_peace_skips_war_projection_with_pending_treasury_changes(self, make_world):
+        """Peaceful turns should preserve queued changes without scanning them for war costs."""
+        class ScanTrackingChanges(list):
+            scans = 0
+
+            def __iter__(self):
+                self.scans += 1
+                return super().__iter__()
+
+        world = make_world(2)
+        for civ in world.civilizations:
+            civ.military = 0
+        world.active_wars = []
+        first, second = world.civilizations
+
+        acc = StatAccumulator()
+        acc.add(0, first, "treasury", -5, "keep")
+        acc.add(1, second, "treasury", 4, "keep")
+        queued = tuple(acc._changes)
+        tracked = ScanTrackingChanges(acc._changes)
+        acc._changes = tracked
+
+        apply_automatic_effects(world, acc=acc, cross_routes=[])
+
+        assert tracked.scans == 0
+        assert tracked[:2] == list(queued)
+        acc.apply(world)
+        assert (first.treasury, second.treasury) == (45, 54)
+
     def test_low_stability_recovery_routes_as_guard_shock(self, sample_world):
         """B-1 fix: Stability recovery routes as guard-shock (not keep) so it
         reaches the Rust tick as a positive shock signal.  apply_keep() should
