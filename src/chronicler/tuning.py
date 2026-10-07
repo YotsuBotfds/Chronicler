@@ -387,7 +387,7 @@ def load_tuning(path: Path) -> dict[str, float]:
 def get_override(world: "WorldState", key: str, default: float) -> float:
     """Read a tunable constant with override fallback."""
     overrides = getattr(world, "tuning_overrides", None)
-    if isinstance(overrides, Mapping):
+    if type(overrides) is dict or isinstance(overrides, Mapping):
         return overrides.get(key, default)
     return default
 
@@ -395,7 +395,7 @@ def get_override(world: "WorldState", key: str, default: float) -> float:
 def get_multiplier(world: "WorldState", key: str) -> float:
     """Read a global simulation multiplier (defaults to 1.0)."""
     overrides = getattr(world, "tuning_overrides", None)
-    if isinstance(overrides, Mapping):
+    if type(overrides) is dict or isinstance(overrides, Mapping):
         return overrides.get(key, 1.0)
     return 1.0
 
