@@ -46,6 +46,55 @@ class TestSharesAdjacentRegion:
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
         assert shares_adjacent_region(c1, c2, world) is False
 
+    def test_missing_then_directed_edge(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
+        r2 = _region("B", controller="Civ2", adjacencies=[])
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
+        assert shares_adjacent_region(c1, c2, world) is True
+        assert shares_adjacent_region(c2, c1, world) is False
+        r1.adjacencies = ["Missing", "AlsoMissing"]
+        assert shares_adjacent_region(c1, c2, world) is False
+
+    @pytest.mark.parametrize("first_controller,second_controller,expected", [
+        ("Civ3", "Civ2", False),
+        ("Civ2", "Civ3", True),
+    ])
+    def test_duplicate_name_uses_first_region(self, first_controller, second_controller, expected):
+        r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
+        first = _region("B", controller=first_controller)
+        second = _region("B", controller=second_controller)
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        c3 = _civ("Civ3")
+        world = WorldState(
+            name="t", seed=42, regions=[r1, first, second], civilizations=[c1, c2, c3],
+        )
+        assert shares_adjacent_region(c1, c2, world) is expected
+
+    def test_reads_live_regions_when_cached_region_map_is_stale(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
+        old_b = _region("B", controller="Civ3")
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        c3 = _civ("Civ3")
+        world = WorldState(name="t", seed=42, regions=[r1, old_b], civilizations=[c1, c2, c3])
+        assert world.region_map["B"] is old_b
+        old_b.name = "OldB"
+        world.regions.append(_region("B", controller="Civ2"))
+        assert world.region_map["B"] is old_b  # intentionally stale cache
+        assert shares_adjacent_region(c1, c2, world) is True
+
+    def test_no_observer_regions(self):
+        c1 = _civ("Civ1")
+        c2 = _civ("Civ2", regions=["B"])
+        world = WorldState(
+            name="t", seed=42, regions=[_region("B", controller="Civ2")],
+            civilizations=[c1, c2],
+        )
+        assert shares_adjacent_region(c1, c2, world) is False
+
 
 class TestHasActiveTradeRoute:
     def test_trade_route_exists(self):
@@ -136,6 +185,14 @@ class TestAtWar:
 # --- Task 3: compute_accuracy tests ---
 
 class TestComputeAccuracy:
+    def test_adjacency_helper_remains_patchable(self, monkeypatch):
+        c1 = _civ("Civ1")
+        c2 = _civ("Civ2")
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2])
+        baseline = compute_accuracy(c1, c2, world)
+        monkeypatch.setattr("chronicler.intelligence.shares_adjacent_region", lambda *args: True)
+        assert compute_accuracy(c1, c2, world) == pytest.approx(baseline + 0.3)
+
     def test_self_accuracy_is_1(self):
         c = _civ("Civ1")
         world = WorldState(name="t", seed=42, civilizations=[c])
