@@ -16,11 +16,22 @@ from chronicler.resources import get_active_trade_route_pairs
 def shares_adjacent_region(observer: Civilization, target: Civilization,
                            world: WorldState) -> bool:
     """True if observer controls a region adjacent to a region target controls."""
+    # Consume the live list only as far as each adjacency lookup needs. Entries
+    # retain the first region with a name, matching the old repeated scan.
+    first_by_name = {}
+    remaining_regions = iter(world.regions)
     for r in world.regions:
         if r.controller != observer.name:
             continue
         for adj_name in r.adjacencies:
-            adj = next((r2 for r2 in world.regions if r2.name == adj_name), None)
+            adj = first_by_name.get(adj_name)
+            if adj is None:
+                for candidate in remaining_regions:
+                    name = candidate.name
+                    first_by_name.setdefault(name, candidate)
+                    if name == adj_name:
+                        adj = candidate
+                        break
             if adj and adj.controller == target.name:
                 return True
     return False
