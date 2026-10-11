@@ -2,9 +2,24 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-07 (scoped cleanup integration)
+> **Last updated:** 2026-10-11 (GitHub continuation recovery)
 
 ---
+
+## Recovery checkpoint (2026-10-11)
+
+Checkpoint 011 (`b820217a9ea34ead33e2114e38d44f4297b0a70c`) was restored in an
+isolated Windows checkout. It contains public `main` (`edf7299`) and 108 further
+commits, so no rebase was needed. The continuation branch is
+`continuation/recovered-20261011`; older dirty Windows source and the competing
+desktop foundation architecture remain preserved separately. See
+[`docs/CONTINUATION.md`](../../CONTINUATION.md) for exact locations and standing,
+and [`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md) for portable setup and the guarded
+Python runner. Fresh checks passed 1,570 guarded Python tests (3 skipped,
+2 deselected) and 162 viewer tests, lint and build. A Unix text-fixture comparison
+now accounts for Windows newlines without changing production writes or goldens.
+POSIX session persistence, native/GPU, full suites and milestone qualification
+remain separate gates; no merge, flag activation or deployment is claimed.
 
 ## Current Focus (2026-10-07)
 

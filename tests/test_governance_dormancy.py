@@ -62,8 +62,18 @@ def test_complete_corrected_outputs_with_dormant_governance(
     assert trace == expected["rng"]
     # Third-wave schema fields intentionally change raw state/bundle bytes.
     # Assert their exact dormant defaults; all original content still matches
-    # the unchanged independently captured corrected-baseline byte oracle.
-    emitted = {path.name: {"sha256": hashlib.sha256(legacy_artifact_bytes(path)).hexdigest(),
-                           "bytes": len(legacy_artifact_bytes(path))}
-               for path in sorted((tmp_path / "artifacts").iterdir()) if path.is_file()}
+    # the unchanged independently captured corrected-baseline oracle. The
+    # fixture was captured on Unix; production text writers use platform
+    # newlines. Compare their LF representation on Windows without changing
+    # production writes or the frozen fixture. State/bundle JSON is already
+    # canonicalized by the dormant-schema helper.
+    emitted = {}
+    for path in sorted((tmp_path / "artifacts").iterdir()):
+        if not path.is_file():
+            continue
+        data = legacy_artifact_bytes(path)
+        if path.name not in ("state.json", "chronicle_bundle.json"):
+            data = data.replace(b"\r\n", b"\n")
+        emitted[path.name] = {"sha256": hashlib.sha256(data).hexdigest(),
+                              "bytes": len(data)}
     assert emitted == ARTIFACTS["workloads"][name]
