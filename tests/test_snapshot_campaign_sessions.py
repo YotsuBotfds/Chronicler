@@ -119,11 +119,13 @@ def test_bounded_handle_read_ignores_metadata_and_rejects_before_arrow(monkeypat
         nonlocal stream
         stream = Tracked(open(descriptor, *args, **kwargs))
         return stream
-    monkeypatch.setattr(es, "open", opened, raising=False)
-    monkeypatch.setattr(Path, "stat", forbidden)
-    monkeypatch.setattr(pa.ipc, "open_file", forbidden)
-    with pytest.raises(es.TransportDomainError):
-        bridge.read_snapshot(path, max_snapshot_bytes=10)
+    # Restore shared filesystem APIs before pytest formats a possible failure.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(es, "open", opened, raising=False)
+        scoped.setattr(Path, "stat", forbidden)
+        scoped.setattr(pa.ipc, "open_file", forbidden)
+        with pytest.raises(es.TransportDomainError):
+            bridge.read_snapshot(path, max_snapshot_bytes=10)
     assert reads == [11] and stream.closed
 
 

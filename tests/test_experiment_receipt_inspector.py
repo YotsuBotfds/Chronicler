@@ -284,11 +284,13 @@ def test_policy_actual_handle_read_is_bounded_before_decode_without_stat(monkeyp
         nonlocal stream
         stream = Tracked(descriptor, *args, **kwargs)
         return stream
-    monkeypatch.setattr(builtins, "open", tracked)
-    monkeypatch.setattr(Path, "stat", forbidden)
-    monkeypatch.setattr(es, "transport_policy_from_text", forbidden)
-    with pytest.raises(es.TransportDomainError):
-        CLI["_transport"](Path("misleading-size"))
+    # Shared APIs must be restored before pytest reports an unexpected error.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(builtins, "open", tracked)
+        scoped.setattr(Path, "stat", forbidden)
+        scoped.setattr(es, "transport_policy_from_text", forbidden)
+        with pytest.raises(es.TransportDomainError):
+            CLI["_transport"](Path("misleading-size"))
     assert reads == [4097] and stream.closed
 
 
