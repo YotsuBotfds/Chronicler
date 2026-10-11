@@ -46,10 +46,10 @@ from chronicler.memory import MemoryStream, generate_reflection, sanitize_civ_na
 from chronicler.models import CivSnapshot, Event, RelationshipSnapshot, SettlementSummary, TurnSnapshot, WorldState
 from chronicler.action_engine import ActionEngine
 from chronicler.narrative import NarrativeEngine
-from chronicler.simulation import run_turn
+from chronicler.simulation import run_turn_result
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
-from chronicler.intelligence import compute_accuracy, get_perceived_stat
+from chronicler.intelligence import compute_accuracy, _get_perceived_stat_with_accuracy
 
 DEFAULT_CONFIG = {
     "seed": 42,
@@ -259,6 +259,11 @@ def execute_run(
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
+    mutual_aid = getattr(args, "mutual_aid", None)
+    if mutual_aid is not None:
+        world.mutual_aid_enabled = mutual_aid
+    if world.mutual_aid_enabled and agent_mode == "off":
+        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -332,7 +337,8 @@ def execute_run(
             return _engine.select_action(civ, seed=world.seed)
 
         # Run one turn — pending injections drain inside run_turn with accumulator
-        chronicle_text = run_turn(
+        source_turn = world.turn
+        turn_result = run_turn_result(
             world,
             action_selector=action_selector,
             narrator=_noop_narrator or engine.narrator,
@@ -345,8 +351,15 @@ def execute_run(
             pending_injections=_pending,
         )
 
+        assert turn_result.observation.source_turn == source_turn
+        assert turn_result.observation.completed_turn == source_turn + 1 == world.turn
+        chronicle_text = turn_result.chronicle_text
+
         # Capture per-turn snapshot for viewer bundle
         # M24: cache accuracy for snapshot
+        # Name-keyed cache entries can collide in externally supplied worlds.
+        # Keep live reads for those worlds to preserve even discarded RNG draws.
+        _unique_civ_names = len({c.name for c in world.civilizations}) == len(world.civilizations)
         _acc_cache: dict[tuple[str, str], float] = {}
         for _obs in world.civilizations:
             for _tgt in world.civilizations:
@@ -434,7 +447,13 @@ def execute_run(
                     tgt_name: {
                         stat: pv - getattr(tgt, stat)
                         for stat in ("military", "economy", "stability")
-                        if (pv := get_perceived_stat(obs, tgt, stat, world)) is not None
+                        if (pv := _get_perceived_stat_with_accuracy(
+                            obs, tgt, stat, world,
+                            accuracy=(
+                                _acc_cache[(obs_name, tgt_name)] if _unique_civ_names
+                                else compute_accuracy(obs, tgt, world)
+                            ),
+                        )) is not None
                     }
                     for tgt in world.civilizations
                     for tgt_name in [tgt.name]
@@ -474,12 +493,14 @@ def execute_run(
 
         # M56b: Urban fraction aggregation from agent snapshot
         urban_by_civ: dict[str, tuple[int, int]] = {}  # civ_name -> (urban_count, total_count)
-        if agent_bridge and hasattr(world, '_agent_snapshot') and world._agent_snapshot is not None:
-            snap = world._agent_snapshot
-            if "settlement_id" in snap.column_names:
-                civ_col = snap.column("civ_affinity").to_pylist()
-                sid_col = snap.column("settlement_id").to_pylist()
-                region_col = snap.column("region").to_pylist() if "region" in snap.column_names else [None] * len(civ_col)
+        agent_rows = turn_result.observation.phase10_agents
+        if agent_bridge and agent_rows is not None:
+            assert agent_rows.stamp.source_turn == source_turn
+            assert agent_rows.stamp.stage == "phase10_entry"
+            if agent_rows.has("settlement_id"):
+                civ_col = agent_rows.ints("civ_affinity")
+                sid_col = agent_rows.ints("settlement_id")
+                region_col = agent_rows.ints("region") if agent_rows.has("region") else [None] * len(civ_col)
                 for civ_id, region_id, sid in zip(civ_col, region_col, sid_col):
                     civ_name = None
                     try:
@@ -501,6 +522,7 @@ def execute_run(
                         continue
                     u, t = urban_by_civ.get(civ_name, (0, 0))
                     urban_by_civ[civ_name] = (u + (1 if sid > 0 else 0), t + 1)
+                del civ_col, sid_col, region_col
 
         for civ_name, cs in snapshot.civ_stats.items():
             if civ_name in urban_by_civ:
@@ -514,6 +536,10 @@ def execute_run(
         snapshot.urban_fraction = total_urban / total_agents if total_agents > 0 else 0.0
 
         history.append(snapshot)
+
+        # Phase-10 rows are historical inputs only for synchronous capture.
+        # Release the handoff before callbacks can mutate world or bridge state.
+        del agent_rows, turn_result
 
         # Record chronicle entry
         chronicle_entries.append(ChronicleEntry(
@@ -888,6 +914,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--agents", type=str, default="off",
                         choices=["off", "demographics-only", "shadow", "hybrid"],
                         help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
+    parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
+                        help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

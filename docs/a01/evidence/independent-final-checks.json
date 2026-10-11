@@ -1,0 +1,130 @@
+{
+  "single": {
+    "turns": 20,
+    "exact": true,
+    "rng": {
+      "sha256": "cd5ebb496dfeab3b75d1941f914b462982c55a9a1a4d0c52806b5c521c3f7666",
+      "counts": {
+        "seed": 117,
+        "getrandbits": 285,
+        "random": 225
+      },
+      "instances": 117
+    },
+    "split": 5,
+    "checkpoint_status": "PASS",
+    "resumed_turns": 15,
+    "baseline_runtime_sha256": "c19c3b84fbb3bb592738d165417a376112fe36c2a35076cc5ae898342048ed71",
+    "candidate_runtime_sha256": "0dc9d7fef5e34814cf159e7e16632aa00035ba3a3b9736798b426323ee0f0c1f",
+    "baseline_seconds": [
+      0.022499122999988685,
+      0.022024748999911026,
+      0.022328004999963014
+    ],
+    "candidate_seconds": [
+      0.023414822000063396,
+      0.023119106000081047,
+      0.023850277000065034
+    ],
+    "allocated_bytes_pair": [
+      27495,
+      27554
+    ],
+    "peak_bytes_pair": [
+      1054289,
+      1054348
+    ],
+    "view_retention": [
+      0,
+      0
+    ]
+  },
+  "standard": {
+    "turns": 60,
+    "exact": true,
+    "rng": {
+      "sha256": "36caae11b96babc022468cb57ad02f96c358ae3a36377a26f97ccefb233f9ce3",
+      "counts": {
+        "seed": 3519,
+        "getrandbits": 1110,
+        "random": 6589
+      },
+      "instances": 3519
+    },
+    "split": 5,
+    "checkpoint_status": "PASS",
+    "resumed_turns": 55,
+    "baseline_runtime_sha256": "c19c3b84fbb3bb592738d165417a376112fe36c2a35076cc5ae898342048ed71",
+    "candidate_runtime_sha256": "0dc9d7fef5e34814cf159e7e16632aa00035ba3a3b9736798b426323ee0f0c1f",
+    "baseline_seconds": [
+      0.27810176900004535,
+      0.2637055339999961,
+      0.2657666270000618
+    ],
+    "candidate_seconds": [
+      0.2727602279999246,
+      0.30196245700005875,
+      0.27217427800007954
+    ],
+    "allocated_bytes_pair": [
+      42283,
+      41592
+    ],
+    "peak_bytes_pair": [
+      12235715,
+      12235024
+    ],
+    "view_retention": [
+      0,
+      0
+    ]
+  },
+  "wide": {
+    "turns": 40,
+    "exact": true,
+    "rng": {
+      "sha256": "2118c0615d21270fccd0eca236e3b9b31f98a5ede4885acbf9b44e1340f8a2f5",
+      "counts": {
+        "seed": 3866,
+        "getrandbits": 810,
+        "random": 7324
+      },
+      "instances": 3866
+    },
+    "split": 0,
+    "checkpoint_status": "PASS",
+    "resumed_turns": 40,
+    "baseline_runtime_sha256": "c19c3b84fbb3bb592738d165417a376112fe36c2a35076cc5ae898342048ed71",
+    "candidate_runtime_sha256": "0dc9d7fef5e34814cf159e7e16632aa00035ba3a3b9736798b426323ee0f0c1f",
+    "baseline_seconds": [
+      0.23599132800006828,
+      0.2470554289999427,
+      0.2442499090000183
+    ],
+    "candidate_seconds": [
+      0.2389501200000268,
+      0.23847751799996786,
+      0.23725388399998337
+    ],
+    "allocated_bytes_pair": [
+      43385,
+      41750
+    ],
+    "peak_bytes_pair": [
+      11728931,
+      11727296
+    ],
+    "view_retention": [
+      0,
+      0
+    ]
+  },
+  "hashes": {
+    "src/chronicler/main.py": "65958a043703898fad0fce85bb7e243a097cc2c67e3ccd716deeac3bf6068f54",
+    "src/chronicler/checkpoint_replay.py": "4ca3b3da8c56580071d12d8955a069ad888017cbcc9ed48188a00a47911a663c",
+    "scripts/a01_acceptance.py": "5c09167d301e761741a461c4ce561e945ae1b3d3ad69fbfb1510c2a49b72eafe",
+    "scripts/a01_test_doubles.py": "82ea0d23ac9bc8272d40d29992044a40f063775c267692f1cac0c8839401a1e5",
+    "tests/test_turn_artifact_runner.py": "66e32b40c2fcf22be1cfa9f7ac75390eb761c5c5ba206b1c442f3abd130dbc52",
+    "docs/a01/SLICE3.md": "e28f7e3e1898ad21b46118d52a3395de994620cf351f5902422b889c6b190de9"
+  }
+}

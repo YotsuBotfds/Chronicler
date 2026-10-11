@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+# Keep field available to existing memory module callers.
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -65,7 +66,13 @@ class MemoryStream:
                 for r in self.reflections
             ],
         }
-        path.parent.mkdir(parents=True, exist_ok=True)
+        parent = path.parent
+        try:
+            parent_is_dir = parent.is_dir()
+        except OSError:
+            parent_is_dir = False
+        if not parent_is_dir:
+            parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, indent=2))
 
     @classmethod

@@ -61,6 +61,7 @@ function App() {
     error: staticError,
     loading,
     loadFromFile,
+    artifactIdentity,
   } = useBundle();
   const liveConn = useLiveConnection(wsUrl || "");
 
@@ -68,7 +69,9 @@ function App() {
   const error = isLive ? liveConn.error : staticError;
 
   const timeline = useTimeline(
-    bundle?.history.length ?? bundle?.metadata?.total_turns ?? 1,
+    isLive
+      ? bundle?.history[bundle.history.length - 1]?.turn ?? 1
+      : bundle?.metadata?.total_turns ?? bundle?.history.length ?? 1,
     { liveMode: isLive && liveConn.connected },
   );
 
@@ -155,6 +158,7 @@ function App() {
       surface={surface}
       onSurfaceChange={handleSurfaceChange}
       bundle={bundle}
+      artifactIdentity={isLive ? null : artifactIdentity}
       bundleLoading={loading}
       error={error}
       isLive={isLive}

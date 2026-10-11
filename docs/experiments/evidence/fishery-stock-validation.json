@@ -1,0 +1,68 @@
+{
+  "baseline": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "branch": "experiment/ecology-fishery-stock",
+  "python": "3.13.5",
+  "native_extension": "Locally rebuilt CPython 3.13 extension; verified compiled .so origin in-process",
+  "checks": [
+    {
+      "command": ".venv/bin/python -m pytest tests/test_fishery_experiment.py -q",
+      "result": "138 passed; includes both native simulators, native farmer income counterfactual, native production cap, four-turn hybrid pair"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/test_fishery_experiment.py tests/test_ecology.py tests/test_ecology_bridge.py tests/test_ecology_parity.py tests/test_economy.py tests/test_economy_bridge.py tests/test_economy_parity.py tests/test_economy_m43a.py tests/test_economy_m43b.py tests/test_models.py tests/test_resources.py tests/test_simulation.py -m 'not slow' -q",
+      "result": "548 passed in 5.23s; no skips"
+    },
+    {
+      "command": "cargo test --locked --manifest-path chronicler-agents/Cargo.toml ecology::tests --quiet",
+      "result": "6 passed; other tests filtered"
+    },
+    {
+      "command": "cargo test --locked --manifest-path chronicler-agents/Cargo.toml --test test_ecology --quiet",
+      "result": "56 passed"
+    },
+    {
+      "command": ".venv/bin/python scripts/validate_fishery_experiment.py --baseline-src /workspace/Chronicler/src --output docs/experiments/evidence/fishery-stock-pair.json",
+      "result": "Disabled equals clean untouched public main; enabled repeat deterministic; enabled stock below control"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "tooling_notes": [
+    "Python dependencies and native build tools installed locally; repository lockfile restored unchanged",
+    "Rust toolchain/cache in /tmp; no system defaults changed",
+    "maturin install uses UV_CACHE_DIR=/tmp/chronicler-uv-cache",
+    "cargo tests use PYO3_PYTHON from checkout .venv and LIBRARY_PATH=/tmp/chronicler-python-link; local symlink points to installed libpython3.13.so.1 because the system lacks the unversioned linker alias"
+  ],
+  "independent_reviews": [
+    {
+      "tier": 1,
+      "agent": "review_ecology_mechanism",
+      "scope": "Novelty, biomass accounting, bounds, monotonicity, reset, save/load",
+      "finding": "Actual economy production could exceed stock debit due to seasonal and worker-count mismatch",
+      "resolution": "Persisted catch budgets cap Python amount and native kernel input; reviewer independently confirmed initial zero credit and JSON/disabled behavior",
+      "final_status": "No remaining material blocker"
+    },
+    {
+      "tier": 2,
+      "agent": "review_ecology_integration",
+      "scope": "Native forwarding, phase order, goods adapters, disabled schema, continuation scope",
+      "findings": [
+        "Stale native extension could mutate Phase 2 state before Phase 9 rejection",
+        "Write-back parity alone did not prove native agents consumed patched catch"
+      ],
+      "resolution": "Full-turn runtime preflight before mutation; native-agent counterfactual forces recompute and compares farmer wealth after tick_agents",
+      "final_status": "No remaining actionable integration issue"
+    }
+  ],
+  "limits": [
+    "Biological replenishment is an external source; unused catch is discarded",
+    "Only primary resource slots produce goods; effort saturates at four reference workforces",
+    "Full-world goods conservation including cargo, pending deliveries and clamp corrections is not established by these fixtures",
+    "Python JSON continuation does not restore the native agent pool or runtime buffers",
+    "No parameter sweep, paid service, offsite upload, fertility/migration/resupply changes, public push or merge",
+    "No comparison against private frozen b665e198"
+  ],
+  "integration_contract_provenance": "Parent-supplied boundaries incorporated into interface manifest; commit 14614a2 and docs/integration/2026-10-05-isolated-feature-contract.md were unavailable in this checkout"
+}

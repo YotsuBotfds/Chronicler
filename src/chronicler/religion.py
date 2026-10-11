@@ -8,6 +8,7 @@ import random
 from collections import Counter
 from typing import TYPE_CHECKING
 
+from chronicler.turn_artifacts import AgentRows, _check_agent_rows
 from chronicler.models import (
     Belief,
     DOCTRINE_THEOLOGY,
@@ -146,7 +147,7 @@ def generate_faiths(
     return beliefs
 
 
-def compute_majority_belief(snapshot) -> dict[int, int]:
+def compute_majority_belief(snapshot, *, agent_rows: AgentRows | None = None) -> dict[int, int]:
     """Compute the majority faith per region from an agent snapshot.
 
     Args:
@@ -155,11 +156,18 @@ def compute_majority_belief(snapshot) -> dict[int, int]:
     Returns:
         dict mapping region_id → majority_faith_id.  Ties break to the lower faith_id.
     """
+    _check_agent_rows(snapshot, agent_rows)
     if snapshot is None or snapshot.num_rows == 0:
         return {}
 
-    regions = snapshot.column("region").to_pylist()
-    beliefs = snapshot.column("belief").to_pylist()
+    regions = (
+        agent_rows.ints("region")
+        if agent_rows is not None else snapshot.column("region").to_pylist()
+    )
+    beliefs = (
+        agent_rows.ints("belief")
+        if agent_rows is not None else snapshot.column("belief").to_pylist()
+    )
 
     # Accumulate per-region faith counts
     counts: dict[int, Counter] = {}
@@ -182,7 +190,7 @@ def compute_majority_belief(snapshot) -> dict[int, int]:
     return result
 
 
-def compute_civ_majority_faith(snapshot) -> dict[int, tuple[int, float]]:
+def compute_civ_majority_faith(snapshot, *, agent_rows: AgentRows | None = None) -> dict[int, tuple[int, float]]:
     """Compute the majority faith per civ from an agent snapshot.
 
     Args:
@@ -192,11 +200,18 @@ def compute_civ_majority_faith(snapshot) -> dict[int, tuple[int, float]]:
         dict mapping civ_id → (majority_faith_id, ratio).  Ties break to the lower faith_id.
         ratio = max_count / total_agents_in_civ (agents with valid belief).
     """
+    _check_agent_rows(snapshot, agent_rows)
     if snapshot is None or snapshot.num_rows == 0:
         return {}
 
-    civs = snapshot.column("civ_affinity").to_pylist()
-    beliefs = snapshot.column("belief").to_pylist()
+    civs = (
+        agent_rows.ints("civ_affinity")
+        if agent_rows is not None else snapshot.column("civ_affinity").to_pylist()
+    )
+    beliefs = (
+        agent_rows.ints("belief")
+        if agent_rows is not None else snapshot.column("belief").to_pylist()
+    )
 
     counts: dict[int, Counter] = {}
     for civ_id, faith_id in zip(civs, beliefs):
@@ -229,6 +244,8 @@ def compute_conversion_signals(
     civ_majority_faiths: dict[int, int] | None = None,
     civ_name_to_id: dict[str, int] | None = None,
     world: "WorldState | None" = None,
+    *,
+    agent_rows: AgentRows | None = None,
 ) -> list[tuple[int, float, int, bool]]:
     """Compute per-region conversion signals and write to region fields.
 
@@ -257,6 +274,7 @@ def compute_conversion_signals(
         list of (region_idx, rate, target_faith_id, conquest_active) tuples
         for backward compatibility.
     """
+    _check_agent_rows(snapshot, agent_rows)
     if named_agents is None:
         named_agents = {}
     if civ_majority_faiths is None:
@@ -270,10 +288,22 @@ def compute_conversion_signals(
     prophet_regions: set[int] = set()
 
     if snapshot is not None and snapshot.num_rows > 0:
-        agent_ids = snapshot.column("id").to_pylist()
-        snap_regions = snapshot.column("region").to_pylist()
-        occupations = snapshot.column("occupation").to_pylist()
-        beliefs_col = snapshot.column("belief").to_pylist()
+        agent_ids = (
+            agent_rows.ints("id")
+            if agent_rows is not None else snapshot.column("id").to_pylist()
+        )
+        snap_regions = (
+            agent_rows.ints("region")
+            if agent_rows is not None else snapshot.column("region").to_pylist()
+        )
+        occupations = (
+            agent_rows.ints("occupation")
+            if agent_rows is not None else snapshot.column("occupation").to_pylist()
+        )
+        beliefs_col = (
+            agent_rows.ints("belief")
+            if agent_rows is not None else snapshot.column("belief").to_pylist()
+        )
 
         for i in range(snapshot.num_rows):
             occ = occupations[i]
@@ -439,6 +469,8 @@ def compute_persecution(
     turn: int,
     persecuted_regions: set[str],
     world=None,
+    *,
+    agent_rows: AgentRows | None = None,
 ) -> list:
     """Detect religious persecution and fire events.
 
@@ -459,6 +491,7 @@ def compute_persecution(
     Returns:
         List of Event objects generated this call.
     """
+    _check_agent_rows(snapshot, agent_rows, source_turn=turn)
     from chronicler.models import Event
 
     events: list = []
@@ -470,8 +503,14 @@ def compute_persecution(
         region_belief_counts: dict[int, Counter] = {}
     else:
         # Tally per-region belief counts from snapshot
-        snap_regions = snapshot.column("region").to_pylist()
-        snap_beliefs = snapshot.column("belief").to_pylist()
+        snap_regions = (
+            agent_rows.ints("region")
+            if agent_rows is not None else snapshot.column("region").to_pylist()
+        )
+        snap_beliefs = (
+            agent_rows.ints("belief")
+            if agent_rows is not None else snapshot.column("belief").to_pylist()
+        )
 
         region_belief_counts = {}
         for region_idx, faith_id in zip(snap_regions, snap_beliefs):
@@ -749,6 +788,8 @@ def detect_schisms(
     snapshot,
     current_turn: int,
     world=None,
+    *,
+    agent_rows: AgentRows | None = None,
 ) -> list:
     """Detect and fire at most one schism per civilization per turn.
 
@@ -771,7 +812,8 @@ def detect_schisms(
     Returns:
         List of Event objects generated this call.
     """
-    from chronicler.models import Event, FactionType
+    _check_agent_rows(snapshot, agent_rows, source_turn=current_turn)
+    from chronicler.models import Event
 
     if len(belief_registry) >= MAX_FAITHS:
         return []
@@ -783,8 +825,14 @@ def detect_schisms(
     region_map = {r.name: r for r in regions}
 
     # Tally per-region belief counts from snapshot
-    snap_regions = snapshot.column("region").to_pylist()
-    snap_beliefs = snapshot.column("belief").to_pylist()
+    snap_regions = (
+        agent_rows.ints("region")
+        if agent_rows is not None else snapshot.column("region").to_pylist()
+    )
+    snap_beliefs = (
+        agent_rows.ints("belief")
+        if agent_rows is not None else snapshot.column("belief").to_pylist()
+    )
 
     region_belief_counts: dict[int, Counter] = {}
     for region_idx, faith_id in zip(snap_regions, snap_beliefs):

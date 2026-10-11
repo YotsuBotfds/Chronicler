@@ -1,0 +1,1298 @@
+{
+  "schema_version": 1,
+  "revision": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "source_sha256": {
+    "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+    "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+    "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+    "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+    "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+    "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+    "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+    "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+    "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+    "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+    "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+    "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+    "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+    "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+    "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+    "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+    "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+    "src/chronicler/ecology.py": "bbffa2f4a1466cd010e1e7c2534abe1c01a91e073c718f777914b52530a9f0a3",
+    "src/chronicler/economy.py": "d13c156c90b876a74bb2ad4bfa1b9e93e9f3e03923afb528c9e1348cf189d9a8",
+    "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+    "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+    "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+    "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+    "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+    "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+    "src/chronicler/great_persons.py": "4bd4cb6d683769cff87dd4b4ae379ca948260512a630e9fe5153f89b7d3151ae",
+    "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+    "src/chronicler/intelligence.py": "98fd8ff07f83c8fceab334d26ed96d7e895acd5a2958fb12848851c70d0546d2",
+    "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+    "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+    "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+    "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+    "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+    "src/chronicler/main.py": "9974aac579cc6d463e07468e835854228c8e19df75211e7ea119835e56443dce",
+    "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+    "src/chronicler/models.py": "22bb17115ae1753ad4dd5443ee45d32557fda0d5cf7af7235726e6aa54708be2",
+    "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+    "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+    "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+    "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+    "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+    "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+    "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+    "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+    "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+    "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+    "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+    "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+    "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+    "src/chronicler/simulation.py": "9236fa65cd00e7ec776701c5680bc229c3dd3bde40dd4b09cb0be878f2b71387",
+    "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+    "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+    "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+    "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+    "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+    "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+    "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+    "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+    "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+    "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+    "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+    "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+    "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+    "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+  },
+  "environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "packages": {
+      "httpcore": "1.0.9",
+      "h11": "0.16.0",
+      "arro3-core": "0.9.0",
+      "websockets": "16.0",
+      "jiter": "0.13.0",
+      "distro": "1.9.0",
+      "idna": "3.11",
+      "pydantic": "2.12.5",
+      "pytest-asyncio": "1.3.0",
+      "anyio": "4.12.1",
+      "typing_extensions": "4.15.0",
+      "PyYAML": "6.0.3",
+      "sniffio": "1.3.1",
+      "packaging": "26.0",
+      "pydantic_core": "2.41.5",
+      "pytest": "9.0.2",
+      "iniconfig": "2.3.0",
+      "pluggy": "1.6.0",
+      "scipy": "1.18.1",
+      "typing-inspection": "0.4.2",
+      "openai": "2.26.0",
+      "numpy": "2.5.3",
+      "annotated-types": "0.7.0",
+      "certifi": "2026.2.25",
+      "pyarrow": "25.0.1",
+      "Pygments": "2.19.2",
+      "httpx": "0.28.1",
+      "tqdm": "4.67.3"
+    }
+  },
+  "mode": "pure-Python off; execute_run; warmed imports; artifact I/O included",
+  "generated_at": "fixed 2026-10-05T00:00:00+00:00 for byte equivalence only",
+  "repetitions": 3,
+  "workloads": {
+    "single": {
+      "workload": {
+        "seed": 321,
+        "turns": 20,
+        "civs": 1,
+        "regions": 3
+      },
+      "seconds": [
+        0.02208844400001908,
+        0.021383194999998523,
+        0.023127103999968313
+      ],
+      "cpu_seconds": [
+        0.02206967500000001,
+        0.021359813000000005,
+        0.023160842000000015
+      ],
+      "median_seconds": 0.02208844400001908,
+      "peak_tracemalloc_bytes": 960513,
+      "profile": {
+        "total_seconds": 0.04760546800000001,
+        "hotspots": [
+          {
+            "file": "chronicler/main.py",
+            "line": 109,
+            "function": "execute_run",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 0.0011653640000000001,
+            "cumulative_seconds": 0.047085849000000006
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 1555,
+            "function": "run_turn",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.000887711,
+            "cumulative_seconds": 0.032078394
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 740,
+            "function": "tick_ecology",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 2.6759000000000002e-05,
+            "cumulative_seconds": 0.006145524
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 613,
+            "function": "_tick_ecology_python",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.000551451,
+            "cumulative_seconds": 0.006118765
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 981,
+            "function": "phase_consequences",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.000567405,
+            "cumulative_seconds": 0.005462277000000001
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 610,
+            "function": "phase_action",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00019054,
+            "cumulative_seconds": 0.004995956
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 235,
+            "function": "apply_automatic_effects",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.0008415250000000001,
+            "cumulative_seconds": 0.004507894
+          },
+          {
+            "file": "chronicler/models.py",
+            "line": 804,
+            "function": "save",
+            "calls": 21,
+            "primitive": 21,
+            "own_seconds": 0.000151423,
+            "cumulative_seconds": 0.004490133
+          },
+          {
+            "file": "chronicler/main.py",
+            "line": 331,
+            "function": "action_selector",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 2.7933000000000002e-05,
+            "cumulative_seconds": 0.003931528
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 1133,
+            "function": "select_action",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00011250500000000001,
+            "cumulative_seconds": 0.003903595
+          },
+          {
+            "file": "chronicler/tuning.py",
+            "line": 387,
+            "function": "get_override",
+            "calls": 2372,
+            "primitive": 2372,
+            "own_seconds": 0.0013415310000000002,
+            "cumulative_seconds": 0.0036470070000000003
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 939,
+            "function": "compute_weights",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.0006595500000000001,
+            "cumulative_seconds": 0.003236112
+          },
+          {
+            "file": "chronicler/memory.py",
+            "line": 55,
+            "function": "save",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00014588,
+            "cumulative_seconds": 0.002392454
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 123,
+            "function": "phase_environment",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00026740900000000003,
+            "cumulative_seconds": 0.0023500920000000002
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 865,
+            "function": "get_eligible_actions",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00033355,
+            "cumulative_seconds": 0.0017143470000000002
+          },
+          {
+            "file": "chronicler/models.py",
+            "line": 780,
+            "function": "civ_map",
+            "calls": 213,
+            "primitive": 213,
+            "own_seconds": 0.000238303,
+            "cumulative_seconds": 0.001399656
+          },
+          {
+            "file": "chronicler/bundle.py",
+            "line": 36,
+            "function": "assemble_bundle",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 7.5771e-05,
+            "cumulative_seconds": 0.00133777
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 511,
+            "function": "phase_production",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.000250923,
+            "cumulative_seconds": 0.0012153580000000002
+          },
+          {
+            "file": "chronicler/resources.py",
+            "line": 259,
+            "function": "get_active_trade_routes",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 8.4207e-05,
+            "cumulative_seconds": 0.001204708
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 758,
+            "function": "phase_random_events",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.000114221,
+            "cumulative_seconds": 0.001076989
+          },
+          {
+            "file": "chronicler/politics.py",
+            "line": 67,
+            "function": "apply_governing_costs",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00032718300000000004,
+            "cumulative_seconds": 0.001066583
+          },
+          {
+            "file": "chronicler/events.py",
+            "line": 90,
+            "function": "roll_for_event",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.000262215,
+            "cumulative_seconds": 0.0010035970000000002
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 679,
+            "function": "apply_asabiya_dynamics",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00046048400000000005,
+            "cumulative_seconds": 0.000991962
+          },
+          {
+            "file": "chronicler/bundle.py",
+            "line": 74,
+            "function": "write_bundle",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 8.533000000000001e-06,
+            "cumulative_seconds": 0.000986873
+          },
+          {
+            "file": "chronicler/factions.py",
+            "line": 285,
+            "function": "tick_factions",
+            "calls": 20,
+            "primitive": 20,
+            "own_seconds": 0.00016107300000000002,
+            "cumulative_seconds": 0.0009098950000000001
+          }
+        ],
+        "intelligence": []
+      },
+      "equivalence": {
+        "artifacts": {
+          "chronicle.md": {
+            "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+            "bytes": 214
+          },
+          "chronicle_bundle.json": {
+            "sha256": "31af7508662dfddcfed0a31506fa6d62347b4e163e3e9a70049ca5afe7f7d14c",
+            "bytes": 75528
+          },
+          "memories_selurian_republic.json": {
+            "sha256": "cdcfacbf1ab0a51ad3ccf59aeb7d1c1227c4e0602920cd735049504daee8019d",
+            "bytes": 6334
+          },
+          "state.json": {
+            "sha256": "74eb8b200a4feffa5d200e25573e8a94ca49fb3bee6ccc8943905057d96f4f85",
+            "bytes": 26830
+          }
+        },
+        "turn_sha256": [
+          "28912a8f64b6d3caa20f1f34ba987ba6a891cfefadb654da2d2cc9e18409959c",
+          "d506a22843c1086737dc4cc9fce94f55343d486aa41590f933af0494f87922f6",
+          "9bfa85564a3f8faf311d9ea8c2f607877e04b5c7c1c91b10408444b5eca26262",
+          "03332ed5b43218a5a8d13fb5e7a924fe1f09509fa01f05a32135dcd0111ae576",
+          "f577e677cb8b065750279cc4cd2b26d984be0e807f0da93e5c7e0f0dc7036e7e",
+          "cda9a9ac3fbc1ce1c3253eb1e13d132d43c967c0b6353b04cbc5d40f3089c1cc",
+          "9d8344d492f5d1badf404457114af3f00708715cf90aff01629b71aaedfd0a5c",
+          "a695a49f25a8b244a42fe40181620e0d35342ca9b971f60f63c4c742035855fe",
+          "758f31fa3210ff421c71740eae34216ac3cd9fb577036f126e5e2990e837b366",
+          "fa95a92f247712166ce66d7fb26f48e29f5e1f7f0c45d5c201311d5effa14988",
+          "bffe483a14b8add67ca24ead95c1537d3b059a9a31399b86873f23354adbba1d",
+          "d89790cd9c1c27a04f66b28711f140b367eccf31bdcf251a432d42a23dd1580e",
+          "b64538d0962bb518e5c9ad40a5489bd87bb710faac8c76d22ec6b27e96ff3450",
+          "400e65e5b3e078c941052c7f4120afa48d1c87e16d2444c56f8307e141a2090b",
+          "e426359833b5981d463b318b3b90d5c6730a0ff4f5b8a820133673c3897f3aa1",
+          "8b203af6d5620b38ea8b9a019ac7f40872f967b5c125adc95ef8d0e8818ae756",
+          "152c5348f0d20031f60709c196af12e74d9dfb8d95e14d5914081dea6bb52fd9",
+          "f27115b9290856a70469789fef15a45c3e731bf7dbe3d5b0adbaf88f0257f511",
+          "a0f78cef9f79410db2a7b5668d3cb6819e6aea39696adcb92804c93afe0fca05",
+          "635882ceb7d069f0bd64bf0200db88a653ec080f5ba8c97beb38b21c80488fbe"
+        ],
+        "rng": {
+          "sha256": "e763968f9c6da833fdc4fc02a8aeb86c7f8a56f73f7da3bd8c61b4586637a8dd",
+          "counts": {
+            "seed": 127,
+            "getrandbits": 339,
+            "random": 267
+          },
+          "instances": 127
+        }
+      }
+    },
+    "standard": {
+      "workload": {
+        "seed": 42,
+        "turns": 60,
+        "civs": 4,
+        "regions": 12
+      },
+      "seconds": [
+        0.36797098499994263,
+        0.30412140500004625,
+        0.34107455200000913
+      ],
+      "cpu_seconds": [
+        0.3679426079999999,
+        0.30412391799999994,
+        0.34107589900000024
+      ],
+      "median_seconds": 0.34107455200000913,
+      "peak_tracemalloc_bytes": 11291965,
+      "profile": {
+        "total_seconds": 0.7656216829999996,
+        "hotspots": [
+          {
+            "file": "chronicler/main.py",
+            "line": 109,
+            "function": "execute_run",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 0.021659482,
+            "cumulative_seconds": 0.7603986770000001
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 1555,
+            "function": "run_turn",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.007234965,
+            "cumulative_seconds": 0.432296665
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 610,
+            "function": "phase_action",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.003193796,
+            "cumulative_seconds": 0.09483778000000001
+          },
+          {
+            "file": "chronicler/models.py",
+            "line": 804,
+            "function": "save",
+            "calls": 61,
+            "primitive": 61,
+            "own_seconds": 0.000378082,
+            "cumulative_seconds": 0.085940743
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 740,
+            "function": "tick_ecology",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.000199712,
+            "cumulative_seconds": 0.08016463
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 613,
+            "function": "_tick_ecology_python",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.0073183530000000005,
+            "cumulative_seconds": 0.07996491800000001
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 981,
+            "function": "phase_consequences",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.004520542000000001,
+            "cumulative_seconds": 0.079676491
+          },
+          {
+            "file": "chronicler/main.py",
+            "line": 331,
+            "function": "action_selector",
+            "calls": 220,
+            "primitive": 220,
+            "own_seconds": 0.000357307,
+            "cumulative_seconds": 0.066954529
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 1133,
+            "function": "select_action",
+            "calls": 220,
+            "primitive": 220,
+            "own_seconds": 0.002027491,
+            "cumulative_seconds": 0.066597222
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 939,
+            "function": "compute_weights",
+            "calls": 220,
+            "primitive": 220,
+            "own_seconds": 0.009948246,
+            "cumulative_seconds": 0.055331737000000006
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 125,
+            "function": "_get_perceived_stat_with_accuracy",
+            "calls": 2985,
+            "primitive": 2985,
+            "own_seconds": 0.013838216,
+            "cumulative_seconds": 0.055235781000000005
+          },
+          {
+            "file": "chronicler/memory.py",
+            "line": 55,
+            "function": "save",
+            "calls": 240,
+            "primitive": 240,
+            "own_seconds": 0.006458404,
+            "cumulative_seconds": 0.051501971
+          },
+          {
+            "file": "chronicler/tuning.py",
+            "line": 387,
+            "function": "get_override",
+            "calls": 26117,
+            "primitive": 26117,
+            "own_seconds": 0.016490416,
+            "cumulative_seconds": 0.049562651000000006
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 235,
+            "function": "apply_automatic_effects",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.007981503000000001,
+            "cumulative_seconds": 0.048268013000000005
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 865,
+            "function": "get_eligible_actions",
+            "calls": 220,
+            "primitive": 220,
+            "own_seconds": 0.005828921000000001,
+            "cumulative_seconds": 0.028283168
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 65,
+            "function": "compute_accuracy",
+            "calls": 1036,
+            "primitive": 1036,
+            "own_seconds": 0.0036988570000000003,
+            "cumulative_seconds": 0.025067953
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 805,
+            "function": "resolve_action",
+            "calls": 220,
+            "primitive": 220,
+            "own_seconds": 0.000610776,
+            "cumulative_seconds": 0.022015851000000003
+          },
+          {
+            "file": "chronicler/bundle.py",
+            "line": 74,
+            "function": "write_bundle",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 0.00013244,
+            "cumulative_seconds": 0.021596801000000002
+          },
+          {
+            "file": "chronicler/resources.py",
+            "line": 259,
+            "function": "get_active_trade_routes",
+            "calls": 400,
+            "primitive": 400,
+            "own_seconds": 0.0008685390000000001,
+            "cumulative_seconds": 0.020859694
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 123,
+            "function": "phase_environment",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.00287694,
+            "cumulative_seconds": 0.020126812
+          },
+          {
+            "file": "chronicler/bundle.py",
+            "line": 36,
+            "function": "assemble_bundle",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 0.000519355,
+            "cumulative_seconds": 0.018248265
+          },
+          {
+            "file": "chronicler/resources.py",
+            "line": 142,
+            "function": "_compute_active_trade_routes",
+            "calls": 267,
+            "primitive": 267,
+            "own_seconds": 0.006909198,
+            "cumulative_seconds": 0.016497015
+          },
+          {
+            "file": "chronicler/utils.py",
+            "line": 110,
+            "function": "civ_index",
+            "calls": 1486,
+            "primitive": 1486,
+            "own_seconds": 0.0010847040000000001,
+            "cumulative_seconds": 0.014780387
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 511,
+            "function": "phase_production",
+            "calls": 60,
+            "primitive": 60,
+            "own_seconds": 0.002389665,
+            "cumulative_seconds": 0.014240331
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 474,
+            "function": "compute_disease_severity",
+            "calls": 720,
+            "primitive": 720,
+            "own_seconds": 0.0036977940000000003,
+            "cumulative_seconds": 0.013899831000000001
+          }
+        ],
+        "intelligence": [
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 65,
+            "function": "compute_accuracy",
+            "calls": 1036,
+            "primitive": 1036,
+            "own_seconds": 0.0036988570000000003,
+            "cumulative_seconds": 0.025067953
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 125,
+            "function": "_get_perceived_stat_with_accuracy",
+            "calls": 2985,
+            "primitive": 2985,
+            "own_seconds": 0.013838216,
+            "cumulative_seconds": 0.055235781000000005
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 23,
+            "function": "<genexpr>",
+            "calls": 2678,
+            "primitive": 2678,
+            "own_seconds": 0.0016264830000000002,
+            "cumulative_seconds": 0.0016264830000000002
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 48,
+            "function": "<genexpr>",
+            "calls": 2064,
+            "primitive": 2064,
+            "own_seconds": 0.000252083,
+            "cumulative_seconds": 0.000252083
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 36,
+            "function": "in_same_federation",
+            "calls": 1032,
+            "primitive": 1032,
+            "own_seconds": 0.000227922,
+            "cumulative_seconds": 0.000227922
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 150,
+            "function": "emit_intelligence_failure",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 2.8440000000000002e-06,
+            "cumulative_seconds": 5.949e-06
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 110,
+            "function": "get_perceived_stat",
+            "calls": 30,
+            "primitive": 30,
+            "own_seconds": 4.6633000000000006e-05,
+            "cumulative_seconds": 0.0010868330000000002
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 45,
+            "function": "is_vassal_of",
+            "calls": 2064,
+            "primitive": 2064,
+            "own_seconds": 0.0009984030000000001,
+            "cumulative_seconds": 0.002106984
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 16,
+            "function": "shares_adjacent_region",
+            "calls": 1032,
+            "primitive": 1032,
+            "own_seconds": 0.002083063,
+            "cumulative_seconds": 0.004473932
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 29,
+            "function": "has_active_trade_route",
+            "calls": 1032,
+            "primitive": 1032,
+            "own_seconds": 0.001263872,
+            "cumulative_seconds": 0.012424175
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 52,
+            "function": "at_war",
+            "calls": 1032,
+            "primitive": 1032,
+            "own_seconds": 0.000831531,
+            "cumulative_seconds": 0.000831531
+          }
+        ]
+      },
+      "equivalence": {
+        "artifacts": {
+          "chronicle.md": {
+            "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+            "bytes": 588
+          },
+          "chronicle_bundle.json": {
+            "sha256": "63d7f29822eed675691038dbabde64e8d99219f16c91989af2ef10af2d3a03ef",
+            "bytes": 927215
+          },
+          "memories_ashkari_nomads.json": {
+            "sha256": "59f88958c97842d96e9b99e05c7ab750dfb2054e693519c76af8b4458983f68c",
+            "bytes": 17010
+          },
+          "memories_kethani_empire.json": {
+            "sha256": "024309dc0d1cc6a375e18355cd88c4852961b41a792877ad5396e600d550efa1",
+            "bytes": 18857
+          },
+          "memories_selurian_republic.json": {
+            "sha256": "0e504118af8fb0eea9e16f6bcf57807f305d2736124410e46284ee06be82d6fd",
+            "bytes": 10995
+          },
+          "memories_thornwall_confederacy.json": {
+            "sha256": "97f2b141577d77ed6b6886b6881e893e2db61cb1143ca798dc6f376bb9801ff0",
+            "bytes": 23733
+          },
+          "state.json": {
+            "sha256": "cf12ba522b40c6204ace15e8b3fbc4939b2a1c00846d7f3959005da38f199c56",
+            "bytes": 263842
+          }
+        },
+        "turn_sha256": [
+          "56c0e07c788434a0887ee38c4b734b011e9a15350669a79d4e3fdfa92f20bfa9",
+          "cc948f942e092d035dc50179fd2ae542c90ca31345508d3cc35bee1f50fc734c",
+          "cbcf856f0c1d13ab89845a63fab37b7516387b30d298528eb615bdf75f61b688",
+          "c77c420445f44afa16efe06d951e3e62bd0d42b8d40c02761f8ac4d260690a73",
+          "4996a9468bc361b5d0b18a4eb3efa000cf0e40d7d66e123314d9b29b2a30ea18",
+          "0861b5909a177e4d2981dbd6f0a1de5151254cdc3f1bb89b8ea87804a8d87b8a",
+          "d2e5179c7a9ac890c6cf45fc58de0dfb5e2e26c6df7b0e9cd0276292967e450e",
+          "2c031098489f96bc0722e480ffd8f7b17cf7861f24ff75e75c6c850f659c1fc8",
+          "32d7e49f1346f03eb79e16ef92e678453e6e1dfa3ce64db1b55e531f3bcbfdb7",
+          "23689ddaf6efe92f0aeccfdcfbbb4890310ff9a8a0cd835721383ede19d1529a",
+          "773c04311a29e07d7400f0bb5fb7d13fe1ea8acbd8bd40bc1eede36611848a40",
+          "0998a844f4e19377c4d6dbfa735808040879a3c3bd079a81a5a19e67eaf56fe7",
+          "4a40e1f94f71f8f37b439c41c746dbd07b6b6157965c92c3de70d5bed0fb6900",
+          "7c6569a7b0f1437de47d8bb4388353696f8c2279f13cab1a720e99c8ac90ba67",
+          "2552b185163968b3d1ea84d4ad90ee2e0cf32febf1d848bab3eb45b4b6542aa8",
+          "8b99bbc61e86e08bf39d5f8d8fa7dc82d80b184ca250a9d548b4ac9d2138c4c8",
+          "63ecc71bc705ee0023b22d1002f89bd9e94eeec2694bba6f54aae94b385c2915",
+          "3b67e0e0c15d698bf3627388ca0cc6ea7bfeed7c380631813e7a2f78df8ebe7e",
+          "2a492b4f745818853271f5a971a0a3985f3e7f38f182cb5c77ed86589d0fb588",
+          "134525cfcbb9e687ce88393192d3c31297c5251210c5fc1a06f55d1ea1faf5da",
+          "82406d823593daa4649b51ac8e13cea908b91add18e39cbdf904cf3c6d63f9b7",
+          "e70a50517bc1b96d1639d2c7b58458835ce28ef940415ebc1e8c4c8b753f3713",
+          "df6203a34c7afe25ccef3613fa4f47253b44aad3ece4ca3c0b321c83e868c736",
+          "77c02628dd077eec7e0b6d855cb7a0c574742c12470391227b8a16cb989d974e",
+          "8f12882550265bbaeaf41a2e71e50663ae189ca7acbef79a8aa51752d821c641",
+          "32358cbc76b6a92b6b142d790fd3ecbf7ffd5cb67b61acd112928e67e2040fea",
+          "eee0a849a4b72f665b2705473e322ff992cef10270ac5da90613e7ee65c900d9",
+          "b96269e6f735af0af7f8139f231414b70e6d5063766446b4f96ad36b8d9dae02",
+          "adaf4ec3f541bc084e02fbc94fbb902700572286694d21c8493baccef0c5e84d",
+          "1b4820eb7cfb07743c4a4c7864ec9781a8babf8519c65de8ea5f1fe207bc2258",
+          "2cd4904da890e218886a03f7bf4d69d6f15c9c4dd115b3cf3d77dcc78090d1d1",
+          "b6cacbd2565a8a4ff2829c1f5e8ce4c2258f76200af7f2a381119a055ea88f7a",
+          "5cfe3126feb6927309d4ecffef08e1681fbb16eae2379e01eb9296f97ae46357",
+          "cdf20741989c6a7a2b1ac10236f1762e19039e3d2ffdf855189df71cdb8c5df8",
+          "b469aa01b356795090da1812b3a52551b0a1dc3b852eef8fdc0209001b1c7f81",
+          "7a980d3283a4d7d5b5dadbc0d90e944fc4fc31ca8dc8084297522eab9a963935",
+          "f6adfef92233768322f3bcf524a822e322d0d1c01da9c23cb84aedf498327282",
+          "a27f1fca12fe0ed10ca29c92a2b73099af2ff64cde0888dc207ce8371e5f470f",
+          "35225e8d751192c220f3fed1a0e7c9af79e05f68547c6073293f9b39bd4e74cf",
+          "4290c69333d96e5b446299793d6ca47e76d432947269f77873d1a22bf103d886",
+          "400460f6f15d68091ce0bf96dc9434e0eca86775df51f901857af19b7e433592",
+          "0f857bf68c92247e2cd7f889f71384d5f9832051d99b26630fe385f88237d3c4",
+          "269a53af9a7f9681705a070fd27f20da4b7319162ab083a2ec362bce24a32960",
+          "eb8385ac5a23ef783c1790c440a7087b3da33c31973b89864e58e66d12f1750d",
+          "a262815b184526f6272c1a20e774016bb58b66e1ca1678eced5216eaab4ffd19",
+          "adfcf193dab349a195efd4c50da2bb1cad989ae862f7885c049f28f4cc6e5018",
+          "fdaf99d674f204cfc951b029c0168ea6fb17985d82784a590c572c829373f411",
+          "b1ec28b49688a460c32836f93413a56881812339434ff84c1c7b2ae2a499f7b3",
+          "66443c859798c8de1fdef32989d12519d1a0052030c443fab04cca8066797b36",
+          "24b3af5b34175633558c0d90c1884b8336b491d872880a0c47a8b19e58512a10",
+          "89d0d3e4516ae63daa0e0bf9d0c0ac3da68636213e0b46ba564dbd59ecda84fb",
+          "85e774e265de2a76d834ff2277b18cb62a43666822c2ffffc60898fa89da332f",
+          "70f0a335dff2ea7f97aa284903d6da8f59698083861ea4a92079f185ae78bbc8",
+          "90b6e26535084830dc80c430e19358bc2afabf7c1f3a644930e795d576c0f8d5",
+          "36e3d676ca7f2146fd3731ff281d87dbf63729610f23df72d35303b120aa22bc",
+          "e1d834e0d7e861a33369bca38e86ae1746f655f3fa996fa3835857c8869d33d2",
+          "1839caac0511dc9e70fecec23a96f8317474b908208fc87d36321f6c539dec02",
+          "1d85d3fd54728980c0aea1aad3e730e56f9ff27b7cf9488d3faed9d3fc280746",
+          "b19a877206a53e1dbd7b12a835de283cb5b6298f0e35bda5dc6308bd507516cd",
+          "d9ec6064d6ac7d608dd3431fb24fa0538b7e92172b0ec4b4b297bb0f89ee7bd2"
+        ],
+        "rng": {
+          "sha256": "65e9581d37086b7b23e4fbe21a957c32c180c244b63090fb6025d6e6db121a35",
+          "counts": {
+            "seed": 3677,
+            "getrandbits": 1222,
+            "random": 7015
+          },
+          "instances": 3677
+        }
+      }
+    },
+    "wide": {
+      "workload": {
+        "seed": 77,
+        "turns": 40,
+        "civs": 6,
+        "regions": 12
+      },
+      "seconds": [
+        0.3008431149999069,
+        0.29947808000008536,
+        0.3010615229999303
+      ],
+      "cpu_seconds": [
+        0.30079585900000083,
+        0.29947066200000005,
+        0.30104561100000016
+      ],
+      "median_seconds": 0.3008431149999069,
+      "peak_tracemalloc_bytes": 10802922,
+      "profile": {
+        "total_seconds": 0.6403547269999991,
+        "hotspots": [
+          {
+            "file": "chronicler/main.py",
+            "line": 109,
+            "function": "execute_run",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 0.016444341,
+            "cumulative_seconds": 0.638468111
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 1555,
+            "function": "run_turn",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.005146021000000001,
+            "cumulative_seconds": 0.37938056600000003
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 610,
+            "function": "phase_action",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.00331035,
+            "cumulative_seconds": 0.09934819700000001
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 981,
+            "function": "phase_consequences",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.0029963620000000002,
+            "cumulative_seconds": 0.07463256
+          },
+          {
+            "file": "chronicler/main.py",
+            "line": 331,
+            "function": "action_selector",
+            "calls": 245,
+            "primitive": 245,
+            "own_seconds": 0.000657811,
+            "cumulative_seconds": 0.071494123
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 1133,
+            "function": "select_action",
+            "calls": 245,
+            "primitive": 245,
+            "own_seconds": 0.0014181390000000001,
+            "cumulative_seconds": 0.070836312
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 939,
+            "function": "compute_weights",
+            "calls": 245,
+            "primitive": 245,
+            "own_seconds": 0.010735725000000002,
+            "cumulative_seconds": 0.06073590500000001
+          },
+          {
+            "file": "chronicler/models.py",
+            "line": 804,
+            "function": "save",
+            "calls": 41,
+            "primitive": 41,
+            "own_seconds": 0.00024010900000000001,
+            "cumulative_seconds": 0.05661796400000001
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 235,
+            "function": "apply_automatic_effects",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.007958239,
+            "cumulative_seconds": 0.055960881000000004
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 125,
+            "function": "_get_perceived_stat_with_accuracy",
+            "calls": 3581,
+            "primitive": 3581,
+            "own_seconds": 0.014085197,
+            "cumulative_seconds": 0.053427421
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 740,
+            "function": "tick_ecology",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 9.267800000000001e-05,
+            "cumulative_seconds": 0.051416824
+          },
+          {
+            "file": "chronicler/ecology.py",
+            "line": 613,
+            "function": "_tick_ecology_python",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.005106501,
+            "cumulative_seconds": 0.051324146
+          },
+          {
+            "file": "chronicler/memory.py",
+            "line": 55,
+            "function": "save",
+            "calls": 240,
+            "primitive": 240,
+            "own_seconds": 0.0054054160000000006,
+            "cumulative_seconds": 0.039994105
+          },
+          {
+            "file": "chronicler/tuning.py",
+            "line": 387,
+            "function": "get_override",
+            "calls": 22957,
+            "primitive": 22957,
+            "own_seconds": 0.013423949000000001,
+            "cumulative_seconds": 0.038432754
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 865,
+            "function": "get_eligible_actions",
+            "calls": 245,
+            "primitive": 245,
+            "own_seconds": 0.005416685,
+            "cumulative_seconds": 0.032781501000000005
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 65,
+            "function": "compute_accuracy",
+            "calls": 1418,
+            "primitive": 1418,
+            "own_seconds": 0.0044263900000000005,
+            "cumulative_seconds": 0.030956225
+          },
+          {
+            "file": "chronicler/resources.py",
+            "line": 259,
+            "function": "get_active_trade_routes",
+            "calls": 375,
+            "primitive": 375,
+            "own_seconds": 0.0008546220000000001,
+            "cumulative_seconds": 0.030059271000000002
+          },
+          {
+            "file": "chronicler/resources.py",
+            "line": 142,
+            "function": "_compute_active_trade_routes",
+            "calls": 203,
+            "primitive": 203,
+            "own_seconds": 0.010279274000000001,
+            "cumulative_seconds": 0.026101616
+          },
+          {
+            "file": "chronicler/action_engine.py",
+            "line": 805,
+            "function": "resolve_action",
+            "calls": 245,
+            "primitive": 245,
+            "own_seconds": 0.00045485400000000003,
+            "cumulative_seconds": 0.020365426000000002
+          },
+          {
+            "file": "chronicler/bundle.py",
+            "line": 36,
+            "function": "assemble_bundle",
+            "calls": 1,
+            "primitive": 1,
+            "own_seconds": 0.000463959,
+            "cumulative_seconds": 0.015475270000000001
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 29,
+            "function": "has_active_trade_route",
+            "calls": 1416,
+            "primitive": 1416,
+            "own_seconds": 0.001905619,
+            "cumulative_seconds": 0.015428932000000001
+          },
+          {
+            "file": "chronicler/simulation.py",
+            "line": 123,
+            "function": "phase_environment",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.002120196,
+            "cumulative_seconds": 0.014808062
+          },
+          {
+            "file": "chronicler/utils.py",
+            "line": 110,
+            "function": "civ_index",
+            "calls": 1673,
+            "primitive": 1673,
+            "own_seconds": 0.000914533,
+            "cumulative_seconds": 0.013733215
+          },
+          {
+            "file": "chronicler/resources.py",
+            "line": 250,
+            "function": "get_active_trade_route_pairs",
+            "calls": 1416,
+            "primitive": 1416,
+            "own_seconds": 0.000770574,
+            "cumulative_seconds": 0.013141261000000001
+          },
+          {
+            "file": "chronicler/factions.py",
+            "line": 285,
+            "function": "tick_factions",
+            "calls": 40,
+            "primitive": 40,
+            "own_seconds": 0.004781212,
+            "cumulative_seconds": 0.012222146000000001
+          }
+        ],
+        "intelligence": [
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 65,
+            "function": "compute_accuracy",
+            "calls": 1418,
+            "primitive": 1418,
+            "own_seconds": 0.0044263900000000005,
+            "cumulative_seconds": 0.030956225
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 125,
+            "function": "_get_perceived_stat_with_accuracy",
+            "calls": 3581,
+            "primitive": 3581,
+            "own_seconds": 0.014085197,
+            "cumulative_seconds": 0.053427421
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 23,
+            "function": "<genexpr>",
+            "calls": 4594,
+            "primitive": 4594,
+            "own_seconds": 0.00128399,
+            "cumulative_seconds": 0.00128399
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 48,
+            "function": "<genexpr>",
+            "calls": 4485,
+            "primitive": 4485,
+            "own_seconds": 0.00048384400000000004,
+            "cumulative_seconds": 0.00048384400000000004
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 36,
+            "function": "in_same_federation",
+            "calls": 1416,
+            "primitive": 1416,
+            "own_seconds": 0.00030089200000000003,
+            "cumulative_seconds": 0.00030089200000000003
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 110,
+            "function": "get_perceived_stat",
+            "calls": 110,
+            "primitive": 110,
+            "own_seconds": 0.000200692,
+            "cumulative_seconds": 0.005370939
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 45,
+            "function": "is_vassal_of",
+            "calls": 2752,
+            "primitive": 2752,
+            "own_seconds": 0.0013285640000000002,
+            "cumulative_seconds": 0.0029012760000000004
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 16,
+            "function": "shares_adjacent_region",
+            "calls": 1416,
+            "primitive": 1416,
+            "own_seconds": 0.003130935,
+            "cumulative_seconds": 0.005331039
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 29,
+            "function": "has_active_trade_route",
+            "calls": 1416,
+            "primitive": 1416,
+            "own_seconds": 0.001905619,
+            "cumulative_seconds": 0.015428932000000001
+          },
+          {
+            "file": "chronicler/intelligence.py",
+            "line": 52,
+            "function": "at_war",
+            "calls": 1416,
+            "primitive": 1416,
+            "own_seconds": 0.001125156,
+            "cumulative_seconds": 0.001125156
+          }
+        ]
+      },
+      "equivalence": {
+        "artifacts": {
+          "chronicle.md": {
+            "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+            "bytes": 500
+          },
+          "chronicle_bundle.json": {
+            "sha256": "328925f23d9bf3209e0b20d3c22cf4562dfd969060ccda881a6d5af679b938dc",
+            "bytes": 875997
+          },
+          "memories_ashkari_nomads.json": {
+            "sha256": "1d8d6dcc49eecb4f3b963af0a734c72768f9dba37985136982c97583fed94a47",
+            "bytes": 14973
+          },
+          "memories_dorrathi_clans.json": {
+            "sha256": "7509d5009cfb09e364c6132da94ccefb54fc1ffc1ab9b32ee27d6c280094c542",
+            "bytes": 13508
+          },
+          "memories_kethani_empire.json": {
+            "sha256": "983ac446edc11619ec6c56a67ef3c7abed2d1c53d45fc6ff807d837a71183cc5",
+            "bytes": 14724
+          },
+          "memories_selurian_republic.json": {
+            "sha256": "e0423535b42a3a785cb6e283ef7936077603ead580265bdfda21401da641df3b",
+            "bytes": 14416
+          },
+          "memories_thornwall_confederacy.json": {
+            "sha256": "a0cc1a58f1802a6d07d594fd15063b560ecbe7ba7aa13e57e397e0d150f0bbcc",
+            "bytes": 14009
+          },
+          "memories_vrashni_dominion.json": {
+            "sha256": "1c65e13a82c95ba1c256b674c0403aa25a2926fce603425d89a9dfddf5e0500c",
+            "bytes": 8950
+          },
+          "state.json": {
+            "sha256": "bda7ec6cca71456b524635de8ed9490b348afa45bcd04a4646256264de8cc45c",
+            "bytes": 260729
+          }
+        },
+        "turn_sha256": [
+          "89d94473b09b02a15d275eb4bf97267bd61e24050db1096b943417b6f778f450",
+          "169ed060c77784b9e4b292243122a70ef0cb30d8e4783f02f8dd08aa1445ce32",
+          "2a6ee51b393e0f96acc40face9affd69235a613c70795308dc01965351b928ed",
+          "6b02a138eb42eb58ca44c7a665fd5fe1db9b35ebaa00de775c8d6758ef93cd84",
+          "cd1439deffac504877a68ee65354028c8cb6015eb785717f980eb454158a9c75",
+          "2690dbe014255c760b9e983e747596cc2417422e6533130a86c0108eed565225",
+          "06580399a4ebbc52a8d7b593373a098afc96d965c33fdbdb585c22134948e173",
+          "5c7a92f8bdcb3d8c91e2d51c1b6699b9d0f866d7f76bb05cca0e3999b6d7d5e1",
+          "bea493b1be09c280900e24113bf5ee9c44a1b8d51d54dd641c97fc5174657e82",
+          "d8486176570c233d32867e23a5bcb2097470fabc6166fb5f3cd1a90aae549955",
+          "3b0a40d988bcae2c2075d74057b25f336d8ab4304b779095273bebbe53c8db9f",
+          "1040823aae122a7dbd0ec2b547d495dedd0e2b12fc0a455f4ec98d5271690cb8",
+          "c792c7f69afef7093c7814f4b71a56967dc646f160c1dd6ba80caf4c745e67f9",
+          "5488e7b8751d9c7c459d3dacc2912d0a5f7322b8fec1113d2226fa59fd94eb53",
+          "1e65c4cf45b2c9d2b1b5b578e99aaa4feb04f13f0946a1fe271d9c8b76cc9b3a",
+          "4d5e2c288192af2c75603b62fd53b70aaf1f90b8da10c2bee52b58eb6ec65f48",
+          "daf6922daee219f96c4dd4595b6bc32224f1b5460ca8320ba6da3a6604ea849b",
+          "b279da86b7fd9c905cc219b48eaeaf315f03c008bcb2019827f2e302eaaae1ee",
+          "e7bbd59f9f29c238c3e70c3fe69097f69a41691e47346f5fc38b1f8ce62656e4",
+          "be735ee238701dc30c67b52401c07ab84e843b314c17e90ee879740f50e9b269",
+          "4322d25b5387b9c1c038925bd417a5793efdd6a630ffae62b69bbe4e5f50270d",
+          "87abce37d49c18b424c4488664d557101703bb93e63dc5763ec45b5e0ad3fc70",
+          "db61d9e01b9b2999fbd99e3d6a2f8c841e591b3c2f560fa5d5ddc8e5b5d70534",
+          "fc771fa7b424fc0aa5da948a33d52b99fb5c30b0a8369466775cd666f51db5c3",
+          "4d64d15d1e4c2006309548c04376d7004e53d32ac59ca67a02b13db1538f48eb",
+          "91189141ff2dd513d2fb3e5480e8aa961417b95c6a46fd9b3afe6d57da996ac5",
+          "6c0bb1a25d07cd9d9dbadb5c60fc8fc61d1b6b4e324a41f6baf529bde7c76337",
+          "5df9f27676464daa9d5ffc6c4270722f245e74018e48ee57d5463a4e4d95d00e",
+          "7090443960a1f349255aba7991348022cf13d15d698c2814020e72d91d15a2ed",
+          "d16c735b6907b2d704a19d6a2dd66fbdedadada54b9bca4bcda4b9e7eba9389d",
+          "af17e80951ed33c86823fda1c25e8ac575b6f51a6dde191a7bb08913cd5a5726",
+          "ffd1033cdf0895123b876a503943c39ec950098e2a98a059145d8c88346a354a",
+          "7837b0e4857f1768c8f59695291d4b375a2f85d5ace89595c6bdb31042f2cc1b",
+          "4d122df60411b9cba7786e3b08da94e6c9ea11989a0ba3b378f901096065a160",
+          "86b920c53045e176f80b2e2d2e628cc2b11e150cac695017c6e778c4de489d9f",
+          "bc74aaa7154ec0a7a6db0b20efedd4354258e1bb56bb96a47dbf8654a23f906e",
+          "e381593f05e9f873b3468b60cb1abd42ed3ddec56c6dc3bc033b4dfc24c2e4b4",
+          "eed0ebe266a30950b57b07792c0f1d1dc5d5fd88efffa2e09210a33ba55054a3",
+          "82b89639a4792ad5442a95f1b4bcc86d4fcec2240554e6e58ff9be3d07f6752f",
+          "41b32734698758c36eeaa03232871edcf7dd015f57c264690f4016f06decd673"
+        ],
+        "rng": {
+          "sha256": "d25e53db1027b0a4d50f3ed437501b1a3d4526e91f44a7562eca72efda9fdd07",
+          "counts": {
+            "seed": 4085,
+            "getrandbits": 979,
+            "random": 7880
+          },
+          "instances": 4085
+        }
+      }
+    }
+  }
+}

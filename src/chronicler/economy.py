@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from chronicler.utils import get_region_map
+from chronicler.experimental.fisheries import catch_budget, economy_yield, fishery_enabled
 
 # ---------------------------------------------------------------------------
 # Constants  [CALIBRATE] — all tunable, see spec for tuning targets
@@ -855,9 +856,13 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
         "storage_population": pa.array([r.population for r in regions], type=pa.uint16()),
         "resource_type_0": pa.array([r.resource_types[0] for r in regions], type=pa.uint8()),
         "resource_effective_yield_0": pa.array(
-            [r.resource_effective_yields[0] for r in regions], type=pa.float32(),
+            [economy_yield(world, r) for r in regions], type=pa.float32(),
         ),
     }
+    if fishery_enabled(world):
+        data["fishery_catch_budget"] = pa.array(
+            [catch_budget(world, r) for r in regions], type=pa.float32(),
+        )
     for good in FIXED_GOODS:
         data[f"stockpile_{good}"] = pa.array(
             [r.stockpile.goods.get(good, 0.0) for r in regions], type=pa.float32(),
@@ -1235,8 +1240,11 @@ def compute_economy(
 
         prod = _empty_category_dict()
         cat, amount = compute_production(
-            region.resource_types[0], region.resource_effective_yields[0], agent_data["farmer_count"],
+            region.resource_types[0], economy_yield(world, region), agent_data["farmer_count"],
         )
+        budget = catch_budget(world, region)
+        if budget is not None:
+            amount = min(amount, budget)
         if cat is not None:
             prod[cat] = amount
             result.conservation["production"] += amount

@@ -1,0 +1,98 @@
+{
+  "provenance": {
+    "baseline_revision": "423a67ce4a55dbce5ce131146736ac2bafdbab8e",
+    "source_report": "integration-delivery/evidence/exact-corrected-mercenary/report.json",
+    "source_report_sha256": "d0883d95b807e98548205a13057228828fe683540f41eb109d73e7ad8c475891",
+    "input_archive_sha256": "71f39b39caf742a9a0f34d12e3190e2e0ddff6db82d8fc4340e4d2d2b2f26b4e",
+    "generated_at": "2026-10-05T00:00:00+00:00",
+    "comparison": "complete emitted file set, byte count and SHA256; no field filtering or tolerance"
+  },
+  "workloads": {
+    "single": {
+      "chronicle.md": {
+        "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+        "bytes": 214
+      },
+      "chronicle_bundle.json": {
+        "sha256": "31af7508662dfddcfed0a31506fa6d62347b4e163e3e9a70049ca5afe7f7d14c",
+        "bytes": 75528
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "cdcfacbf1ab0a51ad3ccf59aeb7d1c1227c4e0602920cd735049504daee8019d",
+        "bytes": 6334
+      },
+      "state.json": {
+        "sha256": "74eb8b200a4feffa5d200e25573e8a94ca49fb3bee6ccc8943905057d96f4f85",
+        "bytes": 26830
+      }
+    },
+    "standard": {
+      "chronicle.md": {
+        "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+        "bytes": 588
+      },
+      "chronicle_bundle.json": {
+        "sha256": "a6386c78e447f39207abf4223a2fce447f787a1f4efaf703b2c6a918d5d10e6b",
+        "bytes": 927175
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "59f88958c97842d96e9b99e05c7ab750dfb2054e693519c76af8b4458983f68c",
+        "bytes": 17010
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "024309dc0d1cc6a375e18355cd88c4852961b41a792877ad5396e600d550efa1",
+        "bytes": 18857
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "0e504118af8fb0eea9e16f6bcf57807f305d2736124410e46284ee06be82d6fd",
+        "bytes": 10995
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "97f2b141577d77ed6b6886b6881e893e2db61cb1143ca798dc6f376bb9801ff0",
+        "bytes": 23733
+      },
+      "state.json": {
+        "sha256": "cf12ba522b40c6204ace15e8b3fbc4939b2a1c00846d7f3959005da38f199c56",
+        "bytes": 263842
+      }
+    },
+    "wide": {
+      "chronicle.md": {
+        "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+        "bytes": 500
+      },
+      "chronicle_bundle.json": {
+        "sha256": "491427c61165bd9ac83dc4b6bcfb544809ef73dc3aedcc8967cb33c67a12e5f4",
+        "bytes": 875931
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "1d8d6dcc49eecb4f3b963af0a734c72768f9dba37985136982c97583fed94a47",
+        "bytes": 14973
+      },
+      "memories_dorrathi_clans.json": {
+        "sha256": "7509d5009cfb09e364c6132da94ccefb54fc1ffc1ab9b32ee27d6c280094c542",
+        "bytes": 13508
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "983ac446edc11619ec6c56a67ef3c7abed2d1c53d45fc6ff807d837a71183cc5",
+        "bytes": 14724
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "e0423535b42a3a785cb6e283ef7936077603ead580265bdfda21401da641df3b",
+        "bytes": 14416
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "a0cc1a58f1802a6d07d594fd15063b560ecbe7ba7aa13e57e397e0d150f0bbcc",
+        "bytes": 14009
+      },
+      "memories_vrashni_dominion.json": {
+        "sha256": "1c65e13a82c95ba1c256b674c0403aa25a2926fce603425d89a9dfddf5e0500c",
+        "bytes": 8950
+      },
+      "state.json": {
+        "sha256": "bda7ec6cca71456b524635de8ed9490b348afa45bcd04a4646256264de8cc45c",
+        "bytes": 260729
+      }
+    }
+  }
+}

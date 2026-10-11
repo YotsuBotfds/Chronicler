@@ -25,6 +25,7 @@ from chronicler.agent_bridge import (
     build_signals,
 )
 from chronicler.economy import EconomyResult
+from chronicler.bridge_contract import validate_snapshot_schema
 from chronicler.models import Belief, FactionType, GreatPerson
 from chronicler.sidecar import SidecarWriter
 
@@ -119,12 +120,7 @@ class TestPythonRoundTrip:
         sim = AgentSimulator(num_regions=2, seed=42)
         sim.set_region_state(_make_region_batch(num_regions=2, capacity=10))
         snap = sim.get_snapshot()
-        expected = ["id", "region", "origin_region", "civ_affinity", "occupation",
-                    "loyalty", "satisfaction", "skill", "age", "displacement_turn",
-                    "boldness", "ambition", "loyalty_trait",
-                    "cultural_value_0", "cultural_value_1", "cultural_value_2",
-                    "belief", "parent_id_0", "parent_id_1", "wealth", "x", "y", "settlement_id"]
-        assert snap.schema.names == expected
+        validate_snapshot_schema(snap.schema)
 
     def test_aggregates_population_matches_and_metrics_in_range(self):
         sim = AgentSimulator(num_regions=2, seed=42)

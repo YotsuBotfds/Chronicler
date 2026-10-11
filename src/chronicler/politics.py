@@ -44,7 +44,7 @@ from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
 
 if TYPE_CHECKING:
-    pass
+    from chronicler.models import Federation
 
 
 SECESSION_GRACE_TURNS = 50
@@ -589,7 +589,6 @@ _FEDERATION_NOUNS = [
 
 def _civ_in_federation(civ_name: str, world: WorldState) -> "Federation | None":
     """Return the federation a civ belongs to, or None."""
-    from chronicler.models import Federation
     for fed in world.federations:
         if civ_name in fed.members:
             return fed

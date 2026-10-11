@@ -61,8 +61,22 @@ def sync_civ_population(civ, world) -> None:
 
 def sync_all_populations(world) -> None:
     """Recompute population cache for all civilizations."""
-    for civ in world.civilizations:
-        sync_civ_population(civ, world)
+    civs = world.civilizations
+    if not civs:
+        return
+
+    # Keep each owner's populations in world.regions order. Calling sum() on
+    # those values preserves the single-civ helper's float/mixed-number behavior.
+    populations_by_name = {civ.name: [] for civ in civs}
+    for region in world.regions:
+        populations = populations_by_name.get(region.controller)
+        if populations is not None:
+            populations.append(region.population)
+
+    for civ in civs:
+        civ.population = sum(populations_by_name[civ.name])
+        if civ.population < 1 and civ.regions:
+            civ.population = 1
 
 
 def stage_region_catastrophe_deaths(region, amount: int) -> None:

@@ -16,11 +16,22 @@ from chronicler.resources import get_active_trade_route_pairs
 def shares_adjacent_region(observer: Civilization, target: Civilization,
                            world: WorldState) -> bool:
     """True if observer controls a region adjacent to a region target controls."""
+    # Consume the live list only as far as each adjacency lookup needs. Entries
+    # retain the first region with a name, matching the old repeated scan.
+    first_by_name = {}
+    remaining_regions = iter(world.regions)
     for r in world.regions:
         if r.controller != observer.name:
             continue
         for adj_name in r.adjacencies:
-            adj = next((r2 for r2 in world.regions if r2.name == adj_name), None)
+            adj = first_by_name.get(adj_name)
+            if adj is None:
+                for candidate in remaining_regions:
+                    name = candidate.name
+                    first_by_name.setdefault(name, candidate)
+                    if name == adj_name:
+                        adj = candidate
+                        break
             if adj and adj.controller == target.name:
                 return True
     return False
@@ -93,11 +104,17 @@ def compute_accuracy(observer: Civilization, target: Civilization,
 
     # M17 great person bonuses
     for gp in observer.great_persons:
-        if gp.alive and gp.active:
+        if gp.alive and gp.active and not gp.is_hostage:
             if gp.role == "merchant":
                 accuracy += 0.05
-            if gp.is_hostage and gp.civilization == target.name:
-                accuracy += 0.3
+
+    # Hostages live on the captor's roster and report home about that captor.
+    # This is one contact source per pair, regardless of the number held.
+    if any(gp.alive and gp.active and gp.is_hostage
+           and gp.origin_civilization == observer.name
+           and gp.civilization == target.name
+           for gp in target.great_persons):
+        accuracy += 0.3
 
     # M17 grudge bonus
     for g in observer.leader.grudges:
@@ -116,7 +133,21 @@ def get_perceived_stat(observer: Civilization, target: Civilization,
     Deterministic: same observer/target/turn/stat → same result.
     max_value: upper clamp bound (default 100 for stats; use higher for treasury).
     """
-    accuracy = compute_accuracy(observer, target, world)
+    return _get_perceived_stat_with_accuracy(
+        observer, target, stat, world, max_value,
+        accuracy=compute_accuracy(observer, target, world),
+    )
+
+
+def _get_perceived_stat_with_accuracy(observer: Civilization, target: Civilization,
+                                      stat: str, world: WorldState,
+                                      max_value: int = 100, *, accuracy: float) -> int | None:
+    """Apply perception noise using accuracy from the same read-only snapshot.
+
+    Internal snapshot fast path: the caller must not mutate accuracy inputs
+    between computing accuracy and this read. Ordinary simulation reads use
+    get_perceived_stat, which always recomputes from the current world.
+    """
     if accuracy == 0.0:
         return None
 

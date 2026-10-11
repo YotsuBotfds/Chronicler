@@ -1726,6 +1726,11 @@ impl AgentSimulator {
     // M54c: Politics FFI surface
     // -----------------------------------------------------------------------
 
+    /// Optional default-off ecology experiment: patch actual fish catch only.
+    pub fn apply_fishery_yield_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        batch::apply_fishery_yield_patch(&mut self.regions, &batch.into_inner())
+    }
+
     /// Set politics configuration from individual field arguments.
     #[allow(clippy::too_many_arguments)]
     pub fn set_politics_config(
@@ -1855,6 +1860,9 @@ impl AgentSimulator {
     /// instead of running abstract tatonnement trade allocation.
     pub fn set_hybrid_economy_mode(&mut self, enabled: bool) {
         self.hybrid_economy_mode = enabled;
+        if let Some(buf) = self.merchant_delivery_buf.as_mut() {
+            buf.physical_stock = enabled;
+        }
     }
 
     /// Run the economy tick: returns five Arrow batches.
@@ -1985,6 +1993,26 @@ impl AgentSimulator {
                 merchant_count,
                 wealthy_count,
             });
+        }
+
+        // Optional experiment: production may not exceed last ecology's fish catch.
+        // Adjust only kernel input, leaving permanent effective yields untouched.
+        if let Some(column) = ri_rb.column_by_name("fishery_catch_budget") {
+            use arrow::array::Array;
+            let budgets = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("fishery_catch_budget must be Float32"))?;
+            for i in 0..n_regions {
+                if budgets.is_null(i) { continue; }
+                let budget = budgets.value(i);
+                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_type_0 != 3 {
+                    return Err(PyValueError::new_err("invalid fishery catch budget"));
+                }
+                let farmers = agent_counts[i].farmer_count;
+                if farmers > 0 {
+                    region_inputs[i].resource_effective_yield_0 =
+                        region_inputs[i].resource_effective_yield_0.min(budget / farmers as f32);
+                }
+            }
         }
 
         // M58a: Second pass — count transit merchants by their origin region (anchor counting)
@@ -2353,6 +2381,7 @@ impl AgentSimulator {
             if self.merchant_ledger.is_none() {
                 self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(self.regions.len()));
                 self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(self.regions.len()));
+                self.merchant_delivery_buf.as_mut().unwrap().physical_stock = self.hybrid_economy_mode;
             }
             return Ok(());
         }
@@ -2397,6 +2426,7 @@ impl AgentSimulator {
         if self.merchant_ledger.is_none() {
             self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(num_regions));
             self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(num_regions));
+            self.merchant_delivery_buf.as_mut().unwrap().physical_stock = self.hybrid_economy_mode;
         }
         Ok(())
     }
@@ -2445,6 +2475,50 @@ impl AgentSimulator {
         stats.insert("merchant_no_usable_packets".into(), self.knowledge_stats.merchant_no_usable_packets as f64);
         stats.insert("migration_choices_changed_by_threat".into(), self.knowledge_stats.migration_choices_changed_by_threat as f64);
         Ok(stats)
+    }
+
+    /// Read-only physical stock commitments for external redistribution.
+    /// Hybrid stocks still include Loading reservations and departures awaiting
+    /// the next economy tick. Arrivals/returns are not yet spendable; older
+    /// in-transit cargo has already been debited and must not be subtracted again.
+    /// Abstract economy modes expose zero commitments (shadow cargo is virtual).
+    pub fn get_stockpile_commitments(&self) -> PyResult<PyRecordBatch> {
+        use arrow::array::Float32Builder;
+        use crate::economy::NUM_GOODS;
+
+        let n = self.num_regions;
+        let mut rid = UInt16Builder::with_capacity(n * NUM_GOODS);
+        let mut slot = UInt8Builder::with_capacity(n * NUM_GOODS);
+        let mut reserved = Float32Builder::with_capacity(n * NUM_GOODS);
+        let mut departure = Float32Builder::with_capacity(n * NUM_GOODS);
+        for region in 0..n {
+            for good in 0..NUM_GOODS {
+                rid.append_value(region as u16);
+                slot.append_value(good as u8);
+                let (res, dep) = if self.hybrid_economy_mode {
+                    let res = self.merchant_ledger.as_ref()
+                        .and_then(|ledger| ledger.reserved.get(region))
+                        .map_or(0.0, |goods| goods[good]);
+                    let dep = self.merchant_delivery_buf.as_ref()
+                        .and_then(|buf| buf.departure_debits.get(region))
+                        .map_or(0.0, |goods| goods[good]);
+                    (res, dep)
+                } else { (0.0, 0.0) };
+                reserved.append_value(res);
+                departure.append_value(dep);
+            }
+        }
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("region_id", DataType::UInt16, false),
+            Field::new("good_slot", DataType::UInt8, false),
+            Field::new("reserved", DataType::Float32, false),
+            Field::new("pending_departure", DataType::Float32, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![
+            Arc::new(rid.finish()), Arc::new(slot.finish()),
+            Arc::new(reserved.finish()), Arc::new(departure.finish()),
+        ]).map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
     }
 
     /// M58b: Non-draining read of cumulative delivery counters.
@@ -2519,6 +2593,45 @@ mod tests {
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    #[test]
+    fn test_stockpile_commitments_read_only_and_hybrid_scoped() {
+        use arrow::array::Float32Array;
+        use crate::merchant::{DeliveryBuffer, ShadowLedger};
+        let mut sim = AgentSimulator::new(2, 42);
+        let mut ledger = ShadowLedger::new(2);
+        ledger.reserved[0][0] = 7.0;
+        ledger.in_transit_out[0][0] = 99.0; // older cargo not debited twice
+        ledger.pending_delivery[1][0] = 123.0; // cumulative, not spendable stocks
+        let mut buffer = DeliveryBuffer::new(2);
+        buffer.record_departure(0, 1, 5.0);
+        buffer.record_arrival(0, 1, 0, 9.0);
+        buffer.record_return(0, 0, 3.0);
+        sim.merchant_ledger = Some(ledger);
+        sim.merchant_delivery_buf = Some(buffer);
+        let read = |sim: &AgentSimulator, column: &str| -> Vec<f32> {
+            let batch = sim.get_stockpile_commitments().unwrap().into_inner();
+            assert_eq!(batch.num_rows(), 16);
+            batch.column_by_name(column).unwrap().as_any()
+                .downcast_ref::<Float32Array>().unwrap().values().to_vec()
+        };
+        assert_eq!(read(&sim, "reserved"), vec![0.0; 16]);
+        assert_eq!(read(&sim, "pending_departure"), vec![0.0; 16]);
+        sim.set_hybrid_economy_mode(true);
+        let res = read(&sim, "reserved");
+        let dep = read(&sim, "pending_departure");
+        assert_eq!(res[0], 7.0);
+        assert_eq!(res.iter().sum::<f32>(), 7.0);
+        assert_eq!(dep[1], 5.0);
+        assert_eq!(dep.iter().sum::<f32>(), 5.0);
+        assert_eq!(read(&sim, "reserved"), res);
+        assert_eq!(read(&sim, "pending_departure"), dep);
+        let buffer = sim.merchant_delivery_buf.as_ref().unwrap();
+        assert_eq!(buffer.arrival_imports.len(), 1);
+        assert_eq!(buffer.return_credits[0][0], 3.0);
+        assert_eq!(buffer.diagnostics.total_departures[0][1], 5.0);
+        assert_eq!(sim.merchant_ledger.as_ref().unwrap().in_transit_out[0][0], 99.0);
+    }
 
     #[test]
     fn test_personality_label_bold() {

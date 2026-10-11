@@ -28,7 +28,11 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Callable, Protocol
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Callable, Protocol
+
+if TYPE_CHECKING:
+    from chronicler.turn_artifacts import Phase10Inputs, TurnResult
 
 from chronicler.events import (
     ENVIRONMENT_EVENTS,
@@ -356,9 +360,9 @@ def apply_automatic_effects(
     # In accumulator mode, include already-queued keep mutations so the
     # zero-crossing check mirrors aggregate semantics instead of stale scalars.
     pending_war_treasury: dict[str, float] = {}
-    for pending_idx, pending_civ in enumerate(world.civilizations):
-        projected = float(pending_civ.treasury)
-        if acc is not None:
+    if acc is not None and world.active_wars:
+        for pending_idx, pending_civ in enumerate(world.civilizations):
+            projected = float(pending_civ.treasury)
             for change in getattr(acc, "_changes", ()):
                 if (
                     change.civ_id == pending_idx
@@ -366,7 +370,7 @@ def apply_automatic_effects(
                     and change.stat == "treasury"
                 ):
                     projected += change.delta
-        pending_war_treasury[pending_civ.name] = projected
+            pending_war_treasury[pending_civ.name] = projected
     for war in world.active_wars:
         for civ_name in war:
             c = get_civ(world, civ_name)
@@ -416,14 +420,14 @@ def apply_automatic_effects(
             civ.merc_pressure_turns = 0
     # Mercenary hiring: underdog priority in active wars
     for merc in world.mercenary_companies:
-        if not merc["available"] or merc["hired_by"]:
+        if merc["strength"] <= 0 or not merc["available"] or merc["hired_by"]:
             continue
         # Find weakest belligerent with treasury
         candidates = []
         for war in world.active_wars:
             for civ_name in war:
                 c = get_civ(world, civ_name)
-                if c and c.treasury >= 10:
+                if c and c.regions and c.treasury >= 10:
                     candidates.append(c)
         if candidates:
             candidates.sort(key=lambda c: (c.military, -c.treasury))
@@ -444,10 +448,13 @@ def apply_automatic_effects(
     # Disband hired mercs whose war ended
     for merc in list(world.mercenary_companies):
         if merc["hired_by"]:
+            hirer = get_civ(world, merc["hired_by"])
             still_at_war = any(merc["hired_by"] in w for w in world.active_wars)
-            if not still_at_war:
-                merc["hired_by"] = None
-                merc["available"] = True
+            if not still_at_war or hirer is None or not hirer.regions:
+                # M13 contracts disband rather than returning to the hire pool.
+                # Military may have changed through combat or other effects;
+                # do not infer a reversible grant from the current scalar.
+                world.mercenary_companies.remove(merc)
     # Remove dead mercs
     world.mercenary_companies = [m for m in world.mercenary_companies if m["strength"] > 0]
 
@@ -978,8 +985,23 @@ def apply_injected_event(
 
 # --- Phase 10: Consequences ---
 
-def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> list[Event]:
+def phase_consequences(
+    world: WorldState, acc=None, politics_runtime=None, *, phase10: Phase10Inputs | None = None,
+) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
+    if phase10 is not None:
+        if phase10.source_turn != world.turn:
+            raise ValueError("Phase 10 inputs belong to a different source turn")
+        if phase10.agents is not None and (
+            phase10.agents.stamp.source_turn != phase10.source_turn
+            or phase10.agents.stamp.stage != "phase10_entry"
+        ):
+            raise ValueError("Phase 10 agent rows have a different observation stamp")
+        _snap = phase10.agents.batch if phase10.agents is not None else None
+        _row_args = {"agent_rows": phase10.agents}
+    else:
+        # Standalone compatibility path. Coordinated turns use only phase10.
+        _row_args = {}
     _require_phase_acc_for_hybrid(world, acc, "phase_consequences()")
     for condition in world.active_conditions:
         condition.duration -= 1
@@ -1003,9 +1025,10 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
     tick_movements(world)
 
     # M16a: Cultural effects (order matters — assimilation drain feeds asabiya)
-    _snap = getattr(world, '_agent_snapshot', None)
-    apply_value_drift(world, agent_snapshot=_snap)
-    tick_cultural_assimilation(world, acc=acc, agent_snapshot=_snap)
+    if phase10 is None:
+        _snap = getattr(world, '_agent_snapshot', None)
+    apply_value_drift(world, agent_snapshot=_snap, **_row_args)
+    tick_cultural_assimilation(world, acc=acc, agent_snapshot=_snap, **_row_args)
 
     # M16c: Cultural victory tracking (runs LAST in culture effects)
     check_cultural_victories(world)
@@ -1017,7 +1040,8 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
     # satisfaction formula via the region batch on the NEXT turn (one-turn
     # latency is by design).
     _persecution_events: list[Event] = []
-    _snap = getattr(world, '_agent_snapshot', None)
+    if phase10 is None:
+        _snap = getattr(world, '_agent_snapshot', None)
     if _snap is not None and world.belief_registry:
         from chronicler.religion import (
             compute_majority_belief, compute_civ_majority_faith,
@@ -1025,8 +1049,8 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
             compute_persecution, compute_martyrdom_boosts,
             decay_martyrdom_boosts,
         )
-        majority_beliefs = compute_majority_belief(_snap)
-        civ_majority_with_ratio = compute_civ_majority_faith(_snap)
+        majority_beliefs = compute_majority_belief(_snap, **_row_args)
+        civ_majority_with_ratio = compute_civ_majority_faith(_snap, **_row_args)
 
         # Store majority_belief on regions
         for rid, maj in majority_beliefs.items():
@@ -1051,10 +1075,12 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         # Compute conversion signals (reads conquest_conversion_active one-shot)
         signals = compute_conversion_signals(
             world.regions, majority_beliefs, world.belief_registry, _snap,
-            named_agents=getattr(world, '_named_agents', None),
+            named_agents=(phase10.named_agents if phase10 is not None
+                          else getattr(world, '_named_agents', None)),
             civ_majority_faiths=civ_faiths,
             civ_name_to_id=civ_name_to_id,
             world=world,
+            **_row_args,
         )
         # Signals are written directly to region fields by compute_conversion_signals
 
@@ -1076,10 +1102,12 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         _persecution_events = compute_persecution(
             world.regions, world.civilizations, world.belief_registry,
             _snap, world.turn, world._persecuted_regions, world=world,
+            **_row_args,
         )
         compute_martyrdom_boosts(
             world.regions,
-            getattr(world, '_dead_agents_this_turn', None),
+            (phase10.deaths if phase10 is not None
+             else getattr(world, '_dead_agents_this_turn', None)),
         )
 
         # M38b: Schisms
@@ -1087,6 +1115,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         schism_events = detect_schisms(
             world.regions, world.civilizations, world.belief_registry,
             _snap, world.turn, world=world,
+            **_row_args,
         )
         _persecution_events.extend(schism_events)
         reformation_events = detect_reformation(
@@ -1109,6 +1138,7 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         ]
         pilgrimage_events = check_pilgrimages(
             all_great_persons, all_temples, _snap, world.turn,
+            **_row_args,
         )
         _persecution_events.extend(pilgrimage_events)
     elif world.belief_registry:
@@ -1128,8 +1158,9 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
     curr_priest_counts = None
     if _snap is not None:
         # Build per-region belief distribution
-        region_col = _snap.column("region").to_pylist()
-        belief_col = _snap.column("belief").to_pylist()
+        rows = phase10.agents if phase10 is not None else None
+        region_col = rows.ints("region") if rows is not None else _snap.column("region").to_pylist()
+        belief_col = rows.ints("belief") if rows is not None else _snap.column("belief").to_pylist()
         current_beliefs = {}
         for rid, bid in zip(region_col, belief_col):
             if rid not in current_beliefs:
@@ -1147,8 +1178,8 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
         world._prev_belief_distribution = current_beliefs
 
         # Priest counts for EVT_PRIEST_LOSS
-        occ_col = _snap.column("occupation").to_pylist()
-        civ_col = _snap.column("civ_affinity").to_pylist()
+        occ_col = rows.ints("occupation") if rows is not None else _snap.column("occupation").to_pylist()
+        civ_col = rows.ints("civ_affinity") if rows is not None else _snap.column("civ_affinity").to_pylist()
         curr_priest_counts = {}
         for occ, civ_id in zip(occ_col, civ_col):
             if occ == 4:  # priest
@@ -1279,7 +1310,8 @@ def phase_consequences(world: WorldState, acc=None, politics_runtime=None) -> li
 
     # M22: Faction tick — influence shifts, power struggles
     from chronicler.factions import tick_factions
-    _economy_result = getattr(world, '_economy_result', None)
+    _economy_result = (phase10.economy if phase10 is not None
+                       else getattr(world, '_economy_result', None))
     collapse_events.extend(tick_factions(world, acc=acc,
                                          conversion_deltas=conversion_deltas,
                                          region_populations=region_populations,
@@ -1541,13 +1573,13 @@ def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result) -> 
     world._treasury_tax_carry = next_carry
 
 
-def _capture_agent_snapshot(world: WorldState, agent_bridge: object) -> None:
-    """Store the current Rust snapshot for same-turn Phase 10 consumers."""
+def _capture_agent_snapshot(world: WorldState, agent_bridge: object):
+    """Capture historical Phase 10 rows without publishing world scratch."""
     try:
-        world._agent_snapshot = agent_bridge._sim.get_snapshot()
+        return agent_bridge._sim.get_snapshot()
     except Exception:
-        world._agent_snapshot = None
         logger.exception("Failed to fetch agent snapshot for Phase 10 consumers")
+        return None
 
 
 # --- Turn orchestrator ---
@@ -1565,6 +1597,39 @@ def run_turn(
     pending_injections: list | None = None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
+    return run_turn_result(
+        world, action_selector, narrator, seed, agent_bridge, economy_tracker,
+        ecology_runtime, politics_runtime, force_settlement_detection, pending_injections,
+    ).chronicle_text
+
+
+def run_turn_result(
+    world: WorldState,
+    action_selector: ActionSelector,
+    narrator: Narrator,
+    seed: int = 0,
+    agent_bridge: object | None = None,
+    economy_tracker: object | None = None,
+    ecology_runtime: object | None = None,
+    politics_runtime: object | None = None,
+    force_settlement_detection: bool = False,
+    pending_injections: list | None = None,
+) -> TurnResult:
+    """Execute a turn and hand historical Phase 10 rows to the synchronous runner.
+
+    The observation uses source turn N and completion label N+1. It is never
+    stored on world or bridge. Failed turns abandon the owner, without rollback.
+    """
+    from chronicler.turn_artifacts import (
+        AgentRows, Phase10Inputs, Stamp, TurnArtifacts, TurnObservation, TurnResult,
+    )
+
+    artifacts = TurnArtifacts(source_turn=world.turn)
+    from chronicler.experimental.fisheries import require_fishery_runtime
+    require_fishery_runtime(world, ecology_runtime)
+    if world.fishery_experiment.enabled and agent_bridge is not None:
+        require_fishery_runtime(world, agent_bridge.ecology_simulator)
+        require_fishery_runtime(world, agent_bridge._sim)
     from chronicler.accumulator import StatAccumulator
     from chronicler.resources import (
         clear_active_trade_routes_snapshot,
@@ -1627,10 +1692,15 @@ def run_turn(
     set_active_trade_routes_snapshot(world, phase2_trade_routes)
 
     economy_result = None
+    snapshot = None
     if agent_bridge is not None:
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
+            if world.mutual_aid_enabled:
+                from chronicler.mutual_aid import dispatch_mutual_aid, read_stockpile_commitments
+                commitments = read_stockpile_commitments(world, agent_bridge._sim)
+                turn_events.extend(dispatch_mutual_aid(world, snapshot, acc=acc, commitments=commitments))
             from chronicler.resources import get_season_id
             from chronicler.economy import (
                 build_economy_region_input_batch,
@@ -1655,6 +1725,7 @@ def run_turn(
                 *rust_return, world,
                 require_oracle_shadow=(world.agent_mode == "hybrid"),
             )
+            artifacts.economy = economy_result
             agent_bridge.set_economy_result(economy_result)
 
             # M43b: Update tracker EMAs and detect supply shocks
@@ -1673,6 +1744,12 @@ def run_turn(
                     world, stockpiles, economy_tracker, economy_result, region_map,
                 )
                 turn_events.extend(shock_events)
+
+    if world.mutual_aid_enabled:
+        from chronicler.mutual_aid import observe_mutual_aid
+        observe_mutual_aid(world, economy_result, snapshot)
+    # Pre-economy rows have no Phase 10 view and no post-observation lifetime.
+    del snapshot
 
     # Phase 2: Automatic Effects (NEW)
     turn_events.extend(apply_automatic_effects(world, acc=acc, cross_routes=phase2_trade_routes))
@@ -1723,9 +1800,10 @@ def run_turn(
 
     turn_events.extend(tick_ecology(world, climate_phase, acc=acc, ecology_runtime=_eco_rt))
 
-    conquered_civs = getattr(world, '_conquered_this_turn', set())
+    artifacts.conquered_civ_ids = getattr(world, '_conquered_this_turn', set())
     world._conquered_this_turn = set()  # clear immediately before bridge consumption
-    conquered_dict = {i: True for i in conquered_civs}
+    conquered_dict = {i: True for i in artifacts.conquered_civ_ids}
+    death_output = []
 
     # Apply accumulated stat mutations and route agent signals
     if world.agent_mode == "hybrid" and agent_bridge is not None:
@@ -1741,13 +1819,18 @@ def run_turn(
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
         # Run agent tick via split bridge (no second set_region_state)
-        turn_events.extend(agent_bridge.tick_agents(world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict))
+        turn_events.extend(agent_bridge.tick_agents(
+            world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict,
+            death_output=death_output,
+        ))
     elif agent_bridge is not None:
         # C-10 fix: Shadow and demographics-only modes use apply_keep() to
         # match hybrid mode's stat application, making comparison fair.
         # "guard" mutations are intentionally skipped — agents produce them.
         acc.apply_keep(world)
-        turn_events.extend(agent_bridge.tick_agents(world, conquered=conquered_dict))
+        turn_events.extend(agent_bridge.tick_agents(
+            world, conquered=conquered_dict, death_output=death_output,
+        ))
     else:
         # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
@@ -1765,20 +1848,31 @@ def run_turn(
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)
 
-    # M36: Stash snapshot for Phase 10 culture functions
-    world._agent_snapshot = None
+    # Capture at the original post-bridge/post-bootstrap boundary. The runner
+    # receives these historical rows only through the explicit result handoff.
+    phase10_snapshot = None
     if agent_bridge is not None:
-        _capture_agent_snapshot(world, agent_bridge)
+        phase10_snapshot = _capture_agent_snapshot(world, agent_bridge)
 
-    # M37: Stash named_agents for Phase 10 religion computations
-    world._named_agents = agent_bridge.named_agents if agent_bridge else None
-
-    # M42: Stash economy_result for Phase 10 tick_factions
+    # Preserve the prior completed publication gate used by Phase 5 and replay.
     world._economy_result = economy_result
+
+    artifacts.deaths = tuple(death_output)
+    artifacts.phase10 = Phase10Inputs(
+        source_turn=artifacts.source_turn,
+        agents=(AgentRows(batch=phase10_snapshot, stamp=Stamp(
+            source_turn=artifacts.source_turn, stage="phase10_entry",
+        )) if phase10_snapshot is not None else None),
+        named_agents=(MappingProxyType(dict(agent_bridge.named_agents))
+                      if agent_bridge is not None else None),
+        economy=artifacts.economy,
+        deaths=artifacts.deaths,
+    )
 
     # M56a: Settlement detection
     settlement_events = run_settlement_tick(
-        world, source_turn=world.turn, force=force_settlement_detection
+        world, source_turn=artifacts.source_turn, force=force_settlement_detection,
+        agent_rows=artifacts.phase10.agents,
     )
     turn_events.extend(settlement_events)
 
@@ -1804,7 +1898,9 @@ def run_turn(
     _pol_rt = politics_runtime  # off-mode PoliticsSimulator (or None)
     if agent_bridge is not None:
         _pol_rt = agent_bridge._sim  # AgentSimulator has tick_politics()
-    turn_events.extend(phase_consequences(world, acc=phase10_acc, politics_runtime=_pol_rt))
+    turn_events.extend(phase_consequences(
+        world, acc=phase10_acc, politics_runtime=_pol_rt, phase10=artifacts.phase10,
+    ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,
     # faction effects, cultural assimilation treasury costs, etc.).
@@ -1950,7 +2046,14 @@ def run_turn(
     clear_active_trade_routes_snapshot(world)
     world.turn += 1
 
-    return chronicle_text
+    return TurnResult(
+        chronicle_text=chronicle_text,
+        observation=TurnObservation(
+            source_turn=artifacts.source_turn,
+            completed_turn=world.turn,
+            phase10_agents=artifacts.phase10.agents,
+        ),
+    )
 
 
 def get_injectable_event_types() -> list[str]:

@@ -393,9 +393,8 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     compute_adjacencies(world.regions)
     from chronicler.resources import assign_resources
     assign_resources(world.regions, seed=world.seed)
-    from chronicler.resources import assign_resource_types, populate_legacy_resources
+    from chronicler.resources import assign_resource_types
     assign_resource_types(world.regions, seed=world.seed)
-    populate_legacy_resources(world.regions)
 
     # --- Step 9: River assignment (M35a) ---
     if len(config.rivers) > 32:

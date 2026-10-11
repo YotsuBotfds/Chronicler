@@ -121,6 +121,9 @@ impl DeliveryDiagnostics {
 /// economy tick. If economy tick fails, buffer preserved for retry.
 #[derive(Clone, Debug)]
 pub struct DeliveryBuffer {
+    /// Physical stock rechecks apply only to the hybrid economy. Shadow mode
+    /// uses the same buffer for diagnostics, but does not spend macro stocks.
+    pub physical_stock: bool,
     /// Per-origin-region departure quantities (negative delta on origin stockpile).
     pub departure_debits: Vec<[f32; NUM_GOODS]>,
     /// Per-arrival: (source, dest, good, qty). Provenance required for M43b observability.
@@ -143,6 +146,7 @@ pub struct ArrivalRecord {
 impl DeliveryBuffer {
     pub fn new(num_regions: usize) -> Self {
         Self {
+            physical_stock: false,
             departure_debits: vec![[0.0; NUM_GOODS]; num_regions],
             arrival_imports: Vec::new(),
             return_credits: vec![[0.0; NUM_GOODS]; num_regions],
@@ -667,6 +671,24 @@ pub fn reset_trip_fields(pool: &mut AgentPool, slot: usize) {
     pool.trip_path_cursor[slot] = 0;
 }
 
+/// Release a dying agent's active trip before its pool slot can be reused.
+pub(crate) fn release_trip_on_death(
+    pool: &mut AgentPool,
+    slot: usize,
+    ledger: &mut ShadowLedger,
+    delivery_buf: &mut DeliveryBuffer,
+) {
+    let origin = pool.trip_origin_region[slot] as usize;
+    let good = pool.trip_good_slot[slot] as usize;
+    let qty = pool.trip_cargo_qty[slot];
+    match pool.trip_phase[slot] {
+        TRIP_PHASE_LOADING => ledger.cancel_reservation(origin, good, qty),
+        TRIP_PHASE_TRANSIT => ledger.unwind(origin, good, qty, Some(delivery_buf)),
+        _ => return,
+    }
+    reset_trip_fields(pool, slot);
+}
+
 // ---------------------------------------------------------------------------
 // Conquest / controller-change unwind
 // ---------------------------------------------------------------------------
@@ -767,6 +789,19 @@ pub fn merchant_mobility_phase(
     // Phase c: Loading invalidation + departure
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_LOADING { continue; }
+        // Economy consumption/storage can shrink physical stocks after Loading
+        // reserved them. Recheck at departure, including debits queued by earlier
+        // merchants this turn; cancelling unbacked cargo must not create a return.
+        if let Some(buf) = delivery_buf.as_deref().filter(|buf| buf.physical_stock) {
+            let origin = pool.trip_origin_region[slot] as usize;
+            let good = pool.trip_good_slot[slot] as usize;
+            let qty = pool.trip_cargo_qty[slot];
+            if regions[origin].stockpile[good] - buf.departure_debits[origin][good] < qty {
+                ledger.cancel_reservation(origin, good, qty);
+                reset_trip_fields(pool, slot);
+                continue;
+            }
+        }
         depart_merchant(pool, slot, graph, ledger, delivery_buf.as_deref_mut());
     }
 

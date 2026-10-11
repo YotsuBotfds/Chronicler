@@ -40,6 +40,26 @@ def test_agent_bridge_helpers_import_without_chronicler_agents(monkeypatch):
     assert "chronicler_agents" not in sys.modules
 
 
+def test_ecology_tick_without_runtime_recovers_soil_without_native_extension(monkeypatch):
+    from chronicler.ecology import tick_ecology
+    from chronicler.models import ClimatePhase, Region, RegionEcology, WorldState
+
+    region = Region(
+        name="Abandoned Plain", terrain="plains", carrying_capacity=100,
+        resources="fertile", population=0, controller=None,
+        ecology=RegionEcology(soil=0.3, water=0.4, forest_cover=0.2),
+    )
+    world = WorldState(name="No-native ecology", seed=1, regions=[region])
+    initial_soil = region.ecology.soil
+
+    with _BlockChroniclerAgentsImport(monkeypatch):
+        events = tick_ecology(world, ClimatePhase.TEMPERATE)
+
+    assert isinstance(events, list)
+    assert region.ecology.soil > initial_soil
+    assert "chronicler_agents" not in sys.modules
+
+
 def test_agent_bridge_constructor_reports_missing_native_extension(monkeypatch):
     sys.modules.pop("chronicler.agent_bridge", None)
 

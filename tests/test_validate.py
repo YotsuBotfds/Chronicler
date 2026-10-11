@@ -570,8 +570,9 @@ def test_needs_candidate_priority_prefers_expected_sign():
     assert _needs_candidate_priority(positive, 100) > _needs_candidate_priority(negative, 50)
 
 
-def test_run_cohort_oracle_uses_all_sampled_turns():
+def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch):
     from chronicler.validate import run_cohort_oracle
+    from chronicler import validation_io
 
     clique_edges = [(i, j, 2, 50) for i in range(5) for j in range(i + 1, 5)]
     relationship_columns = {
@@ -619,7 +620,31 @@ def test_run_cohort_oracle_uses_all_sampled_turns():
         {"agent_id": 6, "event_type": 1, "turn": 14},
         {"agent_id": 7, "event_type": 1, "turn": 16},
         {"agent_id": 8, "event_type": 1, "turn": 18},
+        {"agent_id": 0, "event_type": 2, "turn": 11},
+        {"agent_id": 1, "event_type": 2, "turn": 13},
+        {"agent_id": 2, "event_type": 2, "turn": 15},
+        {"agent_id": 5, "event_type": 2, "turn": 17},
     ]
+    original_events = [event.copy() for event in events]
+    scans = []
+    rates = {}
+    original_filter = validation_io._filter_events_window
+    original_distinctiveness = validation_io.compute_cohort_distinctiveness
+
+    def record_window(source, start_turn, window=20):
+        assert source is events
+        scans.append((start_turn, window))
+        return original_filter(source, start_turn, window=window)
+
+    def record_rates(*args, **kwargs):
+        outcome = original_distinctiveness(*args, **kwargs)
+        rates[kwargs["event_type"]] = (
+            outcome["community_event_rate"], outcome["control_event_rate"],
+        )
+        return outcome
+
+    monkeypatch.setattr(validation_io, "_filter_events_window", record_window)
+    monkeypatch.setattr(validation_io, "compute_cohort_distinctiveness", record_rates)
 
     result = run_cohort_oracle([{
         "seed": 9,
@@ -634,6 +659,10 @@ def test_run_cohort_oracle_uses_all_sampled_turns():
     assert result["seeds_with_expected_direction"] == 1
     assert result["per_seed"][0]["snapshot_turn"] == 10
     assert result["per_seed"][0]["migration_effect_direction"] == "community_lower"
+    assert result["per_seed"][0]["rebellion_effect_direction"] == "community_higher"
+    assert rates == {1: (0.2, 0.8), 2: (0.6, 0.2)}
+    assert scans == [(10, 20)]
+    assert events == original_events
 
 
 def test_cohort_candidate_priority_prefers_expected_direction():
