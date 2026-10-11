@@ -132,4 +132,3 @@ finally:
     (out / "receipt.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 print(f"Evidence: {out}")
 raise SystemExit(0 if report.get("passed") else 1)
-
