@@ -6,13 +6,13 @@ import gc
 import importlib
 import inspect
 from pathlib import Path
-import subprocess
 import sys
 from types import MappingProxyType, ModuleType, SimpleNamespace
 import weakref
 
 import pyarrow as pa
 import pytest
+from reference_baselines import baseline_source
 
 BASE = "2ab3b4814abb665c7b3d5c255152cf5767bbf25a"
 
@@ -28,10 +28,7 @@ def _rows(api, batch, turn=0, stage="phase10_entry"):
 
 
 def _baseline_simulation():
-    repo = Path(__file__).resolve().parents[1]
-    source = subprocess.check_output(
-        ["git", "-C", str(repo), "show", f"{BASE}:src/chronicler/simulation.py"], text=True,
-    )
+    source = baseline_source(BASE, "src/chronicler/simulation.py")
     module = ModuleType("chronicler._a01_baseline_simulation")
     exec(compile(source, "a01-baseline/simulation.py", "exec"), module.__dict__)
     return module

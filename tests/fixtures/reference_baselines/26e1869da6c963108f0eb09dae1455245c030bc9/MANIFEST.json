@@ -1,0 +1,327 @@
+{
+  "commit": "26e1869da6c963108f0eb09dae1455245c030bc9",
+  "source": "Exact immutable Git objects in the recovered Chronicler history",
+  "scope": "Historical test references only; never production runtime inputs",
+  "files": {
+    "scripts/campaign_order_preview.py": {
+      "stored_path": "scripts/campaign_order_preview.py",
+      "bytes": 5519,
+      "sha256": "896d4450ab45797cf73367afdfdd60e91c03490cba5ff030ccd7a33c45377c90"
+    },
+    "scripts/experiment_receipts.py": {
+      "stored_path": "scripts/experiment_receipts.py",
+      "bytes": 2404,
+      "sha256": "83986b2dfff16f947507cf62ffa0d51731b4335d8abe51658414b51a5979c8a1"
+    },
+    "scripts/experiment_session.py": {
+      "stored_path": "scripts/experiment_session.py",
+      "bytes": 11253,
+      "sha256": "4eae21571e7178c6cc31838f057462e034eb56ff90c2398b702277b2a5b460ea"
+    },
+    "scripts/snapshot_campaign_session.py": {
+      "stored_path": "scripts/snapshot_campaign_session.py",
+      "bytes": 4288,
+      "sha256": "50a478ade07409ad4ca3ee691c8fcc8b4f3ceb5d5435133f25a8b522880ee961"
+    },
+    "scripts/verify_snapshot_session.py": {
+      "stored_path": "scripts/verify_snapshot_session.py",
+      "bytes": 9151,
+      "sha256": "3863c22dc43726b77323a86f53d61089e0d0a9d15a0e58304cb26ad3256e41ac"
+    },
+    "src/chronicler/__init__.py": {
+      "stored_path": "src/chronicler/__init__.py",
+      "bytes": 50,
+      "sha256": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1"
+    },
+    "src/chronicler/accumulator.py": {
+      "stored_path": "src/chronicler/accumulator.py",
+      "bytes": 8864,
+      "sha256": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5"
+    },
+    "src/chronicler/action_engine.py": {
+      "stored_path": "src/chronicler/action_engine.py",
+      "bytes": 57934,
+      "sha256": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd"
+    },
+    "src/chronicler/adjacency.py": {
+      "stored_path": "src/chronicler/adjacency.py",
+      "bytes": 7609,
+      "sha256": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66"
+    },
+    "src/chronicler/agent_bridge.py": {
+      "stored_path": "src/chronicler/agent_bridge.py",
+      "bytes": 114546,
+      "sha256": "df94de5e4f45c9f3ce8e6319fa647add90d3bbb31d8bc8e5c1240cc9664028b2"
+    },
+    "src/chronicler/arcs.py": {
+      "stored_path": "src/chronicler/arcs.py",
+      "bytes": 7497,
+      "sha256": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9"
+    },
+    "src/chronicler/artifact_io.py": {
+      "stored_path": "src/chronicler/artifact_io.py",
+      "bytes": 6090,
+      "sha256": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d"
+    },
+    "src/chronicler/artifacts.py": {
+      "stored_path": "src/chronicler/artifacts.py",
+      "bytes": 26703,
+      "sha256": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee"
+    },
+    "src/chronicler/bridge_contract.py": {
+      "stored_path": "src/chronicler/bridge_contract.py",
+      "bytes": 5178,
+      "sha256": "6e0359d4a3d1dac43451b8ea01a835c924d8c7420cffe56e7dfb1bfa4b48728e"
+    },
+    "src/chronicler/campaign_logistics.py": {
+      "stored_path": "src/chronicler/campaign_logistics.py",
+      "bytes": 30460,
+      "sha256": "cb82e5fa8217c913e2bed142f20cdc6a3f2a0cb0f45348683737d7f0f3c00fe7"
+    },
+    "src/chronicler/campaign_order_preview.py": {
+      "stored_path": "src/chronicler/campaign_order_preview.py",
+      "bytes": 8062,
+      "sha256": "8537abb5ffebaed04ab812b65ce6e5b5d8073d1051af9294e625cbd0a32f4f8e"
+    },
+    "src/chronicler/campaign_snapshot_adapter.py": {
+      "stored_path": "src/chronicler/campaign_snapshot_adapter.py",
+      "bytes": 30487,
+      "sha256": "220cc7ec6adabeaac26f465139bf9a159a5ae874e2cf9c6db5792bec7403215a"
+    },
+    "src/chronicler/climate.py": {
+      "stored_path": "src/chronicler/climate.py",
+      "bytes": 11196,
+      "sha256": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c"
+    },
+    "src/chronicler/culture.py": {
+      "stored_path": "src/chronicler/culture.py",
+      "bytes": 20654,
+      "sha256": "9ed2a66cae8c991a23f4cd79bbdf4e291256a410942ffc0bfbd7083028c43018"
+    },
+    "src/chronicler/demand_signals.py": {
+      "stored_path": "src/chronicler/demand_signals.py",
+      "bytes": 1214,
+      "sha256": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7"
+    },
+    "src/chronicler/dynasties.py": {
+      "stored_path": "src/chronicler/dynasties.py",
+      "bytes": 7110,
+      "sha256": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8"
+    },
+    "src/chronicler/ecology.py": {
+      "stored_path": "src/chronicler/ecology.py",
+      "bytes": 38166,
+      "sha256": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a"
+    },
+    "src/chronicler/economy.py": {
+      "stored_path": "src/chronicler/economy.py",
+      "bytes": 63497,
+      "sha256": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8"
+    },
+    "src/chronicler/emergence.py": {
+      "stored_path": "src/chronicler/emergence.py",
+      "bytes": 38112,
+      "sha256": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe"
+    },
+    "src/chronicler/events.py": {
+      "stored_path": "src/chronicler/events.py",
+      "bytes": 3981,
+      "sha256": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e"
+    },
+    "src/chronicler/experiment_receipt_inspector.py": {
+      "stored_path": "src/chronicler/experiment_receipt_inspector.py",
+      "bytes": 12218,
+      "sha256": "d2d216e06f3581ef2b46840da07247fc9b40ef90414518cc6f4e9ec6a4ba48cd"
+    },
+    "src/chronicler/experiment_sessions.py": {
+      "stored_path": "src/chronicler/experiment_sessions.py",
+      "bytes": 78599,
+      "sha256": "1c29cfd2f396b627dbd2e78a4ee699cfe46eca8f920319a70dab628ac37d5f87"
+    },
+    "src/chronicler/experimental/fisheries.py": {
+      "stored_path": "src/chronicler/experimental/fisheries.py",
+      "bytes": 5947,
+      "sha256": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736"
+    },
+    "src/chronicler/experimental/fisheries_bridge.py": {
+      "stored_path": "src/chronicler/experimental/fisheries_bridge.py",
+      "bytes": 681,
+      "sha256": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007"
+    },
+    "src/chronicler/exploration.py": {
+      "stored_path": "src/chronicler/exploration.py",
+      "bytes": 11345,
+      "sha256": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178"
+    },
+    "src/chronicler/factions.py": {
+      "stored_path": "src/chronicler/factions.py",
+      "bytes": 30994,
+      "sha256": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48"
+    },
+    "src/chronicler/ffi_constants.py": {
+      "stored_path": "src/chronicler/ffi_constants.py",
+      "bytes": 1281,
+      "sha256": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4"
+    },
+    "src/chronicler/great_persons.py": {
+      "stored_path": "src/chronicler/great_persons.py",
+      "bytes": 18811,
+      "sha256": "b08fbe5f6e36134fff9f9b2a14bf19e45e572d3da6128e668c72a90fc9e01114"
+    },
+    "src/chronicler/infrastructure.py": {
+      "stored_path": "src/chronicler/infrastructure.py",
+      "bytes": 14944,
+      "sha256": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11"
+    },
+    "src/chronicler/intelligence.py": {
+      "stored_path": "src/chronicler/intelligence.py",
+      "bytes": 6593,
+      "sha256": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e"
+    },
+    "src/chronicler/leaders.py": {
+      "stored_path": "src/chronicler/leaders.py",
+      "bytes": 18951,
+      "sha256": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea"
+    },
+    "src/chronicler/memome_experiment.py": {
+      "stored_path": "src/chronicler/memome_experiment.py",
+      "bytes": 15105,
+      "sha256": "d0a6b075b7edc9437898935a7b5f8a541008cb3892ee4a22273edaccb62dcef5"
+    },
+    "src/chronicler/models.py": {
+      "stored_path": "src/chronicler/models.py",
+      "bytes": 35467,
+      "sha256": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0"
+    },
+    "src/chronicler/movements.py": {
+      "stored_path": "src/chronicler/movements.py",
+      "bytes": 6604,
+      "sha256": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61"
+    },
+    "src/chronicler/mutual_aid.py": {
+      "stored_path": "src/chronicler/mutual_aid.py",
+      "bytes": 10468,
+      "sha256": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0"
+    },
+    "src/chronicler/named_events.py": {
+      "stored_path": "src/chronicler/named_events.py",
+      "bytes": 6280,
+      "sha256": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda"
+    },
+    "src/chronicler/politics.py": {
+      "stored_path": "src/chronicler/politics.py",
+      "bytes": 67204,
+      "sha256": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a"
+    },
+    "src/chronicler/politics_bridge.py": {
+      "stored_path": "src/chronicler/politics_bridge.py",
+      "bytes": 68152,
+      "sha256": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882"
+    },
+    "src/chronicler/relationships.py": {
+      "stored_path": "src/chronicler/relationships.py",
+      "bytes": 20272,
+      "sha256": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797"
+    },
+    "src/chronicler/religion.py": {
+      "stored_path": "src/chronicler/religion.py",
+      "bytes": 34833,
+      "sha256": "d4e6c69481c1c675c17982ca7a56b2e65aed8fafb78b50e2ea1afb7be3ce0075"
+    },
+    "src/chronicler/resources.py": {
+      "stored_path": "src/chronicler/resources.py",
+      "bytes": 14737,
+      "sha256": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7"
+    },
+    "src/chronicler/settlements.py": {
+      "stored_path": "src/chronicler/settlements.py",
+      "bytes": 21650,
+      "sha256": "153292bba995f60c4925adb205569d818675ffb9fabf37a6cf84896effec90c2"
+    },
+    "src/chronicler/shadow.py": {
+      "stored_path": "src/chronicler/shadow.py",
+      "bytes": 3505,
+      "sha256": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f"
+    },
+    "src/chronicler/sidecar.py": {
+      "stored_path": "src/chronicler/sidecar.py",
+      "bytes": 14873,
+      "sha256": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e"
+    },
+    "src/chronicler/simulation.py": {
+      "stored_path": "src/chronicler/simulation.py",
+      "bytes": 92396,
+      "sha256": "2bc6d2637200b6e089e8d8a9af7a084c731844a2acb8f35b58e31cf2b1cf3896"
+    },
+    "src/chronicler/snapshot_campaign_sessions.py": {
+      "stored_path": "src/chronicler/snapshot_campaign_sessions.py",
+      "bytes": 5495,
+      "sha256": "beeabbff48b335a44edd403268b8e279f98742bc756d03280591669a3ac2ea6b"
+    },
+    "src/chronicler/succession.py": {
+      "stored_path": "src/chronicler/succession.py",
+      "bytes": 13500,
+      "sha256": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3"
+    },
+    "src/chronicler/tech.py": {
+      "stored_path": "src/chronicler/tech.py",
+      "bytes": 5989,
+      "sha256": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762"
+    },
+    "src/chronicler/tech_focus.py": {
+      "stored_path": "src/chronicler/tech_focus.py",
+      "bytes": 16755,
+      "sha256": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e"
+    },
+    "src/chronicler/terrain.py": {
+      "stored_path": "src/chronicler/terrain.py",
+      "bytes": 2430,
+      "sha256": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6"
+    },
+    "src/chronicler/traditions.py": {
+      "stored_path": "src/chronicler/traditions.py",
+      "bytes": 8667,
+      "sha256": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507"
+    },
+    "src/chronicler/tuning.py": {
+      "stored_path": "src/chronicler/tuning.py",
+      "bytes": 21441,
+      "sha256": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d"
+    },
+    "src/chronicler/turn_artifacts.py": {
+      "stored_path": "src/chronicler/turn_artifacts.py",
+      "bytes": 4430,
+      "sha256": "2e0cbfdd7a27de0df497afadd5479050d1bb37759d70edec33fbb7f1d9cad9b9"
+    },
+    "src/chronicler/utils.py": {
+      "stored_path": "src/chronicler/utils.py",
+      "bytes": 6039,
+      "sha256": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505"
+    },
+    "src/chronicler/validate.py": {
+      "stored_path": "src/chronicler/validate.py",
+      "bytes": 4059,
+      "sha256": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b"
+    },
+    "src/chronicler/validation_io.py": {
+      "stored_path": "src/chronicler/validation_io.py",
+      "bytes": 115376,
+      "sha256": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86"
+    },
+    "src/chronicler/validation_oracles.py": {
+      "stored_path": "src/chronicler/validation_oracles.py",
+      "bytes": 1261,
+      "sha256": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471"
+    },
+    "src/chronicler/world_gen.py": {
+      "stored_path": "src/chronicler/world_gen.py",
+      "bytes": 13372,
+      "sha256": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+    },
+    "tests/test_snapshot_campaign_sessions.py": {
+      "stored_path": "tests/test_snapshot_campaign_sessions.py.txt",
+      "bytes": 20779,
+      "sha256": "e9d2dcbf84ef209e6a6cead06467e9b355c050f64956b0fb5e6cb679ff37e74f"
+    }
+  }
+}

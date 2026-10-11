@@ -24,11 +24,11 @@ from test_snapshot_campaign_sessions import (
 )
 from test_snapshot_session_provenance import tick
 from test_session_read_bounds import TrackedHandle
+from reference_baselines import baseline_root, baseline_source
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT.parents[1]
-BASELINE = WORKSPACE / "refinement-branches/reviewed-base-submission"
 PARENT = "26e1869da6c963108f0eb09dae1455245c030bc9"
+BASELINE = baseline_root(PARENT)
 CREATOR = "snapshot_campaign_session.py"
 VERIFIER = "verify_snapshot_session.py"
 POSITIONS = [("creator", "transport"), ("creator", "side_inputs"), ("creator", "snapshot"),
@@ -392,7 +392,7 @@ def test_verifier_session_digest_binds_one_descriptor_after_path_replacement(tmp
 
 def test_original_function_and_assertion_asts_preserved_outside_owned_hook():
     def baseline(name):
-        return subprocess.check_output(["git", "-C", str(ROOT), "show", PARENT + ":" + name], text=True)
+        return baseline_source(PARENT, name)
     name = "src/chronicler/snapshot_campaign_sessions.py"
     old, new = ast.parse(baseline(name)), ast.parse((ROOT / name).read_text())
     old_functions = {node.name: node for node in old.body if isinstance(node, ast.FunctionDef)}
@@ -441,8 +441,8 @@ def test_supported_workflow_matches_accepted_q_full_streams_and_post_bytes_at_tw
         command = [sys.executable, "-B", str(source / "scripts" / script), *argv]
         before = file_map(directory)
         environment = dict(os.environ, PYTHONHASHSEED=seed,
-            PYTHONPATH=os.pathsep.join([str(source / "src"), str(source / "tests"),
-                "/Users/tbronson/Library/Python/3.14/lib/python/site-packages"]), PYTHONDONTWRITEBYTECODE="1")
+            PYTHONPATH=os.pathsep.join([str(source / "src"), str(source / "tests")]),
+            PYTHONDONTWRITEBYTECODE="1")
         process = subprocess.run(command, cwd=source, env=environment, capture_output=True, timeout=15)
         post = file_map(directory)
         assert process.returncode == exit_code, process.stdout + process.stderr

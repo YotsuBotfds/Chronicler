@@ -45,9 +45,25 @@ for a fresh clone.
 | Saved cloud environment **Chronicler** tracking `main` | Owner-reported saved configuration. Its live checkout/unpushed state was not exposed by supported project/task discovery here and is not claimed recovered. |
 
 Native Windows project discovery listed `opusprogram` but no saved Chronicler
-project. No accessible native Mac project/task was exposed. No SSH route or
-session-store bypass was used. No active competing Chronicler edit was found in
-the accessible task list; this does not establish all machines are idle.
+project. The recent 50-task listing exposed no Mac Chronicler task. A subsequent
+supported archived-task listing (two pages, 60 records) exposed the historical
+Mac/cloud records below. Their supported task readbacks were inspected; no live
+remote checkout, SSH route or session-store bypass was used. All four records
+were idle/archived. No active competing Chronicler edit was found in these bounded
+listings; this does not establish all machines are idle.
+
+| Historical task record | Recorded source standing and current evidence |
+| --- | --- |
+| **Validate integrated native runtime**, `01a10db8-ce9f-77d0-8b93-4ef09e43700a`, `/Users/tbronson/Documents/Codex/2026-10-05/task-32` | Final report qualified `56b3764b8436f92b05e958f53b32092ad6a5e463`. Git ancestry freshly confirms this commit is contained in the continuation. Current Mac files/dirty state were not read. |
+| **Qualify second-wave native integration**, `01a10ddf-b93c-7591-aedb-c824fe0fc003`, `/Users/tbronson/Documents/Codex/2026-10-05/task-36` | Final report qualified `18c909eb3f9abd0b9e64b40e6cd1e09c5567e913`; freshly confirmed ancestor of the continuation. Historical full native/Rust results and private backup are recorded in that task, not rerun or newly accepted here. |
+| **Integrate ecology and mutual aid**, `01a10dee-23f7-7399-8823-da118620b018`, recorded task cwd `/workspace`, source packages `/workspace/third-wave/packages` | Recorded clean `private/integration-wave3-20261005` at `2ab3b4814abb665c7b3d5c255152cf5767bbf25a`; freshly confirmed ancestor. This is a historical cloud task record, not evidence of the owner's saved **Chronicler** environment's current state. |
+| **Integrate governance transaction harness**, `01a10dad-faee-71c4-8c1a-4a6a2a6e202b`, recorded cwd `/workspace`, source `/workspace/Chronicler-governance` | Recorded `experimental/governance-four-kernel` at `8ed76bd4620d1aab509bf1ddc90f77ac80390482`; freshly confirmed ancestor. Detached governance remains disabled for production; no G05 source recovery is claimed. |
+
+Discovery also read the Windows **Consolidate Chronicler and refactor** task
+(`01a1172a-ed91-770f-a4ab-9f9210db6036`) and **Back up Chronicler archives**
+(`01a11627-9df3-7151-974d-bfcd35dc002e`). The native-stat-order Mac checkout is
+known through that sealed handoff, not a live Mac filesystem inspection. Other
+older task records and machine checkouts may exist beyond these bounded searches.
 
 ## Fresh verification and limits
 
@@ -72,13 +88,29 @@ the accessible task list; this does not establish all machines are idle.
   were not completed locally. Existing GitHub PR CI supplies fresh Linux
   no-Rust/native results; inspect its exact-head checks before promotion.
 
+The first full Linux CI exposed historical-test portability problems: shallow
+checkouts lacked baseline Git objects, two comparison suites expected sibling
+Mac worktrees, and a descriptor guard also blocked Python 3.13's intentional
+`lstat` link check. The continuation now carries exact source-only baseline
+fixtures with byte counts/hashes, retains the full stream/post-file/AST/RNG
+comparisons, and permits only `stat(follow_symlinks=False)` in that guard.
+Global filesystem monkeypatches are scoped so pytest can report failures safely.
+Production simulation, persistence, GitHub workflow permissions and dependency
+versions are unchanged by these repairs. See `tests/fixtures/reference_baselines`.
+
 ## Product gaps to carry forward
 
 The September **Chronicler Living Atlas Codex Handoff** was a reference/prototype
-package. Its ZIP was not found in the checked Windows downloads or restored
-source; no equivalent integrated directory was found. This is a retrieval gap,
-not evidence that it never existed. No old sandbox URL or reference prototype is
-treated as a working simulator implementation.
+package. The initial local search checked matching immediate filenames in
+`C:\Users\tateb\Downloads` and Atlas markers in selected restored docs/viewer/replay
+source, not every local or remote directory. It found no ZIP or integrated Atlas
+directory in that scope. A subsequent exact-title Library search confirmed
+`Chronicler_Living_Atlas_Codex_Handoff.zip`, **3,110,968 bytes**, created
+**2026-09-05T02:07:24Z**. The supported Library downloader cannot retrieve it in
+this execution environment. No archive bytes, safe-member inventory, credential
+scan or restored prototype tests are therefore claimed. The missing item is now
+an access/recovery gap, not an unknown location. Keep it as historical reference
+when recovered; no old sandbox URL or prototype is a working simulator claim.
 
 Current source still rejects Bundle v2 with `BUNDLE_V2_NOT_ACTIVE`. Native and
 hybrid checkpoint continuation are explicitly unsupported by
@@ -92,7 +124,8 @@ adjacency. These remain documented gaps; the old roadmap was not executed as
 part of recovery.
 
 Next decisions are review of this continuation's exact-head CI, a separate choice
-about the competing desktop architecture, retrieval of the Living Atlas reference
-if useful, and scoped work on the remaining product/native gates. Existing dirty
+about the competing desktop architecture, completion of Living Atlas reference
+recovery through an environment with working Library downloads, and scoped work
+on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.

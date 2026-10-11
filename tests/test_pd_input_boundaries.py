@@ -19,9 +19,10 @@ from chronicler import experiment_sessions as es
 import test_campaign_order_preview as p
 import test_experiment_receipt_inspector as d
 import test_operator_submission_workflow as r
+from reference_baselines import baseline_root
 
 ROOT=Path(__file__).resolve().parents[1]
-BASELINE=Path(os.environ.get('PD_BASELINE',ROOT.parent/'reviewed-base-submission'))
+BASELINE=Path(os.environ.get('PD_BASELINE',baseline_root('26e1869da6c963108f0eb09dae1455245c030bc9')))
 OWNED=['scripts/campaign_order_preview.py','scripts/experiment_receipts.py',
        'tests/test_campaign_order_preview.py','tests/test_experiment_receipt_inspector.py',
        'tests/test_pd_input_boundaries.py','docs/experiments/campaign-order-preview.md','docs/experiments/receipt-inspection.md']
@@ -237,6 +238,13 @@ class BoundaryTests(unittest.TestCase):
                     elif case=='plus-one':raw=b'x'*(limit+1)
                     else:raw=b'{}'
                     path.write_bytes(raw);before=inventory(self.folder);handles=[];requests=[];actual_open=builtins.open
+                    actual_stat = Path.stat
+                    def no_size_stat(target, *, follow_symlinks=True):
+                        # P explicitly rejects links using lstat. Python 3.13
+                        # routes lstat through stat(follow_symlinks=False).
+                        if follow_symlinks is False:
+                            return actual_stat(target, follow_symlinks=False)
+                        return forbidden(target)
                     class Handle:
                         def __init__(inner,descriptor,*args,**kwargs):
                             inner.real=actual_open(descriptor,*args,**kwargs);handles.append(inner.real)
@@ -251,7 +259,7 @@ class BoundaryTests(unittest.TestCase):
                             return inner.real.read(size)
                     with ExitStack() as stack:
                         stack.enter_context(mock.patch.object(builtins,'open',Handle))
-                        stack.enter_context(mock.patch.object(Path,'stat',forbidden))
+                        stack.enter_context(mock.patch.object(Path,'stat',no_size_stat))
                         if case!='exact':stack.enter_context(mock.patch.object(es,'transport_policy_from_text',forbidden))
                         if case=='unsupported':
                             stack.enter_context(mock.patch.dict(os.__dict__))
@@ -343,7 +351,7 @@ class AcceptedQCommandComparison(unittest.TestCase):
                         pair=[]
                         for label,root in [('accepted-Q',BASELINE),('PD-candidate',ROOT)]:
                             env=dict(os.environ,PYTHONHASHSEED=seed,PYTHONDONTWRITEBYTECODE='1',
-                                     PYTHONPATH=str(root/'src')+':'+str(root/'tests')+':/Users/tbronson/Library/Python/3.14/lib/python/site-packages')
+                                     PYTHONPATH=os.pathsep.join([str(root/'src'),str(root/'tests')]))
                             before=inventory(folder);argv=[sys.executable,'-B',str(script(consumer,root)),*args]
                             command=subprocess.run(argv,cwd=folder,env=env,capture_output=True,timeout=10)
                             after=inventory(folder);self.assertEqual(after,before)
