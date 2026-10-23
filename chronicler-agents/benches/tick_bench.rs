@@ -47,12 +47,11 @@ fn setup_pool(num_agents: usize, num_regions: u16) -> (AgentPool, Vec<RegionStat
         region.soil = 0.7;
         region.water = 0.5;
         region.forest_cover = 0.3;
-        region.adjacency_mask = if num_regions <= 32 {
-            (if i > 0 { 1u32 << (i - 1) } else { 0 })
-                | (if i < num_regions - 1 { 1u32 << (i + 1) } else { 0 })
-        } else {
-            0
-        };
+        // Chain topology (previous and next region); adjacency lists have
+        // no 32-region cap.
+        region.adjacency = (i.saturating_sub(1)..=(i + 1).min(num_regions - 1))
+            .filter(|&n| n != i)
+            .collect();
         region.controller_civ = (i % 4) as u8;
         region
     }).collect();

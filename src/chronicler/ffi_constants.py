@@ -38,4 +38,38 @@ VALUE_TO_ID: dict[str, int] = {
 # CULTURAL_VALUE_EMPTY = 0xFF.
 VALUE_EMPTY: int = 0xFF
 
-__all__ = ("TERRAIN_MAP", "VALUE_TO_ID", "VALUE_EMPTY")
+# Region ids cross the bridge as uint16.
+MAX_NATIVE_REGIONS = 0xFFFF
+# Civ ids cross the bridge as uint8 with 255 reserved for "none", and civ
+# records are never removed (secessions and restorations append). Worlds are
+# capped at 254 records, ids 0..253, leaving the top of the range unused.
+MAX_CIV_RECORDS = 254
+
+
+def check_civ_capacity(world) -> None:
+    """Fail clearly when a world has more civ records than uint8 ids allow."""
+    count = len(world.civilizations)
+    if count > MAX_CIV_RECORDS:
+        raise ValueError(
+            f"World has {count} civilization records but the native runtimes "
+            f"support at most {MAX_CIV_RECORDS} (civ ids are uint8, 255 = none, "
+            "and civ records are never removed)"
+        )
+
+
+def river_ids_from_mask(mask: int) -> list[int]:
+    """Ascending river ids encoded in a Python ``Region.river_mask`` int."""
+    ids: list[int] = []
+    bit = 0
+    while mask:
+        if mask & 1:
+            ids.append(bit)
+        mask >>= 1
+        bit += 1
+    return ids
+
+
+__all__ = (
+    "TERRAIN_MAP", "VALUE_TO_ID", "VALUE_EMPTY", "MAX_CIV_RECORDS",
+    "MAX_NATIVE_REGIONS", "check_civ_capacity", "river_ids_from_mask",
+)

@@ -239,7 +239,7 @@ pub fn init_attractors(seed: u64, region_id: u16, region: &RegionState) -> Regio
     let candidates = [
         Candidate {
             atype: AttractorType::River,
-            active: region.river_mask != 0,
+            active: region.has_river(),
         },
         Candidate {
             atype: AttractorType::Coast,

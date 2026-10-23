@@ -1865,8 +1865,8 @@ mod tests {
     fn test_full_tick_deterministic() {
         // Two pools with identical setup, same seed/signals -> identical results
         let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
-        regions[0].adjacency_mask = 0b10; // region 0 adjacent to region 1
-        regions[1].adjacency_mask = 0b01; // region 1 adjacent to region 0
+        regions[0].adjacency = crate::region::mask_to_ids(0b10); // region 0 adjacent to region 1
+        regions[1].adjacency = crate::region::mask_to_ids(0b01); // region 1 adjacent to region 0
         let signals = make_default_signals(2, 2);
         let mut seed = [0u8; 32];
         seed[0] = 77;
@@ -2119,9 +2119,9 @@ mod tests {
             make_healthy_region(1),
             make_healthy_region(2),
         ];
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b101;
-        regions[2].adjacency_mask = 0b011;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b101);
+        regions[2].adjacency = crate::region::mask_to_ids(0b011);
         regions[0].controller_civ = 0;
         regions[1].controller_civ = 1;
         regions[2].controller_civ = 0;

@@ -30,12 +30,10 @@ fn main() {
         reg.population = agents_per_region as u16;
         reg.soil = 0.7;
         reg.water = 0.5;
-        reg.adjacency_mask = if num_regions <= 32 {
-            (if r > 0 { 1u32 << (r - 1) } else { 0 })
-                | (if r < num_regions - 1 { 1u32 << (r + 1) } else { 0 })
-        } else {
-            0
-        };
+        // Chain topology; adjacency lists have no 32-region cap.
+        reg.adjacency = (r.saturating_sub(1)..=(r + 1).min(num_regions - 1))
+            .filter(|&n| n != r)
+            .collect();
         reg.controller_civ = (r % 4) as u8;
         reg
     }).collect();

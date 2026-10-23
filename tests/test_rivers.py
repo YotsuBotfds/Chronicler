@@ -439,16 +439,22 @@ class TestRiverBridge:
         )
         apply_scenario(world, config)
         batch = build_region_batch(world)
-        assert "river_mask" in batch.schema.names
-        masks = batch.column("river_mask").to_pylist()
+        assert "rivers" in batch.schema.names
+        rivers = batch.column("rivers").to_pylist()
         region_map = {r.name: i for i, r in enumerate(world.regions)}
-        assert masks[region_map[r0.name]] == 1
-        assert masks[region_map[adj_name]] == 1
+        assert rivers[region_map[r0.name]] == [0]
+        assert rivers[region_map[adj_name]] == [0]
 
     def test_non_river_region_mask_zero_in_batch(self):
         from chronicler.agent_bridge import build_region_batch
         world = generate_world(seed=42, num_regions=8, num_civs=2)
         batch = build_region_batch(world)
-        assert "river_mask" in batch.schema.names
-        masks = batch.column("river_mask").to_pylist()
-        assert all(m == 0 for m in masks)
+        assert "rivers" in batch.schema.names
+        rivers = batch.column("rivers").to_pylist()
+        assert all(r == [] for r in rivers)
+
+    def test_river_ids_from_mask_wide(self):
+        from chronicler.ffi_constants import river_ids_from_mask
+        assert river_ids_from_mask(0) == []
+        assert river_ids_from_mask(0b1011) == [0, 1, 3]
+        assert river_ids_from_mask((1 << 40) | (1 << 33) | 1) == [0, 33, 40]
