@@ -1,7 +1,10 @@
 """Terrain mechanical effects — pure functions on Region properties.
 
 No state. No side effects. Other modules import and call these.
-Unknown terrain types fall through to plains defaults.
+Unknown terrain types fall through to plains defaults. The scenario terrains
+``river`` and ``hills`` intentionally use plains effects, ecology and climate
+(matching ``ffi_constants.TERRAIN_MAP`` for Rust); they differ only in their
+resource tables, transport cost and river sea-route adjacency.
 """
 from __future__ import annotations
 
