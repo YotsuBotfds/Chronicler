@@ -64,26 +64,43 @@ def _require_acc_for_hybrid(world: WorldState, acc, phase_name: str) -> None:
         )
 
 
+def governing_cost_components(
+    world: WorldState, civ: Civilization, adj_map: dict[str, set[str]] | None = None,
+) -> tuple[int, float] | None:
+    """Return the base ``(treasury_cost, stability_cost)`` or None when exempt.
+
+    Shared by ``apply_governing_costs`` and the Phase 8 governance funding
+    record, which needs the same base cost without re-debiting it.
+    """
+    if len(civ.regions) <= 2 or civ.capital_region is None:
+        return None
+    if adj_map is None:
+        adj_map = {r.name: set(r.adjacencies) for r in world.regions}
+    region_count = len(civ.regions)
+    treasury_cost = (region_count - 2) * 2
+
+    stability_cost = 0
+    gov_cost_per_dist = get_override(world, K_GOVERNING_COST, 0.5)
+    for region_name in civ.regions:
+        if region_name == civ.capital_region:
+            continue
+        dist = graph_distance(adj_map, civ.capital_region, region_name)
+        if dist < 0:
+            dist = 1  # fallback if disconnected
+        treasury_cost += dist * 2
+        stability_cost += dist * gov_cost_per_dist
+    return treasury_cost, stability_cost
+
+
 def apply_governing_costs(world: WorldState, acc=None) -> list[Event]:
     """Phase 2: Apply governing costs based on empire size and distance from capital."""
     events: list[Event] = []
     adj_map = {r.name: set(r.adjacencies) for r in world.regions}
     for civ in world.civilizations:
-        if len(civ.regions) <= 2 or civ.capital_region is None:
+        components = governing_cost_components(world, civ, adj_map)
+        if components is None:
             continue
-        region_count = len(civ.regions)
-        treasury_cost = (region_count - 2) * 2
-
-        stability_cost = 0
-        gov_cost_per_dist = get_override(world, K_GOVERNING_COST, 0.5)
-        for region_name in civ.regions:
-            if region_name == civ.capital_region:
-                continue
-            dist = graph_distance(adj_map, civ.capital_region, region_name)
-            if dist < 0:
-                dist = 1  # fallback if disconnected
-            treasury_cost += dist * 2
-            stability_cost += dist * gov_cost_per_dist
+        treasury_cost, stability_cost = components
 
         mult = get_severity_multiplier(civ, world)
         if acc is not None:

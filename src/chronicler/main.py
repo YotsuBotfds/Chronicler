@@ -184,6 +184,11 @@ class _DummyClient:
         return "DEVELOP"
 
 
+def _governance_snapshot(civ):
+    from chronicler.governance_runtime import governance_snapshot
+    return governance_snapshot(civ)
+
+
 def _create_ecology_runtime(world):
     """Create a dedicated EcologySimulator for --agents=off mode.
 
@@ -400,6 +405,14 @@ def execute_run(
         world.mutual_aid_enabled = mutual_aid
     if world.mutual_aid_enabled and agent_mode == "off":
         raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    # Phase 8 governance runtime switch (persisted on the world).
+    governance = getattr(args, "governance", None)
+    if governance is None and fresh_world:
+        from chronicler.governance_runtime import DEFAULT_ENABLED_FOR_NEW_WORLDS
+        governance = DEFAULT_ENABLED_FOR_NEW_WORLDS
+    if governance is not None:
+        from chronicler.governance_runtime import set_governance_enabled
+        set_governance_enabled(world, governance)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -537,6 +550,7 @@ def execute_run(
                     gini=getattr(agent_bridge, '_gini_by_civ', {}).get(civ_idx, 0.0) if agent_bridge else 0.0,
                     war_weariness=civ.war_weariness,
                     peace_momentum=civ.peace_momentum,
+                    governance=(_governance_snapshot(civ) if world.governance is not None else None),
                 )
                 for civ_idx, civ in enumerate(world.civilizations)
             },
@@ -1083,6 +1097,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
                              "negotiated peace replace instant WAR resolution (default on for new "
                              "worlds; --no-campaigns restores instant wars; saved on resume)")
+    parser.add_argument("--governance", action=argparse.BooleanOptionalAction, default=None,
+                        help="Phase 8 governance runtime: institutions, elites, legitimacy, ambitions, PSI "
+                             "(default on for new worlds; --no-governance disables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

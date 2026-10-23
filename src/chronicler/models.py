@@ -14,8 +14,16 @@ from typing import Annotated, Optional
 from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_serializer, model_validator
 
 from chronicler.experimental.fisheries import FisheryConfig
+from chronicler.governance_state import CivGovernance, GovernanceSettings
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+
+
+def _omit_dormant_governance(model: BaseModel, data):
+    """Drop a ``None`` governance field so feature-off output stays byte-identical."""
+    if isinstance(data, dict) and getattr(model, "governance", None) is None:
+        data.pop("governance", None)
+    return data
 
 
 # --- Enums ---
@@ -468,6 +476,12 @@ class Civilization(BaseModel):
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
     regnal_name_counts: dict[str, int] = Field(default_factory=dict)
+    # Phase 8 governance carry (None = dormant; omitted from serialized output).
+    governance: CivGovernance | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_without_dormant_governance(self, handler):
+        return _omit_dormant_governance(self, handler(self))
 
 
 class Relationship(BaseModel):
@@ -886,6 +900,8 @@ class WorldState(BaseModel):
     # M60: campaigns, battles and occupation (default off).
     campaigns_enabled: bool = False
     war_state: WarState = Field(default_factory=WarState)
+    # Phase 8 governance runtime switch (None = disabled; omitted from output).
+    governance: GovernanceSettings | None = None
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -954,6 +970,10 @@ class WorldState(BaseModel):
         self._active_trade_route_pairs_cache = None
         self._self_trade_civs_cache = None
 
+    @model_serializer(mode="wrap")
+    def _serialize_without_dormant_governance(self, handler):
+        return _omit_dormant_governance(self, handler(self))
+
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
         parent = path.parent
@@ -1014,6 +1034,12 @@ class CivSnapshot(BaseModel):
     # M47d: War frequency analytics
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
+    # Phase 8 governance per-turn stats (None when governance is disabled).
+    governance: dict | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_without_dormant_governance(self, handler):
+        return _omit_dormant_governance(self, handler(self))
 
 
 class RelationshipSnapshot(BaseModel):

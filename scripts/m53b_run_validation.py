@@ -86,6 +86,14 @@ def _batch_dir_for(output_root: Path, seed_start: int) -> Path:
     return output_root / f"batch_{seed_start}"
 
 
+def _governance_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit Phase 8 governance switch; omitted keeps the CLI default."""
+    governance = getattr(args, "governance", None)
+    if governance is None:
+        return []
+    return ["--governance" if governance else "--no-governance"]
+
+
 def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
     output_root = args.output_root / "oracle_subset"
     cmd = [
@@ -105,6 +113,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         "--output",
         str(output_root / "chronicle.md"),
         *_feature_flags(args),
+        *_governance_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -129,6 +138,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         "--output",
         str(output_root / "chronicle.md"),
         *_feature_flags(args),
+        *_governance_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -159,6 +169,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         if agents == "hybrid":
             cmd.insert(-4, "--validation-sidecar")
         cmd.extend(_feature_flags(args))
+        cmd.extend(_governance_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -424,6 +435,12 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Forward --campaigns/--no-campaigns (M60 war layer) to every simulation run.",
+    )
+    parser.add_argument(
+        "--governance",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --governance/--no-governance to every simulation run (default: CLI default).",
     )
     parser.add_argument(
         "--require-strict-regression",

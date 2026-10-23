@@ -884,9 +884,58 @@ def _grudge_war_multiplier(grudges: list[dict], cap: float) -> float:
     return min(product, cap)
 
 
+# M63b contributor ceilings (roadmap decision D1). Global cap stays K_WEIGHT_CAP.
+BUCKET_CEILINGS: dict[str, float] = {
+    "trait": 2.0,
+    "situational": 2.5,
+    "tech_focus": 1.5,
+    "faction": 1.5,
+}
+
+
+class _ContributorBuckets:
+    """Clamp each named contributor bucket's per-action factor to its ceiling.
+
+    Buckets are measured as the ratio of weights after/before the stage, so the
+    existing pipeline is unchanged; only ratios above a ceiling are reduced.
+    Disabled (no arithmetic, empty ``factors``) unless governance is on.
+    """
+
+    def __init__(self, world, weights: dict[ActionType, float]):
+        self.enabled = getattr(world, "governance", None) is not None
+        self.factors: dict[str, dict[ActionType, float]] = {}
+        self._before = dict(weights) if self.enabled else None
+
+    def open(self, weights: dict[ActionType, float]) -> None:
+        if self.enabled:
+            self._before = dict(weights)
+
+    def _ratios(self, weights):
+        return {a: weights[a] / before for a, before in self._before.items() if before > 0}
+
+    def close(self, name: str, weights: dict[ActionType, float]) -> None:
+        if not self.enabled:
+            return
+        ceiling = BUCKET_CEILINGS[name]
+        ratios = self._ratios(weights)
+        for action, ratio in ratios.items():
+            if ratio > ceiling:
+                weights[action] = self._before[action] * ceiling
+                ratios[action] = ceiling
+        self.factors[name] = ratios
+        self._before = dict(weights)
+
+    def record(self, name: str, weights: dict[ActionType, float]) -> None:
+        """Record an already-clamped bucket (the governance bucket)."""
+        if self.enabled:
+            self.factors[name] = self._ratios(weights)
+            self._before = dict(weights)
+
+
 class ActionEngine:
     def __init__(self, world: WorldState):
         self.world = world
+        self.last_buckets: dict[str, dict[ActionType, float]] = {}
 
     def get_eligible_actions(self, civ: Civilization) -> list[ActionType]:
         eligible = [ActionType.DEVELOP, ActionType.DIPLOMACY]
@@ -968,6 +1017,10 @@ class ActionEngine:
         weights: dict[ActionType, float] = {
             a: base if a in eligible else 0.0 for a in ActionType
         }
+        # M63b (REVIEW B-5): with the Phase 8 governance runtime on, named
+        # contributor buckets are clamped to their ceilings before combining;
+        # a no-op (no arithmetic at all) when governance is off.
+        buckets = _ContributorBuckets(self.world, weights)
         trait = civ.leader.trait
         if trait == "stubborn":
             history = self.world.action_history.get(civ.name, [])
@@ -985,7 +1038,9 @@ class ActionEngine:
                 if weights[action] == 0.0:
                     continue
                 weights[action] *= profile.get(action, 1.0)
+        buckets.close("trait", weights)
         self._apply_situational(civ, weights)
+        buckets.close("situational", weights)
         if civ.leader.secondary_trait:
             boosted = SECONDARY_TRAIT_ACTION.get(civ.leader.secondary_trait)
             secondary_boost = get_override(self.world, K_SECONDARY_TRAIT_BOOST, 1.3)
@@ -1015,18 +1070,32 @@ class ActionEngine:
         if "diplomatic" in civ.traditions and ActionType.DIPLOMACY in weights:
             weights[ActionType.DIPLOMACY] *= 1.2
 
+        buckets.open(weights)  # leader/rival/grudge/tradition stay unbucketed (own caps)
+
         # M21: Tech focus weight biases
         from chronicler.tech_focus import get_focus_weight_modifiers
         focus_mods = get_focus_weight_modifiers(civ)
         for action, mod in focus_mods.items():
             if action in weights and weights[action] > 0:
                 weights[action] *= mod
+        buckets.close("tech_focus", weights)
 
         # M22: Faction weight modifier
         from chronicler.factions import get_faction_weight_modifier
         for action in ActionType:
             if weights[action] > 0:
                 weights[action] *= get_faction_weight_modifier(civ, action)
+        buckets.close("faction", weights)
+
+        # Phase 8 (M63b): governance contributor bucket -- institutions,
+        # ambitions, legitimacy and PSI -- pre-clamped to 1.5x as one bucket;
+        # the global weight cap below still applies to the combined weight.
+        if getattr(self.world, "governance", None) is not None and getattr(civ, "governance", None) is not None:
+            from chronicler.governance_runtime import governance_weight_modifiers
+            for action, mod in governance_weight_modifiers(civ, self.world).items():
+                if weights[action] > 0:
+                    weights[action] *= mod
+            buckets.record("governance", weights)
 
         # M37: Holy war weight modifier
         if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):
@@ -1121,6 +1190,7 @@ class ActionEngine:
         for action, weight in list(weights.items()):
             if weight > max_allowed:
                 weights[action] = max_allowed
+        self.last_buckets = buckets.factors
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
