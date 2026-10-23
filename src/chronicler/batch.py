@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import copy
 import multiprocessing
+import os
 import threading
 from pathlib import Path
 from typing import Any, Callable
@@ -69,7 +70,7 @@ def run_batch(
             child_args.tuning_overrides = tuning_overrides
             run_args.append((child_args, scenario_config))
 
-        with multiprocessing.Pool(workers) as pool:
+        with multiprocessing.Pool(workers, initializer=_init_parallel_worker) as pool:
             async_results = [pool.apply_async(_run_single_no_llm, a) for a in run_args]
             for i, ar in enumerate(async_results):
                 if cancel_event and cancel_event.is_set():
@@ -111,6 +112,18 @@ def run_batch(
     _write_summary(batch_dir, results, weights)
 
     return batch_dir
+
+
+def _init_parallel_worker() -> None:
+    """Give each batch worker a one-thread rayon pool unless the user sized it.
+
+    Parallel batches already run one simulation per core; per-worker rayon
+    threads only oversubscribe the cores at current agent counts. The native
+    tick partitions work per region with per-region RNG streams, so results
+    do not depend on the thread count. Runs before the worker first imports
+    the native extension, whose global pool reads the variable at start.
+    """
+    os.environ.setdefault("RAYON_NUM_THREADS", "1")
 
 
 def _run_single_no_llm(args: argparse.Namespace, scenario_config: Any = None) -> RunResult:
