@@ -63,23 +63,34 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
         return
     from chronicler.models import ResourceType
 
-    from chronicler.economy import occupied_resource_slot_count
+    from chronicler.economy import PER_CAPITA_FOOD, food_first_slot_labor
 
     # The split bridge's live snapshot precedes this turn's agent tick. Prefer
     # actual farmers there; pure-Python/off-mode uses the existing ecology proxy.
     worker_counts = [max(0, region.population // 5) for region in world.regions]
+    populations = [max(0, region.population) for region in world.regions]
     bridge = getattr(world, "_agent_bridge", None)
     if bridge is not None:
         snapshot = bridge.get_snapshot()
         if snapshot is not None:
             worker_counts = [0] * len(world.regions)
+            populations = [0] * len(world.regions)
             for rid, occupation in zip(snapshot.column("region").to_pylist(),
                                        snapshot.column("occupation").to_pylist()):
-                if occupation == 0 and 0 <= rid < len(worker_counts):
-                    worker_counts[rid] += 1
+                if 0 <= rid < len(worker_counts):
+                    populations[rid] += 1
+                    if occupation == 0:
+                        worker_counts[rid] += 1
 
     for rid, region in enumerate(world.regions):
         yields = region_yields[region.name]
+        # Goods production allocates farmer labor food-first across occupied
+        # slots; fishing effort uses the same share, so biomass is not debited
+        # for labor that the economy assigns to other resources.
+        slot_workers = food_first_slot_labor(
+            region.resource_types, yields, worker_counts[rid],
+            populations[rid] * PER_CAPITA_FOOD,
+        )
         for slot, rtype in enumerate(region.resource_types):
             if rtype != ResourceType.FISH:
                 # A removed fish resource cannot leave stale stock in its slot.
@@ -88,10 +99,7 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
                 region.fishery_catch_budgets[slot] = None
                 continue
             potential = yields[slot]
-            # Goods production splits farmer labor equally across occupied
-            # slots; fishing effort uses the same share, so biomass is not
-            # debited for labor that the economy assigns to other resources.
-            workers = worker_counts[rid] / max(1, occupied_resource_slot_count(region.resource_types))
+            workers = slot_workers[slot]
             result = step_fishery(region.fishery_stocks[slot],
                                   region.resource_base_yields[slot], potential, workers, config)
             region.fishery_stocks[slot] = result.stock

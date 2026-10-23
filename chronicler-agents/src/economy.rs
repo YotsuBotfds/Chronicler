@@ -408,6 +408,65 @@ fn slot_to_category(slot: usize) -> usize {
     }
 }
 
+/// Share of its equal labor that a non-food slot always keeps.
+pub const FOOD_FIRST_NONFOOD_FLOOR: f32 = 0.25;
+
+/// Food-first farmer labor per resource slot.
+///
+/// Labor starts from the equal split across occupied valid slots. When a
+/// region has both food and non-food slots and the food slots' equal share
+/// would not cover this turn's food demand, farmers move from the non-food
+/// slots to the food slots until the harvest covers demand, but each non-food
+/// slot keeps at least `FOOD_FIRST_NONFOOD_FLOOR` of its equal share. Food
+/// slots never receive less than their equal share, and the total labor is
+/// unchanged. Mirrors Python `food_first_slot_labor`.
+pub fn food_first_slot_labor(
+    resource_types: &[u8; 3],
+    resource_yields: &[f32; 3],
+    farmers: f32,
+    food_demand: f32,
+    equal_share: f32,
+) -> [f32; 3] {
+    let mut labor = [0.0f32; 3];
+    let mut n_food = 0usize;
+    let mut n_other = 0usize;
+    let mut food_yield_sum = 0.0f32;
+    for i in 0..3 {
+        let slot = rt_to_slot(resource_types[i]);
+        if slot >= NUM_GOODS {
+            continue;
+        }
+        labor[i] = equal_share;
+        if slot_to_category(slot) == CAT_FOOD {
+            n_food += 1;
+            food_yield_sum += resource_yields[i].max(0.0);
+        } else {
+            n_other += 1;
+        }
+    }
+    if n_food == 0 || n_other == 0 || food_yield_sum <= 0.0 || farmers <= 0.0 {
+        return labor;
+    }
+    let mean_food_yield = food_yield_sum / n_food as f32;
+    let equal_food_labor = equal_share * n_food as f32;
+    let needed = food_demand.max(0.0) / mean_food_yield;
+    if needed <= equal_food_labor {
+        return labor;
+    }
+    let max_food_labor = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * n_other as f32;
+    let food_labor = needed.min(max_food_labor.max(equal_food_labor));
+    let per_food = food_labor / n_food as f32;
+    let per_other = (farmers - food_labor).max(0.0) / n_other as f32;
+    for i in 0..3 {
+        let slot = rt_to_slot(resource_types[i]);
+        if slot >= NUM_GOODS {
+            continue;
+        }
+        labor[i] = if slot_to_category(slot) == CAT_FOOD { per_food } else { per_other };
+    }
+    labor
+}
+
 /// Compute transport cost for a single route.
 fn compute_transport_cost(
     terrain_a: u8,
@@ -664,12 +723,19 @@ pub fn tick_economy_core(
         let active_slots = inp.resource_types.iter()
             .filter(|&&rt| rt_to_slot(rt) < NUM_GOODS).count();
         let labor_per_slot = ac.farmer_count as f32 / active_slots.max(1) as f32;
+        let slot_labor = food_first_slot_labor(
+            &inp.resource_types,
+            &inp.resource_yields,
+            ac.farmer_count as f32,
+            ac.population as f32 * config.per_capita_food,
+            labor_per_slot,
+        );
         let mut production = [0.0f32; NUM_CATEGORIES];
         let mut per_good_production = [0.0f32; NUM_GOODS];
         for resource_idx in 0..3 {
             let slot = rt_to_slot(inp.resource_types[resource_idx]);
             if slot >= NUM_GOODS { continue; }
-            let mut amount = inp.resource_yields[resource_idx].max(0.0) * labor_per_slot;
+            let mut amount = inp.resource_yields[resource_idx].max(0.0) * slot_labor[resource_idx];
             if let Some(cap) = inp.production_caps[resource_idx] {
                 amount = amount.min(cap.max(0.0));
             }

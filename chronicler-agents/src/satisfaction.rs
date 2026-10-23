@@ -308,8 +308,27 @@ pub fn target_occupation_ratio(
     let sum: f32 = r.iter().sum();
     for v in &mut r { *v /= sum; }
 
+    // Correction (2026-10): under the structural food shortage of the
+    // labor-split economy the scarcity bonus pushed the farmer target to ~0.9,
+    // past the occupational-diversity ceiling the regression oracle enforces
+    // (no occupation above 70% of a civ). More farmers cannot fix a region
+    // whose per-farmer yield is below demand, so the target stops at the
+    // ceiling (with headroom for switching noise) and the excess returns to
+    // the other occupations in proportion.
+    if r[0] > MAX_FARMER_TARGET_SHARE {
+        let others: f32 = r[1..].iter().sum();
+        let excess = r[0] - MAX_FARMER_TARGET_SHARE;
+        r[0] = MAX_FARMER_TARGET_SHARE;
+        if others > 0.0 {
+            for v in &mut r[1..] { *v += excess * *v / others; }
+        }
+    }
+
     r
 }
+
+/// Ceiling on the farmer share of the target occupation mix.
+pub const MAX_FARMER_TARGET_SHARE: f32 = 0.66;
 
 #[cfg(test)]
 mod m36_tests {
@@ -634,6 +653,15 @@ mod tests {
         let starving = target_occupation_ratio(0, 0.5, 0.5, 0.2, [0.0; 5]);
         assert!(starving[0] > base[0]);
         assert!((starving.iter().sum::<f32>() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_target_occupation_ratio_farmer_share_is_capped() {
+        // Forest + total famine would otherwise target ~0.9 farmers.
+        let starving = target_occupation_ratio(3, 0.8, 0.6, 0.0, [0.0; 5]);
+        assert!((starving[0] - MAX_FARMER_TARGET_SHARE).abs() < 1e-6);
+        assert!((starving.iter().sum::<f32>() - 1.0).abs() < 1e-5);
+        assert!(starving[1..].iter().all(|&v| v > 0.0));
     }
 
     // --- M27 shock penalty tests ---

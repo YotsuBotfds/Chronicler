@@ -279,8 +279,15 @@ def test_native_economy_honors_lagged_budget(fish_world):
                   if occupation == 0 and rid == 0)
     row = batch.to_pylist()[0]
     budget = region.fishery_catch_budgets[0]
-    uncapped_fish = row["resource_yield_0"] * farmers / 2
-    ore = row["resource_yield_1"] * farmers / 2
+    from chronicler.economy import PER_CAPITA_FOOD, food_first_slot_labor
+    eaters = sum(1 for rid in snapshot.column("region").to_pylist() if rid == 0)
+    labor = food_first_slot_labor(
+        region.resource_types,
+        [row["resource_yield_0"], row["resource_yield_1"], row["resource_yield_2"]],
+        farmers, eaters * PER_CAPITA_FOOD,
+    )
+    uncapped_fish = row["resource_yield_0"] * labor[0]
+    ore = row["resource_yield_1"] * labor[1]
     assert row["fishery_catch_budget_0"] == pytest.approx(budget)
     assert row["fishery_catch_budget_1"] is None and row["fishery_catch_budget_2"] is None
     assert uncapped_fish > budget > 0 and ore > 0  # the cap binds only the fish share
@@ -312,13 +319,22 @@ def test_fishing_effort_uses_the_production_labor_share(fish_world):
         world.regions[0].fishery_stocks[0] = .5
         apply_fishery_feedback(world, {world.regions[0].name: [1.0, .5, 0.0]})
     shared, alone = fish_world.regions[0], single.regions[0]
-    # pop 2000 -> 400 proxy workers: 200 per slot when shared with ore.
-    expected_shared = step_fishery(.5, 1.0, 1.0, 200, FisheryConfig())
+    # pop 2000 -> 400 proxy workers. Shared with ore, the food-first split
+    # gives fishing the labor the economy assigns it (the 1000-food demand
+    # pulls it above the 200 equal share, ore keeps a quarter of its share: 350).
+    from chronicler.economy import PER_CAPITA_FOOD, food_first_slot_labor
+    shared_workers = food_first_slot_labor(
+        shared.resource_types, [1.0, .5, 0.0], 400, 2000 * PER_CAPITA_FOOD,
+    )[0]
+    assert shared_workers == pytest.approx(350.0)
+    expected_shared = step_fishery(.5, 1.0, 1.0, shared_workers, FisheryConfig())
     expected_alone = step_fishery(.5, 1.0, 1.0, 400, FisheryConfig())
     assert shared.fishery_stocks[0] == pytest.approx(expected_shared.stock)
     assert alone.fishery_stocks[0] == pytest.approx(expected_alone.stock)
-    assert shared.fishery_catch_budgets[0] < alone.fishery_catch_budgets[0]
-    assert shared.fishery_stocks[0] > alone.fishery_stocks[0]
+    # With the larger food-first share both efforts can hit the biomass limit,
+    # so less effort never catches more or leaves less stock.
+    assert shared.fishery_catch_budgets[0] <= alone.fishery_catch_budgets[0]
+    assert shared.fishery_stocks[0] >= alone.fishery_stocks[0]
 
 
 def test_python_economy_caps_each_fish_slot_after_labor_split(fish_world):
