@@ -618,7 +618,17 @@ pub fn try_tick_agents(
                         is_legacy: false,
                         decay_factor_override: None,
                     });
-                    if region_id < regions.len() && regions[region_id].war_won_this_turn {
+                    // Victory is civ-filtered: in both decisive outcomes the
+                    // civ holding the region after this turn's battles is the
+                    // winner, so only its soldiers remember a victory. A region
+                    // that changed hands holds the losing defenders (realigned
+                    // to the conqueror), who keep Battle + Conquest instead.
+                    if region_id < regions.len()
+                        && regions[region_id].war_won_this_turn
+                        && !regions[region_id].controller_changed_this_turn
+                        && regions[region_id].controller_civ != 255
+                        && pool.civ_affinities[slot] == regions[region_id].controller_civ
+                    {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
                             expected_agent_id: pool.ids[slot],
