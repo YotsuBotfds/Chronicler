@@ -169,6 +169,46 @@ describe("useLiveConnection", () => {
     expect(snapshot?.founded_this_turn).toEqual([11]);
     expect(snapshot?.dissolved_this_turn).toEqual([9]);
     expect(snapshot?.urban_fraction).toBe(0.4);
+    expect(snapshot?.campaign).toBeUndefined();
+  });
+
+  it("carries M60 campaign data (armies, battles, occupations, wars)", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    const campaign = {
+      armies: [{
+        id: "army-1", name: "The First Host of Civ A", civ: "Civ A", region: "Ford",
+        objective: "Keep", phase: "marching", soldiers: 12, morale: 640, rations: 60,
+        supply_distance: 1, general: null, war: "Civ A:Civ B", siege_turns: 0,
+      }],
+      battles: [{
+        turn: 1, name: "The Battle of Ford", kind: "field", region: "Ford", war_key: "Civ A:Civ B",
+        attacker: "Civ A", defender: "Civ B", attacker_soldiers: 12, defender_soldiers: 8,
+        attacker_power: 180, defender_power: 120, attacker_losses: 1, defender_losses: 3,
+        winner: "Civ A", attacker_general: null, defender_general: null,
+      }],
+      occupations: [{
+        region: "Ford", owner: "Civ B", occupier: "Civ A", war_key: "Civ A:Civ B",
+        since_turn: 1, unrest: 220, revolts: 0,
+      }],
+      wars: [{
+        war: "Civ A:Civ B", attacker: "Civ A", defender: "Civ B", aim: "conquest",
+        aim_region: "Ford", score: 18, start_turn: 0, battles: 1,
+      }],
+    };
+    act(() => {
+      ws.simulateMessage({
+        type: "turn", turn: 2, civ_stats: {}, region_control: {}, relationships: {},
+        campaign, events: [], named_events: [], chronicle_text: "",
+      });
+    });
+    const snapshot = result.current.bundle?.history[0];
+    expect(snapshot?.campaign?.armies[0]?.soldiers).toBe(12);
+    expect(snapshot?.campaign?.battles[0]?.winner).toBe("Civ A");
+    expect(snapshot?.campaign?.occupations[0]?.occupier).toBe("Civ A");
+    expect(snapshot?.campaign?.wars[0]?.score).toBe(18);
   });
 
   it("sets paused state on paused message", async () => {

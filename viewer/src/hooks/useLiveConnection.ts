@@ -138,6 +138,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     dissolved_this_turn: msg.dissolved_this_turn as TurnSnapshot["dissolved_this_turn"],
     urban_agent_count: msg.urban_agent_count as TurnSnapshot["urban_agent_count"],
     urban_fraction: msg.urban_fraction as TurnSnapshot["urban_fraction"],
+    campaign: msg.campaign as TurnSnapshot["campaign"],
   }), []);
 
   useEffect(() => {
