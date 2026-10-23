@@ -1002,6 +1002,15 @@ class ActionEngine:
             if weights[action] > 0:
                 weights[action] *= get_faction_weight_modifier(civ, action)
 
+        # Phase 8 (M63b): governance contributor bucket -- institutions,
+        # ambitions, legitimacy and PSI -- pre-clamped to 1.5x as one bucket;
+        # the global weight cap below still applies to the combined weight.
+        if getattr(self.world, "governance", None) is not None and getattr(civ, "governance", None) is not None:
+            from chronicler.governance_runtime import governance_weight_modifiers
+            for action, mod in governance_weight_modifiers(civ, self.world).items():
+                if weights[action] > 0:
+                    weights[action] *= mod
+
         # M37: Holy war weight modifier
         if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):
             attacker_faith = civ.civ_majority_faith

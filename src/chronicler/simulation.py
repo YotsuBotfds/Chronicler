@@ -471,6 +471,11 @@ def apply_automatic_effects(
         apply_long_peace, update_peak_regions,
     )
     events.extend(apply_governing_costs(world, acc=acc))
+    # Phase 8 governance: institutional enforcement is paid right after the
+    # base governing cost and recorded for late Phase 10 (M63a bookkeeping).
+    if getattr(world, "governance", None) is not None:
+        from chronicler.governance_runtime import fund_institutions_phase2
+        events.extend(fund_institutions_phase2(world, acc=acc))
     events.extend(collect_tribute(world, acc=acc))
     events.extend(apply_proxy_wars(world, acc=acc))
     events.extend(apply_exile_effects(world, acc=acc))
@@ -1322,6 +1327,12 @@ def phase_consequences(
     # M38a: Temple prestige tick
     from chronicler.infrastructure import tick_temple_prestige
     tick_temple_prestige(world, acc=acc)
+
+    # Phase 8 governance (late Phase 10, after politics and tick_factions):
+    # institutions, elites, capital, ambitions and PSI; effective N+1.
+    if getattr(world, "governance", None) is not None:
+        from chronicler.governance_runtime import tick_governance
+        collapse_events.extend(tick_governance(world, acc=acc, phase10=phase10))
 
     return collapse_events
 
