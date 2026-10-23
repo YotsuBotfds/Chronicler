@@ -151,11 +151,15 @@ def pressure_multiplier(
     water: float,
     capacity_modifier: float = 1.0,
 ) -> float:
-    """Compute pressure multiplier for recovery gating."""
-    eff = effective_capacity(carrying_capacity, soil, water, capacity_modifier)
-    if eff <= 0:
-        return 1.0
-    return max(0.1, 1.0 - population / eff)
+    """Compute pressure multiplier for recovery gating.
+
+    Correction (2026-10): pressure is measured against the undegraded
+    potential capacity (carrying_capacity x capacity_modifier), matching
+    ecology.potential_capacity and Rust potential_capacity. ``soil`` and
+    ``water`` are kept in the signature for the existing call sites.
+    """
+    potential = max(1.0, carrying_capacity * capacity_modifier)
+    return max(0.1, 1.0 - population / potential)
 
 
 def tick_soil(
@@ -185,8 +189,8 @@ def tick_soil(
             mine_rate *= MECHANIZATION_MINE_MULT
         soil -= mine_rate
 
-    # Recovery: pressure-gated
-    if population < eff * SOIL_RECOVERY_POP_RATIO:
+    # Recovery: pressure-gated against the undegraded potential (2026-10)
+    if population < max(1.0, carrying_capacity * capacity_modifier) * SOIL_RECOVERY_POP_RATIO:
         rate = SOIL_RECOVERY
         pm = pressure_multiplier(population, carrying_capacity, soil, water, capacity_modifier)
         rate *= pm

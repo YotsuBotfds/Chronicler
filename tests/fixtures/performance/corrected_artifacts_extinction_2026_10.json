@@ -1,0 +1,117 @@
+{
+  "provenance": {
+    "derived_from": [
+      "corrected_backlog_2026_10.json",
+      "corrected_artifacts_backlog_2026_10.json"
+    ],
+    "base_revision": "f8b3673",
+    "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
+    "corrections": [
+      {
+        "id": "EXT-2026-10",
+        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split.",
+        "workloads": {
+          "single": 0,
+          "standard": 0,
+          "wide": 0
+        }
+      }
+    ],
+    "notes": [
+      "T1-3 (wide, from index 23 in corrected_backlog_2026_10) is still in effect, but after EXT-2026-10 no golden workload triggers a tech regression, so reverting T1-3 leaves these oracles unchanged. tests/test_performance_equivalence.py covers its off-mode routing directly."
+    ],
+    "environment": {
+      "python": "3.13.17",
+      "platform": "Linux"
+    },
+    "comparison": "complete emitted file set, byte count and SHA256; no field filtering or tolerance"
+  },
+  "workloads": {
+    "single": {
+      "chronicle.md": {
+        "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+        "bytes": 214
+      },
+      "chronicle_bundle.json": {
+        "sha256": "5740e92178a1593c8585f07d383a66d0e36e48c5903841a945897e0847f8e99d",
+        "bytes": 73631
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "fc66cac7089b4a190bc9ca3b6f3fcf53a237b0ab24c76a077148dedfdb762c4d",
+        "bytes": 5578
+      },
+      "state.json": {
+        "sha256": "52f4814efbf86f43a20902e65b82b8a06ab02645fc3c07fb2eeb4af917de19ee",
+        "bytes": 25669
+      }
+    },
+    "standard": {
+      "chronicle.md": {
+        "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+        "bytes": 588
+      },
+      "chronicle_bundle.json": {
+        "sha256": "03a4cdd55eece4adacdd8f1118b505dbb883a82a0479e8f0cebfdd61915e9121",
+        "bytes": 826626
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "a451ad7a5c45feb94324b921594f18775dfeb43b37b091d63eee693dd6fcb49a",
+        "bytes": 22150
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "637e6b95a75380fb917d7082bb96b340809d8ea2983d6b2815e8578e8bb53a47",
+        "bytes": 19915
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "46697bf7a863e28c7fb82d4eb60bb60c4e9b248304ac137bbbb296e7fd666e35",
+        "bytes": 15676
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "a6bf1585b57df0ada643c5879c3a5fb9835136ef7f7730b1f32d31030b107262",
+        "bytes": 24704
+      },
+      "state.json": {
+        "sha256": "30053dd1714a2bdb7d1f1123fa87e29030775c534907aac6a0462c43599d58be",
+        "bytes": 250003
+      }
+    },
+    "wide": {
+      "chronicle.md": {
+        "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+        "bytes": 500
+      },
+      "chronicle_bundle.json": {
+        "sha256": "d10a7dea1435a71422875a566c0461ff791b950bf23e9c321c2bf86987f5b909",
+        "bytes": 936026
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "3c2e3ed64a8c26ad7853cf3f1622930bc0021bb75eb8cd9c30accb1110bd3d3a",
+        "bytes": 15769
+      },
+      "memories_dorrathi_clans.json": {
+        "sha256": "17b872273b80516f067d115b1b59e746fe673cd9ea1a2c410bca3ffb206cfeaa",
+        "bytes": 16121
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "bed064adff1f584aedadaa928a507ace56248177089c7c7a3b3558a984107d73",
+        "bytes": 15346
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "55834e2853a9bea75701e72f10e7f06f5398ce59ec639d3dee696eea02b8291f",
+        "bytes": 16626
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "45fc122c561cdc4a6311582942e338c59c2e1e50adda9d3e5b36db6077334f96",
+        "bytes": 15794
+      },
+      "memories_vrashni_dominion.json": {
+        "sha256": "d5470130d8990bec58a142d54b6de9b957a3f6bef37177adb5c9de36a33fd050",
+        "bytes": 9824
+      },
+      "state.json": {
+        "sha256": "30a4aaee10a493303ac30d5cf28cf4a84f9b7b207f5778c1c0b6f15b2fec1df6",
+        "bytes": 299364
+      }
+    }
+  }
+}

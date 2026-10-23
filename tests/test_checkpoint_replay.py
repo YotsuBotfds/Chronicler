@@ -27,18 +27,19 @@ def test_uninterrupted_matches_every_resumed_turn(seed, split, tmp_path):
 
 
 def test_real_pending_stockpile_boundary_rejects_api_and_cli(tmp_path, capsys):
-    # The reviewed mercenary correction changes this trace. At turn 12 an
-    # expansion into an empty region requests bootstrap on the next turn.
-    # The request is transient and intentionally outside the envelope contract.
+    # The reviewed mercenary correction and the 2026-10 extinction fix
+    # (decaying event hazards) change this trace. At turn 14 an expansion into
+    # an empty region requests bootstrap on the next turn. The request is
+    # transient and intentionally outside the envelope contract.
     world = generate_world(seed=42, num_civs=4, num_regions=8)
     original = world.model_dump()
     with pytest.raises(replay.CheckpointError, match="completed stockpile bootstrap"):
-        replay.validate_replay(world, turns=30, split=12, checkpoint_path=tmp_path / "api.json")
+        replay.validate_replay(world, turns=30, split=14, checkpoint_path=tmp_path / "api.json")
     assert world.model_dump() == original
     assert not (tmp_path / "api.json").exists()
     output = tmp_path / "cli"
     assert replay.main([
-        "--seed", "42", "--turns", "30", "--split", "12", "--output-dir", str(output),
+        "--seed", "42", "--turns", "30", "--split", "14", "--output-dir", str(output),
     ]) == 2
     report = json.loads(capsys.readouterr().out)
     assert report["status"] == "ERROR"
