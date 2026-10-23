@@ -78,6 +78,10 @@ CONTACT_WEIGHTS: tuple[float, ...] = (1.0, 1.0, 0.25, 2.0)
 
 #: A civ pair counts as trade partners at this decayed goods flow.
 TRADE_PARTNER_MIN_FLOW = 1.0
+#: Merchant great person: living partners (F >= TRADE_PARTNER_MIN_FLOW) a civ
+#: needs for a "high trade route turn". The legacy rule needs 4 relationships
+#: that ever traded (dead civs included); live partners are far scarcer.
+MERCHANT_HUB_PARTNERS = 3
 
 # Movement spread: adoption percent per unit of civ contact (times compatibility/100).
 MOVEMENT_PCT_PER_CONTACT = 1.0

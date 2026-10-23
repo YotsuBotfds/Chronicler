@@ -172,13 +172,21 @@ def test_merchant_trigger_counts_living_partners_with_real_flow():
     world = generate_world(seed=5, num_regions=12, num_civs=6)
     cl.set_contact_ledger_enabled(world, True)
     hub = world.civilizations[0]
-    for other in world.civilizations[1:5]:
+    partners = world.civilizations[1:1 + cl.MERCHANT_HUB_PARTNERS]
+    for other in partners:
         _set_pair_flow(world, hub.name, other.name, trade=2.0)
         # Stale cumulative trade_volume is ignored.
         world.relationships[hub.name][other.name].trade_volume = 0
+    for other in world.civilizations[1 + cl.MERCHANT_HUB_PARTNERS:]:
+        world.relationships[hub.name][other.name].trade_volume = 50  # ever traded, no live flow
     update_event_counts(world)
     assert hub.event_counts["high_trade_route_turns"] == 1
-    _set_pair_flow(world, hub.name, world.civilizations[4].name, trade=0.5)
+    _set_pair_flow(world, hub.name, partners[-1].name, trade=0.5)  # below the partner floor
+    update_event_counts(world)
+    assert hub.event_counts["high_trade_route_turns"] == 0
+    # A dead partner does not count.
+    _set_pair_flow(world, hub.name, partners[-1].name, trade=2.0)
+    partners[-1].regions = []
     update_event_counts(world)
     assert hub.event_counts["high_trade_route_turns"] == 0
 
@@ -323,6 +331,14 @@ def test_cli_flag_persists_and_bundle_carries_contact_history(tmp_path):
         (batch / name).mkdir(parents=True)
         (batch / name / "chronicle_bundle.json").write_text(json.dumps(bundle))
     assert generate_report(batch)["contact_ledger"]["runs"] == 2
+
+
+def test_gate_runner_forwards_the_switch_only_when_explicit():
+    from scripts.m53b_run_validation import _contact_ledger_args
+    assert _contact_ledger_args(argparse.Namespace(contact_ledger=None)) == []
+    assert _contact_ledger_args(argparse.Namespace(contact_ledger=True)) == ["--contact-ledger"]
+    assert _contact_ledger_args(argparse.Namespace(contact_ledger=False)) == ["--no-contact-ledger"]
+    assert _contact_ledger_args(argparse.Namespace()) == []
 
 
 def test_new_worlds_follow_default_and_resume_keeps_saved_setting(tmp_path):
