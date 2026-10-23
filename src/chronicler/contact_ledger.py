@@ -83,9 +83,12 @@ TRADE_PARTNER_MIN_FLOW = 1.0
 #: that ever traded (dead civs included); live partners are far scarcer.
 MERCHANT_HUB_PARTNERS = 3
 
-# Movement spread: adoption percent per unit of civ contact (times compatibility/100).
-MOVEMENT_PCT_PER_CONTACT = 1.0
-MOVEMENT_MAX_PCT = 50.0
+# Movement spread: adoption percent per unit of civ contact (times compatibility/100),
+# capped near the legacy per-pair magnitude (trade_volume percent rarely exceeded 20).
+# Faster spread revives the dormant schism/co-adoption drift strongly enough to
+# churn federations (see docs/integration/contact-ledger.md).
+MOVEMENT_PCT_PER_CONTACT = 0.5
+MOVEMENT_MAX_PCT = 20.0
 
 # Disposition warmth for trade partners (accumulates into disposition_drift).
 WARMTH_PER_TURN = 1
