@@ -135,7 +135,7 @@ def test_named_event_serialization():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_models.py -v -k "named_event or leader_new or civilization_new or world_state_new" 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_models.py -v -k "named_event or leader_new or civilization_new or world_state_new" 2>&1 | tail -20`
 
 Expected: FAIL — `NamedEvent` not importable, new fields not defined.
 
@@ -184,13 +184,13 @@ Update the imports in `test_models.py` to include `NamedEvent`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_models.py -v -k "named_event or leader_new or civilization_new or world_state_new" 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_models.py -v -k "named_event or leader_new or civilization_new or world_state_new" 2>&1 | tail -20`
 
 Expected: All PASS.
 
 - [ ] **Step 5: Run full existing test suite to verify no regressions**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -30`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -30`
 
 Expected: All 94 existing tests PASS.
 
@@ -225,7 +225,7 @@ def test_civilizations_start_at_tribal():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_world_gen.py::test_civilizations_start_at_tribal -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_world_gen.py::test_civilizations_start_at_tribal -v`
 
 Expected: FAIL — civs currently start at IRON.
 
@@ -235,13 +235,13 @@ In `src/chronicler/world_gen.py`, in the `assign_civilizations` function, find w
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_world_gen.py::test_civilizations_start_at_tribal -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_world_gen.py::test_civilizations_start_at_tribal -v`
 
 Expected: PASS.
 
 - [ ] **Step 5: Run full test suite — fix any tests that assumed IRON start**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -30`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -30`
 
 Expected: All PASS (fix any failures caused by the era change).
 
@@ -263,7 +263,7 @@ git commit -m "feat(world_gen): change starting era from IRON to TRIBAL"
 
 - [ ] **Step 1: Run full test suite to check for regressions after Tasks 1-2**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -30`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -30`
 
 If all pass, Pydantic defaults handle the new fields correctly. If any fail due to the IRON→TRIBAL change in `world_gen.py`, check whether the failing test uses `generate_world()` (should now get TRIBAL) vs. conftest fixtures (still IRON). Fix accordingly:
 - Tests using `generate_world()`: update assertions to expect TRIBAL
@@ -271,7 +271,7 @@ If all pass, Pydantic defaults handle the new fields correctly. If any fail due 
 
 - [ ] **Step 2: Verify new model fields have safe defaults**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -c "from tests.conftest import *; import pytest; print('Fixtures importable')"` or just confirm the fixtures work via pytest.
+Run: `cd <HOME>/Documents/opusprogram && python -c "from tests.conftest import *; import pytest; print('Fixtures importable')"` or just confirm the fixtures work via pytest.
 
 - [ ] **Step 3: Commit if changes were needed**
 
@@ -513,7 +513,7 @@ def test_tech_war_multiplier_defender_advantage():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_tech.py -v 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_tech.py -v 2>&1 | tail -20`
 
 Expected: FAIL — `chronicler.tech` module doesn't exist.
 
@@ -633,7 +633,7 @@ def tech_war_multiplier(attacker_era: TechEra, defender_era: TechEra) -> float:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_tech.py -v 2>&1 | tail -30`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_tech.py -v 2>&1 | tail -30`
 
 Expected: All PASS.
 
@@ -797,7 +797,7 @@ class TestDeduplication:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_named_events.py -v 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_named_events.py -v 2>&1 | tail -20`
 
 Expected: FAIL — module doesn't exist.
 
@@ -943,7 +943,7 @@ def deduplicate_name(name: str, existing: list[str]) -> str:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_named_events.py -v 2>&1 | tail -30`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_named_events.py -v 2>&1 | tail -30`
 
 Expected: All PASS.
 
@@ -1236,7 +1236,7 @@ class TestTraitEvolution:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_leaders.py -v 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_leaders.py -v 2>&1 | tail -20`
 
 Expected: FAIL — module doesn't exist.
 
@@ -1641,7 +1641,7 @@ def check_trait_evolution(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_leaders.py -v 2>&1 | tail -40`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_leaders.py -v 2>&1 | tail -40`
 
 Expected: All PASS.
 
@@ -1883,7 +1883,7 @@ class TestRivalryBoost:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_action_engine.py -v 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_action_engine.py -v 2>&1 | tail -20`
 
 Expected: FAIL — module doesn't exist.
 
@@ -2105,7 +2105,7 @@ class ActionEngine:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_action_engine.py -v 2>&1 | tail -40`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_action_engine.py -v 2>&1 | tail -40`
 
 Expected: All PASS.
 
@@ -2278,7 +2278,7 @@ def test_backward_compat_old_state(tmp_path, sample_world):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_simulation.py -v -k "nine_phase or tech_phase or leader_dynamics or action_history_tracked or action_counts_tracked or war_uses_tech or backward_compat" 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_simulation.py -v -k "nine_phase or tech_phase or leader_dynamics or action_history_tracked or action_counts_tracked or war_uses_tech or backward_compat" 2>&1 | tail -20`
 
 Expected: Some FAIL (new phase logic not yet wired).
 
@@ -2432,13 +2432,13 @@ Update `_resolve_war_action` to enforce HOSTILE/SUSPICIOUS disposition threshold
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_simulation.py -v 2>&1 | tail -40`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_simulation.py -v 2>&1 | tail -40`
 
 Expected: All PASS (both new and existing tests).
 
 - [ ] **Step 6: Run full test suite**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -40`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -40`
 
 Expected: All PASS.
 
@@ -2522,7 +2522,7 @@ def test_chronicle_prompt_includes_rivalries(sample_world):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_narrative.py -v -k "named_events or highest_importance or rivalries" 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_narrative.py -v -k "named_events or highest_importance or rivalries" 2>&1 | tail -20`
 
 Expected: FAIL — prompt doesn't include these yet.
 
@@ -2559,7 +2559,7 @@ In `src/chronicler/narrative.py`, modify `build_chronicle_prompt` (lines 84-118)
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_narrative.py -v 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_narrative.py -v 2>&1 | tail -20`
 
 Expected: All PASS.
 
@@ -2599,7 +2599,7 @@ def test_llm_actions_flag_in_parser():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_main.py -v -k "llm_actions" 2>&1 | tail -10`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_main.py -v -k "llm_actions" 2>&1 | tail -10`
 
 Expected: FAIL — `_build_parser` doesn't exist / no `--llm-actions` flag.
 
@@ -2635,13 +2635,13 @@ else:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_main.py -v 2>&1 | tail -20`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_main.py -v 2>&1 | tail -20`
 
 Expected: All PASS.
 
 - [ ] **Step 5: Run full test suite**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -40`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -40`
 
 Expected: All PASS.
 
@@ -2745,13 +2745,13 @@ def test_m7_critical_gate_20_turns():
 
 - [ ] **Step 2: Run the critical gate test**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_e2e.py::test_m7_critical_gate_20_turns -v 2>&1`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_e2e.py::test_m7_critical_gate_20_turns -v 2>&1`
 
 Expected: PASS.
 
 - [ ] **Step 3: Run full test suite one final time**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -40`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/ -v 2>&1 | tail -40`
 
 Expected: All tests PASS (184+ total).
 

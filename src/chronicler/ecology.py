@@ -709,6 +709,9 @@ def _tick_ecology_python(world: WorldState, climate_phase: ClimatePhase, acc) ->
         yields = compute_resource_yields(region, season_id, climate_phase, worker_count, world)
         region_yields[region.name] = yields
 
+    from chronicler.experimental.fisheries import apply_fishery_feedback
+    apply_fishery_feedback(world, region_yields)
+
     # M34: Yield-based famine check
     events = _check_famine_yield(world, region_yields, climate_phase, famine_threshold, subsistence_base, acc)
 
@@ -747,26 +750,10 @@ def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
     and tests do not hard-require the native ``chronicler_agents`` extension.
     """
     if ecology_runtime is not None:
+        from chronicler.experimental.fisheries import require_fishery_runtime
+        require_fishery_runtime(world, ecology_runtime)
         return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime)
     return _tick_ecology_python(world, climate_phase, acc)
-
-
-def _make_transient_ecology_runtime(world: "WorldState"):
-    """Create and initialize a one-shot EcologySimulator for this tick.
-
-    Used when tick_ecology is called without an explicit ecology_runtime
-    (e.g., tests, simple scripts).  Creates the simulator, syncs region
-    state, and configures river topology + ecology config.
-    """
-    from chronicler_agents import EcologySimulator
-    from chronicler.agent_bridge import build_region_batch, configure_ecology_runtime
-
-    eco_sim = EcologySimulator()
-    # Wire river topology and ecology config from tuning overrides
-    configure_ecology_runtime(eco_sim, world)
-    # Sync region state
-    eco_sim.set_region_state(build_region_batch(world))
-    return eco_sim
 
 
 def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
@@ -782,6 +769,9 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
 
     # 2. Write-back to Python Region (also sets region.resource_current_yields)
     region_yields = _write_back_ecology(world, region_batch)
+
+    from chronicler.experimental.fisheries import apply_fishery_feedback
+    apply_fishery_feedback(world, region_yields)
 
     # 3. Materialize Rust ecology events
     rust_events = _materialize_ecology_events(event_batch, world)
@@ -817,6 +807,11 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     from chronicler.agent_bridge import build_region_postpass_patch_batch
     patch = build_region_postpass_patch_batch(world)
     ecology_runtime.apply_region_postpass_patch(patch)
+
+    if world.fishery_experiment.enabled:
+        # Apply after recomputation, so the native agent tick receives actual catch.
+        from chronicler.experimental.fisheries_bridge import build_fishery_yield_patch
+        ecology_runtime.apply_fishery_yield_patch(build_fishery_yield_patch(world))
 
     return famine_events + rust_events + terrain_events
 

@@ -1,0 +1,12 @@
+{
+  "commit": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+  "source": "Exact immutable Git objects in the recovered Chronicler history",
+  "scope": "Historical test references only; never production runtime inputs",
+  "files": {
+    "src/chronicler/simulation.py": {
+      "stored_path": "src/chronicler/simulation.py",
+      "bytes": 88716,
+      "sha256": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad"
+    }
+  }
+}

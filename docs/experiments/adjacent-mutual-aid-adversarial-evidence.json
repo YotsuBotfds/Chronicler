@@ -1,0 +1,2141 @@
+{
+  "public_base": "edf7299",
+  "prior_feature_commit": "9a34d6ebb255b194b345d1355c941f71fb910dcd",
+  "runtime_changed_in_followup": false,
+  "private_candidate_comparison": false,
+  "fixture": "15 native economy/agent behavior steps; seed42, two regions; actual merchant pipeline; no cargo injection",
+  "fixed_budget_scope": "initial treasury2 or20; tax output recorded but not credited; no macro fiscal income/ecology tick",
+  "tests": {
+    "command": "CHRONICLER_UNTOUCHED_SOURCE=/tmp/chronicler-aid-untouched-source CHRONICLER_UNTOUCHED_NATIVE=/tmp/chronicler-aid-untouched-native .venv/bin/python -m pytest -q tests/test_mutual_aid_adversarial.py tests/test_mutual_aid.py",
+    "passed": 46,
+    "failed": 0,
+    "skipped": 0
+  },
+  "cases": {
+    "funded2": {
+      "raw_file_name": "adversarial-funded2.json",
+      "raw_sha256": "f4ec60475848700e9e281dff0f95bde0b8eaa47fb492a63d6fdb5625ccb2610f",
+      "dispatch_turns": [
+        4,
+        5
+      ],
+      "final_treasury": 0,
+      "aid_sent": 3.9372204353934843,
+      "aid_received": 3.7403594136238096,
+      "aid_transit_loss": 0.19686102176967446,
+      "max_conservation_residual": 5.304813385009766e-06,
+      "clamp_correction_total": 0.0,
+      "trajectory": [
+        {
+          "turn": 0,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 10.0,
+            "Mine": 10.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 0,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 0,
+              "food_sufficiency": 0.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 1,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 6.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 0,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 0,
+              "food_sufficiency": 0.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 1,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 1,
+              "food_sufficiency": 0.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 1.9073486328125e-06
+        },
+        {
+          "turn": 2,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 5.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 1.9898728132247925,
+            "Mine": 0.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 1,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 1,
+              "food_sufficiency": 0.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 2,
+              "food_sufficiency": 1.9898728132247925
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 2,
+              "food_sufficiency": 0.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 3,
+          "scenario_changes": [
+            "Donor effective grain yield .5 -> 4; no stock injection"
+          ],
+          "food_demand": {
+            "Granary": 16.0,
+            "Mine": 7.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3799999952316284
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 2,
+              "food_sufficiency": 1.9898728132247925
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 2,
+              "food_sufficiency": 0.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 3,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 3,
+              "food_sufficiency": 0.3799999952316284
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 3.874301910400391e-06
+        },
+        {
+          "turn": 4,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 7.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 1,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.7298204302787781
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 3,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 3,
+              "food_sufficiency": 0.3799999952316284
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 4,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 4,
+              "food_sufficiency": 0.7298204302787781
+            }
+          },
+          "transfers": [
+            {
+              "turn": 4,
+              "controller": "Cooperative",
+              "donor": "Granary",
+              "recipient": "Mine",
+              "sent": {
+                "grain": 1.37762451171875
+              },
+              "received": {
+                "grain": 1.3087432861328125
+              },
+              "transit_loss": 0.06888122558593746,
+              "treasury_cost": 1
+            }
+          ],
+          "conservation_residual": 4.768371297814156e-08
+        },
+        {
+          "turn": 5,
+          "scenario_changes": [
+            "Recipient primary ore -> grain, effective yield2; production ledger accounts output"
+          ],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 9.0
+          },
+          "treasury_before": 1,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 4,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 4,
+              "food_sufficiency": 0.7298204302787781
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            }
+          },
+          "transfers": [
+            {
+              "turn": 5,
+              "controller": "Cooperative",
+              "donor": "Granary",
+              "recipient": "Mine",
+              "sent": {
+                "grain": 2.5595959236747343
+              },
+              "received": {
+                "grain": 2.4316161274909973
+              },
+              "transit_loss": 0.127979796183737,
+              "treasury_cost": 1
+            }
+          ],
+          "conservation_residual": -1.7693168388177583e-06
+        },
+        {
+          "turn": 6,
+          "scenario_changes": [
+            "Recipient effective grain yield2 -> 0; existing stocks/cargo preserved"
+          ],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 8.0
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 7,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 14.0,
+            "Mine": 12.0
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 1.4395250082015991
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 1.4395250082015991
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 5.304813385009766e-06
+        },
+        {
+          "turn": 8,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.5,
+            "Mine": 11.0
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 1.0696427822113037
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 1.4395250082015991
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 1.0696427822113037
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 2.980232238769531e-07
+        },
+        {
+          "turn": 9,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 10.5
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3073349595069885
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 1.0696427822113037
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 9,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 9,
+              "food_sufficiency": 0.3073349595069885
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 4.470348358154297e-08
+        },
+        {
+          "turn": 10,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 12.0
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.8708332180976868
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 9,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 9,
+              "food_sufficiency": 0.3073349595069885
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 0.8708332180976868
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 1.0132789611816406e-06
+        },
+        {
+          "turn": 11,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 13.5
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.49259257316589355
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 0.8708332180976868
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 11,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 11,
+              "food_sufficiency": 0.49259257316589355
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 2.980232238769531e-07
+        },
+        {
+          "turn": 12,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.0,
+            "Mine": 12.5
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.6839999556541443
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 11,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 11,
+              "food_sufficiency": 0.49259257316589355
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 12,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 12,
+              "food_sufficiency": 0.6839999556541443
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 6.556510925292969e-07
+        },
+        {
+          "turn": 13,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.0,
+            "Mine": 13.5
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.35185185074806213
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 12,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 12,
+              "food_sufficiency": 0.6839999556541443
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 13,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 13,
+              "food_sufficiency": 0.35185185074806213
+            }
+          },
+          "transfers": [],
+          "conservation_residual": -5.960464477539063e-08
+        },
+        {
+          "turn": 14,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.5,
+            "Mine": 12.0
+          },
+          "treasury_before": 0,
+          "treasury_after": 0,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.6333332657814026
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 13,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 13,
+              "food_sufficiency": 0.35185185074806213
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 14,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 14,
+              "food_sufficiency": 0.6333332657814026
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 4.76837158203125e-07
+        }
+      ]
+    },
+    "funded20": {
+      "raw_file_name": "adversarial-funded20.json",
+      "raw_sha256": "2d59333f30238192f0ca0a563cde34d072460358ed8c0fe3fa02894b09b2bb92",
+      "dispatch_turns": [
+        4,
+        5,
+        14
+      ],
+      "final_treasury": 17,
+      "aid_sent": 8.562220435393485,
+      "aid_received": 8.13410941362381,
+      "aid_transit_loss": 0.42811102176967464,
+      "max_conservation_residual": 5.304813385009766e-06,
+      "clamp_correction_total": 0.0,
+      "trajectory": [
+        {
+          "turn": 0,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 10.0,
+            "Mine": 10.0
+          },
+          "treasury_before": 20,
+          "treasury_after": 20,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 0,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 0,
+              "food_sufficiency": 0.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 1,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 6.5
+          },
+          "treasury_before": 20,
+          "treasury_after": 20,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 0,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 0,
+              "food_sufficiency": 0.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 1,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 1,
+              "food_sufficiency": 0.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 1.9073486328125e-06
+        },
+        {
+          "turn": 2,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 5.0
+          },
+          "treasury_before": 20,
+          "treasury_after": 20,
+          "sufficiency": {
+            "Granary": 1.9898728132247925,
+            "Mine": 0.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 1,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 1,
+              "food_sufficiency": 0.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 2,
+              "food_sufficiency": 1.9898728132247925
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 2,
+              "food_sufficiency": 0.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 3,
+          "scenario_changes": [
+            "Donor effective grain yield .5 -> 4; no stock injection"
+          ],
+          "food_demand": {
+            "Granary": 16.0,
+            "Mine": 7.5
+          },
+          "treasury_before": 20,
+          "treasury_after": 20,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3799999952316284
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 2,
+              "food_sufficiency": 1.9898728132247925
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 2,
+              "food_sufficiency": 0.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 3,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 3,
+              "food_sufficiency": 0.3799999952316284
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 3.874301910400391e-06
+        },
+        {
+          "turn": 4,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 7.0
+          },
+          "treasury_before": 20,
+          "treasury_after": 19,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.7298204302787781
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 3,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 3,
+              "food_sufficiency": 0.3799999952316284
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 4,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 4,
+              "food_sufficiency": 0.7298204302787781
+            }
+          },
+          "transfers": [
+            {
+              "turn": 4,
+              "controller": "Cooperative",
+              "donor": "Granary",
+              "recipient": "Mine",
+              "sent": {
+                "grain": 1.37762451171875
+              },
+              "received": {
+                "grain": 1.3087432861328125
+              },
+              "transit_loss": 0.06888122558593746,
+              "treasury_cost": 1
+            }
+          ],
+          "conservation_residual": 4.768371297814156e-08
+        },
+        {
+          "turn": 5,
+          "scenario_changes": [
+            "Recipient primary ore -> grain, effective yield2; production ledger accounts output"
+          ],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 9.0
+          },
+          "treasury_before": 19,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 4,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 4,
+              "food_sufficiency": 0.7298204302787781
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            }
+          },
+          "transfers": [
+            {
+              "turn": 5,
+              "controller": "Cooperative",
+              "donor": "Granary",
+              "recipient": "Mine",
+              "sent": {
+                "grain": 2.5595959236747343
+              },
+              "received": {
+                "grain": 2.4316161274909973
+              },
+              "transit_loss": 0.127979796183737,
+              "treasury_cost": 1
+            }
+          ],
+          "conservation_residual": -1.7693168388177583e-06
+        },
+        {
+          "turn": 6,
+          "scenario_changes": [
+            "Recipient effective grain yield2 -> 0; existing stocks/cargo preserved"
+          ],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 8.0
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 5,
+              "food_sufficiency": 2.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 7,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 14.0,
+            "Mine": 12.0
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 1.4395250082015991
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 6,
+              "food_sufficiency": 2.0
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 1.4395250082015991
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 5.304813385009766e-06
+        },
+        {
+          "turn": 8,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.5,
+            "Mine": 11.0
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 1.0696427822113037
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 7,
+              "food_sufficiency": 1.4395250082015991
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 1.0696427822113037
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 2.980232238769531e-07
+        },
+        {
+          "turn": 9,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 10.5
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3073349595069885
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 8,
+              "food_sufficiency": 1.0696427822113037
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 9,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 9,
+              "food_sufficiency": 0.3073349595069885
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 4.470348358154297e-08
+        },
+        {
+          "turn": 10,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 12.0
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.8708332180976868
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 9,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 9,
+              "food_sufficiency": 0.3073349595069885
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 0.8708332180976868
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 1.0132789611816406e-06
+        },
+        {
+          "turn": 11,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 13.5
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.49259257316589355
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 10,
+              "food_sufficiency": 0.8708332180976868
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 11,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 11,
+              "food_sufficiency": 0.49259257316589355
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 2.980232238769531e-07
+        },
+        {
+          "turn": 12,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.0,
+            "Mine": 12.5
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.6839999556541443
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 11,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 1,
+              "last_observed_turn": 11,
+              "food_sufficiency": 0.49259257316589355
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 12,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 12,
+              "food_sufficiency": 0.6839999556541443
+            }
+          },
+          "transfers": [],
+          "conservation_residual": 6.556510925292969e-07
+        },
+        {
+          "turn": 13,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.0,
+            "Mine": 13.5
+          },
+          "treasury_before": 18,
+          "treasury_after": 18,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.35185185074806213
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 12,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 2,
+              "last_observed_turn": 12,
+              "food_sufficiency": 0.6839999556541443
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 13,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 13,
+              "food_sufficiency": 0.35185185074806213
+            }
+          },
+          "transfers": [],
+          "conservation_residual": -5.960464477539063e-08
+        },
+        {
+          "turn": 14,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.5,
+            "Mine": 12.0
+          },
+          "treasury_before": 18,
+          "treasury_after": 17,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.9994791150093079
+          },
+          "prior_memory": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 13,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 3,
+              "last_observed_turn": 13,
+              "food_sufficiency": 0.35185185074806213
+            }
+          },
+          "memory_after": {
+            "Granary": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 14,
+              "food_sufficiency": 2.0
+            },
+            "Mine": {
+              "controller": "Cooperative",
+              "stress_streak": 0,
+              "last_observed_turn": 14,
+              "food_sufficiency": 0.9994791150093079
+            }
+          },
+          "transfers": [
+            {
+              "turn": 14,
+              "controller": "Cooperative",
+              "donor": "Granary",
+              "recipient": "Mine",
+              "sent": {
+                "grain": 4.625
+              },
+              "received": {
+                "grain": 4.39375
+              },
+              "transit_loss": 0.23125000000000018,
+              "treasury_cost": 1
+            }
+          ],
+          "conservation_residual": 2.8610230629055877e-07
+        }
+      ]
+    },
+    "untouched_disabled": {
+      "raw_file_name": "adversarial-untouched_disabled.json",
+      "raw_sha256": "b4ac35d75080ba8195aad045b95e41849a11abb0d6cdd8d5a881ded8e501ea9e",
+      "dispatch_turns": [],
+      "final_treasury": 2,
+      "aid_sent": 0,
+      "aid_received": 0,
+      "aid_transit_loss": 0.0,
+      "max_conservation_residual": 4.351139068603516e-06,
+      "clamp_correction_total": 0.0,
+      "trajectory": [
+        {
+          "turn": 0,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 10.0,
+            "Mine": 10.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 1,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 6.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.9073486328125e-06
+        },
+        {
+          "turn": 2,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 5.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 1.9898728132247925,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 3,
+          "scenario_changes": [
+            "Donor effective grain yield .5 -> 4; no stock injection"
+          ],
+          "food_demand": {
+            "Granary": 16.0,
+            "Mine": 7.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3799999952316284
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 3.874301910400391e-06
+        },
+        {
+          "turn": 4,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 7.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.5428571105003357
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 5,
+          "scenario_changes": [
+            "Recipient primary ore -> grain, effective yield2; production ledger accounts output"
+          ],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 9.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 6.556510925292969e-07
+        },
+        {
+          "turn": 6,
+          "scenario_changes": [
+            "Recipient effective grain yield2 -> 0; existing stocks/cargo preserved"
+          ],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 8.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 7,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 14.0,
+            "Mine": 12.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 1.248866081237793
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 4.351139068603516e-06
+        },
+        {
+          "turn": 8,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.5,
+            "Mine": 11.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.8678909540176392
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 5.364418029785156e-07
+        },
+        {
+          "turn": 9,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 17.0,
+            "Mine": 10.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.4479236602783203
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 5.960464477539062e-07
+        },
+        {
+          "turn": 10,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 11.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.777272641658783
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 6.556510925292969e-07
+        },
+        {
+          "turn": 11,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 13.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.42222219705581665
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 12,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.0,
+            "Mine": 12.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.4559999704360962
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 13,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 19.5,
+            "Mine": 13.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.14615383744239807
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 14,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 20.5,
+            "Mine": 12.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3958333432674408
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": -5.960464477539063e-08
+        }
+      ]
+    },
+    "feature_disabled": {
+      "raw_file_name": "adversarial-feature_disabled.json",
+      "raw_sha256": "7728be2a51d3a746d596c0b1b8b6633384bee09d2cfd94326f20e8ac48665d0a",
+      "dispatch_turns": [],
+      "final_treasury": 2,
+      "aid_sent": 0,
+      "aid_received": 0,
+      "aid_transit_loss": 0.0,
+      "max_conservation_residual": 4.351139068603516e-06,
+      "clamp_correction_total": 0.0,
+      "trajectory": [
+        {
+          "turn": 0,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 10.0,
+            "Mine": 10.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 1,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 6.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.9073486328125e-06
+        },
+        {
+          "turn": 2,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 5.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 1.9898728132247925,
+            "Mine": 0.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 3,
+          "scenario_changes": [
+            "Donor effective grain yield .5 -> 4; no stock injection"
+          ],
+          "food_demand": {
+            "Granary": 16.0,
+            "Mine": 7.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3799999952316284
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 3.874301910400391e-06
+        },
+        {
+          "turn": 4,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 7.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.5428571105003357
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 5,
+          "scenario_changes": [
+            "Recipient primary ore -> grain, effective yield2; production ledger accounts output"
+          ],
+          "food_demand": {
+            "Granary": 15.0,
+            "Mine": 9.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 6.556510925292969e-07
+        },
+        {
+          "turn": 6,
+          "scenario_changes": [
+            "Recipient effective grain yield2 -> 0; existing stocks/cargo preserved"
+          ],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 8.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 2.0
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 7,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 14.0,
+            "Mine": 12.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 1.248866081237793
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 4.351139068603516e-06
+        },
+        {
+          "turn": 8,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 15.5,
+            "Mine": 11.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.8678909540176392
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 5.364418029785156e-07
+        },
+        {
+          "turn": 9,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 17.0,
+            "Mine": 10.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.4479236602783203
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 5.960464477539062e-07
+        },
+        {
+          "turn": 10,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 17.5,
+            "Mine": 11.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.777272641658783
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 6.556510925292969e-07
+        },
+        {
+          "turn": 11,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 16.5,
+            "Mine": 13.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.42222219705581665
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 12,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 18.0,
+            "Mine": 12.5
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.4559999704360962
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 1.1920928955078125e-07
+        },
+        {
+          "turn": 13,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 19.5,
+            "Mine": 13.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.14615383744239807
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": 0.0
+        },
+        {
+          "turn": 14,
+          "scenario_changes": [],
+          "food_demand": {
+            "Granary": 20.5,
+            "Mine": 12.0
+          },
+          "treasury_before": 2,
+          "treasury_after": 2,
+          "sufficiency": {
+            "Granary": 2.0,
+            "Mine": 0.3958333432674408
+          },
+          "prior_memory": {},
+          "memory_after": {},
+          "transfers": [],
+          "conservation_residual": -5.960464477539063e-08
+        }
+      ]
+    }
+  },
+  "disabled_control": {
+    "entire_history_equal_except_new_native_query": true,
+    "compared": [
+      "all15 normalized worlds",
+      "full native agent snapshots",
+      "stocks and sufficiency",
+      "native conservation counters",
+      "tax outputs",
+      "cumulative delivery diagnostics",
+      "merchant trip statistics"
+    ],
+    "excluded": [
+      "four default aid metadata fields from world dump",
+      "native_commitments diagnostic absent on original build"
+    ],
+    "baseline_source": "/tmp/chronicler-aid-untouched-source/src/chronicler/__init__.py",
+    "baseline_native": "/tmp/chronicler-aid-untouched-native/chronicler_agents/__init__.py",
+    "baseline_native_has_query": false,
+    "feature_native_has_query": true,
+    "normalized_history_sha256": "8695ec25d61682a249f0157dfea61bd69599278ecac37524ab78012554be9c40"
+  },
+  "baseline_source_git_blobs_verified": {
+    "chronicler-agents/Cargo.lock": "5cec9eadd389862a06661d0c91022da0b1bef84e",
+    "chronicler-agents/Cargo.toml": "009751ed53bdb0d43bf1bbf20a0b890bccbc9ba4",
+    "chronicler-agents/src/agent.rs": "ff4712bc87edf93358497e16571733246b22303c",
+    "chronicler-agents/src/behavior.rs": "01f927edada246162763996c64cdb7ae6e12bd30",
+    "chronicler-agents/src/conversion_tick.rs": "9aedac04a8a0c93c22ea27106f7535f2e96bf0cd",
+    "chronicler-agents/src/culture_tick.rs": "dd6116ee160ddbf0075467d7f8aaa449f2a0ef08",
+    "chronicler-agents/src/demographics.rs": "db7ddbb920d7d2326ec6dab6dff4d7d0712aa0b2",
+    "chronicler-agents/src/ecology.rs": "0df50d42a1d7c40fb5cd89673c091eb16916f9b9",
+    "chronicler-agents/src/economy.rs": "463cbc33a11685c6033172657642301b301e6aff",
+    "chronicler-agents/src/ffi/batch.rs": "0acaa03a6a9e715a8d042afcfb0e4ec63c7ebf94",
+    "chronicler-agents/src/ffi/ecology_sim.rs": "458ef0b032299c4e0206da959b5e74295b56e546",
+    "chronicler-agents/src/ffi/mod.rs": "67e54a963dd84222f9a1d7234e7f23496261603b",
+    "chronicler-agents/src/ffi/politics_sim.rs": "5cd20ffe59ce28d57aeda729c0cc44f3629f5d34",
+    "chronicler-agents/src/ffi/schema.rs": "63305fa9d620de14b4090be32e8e79d0f367274f",
+    "chronicler-agents/src/formation.rs": "0dc53dde95d3b2757f32fe86814b961097f2c9f9",
+    "chronicler-agents/src/household.rs": "d3053b9a22605c5dda9a1d3c0acb6d35f9174373",
+    "chronicler-agents/src/knowledge.rs": "40c759c376fa3d8746945143ee462fa054803b01",
+    "chronicler-agents/src/lib.rs": "f1bfda307d45ef9d10634bc3797f0533df2f9810",
+    "chronicler-agents/src/memory.rs": "ae4eccfba8583a869f993ec4e929e2efceabc261",
+    "chronicler-agents/src/merchant.rs": "74c38f43cd9e05d00137cd6190e20691f9cb8b0e",
+    "chronicler-agents/src/named_characters.rs": "73e2377e6ff9cabf01a7b5c36996d85adc05fb50",
+    "chronicler-agents/src/needs.rs": "87c58f6d1cb7b29375841ae818cc7836c3b3a0f1",
+    "chronicler-agents/src/politics.rs": "a6bd3f445dc11515bf65671be25a6211eca16e21",
+    "chronicler-agents/src/pool.rs": "82fd30c023b6a3da759a5d9d996adb8e19f5ecd7",
+    "chronicler-agents/src/region.rs": "0f8da39f964b5cfec1af80eaec221481b2772e2c",
+    "chronicler-agents/src/relationships.rs": "e2725fabef12ac978cc36a51b2eda40e3805f2f0",
+    "chronicler-agents/src/satisfaction.rs": "821d7b1a481c3c8a54bc5e19364baf614b6c3f7e",
+    "chronicler-agents/src/signals.rs": "66580dc55f955671808007acbfd5ac190be84611",
+    "chronicler-agents/src/sort.rs": "e3add5a63879dbf80e8d5cd75a25729588ee40b7",
+    "chronicler-agents/src/spatial.rs": "ba8f9ace36f468ad132d4448dd5ff43d7db15076",
+    "chronicler-agents/src/tick.rs": "ae32d5f3938e874423d177f3d5b99b1d4390029a",
+    "src/chronicler/__init__.py": "1f2d22a1dd1e52e34e6b8a146ef1a714e2ecdd9d",
+    "src/chronicler/accumulator.py": "91e24900530f8f54ed387ab565a43bafe203c6db",
+    "src/chronicler/action_engine.py": "f1f255eff47a00a527d66e5df413e7f0f84cb083",
+    "src/chronicler/adjacency.py": "d4253920935912574dbda3b82fefc893f19e1d1d",
+    "src/chronicler/agent_bridge.py": "16a0cc08b30bf00ba47f2782045039f465fd8bb5",
+    "src/chronicler/analytics.py": "cbb288f7eafcf87475db8dc07318a4eabdf046a3",
+    "src/chronicler/arcs.py": "87f38c36f85f514e0dc409864afaa700fd7fcc25",
+    "src/chronicler/artifact_io.py": "366d8d28b517e07cde0d19c540848074f0faf839",
+    "src/chronicler/artifacts.py": "1a5df254a76a06d4d1d35e6c82f428105aa1620e",
+    "src/chronicler/batch.py": "7ea53d6e9a1a4ce7b9698fd53f9aad61cde09773",
+    "src/chronicler/bundle.py": "33c472f0e1323269c56cdceb6b398349eb5ddf22",
+    "src/chronicler/chronicle.py": "7ca9372843f232b4f1872e696e5d74248d60cab7",
+    "src/chronicler/climate.py": "d9c62db7d23d6bc37aaa60349c9b8385fc272061",
+    "src/chronicler/culture.py": "69357a8176f8415232461deafd1b334d760871fd",
+    "src/chronicler/curator.py": "5efb920d0ac5acf13ad6b4e5b7e216f932d1243b",
+    "src/chronicler/demand_signals.py": "f985e5b2139d88a3d11cb66b5eb3b585130c9aae",
+    "src/chronicler/dynasties.py": "292897ce6096dc80dad3a4c94570f28d6d1c9892",
+    "src/chronicler/ecology.py": "d0f61ce6932e112c0eb815cad70d2ad8eb7a2d26",
+    "src/chronicler/economy.py": "f12e844261bbf5549fb136229f631bf7c4e30feb",
+    "src/chronicler/emergence.py": "e8dea18f0cc19c028e5c9506587e5b36fe4673e2",
+    "src/chronicler/events.py": "ba5c63404431ed53efde0121bf21b63f605da442",
+    "src/chronicler/exploration.py": "75fdaf4ebd1b9ec39d9606be929ba7de83250391",
+    "src/chronicler/factions.py": "89ea85a46f9cafe04e6fc7dc84fd929d62e8015a",
+    "src/chronicler/ffi_constants.py": "b785fa9416bf2d48a41ec85bfd69dec39a70fd66",
+    "src/chronicler/fork.py": "55ef3c99c0caffae1265345bf456f6d98dc7ac7f",
+    "src/chronicler/great_persons.py": "16ad7147d22972d73cdb9d1ea7a21b9446e407a9",
+    "src/chronicler/infrastructure.py": "5a50463d1e65b2e23300384204d3e9cda64d09ad",
+    "src/chronicler/intelligence.py": "9d629061e37324a24dc0354c4a39393056c7490b",
+    "src/chronicler/interactive.py": "7498af9e3301af4b06d9fdadde32de139290a6fa",
+    "src/chronicler/interestingness.py": "a774c799fcaff70619461cfae62ceb316c8b1daf",
+    "src/chronicler/leaders.py": "4867c7a0d825de19259dccd08c9520857a1984ab",
+    "src/chronicler/live.py": "18fa80a9206e2614ae35f8f626d6fecc5b86c1bb",
+    "src/chronicler/llm.py": "a1223fed90eadb78cbdfe3553f63e100c06ce607",
+    "src/chronicler/main.py": "833a1521cf9d5c2ef13bb6e6254bd463d8e71e78",
+    "src/chronicler/memory.py": "5d17340df134c3779de427a63205c2646a6f8e96",
+    "src/chronicler/models.py": "0d12074cd71c3c8007bd55214b932ffe48426b81",
+    "src/chronicler/movements.py": "6a11bb351beda88e745c096ff854fdb0b50f09b6",
+    "src/chronicler/named_events.py": "919d591ca9077db700c1adb0f58e6fc0d6e20975",
+    "src/chronicler/narrative.py": "2fe350c8caa1dd9c7b65444e2d7038bdcad111f2",
+    "src/chronicler/politics.py": "1da1084481d692790033a0c5dcfd9472ae5ce93a",
+    "src/chronicler/politics_bridge.py": "4183661071acc53d44fb7968e45599879ec7c2e8",
+    "src/chronicler/relationships.py": "b03070872548687fb0fd05c4cc34f39e211bf832",
+    "src/chronicler/religion.py": "5ab0396fdb9aeaf4d3303262b31c235c4bc40f79",
+    "src/chronicler/resources.py": "c218081afe0ea47dee0a0448f556a65ef48b78b4",
+    "src/chronicler/scenario.py": "f4ca33005b251888240ab890382e88e4439d5023",
+    "src/chronicler/settlements.py": "f49af5a3a89b267b2fd46b21311630b490db411f",
+    "src/chronicler/shadow.py": "c902090d68020876ba19433a5d548b2144dc913e",
+    "src/chronicler/shadow_oracle.py": "55765e9110ac7ea1f29939668961da3201d09a72",
+    "src/chronicler/sidecar.py": "b59a0805c55fab412c0ddf73f8288df7d9c50746",
+    "src/chronicler/simulation.py": "3c1178276aebb3d314e9f5fb330f6bf104cc8ece",
+    "src/chronicler/succession.py": "6b2a263f57e8285c95a0f4834e2a1f953b4946e5",
+    "src/chronicler/tech.py": "58f0bc3a63792eeadd090848a71f400ea43c532f",
+    "src/chronicler/tech_focus.py": "aaea443c5f1cb65108b448e3f25b3f0ef2670e63",
+    "src/chronicler/terrain.py": "ec98e0b1cb5fb1bd1feb9ed2e34752381d75a632",
+    "src/chronicler/traditions.py": "104eb9ab367b272fd3c0f833572bbf75f509b9ea",
+    "src/chronicler/tuning.py": "abe327b2dd06dc3226a602a2eed6c10d2cfb4e79",
+    "src/chronicler/types.py": "b7f87b64f763212935d2b3311d0b2d1ee1b55a61",
+    "src/chronicler/utils.py": "93977581083b4f75ca9eaad693de1e0396499317",
+    "src/chronicler/validate.py": "7602131c2f23605dfa43a16f93a9fb6f4080fec2",
+    "src/chronicler/validation_compare.py": "1373ad87afcf2bf3bd7f94ae76207390a00f945e",
+    "src/chronicler/validation_gate.py": "360d603146720096e2c10ffc7b1fabe4897bbdf6",
+    "src/chronicler/validation_io.py": "f326bd33eb1f971522c31240d4403c0fa84de860",
+    "src/chronicler/validation_oracles.py": "9bb3b613bb27e09bd7753aa2164821a2ffbdf295",
+    "src/chronicler/world_gen.py": "a989bc6376f418c78d5390b3c8fee919a2940457"
+  },
+  "native_build_sha256": {
+    "untouched": "2b3ad3a10aa442864741eb8874857c8871e9f09d6f834ccc9e92d4c496c325e2",
+    "feature": "3244b32ba7468377fab74e03f46ce7494d8c3ce74d42280c52e6cc13398ba70f"
+  },
+  "independent_review": {
+    "Tier1": "/root/tier1_adversarial_review: 46/46 final tests no skips; untouched comparison passed; independently checked64 Python source blobs; no blockers",
+    "Tier2": "/root/tier2_adversarial_review: 44 tests before final two added; repeated all three scenarios with identical complete results; two funding physical histories match through13; no blockers"
+  },
+  "named_limits": [
+    "No fixed timed cooldown; recovery reset plus three fresh stress observations",
+    "No full hybrid checkpoint continuation tested",
+    "Adjacent replay has zero net settled in_transit_delta; long-lived nonzero/multi-edge cargo-delta coverage absent",
+    "Fixture fixed public budget omits macro fiscal income and ecology tick",
+    "No calibrated population/famine-prevention claim, broad sweep, default promotion, private baseline comparison, upload or public push"
+  ]
+}

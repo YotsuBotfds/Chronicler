@@ -172,7 +172,7 @@ class TestEffectiveCapacity:
 
 
 # --- tick_ecology orchestrator and famine check ---
-# M54a: tick_ecology now always uses Rust (auto-creates EcologySimulator if needed)
+# With no explicit runtime, tick_ecology uses the pure-Python ecology path.
 
 from chronicler.ecology import tick_ecology
 

@@ -1942,18 +1942,20 @@ def run_cohort_oracle(seed_runs: list[dict]) -> dict:
             )
             if not communities:
                 continue
+            events_window = _filter_events_window(run["events"], turn, window=20)
             migration_result = compute_cohort_distinctiveness(
                 communities,
-                _filter_events_window(run["events"], turn, window=20),
+                events_window,
                 needs_snapshot["columns"],
                 event_type=EVENT_NAME_TO_CODE["migration"],
             )
             rebellion_result = compute_cohort_distinctiveness(
                 communities,
-                _filter_events_window(run["events"], turn, window=20),
+                events_window,
                 needs_snapshot["columns"],
                 event_type=EVENT_NAME_TO_CODE["rebellion"],
             )
+            del events_window
             strongest_effect = max(
                 abs(float(migration_result.get("effect_size", 0.0))),
                 abs(float(rebellion_result.get("effect_size", 0.0))),

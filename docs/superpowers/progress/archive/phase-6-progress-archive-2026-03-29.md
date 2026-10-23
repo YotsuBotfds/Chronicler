@@ -328,7 +328,7 @@
 - **Tests:** `test_m57a_marriage.rs` (23 tests: determinism, exclusivity, age/distance/incest gates, scored greedy, cadence, FFI round-trip, remarriage, wartime blocking, stats). `test_dynasties.py` (5 dual-parent resolution tests). `test_m51_regnal.py` (4 either-parent legitimacy tests). `test_relationships.py` (aggregate-mode smoke test).
 - **Smoke verified:** 50-turn `--agents hybrid` run completed. `marriage_formed` event appears in bundle output.
 - **Gotchas discovered:**
-  - Python DLL path issue on Windows: `C:\Users\tateb\AppData\Local\Python\pythoncore-3.14-64` must be on PATH for `cargo nextest run` to find python314.dll.
+  - Python DLL path issue on Windows: `<HOME>\AppData\Local\Python\pythoncore-3.14-64` must be on PATH for `cargo nextest run` to find python314.dll.
   - Maturin develop on Windows may silently fail to overwrite locked .pyd — use `pip install --force-reinstall` if Python tests see stale FFI.
   - `MARRIAGE_STREAM_OFFSET=1600` is reserved but not consumed in v1 (determinism without RNG noise).
 - **Regression status (2026-03-27):** canonical 200-seed/500-turn full gate rerun completed at `output/m57a/full_gate/batch_1` with `--parallel 24`. Oracles: `community PASS`, `needs PASS`, `era PASS`, `cohort PASS`, `artifacts PASS`, `arcs PASS`, `determinism SKIP` (no duplicate seed pairs), `regression FAIL`. Reported regression metrics: `satisfaction_mean=0.424`, `satisfaction_std=0.1393`, `migration_rate=0.093362`, `rebellion_rate=0.070325`, `gini_in_range_fraction=0.963`, `occupation_ok=true`; failure is the current regression gate's `satisfaction_mean >= 0.45` requirement in `validate.py`.

@@ -428,6 +428,11 @@ impl EcologySimulator {
     }
 
     /// Apply a narrow post-pass patch back to Rust region state.
+    pub fn apply_fishery_yield_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        super::batch::apply_fishery_yield_patch(&mut self.regions, &batch.into_inner())
+    }
+
+    /// Apply a narrow post-pass patch back to Rust region state.
     pub fn apply_region_postpass_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
         let rb: RecordBatch = batch.into_inner();
         let recompute_indices = apply_patch_to_regions(&mut self.regions, &rb)?;
@@ -444,4 +449,3 @@ impl EcologySimulator {
         Ok(())
     }
 }
-

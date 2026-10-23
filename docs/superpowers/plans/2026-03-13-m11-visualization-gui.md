@@ -140,7 +140,7 @@ class TestSnapshotModels:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_bundle.py::TestSnapshotModels -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_bundle.py::TestSnapshotModels -v`
 Expected: FAIL — `CivSnapshot` not defined
 
 - [ ] **Step 3: Implement snapshot models**
@@ -917,7 +917,7 @@ git commit -m "feat(m11): add fixture generation script and sample bundle"
 - [ ] **Step 1: Scaffold the Vite project**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 npm create vite@latest viewer -- --template react-ts
 cd viewer
 npm install
@@ -947,7 +947,7 @@ Replace `viewer/src/index.css`:
 - [ ] **Step 3: Install dependencies**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npm install recharts d3-force @types/d3-force
 npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
 ```
@@ -980,7 +980,7 @@ import "@testing-library/jest-dom";
 - [ ] **Step 5: Verify build works**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npm run build
 ```
 
@@ -1001,7 +1001,7 @@ export default App;
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/
 git commit -m "feat(m11): scaffold viewer with Vite, React, TypeScript, Tailwind"
 ```
@@ -1176,7 +1176,7 @@ export interface Bundle {
 - [ ] **Step 2: Verify types compile**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx tsc --noEmit
 ```
 
@@ -1185,7 +1185,7 @@ Expected: No errors
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/src/types.ts
 git commit -m "feat(m11): add TypeScript types mirroring Python models"
 ```
@@ -1237,7 +1237,7 @@ describe("parseBundle", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run src/hooks/__tests__/useBundle.test.ts
 ```
 
@@ -1318,7 +1318,7 @@ export function useBundle() {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run src/hooks/__tests__/useBundle.test.ts
 ```
 
@@ -1327,7 +1327,7 @@ Expected: 4 PASSED
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/src/hooks/useBundle.ts viewer/src/hooks/__tests__/useBundle.test.ts
 git commit -m "feat(m11): add useBundle hook with parseBundle validation"
 ```
@@ -1418,7 +1418,7 @@ describe("useTimeline", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run src/hooks/__tests__/useTimeline.test.ts
 ```
 
@@ -1482,7 +1482,7 @@ export function useTimeline(maxTurn: number) {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run src/hooks/__tests__/useTimeline.test.ts
 ```
 
@@ -1491,7 +1491,7 @@ Expected: 7 PASSED
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/src/hooks/useTimeline.ts viewer/src/hooks/__tests__/useTimeline.test.ts
 git commit -m "feat(m11): add useTimeline hook with play/pause/seek/speed"
 ```
@@ -1586,7 +1586,7 @@ export function formatScore(score: number | null): string {
 - [ ] **Step 3: Verify types compile**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx tsc --noEmit
 ```
 
@@ -1595,7 +1595,7 @@ Expected: No errors
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/src/lib/colors.ts viewer/src/lib/format.ts
 git commit -m "feat(m11): add faction color hashing and formatting utilities"
 ```
@@ -3045,7 +3045,7 @@ export default App;
 - [ ] **Step 3: Verify build succeeds**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npm run build
 ```
 
@@ -3054,7 +3054,7 @@ Expected: Build succeeds with no errors
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/src/components/Layout.tsx viewer/src/App.tsx
 git commit -m "feat(m11): add Layout and wire App with drag-and-drop bundle loading"
 ```
@@ -3193,7 +3193,7 @@ describe("TerritoryMap", () => {
 - [ ] **Step 2: Run tests**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run src/components/__tests__/components.test.tsx
 ```
 
@@ -3202,7 +3202,7 @@ Expected: All tests PASS
 - [ ] **Step 3: Run all viewer tests**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run
 ```
 
@@ -3211,7 +3211,7 @@ Expected: All tests pass (useBundle, useTimeline, component smoke tests)
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add viewer/src/components/__tests__/components.test.tsx
 git commit -m "test(m11): add component smoke tests for all viewer panels"
 ```
@@ -3225,7 +3225,7 @@ git commit -m "test(m11): add component smoke tests for all viewer panels"
 - [ ] **Step 1: Run all Python tests**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 python -m pytest tests/ -v
 ```
 
@@ -3234,7 +3234,7 @@ Expected: All tests pass
 - [ ] **Step 2: Run all viewer tests**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vitest run
 ```
 
@@ -3243,7 +3243,7 @@ Expected: All tests pass
 - [ ] **Step 3: Build viewer for production**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npm run build
 ```
 
@@ -3252,7 +3252,7 @@ Expected: Build succeeds, `viewer/dist/` produced
 - [ ] **Step 4: Manual smoke test**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram/viewer
+cd <HOME>/Documents/opusprogram/viewer
 npx vite --open
 ```
 
@@ -3268,7 +3268,7 @@ Open browser, drag `viewer/src/__fixtures__/sample_bundle.json` onto the page. V
 - [ ] **Step 5: Final commit**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git add -A
 git commit -m "feat(m11): complete M11 Visualization/GUI milestone"
 ```

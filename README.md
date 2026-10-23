@@ -18,7 +18,15 @@ The LLM **only narrates** — it never makes simulation decisions. You can run w
 
 ## Current Status
 
-Phase 6, "Living Society," is the active workstream. If you are developing in the repo, start with:
+The recovered continuation is on **`continuation/recovered-20261011`**, based on
+cleanup checkpoint 011 (`b820217a9ea34ead33e2114e38d44f4297b0a70c`). It contains
+the October integration history beyond public `main`, plus portable development
+instructions and a Windows text-fixture correction. It is a draft development
+line; native/GPU and complete milestone qualification remain separate gates.
+
+Start with [continuation status and known locations](docs/CONTINUATION.md),
+[Windows/Mac/Linux setup](docs/DEVELOPMENT.md), and [agent instructions](AGENTS.md).
+For milestone history and designs, use:
 
 - `docs/superpowers/progress/phase-6-progress.md`
 - `docs/superpowers/roadmaps/`
@@ -31,6 +39,7 @@ Phase 6, "Living Society," is the active workstream. If you are developing in th
 # Clone the repo
 git clone https://github.com/YotsuBotfds/Chronicler.git
 cd Chronicler
+git switch continuation/recovered-20261011
 
 # Run the setup script
 bash setup.sh            # Linux / Mac / Git Bash

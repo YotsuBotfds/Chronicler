@@ -14,7 +14,7 @@
 
 **Accepted pre-M54c baseline:**
 - `tuning/codex_m53_secession_threshold25.yaml`
-- `C:/Users/tateb/Documents/opusprogram_m54b/output/m54b/codex_m53_secession_threshold25_full_500turn_bootstrapfix/batch_1/validate_report.json`
+- `<HOME>/Documents/opusprogram_m54b/output/m54b/codex_m53_secession_threshold25_full_500turn_bootstrapfix/batch_1/validate_report.json`
 
 **Claude Code execution checklist:**
 1. Treat the 11-step Phase 10 order as a hard correctness contract. Do not parallelize or reorder steps while migrating.

@@ -1,0 +1,3154 @@
+{
+  "implementation_commit": "81a4a355c0755b168d66e839e009a8f6504d71b6",
+  "baseline_head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+  "baseline_tree": "46f0e042302f33865b76bd71d5b1b2c3dcda1b4f",
+  "branch": "a01/slice3-runner",
+  "scope": "Owned runner/checkpoint/fixture seams and A01 evidence only",
+  "tests": {
+    "relevant_regression": {
+      "passed": 544,
+      "skipped": 0,
+      "seconds": 5.28,
+      "command": "PYTHONPATH=scripts:src /workspace/a01-venv/bin/python -m pytest -p a01_test_doubles -q tests/test_turn_artifact_runner.py tests/test_main.py tests/test_integration_snapshot_lifecycle.py tests/test_performance_equivalence.py tests/test_checkpoint_replay.py tests/test_models.py tests/test_simulation.py tests/test_tech_focus.py tests/test_artifact_io.py tests/test_settlements.py tests/test_culture.py tests/test_religion.py tests/test_great_persons.py"
+    },
+    "focused_runner": {
+      "passed": 33,
+      "skipped": 0,
+      "seconds": 0.41
+    },
+    "validation_scope": "Explicit test-only doubles; native-dependent cases not claimed; no frozen golden edits"
+  },
+  "comparisons": [
+    {
+      "fixture": "single",
+      "exact_comparison_passed": true,
+      "integrated_acceptance": false,
+      "integrated_python_off_acceptance": false,
+      "turns": 20,
+      "metrics": {
+        "baseline": {
+          "callback_live_views": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "snapshot_span_seconds": [
+            7.671499997741194e-05,
+            8.743099999719561e-05,
+            5.687600003057014e-05,
+            5.761699992490321e-05,
+            5.760599992754578e-05,
+            5.878900003608578e-05,
+            0.00010499799998342496,
+            5.99999999622014e-05,
+            0.00022888499995588063,
+            0.00011101699999471748,
+            8.784199997080577e-05,
+            6.493799992313143e-05,
+            6.396599997060548e-05,
+            8.515800004715857e-05,
+            5.823699996199139e-05,
+            6.145199995444273e-05,
+            9.690599995337834e-05,
+            6.296499998370564e-05,
+            6.195299999944837e-05,
+            6.24550000338786e-05,
+            7.348099995851953e-05,
+            6.12719999253386e-05,
+            5.855800009157974e-05,
+            6.0280999946371594e-05,
+            5.972999997538864e-05,
+            5.84480000043186e-05,
+            7.747600000129751e-05,
+            5.9480000004441536e-05,
+            6.120200009718246e-05,
+            8.375599998089456e-05,
+            5.840799997258728e-05,
+            6.050100000720704e-05,
+            6.190300007347105e-05,
+            0.00010236399998575507,
+            6.0791999999310065e-05,
+            9.394100004556094e-05,
+            0.0001599710000164123,
+            6.884399999762536e-05,
+            6.258500002331857e-05,
+            6.164199999147968e-05,
+            7.087699998464814e-05,
+            5.86979999752657e-05,
+            5.8237999951415986e-05,
+            5.966000003354566e-05,
+            6.125199990947294e-05,
+            5.854899995938467e-05,
+            6.172300004436693e-05,
+            5.746600004385982e-05,
+            6.63600000052611e-05,
+            6.311499998901127e-05,
+            6.418600003144093e-05,
+            6.290400006037089e-05,
+            6.203299994922418e-05,
+            6.008000002566405e-05,
+            6.0801000017818296e-05,
+            6.204299995715701e-05,
+            6.0450999967542884e-05,
+            6.007100000715582e-05,
+            6.113300003107724e-05,
+            5.995000003622408e-05
+          ],
+          "whole_run_seconds": [
+            0.022499122999988685,
+            0.022024748999911026,
+            0.022328004999963014
+          ],
+          "median_seconds": 0.022328004999963014,
+          "allocated_current_bytes": 27495,
+          "peak_tracemalloc_bytes": 1054289,
+          "rss_peak_kib": 88040,
+          "end_live_views": 0,
+          "column_decode_calls": 0,
+          "decoded_elements": 0,
+          "native_snapshot_calls": 0,
+          "dataflow_scope": "Python off-mode: no phase-10 native rows; native metrics unavailable"
+        },
+        "candidate": {
+          "callback_live_views": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "snapshot_span_seconds": [
+            7.93099999327751e-05,
+            6.758200004242099e-05,
+            6.757200003448816e-05,
+            6.536800003686949e-05,
+            6.23440000708797e-05,
+            0.0002472219999845038,
+            0.00010002099998018821,
+            9.685599991371419e-05,
+            6.112199992003298e-05,
+            6.01399999595742e-05,
+            5.795699996724579e-05,
+            6.691099997624406e-05,
+            5.963899991456856e-05,
+            5.8557999977892905e-05,
+            5.941999995684455e-05,
+            6.093199999668286e-05,
+            5.97499999912543e-05,
+            6.239399999685702e-05,
+            6.112200003371981e-05,
+            6.0541000038938364e-05,
+            0.00012926499994136975,
+            8.1101999967359e-05,
+            5.963999990399316e-05,
+            0.0002851389999705134,
+            6.354600009217393e-05,
+            6.187299993598572e-05,
+            6.151299999146431e-05,
+            6.15519999200842e-05,
+            5.954000005203852e-05,
+            6.129199994120427e-05,
+            6.179300009989674e-05,
+            6.226400000741705e-05,
+            6.377600004725537e-05,
+            0.0001503370000364157,
+            6.195299999944837e-05,
+            6.231299994396977e-05,
+            6.49480000447511e-05,
+            8.704100002887571e-05,
+            6.590899999991962e-05,
+            6.254400000216265e-05,
+            8.067199996730778e-05,
+            6.345500003135385e-05,
+            6.526799995754118e-05,
+            6.094200000461569e-05,
+            5.95000000203072e-05,
+            6.0039999993932724e-05,
+            5.915899998854002e-05,
+            5.944999998064304e-05,
+            6.01409999489988e-05,
+            6.261400005769246e-05,
+            6.0952000012548524e-05,
+            6.352499997319683e-05,
+            6.338499997582403e-05,
+            6.136299998615868e-05,
+            6.734199996571988e-05,
+            6.181300000207557e-05,
+            6.466699994689407e-05,
+            6.446699990192428e-05,
+            6.869399999231973e-05,
+            6.377599993356853e-05
+          ],
+          "whole_run_seconds": [
+            0.023414822000063396,
+            0.023119106000081047,
+            0.023850277000065034
+          ],
+          "median_seconds": 0.023414822000063396,
+          "allocated_current_bytes": 27554,
+          "peak_tracemalloc_bytes": 1054348,
+          "rss_peak_kib": 88296,
+          "end_live_views": 0,
+          "column_decode_calls": 0,
+          "decoded_elements": 0,
+          "native_snapshot_calls": 0,
+          "dataflow_scope": "Python off-mode: no phase-10 native rows; native metrics unavailable"
+        }
+      },
+      "checkpoint": {
+        "baseline": {
+          "status": "PASS",
+          "checkpoint_turn": 5,
+          "target_turn": 20,
+          "compared_resumed_turns": 15,
+          "turn_digests": [
+            {
+              "turn": 5,
+              "uninterrupted": "3aef51b74753d2778aea73304f81ef98e16de50f9f0134605a83d6987eb2258e",
+              "resumed": "3aef51b74753d2778aea73304f81ef98e16de50f9f0134605a83d6987eb2258e"
+            },
+            {
+              "turn": 6,
+              "uninterrupted": "304eeef63770fbef9638404bf73d7f5f04d7c99fd4103c9c0cbcfac6633aff01",
+              "resumed": "304eeef63770fbef9638404bf73d7f5f04d7c99fd4103c9c0cbcfac6633aff01"
+            },
+            {
+              "turn": 7,
+              "uninterrupted": "4b14c9a96508222d7eb6b60b7b39e7e6035b2c668dd781b3c4e19425c32630b4",
+              "resumed": "4b14c9a96508222d7eb6b60b7b39e7e6035b2c668dd781b3c4e19425c32630b4"
+            },
+            {
+              "turn": 8,
+              "uninterrupted": "9d9b4416c937591a22737b1b8c2a7f5d25adf33cd2e3862d9e3269d95bdd81a4",
+              "resumed": "9d9b4416c937591a22737b1b8c2a7f5d25adf33cd2e3862d9e3269d95bdd81a4"
+            },
+            {
+              "turn": 9,
+              "uninterrupted": "f7ab4d309704d82c7da272370a01427beed00272fb33f059209896b3540e5643",
+              "resumed": "f7ab4d309704d82c7da272370a01427beed00272fb33f059209896b3540e5643"
+            },
+            {
+              "turn": 10,
+              "uninterrupted": "1562591fe0a45de59b9bd7966bc176c799c6ab3d4614cfd6f732e3d7c0755e92",
+              "resumed": "1562591fe0a45de59b9bd7966bc176c799c6ab3d4614cfd6f732e3d7c0755e92"
+            },
+            {
+              "turn": 11,
+              "uninterrupted": "d4fdf2312b12dfa8dd6d70564691730aede76ba5198491cf16c7ef0a0aabfc71",
+              "resumed": "d4fdf2312b12dfa8dd6d70564691730aede76ba5198491cf16c7ef0a0aabfc71"
+            },
+            {
+              "turn": 12,
+              "uninterrupted": "0cf010f0d754bdd2bb09b07b3ac57c2f5545f02d76bf088bb32d064ad000e373",
+              "resumed": "0cf010f0d754bdd2bb09b07b3ac57c2f5545f02d76bf088bb32d064ad000e373"
+            },
+            {
+              "turn": 13,
+              "uninterrupted": "7c76175ee1cf84e188673697872dc98e9568f35ae50020e95cc7587ec35d3dc6",
+              "resumed": "7c76175ee1cf84e188673697872dc98e9568f35ae50020e95cc7587ec35d3dc6"
+            },
+            {
+              "turn": 14,
+              "uninterrupted": "745934dd1dac05e221c578bd770fe269a8b97eb06d2c04182500ef7712d145ca",
+              "resumed": "745934dd1dac05e221c578bd770fe269a8b97eb06d2c04182500ef7712d145ca"
+            },
+            {
+              "turn": 15,
+              "uninterrupted": "38450d4a583fb1fde6df8fda920679ce6c2df1deeee250f5b07e14475e72fe8a",
+              "resumed": "38450d4a583fb1fde6df8fda920679ce6c2df1deeee250f5b07e14475e72fe8a"
+            },
+            {
+              "turn": 16,
+              "uninterrupted": "9e69e39db0bc74b30b4605c870c28c226eef961a66f9bfe80ccb83b4b7dd1e05",
+              "resumed": "9e69e39db0bc74b30b4605c870c28c226eef961a66f9bfe80ccb83b4b7dd1e05"
+            },
+            {
+              "turn": 17,
+              "uninterrupted": "762016604fee8983299b74b14502982d7915b6cb2d0c4882e47efdf0f55a255a",
+              "resumed": "762016604fee8983299b74b14502982d7915b6cb2d0c4882e47efdf0f55a255a"
+            },
+            {
+              "turn": 18,
+              "uninterrupted": "06d80c54b4b9b73a51e7cbb134b55cd9b731e7bb04d551bd8b15bd2b9a303fe8",
+              "resumed": "06d80c54b4b9b73a51e7cbb134b55cd9b731e7bb04d551bd8b15bd2b9a303fe8"
+            },
+            {
+              "turn": 19,
+              "uninterrupted": "e369b600492a389b340a4e97b277157b5513236b294327da9d851cbc47a5775a",
+              "resumed": "e369b600492a389b340a4e97b277157b5513236b294327da9d851cbc47a5775a"
+            },
+            {
+              "turn": 20,
+              "uninterrupted": "399799590f1606c8004c52127cd364dd70c9ceba476ad3bebd6dd03dbe9755be",
+              "resumed": "399799590f1606c8004c52127cd364dd70c9ceba476ad3bebd6dd03dbe9755be"
+            }
+          ]
+        },
+        "candidate": {
+          "status": "PASS",
+          "checkpoint_turn": 5,
+          "target_turn": 20,
+          "compared_resumed_turns": 15,
+          "turn_digests": [
+            {
+              "turn": 5,
+              "uninterrupted": "3aef51b74753d2778aea73304f81ef98e16de50f9f0134605a83d6987eb2258e",
+              "resumed": "3aef51b74753d2778aea73304f81ef98e16de50f9f0134605a83d6987eb2258e"
+            },
+            {
+              "turn": 6,
+              "uninterrupted": "304eeef63770fbef9638404bf73d7f5f04d7c99fd4103c9c0cbcfac6633aff01",
+              "resumed": "304eeef63770fbef9638404bf73d7f5f04d7c99fd4103c9c0cbcfac6633aff01"
+            },
+            {
+              "turn": 7,
+              "uninterrupted": "4b14c9a96508222d7eb6b60b7b39e7e6035b2c668dd781b3c4e19425c32630b4",
+              "resumed": "4b14c9a96508222d7eb6b60b7b39e7e6035b2c668dd781b3c4e19425c32630b4"
+            },
+            {
+              "turn": 8,
+              "uninterrupted": "9d9b4416c937591a22737b1b8c2a7f5d25adf33cd2e3862d9e3269d95bdd81a4",
+              "resumed": "9d9b4416c937591a22737b1b8c2a7f5d25adf33cd2e3862d9e3269d95bdd81a4"
+            },
+            {
+              "turn": 9,
+              "uninterrupted": "f7ab4d309704d82c7da272370a01427beed00272fb33f059209896b3540e5643",
+              "resumed": "f7ab4d309704d82c7da272370a01427beed00272fb33f059209896b3540e5643"
+            },
+            {
+              "turn": 10,
+              "uninterrupted": "1562591fe0a45de59b9bd7966bc176c799c6ab3d4614cfd6f732e3d7c0755e92",
+              "resumed": "1562591fe0a45de59b9bd7966bc176c799c6ab3d4614cfd6f732e3d7c0755e92"
+            },
+            {
+              "turn": 11,
+              "uninterrupted": "d4fdf2312b12dfa8dd6d70564691730aede76ba5198491cf16c7ef0a0aabfc71",
+              "resumed": "d4fdf2312b12dfa8dd6d70564691730aede76ba5198491cf16c7ef0a0aabfc71"
+            },
+            {
+              "turn": 12,
+              "uninterrupted": "0cf010f0d754bdd2bb09b07b3ac57c2f5545f02d76bf088bb32d064ad000e373",
+              "resumed": "0cf010f0d754bdd2bb09b07b3ac57c2f5545f02d76bf088bb32d064ad000e373"
+            },
+            {
+              "turn": 13,
+              "uninterrupted": "7c76175ee1cf84e188673697872dc98e9568f35ae50020e95cc7587ec35d3dc6",
+              "resumed": "7c76175ee1cf84e188673697872dc98e9568f35ae50020e95cc7587ec35d3dc6"
+            },
+            {
+              "turn": 14,
+              "uninterrupted": "745934dd1dac05e221c578bd770fe269a8b97eb06d2c04182500ef7712d145ca",
+              "resumed": "745934dd1dac05e221c578bd770fe269a8b97eb06d2c04182500ef7712d145ca"
+            },
+            {
+              "turn": 15,
+              "uninterrupted": "38450d4a583fb1fde6df8fda920679ce6c2df1deeee250f5b07e14475e72fe8a",
+              "resumed": "38450d4a583fb1fde6df8fda920679ce6c2df1deeee250f5b07e14475e72fe8a"
+            },
+            {
+              "turn": 16,
+              "uninterrupted": "9e69e39db0bc74b30b4605c870c28c226eef961a66f9bfe80ccb83b4b7dd1e05",
+              "resumed": "9e69e39db0bc74b30b4605c870c28c226eef961a66f9bfe80ccb83b4b7dd1e05"
+            },
+            {
+              "turn": 17,
+              "uninterrupted": "762016604fee8983299b74b14502982d7915b6cb2d0c4882e47efdf0f55a255a",
+              "resumed": "762016604fee8983299b74b14502982d7915b6cb2d0c4882e47efdf0f55a255a"
+            },
+            {
+              "turn": 18,
+              "uninterrupted": "06d80c54b4b9b73a51e7cbb134b55cd9b731e7bb04d551bd8b15bd2b9a303fe8",
+              "resumed": "06d80c54b4b9b73a51e7cbb134b55cd9b731e7bb04d551bd8b15bd2b9a303fe8"
+            },
+            {
+              "turn": 19,
+              "uninterrupted": "e369b600492a389b340a4e97b277157b5513236b294327da9d851cbc47a5775a",
+              "resumed": "e369b600492a389b340a4e97b277157b5513236b294327da9d851cbc47a5775a"
+            },
+            {
+              "turn": 20,
+              "uninterrupted": "399799590f1606c8004c52127cd364dd70c9ceba476ad3bebd6dd03dbe9755be",
+              "resumed": "399799590f1606c8004c52127cd364dd70c9ceba476ad3bebd6dd03dbe9755be"
+            }
+          ]
+        }
+      },
+      "runs": {
+        "baseline": {
+          "head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+          "runtime_identity": {
+            "python": "3.13.15",
+            "implementation": "CPython",
+            "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+            "source_sha256": "c19c3b84fbb3bb592738d165417a376112fe36c2a35076cc5ae898342048ed71",
+            "pydantic": "2.12.5",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "pyarrow": "25.0.1",
+            "arro3-core": "0.9.0",
+            "pyyaml": "6.0.3"
+          },
+          "test_doubles": false,
+          "test_double_sha256": null,
+          "source_sha256": {
+            "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+            "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+            "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+            "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+            "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+            "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+            "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+            "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+            "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+            "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+            "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+            "src/chronicler/checkpoint_replay.py": "6bbe2d087dbac00ba408fb55f2bb119c7855629ee822af65ba3f127ad5c39170",
+            "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+            "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+            "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+            "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+            "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+            "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+            "src/chronicler/ecology.py": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a",
+            "src/chronicler/economy.py": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8",
+            "src/chronicler/elite_metrics.py": "7c11be204787698fc8c847ed2cda142c763141a56788f2f95a636e037da4ee64",
+            "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+            "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+            "src/chronicler/evidence_admission.py": "d6ef96029f53afbfd742e81ec678ee0b1d1ef23047ea85a7f3d2eb7ae1474937",
+            "src/chronicler/experimental/__init__.py": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+            "src/chronicler/experimental/fisheries.py": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736",
+            "src/chronicler/experimental/fisheries_bridge.py": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007",
+            "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+            "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+            "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+            "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+            "src/chronicler/governance_capital.py": "24e0bab992168e8bec1a8bf330ec9b4d789ee6d5a34be18e4d64dbb76b53f707",
+            "src/chronicler/governance_kernel_harness.py": "cc24a232921bad115b6231441646ab91b9123c80f1fbb48e0deb7a6ca2899e25",
+            "src/chronicler/great_persons.py": "1722122a1199da7ed035ced9be97d9e94a34d1addb4a02c74248aebabe758286",
+            "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+            "src/chronicler/institutions.py": "421cc98b8c60dfd95f3945bb9b73af4bba45afbcd2b5bf46a0fc07f472703753",
+            "src/chronicler/intelligence.py": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e",
+            "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+            "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+            "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+            "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+            "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+            "src/chronicler/main.py": "0e4eba7c96786f7f3ec885332b4dd94b86d16eac2a656483636d47935297b5d7",
+            "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+            "src/chronicler/models.py": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0",
+            "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+            "src/chronicler/mutual_aid.py": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0",
+            "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+            "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+            "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+            "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+            "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+            "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+            "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+            "src/chronicler/ruler_ambitions.py": "8216e93f7589beb01a4ae9b8e599e8845f901af69b00732e21e8e82cce649532",
+            "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+            "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+            "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+            "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+            "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+            "src/chronicler/simulation.py": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad",
+            "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+            "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+            "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+            "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+            "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+            "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+            "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+            "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+            "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+            "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+            "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+            "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+            "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+            "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+          },
+          "artifacts": {
+            "chronicle.md": {
+              "bytes": 10136,
+              "sha256": "62fbe6aae3ada2dbaf39cd8c9de9259a0041eb1f4873cb3cda6f4362cdc95130"
+            },
+            "chronicle_bundle.json": {
+              "bytes": 87222,
+              "sha256": "717872ca3906f32cc05d8d81788b66c9e9077ab88d663471fc9d24523190dd53"
+            },
+            "memories_selurian_republic.json": {
+              "bytes": 6334,
+              "sha256": "cdcfacbf1ab0a51ad3ccf59aeb7d1c1227c4e0602920cd735049504daee8019d"
+            },
+            "state.json": {
+              "bytes": 27833,
+              "sha256": "e306b05917713fcc62ae4bdfb3c51028f445c1e3206a57fbaebd04dbf2856a4f"
+            }
+          },
+          "rng": {
+            "sha256": "cd5ebb496dfeab3b75d1941f914b462982c55a9a1a4d0c52806b5c521c3f7666",
+            "counts": {
+              "seed": 117,
+              "getrandbits": 285,
+              "random": 225
+            },
+            "instances": 117
+          }
+        },
+        "candidate": {
+          "head": "81a4a355c0755b168d66e839e009a8f6504d71b6",
+          "runtime_identity": {
+            "python": "3.13.15",
+            "implementation": "CPython",
+            "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+            "source_sha256": "0dc9d7fef5e34814cf159e7e16632aa00035ba3a3b9736798b426323ee0f0c1f",
+            "pydantic": "2.12.5",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "pyarrow": "25.0.1",
+            "arro3-core": "0.9.0",
+            "pyyaml": "6.0.3"
+          },
+          "test_doubles": true,
+          "test_double_sha256": "82ea0d23ac9bc8272d40d29992044a40f063775c267692f1cac0c8839401a1e5",
+          "source_sha256": {
+            "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+            "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+            "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+            "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+            "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+            "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+            "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+            "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+            "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+            "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+            "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+            "src/chronicler/checkpoint_replay.py": "4ca3b3da8c56580071d12d8955a069ad888017cbcc9ed48188a00a47911a663c",
+            "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+            "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+            "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+            "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+            "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+            "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+            "src/chronicler/ecology.py": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a",
+            "src/chronicler/economy.py": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8",
+            "src/chronicler/elite_metrics.py": "7c11be204787698fc8c847ed2cda142c763141a56788f2f95a636e037da4ee64",
+            "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+            "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+            "src/chronicler/evidence_admission.py": "d6ef96029f53afbfd742e81ec678ee0b1d1ef23047ea85a7f3d2eb7ae1474937",
+            "src/chronicler/experimental/__init__.py": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+            "src/chronicler/experimental/fisheries.py": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736",
+            "src/chronicler/experimental/fisheries_bridge.py": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007",
+            "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+            "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+            "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+            "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+            "src/chronicler/governance_capital.py": "24e0bab992168e8bec1a8bf330ec9b4d789ee6d5a34be18e4d64dbb76b53f707",
+            "src/chronicler/governance_kernel_harness.py": "cc24a232921bad115b6231441646ab91b9123c80f1fbb48e0deb7a6ca2899e25",
+            "src/chronicler/great_persons.py": "1722122a1199da7ed035ced9be97d9e94a34d1addb4a02c74248aebabe758286",
+            "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+            "src/chronicler/institutions.py": "421cc98b8c60dfd95f3945bb9b73af4bba45afbcd2b5bf46a0fc07f472703753",
+            "src/chronicler/intelligence.py": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e",
+            "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+            "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+            "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+            "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+            "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+            "src/chronicler/main.py": "65958a043703898fad0fce85bb7e243a097cc2c67e3ccd716deeac3bf6068f54",
+            "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+            "src/chronicler/models.py": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0",
+            "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+            "src/chronicler/mutual_aid.py": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0",
+            "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+            "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+            "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+            "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+            "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+            "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+            "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+            "src/chronicler/ruler_ambitions.py": "8216e93f7589beb01a4ae9b8e599e8845f901af69b00732e21e8e82cce649532",
+            "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+            "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+            "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+            "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+            "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+            "src/chronicler/simulation.py": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad",
+            "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+            "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+            "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+            "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+            "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+            "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+            "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+            "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+            "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+            "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+            "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+            "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+            "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+            "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+          },
+          "artifacts": {
+            "chronicle.md": {
+              "bytes": 10136,
+              "sha256": "62fbe6aae3ada2dbaf39cd8c9de9259a0041eb1f4873cb3cda6f4362cdc95130"
+            },
+            "chronicle_bundle.json": {
+              "bytes": 87222,
+              "sha256": "717872ca3906f32cc05d8d81788b66c9e9077ab88d663471fc9d24523190dd53"
+            },
+            "memories_selurian_republic.json": {
+              "bytes": 6334,
+              "sha256": "cdcfacbf1ab0a51ad3ccf59aeb7d1c1227c4e0602920cd735049504daee8019d"
+            },
+            "state.json": {
+              "bytes": 27833,
+              "sha256": "e306b05917713fcc62ae4bdfb3c51028f445c1e3206a57fbaebd04dbf2856a4f"
+            }
+          },
+          "rng": {
+            "sha256": "cd5ebb496dfeab3b75d1941f914b462982c55a9a1a4d0c52806b5c521c3f7666",
+            "counts": {
+              "seed": 117,
+              "getrandbits": 285,
+              "random": 225
+            },
+            "instances": 117
+          }
+        }
+      }
+    },
+    {
+      "fixture": "standard",
+      "exact_comparison_passed": true,
+      "integrated_acceptance": false,
+      "integrated_python_off_acceptance": false,
+      "turns": 60,
+      "metrics": {
+        "baseline": {
+          "callback_live_views": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "snapshot_span_seconds": [
+            0.00045385600003555737,
+            0.00047306199996910436,
+            0.0004970840000169119,
+            0.0004645610000579836,
+            0.0004376649999358051,
+            0.0005737170000656988,
+            0.0004638100000420309,
+            0.0004589729999224801,
+            0.0005105420000290906,
+            0.0005142369999475704,
+            0.0011175329999559835,
+            0.0005499050000707939,
+            0.00047386400001414586,
+            0.00045282500002485904,
+            0.0004671449999023025,
+            0.000497555000038119,
+            0.00048171399998864217,
+            0.0005045950000521771,
+            0.00047445400002743554,
+            0.0005070280000154526,
+            0.0004957029999559381,
+            0.000500698999985616,
+            0.0004846169999837002,
+            0.0005132159999448049,
+            0.0005546210001057261,
+            0.00051935399994818,
+            0.0006158129999676021,
+            0.0005129449999685676,
+            0.0005002090000516546,
+            0.0004926479999767253,
+            0.000498875999937809,
+            0.0004942699999901379,
+            0.00047900999993544247,
+            0.0005025520000572214,
+            0.00047290100008012814,
+            0.00047624600006201945,
+            0.0005212759999722039,
+            0.0005231789999697867,
+            0.0005198549999931856,
+            0.00048240500007068476,
+            0.0004961930000035863,
+            0.0005217769999035227,
+            0.0005167409999558004,
+            0.0009143710000216743,
+            0.0008213769999656506,
+            0.001082465999957094,
+            0.0010014380000029632,
+            0.001035814000033497,
+            0.001031337999961579,
+            0.0010634209999125233,
+            0.0010534169999800724,
+            0.0010134540000308334,
+            0.0011416749999852982,
+            0.001343806000022596,
+            0.0010331599999062746,
+            0.0010399699999652512,
+            0.0010270620000483177,
+            0.0010495129999981145,
+            0.0010091479999800868,
+            0.0013701799999807918,
+            0.0004720830000906062,
+            0.00041991400007646007,
+            0.00044034500001544075,
+            0.0004681169999685153,
+            0.0005103600000211372,
+            0.000496419999990394,
+            0.00046100599990950286,
+            0.00046650500007672235,
+            0.0004616270000497025,
+            0.0004755689999456081,
+            0.0004785820000279273,
+            0.0006710640000164858,
+            0.0004971810000142796,
+            0.0004406849999440965,
+            0.0005055929999571163,
+            0.0004650130000527497,
+            0.0004954380000299352,
+            0.00047435599992695643,
+            0.0005070150000392459,
+            0.0005183429999533473,
+            0.0004887989999815545,
+            0.00047728099991672934,
+            0.0004920730000321782,
+            0.00047271399989767815,
+            0.0004858240000658043,
+            0.00047437700004593353,
+            0.00051098100004765,
+            0.0005129840000108743,
+            0.0005216880000489255,
+            0.0004829889999200532,
+            0.0004890690000820541,
+            0.0005605370000694165,
+            0.0005491800000072544,
+            0.0005439910000859527,
+            0.000545683999916946,
+            0.000533636000000115,
+            0.0005381830000033005,
+            0.0005400949999057048,
+            0.000546354999983123,
+            0.0005467750000889282,
+            0.0005479870000044684,
+            0.0005445819999749801,
+            0.0005171709999558516,
+            0.0006833219999862195,
+            0.0008865080000077796,
+            0.0009462790000043242,
+            0.0010189790000367793,
+            0.0010121579999804453,
+            0.0011020239999197656,
+            0.0010480529999767896,
+            0.0010823439999967377,
+            0.0010207709999576764,
+            0.0010498249999955078,
+            0.001024317000087649,
+            0.0009991590000026918,
+            0.0010980479999034287,
+            0.0010441460000265579,
+            0.0009907570000677879,
+            0.0010416930000474167,
+            0.001020610999944438,
+            0.00047660999996423925,
+            0.000632926000093903,
+            0.0004539760000170645,
+            0.0004517319999877145,
+            0.0004496489999610276,
+            0.0005292089999784366,
+            0.00046053599999140715,
+            0.0004989839999325341,
+            0.000459413000044151,
+            0.00047280399996907363,
+            0.0004817880000018704,
+            0.000501867999901151,
+            0.00045912300004147255,
+            0.00043845200002579077,
+            0.00046183799997834285,
+            0.00048222800000985444,
+            0.0004932240000243837,
+            0.0005148779999899489,
+            0.00048732599998402293,
+            0.0004889080000793911,
+            0.0004616280000391271,
+            0.0004914319999897998,
+            0.00046899800008759485,
+            0.0004715820000456006,
+            0.0006304419999878519,
+            0.0004955079999717782,
+            0.0004958590000114782,
+            0.0004800449999038392,
+            0.0004909020000241071,
+            0.0006185640000921921,
+            0.0004959689999850525,
+            0.0005341160000398304,
+            0.0004978010000513677,
+            0.000511753000068893,
+            0.0004892889999155159,
+            0.0004886069999656684,
+            0.0005005259999961709,
+            0.0004975010000407565,
+            0.0005826000000297427,
+            0.0004986530000223865,
+            0.00047293400007220043,
+            0.000497961999940344,
+            0.0005183729999771458,
+            0.0007040430000415654,
+            0.0007728580000048169,
+            0.00096928300001764,
+            0.0010460990000638049,
+            0.001040942000031464,
+            0.001017726999975821,
+            0.0012324809999881836,
+            0.0010913279999158476,
+            0.0011238570000386972,
+            0.0010327890000780826,
+            0.0010039559999768244,
+            0.0012924310000244077,
+            0.0010076519999984157,
+            0.0009893440000041664,
+            0.0011050690000047325,
+            0.0009929799999781608,
+            0.0009982679999893662
+          ],
+          "whole_run_seconds": [
+            0.27810176900004535,
+            0.2637055339999961,
+            0.2657666270000618
+          ],
+          "median_seconds": 0.2657666270000618,
+          "allocated_current_bytes": 42283,
+          "peak_tracemalloc_bytes": 12235715,
+          "rss_peak_kib": 107464,
+          "end_live_views": 0,
+          "column_decode_calls": 0,
+          "decoded_elements": 0,
+          "native_snapshot_calls": 0,
+          "dataflow_scope": "Python off-mode: no phase-10 native rows; native metrics unavailable"
+        },
+        "candidate": {
+          "callback_live_views": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "snapshot_span_seconds": [
+            0.00046439100003681233,
+            0.00042978900000889553,
+            0.00043974400000479363,
+            0.0004635600000710838,
+            0.0004859740000711099,
+            0.00047688999995898484,
+            0.0004651220000368994,
+            0.0004688490000717138,
+            0.00046675400005824486,
+            0.00072520500009432,
+            0.0005963910000446049,
+            0.0004765900000620604,
+            0.00046571299992592685,
+            0.0004962389999718653,
+            0.0006239519999553522,
+            0.00046929799998451927,
+            0.0004717719999689507,
+            0.0004735249999612279,
+            0.0005924540000705747,
+            0.000526716000081251,
+            0.0007623809999586229,
+            0.0005496399999174173,
+            0.0004966400000512294,
+            0.0004841510000233029,
+            0.0004846010000392198,
+            0.0005743680000023232,
+            0.00047890299993014196,
+            0.0004868549999628158,
+            0.0004855430000816341,
+            0.0005061040000100547,
+            0.0005201349999879312,
+            0.000502408999977888,
+            0.0007485099999939848,
+            0.0005180219999374458,
+            0.0005907119999619681,
+            0.00048595400005524425,
+            0.0005006060000596335,
+            0.00048757600006865687,
+            0.00048498299997845606,
+            0.0004854830000340371,
+            0.0008756129999483164,
+            0.0004748470000777161,
+            0.0005881380000118952,
+            0.0007229919999645062,
+            0.000721919999932652,
+            0.0009411109999746259,
+            0.0010598700000628014,
+            0.0011751050000157193,
+            0.0011561559999790916,
+            0.0010370859999966342,
+            0.001117336999982399,
+            0.001048093000008521,
+            0.0012989619999643764,
+            0.001023516000032032,
+            0.001241133999997146,
+            0.0010156939999887982,
+            0.0010763050000832663,
+            0.001107973000102902,
+            0.0012777200000755329,
+            0.001044366999963131,
+            0.0008180949999996301,
+            0.00043249300006209523,
+            0.0004508810000061203,
+            0.00045301399995878455,
+            0.0004459130000213918,
+            0.00046448199998394557,
+            0.0004888479999181072,
+            0.0007434929999590167,
+            0.0005188739999084646,
+            0.0004992739999352125,
+            0.0006441929999709828,
+            0.0005673669999168851,
+            0.00046693499996308674,
+            0.0004852829999890673,
+            0.0005630199999586694,
+            0.00046584300002905366,
+            0.00046749600005568936,
+            0.0004982120000249779,
+            0.00048174799997013906,
+            0.0005154780000111714,
+            0.0004830100000390303,
+            0.0005289590000074895,
+            0.0005158090000350057,
+            0.0004754990000037651,
+            0.0004738559999850622,
+            0.0004910909999580326,
+            0.0005161689999795271,
+            0.0005204860000276312,
+            0.0005522339999970427,
+            0.000560706999976901,
+            0.0006892510000398033,
+            0.0006019489999289362,
+            0.0005152580000640228,
+            0.0005721640000047046,
+            0.0005736960000604086,
+            0.0006269170000905433,
+            0.0005346670000108134,
+            0.0004879169999867372,
+            0.0005485679999992499,
+            0.0005488990000230842,
+            0.0005653140000276835,
+            0.0004950079999161972,
+            0.0005484689999093462,
+            0.0007319850000158112,
+            0.0009326189999683265,
+            0.0010072709999349172,
+            0.0013758279999365186,
+            0.0011339919999500125,
+            0.0010591899999781162,
+            0.0010299759999270464,
+            0.0014805659999410636,
+            0.0011842680000881955,
+            0.0018548409999539217,
+            0.0013621069999771862,
+            0.0012589909999860538,
+            0.0011542529999815088,
+            0.0010586790000388646,
+            0.0010322390000965243,
+            0.0010423639999999068,
+            0.0010124789999963468,
+            0.0004724740000483507,
+            0.00047136199998476513,
+            0.00045733000001746404,
+            0.00044571300009010884,
+            0.0004674360000080924,
+            0.00048968999999488,
+            0.00048672500008706265,
+            0.000527447000081338,
+            0.0004916729999422387,
+            0.0005208559999800855,
+            0.0005007260000411407,
+            0.0005244420000281025,
+            0.000533506000010675,
+            0.00047249399995052954,
+            0.00046756599999753234,
+            0.0004660340000555152,
+            0.0004878770000686927,
+            0.0008012600000029124,
+            0.00048769599993647716,
+            0.0004965599999877668,
+            0.00047512799994819943,
+            0.0004887479999524658,
+            0.000498332000006485,
+            0.0005047020000574776,
+            0.0004777609999564447,
+            0.0005341769999631651,
+            0.0005268559999649369,
+            0.0004826780000257713,
+            0.0004814769999939017,
+            0.00048759700007394713,
+            0.000491222000050584,
+            0.0005176519999849916,
+            0.0004947670000774451,
+            0.0004772199999933946,
+            0.00047850200007815147,
+            0.0005515330000207541,
+            0.0005196749999640815,
+            0.00048413100000743725,
+            0.0005292390000022351,
+            0.0005540460000474923,
+            0.0005031299999700423,
+            0.0005032499999515494,
+            0.00055593999991288,
+            0.0007769830000370348,
+            0.0007859559999587873,
+            0.0009835849999717539,
+            0.001087863000066136,
+            0.0010277320000113832,
+            0.0010330100000146558,
+            0.0010520989999349695,
+            0.0011580589999766744,
+            0.0010507470000220565,
+            0.0010736109999243126,
+            0.0010300950000328157,
+            0.0012991209999881903,
+            0.0010129300000016883,
+            0.0012448499999209162,
+            0.001376728999957777,
+            0.0012543540000251596,
+            0.0010329400000728128
+          ],
+          "whole_run_seconds": [
+            0.2727602279999246,
+            0.30196245700005875,
+            0.27217427800007954
+          ],
+          "median_seconds": 0.2727602279999246,
+          "allocated_current_bytes": 41592,
+          "peak_tracemalloc_bytes": 12235024,
+          "rss_peak_kib": 107444,
+          "end_live_views": 0,
+          "column_decode_calls": 0,
+          "decoded_elements": 0,
+          "native_snapshot_calls": 0,
+          "dataflow_scope": "Python off-mode: no phase-10 native rows; native metrics unavailable"
+        }
+      },
+      "checkpoint": {
+        "baseline": {
+          "status": "PASS",
+          "checkpoint_turn": 5,
+          "target_turn": 60,
+          "compared_resumed_turns": 55,
+          "turn_digests": [
+            {
+              "turn": 5,
+              "uninterrupted": "fe0df8d0dda40f35a3cff5e59261f098e617433c5a0166cf8845a890d2ae3075",
+              "resumed": "fe0df8d0dda40f35a3cff5e59261f098e617433c5a0166cf8845a890d2ae3075"
+            },
+            {
+              "turn": 6,
+              "uninterrupted": "1418d02253c34206c3ba44f41e7e5450017c2e77fa609cdfc1bed18517f5aaaf",
+              "resumed": "1418d02253c34206c3ba44f41e7e5450017c2e77fa609cdfc1bed18517f5aaaf"
+            },
+            {
+              "turn": 7,
+              "uninterrupted": "3a95be94e50e552cfba61e4a40b878b646cd0f3369fee629c74bdaf7cc03dc90",
+              "resumed": "3a95be94e50e552cfba61e4a40b878b646cd0f3369fee629c74bdaf7cc03dc90"
+            },
+            {
+              "turn": 8,
+              "uninterrupted": "080fa98d6b3b6fcc506f591aa5743143b860e8fcde16ab93c04b20d28eac7bbc",
+              "resumed": "080fa98d6b3b6fcc506f591aa5743143b860e8fcde16ab93c04b20d28eac7bbc"
+            },
+            {
+              "turn": 9,
+              "uninterrupted": "8f6fc040159d3714818ef5b3ada91d318a6005841e371adbf9dfad937f8e37e2",
+              "resumed": "8f6fc040159d3714818ef5b3ada91d318a6005841e371adbf9dfad937f8e37e2"
+            },
+            {
+              "turn": 10,
+              "uninterrupted": "06a0dd1fe7f714f593ae6265e5305a7b903130f558444c16efb4649ba7c240f5",
+              "resumed": "06a0dd1fe7f714f593ae6265e5305a7b903130f558444c16efb4649ba7c240f5"
+            },
+            {
+              "turn": 11,
+              "uninterrupted": "276cfdca259b969531f84a1cd3f0c9a58cacf7658b35053079b61aaf2d9af54b",
+              "resumed": "276cfdca259b969531f84a1cd3f0c9a58cacf7658b35053079b61aaf2d9af54b"
+            },
+            {
+              "turn": 12,
+              "uninterrupted": "e03e2fd78fcae30b873cfe3f8793fc4b485d48504b35a9a49854dd0097735784",
+              "resumed": "e03e2fd78fcae30b873cfe3f8793fc4b485d48504b35a9a49854dd0097735784"
+            },
+            {
+              "turn": 13,
+              "uninterrupted": "31aff2a89ea692a18337577bffaf67414e2b37a20069c53469a4e41c5f94742b",
+              "resumed": "31aff2a89ea692a18337577bffaf67414e2b37a20069c53469a4e41c5f94742b"
+            },
+            {
+              "turn": 14,
+              "uninterrupted": "9691d1beebe9d00d9dac602082db1abf126a48140fa22aed9ff75ca6562d3b2c",
+              "resumed": "9691d1beebe9d00d9dac602082db1abf126a48140fa22aed9ff75ca6562d3b2c"
+            },
+            {
+              "turn": 15,
+              "uninterrupted": "fc93c29d409490c800bf32237c30eaa103b9c106b10600f5eacd1588d85279ba",
+              "resumed": "fc93c29d409490c800bf32237c30eaa103b9c106b10600f5eacd1588d85279ba"
+            },
+            {
+              "turn": 16,
+              "uninterrupted": "3ff3f4085a5a5dc35920fd8dd62fd66d6114c658c0cc1d27bfbe22c6dc447850",
+              "resumed": "3ff3f4085a5a5dc35920fd8dd62fd66d6114c658c0cc1d27bfbe22c6dc447850"
+            },
+            {
+              "turn": 17,
+              "uninterrupted": "88f909a8b97fed1cfb24c78f008445c3ed85d1637ba369e12f4add7ce40e054a",
+              "resumed": "88f909a8b97fed1cfb24c78f008445c3ed85d1637ba369e12f4add7ce40e054a"
+            },
+            {
+              "turn": 18,
+              "uninterrupted": "6f281fe5a2bb5495210ad8b6f845cf9668295aae15bed032751fc1b57d34b017",
+              "resumed": "6f281fe5a2bb5495210ad8b6f845cf9668295aae15bed032751fc1b57d34b017"
+            },
+            {
+              "turn": 19,
+              "uninterrupted": "4db7e19fb666e292c2f335baebb4daa717ed0b459d594e65f1b7b5dcc9ed0e0f",
+              "resumed": "4db7e19fb666e292c2f335baebb4daa717ed0b459d594e65f1b7b5dcc9ed0e0f"
+            },
+            {
+              "turn": 20,
+              "uninterrupted": "973f588af50540e423562b6816fa44f0f14d91833130733aec758d5909a0d49c",
+              "resumed": "973f588af50540e423562b6816fa44f0f14d91833130733aec758d5909a0d49c"
+            },
+            {
+              "turn": 21,
+              "uninterrupted": "062e22ca8ba6d16fb9752ece6c91b423210e107ddd80fa0935c4ba0d5f01fc7b",
+              "resumed": "062e22ca8ba6d16fb9752ece6c91b423210e107ddd80fa0935c4ba0d5f01fc7b"
+            },
+            {
+              "turn": 22,
+              "uninterrupted": "d5d996cc82c75243eeca455f282f194b1f355b7dcfbd047e9c06651930718964",
+              "resumed": "d5d996cc82c75243eeca455f282f194b1f355b7dcfbd047e9c06651930718964"
+            },
+            {
+              "turn": 23,
+              "uninterrupted": "66e9439ebb93653606c25d9a93cf4e5305c2273f84f6f1eccd77323f1293b306",
+              "resumed": "66e9439ebb93653606c25d9a93cf4e5305c2273f84f6f1eccd77323f1293b306"
+            },
+            {
+              "turn": 24,
+              "uninterrupted": "71ca72696739becebb0fac3135762a0e72e0565352d153d508025611975cd98d",
+              "resumed": "71ca72696739becebb0fac3135762a0e72e0565352d153d508025611975cd98d"
+            },
+            {
+              "turn": 25,
+              "uninterrupted": "f0eea9e13514ae1cd89e6896482a3be70c54cb0cedf4ffe9d2a6961e53a63765",
+              "resumed": "f0eea9e13514ae1cd89e6896482a3be70c54cb0cedf4ffe9d2a6961e53a63765"
+            },
+            {
+              "turn": 26,
+              "uninterrupted": "f710b37e242f81f340c5f54e81ddc29e5e94ef930eadb4ab760d96e0b5464b8b",
+              "resumed": "f710b37e242f81f340c5f54e81ddc29e5e94ef930eadb4ab760d96e0b5464b8b"
+            },
+            {
+              "turn": 27,
+              "uninterrupted": "917a94b00e7962e22e630768034eab5ff1f239a7cef98ce9b1bf2809c0c6f466",
+              "resumed": "917a94b00e7962e22e630768034eab5ff1f239a7cef98ce9b1bf2809c0c6f466"
+            },
+            {
+              "turn": 28,
+              "uninterrupted": "8865eeecad368848bea8f653d32ee2d09ad43277f8d7d9945aed7281874531a3",
+              "resumed": "8865eeecad368848bea8f653d32ee2d09ad43277f8d7d9945aed7281874531a3"
+            },
+            {
+              "turn": 29,
+              "uninterrupted": "c9ac3cb46b244a2e1c5e20787d538c2c6d670c773af1a2a872d2db945b24a51c",
+              "resumed": "c9ac3cb46b244a2e1c5e20787d538c2c6d670c773af1a2a872d2db945b24a51c"
+            },
+            {
+              "turn": 30,
+              "uninterrupted": "4ef184eb22bcaa3379f6a376f55433c19c73cdb7e3a873beb9f436c568a942c4",
+              "resumed": "4ef184eb22bcaa3379f6a376f55433c19c73cdb7e3a873beb9f436c568a942c4"
+            },
+            {
+              "turn": 31,
+              "uninterrupted": "4bfa56072bc4b42ad9b0c6419147c8e7dce321084fc21c4b7dd1ce4e12c30fb9",
+              "resumed": "4bfa56072bc4b42ad9b0c6419147c8e7dce321084fc21c4b7dd1ce4e12c30fb9"
+            },
+            {
+              "turn": 32,
+              "uninterrupted": "51fc759efaa072ae36a6be7ae7fa8cb1a0ff8f8f20a0dfd31d3a55e6670b4e67",
+              "resumed": "51fc759efaa072ae36a6be7ae7fa8cb1a0ff8f8f20a0dfd31d3a55e6670b4e67"
+            },
+            {
+              "turn": 33,
+              "uninterrupted": "e6083a28b604296cf0b094d7297e8a857189f80124dc1c558f98022ec78974a1",
+              "resumed": "e6083a28b604296cf0b094d7297e8a857189f80124dc1c558f98022ec78974a1"
+            },
+            {
+              "turn": 34,
+              "uninterrupted": "7d5d9bc5bc21df1d11e93e70d1f696ccf253d675a4f140503efba0ff7b6feca4",
+              "resumed": "7d5d9bc5bc21df1d11e93e70d1f696ccf253d675a4f140503efba0ff7b6feca4"
+            },
+            {
+              "turn": 35,
+              "uninterrupted": "3a528216b673925502ae9d83a7d9537462d8519054defb05947e314d2b5d4be4",
+              "resumed": "3a528216b673925502ae9d83a7d9537462d8519054defb05947e314d2b5d4be4"
+            },
+            {
+              "turn": 36,
+              "uninterrupted": "b8d0dcc44670ed3741d444a056a3b78af762e0e782b0f66f1a7cfd96dacaf574",
+              "resumed": "b8d0dcc44670ed3741d444a056a3b78af762e0e782b0f66f1a7cfd96dacaf574"
+            },
+            {
+              "turn": 37,
+              "uninterrupted": "381515cd6e9827481a41ae305a42eaff83af7d6aa18602a84dd133572907ada2",
+              "resumed": "381515cd6e9827481a41ae305a42eaff83af7d6aa18602a84dd133572907ada2"
+            },
+            {
+              "turn": 38,
+              "uninterrupted": "31e3f3693a9548ef1d248487155995be5a50ce8fc1e553ab3753cb24ab9eaaaf",
+              "resumed": "31e3f3693a9548ef1d248487155995be5a50ce8fc1e553ab3753cb24ab9eaaaf"
+            },
+            {
+              "turn": 39,
+              "uninterrupted": "6307a96ca507a72e563538c8cbb5d4e3652f5dc2b70a04a2b459d1b73d245a20",
+              "resumed": "6307a96ca507a72e563538c8cbb5d4e3652f5dc2b70a04a2b459d1b73d245a20"
+            },
+            {
+              "turn": 40,
+              "uninterrupted": "0219a18ee091133bf963945ab92be721f33563047dcf106690dac6a8ae91e0c9",
+              "resumed": "0219a18ee091133bf963945ab92be721f33563047dcf106690dac6a8ae91e0c9"
+            },
+            {
+              "turn": 41,
+              "uninterrupted": "799590f939c5dc11d081a21a0bbf2319b045eb2ae03428cf61ccefa463031068",
+              "resumed": "799590f939c5dc11d081a21a0bbf2319b045eb2ae03428cf61ccefa463031068"
+            },
+            {
+              "turn": 42,
+              "uninterrupted": "cf835bd52204b53934fdb25afb52e0106abdf73e0d048c6423f90c15e9e1c875",
+              "resumed": "cf835bd52204b53934fdb25afb52e0106abdf73e0d048c6423f90c15e9e1c875"
+            },
+            {
+              "turn": 43,
+              "uninterrupted": "84b199185c159da9ce41b4313b01603cf7537ea71090b9c5c575fb2e4b97c9fc",
+              "resumed": "84b199185c159da9ce41b4313b01603cf7537ea71090b9c5c575fb2e4b97c9fc"
+            },
+            {
+              "turn": 44,
+              "uninterrupted": "40886ebe47b407fc66a4d35a8360ab265ad81f50626ef4f4d349f727bea2bc36",
+              "resumed": "40886ebe47b407fc66a4d35a8360ab265ad81f50626ef4f4d349f727bea2bc36"
+            },
+            {
+              "turn": 45,
+              "uninterrupted": "3cf3d781c742104cd3903ac16364fcecc0bf04aaf7229a42d844a2b6254d2420",
+              "resumed": "3cf3d781c742104cd3903ac16364fcecc0bf04aaf7229a42d844a2b6254d2420"
+            },
+            {
+              "turn": 46,
+              "uninterrupted": "e4084167fbcff7ee41d2a49a7aa069199317dfc0b1a7502995c7486374d4fcc7",
+              "resumed": "e4084167fbcff7ee41d2a49a7aa069199317dfc0b1a7502995c7486374d4fcc7"
+            },
+            {
+              "turn": 47,
+              "uninterrupted": "6b07815f9e1586357697e960fff2d903b3ffb5ff202a60b8a3c3678ceb206ec4",
+              "resumed": "6b07815f9e1586357697e960fff2d903b3ffb5ff202a60b8a3c3678ceb206ec4"
+            },
+            {
+              "turn": 48,
+              "uninterrupted": "17513c69834a75856fc4c39f9b28c9cf691ae503d12e41a528d51b071ac2433f",
+              "resumed": "17513c69834a75856fc4c39f9b28c9cf691ae503d12e41a528d51b071ac2433f"
+            },
+            {
+              "turn": 49,
+              "uninterrupted": "8f357858efa39d6cb8144d26b5209ddcbf5170de14c06571b380df64b6c03cbc",
+              "resumed": "8f357858efa39d6cb8144d26b5209ddcbf5170de14c06571b380df64b6c03cbc"
+            },
+            {
+              "turn": 50,
+              "uninterrupted": "d169c46e5e03168ab373cea9104ed60cbe82cb090f47a16235cc6ae36ab25beb",
+              "resumed": "d169c46e5e03168ab373cea9104ed60cbe82cb090f47a16235cc6ae36ab25beb"
+            },
+            {
+              "turn": 51,
+              "uninterrupted": "f15cb1feee134666d4a4ddb725707e9f367c095bfb4f738fb2b44e301b0745b5",
+              "resumed": "f15cb1feee134666d4a4ddb725707e9f367c095bfb4f738fb2b44e301b0745b5"
+            },
+            {
+              "turn": 52,
+              "uninterrupted": "87ecee40bb69c4ea3b2b2b2b0af5b45b05aec1e94e8e82e013ddd650f55f8d96",
+              "resumed": "87ecee40bb69c4ea3b2b2b2b0af5b45b05aec1e94e8e82e013ddd650f55f8d96"
+            },
+            {
+              "turn": 53,
+              "uninterrupted": "28c67d0d329c04e1955aab58c581bb02d6de8bf490555f2150345013ce46a709",
+              "resumed": "28c67d0d329c04e1955aab58c581bb02d6de8bf490555f2150345013ce46a709"
+            },
+            {
+              "turn": 54,
+              "uninterrupted": "57ae8bece9bd2bfdf299b913d10fa2d31daa92cb93905398ba0b4ec0620ff153",
+              "resumed": "57ae8bece9bd2bfdf299b913d10fa2d31daa92cb93905398ba0b4ec0620ff153"
+            },
+            {
+              "turn": 55,
+              "uninterrupted": "b87f197c0f08cb1498743eab108acdbb7f6959dc670e86447d8d47b0ccbfefc0",
+              "resumed": "b87f197c0f08cb1498743eab108acdbb7f6959dc670e86447d8d47b0ccbfefc0"
+            },
+            {
+              "turn": 56,
+              "uninterrupted": "ab430f5e981187d1a66ab4414d163c5510e424ad3e857939df14597bf188dd4e",
+              "resumed": "ab430f5e981187d1a66ab4414d163c5510e424ad3e857939df14597bf188dd4e"
+            },
+            {
+              "turn": 57,
+              "uninterrupted": "4c5762a00fd3ab2949b0911c5e419d980baf62d86aae4d761ffd9a4df84c805f",
+              "resumed": "4c5762a00fd3ab2949b0911c5e419d980baf62d86aae4d761ffd9a4df84c805f"
+            },
+            {
+              "turn": 58,
+              "uninterrupted": "b632dd3235edf79a9910a7a357aede8c26bfdb77700a6eebd4e5dfd307d4d432",
+              "resumed": "b632dd3235edf79a9910a7a357aede8c26bfdb77700a6eebd4e5dfd307d4d432"
+            },
+            {
+              "turn": 59,
+              "uninterrupted": "3db68c3e13b109bc2af445682eeffb94bd3f45070eaf3ab2440aa5543f691e2e",
+              "resumed": "3db68c3e13b109bc2af445682eeffb94bd3f45070eaf3ab2440aa5543f691e2e"
+            },
+            {
+              "turn": 60,
+              "uninterrupted": "e0b535b388e570715b9c68dde5b2dd48c54cd9121103c424950eed363244d110",
+              "resumed": "e0b535b388e570715b9c68dde5b2dd48c54cd9121103c424950eed363244d110"
+            }
+          ]
+        },
+        "candidate": {
+          "status": "PASS",
+          "checkpoint_turn": 5,
+          "target_turn": 60,
+          "compared_resumed_turns": 55,
+          "turn_digests": [
+            {
+              "turn": 5,
+              "uninterrupted": "fe0df8d0dda40f35a3cff5e59261f098e617433c5a0166cf8845a890d2ae3075",
+              "resumed": "fe0df8d0dda40f35a3cff5e59261f098e617433c5a0166cf8845a890d2ae3075"
+            },
+            {
+              "turn": 6,
+              "uninterrupted": "1418d02253c34206c3ba44f41e7e5450017c2e77fa609cdfc1bed18517f5aaaf",
+              "resumed": "1418d02253c34206c3ba44f41e7e5450017c2e77fa609cdfc1bed18517f5aaaf"
+            },
+            {
+              "turn": 7,
+              "uninterrupted": "3a95be94e50e552cfba61e4a40b878b646cd0f3369fee629c74bdaf7cc03dc90",
+              "resumed": "3a95be94e50e552cfba61e4a40b878b646cd0f3369fee629c74bdaf7cc03dc90"
+            },
+            {
+              "turn": 8,
+              "uninterrupted": "080fa98d6b3b6fcc506f591aa5743143b860e8fcde16ab93c04b20d28eac7bbc",
+              "resumed": "080fa98d6b3b6fcc506f591aa5743143b860e8fcde16ab93c04b20d28eac7bbc"
+            },
+            {
+              "turn": 9,
+              "uninterrupted": "8f6fc040159d3714818ef5b3ada91d318a6005841e371adbf9dfad937f8e37e2",
+              "resumed": "8f6fc040159d3714818ef5b3ada91d318a6005841e371adbf9dfad937f8e37e2"
+            },
+            {
+              "turn": 10,
+              "uninterrupted": "06a0dd1fe7f714f593ae6265e5305a7b903130f558444c16efb4649ba7c240f5",
+              "resumed": "06a0dd1fe7f714f593ae6265e5305a7b903130f558444c16efb4649ba7c240f5"
+            },
+            {
+              "turn": 11,
+              "uninterrupted": "276cfdca259b969531f84a1cd3f0c9a58cacf7658b35053079b61aaf2d9af54b",
+              "resumed": "276cfdca259b969531f84a1cd3f0c9a58cacf7658b35053079b61aaf2d9af54b"
+            },
+            {
+              "turn": 12,
+              "uninterrupted": "e03e2fd78fcae30b873cfe3f8793fc4b485d48504b35a9a49854dd0097735784",
+              "resumed": "e03e2fd78fcae30b873cfe3f8793fc4b485d48504b35a9a49854dd0097735784"
+            },
+            {
+              "turn": 13,
+              "uninterrupted": "31aff2a89ea692a18337577bffaf67414e2b37a20069c53469a4e41c5f94742b",
+              "resumed": "31aff2a89ea692a18337577bffaf67414e2b37a20069c53469a4e41c5f94742b"
+            },
+            {
+              "turn": 14,
+              "uninterrupted": "9691d1beebe9d00d9dac602082db1abf126a48140fa22aed9ff75ca6562d3b2c",
+              "resumed": "9691d1beebe9d00d9dac602082db1abf126a48140fa22aed9ff75ca6562d3b2c"
+            },
+            {
+              "turn": 15,
+              "uninterrupted": "fc93c29d409490c800bf32237c30eaa103b9c106b10600f5eacd1588d85279ba",
+              "resumed": "fc93c29d409490c800bf32237c30eaa103b9c106b10600f5eacd1588d85279ba"
+            },
+            {
+              "turn": 16,
+              "uninterrupted": "3ff3f4085a5a5dc35920fd8dd62fd66d6114c658c0cc1d27bfbe22c6dc447850",
+              "resumed": "3ff3f4085a5a5dc35920fd8dd62fd66d6114c658c0cc1d27bfbe22c6dc447850"
+            },
+            {
+              "turn": 17,
+              "uninterrupted": "88f909a8b97fed1cfb24c78f008445c3ed85d1637ba369e12f4add7ce40e054a",
+              "resumed": "88f909a8b97fed1cfb24c78f008445c3ed85d1637ba369e12f4add7ce40e054a"
+            },
+            {
+              "turn": 18,
+              "uninterrupted": "6f281fe5a2bb5495210ad8b6f845cf9668295aae15bed032751fc1b57d34b017",
+              "resumed": "6f281fe5a2bb5495210ad8b6f845cf9668295aae15bed032751fc1b57d34b017"
+            },
+            {
+              "turn": 19,
+              "uninterrupted": "4db7e19fb666e292c2f335baebb4daa717ed0b459d594e65f1b7b5dcc9ed0e0f",
+              "resumed": "4db7e19fb666e292c2f335baebb4daa717ed0b459d594e65f1b7b5dcc9ed0e0f"
+            },
+            {
+              "turn": 20,
+              "uninterrupted": "973f588af50540e423562b6816fa44f0f14d91833130733aec758d5909a0d49c",
+              "resumed": "973f588af50540e423562b6816fa44f0f14d91833130733aec758d5909a0d49c"
+            },
+            {
+              "turn": 21,
+              "uninterrupted": "062e22ca8ba6d16fb9752ece6c91b423210e107ddd80fa0935c4ba0d5f01fc7b",
+              "resumed": "062e22ca8ba6d16fb9752ece6c91b423210e107ddd80fa0935c4ba0d5f01fc7b"
+            },
+            {
+              "turn": 22,
+              "uninterrupted": "d5d996cc82c75243eeca455f282f194b1f355b7dcfbd047e9c06651930718964",
+              "resumed": "d5d996cc82c75243eeca455f282f194b1f355b7dcfbd047e9c06651930718964"
+            },
+            {
+              "turn": 23,
+              "uninterrupted": "66e9439ebb93653606c25d9a93cf4e5305c2273f84f6f1eccd77323f1293b306",
+              "resumed": "66e9439ebb93653606c25d9a93cf4e5305c2273f84f6f1eccd77323f1293b306"
+            },
+            {
+              "turn": 24,
+              "uninterrupted": "71ca72696739becebb0fac3135762a0e72e0565352d153d508025611975cd98d",
+              "resumed": "71ca72696739becebb0fac3135762a0e72e0565352d153d508025611975cd98d"
+            },
+            {
+              "turn": 25,
+              "uninterrupted": "f0eea9e13514ae1cd89e6896482a3be70c54cb0cedf4ffe9d2a6961e53a63765",
+              "resumed": "f0eea9e13514ae1cd89e6896482a3be70c54cb0cedf4ffe9d2a6961e53a63765"
+            },
+            {
+              "turn": 26,
+              "uninterrupted": "f710b37e242f81f340c5f54e81ddc29e5e94ef930eadb4ab760d96e0b5464b8b",
+              "resumed": "f710b37e242f81f340c5f54e81ddc29e5e94ef930eadb4ab760d96e0b5464b8b"
+            },
+            {
+              "turn": 27,
+              "uninterrupted": "917a94b00e7962e22e630768034eab5ff1f239a7cef98ce9b1bf2809c0c6f466",
+              "resumed": "917a94b00e7962e22e630768034eab5ff1f239a7cef98ce9b1bf2809c0c6f466"
+            },
+            {
+              "turn": 28,
+              "uninterrupted": "8865eeecad368848bea8f653d32ee2d09ad43277f8d7d9945aed7281874531a3",
+              "resumed": "8865eeecad368848bea8f653d32ee2d09ad43277f8d7d9945aed7281874531a3"
+            },
+            {
+              "turn": 29,
+              "uninterrupted": "c9ac3cb46b244a2e1c5e20787d538c2c6d670c773af1a2a872d2db945b24a51c",
+              "resumed": "c9ac3cb46b244a2e1c5e20787d538c2c6d670c773af1a2a872d2db945b24a51c"
+            },
+            {
+              "turn": 30,
+              "uninterrupted": "4ef184eb22bcaa3379f6a376f55433c19c73cdb7e3a873beb9f436c568a942c4",
+              "resumed": "4ef184eb22bcaa3379f6a376f55433c19c73cdb7e3a873beb9f436c568a942c4"
+            },
+            {
+              "turn": 31,
+              "uninterrupted": "4bfa56072bc4b42ad9b0c6419147c8e7dce321084fc21c4b7dd1ce4e12c30fb9",
+              "resumed": "4bfa56072bc4b42ad9b0c6419147c8e7dce321084fc21c4b7dd1ce4e12c30fb9"
+            },
+            {
+              "turn": 32,
+              "uninterrupted": "51fc759efaa072ae36a6be7ae7fa8cb1a0ff8f8f20a0dfd31d3a55e6670b4e67",
+              "resumed": "51fc759efaa072ae36a6be7ae7fa8cb1a0ff8f8f20a0dfd31d3a55e6670b4e67"
+            },
+            {
+              "turn": 33,
+              "uninterrupted": "e6083a28b604296cf0b094d7297e8a857189f80124dc1c558f98022ec78974a1",
+              "resumed": "e6083a28b604296cf0b094d7297e8a857189f80124dc1c558f98022ec78974a1"
+            },
+            {
+              "turn": 34,
+              "uninterrupted": "7d5d9bc5bc21df1d11e93e70d1f696ccf253d675a4f140503efba0ff7b6feca4",
+              "resumed": "7d5d9bc5bc21df1d11e93e70d1f696ccf253d675a4f140503efba0ff7b6feca4"
+            },
+            {
+              "turn": 35,
+              "uninterrupted": "3a528216b673925502ae9d83a7d9537462d8519054defb05947e314d2b5d4be4",
+              "resumed": "3a528216b673925502ae9d83a7d9537462d8519054defb05947e314d2b5d4be4"
+            },
+            {
+              "turn": 36,
+              "uninterrupted": "b8d0dcc44670ed3741d444a056a3b78af762e0e782b0f66f1a7cfd96dacaf574",
+              "resumed": "b8d0dcc44670ed3741d444a056a3b78af762e0e782b0f66f1a7cfd96dacaf574"
+            },
+            {
+              "turn": 37,
+              "uninterrupted": "381515cd6e9827481a41ae305a42eaff83af7d6aa18602a84dd133572907ada2",
+              "resumed": "381515cd6e9827481a41ae305a42eaff83af7d6aa18602a84dd133572907ada2"
+            },
+            {
+              "turn": 38,
+              "uninterrupted": "31e3f3693a9548ef1d248487155995be5a50ce8fc1e553ab3753cb24ab9eaaaf",
+              "resumed": "31e3f3693a9548ef1d248487155995be5a50ce8fc1e553ab3753cb24ab9eaaaf"
+            },
+            {
+              "turn": 39,
+              "uninterrupted": "6307a96ca507a72e563538c8cbb5d4e3652f5dc2b70a04a2b459d1b73d245a20",
+              "resumed": "6307a96ca507a72e563538c8cbb5d4e3652f5dc2b70a04a2b459d1b73d245a20"
+            },
+            {
+              "turn": 40,
+              "uninterrupted": "0219a18ee091133bf963945ab92be721f33563047dcf106690dac6a8ae91e0c9",
+              "resumed": "0219a18ee091133bf963945ab92be721f33563047dcf106690dac6a8ae91e0c9"
+            },
+            {
+              "turn": 41,
+              "uninterrupted": "799590f939c5dc11d081a21a0bbf2319b045eb2ae03428cf61ccefa463031068",
+              "resumed": "799590f939c5dc11d081a21a0bbf2319b045eb2ae03428cf61ccefa463031068"
+            },
+            {
+              "turn": 42,
+              "uninterrupted": "cf835bd52204b53934fdb25afb52e0106abdf73e0d048c6423f90c15e9e1c875",
+              "resumed": "cf835bd52204b53934fdb25afb52e0106abdf73e0d048c6423f90c15e9e1c875"
+            },
+            {
+              "turn": 43,
+              "uninterrupted": "84b199185c159da9ce41b4313b01603cf7537ea71090b9c5c575fb2e4b97c9fc",
+              "resumed": "84b199185c159da9ce41b4313b01603cf7537ea71090b9c5c575fb2e4b97c9fc"
+            },
+            {
+              "turn": 44,
+              "uninterrupted": "40886ebe47b407fc66a4d35a8360ab265ad81f50626ef4f4d349f727bea2bc36",
+              "resumed": "40886ebe47b407fc66a4d35a8360ab265ad81f50626ef4f4d349f727bea2bc36"
+            },
+            {
+              "turn": 45,
+              "uninterrupted": "3cf3d781c742104cd3903ac16364fcecc0bf04aaf7229a42d844a2b6254d2420",
+              "resumed": "3cf3d781c742104cd3903ac16364fcecc0bf04aaf7229a42d844a2b6254d2420"
+            },
+            {
+              "turn": 46,
+              "uninterrupted": "e4084167fbcff7ee41d2a49a7aa069199317dfc0b1a7502995c7486374d4fcc7",
+              "resumed": "e4084167fbcff7ee41d2a49a7aa069199317dfc0b1a7502995c7486374d4fcc7"
+            },
+            {
+              "turn": 47,
+              "uninterrupted": "6b07815f9e1586357697e960fff2d903b3ffb5ff202a60b8a3c3678ceb206ec4",
+              "resumed": "6b07815f9e1586357697e960fff2d903b3ffb5ff202a60b8a3c3678ceb206ec4"
+            },
+            {
+              "turn": 48,
+              "uninterrupted": "17513c69834a75856fc4c39f9b28c9cf691ae503d12e41a528d51b071ac2433f",
+              "resumed": "17513c69834a75856fc4c39f9b28c9cf691ae503d12e41a528d51b071ac2433f"
+            },
+            {
+              "turn": 49,
+              "uninterrupted": "8f357858efa39d6cb8144d26b5209ddcbf5170de14c06571b380df64b6c03cbc",
+              "resumed": "8f357858efa39d6cb8144d26b5209ddcbf5170de14c06571b380df64b6c03cbc"
+            },
+            {
+              "turn": 50,
+              "uninterrupted": "d169c46e5e03168ab373cea9104ed60cbe82cb090f47a16235cc6ae36ab25beb",
+              "resumed": "d169c46e5e03168ab373cea9104ed60cbe82cb090f47a16235cc6ae36ab25beb"
+            },
+            {
+              "turn": 51,
+              "uninterrupted": "f15cb1feee134666d4a4ddb725707e9f367c095bfb4f738fb2b44e301b0745b5",
+              "resumed": "f15cb1feee134666d4a4ddb725707e9f367c095bfb4f738fb2b44e301b0745b5"
+            },
+            {
+              "turn": 52,
+              "uninterrupted": "87ecee40bb69c4ea3b2b2b2b0af5b45b05aec1e94e8e82e013ddd650f55f8d96",
+              "resumed": "87ecee40bb69c4ea3b2b2b2b0af5b45b05aec1e94e8e82e013ddd650f55f8d96"
+            },
+            {
+              "turn": 53,
+              "uninterrupted": "28c67d0d329c04e1955aab58c581bb02d6de8bf490555f2150345013ce46a709",
+              "resumed": "28c67d0d329c04e1955aab58c581bb02d6de8bf490555f2150345013ce46a709"
+            },
+            {
+              "turn": 54,
+              "uninterrupted": "57ae8bece9bd2bfdf299b913d10fa2d31daa92cb93905398ba0b4ec0620ff153",
+              "resumed": "57ae8bece9bd2bfdf299b913d10fa2d31daa92cb93905398ba0b4ec0620ff153"
+            },
+            {
+              "turn": 55,
+              "uninterrupted": "b87f197c0f08cb1498743eab108acdbb7f6959dc670e86447d8d47b0ccbfefc0",
+              "resumed": "b87f197c0f08cb1498743eab108acdbb7f6959dc670e86447d8d47b0ccbfefc0"
+            },
+            {
+              "turn": 56,
+              "uninterrupted": "ab430f5e981187d1a66ab4414d163c5510e424ad3e857939df14597bf188dd4e",
+              "resumed": "ab430f5e981187d1a66ab4414d163c5510e424ad3e857939df14597bf188dd4e"
+            },
+            {
+              "turn": 57,
+              "uninterrupted": "4c5762a00fd3ab2949b0911c5e419d980baf62d86aae4d761ffd9a4df84c805f",
+              "resumed": "4c5762a00fd3ab2949b0911c5e419d980baf62d86aae4d761ffd9a4df84c805f"
+            },
+            {
+              "turn": 58,
+              "uninterrupted": "b632dd3235edf79a9910a7a357aede8c26bfdb77700a6eebd4e5dfd307d4d432",
+              "resumed": "b632dd3235edf79a9910a7a357aede8c26bfdb77700a6eebd4e5dfd307d4d432"
+            },
+            {
+              "turn": 59,
+              "uninterrupted": "3db68c3e13b109bc2af445682eeffb94bd3f45070eaf3ab2440aa5543f691e2e",
+              "resumed": "3db68c3e13b109bc2af445682eeffb94bd3f45070eaf3ab2440aa5543f691e2e"
+            },
+            {
+              "turn": 60,
+              "uninterrupted": "e0b535b388e570715b9c68dde5b2dd48c54cd9121103c424950eed363244d110",
+              "resumed": "e0b535b388e570715b9c68dde5b2dd48c54cd9121103c424950eed363244d110"
+            }
+          ]
+        }
+      },
+      "runs": {
+        "baseline": {
+          "head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+          "runtime_identity": {
+            "python": "3.13.15",
+            "implementation": "CPython",
+            "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+            "source_sha256": "c19c3b84fbb3bb592738d165417a376112fe36c2a35076cc5ae898342048ed71",
+            "pydantic": "2.12.5",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "pyarrow": "25.0.1",
+            "arro3-core": "0.9.0",
+            "pyyaml": "6.0.3"
+          },
+          "test_doubles": false,
+          "test_double_sha256": null,
+          "source_sha256": {
+            "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+            "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+            "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+            "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+            "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+            "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+            "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+            "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+            "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+            "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+            "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+            "src/chronicler/checkpoint_replay.py": "6bbe2d087dbac00ba408fb55f2bb119c7855629ee822af65ba3f127ad5c39170",
+            "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+            "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+            "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+            "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+            "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+            "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+            "src/chronicler/ecology.py": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a",
+            "src/chronicler/economy.py": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8",
+            "src/chronicler/elite_metrics.py": "7c11be204787698fc8c847ed2cda142c763141a56788f2f95a636e037da4ee64",
+            "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+            "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+            "src/chronicler/evidence_admission.py": "d6ef96029f53afbfd742e81ec678ee0b1d1ef23047ea85a7f3d2eb7ae1474937",
+            "src/chronicler/experimental/__init__.py": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+            "src/chronicler/experimental/fisheries.py": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736",
+            "src/chronicler/experimental/fisheries_bridge.py": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007",
+            "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+            "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+            "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+            "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+            "src/chronicler/governance_capital.py": "24e0bab992168e8bec1a8bf330ec9b4d789ee6d5a34be18e4d64dbb76b53f707",
+            "src/chronicler/governance_kernel_harness.py": "cc24a232921bad115b6231441646ab91b9123c80f1fbb48e0deb7a6ca2899e25",
+            "src/chronicler/great_persons.py": "1722122a1199da7ed035ced9be97d9e94a34d1addb4a02c74248aebabe758286",
+            "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+            "src/chronicler/institutions.py": "421cc98b8c60dfd95f3945bb9b73af4bba45afbcd2b5bf46a0fc07f472703753",
+            "src/chronicler/intelligence.py": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e",
+            "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+            "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+            "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+            "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+            "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+            "src/chronicler/main.py": "0e4eba7c96786f7f3ec885332b4dd94b86d16eac2a656483636d47935297b5d7",
+            "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+            "src/chronicler/models.py": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0",
+            "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+            "src/chronicler/mutual_aid.py": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0",
+            "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+            "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+            "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+            "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+            "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+            "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+            "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+            "src/chronicler/ruler_ambitions.py": "8216e93f7589beb01a4ae9b8e599e8845f901af69b00732e21e8e82cce649532",
+            "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+            "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+            "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+            "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+            "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+            "src/chronicler/simulation.py": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad",
+            "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+            "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+            "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+            "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+            "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+            "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+            "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+            "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+            "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+            "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+            "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+            "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+            "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+            "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+          },
+          "artifacts": {
+            "chronicle.md": {
+              "bytes": 109079,
+              "sha256": "45a02dabf64b1cf7871abc17a1265b584bd4c1cb017e247552af0f374a82cfd1"
+            },
+            "chronicle_bundle.json": {
+              "bytes": 1049429,
+              "sha256": "b22248ad7a56587ab26a5b71eba8a08ce35c83aea7dcd37d2037bdbe83fd32bb"
+            },
+            "memories_ashkari_nomads.json": {
+              "bytes": 17010,
+              "sha256": "59f88958c97842d96e9b99e05c7ab750dfb2054e693519c76af8b4458983f68c"
+            },
+            "memories_kethani_empire.json": {
+              "bytes": 18857,
+              "sha256": "024309dc0d1cc6a375e18355cd88c4852961b41a792877ad5396e600d550efa1"
+            },
+            "memories_selurian_republic.json": {
+              "bytes": 10995,
+              "sha256": "0e504118af8fb0eea9e16f6bcf57807f305d2736124410e46284ee06be82d6fd"
+            },
+            "memories_thornwall_confederacy.json": {
+              "bytes": 23733,
+              "sha256": "97f2b141577d77ed6b6886b6881e893e2db61cb1143ca798dc6f376bb9801ff0"
+            },
+            "state.json": {
+              "bytes": 266960,
+              "sha256": "4dfd7fa2144ccca05831179452c66796d46ec170837b78ab82e171911cc22a49"
+            }
+          },
+          "rng": {
+            "sha256": "36caae11b96babc022468cb57ad02f96c358ae3a36377a26f97ccefb233f9ce3",
+            "counts": {
+              "seed": 3519,
+              "getrandbits": 1110,
+              "random": 6589
+            },
+            "instances": 3519
+          }
+        },
+        "candidate": {
+          "head": "81a4a355c0755b168d66e839e009a8f6504d71b6",
+          "runtime_identity": {
+            "python": "3.13.15",
+            "implementation": "CPython",
+            "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+            "source_sha256": "0dc9d7fef5e34814cf159e7e16632aa00035ba3a3b9736798b426323ee0f0c1f",
+            "pydantic": "2.12.5",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "pyarrow": "25.0.1",
+            "arro3-core": "0.9.0",
+            "pyyaml": "6.0.3"
+          },
+          "test_doubles": true,
+          "test_double_sha256": "82ea0d23ac9bc8272d40d29992044a40f063775c267692f1cac0c8839401a1e5",
+          "source_sha256": {
+            "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+            "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+            "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+            "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+            "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+            "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+            "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+            "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+            "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+            "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+            "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+            "src/chronicler/checkpoint_replay.py": "4ca3b3da8c56580071d12d8955a069ad888017cbcc9ed48188a00a47911a663c",
+            "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+            "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+            "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+            "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+            "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+            "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+            "src/chronicler/ecology.py": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a",
+            "src/chronicler/economy.py": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8",
+            "src/chronicler/elite_metrics.py": "7c11be204787698fc8c847ed2cda142c763141a56788f2f95a636e037da4ee64",
+            "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+            "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+            "src/chronicler/evidence_admission.py": "d6ef96029f53afbfd742e81ec678ee0b1d1ef23047ea85a7f3d2eb7ae1474937",
+            "src/chronicler/experimental/__init__.py": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+            "src/chronicler/experimental/fisheries.py": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736",
+            "src/chronicler/experimental/fisheries_bridge.py": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007",
+            "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+            "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+            "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+            "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+            "src/chronicler/governance_capital.py": "24e0bab992168e8bec1a8bf330ec9b4d789ee6d5a34be18e4d64dbb76b53f707",
+            "src/chronicler/governance_kernel_harness.py": "cc24a232921bad115b6231441646ab91b9123c80f1fbb48e0deb7a6ca2899e25",
+            "src/chronicler/great_persons.py": "1722122a1199da7ed035ced9be97d9e94a34d1addb4a02c74248aebabe758286",
+            "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+            "src/chronicler/institutions.py": "421cc98b8c60dfd95f3945bb9b73af4bba45afbcd2b5bf46a0fc07f472703753",
+            "src/chronicler/intelligence.py": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e",
+            "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+            "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+            "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+            "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+            "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+            "src/chronicler/main.py": "65958a043703898fad0fce85bb7e243a097cc2c67e3ccd716deeac3bf6068f54",
+            "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+            "src/chronicler/models.py": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0",
+            "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+            "src/chronicler/mutual_aid.py": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0",
+            "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+            "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+            "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+            "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+            "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+            "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+            "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+            "src/chronicler/ruler_ambitions.py": "8216e93f7589beb01a4ae9b8e599e8845f901af69b00732e21e8e82cce649532",
+            "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+            "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+            "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+            "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+            "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+            "src/chronicler/simulation.py": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad",
+            "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+            "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+            "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+            "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+            "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+            "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+            "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+            "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+            "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+            "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+            "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+            "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+            "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+            "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+          },
+          "artifacts": {
+            "chronicle.md": {
+              "bytes": 109079,
+              "sha256": "45a02dabf64b1cf7871abc17a1265b584bd4c1cb017e247552af0f374a82cfd1"
+            },
+            "chronicle_bundle.json": {
+              "bytes": 1049429,
+              "sha256": "b22248ad7a56587ab26a5b71eba8a08ce35c83aea7dcd37d2037bdbe83fd32bb"
+            },
+            "memories_ashkari_nomads.json": {
+              "bytes": 17010,
+              "sha256": "59f88958c97842d96e9b99e05c7ab750dfb2054e693519c76af8b4458983f68c"
+            },
+            "memories_kethani_empire.json": {
+              "bytes": 18857,
+              "sha256": "024309dc0d1cc6a375e18355cd88c4852961b41a792877ad5396e600d550efa1"
+            },
+            "memories_selurian_republic.json": {
+              "bytes": 10995,
+              "sha256": "0e504118af8fb0eea9e16f6bcf57807f305d2736124410e46284ee06be82d6fd"
+            },
+            "memories_thornwall_confederacy.json": {
+              "bytes": 23733,
+              "sha256": "97f2b141577d77ed6b6886b6881e893e2db61cb1143ca798dc6f376bb9801ff0"
+            },
+            "state.json": {
+              "bytes": 266960,
+              "sha256": "4dfd7fa2144ccca05831179452c66796d46ec170837b78ab82e171911cc22a49"
+            }
+          },
+          "rng": {
+            "sha256": "36caae11b96babc022468cb57ad02f96c358ae3a36377a26f97ccefb233f9ce3",
+            "counts": {
+              "seed": 3519,
+              "getrandbits": 1110,
+              "random": 6589
+            },
+            "instances": 3519
+          }
+        }
+      }
+    },
+    {
+      "fixture": "wide",
+      "exact_comparison_passed": true,
+      "integrated_acceptance": false,
+      "integrated_python_off_acceptance": false,
+      "turns": 40,
+      "metrics": {
+        "baseline": {
+          "callback_live_views": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "snapshot_span_seconds": [
+            0.0007676390000597166,
+            0.0007533469999998488,
+            0.0008345190000227376,
+            0.0007800369999131362,
+            0.0008629619999283022,
+            0.0008642039999813278,
+            0.0008537689999457143,
+            0.0010715470000377536,
+            0.000941572000101587,
+            0.0009298239999679936,
+            0.0009026720000520072,
+            0.0012543029999960709,
+            0.0009415620000936542,
+            0.000999658999944586,
+            0.001102525000078458,
+            0.0011224539999830085,
+            0.0009510459999546583,
+            0.0009476899999754096,
+            0.0009624729999586634,
+            0.0010377159999279684,
+            0.0009910149999541318,
+            0.0009540800000422678,
+            0.000953870000103052,
+            0.0009432040000092456,
+            0.0009584869999343937,
+            0.0010338209999645187,
+            0.001282034999917414,
+            0.0010112459999618295,
+            0.0009965450000208875,
+            0.0010255380000216974,
+            0.0010004600000002029,
+            0.00130728299996008,
+            0.0012735219999058245,
+            0.0012603930000523178,
+            0.0013111989999288198,
+            0.0012824660000205768,
+            0.0016390939999837428,
+            0.0013456709999672967,
+            0.0013576389999343519,
+            0.001379802999963431,
+            0.0006639320000658699,
+            0.0007435830000304122,
+            0.0007712740000442864,
+            0.0007621610000114742,
+            0.0009542000000237749,
+            0.0008669089999102653,
+            0.0008586560001049293,
+            0.0008290519999718526,
+            0.0008299730000089767,
+            0.0009223429999565269,
+            0.000977965999936714,
+            0.0008911150000585621,
+            0.0009022819999700005,
+            0.0009346510000796115,
+            0.001016594000020632,
+            0.0009504749999678097,
+            0.0009627729999692747,
+            0.0010610210000550069,
+            0.001000070000031883,
+            0.0009775659999604613,
+            0.0009651469999880646,
+            0.0009483519999093915,
+            0.0009631839999428848,
+            0.0009848660000670861,
+            0.0011292039999943881,
+            0.000985046999971928,
+            0.0010071699999798511,
+            0.0010010209999791186,
+            0.0011542020000661068,
+            0.0011207419998982004,
+            0.001204718999929355,
+            0.0013104679999287328,
+            0.0014045199999372926,
+            0.0015129740000929814,
+            0.001484781000044677,
+            0.0014325619999908668,
+            0.0013837579999744776,
+            0.0013708989999940968,
+            0.0015501799999810828,
+            0.0014475349998974707,
+            0.0006925659999978961,
+            0.0007443140000304993,
+            0.00084717900006126,
+            0.0008165430000417473,
+            0.0008996379999643977,
+            0.0008920159999661337,
+            0.0009859780000169849,
+            0.001069804999929147,
+            0.0008637329999601207,
+            0.0008768229999986943,
+            0.001169516000004478,
+            0.0011206509999510672,
+            0.0008910850000347637,
+            0.0008940989999928206,
+            0.0009437039999511398,
+            0.0009619720000273446,
+            0.0009746410000843753,
+            0.0012205129999074416,
+            0.001021240999989459,
+            0.001009072999977434,
+            0.0010407099999838465,
+            0.0009764239999867641,
+            0.001028812000072321,
+            0.0009813310000481579,
+            0.0010115370000676194,
+            0.0011149019999265875,
+            0.001106900999957361,
+            0.0010255079999978989,
+            0.0011271009999518355,
+            0.0010078120000116542,
+            0.0011210620000383642,
+            0.0013684750000493295,
+            0.0013069019998965814,
+            0.0012560860000121465,
+            0.0014653920000000653,
+            0.0014760480000859388,
+            0.001409668000064812,
+            0.0013741949999257486,
+            0.0014613260000260198,
+            0.001586965000001328
+          ],
+          "whole_run_seconds": [
+            0.23599132800006828,
+            0.2470554289999427,
+            0.2442499090000183
+          ],
+          "median_seconds": 0.2442499090000183,
+          "allocated_current_bytes": 43385,
+          "peak_tracemalloc_bytes": 11728931,
+          "rss_peak_kib": 102804,
+          "end_live_views": 0,
+          "column_decode_calls": 0,
+          "decoded_elements": 0,
+          "native_snapshot_calls": 0,
+          "dataflow_scope": "Python off-mode: no phase-10 native rows; native metrics unavailable"
+        },
+        "candidate": {
+          "callback_live_views": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "snapshot_span_seconds": [
+            0.0006657530000211409,
+            0.0007158979999530857,
+            0.0007773109999789085,
+            0.0007971920000500177,
+            0.0009096410000211108,
+            0.0008556500000622691,
+            0.0008605369999941104,
+            0.0008459850000690494,
+            0.0008765709999352111,
+            0.0010286190000670103,
+            0.001032976000033159,
+            0.0008822190000046248,
+            0.000883902000055059,
+            0.0009008580000227084,
+            0.0009565920000795813,
+            0.0009352390000003652,
+            0.0009679380000306992,
+            0.0011312340000131371,
+            0.0010979039999483575,
+            0.001169000999993841,
+            0.001138255000000754,
+            0.0009224689999882685,
+            0.0010953510000035749,
+            0.001460870999949293,
+            0.000987779000070077,
+            0.00104287099998146,
+            0.0009593849999873783,
+            0.001030522999940331,
+            0.0012931589999425341,
+            0.0010226699999975608,
+            0.0009938969999438996,
+            0.0012754309999536417,
+            0.0012705650000270907,
+            0.001282292000041707,
+            0.0012625729999626856,
+            0.0013063680000868771,
+            0.001314000000093074,
+            0.0013841049999427923,
+            0.0013515260000076523,
+            0.0014577959999542145,
+            0.0006657630000290737,
+            0.0007306510000262278,
+            0.0007830700000113211,
+            0.0007791539999288943,
+            0.0008561599998984093,
+            0.000855688999990889,
+            0.0008546479999722578,
+            0.0009320249999973385,
+            0.0009175429999004336,
+            0.0008966910000935968,
+            0.0010281290000193621,
+            0.0010082490000513644,
+            0.0009059150000894078,
+            0.0009223999999221633,
+            0.0010149890000548112,
+            0.001010393000001386,
+            0.0010881000000608765,
+            0.0009331259999498798,
+            0.002586097000062182,
+            0.0010014690000161863,
+            0.0009493710000469946,
+            0.0011358409999502328,
+            0.0009334269999499156,
+            0.0014595799999597148,
+            0.0009733370000049035,
+            0.001023042000042551,
+            0.0011167030000933664,
+            0.0010589449999542921,
+            0.0009751889999733976,
+            0.0010217300000476826,
+            0.0010641729999179006,
+            0.0013182659999984025,
+            0.0012597279999226885,
+            0.0013810000000376021,
+            0.0014026630000216755,
+            0.0013150409999980184,
+            0.001325547999954324,
+            0.0017667020000544653,
+            0.0015589790000376524,
+            0.0016172159999996438,
+            0.0011506239999334866,
+            0.0008145380000996738,
+            0.0010274780000827377,
+            0.0008847029999969891,
+            0.0009297199999309669,
+            0.0008934270000509059,
+            0.0008555289999776505,
+            0.0008479279999846767,
+            0.0012447560000055091,
+            0.0009495900000047186,
+            0.0009001060000173311,
+            0.0010191150000764537,
+            0.0011839029999691775,
+            0.0011217900000701775,
+            0.001028139000027295,
+            0.0010485000000244327,
+            0.000958793999984664,
+            0.0009519650000129332,
+            0.0010251850000031482,
+            0.0009642429999985325,
+            0.0009454739999910089,
+            0.000955359000045064,
+            0.0009554199999683988,
+            0.001088510000045062,
+            0.000984442999993007,
+            0.0011222209999459665,
+            0.0010783249999803957,
+            0.0009851940000089598,
+            0.0009684799999831739,
+            0.000993236999988767,
+            0.0011343090000082157,
+            0.001278487000035966,
+            0.0013940309999043166,
+            0.0012596579999808455,
+            0.0014008810001087113,
+            0.0015014819999805695,
+            0.0017433269999855838,
+            0.0013269589999254094,
+            0.0013360129999000492,
+            0.001531367999973554
+          ],
+          "whole_run_seconds": [
+            0.2389501200000268,
+            0.23847751799996786,
+            0.23725388399998337
+          ],
+          "median_seconds": 0.23847751799996786,
+          "allocated_current_bytes": 41750,
+          "peak_tracemalloc_bytes": 11727296,
+          "rss_peak_kib": 103212,
+          "end_live_views": 0,
+          "column_decode_calls": 0,
+          "decoded_elements": 0,
+          "native_snapshot_calls": 0,
+          "dataflow_scope": "Python off-mode: no phase-10 native rows; native metrics unavailable"
+        }
+      },
+      "checkpoint": {
+        "baseline": {
+          "status": "PASS",
+          "checkpoint_turn": 0,
+          "target_turn": 40,
+          "compared_resumed_turns": 40,
+          "turn_digests": [
+            {
+              "turn": 0,
+              "uninterrupted": "c494aeae3284badd1f01633ac15b18352cb58822c31f677f052f8f2a76ea0b13",
+              "resumed": "c494aeae3284badd1f01633ac15b18352cb58822c31f677f052f8f2a76ea0b13"
+            },
+            {
+              "turn": 1,
+              "uninterrupted": "2177d21cced115dfc03e3c9b10ded43c29191c232c863d7fb4145b848ddc0d39",
+              "resumed": "2177d21cced115dfc03e3c9b10ded43c29191c232c863d7fb4145b848ddc0d39"
+            },
+            {
+              "turn": 2,
+              "uninterrupted": "a37cb23e565521f84e70501269435df4c50c2f37fe80444bb0ad072c4df4ca2a",
+              "resumed": "a37cb23e565521f84e70501269435df4c50c2f37fe80444bb0ad072c4df4ca2a"
+            },
+            {
+              "turn": 3,
+              "uninterrupted": "0866041a34cc56c1b39f4b4fd409f7f5b0f5becb788d2cd9b9068e2faef9ba47",
+              "resumed": "0866041a34cc56c1b39f4b4fd409f7f5b0f5becb788d2cd9b9068e2faef9ba47"
+            },
+            {
+              "turn": 4,
+              "uninterrupted": "498b0d787842b9b383cd47740fba8904b5d39a96110b1765a6c136fbda55fb2c",
+              "resumed": "498b0d787842b9b383cd47740fba8904b5d39a96110b1765a6c136fbda55fb2c"
+            },
+            {
+              "turn": 5,
+              "uninterrupted": "ff0d63ee6f4011535b4d1d48fcb5fdd3d309c4529659165c94d3eefeef6686cf",
+              "resumed": "ff0d63ee6f4011535b4d1d48fcb5fdd3d309c4529659165c94d3eefeef6686cf"
+            },
+            {
+              "turn": 6,
+              "uninterrupted": "bc89a3d43ba5c19bc8f836c689252885cb3190f5355fc005a8eb2c2e19198651",
+              "resumed": "bc89a3d43ba5c19bc8f836c689252885cb3190f5355fc005a8eb2c2e19198651"
+            },
+            {
+              "turn": 7,
+              "uninterrupted": "5b0d978c9d0badd6586dc6e55ed9059c31dfe8140696a6c2b0330b68f3e3c2fe",
+              "resumed": "5b0d978c9d0badd6586dc6e55ed9059c31dfe8140696a6c2b0330b68f3e3c2fe"
+            },
+            {
+              "turn": 8,
+              "uninterrupted": "028bbb4764c4d6ed8299b8a0e23136dec169b52dc6174ae5d14e391105570e26",
+              "resumed": "028bbb4764c4d6ed8299b8a0e23136dec169b52dc6174ae5d14e391105570e26"
+            },
+            {
+              "turn": 9,
+              "uninterrupted": "a5897fcb45d35c7da1ecd0dff8628dbc3a01bc675b06f9b3b545dc899a4cbd80",
+              "resumed": "a5897fcb45d35c7da1ecd0dff8628dbc3a01bc675b06f9b3b545dc899a4cbd80"
+            },
+            {
+              "turn": 10,
+              "uninterrupted": "74226f0e79ff3a3915e17b10c33b4fd59cde42e1af3ba0622c4971043278687f",
+              "resumed": "74226f0e79ff3a3915e17b10c33b4fd59cde42e1af3ba0622c4971043278687f"
+            },
+            {
+              "turn": 11,
+              "uninterrupted": "fa486b9c482534e7828cf241740c1b827bd55694c9fea1e3d16c872474f948be",
+              "resumed": "fa486b9c482534e7828cf241740c1b827bd55694c9fea1e3d16c872474f948be"
+            },
+            {
+              "turn": 12,
+              "uninterrupted": "b8226d109465c78a2cda804b3181fb51c0952da105020680f8fd0538658f166d",
+              "resumed": "b8226d109465c78a2cda804b3181fb51c0952da105020680f8fd0538658f166d"
+            },
+            {
+              "turn": 13,
+              "uninterrupted": "38eb1ee92965ec00c62035c28cf302e124777cf08ced2946a5005e86b237a32f",
+              "resumed": "38eb1ee92965ec00c62035c28cf302e124777cf08ced2946a5005e86b237a32f"
+            },
+            {
+              "turn": 14,
+              "uninterrupted": "4a784416592e05532ee1b8371d5fc75d6148d59eeb12b862d53a2c02fff07535",
+              "resumed": "4a784416592e05532ee1b8371d5fc75d6148d59eeb12b862d53a2c02fff07535"
+            },
+            {
+              "turn": 15,
+              "uninterrupted": "9751785a715249935b4145be93d647bd4de163f4785ec9089fc36d5c60368145",
+              "resumed": "9751785a715249935b4145be93d647bd4de163f4785ec9089fc36d5c60368145"
+            },
+            {
+              "turn": 16,
+              "uninterrupted": "7af8d2775115c70607136dd0668b4456a694211232f444c5ed8cf2f4173cfe21",
+              "resumed": "7af8d2775115c70607136dd0668b4456a694211232f444c5ed8cf2f4173cfe21"
+            },
+            {
+              "turn": 17,
+              "uninterrupted": "b7ef8a144f243464a763ba3fb5b7a0aad8013d15aa1c3f878f78a239b0b5512c",
+              "resumed": "b7ef8a144f243464a763ba3fb5b7a0aad8013d15aa1c3f878f78a239b0b5512c"
+            },
+            {
+              "turn": 18,
+              "uninterrupted": "e2ecfc377435cccf63086e318f364f2356b8ae3c7f1ab475e2331f969ed5849c",
+              "resumed": "e2ecfc377435cccf63086e318f364f2356b8ae3c7f1ab475e2331f969ed5849c"
+            },
+            {
+              "turn": 19,
+              "uninterrupted": "937bef773f423f02e248fa2f9ed04f2579e1711ba23f297a99c6b80fd5f26915",
+              "resumed": "937bef773f423f02e248fa2f9ed04f2579e1711ba23f297a99c6b80fd5f26915"
+            },
+            {
+              "turn": 20,
+              "uninterrupted": "294098561453e97dc8927df756470267c58a9049c7b429a3a684bb53f3f5914f",
+              "resumed": "294098561453e97dc8927df756470267c58a9049c7b429a3a684bb53f3f5914f"
+            },
+            {
+              "turn": 21,
+              "uninterrupted": "18a638b10f3ae766d7cd6df54859d3f7d2f5b5f8f19970394cdb254cd87d6dc2",
+              "resumed": "18a638b10f3ae766d7cd6df54859d3f7d2f5b5f8f19970394cdb254cd87d6dc2"
+            },
+            {
+              "turn": 22,
+              "uninterrupted": "626838a9b7cb2042590168438bfdc0d8db4a5d8861014e2d7f68e8a4f5f12142",
+              "resumed": "626838a9b7cb2042590168438bfdc0d8db4a5d8861014e2d7f68e8a4f5f12142"
+            },
+            {
+              "turn": 23,
+              "uninterrupted": "1946b291b696078c3381916f1ac059001990c83e22bfcb828ba3e2feb0ee284e",
+              "resumed": "1946b291b696078c3381916f1ac059001990c83e22bfcb828ba3e2feb0ee284e"
+            },
+            {
+              "turn": 24,
+              "uninterrupted": "56485141040c05fbdda1df43320a3d77f20066689d019145b48feb33ac65aa05",
+              "resumed": "56485141040c05fbdda1df43320a3d77f20066689d019145b48feb33ac65aa05"
+            },
+            {
+              "turn": 25,
+              "uninterrupted": "cc43b20e0732fdb640e9930a3866548fc7af0cc449d706f170c5e0ad9c117501",
+              "resumed": "cc43b20e0732fdb640e9930a3866548fc7af0cc449d706f170c5e0ad9c117501"
+            },
+            {
+              "turn": 26,
+              "uninterrupted": "fa3603649bf171e593ee056faa63e9790db458ebd1e6626887365123541e33b8",
+              "resumed": "fa3603649bf171e593ee056faa63e9790db458ebd1e6626887365123541e33b8"
+            },
+            {
+              "turn": 27,
+              "uninterrupted": "8ae0002bd5804c2061d36da5dae337b5f7ae591951a8f80adb0ec8498a7f9f08",
+              "resumed": "8ae0002bd5804c2061d36da5dae337b5f7ae591951a8f80adb0ec8498a7f9f08"
+            },
+            {
+              "turn": 28,
+              "uninterrupted": "0a1ea51ee7ebf57deaf3daa49b4fcc212763b082e63200bb1bdc53edcb583143",
+              "resumed": "0a1ea51ee7ebf57deaf3daa49b4fcc212763b082e63200bb1bdc53edcb583143"
+            },
+            {
+              "turn": 29,
+              "uninterrupted": "98f0816cd972b4e17772a97bd91ca8233e2dd0cd041c7cdf54027c8c938ed4f2",
+              "resumed": "98f0816cd972b4e17772a97bd91ca8233e2dd0cd041c7cdf54027c8c938ed4f2"
+            },
+            {
+              "turn": 30,
+              "uninterrupted": "301167e6202c7a675fc40026c9550237de08869911d003c42715b4c786ac4770",
+              "resumed": "301167e6202c7a675fc40026c9550237de08869911d003c42715b4c786ac4770"
+            },
+            {
+              "turn": 31,
+              "uninterrupted": "83d6bde766a46eb7e549ccf9e83040c54b73fd48b7fbd8d78274b58c10f612cb",
+              "resumed": "83d6bde766a46eb7e549ccf9e83040c54b73fd48b7fbd8d78274b58c10f612cb"
+            },
+            {
+              "turn": 32,
+              "uninterrupted": "fa6bc78d522dd66c587b560dba86c76bc7cc65d7a2766a47b39f37bee2efa24f",
+              "resumed": "fa6bc78d522dd66c587b560dba86c76bc7cc65d7a2766a47b39f37bee2efa24f"
+            },
+            {
+              "turn": 33,
+              "uninterrupted": "bbd7f3740d9ef19a343556b943a6521fd094c53c09e111837e7064303802cda3",
+              "resumed": "bbd7f3740d9ef19a343556b943a6521fd094c53c09e111837e7064303802cda3"
+            },
+            {
+              "turn": 34,
+              "uninterrupted": "42dc3f121850f01ab615de2fe5652010fc0989d8cfc5f561cf89c7346c995873",
+              "resumed": "42dc3f121850f01ab615de2fe5652010fc0989d8cfc5f561cf89c7346c995873"
+            },
+            {
+              "turn": 35,
+              "uninterrupted": "5cccb9d615e0bfa00c2ae17147424fb4d6cf4d60c8c7c9f2751ccaac808464a1",
+              "resumed": "5cccb9d615e0bfa00c2ae17147424fb4d6cf4d60c8c7c9f2751ccaac808464a1"
+            },
+            {
+              "turn": 36,
+              "uninterrupted": "624702d74afda667b47afe4befc55b11ae4b5efbf2426790429fa36c368e2d11",
+              "resumed": "624702d74afda667b47afe4befc55b11ae4b5efbf2426790429fa36c368e2d11"
+            },
+            {
+              "turn": 37,
+              "uninterrupted": "90775b33b049ec68e14a23845678eb2d4e17e2ce5b38767b372beac270daa565",
+              "resumed": "90775b33b049ec68e14a23845678eb2d4e17e2ce5b38767b372beac270daa565"
+            },
+            {
+              "turn": 38,
+              "uninterrupted": "5771aa9b4bf49f4afb0b42bc09f1377a3c03dec1f9de1435f6b52d202ce687bf",
+              "resumed": "5771aa9b4bf49f4afb0b42bc09f1377a3c03dec1f9de1435f6b52d202ce687bf"
+            },
+            {
+              "turn": 39,
+              "uninterrupted": "90d41347ab2dcc865c048aefba4595d75a98200958b892f3f6833d8cd151d33f",
+              "resumed": "90d41347ab2dcc865c048aefba4595d75a98200958b892f3f6833d8cd151d33f"
+            },
+            {
+              "turn": 40,
+              "uninterrupted": "699f624d0c9f6bf31a1327fc9172bcdb3c0b88f1696c1bc3380f41c9a5cad449",
+              "resumed": "699f624d0c9f6bf31a1327fc9172bcdb3c0b88f1696c1bc3380f41c9a5cad449"
+            }
+          ]
+        },
+        "candidate": {
+          "status": "PASS",
+          "checkpoint_turn": 0,
+          "target_turn": 40,
+          "compared_resumed_turns": 40,
+          "turn_digests": [
+            {
+              "turn": 0,
+              "uninterrupted": "c494aeae3284badd1f01633ac15b18352cb58822c31f677f052f8f2a76ea0b13",
+              "resumed": "c494aeae3284badd1f01633ac15b18352cb58822c31f677f052f8f2a76ea0b13"
+            },
+            {
+              "turn": 1,
+              "uninterrupted": "2177d21cced115dfc03e3c9b10ded43c29191c232c863d7fb4145b848ddc0d39",
+              "resumed": "2177d21cced115dfc03e3c9b10ded43c29191c232c863d7fb4145b848ddc0d39"
+            },
+            {
+              "turn": 2,
+              "uninterrupted": "a37cb23e565521f84e70501269435df4c50c2f37fe80444bb0ad072c4df4ca2a",
+              "resumed": "a37cb23e565521f84e70501269435df4c50c2f37fe80444bb0ad072c4df4ca2a"
+            },
+            {
+              "turn": 3,
+              "uninterrupted": "0866041a34cc56c1b39f4b4fd409f7f5b0f5becb788d2cd9b9068e2faef9ba47",
+              "resumed": "0866041a34cc56c1b39f4b4fd409f7f5b0f5becb788d2cd9b9068e2faef9ba47"
+            },
+            {
+              "turn": 4,
+              "uninterrupted": "498b0d787842b9b383cd47740fba8904b5d39a96110b1765a6c136fbda55fb2c",
+              "resumed": "498b0d787842b9b383cd47740fba8904b5d39a96110b1765a6c136fbda55fb2c"
+            },
+            {
+              "turn": 5,
+              "uninterrupted": "ff0d63ee6f4011535b4d1d48fcb5fdd3d309c4529659165c94d3eefeef6686cf",
+              "resumed": "ff0d63ee6f4011535b4d1d48fcb5fdd3d309c4529659165c94d3eefeef6686cf"
+            },
+            {
+              "turn": 6,
+              "uninterrupted": "bc89a3d43ba5c19bc8f836c689252885cb3190f5355fc005a8eb2c2e19198651",
+              "resumed": "bc89a3d43ba5c19bc8f836c689252885cb3190f5355fc005a8eb2c2e19198651"
+            },
+            {
+              "turn": 7,
+              "uninterrupted": "5b0d978c9d0badd6586dc6e55ed9059c31dfe8140696a6c2b0330b68f3e3c2fe",
+              "resumed": "5b0d978c9d0badd6586dc6e55ed9059c31dfe8140696a6c2b0330b68f3e3c2fe"
+            },
+            {
+              "turn": 8,
+              "uninterrupted": "028bbb4764c4d6ed8299b8a0e23136dec169b52dc6174ae5d14e391105570e26",
+              "resumed": "028bbb4764c4d6ed8299b8a0e23136dec169b52dc6174ae5d14e391105570e26"
+            },
+            {
+              "turn": 9,
+              "uninterrupted": "a5897fcb45d35c7da1ecd0dff8628dbc3a01bc675b06f9b3b545dc899a4cbd80",
+              "resumed": "a5897fcb45d35c7da1ecd0dff8628dbc3a01bc675b06f9b3b545dc899a4cbd80"
+            },
+            {
+              "turn": 10,
+              "uninterrupted": "74226f0e79ff3a3915e17b10c33b4fd59cde42e1af3ba0622c4971043278687f",
+              "resumed": "74226f0e79ff3a3915e17b10c33b4fd59cde42e1af3ba0622c4971043278687f"
+            },
+            {
+              "turn": 11,
+              "uninterrupted": "fa486b9c482534e7828cf241740c1b827bd55694c9fea1e3d16c872474f948be",
+              "resumed": "fa486b9c482534e7828cf241740c1b827bd55694c9fea1e3d16c872474f948be"
+            },
+            {
+              "turn": 12,
+              "uninterrupted": "b8226d109465c78a2cda804b3181fb51c0952da105020680f8fd0538658f166d",
+              "resumed": "b8226d109465c78a2cda804b3181fb51c0952da105020680f8fd0538658f166d"
+            },
+            {
+              "turn": 13,
+              "uninterrupted": "38eb1ee92965ec00c62035c28cf302e124777cf08ced2946a5005e86b237a32f",
+              "resumed": "38eb1ee92965ec00c62035c28cf302e124777cf08ced2946a5005e86b237a32f"
+            },
+            {
+              "turn": 14,
+              "uninterrupted": "4a784416592e05532ee1b8371d5fc75d6148d59eeb12b862d53a2c02fff07535",
+              "resumed": "4a784416592e05532ee1b8371d5fc75d6148d59eeb12b862d53a2c02fff07535"
+            },
+            {
+              "turn": 15,
+              "uninterrupted": "9751785a715249935b4145be93d647bd4de163f4785ec9089fc36d5c60368145",
+              "resumed": "9751785a715249935b4145be93d647bd4de163f4785ec9089fc36d5c60368145"
+            },
+            {
+              "turn": 16,
+              "uninterrupted": "7af8d2775115c70607136dd0668b4456a694211232f444c5ed8cf2f4173cfe21",
+              "resumed": "7af8d2775115c70607136dd0668b4456a694211232f444c5ed8cf2f4173cfe21"
+            },
+            {
+              "turn": 17,
+              "uninterrupted": "b7ef8a144f243464a763ba3fb5b7a0aad8013d15aa1c3f878f78a239b0b5512c",
+              "resumed": "b7ef8a144f243464a763ba3fb5b7a0aad8013d15aa1c3f878f78a239b0b5512c"
+            },
+            {
+              "turn": 18,
+              "uninterrupted": "e2ecfc377435cccf63086e318f364f2356b8ae3c7f1ab475e2331f969ed5849c",
+              "resumed": "e2ecfc377435cccf63086e318f364f2356b8ae3c7f1ab475e2331f969ed5849c"
+            },
+            {
+              "turn": 19,
+              "uninterrupted": "937bef773f423f02e248fa2f9ed04f2579e1711ba23f297a99c6b80fd5f26915",
+              "resumed": "937bef773f423f02e248fa2f9ed04f2579e1711ba23f297a99c6b80fd5f26915"
+            },
+            {
+              "turn": 20,
+              "uninterrupted": "294098561453e97dc8927df756470267c58a9049c7b429a3a684bb53f3f5914f",
+              "resumed": "294098561453e97dc8927df756470267c58a9049c7b429a3a684bb53f3f5914f"
+            },
+            {
+              "turn": 21,
+              "uninterrupted": "18a638b10f3ae766d7cd6df54859d3f7d2f5b5f8f19970394cdb254cd87d6dc2",
+              "resumed": "18a638b10f3ae766d7cd6df54859d3f7d2f5b5f8f19970394cdb254cd87d6dc2"
+            },
+            {
+              "turn": 22,
+              "uninterrupted": "626838a9b7cb2042590168438bfdc0d8db4a5d8861014e2d7f68e8a4f5f12142",
+              "resumed": "626838a9b7cb2042590168438bfdc0d8db4a5d8861014e2d7f68e8a4f5f12142"
+            },
+            {
+              "turn": 23,
+              "uninterrupted": "1946b291b696078c3381916f1ac059001990c83e22bfcb828ba3e2feb0ee284e",
+              "resumed": "1946b291b696078c3381916f1ac059001990c83e22bfcb828ba3e2feb0ee284e"
+            },
+            {
+              "turn": 24,
+              "uninterrupted": "56485141040c05fbdda1df43320a3d77f20066689d019145b48feb33ac65aa05",
+              "resumed": "56485141040c05fbdda1df43320a3d77f20066689d019145b48feb33ac65aa05"
+            },
+            {
+              "turn": 25,
+              "uninterrupted": "cc43b20e0732fdb640e9930a3866548fc7af0cc449d706f170c5e0ad9c117501",
+              "resumed": "cc43b20e0732fdb640e9930a3866548fc7af0cc449d706f170c5e0ad9c117501"
+            },
+            {
+              "turn": 26,
+              "uninterrupted": "fa3603649bf171e593ee056faa63e9790db458ebd1e6626887365123541e33b8",
+              "resumed": "fa3603649bf171e593ee056faa63e9790db458ebd1e6626887365123541e33b8"
+            },
+            {
+              "turn": 27,
+              "uninterrupted": "8ae0002bd5804c2061d36da5dae337b5f7ae591951a8f80adb0ec8498a7f9f08",
+              "resumed": "8ae0002bd5804c2061d36da5dae337b5f7ae591951a8f80adb0ec8498a7f9f08"
+            },
+            {
+              "turn": 28,
+              "uninterrupted": "0a1ea51ee7ebf57deaf3daa49b4fcc212763b082e63200bb1bdc53edcb583143",
+              "resumed": "0a1ea51ee7ebf57deaf3daa49b4fcc212763b082e63200bb1bdc53edcb583143"
+            },
+            {
+              "turn": 29,
+              "uninterrupted": "98f0816cd972b4e17772a97bd91ca8233e2dd0cd041c7cdf54027c8c938ed4f2",
+              "resumed": "98f0816cd972b4e17772a97bd91ca8233e2dd0cd041c7cdf54027c8c938ed4f2"
+            },
+            {
+              "turn": 30,
+              "uninterrupted": "301167e6202c7a675fc40026c9550237de08869911d003c42715b4c786ac4770",
+              "resumed": "301167e6202c7a675fc40026c9550237de08869911d003c42715b4c786ac4770"
+            },
+            {
+              "turn": 31,
+              "uninterrupted": "83d6bde766a46eb7e549ccf9e83040c54b73fd48b7fbd8d78274b58c10f612cb",
+              "resumed": "83d6bde766a46eb7e549ccf9e83040c54b73fd48b7fbd8d78274b58c10f612cb"
+            },
+            {
+              "turn": 32,
+              "uninterrupted": "fa6bc78d522dd66c587b560dba86c76bc7cc65d7a2766a47b39f37bee2efa24f",
+              "resumed": "fa6bc78d522dd66c587b560dba86c76bc7cc65d7a2766a47b39f37bee2efa24f"
+            },
+            {
+              "turn": 33,
+              "uninterrupted": "bbd7f3740d9ef19a343556b943a6521fd094c53c09e111837e7064303802cda3",
+              "resumed": "bbd7f3740d9ef19a343556b943a6521fd094c53c09e111837e7064303802cda3"
+            },
+            {
+              "turn": 34,
+              "uninterrupted": "42dc3f121850f01ab615de2fe5652010fc0989d8cfc5f561cf89c7346c995873",
+              "resumed": "42dc3f121850f01ab615de2fe5652010fc0989d8cfc5f561cf89c7346c995873"
+            },
+            {
+              "turn": 35,
+              "uninterrupted": "5cccb9d615e0bfa00c2ae17147424fb4d6cf4d60c8c7c9f2751ccaac808464a1",
+              "resumed": "5cccb9d615e0bfa00c2ae17147424fb4d6cf4d60c8c7c9f2751ccaac808464a1"
+            },
+            {
+              "turn": 36,
+              "uninterrupted": "624702d74afda667b47afe4befc55b11ae4b5efbf2426790429fa36c368e2d11",
+              "resumed": "624702d74afda667b47afe4befc55b11ae4b5efbf2426790429fa36c368e2d11"
+            },
+            {
+              "turn": 37,
+              "uninterrupted": "90775b33b049ec68e14a23845678eb2d4e17e2ce5b38767b372beac270daa565",
+              "resumed": "90775b33b049ec68e14a23845678eb2d4e17e2ce5b38767b372beac270daa565"
+            },
+            {
+              "turn": 38,
+              "uninterrupted": "5771aa9b4bf49f4afb0b42bc09f1377a3c03dec1f9de1435f6b52d202ce687bf",
+              "resumed": "5771aa9b4bf49f4afb0b42bc09f1377a3c03dec1f9de1435f6b52d202ce687bf"
+            },
+            {
+              "turn": 39,
+              "uninterrupted": "90d41347ab2dcc865c048aefba4595d75a98200958b892f3f6833d8cd151d33f",
+              "resumed": "90d41347ab2dcc865c048aefba4595d75a98200958b892f3f6833d8cd151d33f"
+            },
+            {
+              "turn": 40,
+              "uninterrupted": "699f624d0c9f6bf31a1327fc9172bcdb3c0b88f1696c1bc3380f41c9a5cad449",
+              "resumed": "699f624d0c9f6bf31a1327fc9172bcdb3c0b88f1696c1bc3380f41c9a5cad449"
+            }
+          ]
+        }
+      },
+      "runs": {
+        "baseline": {
+          "head": "2ab3b4814abb665c7b3d5c255152cf5767bbf25a",
+          "runtime_identity": {
+            "python": "3.13.15",
+            "implementation": "CPython",
+            "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+            "source_sha256": "c19c3b84fbb3bb592738d165417a376112fe36c2a35076cc5ae898342048ed71",
+            "pydantic": "2.12.5",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "pyarrow": "25.0.1",
+            "arro3-core": "0.9.0",
+            "pyyaml": "6.0.3"
+          },
+          "test_doubles": false,
+          "test_double_sha256": null,
+          "source_sha256": {
+            "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+            "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+            "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+            "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+            "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+            "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+            "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+            "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+            "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+            "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+            "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+            "src/chronicler/checkpoint_replay.py": "6bbe2d087dbac00ba408fb55f2bb119c7855629ee822af65ba3f127ad5c39170",
+            "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+            "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+            "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+            "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+            "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+            "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+            "src/chronicler/ecology.py": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a",
+            "src/chronicler/economy.py": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8",
+            "src/chronicler/elite_metrics.py": "7c11be204787698fc8c847ed2cda142c763141a56788f2f95a636e037da4ee64",
+            "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+            "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+            "src/chronicler/evidence_admission.py": "d6ef96029f53afbfd742e81ec678ee0b1d1ef23047ea85a7f3d2eb7ae1474937",
+            "src/chronicler/experimental/__init__.py": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+            "src/chronicler/experimental/fisheries.py": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736",
+            "src/chronicler/experimental/fisheries_bridge.py": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007",
+            "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+            "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+            "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+            "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+            "src/chronicler/governance_capital.py": "24e0bab992168e8bec1a8bf330ec9b4d789ee6d5a34be18e4d64dbb76b53f707",
+            "src/chronicler/governance_kernel_harness.py": "cc24a232921bad115b6231441646ab91b9123c80f1fbb48e0deb7a6ca2899e25",
+            "src/chronicler/great_persons.py": "1722122a1199da7ed035ced9be97d9e94a34d1addb4a02c74248aebabe758286",
+            "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+            "src/chronicler/institutions.py": "421cc98b8c60dfd95f3945bb9b73af4bba45afbcd2b5bf46a0fc07f472703753",
+            "src/chronicler/intelligence.py": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e",
+            "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+            "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+            "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+            "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+            "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+            "src/chronicler/main.py": "0e4eba7c96786f7f3ec885332b4dd94b86d16eac2a656483636d47935297b5d7",
+            "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+            "src/chronicler/models.py": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0",
+            "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+            "src/chronicler/mutual_aid.py": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0",
+            "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+            "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+            "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+            "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+            "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+            "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+            "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+            "src/chronicler/ruler_ambitions.py": "8216e93f7589beb01a4ae9b8e599e8845f901af69b00732e21e8e82cce649532",
+            "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+            "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+            "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+            "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+            "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+            "src/chronicler/simulation.py": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad",
+            "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+            "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+            "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+            "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+            "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+            "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+            "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+            "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+            "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+            "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+            "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+            "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+            "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+            "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+          },
+          "artifacts": {
+            "chronicle.md": {
+              "bytes": 105204,
+              "sha256": "c5a86d3dd8e0107fbd1f8517a78a5237ca50970fda0a54bcbc24b692643dd029"
+            },
+            "chronicle_bundle.json": {
+              "bytes": 993894,
+              "sha256": "6805a187a8d47d4078d3e9e213a0c16523fb1f8eda783dd15ae23e24cdaa4a07"
+            },
+            "memories_ashkari_nomads.json": {
+              "bytes": 14973,
+              "sha256": "1d8d6dcc49eecb4f3b963af0a734c72768f9dba37985136982c97583fed94a47"
+            },
+            "memories_dorrathi_clans.json": {
+              "bytes": 13508,
+              "sha256": "7509d5009cfb09e364c6132da94ccefb54fc1ffc1ab9b32ee27d6c280094c542"
+            },
+            "memories_kethani_empire.json": {
+              "bytes": 14724,
+              "sha256": "983ac446edc11619ec6c56a67ef3c7abed2d1c53d45fc6ff807d837a71183cc5"
+            },
+            "memories_selurian_republic.json": {
+              "bytes": 14416,
+              "sha256": "e0423535b42a3a785cb6e283ef7936077603ead580265bdfda21401da641df3b"
+            },
+            "memories_thornwall_confederacy.json": {
+              "bytes": 14009,
+              "sha256": "a0cc1a58f1802a6d07d594fd15063b560ecbe7ba7aa13e57e397e0d150f0bbcc"
+            },
+            "memories_vrashni_dominion.json": {
+              "bytes": 8950,
+              "sha256": "1c65e13a82c95ba1c256b674c0403aa25a2926fce603425d89a9dfddf5e0500c"
+            },
+            "state.json": {
+              "bytes": 263847,
+              "sha256": "117f2caa8cb85223b7118ce021d9cf020f1cd52b2453f905d057cc58ff6f6105"
+            }
+          },
+          "rng": {
+            "sha256": "2118c0615d21270fccd0eca236e3b9b31f98a5ede4885acbf9b44e1340f8a2f5",
+            "counts": {
+              "seed": 3866,
+              "getrandbits": 810,
+              "random": 7324
+            },
+            "instances": 3866
+          }
+        },
+        "candidate": {
+          "head": "81a4a355c0755b168d66e839e009a8f6504d71b6",
+          "runtime_identity": {
+            "python": "3.13.15",
+            "implementation": "CPython",
+            "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+            "source_sha256": "0dc9d7fef5e34814cf159e7e16632aa00035ba3a3b9736798b426323ee0f0c1f",
+            "pydantic": "2.12.5",
+            "numpy": "2.5.3",
+            "scipy": "1.18.1",
+            "pyarrow": "25.0.1",
+            "arro3-core": "0.9.0",
+            "pyyaml": "6.0.3"
+          },
+          "test_doubles": true,
+          "test_double_sha256": "82ea0d23ac9bc8272d40d29992044a40f063775c267692f1cac0c8839401a1e5",
+          "source_sha256": {
+            "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+            "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+            "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+            "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+            "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+            "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+            "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+            "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+            "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+            "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+            "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+            "src/chronicler/checkpoint_replay.py": "4ca3b3da8c56580071d12d8955a069ad888017cbcc9ed48188a00a47911a663c",
+            "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+            "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+            "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+            "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+            "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+            "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+            "src/chronicler/ecology.py": "e77c16b18eb201129629c27650fe82b08fa4e6b25f2ba03620245a13a9230c1a",
+            "src/chronicler/economy.py": "31a590b2d27df514d3c536fee0d42a1239628f70d5c1f6c2a41f54b7330b6ab8",
+            "src/chronicler/elite_metrics.py": "7c11be204787698fc8c847ed2cda142c763141a56788f2f95a636e037da4ee64",
+            "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+            "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+            "src/chronicler/evidence_admission.py": "d6ef96029f53afbfd742e81ec678ee0b1d1ef23047ea85a7f3d2eb7ae1474937",
+            "src/chronicler/experimental/__init__.py": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+            "src/chronicler/experimental/fisheries.py": "edf3abd283b0b133b57d366c4a29719751862172287fd7e59c6a7b2399a0e736",
+            "src/chronicler/experimental/fisheries_bridge.py": "e76da811f9b6a9c8bace6d715cfe899a142249ef7de886f7598c87619fc1f007",
+            "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+            "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+            "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+            "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+            "src/chronicler/governance_capital.py": "24e0bab992168e8bec1a8bf330ec9b4d789ee6d5a34be18e4d64dbb76b53f707",
+            "src/chronicler/governance_kernel_harness.py": "cc24a232921bad115b6231441646ab91b9123c80f1fbb48e0deb7a6ca2899e25",
+            "src/chronicler/great_persons.py": "1722122a1199da7ed035ced9be97d9e94a34d1addb4a02c74248aebabe758286",
+            "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+            "src/chronicler/institutions.py": "421cc98b8c60dfd95f3945bb9b73af4bba45afbcd2b5bf46a0fc07f472703753",
+            "src/chronicler/intelligence.py": "79265a592fd132d0623c789112966f30e3cd7c3242b130bf248d2039e9be4c2e",
+            "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+            "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+            "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+            "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+            "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+            "src/chronicler/main.py": "65958a043703898fad0fce85bb7e243a097cc2c67e3ccd716deeac3bf6068f54",
+            "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+            "src/chronicler/models.py": "7bd9d74dab305a87c2b5c3b0f097ad48271e41b156dae24528d71a4f20d068c0",
+            "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+            "src/chronicler/mutual_aid.py": "e4692263ef38b32499fdd4d97272fd70e9139319550252f1e0baf08013a84bd0",
+            "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+            "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+            "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+            "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+            "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+            "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+            "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+            "src/chronicler/ruler_ambitions.py": "8216e93f7589beb01a4ae9b8e599e8845f901af69b00732e21e8e82cce649532",
+            "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+            "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+            "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+            "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+            "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+            "src/chronicler/simulation.py": "888c49b8707056d97ef390a35de38f498b2382ffd99e11ca311e568fe8d8d6ad",
+            "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+            "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+            "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+            "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+            "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+            "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+            "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+            "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+            "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+            "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+            "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+            "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+            "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+            "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+          },
+          "artifacts": {
+            "chronicle.md": {
+              "bytes": 105204,
+              "sha256": "c5a86d3dd8e0107fbd1f8517a78a5237ca50970fda0a54bcbc24b692643dd029"
+            },
+            "chronicle_bundle.json": {
+              "bytes": 993894,
+              "sha256": "6805a187a8d47d4078d3e9e213a0c16523fb1f8eda783dd15ae23e24cdaa4a07"
+            },
+            "memories_ashkari_nomads.json": {
+              "bytes": 14973,
+              "sha256": "1d8d6dcc49eecb4f3b963af0a734c72768f9dba37985136982c97583fed94a47"
+            },
+            "memories_dorrathi_clans.json": {
+              "bytes": 13508,
+              "sha256": "7509d5009cfb09e364c6132da94ccefb54fc1ffc1ab9b32ee27d6c280094c542"
+            },
+            "memories_kethani_empire.json": {
+              "bytes": 14724,
+              "sha256": "983ac446edc11619ec6c56a67ef3c7abed2d1c53d45fc6ff807d837a71183cc5"
+            },
+            "memories_selurian_republic.json": {
+              "bytes": 14416,
+              "sha256": "e0423535b42a3a785cb6e283ef7936077603ead580265bdfda21401da641df3b"
+            },
+            "memories_thornwall_confederacy.json": {
+              "bytes": 14009,
+              "sha256": "a0cc1a58f1802a6d07d594fd15063b560ecbe7ba7aa13e57e397e0d150f0bbcc"
+            },
+            "memories_vrashni_dominion.json": {
+              "bytes": 8950,
+              "sha256": "1c65e13a82c95ba1c256b674c0403aa25a2926fce603425d89a9dfddf5e0500c"
+            },
+            "state.json": {
+              "bytes": 263847,
+              "sha256": "117f2caa8cb85223b7118ce021d9cf020f1cd52b2453f905d057cc58ff6f6105"
+            }
+          },
+          "rng": {
+            "sha256": "2118c0615d21270fccd0eca236e3b9b31f98a5ede4885acbf9b44e1340f8a2f5",
+            "counts": {
+              "seed": 3866,
+              "getrandbits": 810,
+              "random": 7324
+            },
+            "instances": 3866
+          }
+        }
+      }
+    }
+  ],
+  "cross_source_checkpoint": "REJECTED: source/Python/dependency runtime mismatch",
+  "preserved_failures": [
+    {
+      "fixture": "wide",
+      "split": 5,
+      "sources": [
+        "baseline",
+        "candidate"
+      ],
+      "driver_exit": 2,
+      "reason": "checkpoint requires a completed stockpile bootstrap",
+      "partial_raw_output": "output/a01/final-{baseline,candidate}-wide",
+      "replacement_within_source_checkpoint_split": 0
+    }
+  ],
+  "blockers": [
+    "Reviewed slices 1 and 2 have not arrived; imports require their production APIs",
+    "Coordinator owner must remove snapshot/named aliases only after integrated runner/guard validation",
+    "Native extension and compatible admitted in-process inputs unavailable",
+    "Native getter/order/stages, decode reduction and real AgentRows allocation/lifetime growth not proven",
+    "Standalone tests and scaffolded Python replay do not establish full A01 acceptance"
+  ],
+  "native_present": false,
+  "parameter_or_default_changes": false,
+  "runtime_protocol_or_seed_registry_changes": false,
+  "ownership_conflicts": [],
+  "environment_disconnect": "Notification observed; shell and ongoing capture commands continued successfully; separate reconnection not verified",
+  "timing_scope": "Final paired reports captured sequentially with no other test/capture subprocesses active; warmed medians are diagnostics with no speed or memory saving claim",
+  "review_status": "COMPLETED: independent Sol6.1/high review of exact implementation commit and refreshed raw evidence; no remaining findings",
+  "independent_validation": {
+    "focused_passed": 223,
+    "seconds": 5.15,
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high",
+    "reviewed_commit": "81a4a355c0755b168d66e839e009a8f6504d71b6",
+    "review_path": "docs/a01/independent-sol-review-slice3.md",
+    "independent_comparators": [
+      "single",
+      "standard",
+      "wide"
+    ],
+    "broader_regression": "544-test log inspected; not independently rerun"
+  },
+  "wide_checkpoint_limit": "split0 compares initial-boundary serialization plus40 resumed turns; not a nonzero-turn continuation. single/standard supply nonzero split5 coverage."
+}

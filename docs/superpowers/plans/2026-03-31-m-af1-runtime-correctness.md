@@ -1175,8 +1175,8 @@ Run the 200-seed regression comparison against baseline `d9baf0a`:
 
 ```bash
 # Absolute paths to avoid stale-extension/env mismatch (per CLAUDE.md operational note)
-MAIN_VENV="C:/Users/tateb/Documents/opusprogram/.venv/Scripts/python.exe"
-MAIN_OUTPUT="C:/Users/tateb/Documents/opusprogram/output"
+MAIN_VENV="<HOME>/Documents/opusprogram/.venv/Scripts/python.exe"
+MAIN_OUTPUT="<HOME>/Documents/opusprogram/output"
 
 # Use a worktree for the baseline build — do NOT stash/checkout in the main tree.
 git worktree add .worktrees/m-af1-baseline d9baf0a

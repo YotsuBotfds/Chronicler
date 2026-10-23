@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from chronicler.turn_artifacts import AgentRows, _check_agent_rows
 from chronicler.ffi_constants import VALUE_TO_ID
 from chronicler.models import ActiveCondition, Disposition, Event, NamedEvent, WorldState
 from chronicler.tuning import (
@@ -43,20 +44,24 @@ def _downgrade_disposition(current: Disposition) -> Disposition:
     return _DISPOSITION_ORDER[max(idx - 1, 0)]
 
 
-def apply_value_drift(world: WorldState, agent_snapshot=None) -> None:
+def apply_value_drift(world: WorldState, agent_snapshot=None, *, agent_rows: AgentRows | None = None) -> None:
     """Accumulate disposition drift from shared/opposing values.
 
     When agent_snapshot is provided (M36 bottom-up path), compute drift from
     per-civ cultural value frequency profiles derived from agent data.
     When None, fall back to the M16 civ-level value comparison.
     """
+    _check_agent_rows(agent_snapshot, agent_rows)
     from chronicler.movements import SCHISM_DIVERGENCE_THRESHOLD
 
     civs = world.civilizations
 
     if agent_snapshot is not None:
         # --- M36 bottom-up path: derive drift from agent cultural profiles ---
-        profiles = compute_civ_cultural_profile(agent_snapshot)
+        profiles = (
+            compute_civ_cultural_profile(agent_snapshot, agent_rows=agent_rows)
+            if agent_rows is not None else compute_civ_cultural_profile(agent_snapshot)
+        )
         # Build civ_id -> civ mapping using list index as civ_id
         civ_id_map = {i: civ for i, civ in enumerate(civs)}
         all_values = set()
@@ -138,14 +143,27 @@ ASSIMILATION_AGENT_THRESHOLD = 0.60
 ASSIMILATION_GUARD_TURNS = 5
 
 
-def compute_civ_cultural_profile(snapshot) -> dict[int, Counter]:
+def compute_civ_cultural_profile(snapshot, *, agent_rows: AgentRows | None = None) -> dict[int, Counter]:
     """Aggregate per-civ cultural value frequency from agent snapshot."""
+    _check_agent_rows(snapshot, agent_rows)
     if snapshot is None or snapshot.num_rows == 0:
         return {}
-    civs = snapshot.column("civ_affinity").to_pylist()
-    cv0 = snapshot.column("cultural_value_0").to_pylist()
-    cv1 = snapshot.column("cultural_value_1").to_pylist()
-    cv2 = snapshot.column("cultural_value_2").to_pylist()
+    civs = (
+        agent_rows.ints("civ_affinity")
+        if agent_rows is not None else snapshot.column("civ_affinity").to_pylist()
+    )
+    cv0 = (
+        agent_rows.ints("cultural_value_0")
+        if agent_rows is not None else snapshot.column("cultural_value_0").to_pylist()
+    )
+    cv1 = (
+        agent_rows.ints("cultural_value_1")
+        if agent_rows is not None else snapshot.column("cultural_value_1").to_pylist()
+    )
+    cv2 = (
+        agent_rows.ints("cultural_value_2")
+        if agent_rows is not None else snapshot.column("cultural_value_2").to_pylist()
+    )
     profiles: dict[int, Counter] = {}
     for i in range(len(civs)):
         civ_id = civs[i]
@@ -157,13 +175,14 @@ def compute_civ_cultural_profile(snapshot) -> dict[int, Counter]:
     return profiles
 
 
-def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None) -> None:
+def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None, *, agent_rows: AgentRows | None = None) -> None:
     """Tick cultural assimilation for all regions.
 
     When agent_snapshot is provided (hybrid/shadow mode), use agent-driven
     60% cultural value check.  When None (agents=off), fall back to M16
     timer-based path.
     """
+    _check_agent_rows(agent_snapshot, agent_rows)
     for region_idx, region in enumerate(world.regions):
         if region.controller is None:
             continue
@@ -203,10 +222,22 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
                     target_val_id = VALUE_TO_ID.get(primary_value)
                     if target_val_id is not None:
                         # Count agents in this region holding the value
-                        regions_col = agent_snapshot.column("region").to_pylist()
-                        cv0 = agent_snapshot.column("cultural_value_0").to_pylist()
-                        cv1 = agent_snapshot.column("cultural_value_1").to_pylist()
-                        cv2 = agent_snapshot.column("cultural_value_2").to_pylist()
+                        regions_col = (
+                            agent_rows.ints("region")
+                            if agent_rows is not None else agent_snapshot.column("region").to_pylist()
+                        )
+                        cv0 = (
+                            agent_rows.ints("cultural_value_0")
+                            if agent_rows is not None else agent_snapshot.column("cultural_value_0").to_pylist()
+                        )
+                        cv1 = (
+                            agent_rows.ints("cultural_value_1")
+                            if agent_rows is not None else agent_snapshot.column("cultural_value_1").to_pylist()
+                        )
+                        cv2 = (
+                            agent_rows.ints("cultural_value_2")
+                            if agent_rows is not None else agent_snapshot.column("cultural_value_2").to_pylist()
+                        )
                         total = 0
                         holders = 0
                         for j in range(agent_snapshot.num_rows):

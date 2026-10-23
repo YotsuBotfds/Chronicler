@@ -2907,4 +2907,4 @@ git commit -m "feat(m12): complete live mode interactive GUI"
 
 - [ ] **Step 5: Update project memory**
 
-Update `/Users/tbronson/.claude/projects/-Users-tbronson-Documents-opusprogram/memory/project_chronicle_generator.md` to reflect M12 completion and Phase 2 complete status.
+Update `<HOME>/.claude/projects/-HOME-Documents-opusprogram/memory/project_chronicle_generator.md` to reflect M12 completion and Phase 2 complete status.

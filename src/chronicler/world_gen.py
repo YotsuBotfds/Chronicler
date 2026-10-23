@@ -20,6 +20,7 @@ from chronicler.models import (
     WorldState,
 )
 from chronicler.ecology import effective_capacity, TERRAIN_ECOLOGY_DEFAULTS
+# Keep the imported name available to existing world_gen callers.
 from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
 
 # --- Name and trait pools ---
@@ -221,9 +222,8 @@ def generate_world(
         region.role = roles.get(region.name, "standard")
     from chronicler.resources import assign_resources
     assign_resources(regions, seed=seed)
-    from chronicler.resources import assign_resource_types, populate_legacy_resources
+    from chronicler.resources import assign_resource_types
     assign_resource_types(regions, seed=seed)
-    populate_legacy_resources(regions)
     civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
     for civ in civs:
         if civ.regions and civ.capital_region is None:

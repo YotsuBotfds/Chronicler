@@ -1,4 +1,13 @@
-# React + TypeScript + Vite
+# Chronicler Viewer
+
+Open a local legacy `chronicle_bundle.json` with **Open Existing**. Expand
+**Inspect region history** to filter exported region observations and events by
+turn, region, and metric, with original-file identity and missing-data labels.
+See [the inspector guide](../docs/experiment-inspector.md) for evidence semantics,
+the deterministic fixture, and local browser QA. The panel is closed by default
+and limited to static artifacts.
+
+## React + TypeScript + Vite scaffold notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -1,0 +1,344 @@
+{
+  "workload": {
+    "seed": 42,
+    "turns": 60,
+    "civs": 4,
+    "regions": 12
+  },
+  "pairs": 3,
+  "snapshot_repeats": 80,
+  "boundaries": {
+    "snapshot": {
+      "baseline": [
+        {
+          "seconds": 0.08807975800004897,
+          "cpu_seconds": 0.08785196000000006,
+          "output_sha256": "01fd1cebda29775e8ed5559e7b9aa28bbb2d1bab6bb48089c3601c00440bc489"
+        },
+        {
+          "seconds": 0.11964044000001195,
+          "cpu_seconds": 0.11964939699999999,
+          "output_sha256": "01fd1cebda29775e8ed5559e7b9aa28bbb2d1bab6bb48089c3601c00440bc489"
+        },
+        {
+          "seconds": 0.09546830700003284,
+          "cpu_seconds": 0.095477861,
+          "output_sha256": "01fd1cebda29775e8ed5559e7b9aa28bbb2d1bab6bb48089c3601c00440bc489"
+        }
+      ],
+      "candidate": [
+        {
+          "seconds": 0.07686108400002922,
+          "cpu_seconds": 0.07687310999999997,
+          "output_sha256": "01fd1cebda29775e8ed5559e7b9aa28bbb2d1bab6bb48089c3601c00440bc489"
+        },
+        {
+          "seconds": 0.0748903449999716,
+          "cpu_seconds": 0.07465777699999998,
+          "output_sha256": "01fd1cebda29775e8ed5559e7b9aa28bbb2d1bab6bb48089c3601c00440bc489"
+        },
+        {
+          "seconds": 0.06892668400007551,
+          "cpu_seconds": 0.068921181,
+          "output_sha256": "01fd1cebda29775e8ed5559e7b9aa28bbb2d1bab6bb48089c3601c00440bc489"
+        }
+      ],
+      "baseline_median_seconds": 0.09546830700003284,
+      "candidate_median_seconds": 0.0748903449999716,
+      "median_speedup": 1.2747745654005072
+    },
+    "kernel": {
+      "baseline": [
+        {
+          "seconds": 0.113314900999967,
+          "cpu_seconds": 0.11332303600000004,
+          "output_sha256": "9e43f9da4365dd8a96f62ba47093c29fc6a1f79d8cea996828781903c800f960"
+        },
+        {
+          "seconds": 0.14820687000008093,
+          "cpu_seconds": 0.14821441699999993,
+          "output_sha256": "9e43f9da4365dd8a96f62ba47093c29fc6a1f79d8cea996828781903c800f960"
+        },
+        {
+          "seconds": 0.1199624880000556,
+          "cpu_seconds": 0.11997081800000009,
+          "output_sha256": "9e43f9da4365dd8a96f62ba47093c29fc6a1f79d8cea996828781903c800f960"
+        }
+      ],
+      "candidate": [
+        {
+          "seconds": 0.11662502399997265,
+          "cpu_seconds": 0.11663346099999994,
+          "output_sha256": "9e43f9da4365dd8a96f62ba47093c29fc6a1f79d8cea996828781903c800f960"
+        },
+        {
+          "seconds": 0.12857077299997854,
+          "cpu_seconds": 0.12857883399999992,
+          "output_sha256": "9e43f9da4365dd8a96f62ba47093c29fc6a1f79d8cea996828781903c800f960"
+        },
+        {
+          "seconds": 0.13026017900006082,
+          "cpu_seconds": 0.13025909400000002,
+          "output_sha256": "9e43f9da4365dd8a96f62ba47093c29fc6a1f79d8cea996828781903c800f960"
+        }
+      ],
+      "baseline_median_seconds": 0.1199624880000556,
+      "candidate_median_seconds": 0.12857077299997854,
+      "median_speedup": 0.9330463308334906
+    },
+    "execute": {
+      "baseline": [
+        {
+          "seconds": 0.36241466700005276,
+          "cpu_seconds": 0.3623926030000001,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.31015522199993484,
+          "cpu_seconds": 0.427662836,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.27640475500004413,
+          "cpu_seconds": 0.40415107100000003,
+          "output_sha256": null
+        }
+      ],
+      "candidate": [
+        {
+          "seconds": 0.3646503059999304,
+          "cpu_seconds": 0.44980396999999994,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.2876824810000471,
+          "cpu_seconds": 0.377404532,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.2740131770000289,
+          "cpu_seconds": 0.39059522700000004,
+          "output_sha256": null
+        }
+      ],
+      "baseline_median_seconds": 0.31015522199993484,
+      "candidate_median_seconds": 0.2876824810000471,
+      "median_speedup": 1.0781164738352074
+    },
+    "cli": {
+      "baseline": [
+        {
+          "seconds": 0.5969579160000649,
+          "cpu_seconds": null,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.8212472070000558,
+          "cpu_seconds": null,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.6956103009999879,
+          "cpu_seconds": null,
+          "output_sha256": null
+        }
+      ],
+      "candidate": [
+        {
+          "seconds": 0.5962827930000003,
+          "cpu_seconds": null,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.6850456089999852,
+          "cpu_seconds": null,
+          "output_sha256": null
+        },
+        {
+          "seconds": 0.6846353020000606,
+          "cpu_seconds": null,
+          "output_sha256": null
+        }
+      ],
+      "baseline_median_seconds": 0.6956103009999879,
+      "candidate_median_seconds": 0.6846353020000606,
+      "median_speedup": 1.0160304310453543
+    }
+  },
+  "sources": {
+    "baseline": {
+      "revision": "edf72991cad58d6670b1f382c33d50d903a6054a",
+      "source_sha256": {
+        "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+        "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+        "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+        "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+        "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+        "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+        "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+        "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+        "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+        "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+        "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+        "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+        "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+        "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+        "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+        "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+        "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+        "src/chronicler/ecology.py": "bbffa2f4a1466cd010e1e7c2534abe1c01a91e073c718f777914b52530a9f0a3",
+        "src/chronicler/economy.py": "d13c156c90b876a74bb2ad4bfa1b9e93e9f3e03923afb528c9e1348cf189d9a8",
+        "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+        "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+        "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+        "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+        "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+        "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+        "src/chronicler/great_persons.py": "4bd4cb6d683769cff87dd4b4ae379ca948260512a630e9fe5153f89b7d3151ae",
+        "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+        "src/chronicler/intelligence.py": "44d7744d2c4b5c95b09e364edfe1816decf5a8193cf1e105540db95ca2ead395",
+        "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+        "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+        "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+        "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+        "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+        "src/chronicler/main.py": "be1bb14006cf9d89bb36a8b14ae800328f7c6285f7c810a857b8d80f52841cbc",
+        "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+        "src/chronicler/models.py": "22bb17115ae1753ad4dd5443ee45d32557fda0d5cf7af7235726e6aa54708be2",
+        "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+        "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+        "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+        "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+        "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+        "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+        "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+        "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+        "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+        "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+        "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+        "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+        "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+        "src/chronicler/simulation.py": "9236fa65cd00e7ec776701c5680bc229c3dd3bde40dd4b09cb0be878f2b71387",
+        "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+        "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+        "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+        "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+        "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+        "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+        "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+        "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+        "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+        "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+        "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+        "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+        "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+        "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+      }
+    },
+    "candidate": {
+      "revision": "edf72991cad58d6670b1f382c33d50d903a6054a",
+      "source_sha256": {
+        "src/chronicler/__init__.py": "f69866ff9b5e2a46ef446e8832b63f9aed91460c069735a8137fc60b06f0f7e1",
+        "src/chronicler/accumulator.py": "8271a63a5685fa875da1e23d0a35392a0cdd0c3d7ba29a0e2d4752b13831e9e5",
+        "src/chronicler/action_engine.py": "a64aeb5b76303586654edf8a2e09a15c59d6b79c9c03f4cdb713b074eed710fd",
+        "src/chronicler/adjacency.py": "1cc1ed7845d789d63d075e80e0abaaaa95bea6d6f2966262eee26ef9b7bebe66",
+        "src/chronicler/agent_bridge.py": "f1bb6954aa0d5e8e249c3859a4eb15009db9661ceb27163c5155db70c7fe3f63",
+        "src/chronicler/analytics.py": "911eac3438113859d6dc9ba41e2bd4298a3dcd4e2e8a0c73fdebf663998de553",
+        "src/chronicler/arcs.py": "2aac8c1342d6c8bfc1b89b08a1a9872fe045d570aa85f46a861de20643bf72c9",
+        "src/chronicler/artifact_io.py": "0f87c8bcefc8b25605a8e6e7c6f36cd90cb43f531a15acc7bf2e17419793bb0d",
+        "src/chronicler/artifacts.py": "9883678b1a92b46a07dcbfc08c56c737aac3f9590f0c8b144e29cabe4501faee",
+        "src/chronicler/batch.py": "1ac5e5a6820198c496e691de05daa7144af672a72360cee033b0dca8efed2ec3",
+        "src/chronicler/bundle.py": "da4d89dfe0d54189f60cbae89cc8d8bf6331838604a9079988d74a08fe9e7566",
+        "src/chronicler/chronicle.py": "ea9f7e356fba99f24473f8478d4ded84fb7752e9f0d500e44737a1f5f87a24ee",
+        "src/chronicler/climate.py": "0520bd9bd223dd5e3e742cca68a606b8b6ca41e249eae342ae31ffdc221ca91c",
+        "src/chronicler/culture.py": "c78a4ed763255178024606b77e120007ad0bccb8284b23c4b6e4977bcbd6248e",
+        "src/chronicler/curator.py": "8304b37af1aecce4302afa2fe3dce7cffbd97b11561065f318d12fb1dd43ea74",
+        "src/chronicler/demand_signals.py": "ff03d635f91ae5e1f4bff2aaaa2a3ee996f26e26dc3b4b4f068427c9c0d204b7",
+        "src/chronicler/dynasties.py": "2bcf820f478053d762529df2669e0cd6c9c8f407dcff34e710a8ad8980b491c8",
+        "src/chronicler/ecology.py": "bbffa2f4a1466cd010e1e7c2534abe1c01a91e073c718f777914b52530a9f0a3",
+        "src/chronicler/economy.py": "d13c156c90b876a74bb2ad4bfa1b9e93e9f3e03923afb528c9e1348cf189d9a8",
+        "src/chronicler/emergence.py": "9e147b937a528bfbc29331d7f66658994802230d259787db46792d2ede699bbe",
+        "src/chronicler/events.py": "29adcb8f58e20197b33fb1f94678f5cd883ca3b0b0d66751e0f8e52c5885a57e",
+        "src/chronicler/exploration.py": "6473b71308b6a42a3eb17f1d8d0e21af28b7b804e162683c629c3bcd4eea4178",
+        "src/chronicler/factions.py": "84f412f0441765deb6a07e16577d6e140e3a6003ad66e636787b63e99b3fde48",
+        "src/chronicler/ffi_constants.py": "34e760d832c99c29cb31f023079b7e42944ce8a8ed003b9fc456e522df0654a4",
+        "src/chronicler/fork.py": "aa238c36207ccfca51399f7408ac34955e7d8ef9138c873b8ef5a97d01407259",
+        "src/chronicler/great_persons.py": "4bd4cb6d683769cff87dd4b4ae379ca948260512a630e9fe5153f89b7d3151ae",
+        "src/chronicler/infrastructure.py": "33ff06ae1d1503b186e100eb48ce63099fd34d9843b2b3fb08ee870961b61f11",
+        "src/chronicler/intelligence.py": "98fd8ff07f83c8fceab334d26ed96d7e895acd5a2958fb12848851c70d0546d2",
+        "src/chronicler/interactive.py": "cba35cedf1b6b8beb2e469ce510d3f58b53c8d18f7b78616e92c778d8c6b4667",
+        "src/chronicler/interestingness.py": "ec08eee6f7e890d529f65c452dd6eae7be9bd459aeb3afdddffb2f2454ea3c17",
+        "src/chronicler/leaders.py": "0657326d3efba45c57b0cb69416c2719ae73913a634b681435087a45154340ea",
+        "src/chronicler/live.py": "441b75275544db302911d58dda267b77191e7beeb4ffbea5086b77b1e5eddca5",
+        "src/chronicler/llm.py": "4270387ed42521bff068a963d439edb6776c0846eb6a7af6d6fb82290f9cf0ea",
+        "src/chronicler/main.py": "9974aac579cc6d463e07468e835854228c8e19df75211e7ea119835e56443dce",
+        "src/chronicler/memory.py": "b85ac66e18ce00ae84b2348d1ad1f3901ee91cede7055f61456180f20ca8185c",
+        "src/chronicler/models.py": "22bb17115ae1753ad4dd5443ee45d32557fda0d5cf7af7235726e6aa54708be2",
+        "src/chronicler/movements.py": "eccbf379440e0aa6354e9cac825e04bc43e8d0f902908efde26af7a839722a61",
+        "src/chronicler/named_events.py": "72d62034e3fdc24940745dae6a3293ca56ef19e2b348fb10a7da1ec186451bda",
+        "src/chronicler/narrative.py": "573de1a7cd1b93df5fbd03ecdd0c6c4895bd47348d8e9c3051738d0b34e11aa6",
+        "src/chronicler/politics.py": "2ec863bf2a4b97c7a4852658c07f85a055e7791e9c94ced6d9b2db4fe4339b4a",
+        "src/chronicler/politics_bridge.py": "6bf1d5ffbcf8f31b011e68b915cbfd4c5fed4478b815325877a3a2944831b882",
+        "src/chronicler/relationships.py": "5828297b4071a848881455767689c890447d1e59aaaab227534f81e4e6b32797",
+        "src/chronicler/religion.py": "e2a1e561c23fb46d030997003061e800609986932a59797146811b936e663747",
+        "src/chronicler/resources.py": "b1df3071fe8f8b5a528c31ff092a71e8bf23b0aed8c125c71c895c68c17aa5b7",
+        "src/chronicler/scenario.py": "eceb9fd1aa1780e5e05fd70df21aed0d57cb20b641b412bf557695b2aff74eb1",
+        "src/chronicler/settlements.py": "cad71cbe97d9ed43e2a2b3b50992ffb0657a95f56f0274e250ba6ad32248c428",
+        "src/chronicler/shadow.py": "80d08820691951a0353140c83daa348d8648918ed710f61a485354c598dc1e5f",
+        "src/chronicler/shadow_oracle.py": "242a897201fd6ec41b0c2e0157f806cf6167be483c6714f5986c0f870d66e4db",
+        "src/chronicler/sidecar.py": "0b1f5af590297917f9e4e0614d1d4f597005a686d2e38508c676ec3b3431a67e",
+        "src/chronicler/simulation.py": "9236fa65cd00e7ec776701c5680bc229c3dd3bde40dd4b09cb0be878f2b71387",
+        "src/chronicler/succession.py": "012188f98aa03d0aa98ddfdf6d66f116eafb933b2e90c9556cb1a047238dfec3",
+        "src/chronicler/tech.py": "1b509f17bacd431d4e99e4cf6b21bdd4e60728ee4d84dde8baf9a5f83bf6e762",
+        "src/chronicler/tech_focus.py": "48b68d552c8bcf966e683f5ab2f7262c8c22327967eff775a34a55709a007a6e",
+        "src/chronicler/terrain.py": "8a2b19acab4fa5a292ca3ea28d8f1fd20295aaf9e5cd96388576a40cd6734ac6",
+        "src/chronicler/traditions.py": "5ad77bf2d49900a62a6842229ea046921df4fd958216a23cf1d72365e0c6f507",
+        "src/chronicler/tuning.py": "fd4dfa42c11b6e3a830cdaf14553f291415f8f771c0e1b3bec997f777e5c355d",
+        "src/chronicler/types.py": "d318da0538d0d94bdb0b7629f3904939d5ae04a18b395837f9bb75281fc49c69",
+        "src/chronicler/utils.py": "84c64b8e3e3b5a1d9a847ee98582d793c526a13803c91878c153cbe0b1179505",
+        "src/chronicler/validate.py": "304fe17c4aee5261d0cfcc86100d6e5906224423ad1e2e0e91ad80616776a57b",
+        "src/chronicler/validation_compare.py": "0197ce12e84c260d19571a627ac1272ec0321398b7c3a3c2b2467a1766bd8704",
+        "src/chronicler/validation_gate.py": "8be6847a9d127f6e37c72f1f1c7eabe578982f47b1b0280055dd9bbc64c16ea8",
+        "src/chronicler/validation_io.py": "79af5737bb2174ac92411f351243a269baeebb92311202380e6afecbd80e3b86",
+        "src/chronicler/validation_oracles.py": "2f5e98fbc940f456e732ee123343ae4e155d74aa5e6d742c206d869a6c40a471",
+        "src/chronicler/world_gen.py": "d49c7b8fe533833f4bf902321b41ac87996a05b678bd2fb4ca31aca0dc29b870"
+      }
+    }
+  },
+  "script_sha256": "90324c5d9166f8efab65b0559d63022ac19a2b8be34ce9f17a0d939b54ac7678",
+  "environment": {
+    "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "packages": {
+      "httpcore": "1.0.9",
+      "h11": "0.16.0",
+      "arro3-core": "0.9.0",
+      "websockets": "16.0",
+      "jiter": "0.13.0",
+      "distro": "1.9.0",
+      "idna": "3.11",
+      "pydantic": "2.12.5",
+      "pytest-asyncio": "1.3.0",
+      "anyio": "4.12.1",
+      "typing_extensions": "4.15.0",
+      "PyYAML": "6.0.3",
+      "sniffio": "1.3.1",
+      "packaging": "26.0",
+      "pydantic_core": "2.41.5",
+      "pytest": "9.0.2",
+      "iniconfig": "2.3.0",
+      "pluggy": "1.6.0",
+      "scipy": "1.18.1",
+      "typing-inspection": "0.4.2",
+      "openai": "2.26.0",
+      "numpy": "2.5.3",
+      "annotated-types": "0.7.0",
+      "certifi": "2026.2.25",
+      "pyarrow": "25.0.1",
+      "Pygments": "2.19.2",
+      "httpx": "0.28.1",
+      "tqdm": "4.67.3"
+    }
+  },
+  "caveat": "Three pairs are diagnostic, not a statistical confidence interval; CLI includes startup."
+}

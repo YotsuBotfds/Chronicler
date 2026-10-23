@@ -1186,6 +1186,7 @@ pub(crate) fn apply_patch_to_regions(
 }
 
 /// Recompute yields for specific regions using stored context.
+/// Experimental catch overrides are applied separately after this recomputation.
 pub(crate) fn recompute_region_yields(
     regions: &mut [RegionState],
     indices: &[usize],
@@ -1202,6 +1203,39 @@ pub(crate) fn recompute_region_yields(
             );
         }
     }
+}
+
+/// Apply only fish-slot catch yields after the ordinary ecology post-pass.
+/// Validate the entire patch before mutation, including finite nonnegative yields.
+pub(crate) fn apply_fishery_yield_patch(
+    regions: &mut [RegionState], batch: &RecordBatch,
+) -> Result<(), PyErr> {
+    let ids = batch.column_by_name("region_id")
+        .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt16Array>())
+        .ok_or_else(|| PyValueError::new_err("fishery patch requires region_id:u16"))?;
+    let slots = batch.column_by_name("slot")
+        .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>())
+        .ok_or_else(|| PyValueError::new_err("fishery patch requires slot:u8"))?;
+    let yields = batch.column_by_name("yield")
+        .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>())
+        .ok_or_else(|| PyValueError::new_err("fishery patch requires yield:f32"))?;
+    use arrow::array::Array;
+    for i in 0..batch.num_rows() {
+        let rid = ids.value(i) as usize;
+        let slot = slots.value(i) as usize;
+        let value = yields.value(i);
+        if ids.is_null(i) || slots.is_null(i) || yields.is_null(i)
+            || rid >= regions.len() || slot >= 3
+            || regions[rid].resource_types[slot] != 3
+            || !value.is_finite() || value < 0.0
+        {
+            return Err(PyValueError::new_err("invalid fishery catch patch"));
+        }
+    }
+    for i in 0..batch.num_rows() {
+        regions[ids.value(i) as usize].resource_yields[slots.value(i) as usize] = yields.value(i);
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

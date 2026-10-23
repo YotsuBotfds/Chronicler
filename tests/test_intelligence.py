@@ -46,6 +46,71 @@ class TestSharesAdjacentRegion:
         world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
         assert shares_adjacent_region(c1, c2, world) is False
 
+    def test_missing_then_directed_edge(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
+        r2 = _region("B", controller="Civ2", adjacencies=[])
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
+        assert shares_adjacent_region(c1, c2, world) is True
+        assert shares_adjacent_region(c2, c1, world) is False
+        r1.adjacencies = ["Missing", "AlsoMissing"]
+        assert shares_adjacent_region(c1, c2, world) is False
+
+    @pytest.mark.parametrize("first_controller,second_controller,expected", [
+        ("Civ3", "Civ2", False),
+        ("Civ2", "Civ3", True),
+    ])
+    def test_duplicate_name_uses_first_region(self, first_controller, second_controller, expected):
+        r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
+        first = _region("B", controller=first_controller)
+        second = _region("B", controller=second_controller)
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        c3 = _civ("Civ3")
+        world = WorldState(
+            name="t", seed=42, regions=[r1, first, second], civilizations=[c1, c2, c3],
+        )
+        assert shares_adjacent_region(c1, c2, world) is expected
+
+    def test_incremental_lookup_keeps_earlier_name_and_first_duplicate(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["C", "B"])
+        first_b = _region("B", controller="Civ3")
+        c = _region("C", controller="Civ3")
+        second_b = _region("B", controller="Civ2")
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        c3 = _civ("Civ3", regions=["C"])
+        world = WorldState(
+            name="t", seed=42, regions=[r1, first_b, c, second_b],
+            civilizations=[c1, c2, c3],
+        )
+        assert shares_adjacent_region(c1, c2, world) is False
+        first_b.controller = "Civ2"
+        assert shares_adjacent_region(c1, c2, world) is True
+
+    def test_reads_live_regions_when_cached_region_map_is_stale(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["Missing", "B"])
+        old_b = _region("B", controller="Civ3")
+        c1 = _civ("Civ1", regions=["A"])
+        c2 = _civ("Civ2", regions=["B"])
+        c3 = _civ("Civ3")
+        world = WorldState(name="t", seed=42, regions=[r1, old_b], civilizations=[c1, c2, c3])
+        assert world.region_map["B"] is old_b
+        old_b.name = "OldB"
+        world.regions.append(_region("B", controller="Civ2"))
+        assert world.region_map["B"] is old_b  # intentionally stale cache
+        assert shares_adjacent_region(c1, c2, world) is True
+
+    def test_no_observer_regions(self):
+        c1 = _civ("Civ1")
+        c2 = _civ("Civ2", regions=["B"])
+        world = WorldState(
+            name="t", seed=42, regions=[_region("B", controller="Civ2")],
+            civilizations=[c1, c2],
+        )
+        assert shares_adjacent_region(c1, c2, world) is False
+
 
 class TestHasActiveTradeRoute:
     def test_trade_route_exists(self):
@@ -136,6 +201,14 @@ class TestAtWar:
 # --- Task 3: compute_accuracy tests ---
 
 class TestComputeAccuracy:
+    def test_adjacency_helper_remains_patchable(self, monkeypatch):
+        c1 = _civ("Civ1")
+        c2 = _civ("Civ2")
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2])
+        baseline = compute_accuracy(c1, c2, world)
+        monkeypatch.setattr("chronicler.intelligence.shares_adjacent_region", lambda *args: True)
+        assert compute_accuracy(c1, c2, world) == pytest.approx(baseline + 0.3)
+
     def test_self_accuracy_is_1(self):
         c = _civ("Civ1")
         world = WorldState(name="t", seed=42, civilizations=[c])
@@ -237,9 +310,11 @@ class TestComputeAccuracy:
         assert compute_accuracy(c1, c2, world) == pytest.approx(0.55)
 
     def test_hostage_gp_bonus(self):
-        gp = GreatPerson(name="Prince", role="hostage", trait="noble",
-                         civilization="Civ2", origin_civilization="Civ2",
-                         alive=True, active=True, born_turn=1, is_hostage=True)
+        from chronicler.relationships import capture_hostage
+
+        gp = GreatPerson(name="Prince", role="general", trait="noble",
+                         civilization="Civ1", origin_civilization="Civ1",
+                         alive=True, active=True, born_turn=1)
         # Use military-dominant faction so no faction bonus
         military_factions = FactionState(influence={
             FactionType.MILITARY: 0.6,
@@ -249,7 +324,10 @@ class TestComputeAccuracy:
         c1 = _civ("Civ1", great_persons=[gp], factions=military_factions)
         c2 = _civ("Civ2")
         world = WorldState(name="t", seed=42, civilizations=[c1, c2])
-        # no adjacency, just hostage(0.3)
+        capture_hostage(c1, c2, world)
+        # No adjacency; the hostage reports home from the captor's roster.
+        assert gp not in c1.great_persons
+        assert gp in c2.great_persons
         assert compute_accuracy(c1, c2, world) == pytest.approx(0.3)
 
     def test_grudge_bonus(self):

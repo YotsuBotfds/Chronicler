@@ -1,0 +1,21 @@
+{
+  "environment_equal": true,
+  "workloads": {
+    "single": {
+      "exact_equivalence": true,
+      "median_speedup": 1.2979945984411296,
+      "peak_bytes_delta": -118
+    },
+    "standard": {
+      "exact_equivalence": true,
+      "median_speedup": 1.0737318156763835,
+      "peak_bytes_delta": 271
+    },
+    "wide": {
+      "exact_equivalence": true,
+      "median_speedup": 1.0084281736016838,
+      "peak_bytes_delta": -3422
+    }
+  },
+  "passed": true
+}

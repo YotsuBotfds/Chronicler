@@ -5,12 +5,17 @@ modules read from and write to WorldState, which serializes to JSON.
 """
 from __future__ import annotations
 
+# Keep field available to existing models module callers.
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
+
+from chronicler.experimental.fisheries import FisheryConfig
+
+StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
 
 # --- Enums ---
@@ -226,6 +231,26 @@ class RegionStockpile(BaseModel):
     goods: dict[str, float] = Field(default_factory=dict)
 
 
+class MutualAidState(BaseModel):
+    """Lagged local food-stress memory, scoped to the current controller."""
+
+    controller: str
+    stress_streak: int = Field(default=0, ge=0)
+    last_observed_turn: int
+    food_sufficiency: float = Field(ge=0.0, le=2.0)
+
+
+class MutualAidTransfer(BaseModel):
+    turn: int
+    controller: str
+    donor: str
+    recipient: str
+    sent: dict[str, float]
+    received: dict[str, float]
+    transit_loss: float
+    treasury_cost: int
+
+
 class RegionAsabiya(BaseModel):
     """Per-region asabiya state with frontier diagnostics (M55b)."""
     asabiya: float = 0.5
@@ -300,6 +325,15 @@ class Region(BaseModel):
     resource_types: list[int] = Field(default_factory=lambda: [255, 255, 255])
     resource_base_yields: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
     resource_reserves: list[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0])
+    fishery_stocks: list[StockFraction] = Field(
+        default_factory=lambda: [1.0, 1.0, 1.0], min_length=3, max_length=3,
+    )
+    fishery_yield_ratios: list[StockFraction] = Field(
+        default_factory=lambda: [1.0, 1.0, 1.0], min_length=3, max_length=3,
+    )  # Persisted previous ecology tick's catch constraint for Phase 2 economy.
+    fishery_catch_budgets: list[Annotated[float, Field(ge=0, allow_inf_nan=False)] | None] = Field(
+        default_factory=lambda: [None, None, None], min_length=3, max_length=3,
+    )  # None means no experiment tick has supplied a catch budget yet.
     river_mask: int = 0
     # M35b: Disease, Depletion & Environmental Events
     disease_baseline: float = 0.01
@@ -713,6 +747,7 @@ class WorldState(BaseModel):
     peace_turns: int = 0
     balance_of_power_turns: int = 0
     climate_config: ClimateConfig = Field(default_factory=ClimateConfig)
+    fishery_experiment: FisheryConfig = Field(default_factory=FisheryConfig)
     fog_of_war: bool = False
     retired_persons: list[GreatPerson] = Field(default_factory=list)
     # M40: Dissolved edges per turn for narration (not serialized to bundle)
@@ -736,6 +771,11 @@ class WorldState(BaseModel):
     tuning_overrides: dict[str, float] = Field(default_factory=dict)
     # M27: Agent integration
     agent_mode: str | None = None       # None/"off", "demographics-only", "shadow", "hybrid"
+    # Experimental social response; saved separately from ecology/demography.
+    mutual_aid_enabled: bool = False
+    mutual_aid_state: dict[str, MutualAidState] = Field(default_factory=dict)
+    mutual_aid_last_dispatch_turn: int | None = None
+    mutual_aid_last_transfers: list[MutualAidTransfer] = Field(default_factory=list)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -803,7 +843,13 @@ class WorldState(BaseModel):
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
-        path.parent.mkdir(parents=True, exist_ok=True)
+        parent = path.parent
+        try:
+            parent_is_dir = parent.is_dir()
+        except OSError:
+            parent_is_dir = False
+        if not parent_is_dir:
+            parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
 
     @classmethod

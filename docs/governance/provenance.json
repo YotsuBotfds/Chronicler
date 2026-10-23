@@ -1,0 +1,170 @@
+{
+  "schema": 1,
+  "base_commit": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "branch": "experimental/governance-four-kernel",
+  "artifacts": [
+    {
+      "label": "contract",
+      "drive_id": "1SYCp8ZiIL44-XZvIwNI2QwJMkLHonDIn",
+      "archive_filename": "Chronicler-governance-kernel-integration-contract-G01-G04-20261005.zip",
+      "bytes": 40250,
+      "sha256": "298d7d90205968e430837f354ac84a1cc196a5a35ad2f833d8ab4c99fe0e780a",
+      "verified_members": [
+        "README.md",
+        "SHA256SUMS.json",
+        "contract/2026-10-05-governance-kernel-integration-contract.md",
+        "provenance/source_archive_provenance.json",
+        "reviews/G01/reviews.txt",
+        "reviews/G02/elite_metrics_final_review.md",
+        "reviews/G02/elite_metrics_first_tier_review.md",
+        "reviews/G02/elite_metrics_independent_oracle_result.json",
+        "reviews/G03/review-boundary-tier1.txt",
+        "reviews/G03/review-boundary-tier2.txt",
+        "reviews/G03/review-tier1.txt",
+        "reviews/G03/review-tier2.txt",
+        "reviews/G03/verification.txt",
+        "reviews/G04/REVIEW_EVIDENCE.md",
+        "reviews/independent-source-critique-summary.md",
+        "verification/verification.json"
+      ],
+      "original_commit": null,
+      "applied_commits": []
+    },
+    {
+      "label": "g01",
+      "drive_id": "17EUgUR1zjpkd_vfLiYDdArK0jtbm4swu",
+      "archive_filename": "Chronicler_G01_institutions_85adb48_20261005T194406Z_93ec2c2daf42.tar.gz",
+      "bytes": 55315,
+      "sha256": "5679f2d64bfbfe44ab05dea04db561ec86cb33f2c17e6b0f789f1df035485b2d",
+      "verified_members": [
+        "ARCHIVE_INDEX.json",
+        "src/chronicler/institutions.py",
+        "tests/test_institutions.py",
+        "transfer/g01-institutions.bundle",
+        "transfer/g01-institutions.patch",
+        "transfer/manifest.json",
+        "transfer/reviews.txt"
+      ],
+      "original_commit": "85adb48ec7879a67a8bd906cbb2745b8b88c1979",
+      "applied_commits": [
+        "5bfeaf8a3d41a112982a5286e5057f789c201f88"
+      ]
+    },
+    {
+      "label": "g02",
+      "drive_id": "1bwOV5XGcWRH0jWsjJ0hF4UwSx__QSM7A",
+      "archive_filename": "Chronicler-G02-elite-metrics-f7a95e7ba52c-60d5359719785366b652fb8d4b85c60e07b2296a067e040c90cf0930a778839b.tar.gz",
+      "bytes": 41977,
+      "sha256": "60d5359719785366b652fb8d4b85c60e07b2296a067e040c90cf0930a778839b",
+      "verified_members": [
+        "g02-source-delivery",
+        "g02-source-delivery/PACKAGING-MANIFEST.json",
+        "g02-source-delivery/source",
+        "g02-source-delivery/source/src",
+        "g02-source-delivery/source/src/chronicler",
+        "g02-source-delivery/source/src/chronicler/elite_metrics.py",
+        "g02-source-delivery/source/tests",
+        "g02-source-delivery/source/tests/test_elite_metrics.py",
+        "g02-source-delivery/transfer",
+        "g02-source-delivery/transfer/elite_metrics_final_oracle.py",
+        "g02-source-delivery/transfer/elite_metrics_final_review.md",
+        "g02-source-delivery/transfer/elite_metrics_first_tier_review.md",
+        "g02-source-delivery/transfer/elite_metrics_independent_oracle.py",
+        "g02-source-delivery/transfer/elite_metrics_independent_oracle_result.json",
+        "g02-source-delivery/transfer/g02-elite-metrics.bundle",
+        "g02-source-delivery/transfer/g02-elite-metrics.patch",
+        "g02-source-delivery/transfer/manifest.json"
+      ],
+      "original_commit": "f7a95e7ba52c21df061496224e32e7bd022a9b3f",
+      "applied_commits": [
+        "0bf021dc66483e485c0f5fe8bc135de78b1e96d9"
+      ]
+    },
+    {
+      "label": "g03",
+      "drive_id": "1ruDPnOknXuw2rTeKUP6fN-3uEH7uVCAr",
+      "archive_filename": "chronicler-g03-e69ba645-20261005T194313Z.zip",
+      "bytes": 50721,
+      "sha256": "03968a5f54bfb19c69cbc91771a7e48b3f86bd1de4fdf38b069c09dbe958cb4f",
+      "verified_members": [
+        "g03.bundle",
+        "g03.patch",
+        "manifest.json",
+        "manifest.md",
+        "review-boundary-tier1.txt",
+        "review-boundary-tier2.txt",
+        "review-tier1.txt",
+        "review-tier2.txt",
+        "src/chronicler/governance_capital.py",
+        "tests/test_governance_capital.py",
+        "verification.txt",
+        "BACKUP_MANIFEST.json"
+      ],
+      "original_commit": "e69ba645b82abcbd877361513023f6da3e5beb41",
+      "applied_commits": [
+        "91d31cb9a158ffb1241584b7a9ea06f28979cbcd"
+      ]
+    },
+    {
+      "label": "g04",
+      "drive_id": "1cYiJbE3XmeI99xCXJH2YP58aUpOrO3BX",
+      "archive_filename": "Chronicler_G04_c4ee94b_scoped-source-backup.tar.gz",
+      "bytes": 43880,
+      "sha256": "dda156f935cca6862bcb58e5fb5e04812a481d4743c111b0386c1e3c8fb673e6",
+      "verified_members": [
+        "MEMBER_SHA256SUMS.json",
+        "REVIEW_EVIDENCE.md",
+        "g04.bundle",
+        "g04.patch",
+        "manifest.json",
+        "src/chronicler/ruler_ambitions.py",
+        "tests/test_ruler_ambitions.py"
+      ],
+      "original_commit": "c4ee94bc47b20dd05f4d3685c1171b28d87c3b7a",
+      "applied_commits": [
+        "aa31f413fad32797a10aea6f0e8f3c3438f18526",
+        "a552aaaaaaa1bb02b7293743e81252820e633c03"
+      ]
+    },
+    {
+      "label": "history",
+      "drive_id": "14_dM4Q7dZmrt5aW8eIIoMVDgheuY9NId",
+      "archive_filename": "Chronicler-roadmap-archaeology-edf7299-df118c7.zip",
+      "bytes": 133207,
+      "sha256": "a003973334b1c4a6065f7dbc41d6c27259c2cf238421a0d8f4ef3b273e759190",
+      "verified_members": [
+        "DELIVERY.json",
+        "MEMBER-SHA256.json",
+        "artifacts/Chronicler-historical-intent-edf7299.bundle",
+        "artifacts/Chronicler-historical-intent-edf7299.patch",
+        "docs/archaeology/2026-10-05/briefs.json",
+        "docs/archaeology/2026-10-05/briefs.md",
+        "docs/archaeology/2026-10-05/historical-intent.md",
+        "docs/archaeology/2026-10-05/matrix.json",
+        "docs/archaeology/2026-10-05/probe-results.json",
+        "docs/archaeology/2026-10-05/review.md",
+        "docs/archaeology/2026-10-05/transfer-manifest.json",
+        "docs/archaeology/2026-10-05/validation.json",
+        "scripts/reproduce_historical_gaps.py",
+        "scripts/verify_historical_intent.py"
+      ],
+      "original_commit": "df118c722ab3e9a7bb8079053b6b9307294f27f6",
+      "applied_commits": []
+    }
+  ],
+  "original_g04_parent_commit": "b99753190d820a2dc3c6f9fdd32b91f5a2537f34",
+  "checks": [
+    "exact outer bytes and SHA256",
+    "safe member paths, no symlinks",
+    "complete member hash manifests and exact member sets",
+    "local Git bundles verified",
+    "source commit ancestry and exclusive changed paths",
+    "source bytes match original imported Git revisions"
+  ],
+  "gates": [
+    "G05 permission-blocked; no access/reconstruction/substitution",
+    "no simulation/runtime/native activation",
+    "no GitHub writes"
+  ],
+  "g04_ordering_fix_commit": "60cbc86bce84a696c8d39a002093fb8166ce2b9b"
+}

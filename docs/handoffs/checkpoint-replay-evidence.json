@@ -1,0 +1,45 @@
+{
+  "baseline": "edf72991cad58d6670b1f382c33d50d903a6054a",
+  "runtime_identity": {
+    "python": "3.13.5",
+    "implementation": "CPython",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "source_sha256": "a770041ebeb540cd9729e871864b790a88da6ef7f62f05cd2250b7ab1ecb50d2",
+    "pydantic": "2.12.5",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "pyarrow": "25.0.1",
+    "arro3-core": "0.9.0",
+    "pyyaml": "6.0.3"
+  },
+  "schema_sha256": "903a00f4f0fc88ea3cb6a6ef9d5295a37afa74de919def29248342f13ffbebee",
+  "traces": [
+    {
+      "seed": 1,
+      "checkpoint_turn": 0,
+      "target_turn": 250,
+      "status": "PASS",
+      "compared_resumed_turns": 250,
+      "final_state_sha256": "18331b456bad5c095c0781c157277ebc60272695a9c7d860882a7923b57455a8",
+      "local_artifacts": "output/checkpoint-replay-final/seed_1_split_0"
+    },
+    {
+      "seed": 42,
+      "checkpoint_turn": 12,
+      "target_turn": 250,
+      "status": "PASS",
+      "compared_resumed_turns": 238,
+      "final_state_sha256": "645b56daeaa70ef9ce449ea7f85256f8f330346eb24c2e88367dbcf11f3da997",
+      "local_artifacts": "output/checkpoint-replay-final/seed_42_split_12"
+    },
+    {
+      "seed": 73,
+      "checkpoint_turn": 249,
+      "target_turn": 250,
+      "status": "PASS",
+      "compared_resumed_turns": 1,
+      "final_state_sha256": "3e026e3289c5bad9cd5c17b8cab9b5142ce17d26c0abc3e987f8e79815625171",
+      "local_artifacts": "output/checkpoint-replay-final/seed_73_split_249"
+    }
+  ]
+}
