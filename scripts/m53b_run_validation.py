@@ -94,6 +94,14 @@ def _governance_args(args: argparse.Namespace) -> list[str]:
     return ["--governance" if governance else "--no-governance"]
 
 
+def _contact_ledger_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit contact-ledger switch; omitted keeps the CLI default."""
+    ledger = getattr(args, "contact_ledger", None)
+    if ledger is None:
+        return []
+    return ["--contact-ledger" if ledger else "--no-contact-ledger"]
+
+
 def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
     output_root = args.output_root / "oracle_subset"
     cmd = [
@@ -114,6 +122,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         str(output_root / "chronicle.md"),
         *_feature_flags(args),
         *_governance_args(args),
+        *_contact_ledger_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -139,6 +148,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         str(output_root / "chronicle.md"),
         *_feature_flags(args),
         *_governance_args(args),
+        *_contact_ledger_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -170,6 +180,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
             cmd.insert(-4, "--validation-sidecar")
         cmd.extend(_feature_flags(args))
         cmd.extend(_governance_args(args))
+        cmd.extend(_contact_ledger_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -443,6 +454,12 @@ def main() -> None:
         help="Forward --governance/--no-governance to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--contact-ledger",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --contact-ledger/--no-contact-ledger to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -527,6 +544,7 @@ def main() -> None:
         "turns": args.turns,
         "parallel": args.parallel,
         "campaigns": args.campaigns,
+        "contact_ledger": args.contact_ledger,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

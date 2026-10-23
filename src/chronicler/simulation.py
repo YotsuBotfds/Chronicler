@@ -83,6 +83,7 @@ from chronicler.succession import (
 )
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
+from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -1036,6 +1037,10 @@ def phase_consequences(
     if phase10 is None:
         _snap = getattr(world, '_agent_snapshot', None)
     apply_value_drift(world, agent_snapshot=_snap, **_row_args)
+    if _contact_ledger_on(world):
+        # Contact ledger: trade partners warm up (drift toward friendlier).
+        from chronicler.contact_ledger import apply_trade_warmth
+        apply_trade_warmth(world)
     tick_cultural_assimilation(world, acc=acc, agent_snapshot=_snap, **_row_args)
 
     # M16c: Cultural victory tracking (runs LAST in culture effects)
@@ -1710,6 +1715,10 @@ def run_turn_result(
     # oracle/test surface rather than an off-mode production path.
     phase2_trade_routes = get_active_trade_routes(world, emit_events=True)
     set_active_trade_routes_snapshot(world, phase2_trade_routes)
+    if _contact_ledger_on(world) and agent_bridge is None:
+        # Contact ledger, --agents off: goods-route proxy flows for this turn.
+        from chronicler.contact_ledger import observe_phase2
+        observe_phase2(world, phase2_trade_routes)
 
     economy_result = None
     snapshot = None
@@ -1749,6 +1758,11 @@ def run_turn_result(
             season_id = get_season_id(world.turn)
             is_winter = season_id == 3
             trade_friction = get_multiplier(world, K_TRADE_FRICTION)
+            if _contact_ledger_on(world):
+                # Contact ledger: read (never drain) the merchant deliveries
+                # this economy tick is about to consume.
+                from chronicler.contact_ledger import observe_phase2
+                observe_phase2(world, phase2_trade_routes, agent_bridge)
             rust_return = agent_bridge._sim.tick_economy(
                 region_input, trade_route_input,
                 season_id, is_winter, trade_friction,
@@ -2095,6 +2109,12 @@ def run_turn_result(
             if new_type is not None and new_type != prev_type:
                 gp.arc_type = new_type
                 gp.arc_type_turn = world.turn
+
+    # Contact ledger: decay, fold this turn's movements in, refresh civ-pair
+    # aggregates (read by next turn's consumers). Clears its transient inputs.
+    if _contact_ledger_on(world):
+        from chronicler.contact_ledger import update_contact_ledger
+        update_contact_ledger(world)
 
     # Chronicle (narrative generation)
     chronicle_text = narrator(world, turn_events)

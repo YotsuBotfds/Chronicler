@@ -1105,6 +1105,12 @@ def run_live(
         _campaigns = getattr(args, "campaigns", None)
         world.campaigns_enabled = (CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
                                    if _campaigns is None else bool(_campaigns))
+        # Contact ledger: new live worlds follow the CLI default (--contact-ledger opts in/out).
+        from chronicler.contact_ledger import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT, set_contact_ledger_enabled,
+        )
+        _ledger = getattr(args, "contact_ledger", None)
+        set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
 
     # Construct LLM clients from client-selected models
     client_config = server._resolve_client_config()
