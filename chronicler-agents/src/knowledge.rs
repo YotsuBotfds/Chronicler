@@ -120,6 +120,10 @@ pub const TRADE_MARGIN_THRESHOLD: f32 = 0.10;
 /// Minimum conversion_rate to emit a religious_signal packet.
 pub const CONVERSION_RATE_THRESHOLD: f32 = 0.05;
 
+/// `pkt_source_civ` value for an uncontrolled source region, an empty slot, or
+/// a packet admitted without provenance (`admit_packet`).
+pub const PKT_CIV_NONE: u8 = 255;
+
 // ---------------------------------------------------------------------------
 // Channel filter + weight tables
 // ---------------------------------------------------------------------------
@@ -179,6 +183,9 @@ pub struct KnowledgeStats {
     pub merchant_plans_bootstrap: u32,
     pub merchant_no_usable_packets: u32,
     pub migration_choices_changed_by_threat: u32,
+    // Deferred-backlog consumers (religious signal migration bias, loyalty rally)
+    pub migration_choices_changed_by_religion: u32,
+    pub loyalty_drifts_damped_by_rally: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -204,9 +211,22 @@ pub enum AdmitResult {
     Dropped,
 }
 
-/// Try to admit a packet into the agent's 4 slots.
-/// Returns the admission outcome.
+/// Try to admit a packet into the agent's 4 slots without source-civ
+/// provenance (`pkt_source_civ` = `PKT_CIV_NONE`). Returns the admission outcome.
 pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandidate) -> AdmitResult {
+    admit_packet_from_civ(pool, slot, candidate, PKT_CIV_NONE)
+}
+
+/// Try to admit a packet, recording `source_civ` (the civ controlling the
+/// source region when the packet was observed) wherever the packet is written.
+/// Identity, freshness and eviction rules are unchanged: provenance never
+/// affects whether a packet is admitted.
+pub fn admit_packet_from_civ(
+    pool: &mut AgentPool,
+    slot: usize,
+    candidate: &PacketCandidate,
+    source_civ: u8,
+) -> AdmitResult {
     let info_type = candidate.info_type;
     let source_region = candidate.source_region;
 
@@ -222,6 +242,7 @@ pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandida
                 pool.pkt_source_region[slot][i] = source_region;
                 pool.pkt_source_turn[slot][i] = candidate.source_turn;
                 pool.pkt_intensity[slot][i] = candidate.intensity;
+                pool.pkt_source_civ[slot][i] = source_civ;
                 return AdmitResult::Refreshed;
             } else if candidate.source_turn == existing_turn {
                 // Same turn — keep higher intensity; if tied, keep lower hop_count
@@ -232,6 +253,7 @@ pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandida
                 {
                     pool.pkt_type_and_hops[slot][i] = pack_type_hops(info_type, candidate.hop_count);
                     pool.pkt_intensity[slot][i] = candidate.intensity;
+                    pool.pkt_source_civ[slot][i] = source_civ;
                     return AdmitResult::Refreshed;
                 }
             }
@@ -247,6 +269,7 @@ pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandida
             pool.pkt_source_region[slot][i] = source_region;
             pool.pkt_source_turn[slot][i] = candidate.source_turn;
             pool.pkt_intensity[slot][i] = candidate.intensity;
+            pool.pkt_source_civ[slot][i] = source_civ;
             return AdmitResult::Inserted;
         }
     }
@@ -290,6 +313,7 @@ pub fn admit_packet(pool: &mut AgentPool, slot: usize, candidate: &PacketCandida
         pool.pkt_source_region[slot][worst_idx] = source_region;
         pool.pkt_source_turn[slot][worst_idx] = candidate.source_turn;
         pool.pkt_intensity[slot][worst_idx] = candidate.intensity;
+        pool.pkt_source_civ[slot][worst_idx] = source_civ;
         return AdmitResult::Evicted;
     }
 
@@ -318,6 +342,7 @@ pub fn decay_packets(pool: &mut AgentPool, alive_slots: &[usize]) -> u32 {
                 pool.pkt_source_region[slot][i] = 0;
                 pool.pkt_source_turn[slot][i] = 0;
                 pool.pkt_intensity[slot][i] = 0;
+                pool.pkt_source_civ[slot][i] = PKT_CIV_NONE;
                 expired += 1;
             } else {
                 pool.pkt_intensity[slot][i] = intensity - rate;
@@ -369,13 +394,13 @@ pub fn observe_packets(
             threat_intensity = threat_intensity.max(INTENSITY_SECESSION);
         }
         if threat_intensity > 0 {
-            let result = admit_packet(pool, slot, &PacketCandidate {
+            let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
                 info_type: InfoType::ThreatWarning as u8,
                 source_region: region.region_id,
                 source_turn: current_turn,
                 intensity: threat_intensity,
                 hop_count: 0,
-            });
+            }, region.controller_civ);
             match result {
                 AdmitResult::Inserted => { created += 1; created_threat += 1; }
                 AdmitResult::Refreshed => { refreshed += 1; }
@@ -408,13 +433,13 @@ pub fn observe_packets(
         if is_trade_eligible && region.merchant_route_margin > TRADE_MARGIN_THRESHOLD {
             let scaled = ((region.merchant_route_margin - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0).clamp(0.0, 255.0) as u8;
             let intensity = scaled.max(50).min(230);
-            let result = admit_packet(pool, slot, &PacketCandidate {
+            let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
                 info_type: InfoType::TradeOpportunity as u8,
                 source_region: region.region_id,
                 source_turn: current_turn,
                 intensity,
                 hop_count: 0,
-            });
+            }, region.controller_civ);
             match result {
                 AdmitResult::Inserted => { created += 1; created_trade += 1; }
                 AdmitResult::Refreshed => { refreshed += 1; }
@@ -443,13 +468,13 @@ pub fn observe_packets(
             religious_intensity = religious_intensity.max(INTENSITY_SCHISM);
         }
         if religious_intensity > 0 {
-            let result = admit_packet(pool, slot, &PacketCandidate {
+            let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
                 info_type: InfoType::ReligiousSignal as u8,
                 source_region: region.region_id,
                 source_turn: current_turn,
                 intensity: religious_intensity,
                 hop_count: 0,
-            });
+            }, region.controller_civ);
             match result {
                 AdmitResult::Inserted => { created += 1; created_religious += 1; }
                 AdmitResult::Refreshed => { refreshed += 1; }
@@ -483,6 +508,8 @@ pub fn observe_packets(
 pub struct BufferedReceive {
     pub receiver_slot: usize,
     pub candidate: PacketCandidate,
+    /// Provenance copied from the sender's slot (see `pkt_source_civ`).
+    pub source_civ: u8,
 }
 
 /// Run propagation: each agent tries to share non-empty packets with bonded agents.
@@ -524,6 +551,7 @@ pub fn propagate_packets(
             let source_region = pool.pkt_source_region[sender_slot][pkt_idx];
             let source_turn = pool.pkt_source_turn[sender_slot][pkt_idx];
             let sender_intensity = pool.pkt_intensity[sender_slot][pkt_idx];
+            let source_civ = pool.pkt_source_civ[sender_slot][pkt_idx];
 
             // Collect unique receivers with their best eligible bond
             let mut best_per_receiver: std::collections::HashMap<usize, (f32, f32, i8, u8)> =
@@ -601,6 +629,7 @@ pub fn propagate_packets(
                             intensity: received_intensity,
                             hop_count: hop_count + 1,
                         },
+                        source_civ,
                     });
                     transmitted += 1;
                     match info_type {
@@ -652,7 +681,9 @@ pub fn commit_buffered(
     });
 
     for receive in &buffer {
-        let result = admit_packet(pool, receive.receiver_slot, &receive.candidate);
+        let result = admit_packet_from_civ(
+            pool, receive.receiver_slot, &receive.candidate, receive.source_civ,
+        );
         match result {
             AdmitResult::Refreshed => refreshed += 1,
             AdmitResult::Evicted => evicted += 1,
@@ -725,6 +756,59 @@ pub fn strongest_threat_for_region(
             continue;
         }
         if source_region == own_region {
+            continue;
+        }
+        let strength = pool.pkt_intensity[slot][i] as f32 / 255.0;
+        if strength > best {
+            best = strength;
+        }
+    }
+    best
+}
+
+/// Deferred-backlog consumer: strongest nonlocal `threat_warning` packet whose
+/// source region was held by `civ` when observed, i.e. news that the agent's
+/// own civ took, defended or (as a new state) seceded with a distant region.
+/// Packets from the agent's own region and without provenance are ignored.
+pub fn strongest_own_civ_threat(pool: &AgentPool, slot: usize, own_region: u16, civ: u8) -> f32 {
+    if civ == PKT_CIV_NONE {
+        return 0.0;
+    }
+    let mut best: f32 = 0.0;
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if is_empty_slot(th) || unpack_type(th) != InfoType::ThreatWarning as u8 {
+            continue;
+        }
+        if pool.pkt_source_region[slot][i] == own_region || pool.pkt_source_civ[slot][i] != civ {
+            continue;
+        }
+        let strength = pool.pkt_intensity[slot][i] as f32 / 255.0;
+        if strength > best {
+            best = strength;
+        }
+    }
+    best
+}
+
+/// Deferred-backlog consumer: strongest `religious_signal` packet about
+/// `target_region` (own-region packets excluded, matching threat handling).
+pub fn strongest_religious_signal_for_region(
+    pool: &AgentPool,
+    slot: usize,
+    target_region: u16,
+    own_region: u16,
+) -> f32 {
+    if target_region == own_region {
+        return 0.0;
+    }
+    let mut best: f32 = 0.0;
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if is_empty_slot(th) || unpack_type(th) != InfoType::ReligiousSignal as u8 {
+            continue;
+        }
+        if pool.pkt_source_region[slot][i] != target_region {
             continue;
         }
         let strength = pool.pkt_intensity[slot][i] as f32 / 255.0;

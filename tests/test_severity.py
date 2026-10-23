@@ -303,3 +303,54 @@ class TestSeverityMultiplierBasics:
         mult = get_severity_multiplier(civ, world)
         assert mult <= 2.0
         assert mult > 1.0
+
+
+class TestCollapseSeverityAppliedOnce:
+    """Audit T3-13 decision: the severity multiplier scales the collapse loss
+    exactly once on both routes and is bounded by STAT_FLOOR."""
+
+    @staticmethod
+    def _collapsing_world(make_world, civ_stress, military=61, economy=47):
+        world = make_world(num_civs=2)
+        civ = world.civilizations[0]
+        civ.military, civ.economy = military, economy
+        civ.asabiya, civ.stability = 0.05, 15
+        world.regions.append(Region(name="extra_r", terrain="plains",
+                                    carrying_capacity=60, resources="fertile",
+                                    controller=civ.name))
+        civ.regions.append("extra_r")
+        civ.civ_stress = civ_stress
+        return world, civ
+
+    @pytest.mark.parametrize("civ_stress", [0, 6, 13, 20])
+    def test_direct_and_accumulator_routes_apply_same_single_scaled_loss(
+        self, make_world, civ_stress,
+    ):
+        from chronicler.accumulator import StatAccumulator
+        from chronicler.simulation import phase_consequences
+
+        world, civ = self._collapsing_world(make_world, civ_stress)
+        mult = get_severity_multiplier(civ, world)
+        expected_mil = clamp(61 - int((61 - 61 // 2) * mult), STAT_FLOOR["military"], 100)
+        expected_eco = clamp(47 - int((47 - 47 // 2) * mult), STAT_FLOOR["economy"], 100)
+        phase_consequences(world, acc=None)
+        assert (civ.military, civ.economy) == (expected_mil, expected_eco)
+
+        world, civ = self._collapsing_world(make_world, civ_stress)
+        acc = StatAccumulator()
+        phase_consequences(world, acc=acc)
+        collapse = [c for c in acc._changes
+                    if c.civ_id == 0 and c.category == "guard-shock"
+                    and c.stat in ("military", "economy")]
+        deltas = {c.stat: c.delta for c in collapse}
+        assert deltas == {"military": expected_mil - 61, "economy": expected_eco - 47}
+
+    def test_max_severity_collapse_bottoms_out_at_floor(self, make_world):
+        from chronicler.simulation import phase_consequences
+
+        world, civ = self._collapsing_world(make_world, civ_stress=20)
+        world.tuning_overrides = {"multiplier.severity": 5.0}  # composed mult capped at 2.0
+        assert get_severity_multiplier(civ, world) == pytest.approx(2.0)
+        phase_consequences(world, acc=None)
+        assert civ.military == STAT_FLOOR["military"]
+        assert civ.economy == STAT_FLOOR["economy"]

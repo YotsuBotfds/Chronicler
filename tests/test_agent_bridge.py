@@ -1568,6 +1568,49 @@ class TestPromotionRoleGuard:
         created = bridge._process_promotions(batch, sample_world)
         assert len(created) == 0
 
+    @staticmethod
+    def _skill_batch(agent_id, role_id):
+        return pa.record_batch({
+            "agent_id": pa.array([agent_id], type=pa.uint32()),
+            "parent_id_0": pa.array([0], type=pa.uint32()),
+            "parent_id_1": pa.array([0], type=pa.uint32()),
+            "role": pa.array([role_id], type=pa.uint8()),
+            "trigger": pa.array([0], type=pa.uint8()),  # skill gate
+            "origin_region": pa.array([0], type=pa.uint16()),
+            "civ_id": pa.array([0], type=pa.uint8()),
+        })
+
+    @staticmethod
+    def _migrations(agent_id, turns):
+        from chronicler.models import AgentEventRecord
+        return [AgentEventRecord(turn=t, agent_id=agent_id, event_type="migration",
+                                 region=0, target_region=1, civ_affinity=0, occupation=1)
+                for t in turns]
+
+    def test_rust_role_4_never_creates_a_pretender(self, sample_world):
+        """Role id 4 maps to 'exile', the deposed-leader pretender role; agent
+        promotions must never create one."""
+        bridge = _bare_agent_bridge(sample_world)
+        created = bridge._process_promotions(self._skill_batch(777, 4), sample_world)
+        assert created == []
+
+    def test_long_displacement_does_not_relabel_to_exile(self, sample_world):
+        """Deferred backlog: the removed 'long displacement -> exile' relabel
+        must not return even when departure state exists for the agent."""
+        bridge = _bare_agent_bridge(sample_world)
+        sample_world.turn = 80
+        sample_world.agent_events_raw.extend(self._migrations(555, [10]))
+        bridge._origin_regions[555] = 0
+        bridge._departure_turns[555] = 10  # 70 turns away
+        created = bridge._process_promotions(self._skill_batch(555, 0), sample_world)
+        assert [gp.role for gp in created] == ["general"]
+
+    def test_serial_migrant_relabel_still_applies(self, sample_world):
+        bridge = _bare_agent_bridge(sample_world)
+        sample_world.agent_events_raw.extend(self._migrations(556, [3, 9, 15]))
+        created = bridge._process_promotions(self._skill_batch(556, 0), sample_world)
+        assert [gp.role for gp in created] == ["merchant"]
+
 
 # ---------------------------------------------------------------------------
 # gp.region maintenance on named-character movement

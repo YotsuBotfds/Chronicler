@@ -587,9 +587,11 @@ def phase_production(world: WorldState, acc=None) -> None:
     # Stability recovery: passive per-turn recovery, halved during severe conditions.
     # B-1 fix: In hybrid mode, stability is overwritten by _write_back (mean_sat *
     # mean_loy * 100), so "keep" routing is dead code.  Route as "guard-shock" so
-    # the recovery feeds the Rust tick as a positive shock signal.  In aggregate
-    # mode (acc=None), direct mutation.  In shadow/demographics-only (acc with
-    # apply()), the guard-shock is still applied via apply().
+    # the recovery feeds the Rust tick as a positive shock signal.  --agents=off
+    # applies it through acc.apply(); standalone acc=None callers mutate
+    # directly.  Shadow/demographics-only flush with apply_keep() and do not
+    # route shocks (C-10), so this recovery does not reach their aggregate
+    # stability.
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
             continue
@@ -1235,6 +1237,12 @@ def phase_consequences(
                     if region.name in lost:
                         region.controller = None
                         region._controller_changed_this_turn = True
+                # Audit T3-13 decision (2026-10 deferred backlog): intentional,
+                # applied once. The halving is the base collapse loss and the
+                # M18 severity multiplier (capped at 2.0) scales that loss a
+                # single time on both routes; hybrid guard-shock deltas are
+                # normalized, never re-multiplied. At the cap the loss equals
+                # the whole stat, so collapse bottoms out at STAT_FLOOR.
                 mult = get_severity_multiplier(civ, world)
                 base_mil_target = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
                 base_eco_target = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
@@ -2018,10 +2026,17 @@ def run_turn_result(
     from chronicler.emergence import check_tech_regression
     from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
     black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
-    turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn, acc=acc))
+    # T1-3: tech regression runs after every earlier accumulator flush, so it
+    # follows the Phase 10 routing rule: hybrid records into the accumulator
+    # (flushed just below), while off/shadow/demographics-only modes have
+    # already flushed ``acc`` and must mutate directly (acc=None). Passing
+    # ``acc`` in those modes silently dropped era-bonus removals.
+    turn_events.extend(check_tech_regression(
+        world, black_swan_fired=black_swan_this_turn, acc=phase10_acc,
+    ))
 
     # Third apply_keep flush: tech regression's remove_era_bonus routes through
-    # acc as "keep" (V1 fix), but runs after the Phase 10 flush at line ~1797.
+    # acc as "keep" (V1 fix), but runs after the Phase 10 flush above.
     # Without this flush, era-bonus removals are silently dropped in hybrid mode.
     if world.agent_mode == "hybrid" and acc is not None:
         acc.apply_keep(world)

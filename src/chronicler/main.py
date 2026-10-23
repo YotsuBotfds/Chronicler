@@ -29,14 +29,37 @@ def _tracks_tokens(client: Any) -> bool:
 logger = logging.getLogger(__name__)
 
 
-def _set_narrative_token_metadata(metadata: dict[str, Any], client: Any) -> None:
+def _token_counts(client: Any) -> tuple[int, int, int]:
+    """Current (input, output, calls) counters of a token-tracking client."""
+    if not _tracks_tokens(client):
+        return (0, 0, 0)
+    return (
+        client.total_input_tokens,
+        client.total_output_tokens,
+        int(getattr(client, "call_count", 0) or 0),
+    )
+
+
+def _token_usage_since(client: Any, baseline: tuple[int, int, int]) -> tuple[int, int, int]:
+    """Counters accrued since ``baseline``. A sequential batch shares one client
+    across seeds, so each run reports its own delta (M44 NB-1)."""
+    now = _token_counts(client)
+    return (now[0] - baseline[0], now[1] - baseline[1], now[2] - baseline[2])
+
+
+def _set_narrative_token_metadata(
+    metadata: dict[str, Any],
+    client: Any,
+    baseline: tuple[int, int, int] = (0, 0, 0),
+) -> None:
     """Populate canonical narrative token fields plus deprecated aliases."""
     if not _tracks_tokens(client):
         return
-    metadata["narrative_input_tokens"] = client.total_input_tokens
-    metadata["narrative_output_tokens"] = client.total_output_tokens
-    metadata["api_input_tokens"] = client.total_input_tokens
-    metadata["api_output_tokens"] = client.total_output_tokens
+    inp, out, _ = _token_usage_since(client, baseline)
+    metadata["narrative_input_tokens"] = inp
+    metadata["narrative_output_tokens"] = out
+    metadata["api_input_tokens"] = inp
+    metadata["api_output_tokens"] = out
 
 
 def _default_shadow_output_path(output_path: Path) -> Path:
@@ -159,6 +182,7 @@ def execute_run(
     # Fallback clients
     _sim = sim_client or _DummyClient()
     _narr = narrative_client or _DummyClient()
+    _narr_token_baseline = _token_counts(_narr)
     _narrator_mode = getattr(args, "narrator", "local")
     _api_mode = _narrator_mode != "local"
 
@@ -686,9 +710,8 @@ def execute_run(
 
         # Token usage summary
         if _tracks_tokens(_narr):
-            inp = _narr.total_input_tokens
-            out = _narr.total_output_tokens
-            print(f"API narration: {_narr.call_count} calls, "
+            inp, out, calls = _token_usage_since(_narr, _narr_token_baseline)
+            print(f"API narration: {calls} calls, "
                   f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
 
     if agent_bridge is not None:
@@ -818,7 +841,7 @@ def execute_run(
     )
     # M44: narrator provenance metadata
     bundle["metadata"]["narrator_mode"] = _narrator_mode
-    _set_narrative_token_metadata(bundle["metadata"], _narr)
+    _set_narrative_token_metadata(bundle["metadata"], _narr, _narr_token_baseline)
 
     # M53: relationship stats metadata
     if agent_bridge is not None and agent_bridge._collect_rel_stats:

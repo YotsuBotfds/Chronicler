@@ -1531,7 +1531,20 @@ class TestAccumulatorCategoryRouting:
         # signal → to_shock_signals()
         # This test documents the contract; if a new category is added,
         # it must be handled here.
-        assert valid_categories == {"keep", "guard", "guard-action", "guard-shock", "signal"}
+        from chronicler.accumulator import ROUTING_CATEGORIES
+        assert ROUTING_CATEGORIES == valid_categories
+
+    @pytest.mark.parametrize("bad", ["gaurd", "keep ", "Guard", "shock", ""])
+    def test_unknown_category_rejected(self, make_world, bad):
+        """masteraudit C-4 / Opus C-2: an unknown category would be applied by
+        apply() in aggregate mode yet silently dropped by every agent-mode
+        route, so add() rejects it instead of recording it."""
+        world = make_world(2)
+        acc = StatAccumulator()
+        civ = world.civilizations[0]
+        with pytest.raises(ValueError, match="Unknown accumulator category"):
+            acc.add(0, civ, "stability", -5, bad)
+        assert acc.checkpoint() == 0
 
 
 class TestShadowModeParity:

@@ -984,3 +984,89 @@ class TestInterestingnessWeights:
         )
         config = load_scenario(scenario_yaml)
         assert config.interestingness_weights["war_count"] == 5
+
+
+class TestScenarioTerrainOverrideRederivation:
+    """Audit T3-16: a scenario terrain change must not keep the template's
+    terrain-derived resources, ecology, disease baseline or stockpile, so the
+    river/hills resource tables actually reach scenario regions."""
+
+    @staticmethod
+    def _world_with_template(terrain):
+        world = generate_world(seed=42, num_regions=6, num_civs=3)
+        idx = next(i for i, r in enumerate(world.regions) if r.terrain == terrain)
+        # Region overrides fill slots in order; move the chosen template first.
+        world.regions.insert(0, world.regions.pop(idx))
+        return world
+
+    def test_river_over_desert_template_rederives_state(self):
+        from chronicler.ecology import TERRAIN_ECOLOGY_DEFAULTS
+        from chronicler.resources import TERRAIN_PRIMARY
+        from chronicler.economy import map_resource_to_good
+
+        world = self._world_with_template("desert")
+        config = ScenarioConfig(name="T", regions=[RegionOverride(name="Delta", terrain="river")])
+        apply_scenario(world, config)
+        region = world.regions[0]
+        assert region.terrain == "river"
+        assert region.resource_types[0] == TERRAIN_PRIMARY["river"]
+        # river/hills use plains ecology defaults (Rust TERRAIN_MAP maps them to plains).
+        assert region.ecology == TERRAIN_ECOLOGY_DEFAULTS["plains"]
+        assert region.disease_baseline != 0.015  # no longer the desert cholera baseline
+        assert region.endemic_severity == region.disease_baseline
+        assert region.resource_effective_yields == region.resource_base_yields
+        # Turn-0 stockpile is re-bootstrapped from the new primary good only.
+        primary_good = map_resource_to_good(region.resource_types[0])
+        assert set(region.stockpile.goods) <= {primary_good, "grain"}
+
+    def test_hills_slots_come_from_hills_tables(self):
+        from chronicler.resources import TERRAIN_PRIMARY, TERRAIN_SECONDARY, TERRAIN_TERTIARY
+        from chronicler.models import EMPTY_SLOT
+
+        world = self._world_with_template("mountains")
+        config = ScenarioConfig(name="T", regions=[RegionOverride(name="Bluffs", terrain="hills")])
+        apply_scenario(world, config)
+        region = world.regions[0]
+        assert region.resource_types[0] == TERRAIN_PRIMARY["hills"]
+        allowed_2 = {rtype for rtype, _ in TERRAIN_SECONDARY["hills"]} | {EMPTY_SLOT}
+        allowed_3 = {rtype for rtype, _ in TERRAIN_TERTIARY["hills"]} | {EMPTY_SLOT}
+        assert region.resource_types[1] in allowed_2
+        assert region.resource_types[2] in allowed_3
+
+    def test_explicit_scenario_ecology_survives_reset(self):
+        world = self._world_with_template("desert")
+        config = ScenarioConfig(name="T", regions=[RegionOverride(
+            name="Delta", terrain="river", ecology={"water": 0.65},
+        )])
+        apply_scenario(world, config)
+        assert world.regions[0].ecology.water == pytest.approx(0.65)
+
+    def test_unchanged_terrain_keeps_template_state(self):
+        world = self._world_with_template("desert")
+        before = world.regions[0].model_copy(deep=True)
+        config = ScenarioConfig(name="T", regions=[RegionOverride(name="Sands", terrain="desert")])
+        apply_scenario(world, config)
+        region = world.regions[0]
+        assert region.resource_types == before.resource_types
+        assert region.ecology == before.ecology
+        assert region.disease_baseline == before.disease_baseline
+
+    @pytest.mark.parametrize("scenario_file", [
+        "post_collapse_minnesota.yaml", "sentient_vehicle_world.yaml", "dead_miles.yaml",
+    ])
+    def test_shipped_scenarios_use_overridden_terrain_tables(self, scenario_file):
+        from chronicler.resources import TERRAIN_PRIMARY
+
+        config = load_scenario(TEMPLATE_DIR / scenario_file)
+        args = SimpleNamespace(seed=None, turns=None, civs=None, regions=None,
+                               reflection_interval=None, resume=None)
+        params = resolve_scenario_params(config, args)
+        world = generate_world(seed=params["seed"], num_regions=params["num_regions"],
+                               num_civs=params["num_civs"])
+        apply_scenario(world, config)
+        overridden = {ro.name: ro for ro in config.regions if ro.terrain is not None}
+        for region in world.regions:
+            ro = overridden.get(region.name)
+            if ro is None or ro.specialized_resources is not None:
+                continue
+            assert region.resource_types[0] == TERRAIN_PRIMARY.get(region.terrain), region.name

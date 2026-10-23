@@ -438,6 +438,36 @@ def test_conquest_stockpile_destruction():
     assert abs(region.stockpile.goods["salt"] - 10.0) < 0.01
 
 
+def test_conquest_stockpile_destruction_is_wired_into_resolve_war(sample_world, monkeypatch):
+    """M43a follow-up: the conquest path of resolve_war() itself halves the
+    conquered region's stockpile and leaves other regions untouched."""
+    import chronicler.politics as politics
+    from chronicler.action_engine import resolve_war
+
+    # Force the absorption branch (vassalization skips region transfer).
+    monkeypatch.setattr(politics, "choose_vassalize_or_absorb", lambda a, d, w: False)
+    attacker, defender = sample_world.civilizations
+    attacker.military, attacker.asabiya = 100, 1.0
+    defender.military, defender.asabiya = 1, 0.05
+    defender_regions = [r for r in sample_world.regions if r.controller == defender.name]
+    assert len(defender_regions) == 1
+    contested = defender_regions[0]
+    contested.stockpile = RegionStockpile(goods={"grain": 80.0, "ore": 20.0})
+    bystander = next(r for r in sample_world.regions if r.controller == attacker.name)
+    bystander.stockpile = RegionStockpile(goods={"grain": 30.0})
+
+    result = resolve_war(attacker, defender, sample_world, seed=7)
+
+    assert result.outcome == "attacker_wins"
+    assert result.contested_region == contested.name
+    assert contested.controller == attacker.name
+    assert contested.stockpile.goods == pytest.approx({
+        "grain": 80.0 * CONQUEST_STOCKPILE_SURVIVAL,
+        "ore": 20.0 * CONQUEST_STOCKPILE_SURVIVAL,
+    })
+    assert bystander.stockpile.goods == {"grain": 30.0}
+
+
 # --- Task 12: Analytics Extractors ---
 
 def test_extract_stockpiles_structure():

@@ -1129,6 +1129,8 @@ class AgentBridge:
                 "merchant_plans_bootstrap",
                 "merchant_no_usable_packets",
                 "migration_choices_changed_by_threat",
+                "migration_choices_changed_by_religion",
+                "loyalty_drifts_damped_by_rally",
             }
             normalized_k_stats = {}
             for key, value in k_stats.items():
@@ -1559,12 +1561,21 @@ class AgentBridge:
     def _process_promotions(self, batch, world) -> list:
         """Process promotion RecordBatch → create GreatPerson instances.
 
-        Also checks Python-side bypass triggers that Rust cannot evaluate:
-        - Long displacement (50+ turns away from origin) → Exile
-        - Serial migrant (3+ region changes) → Merchant
+        Rust (``NamedCharacterRegistry::find_candidates``) is the only
+        promotion gate. For skill-gated candidates (trigger 0) Python then
+        relabels the role from the agent's full event history, which the Rust
+        pool does not keep (it has life-event bits and a short displacement
+        cooldown, not lifetime counts):
+        - Serial migrant (3+ migrations) → Merchant
         - Occupation versatility (3+ switches) → Scientist
-        These are checked against agent_events_raw history when the Rust-side
-        trigger is 0 (skill-based), to see if a more specific role applies.
+
+        Agent promotions never produce the ``exile`` role. On a GreatPerson
+        ``exile`` means a deposed-leader pretender (``succession.py``: it
+        drains its origin civ's stability and can be restored to the throne).
+        The former "long displacement → exile" relabel could never fire (it
+        read state tracked only for already-promoted agents) and would have
+        turned displaced commoners into throne claimants, so it was removed;
+        role id 4 from Rust is rejected for the same reason.
         """
         import random
         from chronicler.models import GreatPerson
@@ -1578,27 +1589,21 @@ class AgentBridge:
             trigger = batch.column("trigger")[i].as_py()
             origin_region = batch.column("origin_region")[i].as_py()
             role = ROLE_MAP.get(role_id)
-            if role is None:
+            if role is None or role == "exile":
                 logger.warning("Unknown role_id %d for agent %d, skipping promotion", role_id, agent_id)
                 continue
 
-            # Python-side bypass: check event history for displacement / migrant / versatility
-            if trigger == 0:  # skill-based — check if a bypass applies
-                migration_events = [
-                    e for e in world.agent_events_raw
+            # Python-side role relabels from event history (skill-gated only)
+            if trigger == 0:
+                migration_count = sum(
+                    1 for e in world.agent_events_raw
                     if e.agent_id == agent_id and e.event_type == "migration"
-                ]
+                )
                 switch_count = sum(
                     1 for e in world.agent_events_raw
                     if e.agent_id == agent_id and e.event_type == "occupation_switch"
                 )
-                # Long displacement: 50+ turns since first migration away from origin
-                if (migration_events
-                        and agent_id in self._origin_regions
-                        and agent_id in self._departure_turns
-                        and (world.turn - self._departure_turns[agent_id]) >= 50):
-                    role = "exile"
-                elif len(migration_events) >= 3:
+                if migration_count >= 3:
                     role = "merchant"
                 elif switch_count >= 3:
                     role = "scientist"

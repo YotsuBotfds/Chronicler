@@ -17,7 +17,7 @@ from pathlib import Path
 def collect_rust_constants(agent_rs: Path) -> dict:
     """Extract all [CALIBRATE M53] tagged constants from agent.rs."""
     constants = {}
-    text = agent_rs.read_text()
+    text = agent_rs.read_text(encoding="utf-8")
     for line in text.splitlines():
         if "[CALIBRATE M53]" not in line:
             continue
@@ -48,7 +48,7 @@ def collect_python_constants(src_dir: Path) -> dict:
     ]:
         if not py_file.exists():
             continue
-        for line in py_file.read_text().splitlines():
+        for line in py_file.read_text(encoding="utf-8").splitlines():
             if "CALIBRATE" not in line:
                 continue
             m = re.match(r"\s*(\w+)\s*=\s*(.+?)(?:\s*#.*)?$", line)
@@ -63,7 +63,7 @@ def collect_python_constants(src_dir: Path) -> dict:
 
 def extract_bundle_metrics(bundle_path: Path) -> dict:
     """Extract key metrics from a single bundle."""
-    with open(bundle_path) as f:
+    with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
 
     metrics = {}
@@ -108,14 +108,14 @@ def extract_sidecar_metrics(sidecar_dir: Path) -> dict:
 
     for f in sorted(sidecar_dir.glob("graph_turn_*.json")):
         turn = int(f.stem.split("_")[-1])
-        data = json.loads(f.read_text())
+        data = json.loads(f.read_text(encoding="utf-8"))
         metrics["edges_by_turn"][turn] = len(data.get("edges", []))
         metrics["mem_sig_agents_by_turn"][turn] = len(data.get("memory_signatures", {}))
 
     agent_counts = {}
     for f in sorted(sidecar_dir.glob("aggregate_turn_*.json")):
         turn = int(f.stem.split("_")[-1])
-        data = json.loads(f.read_text())
+        data = json.loads(f.read_text(encoding="utf-8"))
         agg = data.get("aggregates", data)
         if agg:
             sat_means = [v["satisfaction_mean"] for v in agg.values() if "satisfaction_mean" in v]
@@ -211,7 +211,7 @@ def main():
 
     # Write YAML-ish output
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, "w") as f:
+    with open(args.output, "w", encoding="utf-8") as f:
         f.write("# M53 Baseline — all constants at default values\n")
         f.write(f"# Generated from {n} seeds\n\n")
 

@@ -492,6 +492,10 @@ pub fn try_tick_agents_with_targeted_deaths(
     let migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
     let pending_decisions: Vec<_> = pending_decisions_with_threat
         .into_iter().map(|(pd, _)| pd).collect();
+    let migration_religion_changed: u32 =
+        pending_decisions.iter().map(|pd| pd.migration_changed_by_religion).sum();
+    let loyalty_rally_damped: u32 =
+        pending_decisions.iter().map(|pd| pd.loyalty_drifts_damped_by_rally).sum();
 
     // -----------------------------------------------------------------------
     // M57b: Household migration consolidation (post-decision, pre-apply)
@@ -675,7 +679,17 @@ pub fn try_tick_agents_with_targeted_deaths(
                         is_legacy: false,
                         decay_factor_override: None,
                     });
-                    if region_id < regions.len() && regions[region_id].war_won_this_turn {
+                    // Victory is civ-filtered: in both decisive outcomes the
+                    // civ holding the region after this turn's battles is the
+                    // winner, so only its soldiers remember a victory. A region
+                    // that changed hands holds the losing defenders (realigned
+                    // to the conqueror), who keep Battle + Conquest instead.
+                    if region_id < regions.len()
+                        && regions[region_id].war_won_this_turn
+                        && !regions[region_id].controller_changed_this_turn
+                        && regions[region_id].controller_civ != 255
+                        && pool.civ_affinities[slot] == regions[region_id].controller_civ
+                    {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
                             expected_agent_id: pool.ids[slot],
@@ -1122,6 +1136,8 @@ pub fn try_tick_agents_with_targeted_deaths(
     knowledge_stats.merchant_plans_bootstrap = merchant_stats.plans_bootstrap;
     knowledge_stats.merchant_no_usable_packets = merchant_stats.no_usable_packets;
     knowledge_stats.migration_choices_changed_by_threat = migration_threat_changed;
+    knowledge_stats.migration_choices_changed_by_religion = migration_religion_changed;
+    knowledge_stats.loyalty_drifts_damped_by_rally = loyalty_rally_damped;
 
     // Mobility runs before demographics. Report the surviving cargo after
     // deaths have released their trips and before returning to the economy.

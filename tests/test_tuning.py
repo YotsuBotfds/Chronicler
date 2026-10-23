@@ -209,3 +209,46 @@ def test_trade_friction_scales_transport_cost():
         friction_multiplier=2.0,
     )
     assert cost_high == pytest.approx(cost_default * 2.0)
+
+
+_REPO_TUNING_DIR = Path(__file__).resolve().parents[1] / "tuning"
+
+
+@pytest.mark.parametrize(
+    "yaml_path",
+    sorted(_REPO_TUNING_DIR.glob("*.yaml")),
+    ids=lambda p: p.name,
+)
+def test_repo_tuning_yaml_is_utf8_mapping(yaml_path):
+    """Every checked-in tuning YAML decodes as UTF-8 and parses as a mapping.
+
+    ``tuning/m53_baseline.yaml`` was once written with a Windows cp1252 em dash
+    (byte 0x97), which made it unreadable on UTF-8 platforms.
+    """
+    import yaml
+
+    text = yaml_path.read_bytes().decode("utf-8")
+    assert isinstance(yaml.safe_load(text), dict)
+
+
+def test_peak_yield_is_not_an_accepted_tuning_key(tmp_path):
+    """ecology.peak_yield never had a consumer; the Rust satisfaction ceiling
+    (satisfaction.rs PEAK_YIELD) is a fixed constant. Setting it must warn
+    instead of being silently accepted with no effect."""
+    import chronicler.tuning as tuning
+
+    assert "ecology.peak_yield" not in tuning.KNOWN_OVERRIDES
+    assert not hasattr(tuning, "K_PEAK_YIELD")
+    p = tmp_path / "t.yaml"
+    p.write_text("ecology:\n  peak_yield: 1.5\n", encoding="utf-8")
+    with pytest.warns(UserWarning, match="Unknown tuning key: ecology.peak_yield"):
+        load_tuning(p)
+
+
+def test_load_tuning_reads_utf8_regardless_of_locale(tmp_path):
+    p = tmp_path / "t.yaml"
+    p.write_bytes(
+        "# Comment — em dash\nstability:\n  drain:\n    drought_immediate: -3\n".encode("utf-8")
+    )
+    result = load_tuning(p)
+    assert result == {K_DROUGHT_STABILITY: -3.0}

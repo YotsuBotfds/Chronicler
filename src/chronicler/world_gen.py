@@ -205,6 +205,22 @@ def _build_relationships(civ_names: list[str], seed: int) -> dict[str, dict[str,
     return rels
 
 
+def initialize_disease_baseline(region: Region) -> None:
+    """M35b: Set a region's endemic disease baseline from its starting ecology.
+
+    Fever for wet fertile land, Cholera for desert, Plague otherwise (first
+    match wins). Used by world generation and by scenario terrain overrides.
+    """
+    eco = region.ecology
+    if eco.water > 0.6 and eco.soil > 0.5:
+        region.disease_baseline = 0.02  # Fever
+    elif region.terrain == "desert":
+        region.disease_baseline = 0.015  # Cholera
+    else:
+        region.disease_baseline = 0.01  # Plague
+    region.endemic_severity = region.disease_baseline
+
+
 def generate_world(
     seed: int = 42,
     num_regions: int = 8,
@@ -261,14 +277,7 @@ def generate_world(
 
     # M35b: Initialize disease baseline and effective yields
     for region in world.regions:
-        eco = region.ecology
-        if eco.water > 0.6 and eco.soil > 0.5:
-            region.disease_baseline = 0.02  # Fever
-        elif region.terrain == "desert":
-            region.disease_baseline = 0.015  # Cholera
-        else:
-            region.disease_baseline = 0.01  # Plague
-        region.endemic_severity = region.disease_baseline
+        initialize_disease_baseline(region)
         region.resource_effective_yields = list(region.resource_base_yields)
 
     # M43a: Initialize stockpile for controlled regions with valid resources

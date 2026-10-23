@@ -183,6 +183,95 @@ class TestEraBonusAccRouting:
 
 
 # ---------------------------------------------------------------------------
+# A1b: Tech regression era-bonus removal lands in the real turn loop (T1-3)
+# ---------------------------------------------------------------------------
+
+def _install_forced_regression(monkeypatch, civ_name, record):
+    """Wrap check_tech_regression so the named civ deterministically regresses.
+
+    The wrapper forces the twilight trigger with probability 1.0 just for the
+    call and records the civ's economy at the moment tech regression runs.
+    """
+    import chronicler.emergence as emergence
+    from chronicler.tuning import (
+        K_REGRESSION_CULTURE_RESISTANCE_FLOOR,
+        K_REGRESSION_TWILIGHT,
+    )
+
+    real = emergence.check_tech_regression
+
+    def forced(world, black_swan_fired=False, acc=None):
+        civ = next(c for c in world.civilizations if c.name == civ_name)
+        saved = (civ.decline_turns, civ.was_in_twilight, world.tuning_overrides)
+        civ.decline_turns = max(civ.decline_turns, 1)
+        civ.was_in_twilight = False
+        world.tuning_overrides = {
+            **(world.tuning_overrides or {}),
+            K_REGRESSION_TWILIGHT: 1.0,
+            K_REGRESSION_CULTURE_RESISTANCE_FLOOR: 1.0,
+        }
+        record["era_before"] = civ.tech_era
+        record["economy_before"] = civ.economy
+        try:
+            events = real(world, black_swan_fired=black_swan_fired, acc=acc)
+        finally:
+            civ.decline_turns, civ.was_in_twilight, world.tuning_overrides = saved
+        record["events"] = [e for e in events if e.event_type == "tech_regression"]
+        return events
+
+    monkeypatch.setattr(emergence, "check_tech_regression", forced)
+
+
+@_skip_no_sim
+class TestTechRegressionTurnLoopFlush:
+    """Era-bonus removal from Phase-10 tech regression must reach civ stats.
+
+    Regression runs after every pre-existing accumulator flush, so routing its
+    keep-category deltas through the accumulator without a later flush silently
+    drops them.  These tests drive the real run_turn() loop.
+    """
+
+    def _run(self, monkeypatch, world, agent_bridge=None):
+        from chronicler.models import ActionType
+
+        civ = world.civilizations[0]
+        civ.tech_era = TechEra.IRON
+        civ.economy = 60
+        record: dict = {}
+        _install_forced_regression(monkeypatch, civ.name, record)
+        run_turn(
+            world,
+            action_selector=lambda c, w: ActionType.DEVELOP,
+            narrator=lambda w, e: "",
+            seed=world.seed,
+            agent_bridge=agent_bridge,
+        )
+        assert record["events"], "forced regression did not fire"
+        assert record["era_before"] == TechEra.IRON
+        assert civ.tech_era == TechEra.BRONZE
+        return civ, record
+
+    def test_off_mode_applies_era_bonus_removal(self, monkeypatch, sample_world):
+        world = sample_world
+        civ, record = self._run(monkeypatch, world)
+        # IRON era grants economy +10; regression must remove it this turn.
+        assert civ.economy == record["economy_before"] - ERA_BONUSES[TechEra.IRON]["economy"]
+
+    @pytest.mark.parametrize("mode", ["hybrid", "shadow", "demographics-only"])
+    def test_agent_modes_apply_era_bonus_removal(self, monkeypatch, make_agent_bridge_world, mode):
+        from chronicler.utils import STAT_FLOOR
+
+        world, bridge = make_agent_bridge_world(mode=mode)
+        civ, record = self._run(monkeypatch, world, agent_bridge=bridge)
+        # Hybrid writes economy back from agent occupations before Phase 10,
+        # so the removal can hit the stat floor; it must still change the stat.
+        floor = STAT_FLOOR.get("economy", 0)
+        assert record["economy_before"] > floor
+        expected = max(floor, record["economy_before"] - ERA_BONUSES[TechEra.IRON]["economy"])
+        assert civ.economy == expected
+
+
+# ---------------------------------------------------------------------------
 # A2: Injected event routing through accumulator
 # ---------------------------------------------------------------------------
 

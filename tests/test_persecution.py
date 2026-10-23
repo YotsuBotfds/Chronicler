@@ -126,7 +126,7 @@ class TestPersecutionGate:
 class TestIntensityFormula:
     """intensity = minority_ratio (larger minorities → higher intensity)."""
 
-    def _get_intensity(self, minority_count: int, total: int) -> float:
+    def _get_intensity(self, minority_count: int, total: int, world=None) -> float:
         region = _make_region("r0")
         belief_registry = [_make_belief(0, stance=+1), _make_belief(1)]
         civ = _make_civ("CivA", faith_id=0, region_names=["r0"])
@@ -142,9 +142,24 @@ class TestIntensityFormula:
 
         compute_persecution(
             [region], [civ], belief_registry, snap, turn=1,
-            persecuted_regions=set(),
+            persecuted_regions=set(), world=world,
         )
         return region.persecution_intensity
+
+    def test_intensity_multiplier_scales_below_cap(self):
+        from types import SimpleNamespace
+        world = SimpleNamespace(tuning_overrides={"multiplier.religion_intensity": 1.5})
+        intensity = self._get_intensity(minority_count=2, total=10, world=world)
+        assert intensity == pytest.approx(0.30, abs=1e-9)
+
+    def test_intensity_clamped_to_one_under_high_multiplier(self):
+        """Audit T3-4: multiplier.religion_intensity must not push intensity past 1.0."""
+        from types import SimpleNamespace
+        world = SimpleNamespace(tuning_overrides={"multiplier.religion_intensity": 2.0})
+        for minority_count in (5, 7, 9):
+            intensity = self._get_intensity(minority_count=minority_count, total=10, world=world)
+            assert 0.0 < intensity <= 1.0
+        assert self._get_intensity(minority_count=9, total=10, world=world) == 1.0
 
     def test_intensity_at_10_percent(self):
         # 1 minority out of 10 → ratio = 0.10 → intensity = 0.10
