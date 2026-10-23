@@ -1056,6 +1056,45 @@ fn test_twilight_absorption_preserves_dead_civ() {
 }
 
 #[test]
+fn test_twilight_absorption_respects_python_pacing_gate() {
+    // Same terminal-decline setup as above, but Python has not marked the
+    // civ eligible (persistence streak / world-wide spacing not met).
+    let mut regions = vec![RegionInput::new(0), RegionInput::new(1)];
+    regions[0].adjacencies = vec![1];
+    regions[0].controller = 0;
+    regions[0].effective_capacity = 5;
+    regions[1].adjacencies = vec![0];
+    regions[1].controller = 1;
+    regions[1].effective_capacity = 50;
+
+    let mut civ0 = make_civ(0, vec![0]);
+    civ0.decline_turns = 45;
+    civ0.founded_turn = 0;
+    civ0.total_effective_capacity = 5;
+    civ0.absorption_eligible = false;
+    let mut civ1 = make_civ(1, vec![1]);
+    civ1.culture = 60;
+
+    let config = default_config();
+    let topo = default_topology();
+    let blocked = run_politics_pass(
+        &[civ0.clone(), civ1.clone()], &regions, &topo, &config, 100, 42, false,
+    );
+    assert!(
+        !blocked.events.iter().any(|e| e.event_type == "twilight_absorption"),
+        "an ineligible civ must not be absorbed"
+    );
+    assert!(!blocked.civ_ops.iter().any(|op| op.op_type == CivOpType::Absorb));
+
+    civ0.absorption_eligible = true;
+    let allowed = run_politics_pass(&[civ0, civ1], &regions, &topo, &config, 100, 42, false);
+    assert!(
+        allowed.events.iter().any(|e| e.event_type == "twilight_absorption"),
+        "the gate is necessary, not sufficient: an eligible terminal civ is absorbed"
+    );
+}
+
+#[test]
 fn test_twilight_absorption_updates_absorber_viability_same_step() {
     let mut regions = vec![
         RegionInput::new(0),

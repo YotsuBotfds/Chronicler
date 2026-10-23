@@ -211,6 +211,15 @@ pub(crate) fn parse_civ_input_batch(rb: &RecordBatch) -> Result<Vec<CivInput>, P
     // List columns for packed data
     let ssh_list = col!("stats_sum_history", ListArray);
     let reg_list = col!("regions_list", ListArray);
+    // Optional pacing gate for twilight absorption (absent => eligible).
+    let absorption_eligible_col = match rb.column_by_name("absorption_eligible") {
+        Some(col) => Some(
+            col.as_any()
+                .downcast_ref::<arrow::array::BooleanArray>()
+                .ok_or_else(|| PyValueError::new_err("civ input column absorption_eligible wrong type"))?,
+        ),
+        None => None,
+    };
 
     let mut civs = Vec::with_capacity(n);
     for i in 0..n {
@@ -255,6 +264,9 @@ pub(crate) fn parse_civ_input_batch(rb: &RecordBatch) -> Result<Vec<CivInput>, P
         c.dominant_faction = dominant_faction_col.value(i);
         c.secession_occurred_count = secession_occurred_col.value(i);
         c.capital_lost_count = capital_lost_col.value(i);
+        c.absorption_eligible = absorption_eligible_col
+            .map(|col| col.is_null(i) || col.value(i))
+            .unwrap_or(true);
         civs.push(c);
     }
     Ok(civs)

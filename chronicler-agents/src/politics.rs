@@ -104,6 +104,12 @@ pub struct CivInput {
     // Event counts (secession_occurred, capital_lost)
     pub secession_occurred_count: i32,
     pub capital_lost_count: i32,
+    /// Python-side pacing gate for step 9 (twilight absorption).  Python sets
+    /// it for at most one civ per pass once structural unviability has
+    /// persisted and the world-wide absorption spacing has elapsed; it is
+    /// necessary, not sufficient (step 9 still re-checks live state).
+    /// Defaults to true when the input batch has no such column.
+    pub absorption_eligible: bool,
 }
 
 impl CivInput {
@@ -131,6 +137,7 @@ impl CivInput {
             dominant_faction: 0,
             secession_occurred_count: 0,
             capital_lost_count: 0,
+            absorption_eligible: true,
         }
     }
 }
@@ -2587,6 +2594,11 @@ fn step_twilight_absorption(
         }
 
         if !live_civs[ci].alive || live_civs[ci].regions.is_empty() {
+            continue;
+        }
+
+        // Python paces absorptions (persistence streak + world-wide spacing).
+        if !civ.absorption_eligible {
             continue;
         }
 

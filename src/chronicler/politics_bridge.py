@@ -121,12 +121,19 @@ FED_REF_NEW = 1
 CIV_NONE: int = 0xFFFF
 
 
-def build_politics_civ_input_batch(world: WorldState) -> dict:
+def build_politics_civ_input_batch(
+    world: WorldState,
+    absorption_eligible: frozenset[int] | None = None,
+) -> dict:
     """Pack per-civ state needed by the Rust politics pass.
 
     Returns a dict-of-lists that maps 1:1 to an Arrow RecordBatch schema.
     Each list has len == len(world.civilizations).  Dead civs (regions=[])
     are included with their scalar state so Rust can index by position.
+
+    ``absorption_eligible`` is the set of civ indices Python's pacing allows
+    step 9 (twilight absorption) to consider this pass; ``None`` keeps the
+    historical behaviour (every civ eligible).
     """
     from chronicler.factions import get_dominant_faction, total_effective_capacity
 
@@ -222,6 +229,9 @@ def build_politics_civ_input_batch(world: WorldState) -> dict:
         "stats_sum_history_values": stats_sum_history_values,
         "region_offsets": region_offsets,
         "region_values": region_values,
+        "absorption_eligible": [
+            absorption_eligible is None or i in absorption_eligible for i in range(n)
+        ],
     }
 
 
@@ -1426,6 +1436,7 @@ def _dict_to_civ_input_batch(d: dict):
         pa.field("capital_lost_count", pa.int32()),
         pa.field("stats_sum_history", pa.list_(pa.int32())),
         pa.field("regions_list", pa.list_(pa.uint16())),
+        pa.field("absorption_eligible", pa.bool_()),
     ]
     schema = pa.schema(fields)
 
@@ -1455,6 +1466,7 @@ def _dict_to_civ_input_batch(d: dict):
         pa.array(d.get("capital_lost_count", [0] * n), type=pa.int32()),
         pa.array(ssh_lists, type=pa.list_(pa.int32())),
         pa.array(reg_lists, type=pa.list_(pa.uint16())),
+        pa.array(d.get("absorption_eligible", [True] * n), type=pa.bool_()),
     ]
     return pa.RecordBatch.from_arrays(arrays, schema=schema)
 
@@ -1621,6 +1633,7 @@ def call_rust_politics(
     simulator,
     world: WorldState,
     hybrid_mode: bool,
+    absorption_eligible: frozenset[int] | None = None,
 ) -> list[tuple]:
     """Build input batches, call Rust tick_politics(), reconstruct ops.
 
@@ -1628,10 +1641,11 @@ def call_rust_politics(
       Task 1 builders -> Arrow conversion -> Rust FFI -> Task 1 reconstruct
 
     Returns the sorted (step, seq, family, payload) list ready for
-    apply_politics_ops().
+    apply_politics_ops().  ``absorption_eligible`` is the twilight-absorption
+    pacing gate (see politics.prepare_twilight_absorption).
     """
     # 1. Build dict-of-lists from Task 1 builders
-    civ_dict = build_politics_civ_input_batch(world)
+    civ_dict = build_politics_civ_input_batch(world, absorption_eligible)
     region_dict = _build_region_input_with_eff_cap(world)
     rel_dict = build_politics_relationship_batch(world)
     vassal_dict = build_politics_vassal_batch(world)

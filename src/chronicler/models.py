@@ -466,6 +466,10 @@ class Civilization(BaseModel):
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
     regnal_name_counts: dict[str, int] = Field(default_factory=dict)
+    # Decaying per-event-type hazard excitation (events.py Hawkes kernel).
+    event_excitation: dict[str, float] = Field(default_factory=dict)
+    # Consecutive Phase-10 checks this civ has been structurally unviable.
+    unviable_turns: int = 0
 
 
 class Relationship(BaseModel):
@@ -758,6 +762,8 @@ class WorldState(BaseModel):
     black_swan_cooldown: int = 0  # Turns until next black swan eligible
     chaos_multiplier: float = 1.0  # Scalar on black swan probability (from ScenarioConfig)
     black_swan_cooldown_turns: int = 30  # Configurable cooldown length (from ScenarioConfig)
+    # Turn of the last twilight absorption (paces absorptions world-wide).
+    last_twilight_absorption_turn: int | None = None
     pandemic_state: list[PandemicRegion] = Field(default_factory=list)
     pandemic_recovered: list[str] = Field(default_factory=list)  # Regions already hit; prevents re-infection
     terrain_transition_rules: list[TerrainTransitionRule] = Field(
