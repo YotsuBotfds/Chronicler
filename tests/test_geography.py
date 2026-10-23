@@ -381,3 +381,15 @@ def test_border_pairs_match_shares_adjacent_region(regions, civs):
                     continue
                 assert ((obs.name, tgt.name) in borders) == shares_adjacent_region(obs, tgt, world)
                 assert compute_accuracy(obs, tgt, world, borders=borders) == compute_accuracy(obs, tgt, world)
+
+
+def test_graph_distances_from_matches_graph_distance():
+    from chronicler.adjacency import graph_distance, graph_distances_from
+    world = generate_world(seed=3, num_regions=64, num_civs=4)
+    adj = {r.name: set(r.adjacencies) for r in world.regions}
+    adj["Island"] = set()
+    names = list(adj)
+    for src in names[:10] + ["Island"]:
+        dist = graph_distances_from(adj, src)
+        for dst in names:
+            assert dist.get(dst, -1) == graph_distance(adj, src, dst)
