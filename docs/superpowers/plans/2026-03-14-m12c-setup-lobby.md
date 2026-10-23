@@ -60,7 +60,7 @@ def test_live_server_has_lobby_fields():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_live_server_has_lobby_fields -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_live_server_has_lobby_fields -v`
 Expected: FAIL with `AttributeError` (fields don't exist yet)
 
 - [ ] **Step 3: Add lobby fields to LiveServer.__init__**
@@ -76,7 +76,7 @@ In `src/chronicler/live.py`, add after line 41 (`self._last_paused_msg: dict | N
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_live_server_has_lobby_fields -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_live_server_has_lobby_fields -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -139,7 +139,7 @@ def test_start_command_rejected_when_running():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_start_command_sets_event tests/test_live.py::test_start_command_rejected_when_running -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_start_command_sets_event tests/test_live.py::test_start_command_rejected_when_running -v`
 Expected: FAIL with `AttributeError: 'LiveServer' object has no attribute '_handle_start'`
 
 - [ ] **Step 3: Add _handle_start method and wire into handler**
@@ -186,7 +186,7 @@ Update the connect init section (lines 94-100) to branch on `_server_state`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_start_command_sets_event tests/test_live.py::test_start_command_rejected_when_running -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_start_command_sets_event tests/test_live.py::test_start_command_rejected_when_running -v`
 Expected: PASS
 
 - [ ] **Step 4b: Write test for connect-init branching**
@@ -231,7 +231,7 @@ def test_connect_init_returns_starting_during_world_gen():
 
 - [ ] **Step 5: Run all existing live tests to verify nothing broke**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py -v`
 Expected: All tests PASS
 
 - [ ] **Step 6: Commit**
@@ -370,7 +370,7 @@ def test_build_lobby_init_missing_fields(tmp_path):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_build_lobby_init_scans_scenarios tests/test_live.py::test_build_lobby_init_empty_scenario_dir tests/test_live.py::test_build_lobby_init_missing_fields -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_build_lobby_init_scans_scenarios tests/test_live.py::test_build_lobby_init_empty_scenario_dir tests/test_live.py::test_build_lobby_init_missing_fields -v`
 Expected: FAIL with `ImportError: cannot import name 'build_lobby_init'`
 
 - [ ] **Step 3: Implement build_lobby_init and _get_available_models**
@@ -464,7 +464,7 @@ Also add `import yaml` to the file-level imports (or keep it lazy in the functio
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_build_lobby_init_scans_scenarios tests/test_live.py::test_build_lobby_init_empty_scenario_dir tests/test_live.py::test_build_lobby_init_missing_fields -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_build_lobby_init_scans_scenarios tests/test_live.py::test_build_lobby_init_empty_scenario_dir tests/test_live.py::test_build_lobby_init_missing_fields -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -505,7 +505,7 @@ def test_resolve_start_seed_passes_through_int():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_resolve_start_seed_generates_when_none tests/test_live.py::test_resolve_start_seed_passes_through_int -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_resolve_start_seed_generates_when_none tests/test_live.py::test_resolve_start_seed_passes_through_int -v`
 Expected: FAIL with `ImportError: cannot import name 'resolve_start_seed'`
 
 - [ ] **Step 2b: Implement resolve_start_seed**
@@ -523,7 +523,7 @@ def resolve_start_seed(seed: int | None) -> int:
 
 - [ ] **Step 2c: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py::test_resolve_start_seed_generates_when_none tests/test_live.py::test_resolve_start_seed_passes_through_int -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py::test_resolve_start_seed_generates_when_none tests/test_live.py::test_resolve_start_seed_passes_through_int -v`
 Expected: PASS
 
 - [ ] **Step 3: Refactor run_live**
@@ -734,7 +734,7 @@ And update the live dispatch (lines 577-579):
 
 - [ ] **Step 5: Run all live tests**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py -v`
 Expected: All PASS
 
 - [ ] **Step 6: Commit**
@@ -798,7 +798,7 @@ Note: `StartCommand` is NOT added to the `Command` union — it stays separate. 
 
 - [ ] **Step 2: Verify TypeScript compiles**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx tsc --noEmit`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx tsc --noEmit`
 Expected: No errors
 
 - [ ] **Step 3: Commit**
@@ -954,7 +954,7 @@ describe("lobby state", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run src/hooks/__tests__/useLiveConnection.test.ts`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run src/hooks/__tests__/useLiveConnection.test.ts`
 Expected: FAIL — `serverState`, `lobbyInit`, `sendStart` don't exist on the hook return
 
 - [ ] **Step 3: Update useLiveConnection hook**
@@ -1205,12 +1205,12 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run src/hooks/__tests__/useLiveConnection.test.ts`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run src/hooks/__tests__/useLiveConnection.test.ts`
 Expected: All PASS (both new lobby tests and existing tests)
 
 - [ ] **Step 5: Verify TypeScript compiles**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx tsc --noEmit`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx tsc --noEmit`
 Expected: No errors
 
 - [ ] **Step 6: Commit**
@@ -1453,7 +1453,7 @@ describe("RegionMap", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/RegionMap.test.tsx`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/RegionMap.test.tsx`
 Expected: FAIL — module not found
 
 - [ ] **Step 3: Create RegionMap component**
@@ -1562,7 +1562,7 @@ export const RegionMap: FC<RegionMapProps> = ({
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/RegionMap.test.tsx`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/RegionMap.test.tsx`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -1793,7 +1793,7 @@ describe("SetupLobby", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/SetupLobby.test.tsx`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/SetupLobby.test.tsx`
 Expected: FAIL — module not found
 
 - [ ] **Step 3: Create SetupLobby component**
@@ -2183,12 +2183,12 @@ export function SetupLobby({ lobbyInit, onLaunch, starting, error }: SetupLobbyP
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/SetupLobby.test.tsx`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run src/components/__tests__/SetupLobby.test.tsx`
 Expected: PASS
 
 - [ ] **Step 5: Verify full TypeScript compilation**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx tsc --noEmit`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx tsc --noEmit`
 Expected: No errors (App.tsx can now resolve the SetupLobby import)
 
 - [ ] **Step 6: Commit**
@@ -2204,17 +2204,17 @@ git commit -m "feat(m12c): add SetupLobby component and wire App.tsx state machi
 
 - [ ] **Step 1: Run all Python tests**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_live.py -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_live.py -v`
 Expected: All PASS
 
 - [ ] **Step 2: Run all viewer tests**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx vitest run`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx vitest run`
 Expected: All PASS
 
 - [ ] **Step 3: Verify TypeScript compiles**
 
-Run: `cd /Users/tbronson/Documents/opusprogram/viewer && npx tsc --noEmit`
+Run: `cd <HOME>/Documents/opusprogram/viewer && npx tsc --noEmit`
 Expected: No errors
 
 - [ ] **Step 4: Commit any remaining fixes**

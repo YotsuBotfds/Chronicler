@@ -93,7 +93,7 @@ opusprogram/
 - [ ] **Step 1: Initialize git repository**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 git init
 ```
 
@@ -144,7 +144,7 @@ dist/
 - [ ] **Step 5: Install dependencies with uv**
 
 ```bash
-cd /Users/tbronson/Documents/opusprogram
+cd <HOME>/Documents/opusprogram
 uv sync
 ```
 

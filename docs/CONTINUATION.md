@@ -35,13 +35,13 @@ for a fresh clone.
 
 | Location | Verified standing |
 | --- | --- |
-| `C:\Users\tateb\Documents\Codex\2026-10-07\task-32\integration` | Clean `cleanup/chronicler-20261007` at checkpoint 011. Native task **Consolidate Chronicler and refactor** was idle. Source was read without mutation. |
-| `C:\Users\tateb\Documents\Codex\2026-10-07\task-32\deliverables\chronicler-cleanup-checkpoint-011.bundle` | 6,941,684 bytes; SHA-256 `1073dc948668022a2d6c8e40c441e48afb984f579ae31acfe12e2e1713a8fc81`. Restored in isolation; Git integrity passed. |
-| `C:\Users\tateb\Documents\Codex\2026-10-10\task-10\chronicler-continuation` | New recovery checkout for this published continuation. Original checkouts remain unchanged. |
-| `C:\Users\tateb\Documents\opusprogram` | Older main at `07582e2388ba5bb350836f9d83ef2eb2423a030b`; committed history is contained in checkpoint 011. Twelve dirty tracked, four untracked and four ignored source files were copied and hashed. All 20 match the earlier preservation hashes; their competing draft contents were not overlaid. |
-| `C:\Users\tateb\Desktop\fable chronicler\Chronicler` | Separate `salvage/foundation` at `a2086e27f41a87d39ae1008175f1d17abccb7406` (June 10); 61 unique commits versus 112 unique on checkpoint 011. It splits the bridge, changes accumulator/phase contracts, removes live/viewer surfaces and adds native acceleration. This competing architecture is not merged or publicly republished. Its committed history and tracked test-artifact deletions are backed up locally. |
-| `C:\Users\tateb\Documents\Codex\2026-10-10\task-10\local-recovery` | Recoverable bundles, dirty patch, 20 copied source files and `PRESERVATION.json`. Private local recovery material, not part of this GitHub branch. |
-| `/Users/tbronson/Documents/Codex/2026-10-05/task-79/refinement-branches/native-stat-order` | Historical Mac production record: `private/native-stat-order-20261006` at `2bfd655a65c433cb41e1118b86fa6bc1978a37c4`, an ancestor of checkpoint 011. The current Mac filesystem/dirty state was not accessed or reverified. |
+| `<HOME>\Documents\Codex\2026-10-07\task-32\integration` | Clean `cleanup/chronicler-20261007` at checkpoint 011. Native task **Consolidate Chronicler and refactor** was idle. Source was read without mutation. |
+| `<HOME>\Documents\Codex\2026-10-07\task-32\deliverables\chronicler-cleanup-checkpoint-011.bundle` | 6,941,684 bytes; SHA-256 `1073dc948668022a2d6c8e40c441e48afb984f579ae31acfe12e2e1713a8fc81`. Restored in isolation; Git integrity passed. |
+| `<HOME>\Documents\Codex\2026-10-10\task-10\chronicler-continuation` | New recovery checkout for this published continuation. Original checkouts remain unchanged. |
+| `<HOME>\Documents\opusprogram` | Older main at `07582e2388ba5bb350836f9d83ef2eb2423a030b`; committed history is contained in checkpoint 011. Twelve dirty tracked, four untracked and four ignored source files were copied and hashed. All 20 match the earlier preservation hashes; their competing draft contents were not overlaid. |
+| `<HOME>\Desktop\fable chronicler\Chronicler` | Separate `salvage/foundation` at `a2086e27f41a87d39ae1008175f1d17abccb7406` (June 10); 61 unique commits versus 112 unique on checkpoint 011. It splits the bridge, changes accumulator/phase contracts, removes live/viewer surfaces and adds native acceleration. This competing architecture is not merged or publicly republished. Its committed history and tracked test-artifact deletions are backed up locally. |
+| `<HOME>\Documents\Codex\2026-10-10\task-10\local-recovery` | Recoverable bundles, dirty patch, 20 copied source files and `PRESERVATION.json`. Private local recovery material, not part of this GitHub branch. |
+| `<HOME>/Documents/Codex/2026-10-05/task-79/refinement-branches/native-stat-order` | Historical Mac production record: `private/native-stat-order-20261006` at `2bfd655a65c433cb41e1118b86fa6bc1978a37c4`, an ancestor of checkpoint 011. The current Mac filesystem/dirty state was not accessed or reverified. |
 | Saved cloud environment **Chronicler** tracking `main` | Owner-reported saved configuration. Its live checkout/unpushed state was not exposed by supported project/task discovery here and is not claimed recovered. |
 
 Native Windows project discovery listed `opusprogram` but no saved Chronicler
@@ -54,8 +54,8 @@ listings; this does not establish all machines are idle.
 
 | Historical task record | Recorded source standing and current evidence |
 | --- | --- |
-| **Validate integrated native runtime**, `01a10db8-ce9f-77d0-8b93-4ef09e43700a`, `/Users/tbronson/Documents/Codex/2026-10-05/task-32` | Final report qualified `56b3764b8436f92b05e958f53b32092ad6a5e463`. Git ancestry freshly confirms this commit is contained in the continuation. Current Mac files/dirty state were not read. |
-| **Qualify second-wave native integration**, `01a10ddf-b93c-7591-aedb-c824fe0fc003`, `/Users/tbronson/Documents/Codex/2026-10-05/task-36` | Final report qualified `18c909eb3f9abd0b9e64b40e6cd1e09c5567e913`; freshly confirmed ancestor of the continuation. Historical full native/Rust results and private backup are recorded in that task, not rerun or newly accepted here. |
+| **Validate integrated native runtime**, `01a10db8-ce9f-77d0-8b93-4ef09e43700a`, `<HOME>/Documents/Codex/2026-10-05/task-32` | Final report qualified `56b3764b8436f92b05e958f53b32092ad6a5e463`. Git ancestry freshly confirms this commit is contained in the continuation. Current Mac files/dirty state were not read. |
+| **Qualify second-wave native integration**, `01a10ddf-b93c-7591-aedb-c824fe0fc003`, `<HOME>/Documents/Codex/2026-10-05/task-36` | Final report qualified `18c909eb3f9abd0b9e64b40e6cd1e09c5567e913`; freshly confirmed ancestor of the continuation. Historical full native/Rust results and private backup are recorded in that task, not rerun or newly accepted here. |
 | **Integrate ecology and mutual aid**, `01a10dee-23f7-7399-8823-da118620b018`, recorded task cwd `/workspace`, source packages `/workspace/third-wave/packages` | Recorded clean `private/integration-wave3-20261005` at `2ab3b4814abb665c7b3d5c255152cf5767bbf25a`; freshly confirmed ancestor. This is a historical cloud task record, not evidence of the owner's saved **Chronicler** environment's current state. |
 | **Integrate governance transaction harness**, `01a10dad-faee-71c4-8c1a-4a6a2a6e202b`, recorded cwd `/workspace`, source `/workspace/Chronicler-governance` | Recorded `experimental/governance-four-kernel` at `8ed76bd4620d1aab509bf1ddc90f77ac80390482`; freshly confirmed ancestor. Detached governance remains disabled for production; no G05 source recovery is claimed. |
 
@@ -102,7 +102,7 @@ versions are unchanged by these repairs. See `tests/fixtures/reference_baselines
 
 The September **Chronicler Living Atlas Codex Handoff** was a reference/prototype
 package. The initial local search checked matching immediate filenames in
-`C:\Users\tateb\Downloads` and Atlas markers in selected restored docs/viewer/replay
+`<HOME>\Downloads` and Atlas markers in selected restored docs/viewer/replay
 source, not every local or remote directory. It found no ZIP or integrated Atlas
 directory in that scope. A subsequent exact-title Library search confirmed
 `Chronicler_Living_Atlas_Codex_Handoff.zip`, **3,110,968 bytes**, created

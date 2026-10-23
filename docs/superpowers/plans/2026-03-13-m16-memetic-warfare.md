@@ -134,7 +134,7 @@ class TestModelFields:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestModelFields -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestModelFields -v`
 Expected: FAIL — fields don't exist yet.
 
 - [ ] **Step 3: Add prestige to Civilization**
@@ -164,7 +164,7 @@ In `src/chronicler/models.py`, add after `trade_volume` field (line ~96):
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestModelFields -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestModelFields -v`
 Expected: PASS (3 tests).
 
 - [ ] **Step 7: Commit**
@@ -278,7 +278,7 @@ class TestValueDrift:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestValueOppositions tests/test_culture.py::TestValueDrift -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestValueOppositions tests/test_culture.py::TestValueDrift -v`
 Expected: FAIL — `culture` module doesn't exist.
 
 - [ ] **Step 3: Implement culture.py with VALUE_OPPOSITIONS and apply_value_drift**
@@ -356,7 +356,7 @@ def apply_value_drift(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestValueOppositions tests/test_culture.py::TestValueDrift -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestValueOppositions tests/test_culture.py::TestValueDrift -v`
 Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
@@ -478,7 +478,7 @@ class TestCulturalAssimilation:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalAssimilation -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalAssimilation -v`
 Expected: FAIL — `tick_cultural_assimilation` not defined.
 
 - [ ] **Step 3: Implement tick_cultural_assimilation**
@@ -547,7 +547,7 @@ def tick_cultural_assimilation(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalAssimilation -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalAssimilation -v`
 Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
@@ -594,7 +594,7 @@ class TestPrestige:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestPrestige -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestPrestige -v`
 Expected: FAIL — `tick_prestige` not defined.
 
 - [ ] **Step 3: Implement tick_prestige**
@@ -617,7 +617,7 @@ def tick_prestige(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestPrestige -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestPrestige -v`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -661,7 +661,7 @@ class TestCulturalWorksEnhancement:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalWorksEnhancement -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalWorksEnhancement -v`
 Expected: FAIL — prestige and asabiya not modified by current `phase_cultural_milestones`.
 
 - [ ] **Step 3: Modify phase_cultural_milestones to add prestige and asabiya boosts**
@@ -679,7 +679,7 @@ Insert these lines after `world.named_events.append(ne)` (line 680) and before `
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalWorksEnhancement -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalWorksEnhancement -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -722,7 +722,7 @@ class TestWorldGenCulture:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestWorldGenCulture -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestWorldGenCulture -v`
 Expected: FAIL — cultural_identity not set during world gen.
 
 - [ ] **Step 3: Initialize cultural_identity in world_gen.py**
@@ -740,7 +740,7 @@ Insert this after the WorldState is constructed and before the return statement.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestWorldGenCulture -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestWorldGenCulture -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -784,7 +784,7 @@ class TestM16aPhaseIntegration:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16aPhaseIntegration -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16aPhaseIntegration -v`
 Expected: FAIL — prestige not called in production, drift not called in consequences.
 
 - [ ] **Step 3: Wire tick_prestige into phase_production**
@@ -821,12 +821,12 @@ In `phase_consequences` (line ~607), add BEFORE `apply_asabiya_dynamics(world)` 
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16aPhaseIntegration -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16aPhaseIntegration -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 6: Run full test suite to verify no regressions**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest -v`
 Expected: All existing tests PASS.
 
 - [ ] **Step 7: Commit**
@@ -876,7 +876,7 @@ class TestMovementModel:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementModel -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementModel -v`
 Expected: FAIL — `Movement` not defined, WorldState missing fields.
 
 - [ ] **Step 3: Add Movement model and extend WorldState**
@@ -906,7 +906,7 @@ Add `Movement` to the imports/exports at top of file if using `__all__`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementModel -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementModel -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -1035,7 +1035,7 @@ class TestMovementEmergence:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementEmergence -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementEmergence -v`
 Expected: FAIL — `movements` module doesn't exist.
 
 - [ ] **Step 3: Implement movements.py with emergence logic**
@@ -1134,7 +1134,7 @@ def tick_movements(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementEmergence -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementEmergence -v`
 Expected: PASS (8 tests).
 
 - [ ] **Step 5: Commit**
@@ -1240,7 +1240,7 @@ class TestMovementSpread:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementSpread -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementSpread -v`
 Expected: FAIL — `_process_spread` not implemented.
 
 - [ ] **Step 3: Implement _process_spread**
@@ -1297,7 +1297,7 @@ def tick_movements(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementSpread -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestMovementSpread -v`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -1406,7 +1406,7 @@ class TestSchismDetection:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestVariantDrift tests/test_movements.py::TestSchismDetection -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestVariantDrift tests/test_movements.py::TestSchismDetection -v`
 Expected: FAIL — `_increment_variants` and `_detect_schisms` not implemented.
 
 - [ ] **Step 3: Implement _increment_variants and _detect_schisms**
@@ -1462,7 +1462,7 @@ def tick_movements(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestVariantDrift tests/test_movements.py::TestSchismDetection -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestVariantDrift tests/test_movements.py::TestSchismDetection -v`
 Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
@@ -1549,7 +1549,7 @@ class TestMovementDispositionEffects:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestMovementDispositionEffects -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestMovementDispositionEffects -v`
 Expected: FAIL — `apply_value_drift` doesn't include movement effects yet.
 
 - [ ] **Step 3: Add movement co-adoption effects to apply_value_drift**
@@ -1585,7 +1585,7 @@ In `apply_value_drift`, after the value drift loop, add a second loop for moveme
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestMovementDispositionEffects -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestMovementDispositionEffects -v`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -1620,7 +1620,7 @@ class TestM16bPhaseIntegration:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestM16bPhaseIntegration -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestM16bPhaseIntegration -v`
 Expected: FAIL — tick_movements not called in phase_consequences.
 
 - [ ] **Step 3: Wire tick_movements into phase_consequences**
@@ -1649,12 +1649,12 @@ The final phase_consequences order should be:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_movements.py::TestM16bPhaseIntegration -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_movements.py::TestM16bPhaseIntegration -v`
 Expected: PASS.
 
 - [ ] **Step 5: Run full test suite**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest -v`
 Expected: All tests PASS.
 
 - [ ] **Step 6: Commit**
@@ -1698,7 +1698,7 @@ class TestEraBonus:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestEraBonus -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestEraBonus -v`
 Expected: FAIL — `get_era_bonus` doesn't exist.
 
 - [ ] **Step 3: Extend ERA_BONUSES and add get_era_bonus**
@@ -1733,7 +1733,7 @@ def get_era_bonus(era: TechEra, key: str, default: float = 0.0) -> float:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestEraBonus -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestEraBonus -v`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -1795,7 +1795,7 @@ class TestInvestCultureAction:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureAction -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureAction -v`
 Expected: FAIL — INVEST_CULTURE not in ActionType.
 
 - [ ] **Step 3: Add INVEST_CULTURE to ActionType**
@@ -1857,7 +1857,7 @@ In `_apply_situational` or `compute_weights`, add the x2.0 modifier when rival-a
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureAction -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureAction -v`
 Expected: PASS (4 tests).
 
 - [ ] **Step 6: Commit**
@@ -1961,7 +1961,7 @@ class TestInvestCultureResolution:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureResolution -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureResolution -v`
 Expected: FAIL — `resolve_invest_culture` not defined.
 
 - [ ] **Step 3: Implement resolve_invest_culture with counter-propaganda**
@@ -2076,7 +2076,7 @@ def _resolve_invest_culture(civ: Civilization, world: WorldState) -> Event:
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureResolution -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestInvestCultureResolution -v`
 Expected: PASS (6 tests).
 
 - [ ] **Step 6: Commit**
@@ -2157,7 +2157,7 @@ class TestCulturalVictories:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalVictories -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalVictories -v`
 Expected: FAIL — `check_cultural_victories` not defined.
 
 - [ ] **Step 3: Implement check_cultural_victories**
@@ -2205,7 +2205,7 @@ def check_cultural_victories(world: WorldState) -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalVictories -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestCulturalVictories -v`
 Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
@@ -2255,7 +2255,7 @@ class TestSnapshotChanges:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16cIntegration tests/test_culture.py::TestSnapshotChanges -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16cIntegration tests/test_culture.py::TestSnapshotChanges -v`
 Expected: FAIL — victories not wired in, CivSnapshot missing prestige.
 
 - [ ] **Step 3: Wire check_cultural_victories into phase_consequences**
@@ -2320,12 +2320,12 @@ In `src/chronicler/simulation.py`, in `phase_technology` (line ~650), after a te
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16cIntegration tests/test_culture.py::TestSnapshotChanges -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16cIntegration tests/test_culture.py::TestSnapshotChanges -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 7: Run full test suite**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest -v`
 Expected: All tests PASS.
 
 - [ ] **Step 8: Commit**
@@ -2387,7 +2387,7 @@ class TestNameGenerators:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestNameGenerators -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestNameGenerators -v`
 Expected: FAIL — functions don't exist.
 
 - [ ] **Step 3: Implement name generators**
@@ -2470,7 +2470,7 @@ def generate_cultural_milestone_name(civ, milestone_type: str, world, seed: int)
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestNameGenerators -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestNameGenerators -v`
 Expected: PASS (5 tests).
 
 **Note:** After this task, update `_check_emergence`, `_process_spread`, `_detect_schisms`, `resolve_invest_culture`, and `check_cultural_victories` to call these name generators instead of inline `f"..."` strings. This wiring is a straightforward search-and-replace — each `name=f"..."` in a NamedEvent constructor should call the appropriate generator.
@@ -2545,12 +2545,12 @@ class TestM16EndToEnd:
 
 - [ ] **Step 2: Run end-to-end tests**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16EndToEnd -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest tests/test_culture.py::TestM16EndToEnd -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 3: Run complete test suite for regression check**
 
-Run: `cd /Users/tbronson/Documents/opusprogram && python -m pytest -v`
+Run: `cd <HOME>/Documents/opusprogram && python -m pytest -v`
 Expected: All tests PASS.
 
 - [ ] **Step 4: Commit**

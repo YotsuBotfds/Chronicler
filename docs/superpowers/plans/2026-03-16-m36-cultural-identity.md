@@ -1085,7 +1085,7 @@ Add new columns to the `pa.record_batch({...})` dict, after the `endemic_severit
 
 - [ ] **Step 3: Verify Python import works**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -c "from chronicler.agent_bridge import build_region_batch; print('OK')"`
+Run: `cd /c<HOME>/Documents/opusprogram && python -c "from chronicler.agent_bridge import build_region_batch; print('OK')"`
 Expected: `OK`
 
 - [ ] **Step 4: Commit**
@@ -1152,7 +1152,7 @@ class TestComputeCivCulturalProfile:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/test_m36_culture.py::TestComputeCivCulturalProfile -v 2>&1 | head -20`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/test_m36_culture.py::TestComputeCivCulturalProfile -v 2>&1 | head -20`
 Expected: ImportError — `compute_civ_cultural_profile` not found
 
 - [ ] **Step 3: Implement compute_civ_cultural_profile()**
@@ -1189,7 +1189,7 @@ def compute_civ_cultural_profile(snapshot) -> dict[int, Counter]:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/test_m36_culture.py::TestComputeCivCulturalProfile -v`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/test_m36_culture.py::TestComputeCivCulturalProfile -v`
 Expected: PASS
 
 - [ ] **Step 5: Write test for agent-driven assimilation**
@@ -1417,7 +1417,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None)
 
 - [ ] **Step 7: Run tests to verify they pass**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/test_m36_culture.py -v`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/test_m36_culture.py -v`
 Expected: All tests pass
 
 - [ ] **Step 8: Commit**
@@ -1608,7 +1608,7 @@ class TestApplyValueDriftAgentDriven:
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/test_m36_culture.py::TestApplyValueDriftAgentDriven -v`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/test_m36_culture.py::TestApplyValueDriftAgentDriven -v`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
@@ -1661,7 +1661,7 @@ Option A is simpler (no signature change). Either way, verify in hybrid mode tha
 
 - [ ] **Step 2: Verify existing tests still pass**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/ -x -q 2>&1 | tail -10`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/ -x -q 2>&1 | tail -10`
 Expected: All existing tests pass
 
 - [ ] **Step 3: Commit**
@@ -1914,12 +1914,12 @@ class TestCivCulturalProfileConsistency:
 
 - [ ] **Step 2: Run smoke tests (fast subset)**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/test_m36_regression.py::TestAgentsOffRegression -v --timeout=120`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/test_m36_regression.py::TestAgentsOffRegression -v --timeout=120`
 Expected: All smoke tests pass
 
 - [ ] **Step 3: Run full Tier 2 harness (slow)**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/test_m36_regression.py -v --timeout=600 -m slow`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/test_m36_regression.py -v --timeout=600 -m slow`
 Expected: All tests pass within tolerance bands
 
 - [ ] **Step 4: Commit**
@@ -1939,8 +1939,8 @@ git commit -m "test(m36): add Tier 2 regression harness for cultural identity"
 
 **Build & test commands:**
 - Rust: `cd chronicler-agents && cargo test`
-- Python: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest test/`
-- Full: `cd /c/Users/tateb/Documents/opusprogram && cargo test --manifest-path chronicler-agents/Cargo.toml && python -m pytest test/ -x`
+- Python: `cd /c<HOME>/Documents/opusprogram && python -m pytest test/`
+- Full: `cd /c<HOME>/Documents/opusprogram && cargo test --manifest-path chronicler-agents/Cargo.toml && python -m pytest test/ -x`
 
 **Critical integration point:** Task 7 (wiring culture_tick into tick.rs) is the highest-risk change. If existing tests break, the issue is likely in the `update_satisfaction()` call — verify that `controller_values` defaults to `[0xFF, 0xFF, 0xFF]` when not provided by Python, producing distance 0 and zero penalty.
 

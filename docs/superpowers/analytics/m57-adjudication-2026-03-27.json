@@ -4,8 +4,8 @@
     "hostname": "DESKTOP-98334VU",
     "platform": "Windows-11-10.0.22631-SP0",
     "python_version": "3.14.3",
-    "python_executable": "C:\\Users\\tateb\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
-    "cwd": "C:\\Users\\tateb\\Documents\\opusprogram",
+    "python_executable": "<HOME>\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+    "cwd": "<HOME>\\Documents\\opusprogram",
     "git_head": "c1e7e261dcc07ad08142c3200d476b27dba1737a"
   },
   "decision": "REJECT_DIVERGENCE",

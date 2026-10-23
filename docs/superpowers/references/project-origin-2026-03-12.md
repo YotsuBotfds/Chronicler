@@ -112,10 +112,10 @@ This section records how the project evolved during the first 12 days.
 
 Evidence:
 
-- [phase-6-progress.md](C:/Users/tateb/Documents/opusprogram/docs/superpowers/progress/phase-6-progress.md) records M53 concluded and scale track handoffs (lines around 229-433).
-- [2026-03-24-m55a-spatial-substrate-design.md](C:/Users/tateb/Documents/opusprogram/docs/superpowers/specs/2026-03-24-m55a-spatial-substrate-design.md) status: "Approved for implementation."
-- [2026-03-21-m54b-rust-economy-migration-design.md](C:/Users/tateb/Documents/opusprogram/docs/superpowers/specs/2026-03-21-m54b-rust-economy-migration-design.md) status: "Implementation-ready."
-- [2026-03-22-m54c-rust-politics-migration-design.md](C:/Users/tateb/Documents/opusprogram/docs/superpowers/specs/2026-03-22-m54c-rust-politics-migration-design.md) status: pre-spec locked after M54a.
+- [phase-6-progress.md](<HOME>/Documents/opusprogram/docs/superpowers/progress/phase-6-progress.md) records M53 concluded and scale track handoffs (lines around 229-433).
+- [2026-03-24-m55a-spatial-substrate-design.md](<HOME>/Documents/opusprogram/docs/superpowers/specs/2026-03-24-m55a-spatial-substrate-design.md) status: "Approved for implementation."
+- [2026-03-21-m54b-rust-economy-migration-design.md](<HOME>/Documents/opusprogram/docs/superpowers/specs/2026-03-21-m54b-rust-economy-migration-design.md) status: "Implementation-ready."
+- [2026-03-22-m54c-rust-politics-migration-design.md](<HOME>/Documents/opusprogram/docs/superpowers/specs/2026-03-22-m54c-rust-politics-migration-design.md) status: pre-spec locked after M54a.
 
 ### Architecture Trajectory
 

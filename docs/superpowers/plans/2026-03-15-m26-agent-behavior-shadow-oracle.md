@@ -2757,7 +2757,7 @@ class TestOracleReport:
 
 - [ ] **Step 3: Run Python tests**
 
-Run: `cd /c/Users/tateb/Documents/opusprogram && python -m pytest tests/test_shadow_oracle.py -v`
+Run: `cd /c<HOME>/Documents/opusprogram && python -m pytest tests/test_shadow_oracle.py -v`
 Expected: all tests PASS.
 
 - [ ] **Step 4: Commit**
