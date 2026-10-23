@@ -35,7 +35,7 @@ class FisheryStep:
 
 
 def step_fishery(stock: float, base_yield: float, potential_yield: float,
-                 workers: int, config: FisheryConfig) -> FisheryStep:
+                 workers: float, config: FisheryConfig) -> FisheryStep:
     """Recover, then harvest. Stock/recovery/harvest are fractions of capacity.
 
     Effort is bounded to four reference workforces. Yield remains per-worker;
@@ -63,6 +63,8 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
         return
     from chronicler.models import ResourceType
 
+    from chronicler.economy import occupied_resource_slot_count
+
     # The split bridge's live snapshot precedes this turn's agent tick. Prefer
     # actual farmers there; pure-Python/off-mode uses the existing ecology proxy.
     worker_counts = [max(0, region.population // 5) for region in world.regions]
@@ -86,7 +88,10 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
                 region.fishery_catch_budgets[slot] = None
                 continue
             potential = yields[slot]
-            workers = worker_counts[rid]
+            # Goods production splits farmer labor equally across occupied
+            # slots; fishing effort uses the same share, so biomass is not
+            # debited for labor that the economy assigns to other resources.
+            workers = worker_counts[rid] / max(1, occupied_resource_slot_count(region.resource_types))
             result = step_fishery(region.fishery_stocks[slot],
                                   region.resource_base_yields[slot], potential, workers, config)
             region.fishery_stocks[slot] = result.stock

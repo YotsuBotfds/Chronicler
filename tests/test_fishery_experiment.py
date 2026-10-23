@@ -303,6 +303,24 @@ def test_native_economy_rejects_catch_budget_on_nonfish_slot(fish_world):
                              0, False, 1.0)
 
 
+def test_fishing_effort_uses_the_production_labor_share(fish_world):
+    """Biomass is debited only for the farmers the economy assigns to fishing."""
+    fish_world.fishery_experiment.enabled = True
+    single = fish_world.model_copy(deep=True)
+    single.regions[0].resource_types = [ResourceType.FISH, EMPTY_SLOT, EMPTY_SLOT]
+    for world in (fish_world, single):
+        world.regions[0].fishery_stocks[0] = .5
+        apply_fishery_feedback(world, {world.regions[0].name: [1.0, .5, 0.0]})
+    shared, alone = fish_world.regions[0], single.regions[0]
+    # pop 2000 -> 400 proxy workers: 200 per slot when shared with ore.
+    expected_shared = step_fishery(.5, 1.0, 1.0, 200, FisheryConfig())
+    expected_alone = step_fishery(.5, 1.0, 1.0, 400, FisheryConfig())
+    assert shared.fishery_stocks[0] == pytest.approx(expected_shared.stock)
+    assert alone.fishery_stocks[0] == pytest.approx(expected_alone.stock)
+    assert shared.fishery_catch_budgets[0] < alone.fishery_catch_budgets[0]
+    assert shared.fishery_stocks[0] > alone.fishery_stocks[0]
+
+
 def test_python_economy_caps_each_fish_slot_after_labor_split(fish_world):
     from chronicler.economy import compute_economy
     fish_world.fishery_experiment.enabled = True
