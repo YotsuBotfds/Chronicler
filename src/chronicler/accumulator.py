@@ -41,6 +41,11 @@ if TYPE_CHECKING:
 
 UNBOUNDED_STATS = {"treasury", "asabiya", "prestige", "population"}
 
+# The five routing categories (see module docstring). add() rejects anything
+# else: an unknown category would be applied by apply() in aggregate mode but
+# silently ignored by every agent-mode route.
+ROUTING_CATEGORIES = frozenset({"keep", "guard", "guard-action", "guard-shock", "signal"})
+
 STAT_TO_OCCUPATION = {
     "military": 1,   # Soldier
     "economy": 2,    # Merchant
@@ -86,6 +91,11 @@ class StatAccumulator:
 
     def add(self, civ_idx: int, civ: Civilization, stat: str, delta: float, category: str) -> None:
         """Record a stat mutation. civ_idx is the index into world.civilizations."""
+        if category not in ROUTING_CATEGORIES:
+            raise ValueError(
+                f"Unknown accumulator category {category!r}; "
+                f"expected one of {sorted(ROUTING_CATEGORIES)}"
+            )
         self._changes.append(StatChange(
             civ_idx, stat, delta, category, getattr(civ, stat, 0),
         ))

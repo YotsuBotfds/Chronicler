@@ -587,9 +587,11 @@ def phase_production(world: WorldState, acc=None) -> None:
     # Stability recovery: passive per-turn recovery, halved during severe conditions.
     # B-1 fix: In hybrid mode, stability is overwritten by _write_back (mean_sat *
     # mean_loy * 100), so "keep" routing is dead code.  Route as "guard-shock" so
-    # the recovery feeds the Rust tick as a positive shock signal.  In aggregate
-    # mode (acc=None), direct mutation.  In shadow/demographics-only (acc with
-    # apply()), the guard-shock is still applied via apply().
+    # the recovery feeds the Rust tick as a positive shock signal.  --agents=off
+    # applies it through acc.apply(); standalone acc=None callers mutate
+    # directly.  Shadow/demographics-only flush with apply_keep() and do not
+    # route shocks (C-10), so this recovery does not reach their aggregate
+    # stability.
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
             continue
