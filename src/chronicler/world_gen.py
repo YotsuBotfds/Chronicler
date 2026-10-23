@@ -384,6 +384,7 @@ def generate_procedural_civilizations(
             assigned[k].append(pick)
 
     used_names: set[str] = {r.name for r in regions}
+    throne_used: set[str] = set()  # leader pools are disjoint across civs
     civs: list[Civilization] = []
     for k, region_ids in enumerate(assigned):
         rng = random.Random(stable_hash_int("geography", seed, "civ", k))
@@ -412,7 +413,6 @@ def generate_procedural_civilizations(
             build = lambda r, form=form: f"{_adjective(make_name(r, phon))} {form}"
         name = unique_name(rng, used_names, build)
 
-        throne_used: set[str] = set()
         pool = [unique_name(rng, throne_used, lambda r: make_name(r, phon, max_syllables=2))
                 for _ in range(LEADER_POOL_SIZE)]
         title = rng.choice(POLITY_TITLES[form])

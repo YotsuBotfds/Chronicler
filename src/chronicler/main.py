@@ -75,7 +75,7 @@ from chronicler.narrative import NarrativeEngine
 from chronicler.simulation import run_turn_result
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
-from chronicler.intelligence import compute_accuracy, _get_perceived_stat_with_accuracy
+from chronicler.intelligence import border_pairs, compute_accuracy, _get_perceived_stat_with_accuracy
 from chronicler.history_index import history_index
 
 DEFAULT_CONFIG = {
@@ -511,10 +511,25 @@ def execute_run(
         # Keep live reads for those worlds to preserve even discarded RNG draws.
         _unique_civ_names = len({c.name for c in world.civilizations}) == len(world.civilizations)
         _acc_cache: dict[tuple[str, str], float] = {}
-        for _obs in world.civilizations:
-            for _tgt in world.civilizations:
+        # Geography 2.0: procedural worlds keep civ-pair snapshot data
+        # (relationships, accuracy, perception errors) for living civs only.
+        # Civ records are never removed and secessions accumulate, so the
+        # all-records matrices dominated big-world bundles. Template worlds
+        # keep every record (unchanged bytes).
+        if world.geography is not None:
+            _pair_civs = [c for c in world.civilizations if c.regions]
+            _pair_names: set[str] | None = {c.name for c in _pair_civs}
+        else:
+            _pair_civs = world.civilizations
+            _pair_names = None
+        # One border pass for all pairs (identical to per-pair region scans).
+        _borders = border_pairs(world)
+        for _obs in _pair_civs:
+            for _tgt in _pair_civs:
                 if _obs.name != _tgt.name:
-                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(_obs, _tgt, world)
+                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(
+                        _obs, _tgt, world, borders=_borders,
+                    )
         snapshot = TurnSnapshot(
             turn=world.turn,
             civ_stats={
@@ -564,8 +579,10 @@ def execute_run(
                 civ_a: {
                     civ_b: RelationshipSnapshot(disposition=rel.disposition.value)
                     for civ_b, rel in inner.items()
+                    if _pair_names is None or civ_b in _pair_names
                 }
                 for civ_a, inner in world.relationships.items()
+                if _pair_names is None or civ_a in _pair_names
             },
             vassal_relations=[vr.model_dump() for vr in world.vassal_relations],
             federations=[f.model_dump() for f in world.federations],
@@ -587,11 +604,11 @@ def execute_run(
                     tgt_name: acc
                     for tgt_name, acc in (
                         (t.name, _acc_cache[(obs_name, t.name)])
-                        for t in world.civilizations if t.name != obs_name
+                        for t in _pair_civs if t.name != obs_name
                     )
                     if acc > 0.0
                 }
-                for obs_name in (c.name for c in world.civilizations)
+                for obs_name in (c.name for c in _pair_civs)
             },
             perception_errors={
                 obs_name: {
@@ -606,11 +623,11 @@ def execute_run(
                             ),
                         )) is not None
                     }
-                    for tgt in world.civilizations
+                    for tgt in _pair_civs
                     for tgt_name in [tgt.name]
                     if tgt_name != obs_name and _acc_cache.get((obs_name, tgt_name), 0.0) > 0.0
                 }
-                for obs in world.civilizations
+                for obs in _pair_civs
                 for obs_name in [obs.name]
             },
             # M56a: Settlement summary

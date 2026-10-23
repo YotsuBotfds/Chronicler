@@ -332,6 +332,14 @@ def test_large_world_runs(tmp_path, mode):
     if mode == "hybrid":
         # Agents live in regions with ids >= 32 (impossible with u32 masks).
         assert any(r["population"] > 0 for r in state["regions"][32:])
+    # Procedural bundles keep civ-pair snapshot data for living civs only.
+    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    for snap in bundle["history"]:
+        alive = {name for name, cs in snap["civ_stats"].items() if cs["alive"]}
+        assert set(snap["relationships"]) <= alive
+        assert all(set(inner) <= alive for inner in snap["relationships"].values())
+        assert set(snap["per_pair_accuracy"]) <= alive
+        assert set(snap["perception_errors"]) <= alive
 
 
 def test_cli_worldgen_flag():
@@ -353,3 +361,23 @@ def test_procedural_roles_are_mixed():
             assert len(region.adjacencies) <= 2
         if region.role == "crossroads":
             assert len(region.adjacencies) >= 7
+
+
+@pytest.mark.parametrize("regions,civs", [(8, 4), (12, 6), (64, 16)])
+def test_border_pairs_match_shares_adjacent_region(regions, civs):
+    import random
+    from chronicler.intelligence import border_pairs, compute_accuracy, shares_adjacent_region
+    world = generate_world(seed=regions, num_regions=regions, num_civs=civs)
+    rng = random.Random(regions)
+    names = [c.name for c in world.civilizations] + [None]
+    for trial in range(4):
+        if trial:
+            for region in world.regions:
+                region.controller = rng.choice(names)
+        borders = border_pairs(world)
+        for obs in world.civilizations:
+            for tgt in world.civilizations:
+                if obs.name == tgt.name:
+                    continue
+                assert ((obs.name, tgt.name) in borders) == shares_adjacent_region(obs, tgt, world)
+                assert compute_accuracy(obs, tgt, world, borders=borders) == compute_accuracy(obs, tgt, world)
