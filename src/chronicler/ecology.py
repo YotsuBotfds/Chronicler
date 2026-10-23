@@ -376,11 +376,22 @@ def compute_resource_yields(
     return yields
 
 
+def potential_capacity(region: Region) -> float:
+    """Undegraded capacity of the land: carrying capacity x disaster modifier.
+
+    Recovery pressure is measured against this, not against
+    ``effective_capacity`` (which already contains the degraded soil and
+    water).  Measuring against the degraded value made depletion suppress its
+    own recovery: once soil/water fell, population at the (now lower)
+    effective capacity pinned the multiplier at its 0.1 floor and the soil gate
+    shut, so every populated region ratcheted to the floors during the first
+    global drought and stayed there (correction, 2026-10).
+    """
+    return max(1.0, region.carrying_capacity * region.capacity_modifier)
+
+
 def _pressure_multiplier(region: Region) -> float:
-    eff = effective_capacity(region)
-    if eff <= 0:
-        return 1.0
-    return max(0.1, 1.0 - region.population / eff)
+    return max(0.1, 1.0 - region.population / potential_capacity(region))
 
 
 def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState, degradation_mult: float = 1.0) -> None:
@@ -409,8 +420,8 @@ def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldSta
             mine_rate *= get_override(world, K_MECHANIZATION_MINE_MULT, 2.0)
         region.ecology.soil -= mine_rate
 
-    # Recovery: pressure-gated
-    if region.population < eff * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
+    # Recovery: pressure-gated (against the land's undegraded potential)
+    if region.population < potential_capacity(region) * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
         rate = get_override(world, K_SOIL_RECOVERY, 0.05)
         rate *= _pressure_multiplier(region)
         if civ and civ.active_focus == "agriculture":
@@ -650,8 +661,7 @@ def _tick_ecology_python(world: WorldState, climate_phase: ClimatePhase, acc) ->
         pre_water = region.ecology.water
         compute_disease_severity(region, world, pre_water, season_id=current_season_id)
         # Natural soil recovery (no civ bonuses)
-        eff = effective_capacity(region, world)
-        if region.population < eff * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
+        if region.population < potential_capacity(region) * get_override(world, K_SOIL_RECOVERY_POP_RATIO, 0.75):
             rate = get_override(world, K_SOIL_RECOVERY, 0.05)
             rate *= _pressure_multiplier(region)
             region.ecology.soil += rate

@@ -746,9 +746,9 @@ fn test_effective_capacity_min_one() {
 fn test_pressure_multiplier_overpopulated() {
     let config = default_config();
     let mut r = make_plains(0);
-    r.population = 60; // Well above eff_cap of 48
+    r.population = 60; // At the undegraded potential (60), above eff_cap of 48
     let pm = pressure_multiplier(&r, &config);
-    // 1.0 - 60/48 = 1.0 - 1.25 = -0.25, clamped to 0.1
+    // 1.0 - 60/60 = 0.0, clamped to 0.1
     assert!((pm - 0.1).abs() < 0.001, "pressure_multiplier should floor at 0.1");
 }
 
