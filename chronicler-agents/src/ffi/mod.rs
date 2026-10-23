@@ -97,6 +97,8 @@ pub struct AgentSimulator {
     knowledge_stats: crate::knowledge::KnowledgeStats,
     /// M58b: when true, economy tick consumes delivery buffer instead of tatonnement.
     hybrid_economy_mode: bool,
+    /// M60b: stable agent ids queued by Python war casualties; drained by the next tick.
+    pending_targeted_deaths: Vec<u32>,
 }
 
 #[pymethods]
@@ -142,7 +144,19 @@ impl AgentSimulator {
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
             knowledge_stats: crate::knowledge::KnowledgeStats::default(),
             hybrid_economy_mode: false,
+            pending_targeted_deaths: Vec::new(),
         }
+    }
+
+    /// M60b: queue stable agent ids to die at the start of the next tick
+    /// (war casualties). The queue is consumed and cleared by `tick()`.
+    pub fn queue_targeted_deaths(&mut self, ids: Vec<u32>) {
+        self.pending_targeted_deaths.extend(ids);
+    }
+
+    /// M60b: number of queued targeted deaths not yet consumed by a tick.
+    pub fn pending_targeted_death_count(&self) -> usize {
+        self.pending_targeted_deaths.len()
     }
 
     /// Ingest region state from Python as an Arrow RecordBatch.
@@ -774,9 +788,10 @@ impl AgentSimulator {
             _ => None,
         };
 
+        let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents(
+                crate::tick::try_tick_agents_with_targeted_deaths(
                     &mut self.pool,
                     &self.regions,
                     &signals,
@@ -788,6 +803,7 @@ impl AgentSimulator {
                     &mut spatial_diag,
                     &self.settlement_grids,  // M56b
                     merchant_state,
+                    &targeted_deaths,
                 )
             }).map_err(PyRuntimeError::new_err)?;
 
