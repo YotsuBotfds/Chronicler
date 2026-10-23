@@ -2065,6 +2065,27 @@ class AgentBridge:
 
         return transferred
 
+    def last_tick_unrest_by_region(
+        self,
+    ) -> tuple[dict[int, int], dict[tuple[int, int], int]]:
+        """Rebels per region and migrant flows per (from, to) region pair.
+
+        Read-only view of the most recent tick in the bridge's event window
+        (no transient state); the civ-level rebellion/migration hazards in
+        hybrid mode roll these up.
+        """
+        rebels: dict[int, int] = {}
+        flows: dict[tuple[int, int], int] = {}
+        if not self._event_window:
+            return rebels, flows
+        for e in self._event_window[-1]:
+            if e.event_type == "rebellion":
+                rebels[e.region] = rebels.get(e.region, 0) + 1
+            elif e.event_type == "migration":
+                key = (e.region, e.target_region)
+                flows[key] = flows.get(key, 0) + 1
+        return rebels, flows
+
     def _aggregate_events(self, world, named_agents=None):
         """Check thresholds and emit summary Events."""
         if named_agents is None:

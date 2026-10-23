@@ -314,8 +314,11 @@ def generate_successor(civ: Civilization, world: WorldState, seed: int, force_ty
         trait = rng.choice(ALL_TRAITS)
     title, throne_name, ordinal = _pick_regnal_name(civ, world, rng)
     name = _compose_regnal_name(title, throne_name, ordinal)
+    # Separate hash stream so the successor RNG sequence above is unchanged.
+    from chronicler.events import accession_age
+    birth_turn = world.turn - accession_age(stype, seed, world.turn, civ.name, name)
     new_leader = Leader(name=name, trait=trait, reign_start=world.turn, succession_type=stype, predecessor_name=old_leader.name,
-                        throne_name=throne_name, regnal_ordinal=ordinal)
+                        throne_name=throne_name, regnal_ordinal=ordinal, birth_turn=birth_turn)
     if stype == "heir" and old_leader.rival_leader:
         new_leader.rival_leader = old_leader.rival_leader
         new_leader.rival_civ = old_leader.rival_civ

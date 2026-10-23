@@ -407,6 +407,9 @@ class Leader(BaseModel):
     dynasty_id: int | None = None
     throne_name: str | None = None
     regnal_ordinal: int = 0
+    # Turn of birth (one turn = one year).  None for old saves and founders;
+    # events.ensure_leader_birth_turn() infers a deterministic value on first use.
+    birth_turn: int | None = None
 
 
 class Civilization(BaseModel):
@@ -811,6 +814,9 @@ class WorldState(BaseModel):
     _artifact_intents: list = PrivateAttr(default_factory=list)
     _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)
     _artifact_prestige_by_civ: dict = PrivateAttr(default_factory=dict)
+    # Transient: events rolled by the hazard phases this turn (consumed and
+    # cleared by run_turn's excitation update; not serialized).
+    _hazard_events: list = PrivateAttr(default_factory=list)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
