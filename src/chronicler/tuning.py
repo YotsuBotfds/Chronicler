@@ -368,7 +368,7 @@ def _flatten(d: dict, prefix: str = "") -> dict[str, float]:
 
 def load_tuning(path: Path) -> dict[str, float]:
     """Load hierarchical YAML, flatten to dot-notation keys, validate."""
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"Tuning YAML must be a mapping, got {type(raw).__name__}")
     flat = _flatten(raw)
