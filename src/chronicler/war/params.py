@@ -26,6 +26,11 @@ POLICY = Policy(
     require_full_rations=False,
 )
 
+# New worlds created by the CLI/live entry points enable campaigns unless the
+# run passes --no-campaigns. WorldState's own default stays False so legacy
+# states and directly constructed worlds keep instant WAR resolution.
+CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS = True
+
 # --- tuning keys -------------------------------------------------------------
 K_MOBILIZATION_BASE = "war.mobilization_base_permille"
 K_MOBILIZATION_PER_MILITARY = "war.mobilization_per_military_permille"

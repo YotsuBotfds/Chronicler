@@ -154,6 +154,27 @@ def test_cli_flag_persists_and_bundle_carries_campaign_history(tmp_path):
     assert "war_state" in bundle["world_state"]
 
 
+def test_new_worlds_default_to_campaigns_and_resume_keeps_saved_setting(tmp_path):
+    from chronicler.main import execute_run
+    from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+    fresh = tmp_path / "fresh"
+    execute_run(_cli_args(fresh, campaigns=None, turns=3))
+    assert json.loads((fresh / "state.json").read_text())["campaigns_enabled"] is CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+    legacy = tmp_path / "legacy"
+    execute_run(_cli_args(legacy, campaigns=False, turns=3))
+    assert json.loads((legacy / "state.json").read_text())["campaigns_enabled"] is False
+    resumed = _cli_args(legacy, campaigns=None, turns=5)
+    resumed.resume = str(legacy / "state.json")
+    resumed.state = str(legacy / "resumed.json")
+    execute_run(resumed)
+    assert json.loads((legacy / "resumed.json").read_text())["campaigns_enabled"] is False
+    # States saved before M60 have no flag at all and load with it off.
+    raw = json.loads((legacy / "state.json").read_text())
+    raw.pop("campaigns_enabled")
+    raw.pop("war_state")
+    assert WorldState.model_validate(raw).campaigns_enabled is False
+
+
 # --- agent modes (native) ------------------------------------------------------------
 
 def _hybrid(seed: int, mode: str = "hybrid"):

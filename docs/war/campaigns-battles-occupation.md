@@ -5,6 +5,14 @@ Status: implemented in `src/chronicler/war/`, behind `WorldState.campaigns_enabl
 the setting). With the switch off, the instant `resolve_war` path in
 `action_engine.py` runs exactly as before.
 
+Default: new worlds created by the CLI, batch and live entry points enable
+campaigns (`war.params.CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS`); `--no-campaigns`
+restores instant wars. Resumed or supplied worlds keep their saved setting, and
+`WorldState`'s own default stays off, so pre-M60 states and directly constructed
+worlds (unit tests, frozen corrected-baseline workloads, which pin
+`campaigns=False` in `scripts/benchmark_headless.py`) are unchanged. The flip is
+a single commit and can be reverted alone.
+
 This layer wires the detached M60a logistics kernel (`campaign_logistics.py`,
 see `docs/experiments/campaign-logistics.md`) into the turn loop and adds the
 planned M60b mechanics: battles, sieges and occupation, plus war aims and

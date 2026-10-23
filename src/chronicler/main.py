@@ -202,6 +202,7 @@ def execute_run(
         _noop_narrator = None
 
     # World setup
+    fresh_world = False
     if world is not None:
         start_turn = world.turn
     elif resume_path:
@@ -215,6 +216,7 @@ def execute_run(
             num_civs=num_civs,
         )
         start_turn = 0
+        fresh_world = True
 
         # Apply scenario overrides if provided
         if scenario_config:
@@ -265,8 +267,12 @@ def execute_run(
         if val is not None:
             world.tuning_overrides[key] = val
 
-    # M60: campaign layer switch (persisted on the world for resume)
+    # M60: campaign layer switch (persisted on the world for resume). New
+    # worlds default to campaigns; resumed or supplied worlds keep theirs.
     campaigns = getattr(args, "campaigns", None)
+    if campaigns is None and fresh_world:
+        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+        campaigns = CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
     if campaigns is not None:
         world.campaigns_enabled = campaigns
 
@@ -932,7 +938,8 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
     parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,
                         help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
-                             "negotiated peace replace instant WAR resolution (saved on resume)")
+                             "negotiated peace replace instant WAR resolution (default on for new "
+                             "worlds; --no-campaigns restores instant wars; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
