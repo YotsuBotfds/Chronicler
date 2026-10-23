@@ -854,6 +854,16 @@ def _build_chronicle_prompt_impl(
             rivalry_context += f"- {r}\n"
         rivalry_context += "Weave these personal rivalries into the narrative when relevant.\n"
 
+    # Phase 8 governance context (absent when the governance runtime is off)
+    governance_context = ""
+    if getattr(world, "governance", None) is not None:
+        from chronicler.governance_runtime import governance_context_lines
+        lines = governance_context_lines(world)
+        if lines:
+            governance_context = ("\n\nInstitutions, rulers and the strains of the age:\n" + "\n".join(lines)
+                                  + "\nLet laws, a ruler's standing and vows, and rising or easing stress "
+                                    "colour the narrative.\n")
+
     # Era-adaptive role line
     eras = [c.tech_era.value for c in world.civilizations if c.regions]
     dominant = max(eras, key=lambda e: ERA_ORDER.index(e) if e in ERA_ORDER else 0) if eras else "tribal"
@@ -868,7 +878,7 @@ TURN {world.turn}:
 
 CIVILIZATIONS:{civ_summaries}
 
-EVENTS THIS TURN:{event_text}{named_context}{rivalry_context}
+EVENTS THIS TURN:{event_text}{named_context}{rivalry_context}{governance_context}
 
 Write a chronicle entry for this turn. Rules:
 1. {narrative_style if narrative_style else era_style}

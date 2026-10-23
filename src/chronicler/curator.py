@@ -50,6 +50,19 @@ CAUSAL_PATTERNS: list[tuple[str, str, int, float]] = [
     ("supply_shock", "rebellion", 10, 2.0),
     ("supply_shock", "migration", 10, 2.0),
     ("supply_shock", "supply_shock", 3, 2.5),
+    # Phase 8 governance (events exist only when the governance runtime is on)
+    ("elite_overproduction", "psi_crisis", 40, 2.5),
+    ("fiscal_crisis", "institution_repealed", 15, 2.5),
+    ("fiscal_crisis", "psi_crisis", 30, 2.0),
+    ("psi_crisis", "revolt", 10, 3.0),
+    ("psi_crisis", "secession", 20, 3.0),
+    ("psi_crisis", "civil_war", 20, 3.5),
+    ("revolt", "civil_war", 5, 3.0),
+    ("civil_war", "succession_crisis_resolved", 10, 2.5),
+    ("ambition_failed", "legitimacy_crisis", 10, 2.0),
+    ("legitimacy_crisis", "civil_war", 15, 3.0),
+    ("institution_enacted", "institution_repealed", 50, 1.5),
+    ("psi_crisis", "psi_recovery", 60, 2.0),
 ]
 
 # Stat fields used in gap summaries

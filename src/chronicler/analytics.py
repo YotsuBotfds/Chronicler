@@ -1393,6 +1393,12 @@ def generate_report(
         "run_summaries": compute_run_summaries(records),
     }
 
+    # Phase 8 / M67 measurement: present only for governance-enabled runs.
+    from chronicler.governance_metrics import extract_governance_metrics
+    governance = extract_governance_metrics(bundles)
+    if governance.get("runs"):
+        report["governance"] = governance
+
     report["anomalies"] = detect_anomalies(report)
     return report
 
