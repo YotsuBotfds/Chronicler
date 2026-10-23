@@ -422,3 +422,67 @@ def test_hybrid_mode_uses_agent_rows_and_is_deterministic():
     # Agent-backed elites: qualifiers come from snapshot rows, not the off-mode proxy.
     assert any(c.governance.elite_qualifier_count > 0 for c in living)
     assert all(c.governance.ratchet_turn == a.turn - 1 for c in living)
+
+
+# --- M63b contributor buckets and selectorate enrichment -------------------
+
+def test_contributor_buckets_are_inert_when_governance_is_off():
+    world = _world(seed=9, governance=False)
+    civ = world.civilizations[0]
+    engine = ActionEngine(world)
+    weights = engine.compute_weights(civ)
+    assert engine.last_buckets == {}
+    assert weights == ActionEngine(world).compute_weights(civ)
+
+
+def test_contributor_buckets_clamp_situational_ceiling():
+    from chronicler.action_engine import BUCKET_CEILINGS
+    world, civ = _single_civ_world()
+    civ.treasury = 500
+    civ.population = 200
+    while len(civ.regions) > 1:
+        civ.regions.pop()
+    engine = ActionEngine(world)
+    engine.compute_weights(civ)
+    buckets = engine.last_buckets
+    assert {"trait", "situational", "tech_focus", "faction"} <= set(buckets)
+    for name, ceiling in BUCKET_CEILINGS.items():
+        assert all(f <= ceiling + 1e-12 for f in buckets[name].values()), name
+    # EXPAND: treasury >= 200 (x2) and crowded small civ (x3) would be 6x.
+    if ActionType.EXPAND in buckets["situational"]:
+        assert buckets["situational"][ActionType.EXPAND] <= BUCKET_CEILINGS["situational"]
+
+
+@pytest.mark.parametrize("types, expected", [
+    ((), "chiefdom"),
+    (("martial_law",), "military_regime"),
+    (("divine_right", "temple_tithe"), "theocracy"),
+    (("republican_virtue", "free_trade"), "merchant_republic"),
+    (("written_law", "property_rights"), "constitutional_state"),
+    (("education",), "bureaucratic_monarchy"),
+])
+def test_government_forms(types, expected):
+    world, civ = _single_civ_world()
+    while len(civ.regions) > 2:
+        civ.regions.pop()
+    civ.leader = civ.leader.model_copy(update={"succession_type": "heir"})
+    civ.governance.institutions = [
+        GovernanceInstitution(institution_type=t, enacted_turn=1, legitimacy=1.0, enforcement_cost=0.0,
+                              opposing_faction=gr._OPPOSITION_AND_COST[g01.InstitutionType(t)][0].value)
+        for t in types]
+    assert gr.classify_government(civ, civ.governance) == expected
+
+
+def test_selectorate_biases_weights_and_crisis_odds():
+    world, civ = _single_civ_world()
+    gov = civ.governance
+    gov.government_form, gov.selectorate_ratio = "autocracy", 0.05
+    narrow = gr.governance_weight_modifiers(civ, world)
+    gov.government_form, gov.selectorate_ratio = "merchant_republic", 0.5
+    broad = gr.governance_weight_modifiers(civ, world)
+    assert narrow[ActionType.WAR] > 1.0 and ActionType.WAR not in broad
+    assert broad[ActionType.DEVELOP] > 1.0
+    gov.government_form, gov.selectorate_ratio = "theocracy", 0.2
+    trap = gr.governance_crisis_multiplier(civ, world)
+    gov.government_form, gov.selectorate_ratio = "merchant_republic", 0.5
+    assert trap == pytest.approx(gr.governance_crisis_multiplier(civ, world) * gr.TRANSITION_TRAP_CRISIS_MULTIPLIER)

@@ -205,6 +205,29 @@ COMMONS_SOIL_RECOVERY = 0.003
 COMMONS_SOIL_CEILING = 0.8
 GOVERNANCE_WEIGHT_CEILING = 1.5
 
+# Selectorate theory (Bueno de Mesquita), the M63b deferred enrichment: each
+# government form has a winning-coalition share W/S. Small coalitions buy
+# loyalty with private goods (spoils: WAR/BUILD); large ones with public goods
+# (DEVELOP/TRADE); the medium band is the "institutional transition trap".
+GOVERNMENT_SELECTORATE: Mapping[str, float] = MappingProxyType({
+    "autocracy": 0.05,
+    "chiefdom": 0.10,
+    "military_regime": 0.10,
+    "monarchy": 0.15,
+    "theocracy": 0.20,
+    "bureaucratic_monarchy": 0.25,
+    "constitutional_state": 0.40,
+    "merchant_republic": 0.50,
+})
+SMALL_COALITION = 0.15
+LARGE_COALITION = 0.40
+TRANSITION_TRAP_CRISIS_MULTIPLIER = 1.1
+GOVERNMENT_EVENT_MIN_TENURE = 10
+_CLERGY_TYPES = frozenset({I.TEMPLE_TITHE, I.DIVINE_RIGHT, I.HOLY_INQUISITION})
+_MILITARY_TYPES = frozenset({I.MARTIAL_LAW, I.MILITARY_ACCLAMATION})
+_COMMERCIAL_TYPES = frozenset({I.FREE_TRADE, I.MERCHANT_COURTS, I.TAX_CODE, I.PROPERTY_RIGHTS})
+_BUREAU_TYPES = frozenset({I.TAX_CODE, I.EDUCATION, I.WRITTEN_LAW})
+
 
 @dataclass(frozen=True)
 class InstitutionEffect:
@@ -1219,6 +1242,7 @@ def _tick_civ(world, civ_idx: int, civ, acc, ctx: _Context) -> list[Event]:
         events.append(_event(world, "institutional_regime_shift", civ,
             f"The institutions of {civ.name} settle into a {regime.label.replace('_', ' ')} pattern.", 6))
     gov.institutional_regime = regime.label
+    events.extend(_update_government(world, civ, gov))
     gov.cycle_phase = stress.classify_cycle_phase(gov.psi_history, gov.psi_crisis, turn,
                                                   gov.last_psi_crisis_end, STRESS)
     return events
@@ -1347,6 +1371,46 @@ def _revolt_and_civil_war(world, civ_idx: int, civ, gov: CivGovernance, acc,
     return events
 
 
+def classify_government(civ, gov: CivGovernance) -> str:
+    """Government form from standing institutions, factions and succession.
+
+    Institutional-evolution labels (Acemoglu/Robinson enrichment): only
+    institutions with legitimacy >= 0.3 count as standing.
+    """
+    types = {g01.InstitutionType(i.institution_type) for i in gov.institutions if i.legitimacy >= 0.3}
+    dominant = _dominant_faction(civ)
+    stype = civ.leader.succession_type
+    if types & _MILITARY_TYPES and (dominant is FactionType.MILITARY or I.MARTIAL_LAW in types):
+        return "military_regime"
+    if (I.HOLY_INQUISITION in types or len(types & _CLERGY_TYPES) >= 2
+            or (I.DIVINE_RIGHT in types and dominant is FactionType.CLERGY)):
+        return "theocracy"
+    if I.REPUBLICAN_VIRTUE in types and types & _COMMERCIAL_TYPES:
+        return "merchant_republic"
+    if I.WRITTEN_LAW in types and (I.REPUBLICAN_VIRTUE in types or I.PROPERTY_RIGHTS in types):
+        return "constitutional_state"
+    if types & _BUREAU_TYPES:
+        return "bureaucratic_monarchy"
+    if stype in ("usurper", "general") or gov.ruler_legitimacy < 0.3:
+        return "autocracy"
+    if not types and len(civ.regions) <= 2:
+        return "chiefdom"
+    return "monarchy"
+
+
+def _update_government(world, civ, gov: CivGovernance) -> list[Event]:
+    form = classify_government(civ, gov)
+    gov.selectorate_ratio = GOVERNMENT_SELECTORATE[form]
+    if form == gov.government_form:
+        return []
+    previous, since = gov.government_form, gov.government_form_since
+    gov.government_form, gov.government_form_since = form, world.turn
+    if previous is None or world.turn - since < GOVERNMENT_EVENT_MIN_TENURE:
+        return []
+    return [_event(world, "government_transition", civ,
+                   f"{civ.name} turns from {previous.replace('_', ' ')} to {form.replace('_', ' ')}.", 6)]
+
+
 def _apply_commons_management(world, civ, ctx: _Context, snapshot: g01.InstitutionSnapshot) -> None:
     for inst in snapshot.institutions:
         if inst.institution_type is not I.COMMONS_MANAGEMENT:
@@ -1400,6 +1464,14 @@ def governance_weight_modifiers(civ, world) -> dict[ActionType, float]:
         mods[A.WAR] *= 0.9
     if gov.ruler_legitimacy < 0.3:
         mods[A.WAR] *= 1.1  # diversionary war
+    if gov.government_form is not None:
+        ws = gov.selectorate_ratio
+        if ws < SMALL_COALITION:      # private goods for a narrow coalition
+            mods[A.WAR] *= 1.1
+            mods[A.BUILD] *= 1.05
+        elif ws >= LARGE_COALITION:   # public goods for a broad coalition
+            mods[A.DEVELOP] *= 1.1
+            mods[A.TRADE] *= 1.1
     floor = 1.0 / GOVERNANCE_WEIGHT_CEILING
     return {a: min(GOVERNANCE_WEIGHT_CEILING, max(floor, m)) for a, m in mods.items() if m != 1.0}
 
@@ -1415,6 +1487,8 @@ def governance_crisis_multiplier(civ, world) -> float:
         mult *= 1.0 + (effect.crisis_multiplier - 1.0) * inst.legitimacy
     if gov.psi_crisis:
         mult *= 1.3
+    if gov.government_form is not None and SMALL_COALITION <= gov.selectorate_ratio < LARGE_COALITION:
+        mult *= TRANSITION_TRAP_CRISIS_MULTIPLIER
     return mult
 
 
@@ -1450,6 +1524,8 @@ def governance_snapshot(civ) -> dict | None:
         "psi_crisis": gov.psi_crisis,
         "institutional_regime": gov.institutional_regime,
         "cycle_phase": gov.cycle_phase,
+        "government_form": gov.government_form,
+        "selectorate_ratio": gov.selectorate_ratio,
         "revolts_total": gov.revolts_total,
         "civil_wars_total": gov.civil_wars_total,
         "secession_suppressions": gov.secession_suppressions,
@@ -1468,8 +1544,9 @@ def governance_context_lines(world) -> list[str]:
         institutions = ", ".join(_PRETTY[g01.InstitutionType(i.institution_type)] for i in gov.institutions) or "none"
         goals = "; ".join(_describe_ambition(world, g04.AmbitionType(a.ambition_type), a.target)
                           for a in gov.ambitions if not (a.completed or a.failed)) or "none"
+        form = (gov.government_form or "unformed").replace("_", " ")
         lines.append(
-            f"- {civ.name}: institutions [{institutions}]; ruler legitimacy {gov.ruler_legitimacy:.2f}; "
+            f"- {civ.name} ({form}): institutions [{institutions}]; ruler legitimacy {gov.ruler_legitimacy:.2f}; "
             f"vows: {goals}; stress {gov.psi:.2f} ({gov.cycle_phase}); "
             f"regime {gov.institutional_regime.replace('_', ' ')}")
     return lines

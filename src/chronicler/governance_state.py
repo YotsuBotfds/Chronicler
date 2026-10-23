@@ -151,6 +151,9 @@ class CivGovernance(BaseModel):
     # --- regime classification --------------------------------------------
     institutional_regime: str = "nascent"
     cycle_phase: str = "integrative"
+    government_form: str | None = None
+    government_form_since: int = 0
+    selectorate_ratio: float = 0.15
 
     # --- guards -----------------------------------------------------------
     stability_carry: float = 0.0
