@@ -486,3 +486,31 @@ def test_selectorate_biases_weights_and_crisis_odds():
     trap = gr.governance_crisis_multiplier(civ, world)
     gov.government_form, gov.selectorate_ratio = "merchant_republic", 0.5
     assert trap == pytest.approx(gr.governance_crisis_multiplier(civ, world) * gr.TRANSITION_TRAP_CRISIS_MULTIPLIER)
+
+
+# --- default for new worlds ---------------------------------------------------
+
+@pytest.mark.parametrize("flag, expected", [(None, True), (True, True), (False, False)])
+def test_new_worlds_default_to_governance_on(tmp_path, flag, expected):
+    import argparse
+    from chronicler.main import execute_run
+    args = argparse.Namespace(seed=6, turns=3, civs=3, regions=8, output=str(tmp_path / "chronicle.md"),
+                              state=str(tmp_path / "state.json"), resume=None, reflection_interval=10,
+                              llm_actions=False, scenario=None, simulate_only=True, agents="off")
+    if flag is not None:
+        args.governance = flag
+    execute_run(args)
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert ("governance" in state) is expected
+    assert gr.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+
+
+def test_supplied_worlds_keep_their_own_setting(tmp_path):
+    import argparse
+    from chronicler.main import execute_run
+    world = _world(seed=6, governance=False, civs=3, regions=8)
+    args = argparse.Namespace(seed=6, turns=2, civs=3, regions=8, output=str(tmp_path / "chronicle.md"),
+                              state=str(tmp_path / "state.json"), resume=None, reflection_interval=10,
+                              llm_actions=False, scenario=None, simulate_only=True, agents="off")
+    execute_run(args, world=world)
+    assert world.governance is None

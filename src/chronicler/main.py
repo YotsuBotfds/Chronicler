@@ -199,6 +199,7 @@ def execute_run(
         _noop_narrator = None
 
     # World setup
+    _generated_world = False
     if world is not None:
         start_turn = world.turn
     elif resume_path:
@@ -212,6 +213,7 @@ def execute_run(
             num_civs=num_civs,
         )
         start_turn = 0
+        _generated_world = True
 
         # Apply scenario overrides if provided
         if scenario_config:
@@ -271,6 +273,9 @@ def execute_run(
         raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
     # Phase 8 governance runtime switch (persisted on the world).
     governance = getattr(args, "governance", None)
+    if governance is None and _generated_world:
+        from chronicler.governance_runtime import DEFAULT_ENABLED_FOR_NEW_WORLDS
+        governance = DEFAULT_ENABLED_FOR_NEW_WORLDS
     if governance is not None:
         from chronicler.governance_runtime import set_governance_enabled
         set_governance_enabled(world, governance)
@@ -929,7 +934,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
     parser.add_argument("--governance", action=argparse.BooleanOptionalAction, default=None,
                         help="Phase 8 governance runtime: institutions, elites, legitimacy, ambitions, PSI "
-                             "(default off for new worlds; saved on resume)")
+                             "(default on for new worlds; --no-governance disables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
