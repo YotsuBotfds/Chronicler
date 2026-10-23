@@ -915,6 +915,9 @@ class WorldState(BaseModel):
     _artifact_intents: list = PrivateAttr(default_factory=list)
     _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)
     _artifact_prestige_by_civ: dict = PrivateAttr(default_factory=dict)
+    # Derived, never serialized: incremental lookups over the history lists
+    # (chronicler.history_index); rebuilt lazily after load or copy.
+    _history_index: object | None = PrivateAttr(default=None)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
