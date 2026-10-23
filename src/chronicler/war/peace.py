@@ -305,7 +305,8 @@ def sue_for_peace(civ: "Civilization", enemy: "Civilization", world, acc=None):
         elif mine <= -P.NEGOTIATION_SCORE:
             if rng.random() < 0.6:
                 outcome = ("negotiated", enemy.name)
-        elif rng.random() < min(0.7, 0.15 + (civ.war_weariness + enemy.war_weariness) / 60.0):
+        elif (duration >= P.PARITY_PEACE_TURNS
+              and rng.random() < min(0.6, 0.10 + (civ.war_weariness + enemy.war_weariness) / 80.0)):
             outcome = ("white_peace", None)
     if outcome is not None:
         treaty = conclude_peace(ctx, war, outcome[0], outcome[1])

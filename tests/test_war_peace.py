@@ -225,3 +225,20 @@ def test_treaty_imposes_truce_before_a_new_war():
     world.war_state.last_raise_turn.clear()
     declare_or_press_war(world.civ_map["A"], world.civ_map["B"], world)
     assert world.active_wars == [("A", "B")]
+
+
+def test_parity_peace_offer_needs_a_war_of_some_length():
+    world = war_world()
+    ctx, war = start_war(world)
+    world.civ_map["A"].war_weariness = world.civ_map["B"].war_weariness = 50.0
+    world.turn = P.PARITY_PEACE_TURNS - 1
+    for _ in range(5):
+        sue_for_peace(world.civ_map["A"], world.civ_map["B"], world)
+    assert world.war_state.wars, "parity peace refused before PARITY_PEACE_TURNS"
+    world.turn = P.PARITY_PEACE_TURNS
+    for turn in range(P.PARITY_PEACE_TURNS, P.PARITY_PEACE_TURNS + 10):
+        world.turn = turn
+        sue_for_peace(world.civ_map["A"], world.civ_map["B"], world)
+        if not world.war_state.wars:
+            break
+    assert not world.war_state.wars and world.war_state.treaties[-1].kind == "white_peace"
