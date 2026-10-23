@@ -164,7 +164,11 @@ the third:
 * |score| >= 20 and 8+ turns: negotiated peace with `0.04 + weariness/60 + turns/400`;
 * 15+ turns: white peace with `0.02 + (both weariness)/100` (+0.15 with no armies).
 
-A DIPLOMACY action toward a war enemy is a peace offer on the same terms. Terms
+A DIPLOMACY action toward a war enemy is a peace offer on the same terms: the
+winning side offers a negotiated peace in its favour, the losing side offers to
+accept the enemy's terms, and a near-parity white peace can only be agreed
+after eight turns of war (earlier gate runs ended wars before armies arrived).
+A treaty imposes a ten-turn truce on new wars between its parties. Terms
 by aim: conquest cedes occupied regions (all on capitulation, one otherwise, and
 only a capitulation can take the loser's last region); liberation cedes
 culturally matching occupied regions; tribute and unrewarded wins transfer
@@ -173,7 +177,8 @@ treasury; a vassalization capitulation calls `politics.resolve_vassalization`
 returned, the war leaves `active_wars`, both sides become suspicious, the
 treaty is named (`generate_treaty_name`) and recorded on both relationships.
 Battle casualties and occupation feed `war_weariness`, which already damps WAR
-weights.
+weights. A WAR action from a civ that cannot muster an army (too small, broke,
+cooling down) is a threat only: no phony war is declared.
 
 ## Narration and viewer
 
