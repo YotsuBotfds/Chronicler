@@ -1364,6 +1364,7 @@ def generate_report(
     # M41 / M58a extractors (wired by the 2026-10 deferred-backlog pass)
     gini = extract_gini_trajectory(bundles, checkpoints=cps)
     merchant_trips = extract_merchant_trip_stats(bundles)
+    legitimacy = extract_legitimacy_activation(bundles)
 
     report = {
         "metadata": metadata,
@@ -1395,6 +1396,7 @@ def generate_report(
         "legacy_chains": legacy_chains,
         "gini": gini,
         "merchant_trips": merchant_trips,
+        "legitimacy": legitimacy,
         "run_summaries": compute_run_summaries(records),
     }
 
@@ -1596,6 +1598,17 @@ def format_text_report(report: dict) -> str:
                     f"  turn {cp}:  median={pcts['median']:.3f}, "
                     f"p10={pcts['p10']:.3f}, p90={pcts['p90']:.3f}"
                 )
+        lines.append("")
+
+    # Succession legitimacy (M51)
+    legit = report.get("legitimacy", {})
+    if legit.get("crises_resolved"):
+        lines.append("SUCCESSION LEGITIMACY:")
+        lines.append(
+            f"  Crises resolved: {legit['crises_resolved']}, dynasty-legitimate winners: "
+            f"{legit['direct_heir_wins'] + legit['same_dynasty_wins']} "
+            f"({legit['activation_rate']:.0%})"
+        )
         lines.append("")
 
     # Merchant trips (M58a; agent modes only)
@@ -2040,6 +2053,44 @@ def extract_settlement_diagnostics(history: list) -> dict:
         "urbanization": urbanization,
     }
     return result
+
+
+# M51: succession_crisis_resolved descriptions carry the winner's dynasty
+# legitimacy only through this phrasing (factions.resolve_crisis_with_factions:
+# >= LEGITIMACY_DIRECT_HEIR -> blood, >= LEGITIMACY_SAME_DYNASTY -> house).
+LEGITIMACY_DIRECT_HEIR_PHRASE = ", by right of blood,"
+LEGITIMACY_SAME_DYNASTY_PHRASE = ", of the ruling house,"
+
+
+def extract_legitimacy_activation(bundles: list[dict]) -> dict:
+    """M51: how often succession-crisis winners carried dynasty legitimacy.
+
+    A low ``activation_rate`` means dynasty scoring is mostly decorative
+    (winners are abstract faction or external candidates); measure this before
+    any dynasty-focused retune.
+    """
+    resolved = direct = dynasty = runs_active = 0
+    for bundle in bundles:
+        run_active = False
+        for event in bundle.get("events_timeline", []):
+            if event.get("event_type") != "succession_crisis_resolved":
+                continue
+            resolved += 1
+            description = event.get("description", "")
+            if LEGITIMACY_DIRECT_HEIR_PHRASE in description:
+                direct += 1
+                run_active = True
+            elif LEGITIMACY_SAME_DYNASTY_PHRASE in description:
+                dynasty += 1
+                run_active = True
+        runs_active += run_active
+    return {
+        "crises_resolved": resolved,
+        "direct_heir_wins": direct,
+        "same_dynasty_wins": dynasty,
+        "activation_rate": (direct + dynasty) / resolved if resolved else 0.0,
+        "runs_with_activation": runs_active,
+    }
 
 
 def extract_merchant_trip_stats(bundles: list[dict]) -> dict:

@@ -437,6 +437,57 @@ class TestReportAssembly:
         ):
             assert not hasattr(analytics, name), name
 
+
+class TestLegitimacyActivation:
+    """M51 deferred item: measure how often dynasty legitimacy decides crises."""
+
+    @staticmethod
+    def _bundle(descriptions):
+        return {"events_timeline": [
+            {"turn": i, "event_type": "succession_crisis_resolved", "description": d}
+            for i, d in enumerate(descriptions)
+        ] + [{"turn": 99, "event_type": "war", "description": ", by right of blood,"}]}
+
+    def test_counts_activation_from_resolution_phrasing(self):
+        from chronicler.analytics import extract_legitimacy_activation
+        bundles = [
+            self._bundle(["Arin, by right of blood, rises to power after the fall of Bo.",
+                          "Cael rises to power after the fall of Arin."]),
+            self._bundle(["Dun, of the ruling house, rises to power after the fall of Cael."]),
+            self._bundle([]),
+        ]
+        result = extract_legitimacy_activation(bundles)
+        assert result == {
+            "crises_resolved": 3,
+            "direct_heir_wins": 1,
+            "same_dynasty_wins": 1,
+            "activation_rate": pytest.approx(2 / 3),
+            "runs_with_activation": 2,
+        }
+
+    def test_phrase_contract_with_real_crisis_resolution(self, make_world):
+        """The extractor's phrases must match what resolve_crisis_with_factions
+        emits for a direct-heir winner."""
+        from chronicler.analytics import extract_legitimacy_activation
+        from chronicler.factions import resolve_crisis_with_factions
+
+        world = make_world(2)
+        civ = world.civilizations[0]
+        civ.leader.agent_id = 42
+        civ.succession_crisis_turns_remaining = 1
+        civ.succession_candidates = [{
+            "faction": "military", "type": "general", "source": "great_person",
+            "gp_name": "Arin", "gp_trait": "bold", "gp_base_name": "Arin",
+            "agent_id": 7, "parent_id_0": 42, "parent_id_1": 0, "dynasty_id": None,
+            "weight": 1.0,
+        }]
+        events = resolve_crisis_with_factions(civ, world)
+        resolved = [e.model_dump(mode="json") for e in events
+                    if e.event_type == "succession_crisis_resolved"]
+        assert len(resolved) == 1
+        result = extract_legitimacy_activation([{"events_timeline": resolved}])
+        assert result["direct_heir_wins"] == 1, resolved[0]["description"]
+
     def test_generate_report_respects_checkpoints(self, tmp_path):
         from chronicler.analytics import generate_report
         batch_dir = _write_batch(tmp_path, num_runs=3, turns=10)
