@@ -610,6 +610,21 @@ def update_allied_turns(world: WorldState) -> None:
                 rel.allied_turns = 0
 
 
+_FEDERATION_EXIT_DISPOSITIONS = (Disposition.HOSTILE, Disposition.SUSPICIOUS, Disposition.NEUTRAL)
+
+
+def _would_exit_federation(world: WorldState, joiner: str, members: list[str]) -> bool:
+    """True if check_federation_dissolution would eject ``joiner`` or a member."""
+    for member in members:
+        if member == joiner:
+            continue
+        for a, b in ((joiner, member), (member, joiner)):
+            rel = world.relationships.get(a, {}).get(b)
+            if rel is not None and rel.disposition in _FEDERATION_EXIT_DISPOSITIONS:
+                return True
+    return False
+
+
 def check_federation_formation(world: WorldState) -> list[Event]:
     """Phase 10: Check if any allied pairs can form or join federations."""
     from chronicler.models import Federation
@@ -647,8 +662,15 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             if fed_a and fed_b:
                 continue
             elif fed_a and not fed_b:
+                # Correction (2026-10): only join a federation the dissolution
+                # check would not immediately eject you from (it charged the
+                # exit/remaining stability penalties every turn).
+                if _would_exit_federation(world, civ_b_name, fed_a.members):
+                    continue
                 fed_a.members.append(civ_b_name)
             elif fed_b and not fed_a:
+                if _would_exit_federation(world, civ_a.name, fed_b.members):
+                    continue
                 fed_b.members.append(civ_a.name)
             else:
                 rng = random.Random(
