@@ -103,6 +103,10 @@ def declare_or_press_war(civ: "Civilization", target: "Civilization", world: "Wo
             war = sorted(offensive, key=lambda w: w.start_turn)[0]
             target = world.civ_map[war.defender]
     declared = False
+    if war is None and _in_truce(world, civ.name, target.name):
+        return Event(turn=world.turn, event_type="war", actors=[civ.name, target.name],
+                     description=f"{civ.name} rattled sabres at {target.name} but honoured the truce.",
+                     importance=3)
     if war is None and not can_raise(ctx, civ):
         # No army to march: the threat stays a threat (no phony war).
         return Event(turn=world.turn, event_type="war", actors=[civ.name, target.name],
@@ -137,6 +141,13 @@ def declare_or_press_war(civ: "Civilization", target: "Civilization", world: "Wo
         desc = f"{civ.name} pressed its war against {enemy}."
     return Event(turn=world.turn, event_type="war", actors=[civ.name, enemy],
                  description=desc, importance=7 if declared else 5)
+
+
+def _in_truce(world: "WorldState", a: str, b: str) -> bool:
+    """A treaty between the pair within ``TRUCE_TURNS`` forbids a new war."""
+    pair = {a, b}
+    return any(set(t.parties) == pair and world.turn - t.turn < P.TRUCE_TURNS
+               for t in world.war_state.treaties)
 
 
 def _war_focus(ctx: WarContext, civ_name: str, enemy_name: str, war: "WarRecord") -> str | None:
@@ -307,6 +318,27 @@ def _demobilize(ctx: WarContext) -> None:
         if world.turn - army.raised_turn > 60:
             release_soldiers(ctx, army, army.soldiers, cause="scattered")
             disband(ctx, army, "demobilized")
+
+
+def end_of_turn_sync(world: "WorldState") -> None:
+    """Drop occupations invalidated after the campaign tick (Phase 10).
+
+    Secession, absorption or restoration can change a region's owner after
+    campaigns ran; the occupation of a region its owner no longer holds, or
+    held by a vanished occupier, is void. Silent: the next tick narrates any
+    war that ended meanwhile.
+    """
+    if not world.campaigns_enabled:
+        return
+    state = world.war_state
+    region_map = world.region_map
+    state.occupations = [
+        o for o in state.occupations
+        if o.region in region_map and region_map[o.region].controller == o.owner
+        and living_civ(world, o.occupier) is not None
+    ]
+    state.armies = [a for a in state.armies if living_civ(world, a.civ) is not None]
+    _sync_occupied_flags(world)
 
 
 def _sync_occupied_flags(world: "WorldState") -> None:

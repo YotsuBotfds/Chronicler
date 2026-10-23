@@ -147,6 +147,19 @@ def test_low_morale_stalls_marching_but_not_regrouping():
     assert army.region == "Brook"
 
 
+def test_morale_recovers_on_held_ground_but_fog_weighs_in_enemy_land():
+    world = war_world()
+    ctx, war = start_war(world)
+    home = place_army(world, "A", "Brook", 10, war.war_key, morale=400)
+    away = place_army(world, "A", "Crag", 10, war.war_key, morale=400)
+    sources = supply_sources(ctx, "A")
+    r_home = logistics_step(ctx, home, world.civ_map["A"], sources, winter=False)
+    r_away = logistics_step(ctx, away, world.civ_map["A"], sources, winter=False)
+    assert r_home["stress"] == (0, 0, 0, 0)
+    assert home.morale == 400 + P.POLICY.morale_recovery
+    assert r_away["stress"][3] > 0 and away.morale < 400
+
+
 @pytest.mark.parametrize("terrain", sorted(P.ATTRITION_PERMILLE))
 def test_every_terrain_has_logistics_parameters(terrain):
     assert terrain in P.MOVE_COST and terrain in P.FORAGE_BY_TERRAIN

@@ -45,7 +45,15 @@ def upkeep_cost(world, army: "Army") -> int:
 
 
 def _information_quality(ctx: WarContext, civ: "Civilization", army: "Army") -> int:
+    """Full knowledge on held ground; intelligence accuracy in foreign land.
+
+    The kernel recovers morale only when total stress is zero, so a constant
+    fog penalty at home would make recovery impossible.
+    """
     from chronicler.intelligence import compute_accuracy
+    region = ctx.world.region_map.get(army.region)
+    if region is not None and holds(region, civ.name):
+        return 1000
     war = war_for(ctx.world, army.war_key)
     if war is None:
         return 1000

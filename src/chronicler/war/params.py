@@ -113,3 +113,4 @@ BATTLE_WEARINESS = 1.0
 LOSS_WEARINESS = 4.0
 OCCUPATION_WEARINESS = 0.2
 THREAT_RANGE = 3
+TRUCE_TURNS = 10                # no new war between treaty parties

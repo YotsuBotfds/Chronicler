@@ -1924,6 +1924,9 @@ def run_turn_result(
             world.pending_shocks.extend(phase10_shocks)
 
     prune_inactive_wars(world)
+    if world.campaigns_enabled:
+        from chronicler.war.runtime import end_of_turn_sync
+        end_of_turn_sync(world)
 
     # M40: Unified relationship formation and dissolution
     # One-turn latency: agent tick ran between Phase 9 and 10.

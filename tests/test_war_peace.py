@@ -212,3 +212,16 @@ def test_vassal_overlord_relation_counts_as_external_vassal_end():
     world.active_wars.clear()
     reconcile_wars(ctx)
     assert war.outcome == "vassalized"
+
+
+def test_treaty_imposes_truce_before_a_new_war():
+    world = war_world()
+    ctx, war = start_war(world)
+    conclude_peace(ctx, war, "white_peace", None)
+    world.turn += 1
+    event = declare_or_press_war(world.civ_map["A"], world.civ_map["B"], world)
+    assert "truce" in event.description and world.active_wars == []
+    world.turn += P.TRUCE_TURNS
+    world.war_state.last_raise_turn.clear()
+    declare_or_press_war(world.civ_map["A"], world.civ_map["B"], world)
+    assert world.active_wars == [("A", "B")]
