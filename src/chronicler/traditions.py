@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from chronicler.history_index import history_index
+from chronicler.contact_ledger import ledger_enabled, trade_partner_count
 from chronicler.models import WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition
 from chronicler.utils import stable_hash_int
 
@@ -40,11 +41,16 @@ def update_event_counts(world: WorldState) -> None:
             civ.event_counts["high_economy_turns"] = 0
 
     # Track high trade route turns
+    ledger_on = ledger_enabled(world)
     for civ in world.civilizations:
-        active_routes = sum(
-            1 for other_name, rel in world.relationships.get(civ.name, {}).items()
-            if hasattr(rel, "trade_volume") and rel.trade_volume > 0
-        )
+        if ledger_on:
+            # Contact ledger: partners with real (decayed) goods flow.
+            active_routes = trade_partner_count(world, civ.name)
+        else:
+            active_routes = sum(
+                1 for other_name, rel in world.relationships.get(civ.name, {}).items()
+                if hasattr(rel, "trade_volume") and rel.trade_volume > 0
+            )
         if active_routes >= 4:
             civ.event_counts["high_trade_route_turns"] = civ.event_counts.get("high_trade_route_turns", 0) + 1
         else:
