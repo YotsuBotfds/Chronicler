@@ -34,6 +34,10 @@ class EvidenceAdmissionTests(unittest.TestCase):
         self.repo = self.root / 'source'
         self.repo.mkdir()
         self.git('init', '-q')
+        # Commits must not start detached auto-maintenance, which can write
+        # into .git while TemporaryDirectory cleanup removes it.
+        self.git('config', 'gc.auto', '0')
+        self.git('config', 'maintenance.auto', 'false')
         (self.repo / 'science.py').write_text('VALUE = 42\n')
         self.git('add', 'science.py')
         self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture')

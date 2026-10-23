@@ -160,6 +160,8 @@ def make_agent_bridge_world(sample_world):
             from chronicler.agent_bridge import AgentBridge
         except Exception as exc:  # pragma: no cover - environment dependent
             pytest.skip(f"AgentBridge unavailable in this environment: {exc}")
+        # AgentBridge loads the native extension lazily in __init__.
+        pytest.importorskip("chronicler_agents")
         world = _prime_agent_mode_world(sample_world.model_copy(deep=True), mode)
         return world, AgentBridge(world, mode=mode)
 
