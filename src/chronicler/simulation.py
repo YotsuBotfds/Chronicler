@@ -1991,10 +1991,17 @@ def run_turn_result(
     from chronicler.emergence import check_tech_regression
     from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
     black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
-    turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn, acc=acc))
+    # T1-3: tech regression runs after every earlier accumulator flush, so it
+    # follows the Phase 10 routing rule: hybrid records into the accumulator
+    # (flushed just below), while off/shadow/demographics-only modes have
+    # already flushed ``acc`` and must mutate directly (acc=None). Passing
+    # ``acc`` in those modes silently dropped era-bonus removals.
+    turn_events.extend(check_tech_regression(
+        world, black_swan_fired=black_swan_this_turn, acc=phase10_acc,
+    ))
 
     # Third apply_keep flush: tech regression's remove_era_bonus routes through
-    # acc as "keep" (V1 fix), but runs after the Phase 10 flush at line ~1797.
+    # acc as "keep" (V1 fix), but runs after the Phase 10 flush above.
     # Without this flush, era-bonus removals are silently dropped in hybrid mode.
     if world.agent_mode == "hybrid" and acc is not None:
         acc.apply_keep(world)
