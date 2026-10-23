@@ -115,8 +115,9 @@ class TestTerrainDefaults:
         assert eco.water == 0.1
         assert eco.forest_cover == 0.05
 
-    def test_all_six_terrains_present(self):
-        assert set(TERRAIN_ECOLOGY_DEFAULTS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
+    def test_all_terrains_present(self):
+        # Geography 2.0 appends steppe/jungle/marsh.
+        assert set(TERRAIN_ECOLOGY_DEFAULTS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh"}
 
     def test_effective_capacity_zero_water_denominator_uses_floor(self, monkeypatch):
         region = Region(name="T", terrain="plains", carrying_capacity=100, resources="fertile")
@@ -134,8 +135,8 @@ class TestTerrainCaps:
         assert caps["water"] == 0.20
         assert caps["forest_cover"] == 0.10
 
-    def test_all_six_terrains_present(self):
-        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
+    def test_all_terrains_present(self):
+        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh"}
 
 
 class TestEffectiveCapacity:

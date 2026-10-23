@@ -56,7 +56,7 @@ class TestTerrainEcologyCaps:
 
     def test_all_terrains_present(self):
         from chronicler.ecology import TERRAIN_ECOLOGY_CAPS
-        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra"}
+        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh"}
 
 
 class TestTerrainTradeModifier:
