@@ -73,6 +73,7 @@ from chronicler.leaders import (
     check_rival_fall,
 )
 from chronicler.named_events import generate_tech_breakthrough_name
+from chronicler.history_index import history_index
 from chronicler.tech_focus import TechFocus, select_tech_focus, apply_focus_effects, remove_focus_effects
 from chronicler.action_engine import resolve_action
 from chronicler.succession import (
@@ -2017,13 +2018,16 @@ def run_turn_result(
     # above (C-2 fix).
     world.events_timeline.extend(turn_events[_pre_phase10_count:])
 
-    # M45: Arc classification — after events are on timeline, before snapshot
+    # M45: Arc classification — after events are on timeline, before snapshot.
+    # classify_arc filters to events naming the character; the per-actor index
+    # yields that same ordered subset without rescanning the whole timeline.
     dynasty_reg = agent_bridge.dynasty_registry if agent_bridge else None
+    _history = history_index(world)
     for civ in world.civilizations:
         for gp in civ.great_persons:
             prev_type = gp.arc_type
             gp.arc_phase, new_type = classify_arc(
-                gp, world.events_timeline, dynasty_reg, world.turn
+                gp, _history.events_for_actor(world, gp.name), dynasty_reg, world.turn
             )
             if new_type is not None and new_type != prev_type:
                 gp.arc_type = new_type
@@ -2033,7 +2037,7 @@ def run_turn_result(
         if gp.death_turn == world.turn:
             prev_type = gp.arc_type
             gp.arc_phase, new_type = classify_arc(
-                gp, world.events_timeline, dynasty_reg, world.turn
+                gp, _history.events_for_actor(world, gp.name), dynasty_reg, world.turn
             )
             if new_type is not None and new_type != prev_type:
                 gp.arc_type = new_type

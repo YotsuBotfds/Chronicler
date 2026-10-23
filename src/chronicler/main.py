@@ -50,6 +50,7 @@ from chronicler.simulation import run_turn_result
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
 from chronicler.intelligence import compute_accuracy, _get_perceived_stat_with_accuracy
+from chronicler.history_index import history_index
 
 DEFAULT_CONFIG = {
     "seed": 42,
@@ -552,12 +553,12 @@ def execute_run(
 
         # on_turn callback — fires after each turn's data is captured
         if on_turn is not None:
-            turn_events = [e for e in world.events_timeline if e.turn == world.turn - 1]
+            turn_events = history_index(world).events_for_turn(world, world.turn - 1)
             turn_named = world.named_events[named_events_before:]
             on_turn(snapshot, chronicle_text, turn_events, turn_named)
 
         # Update memory streams with this turn's events
-        turn_events = [e for e in world.events_timeline if e.turn == world.turn - 1]
+        turn_events = history_index(world).events_for_turn(world, world.turn - 1)
         for event in turn_events:
             for actor in event.actors:
                 if actor in memories:

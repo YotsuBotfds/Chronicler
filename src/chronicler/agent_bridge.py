@@ -10,6 +10,7 @@ import pyarrow as pa
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.ffi_constants import TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID
 from chronicler.great_persons import _append_deed
+from chronicler.history_index import history_index
 from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
@@ -1579,21 +1580,17 @@ class AgentBridge:
 
             # Python-side bypass: check event history for displacement / migrant / versatility
             if trigger == 0:  # skill-based — check if a bypass applies
-                migration_events = [
-                    e for e in world.agent_events_raw
-                    if e.agent_id == agent_id and e.event_type == "migration"
-                ]
-                switch_count = sum(
-                    1 for e in world.agent_events_raw
-                    if e.agent_id == agent_id and e.event_type == "occupation_switch"
+                # Counts over agent_events_raw, served incrementally by the index.
+                migration_count, switch_count = history_index(world).agent_event_counts(
+                    world, agent_id,
                 )
                 # Long displacement: 50+ turns since first migration away from origin
-                if (migration_events
+                if (migration_count
                         and agent_id in self._origin_regions
                         and agent_id in self._departure_turns
                         and (world.turn - self._departure_turns[agent_id]) >= 50):
                     role = "exile"
-                elif len(migration_events) >= 3:
+                elif migration_count >= 3:
                     role = "merchant"
                 elif switch_count >= 3:
                     role = "scientist"

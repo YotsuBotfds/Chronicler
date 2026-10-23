@@ -225,11 +225,9 @@ def _collect_army_arrived_mask(world: "WorldState") -> list[bool]:
     mask = [False] * len(world.regions)
     prev_turn = world.turn - 1
     if hasattr(world, "agent_events_raw") and world.agent_events_raw:
-        for e in world.agent_events_raw:
-            if (e.event_type == "migration"
-                    and e.occupation == 1
-                    and e.turn == prev_turn
-                    and 0 <= e.target_region < len(mask)):
+        from chronicler.history_index import history_index
+        for e in history_index(world).agent_migrations_for_turn(world, prev_turn):
+            if e.occupation == 1 and 0 <= e.target_region < len(mask):
                 mask[e.target_region] = True
     return mask
 
