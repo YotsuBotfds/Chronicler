@@ -435,6 +435,10 @@ pub fn try_tick_agents(
     let migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
     let pending_decisions: Vec<_> = pending_decisions_with_threat
         .into_iter().map(|(pd, _)| pd).collect();
+    let migration_religion_changed: u32 =
+        pending_decisions.iter().map(|pd| pd.migration_changed_by_religion).sum();
+    let loyalty_rally_damped: u32 =
+        pending_decisions.iter().map(|pd| pd.loyalty_drifts_damped_by_rally).sum();
 
     // -----------------------------------------------------------------------
     // M57b: Household migration consolidation (post-decision, pre-apply)
@@ -1075,6 +1079,8 @@ pub fn try_tick_agents(
     knowledge_stats.merchant_plans_bootstrap = merchant_stats.plans_bootstrap;
     knowledge_stats.merchant_no_usable_packets = merchant_stats.no_usable_packets;
     knowledge_stats.migration_choices_changed_by_threat = migration_threat_changed;
+    knowledge_stats.migration_choices_changed_by_religion = migration_religion_changed;
+    knowledge_stats.loyalty_drifts_damped_by_rally = loyalty_rally_damped;
 
     // Mobility runs before demographics. Report the surviving cargo after
     // deaths have released their trips and before returning to the economy.

@@ -190,6 +190,10 @@ def test_hybrid_determinism_with_knowledge_stats(tmp_path):
     assert "transmitted_by_type" in k0[0], "bundle knowledge_stats should include transmitted_by_type"
     assert "created_threat" not in k0[0], "per-type counters should be nested in created_by_type"
     assert "transmitted_threat" not in k0[0], "per-type counters should be nested in transmitted_by_type"
+    # Deferred-backlog packet consumers report integer counters every turn.
+    for turn_stats in k0:
+        for key in ("migration_choices_changed_by_religion", "loyalty_drifts_damped_by_rally"):
+            assert isinstance(turn_stats[key], int), (key, turn_stats.get(key))
 
 
 def test_m59b_consumer_counters_in_knowledge_stats():

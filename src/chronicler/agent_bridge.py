@@ -1124,6 +1124,8 @@ class AgentBridge:
                 "merchant_plans_bootstrap",
                 "merchant_no_usable_packets",
                 "migration_choices_changed_by_threat",
+                "migration_choices_changed_by_religion",
+                "loyalty_drifts_damped_by_rally",
             }
             normalized_k_stats = {}
             for key, value in k_stats.items():

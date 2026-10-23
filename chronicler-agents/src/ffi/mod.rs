@@ -2494,6 +2494,9 @@ impl AgentSimulator {
         stats.insert("merchant_plans_bootstrap".into(), self.knowledge_stats.merchant_plans_bootstrap as f64);
         stats.insert("merchant_no_usable_packets".into(), self.knowledge_stats.merchant_no_usable_packets as f64);
         stats.insert("migration_choices_changed_by_threat".into(), self.knowledge_stats.migration_choices_changed_by_threat as f64);
+        // Deferred-backlog consumers (religious signals, loyalty rally)
+        stats.insert("migration_choices_changed_by_religion".into(), self.knowledge_stats.migration_choices_changed_by_religion as f64);
+        stats.insert("loyalty_drifts_damped_by_rally".into(), self.knowledge_stats.loyalty_drifts_damped_by_rally as f64);
         Ok(stats)
     }
 
