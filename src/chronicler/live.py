@@ -1095,6 +1095,7 @@ def run_live(
             seed=seed,
             num_regions=params.get("regions", 8),
             num_civs=params.get("civs", 4),
+            worldgen=params.get("worldgen"),
         )
         if params.get("scenario"):
             from chronicler.scenario import load_scenario, apply_scenario

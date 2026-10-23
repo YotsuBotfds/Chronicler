@@ -82,13 +82,16 @@ const CLIMATE_COOLING: u8 = 3;
 
 /// Terrain ecology caps: [soil_cap, water_cap, forest_cap].
 /// Index matches Terrain enum.  Sourced from Python TERRAIN_ECOLOGY_CAPS.
-const TERRAIN_CAPS: [[f32; 3]; 6] = [
+const TERRAIN_CAPS: [[f32; 3]; 9] = [
     [0.95, 0.70, 0.40],  // Plains
     [0.50, 0.90, 0.40],  // Mountains
     [0.80, 0.90, 0.40],  // Coast
     [0.80, 0.80, 0.95],  // Forest
     [0.30, 0.20, 0.10],  // Desert
     [0.20, 0.60, 0.15],  // Tundra
+    [0.75, 0.50, 0.25],  // Steppe (Geography 2.0)
+    [0.70, 0.95, 0.98],  // Jungle
+    [0.70, 0.95, 0.50],  // Marsh
 ];
 
 /// Terrain ecology floors.
@@ -502,15 +505,15 @@ fn tick_water_controlled(
     config: &EcologyConfig,
     climate_phase: u8,
 ) {
-    // Degradation / phase effects
+    // Degradation / phase effects (Geography 2.0: scaled by latitude exposure)
     if climate_phase == CLIMATE_DROUGHT {
-        let mut rate = config.water_drought;
+        let mut rate = config.water_drought * region.climate_exposure;
         if region.has_irrigation {
             rate *= config.irrigation_drought_mult;
         }
         region.water -= rate;
     } else if climate_phase == CLIMATE_COOLING {
-        region.water -= config.cooling_water_loss;
+        region.water -= config.cooling_water_loss * region.climate_exposure;
     } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
         region.water += config.warming_tundra_water_gain;
     }
@@ -534,9 +537,9 @@ fn tick_water_uncontrolled(
     climate_phase: u8,
 ) {
     if climate_phase == CLIMATE_DROUGHT {
-        region.water -= config.water_drought;
+        region.water -= config.water_drought * region.climate_exposure;
     } else if climate_phase == CLIMATE_COOLING {
-        region.water -= config.cooling_water_loss;
+        region.water -= config.cooling_water_loss * region.climate_exposure;
     } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
         region.water += config.warming_tundra_water_gain;
     } else if climate_phase == CLIMATE_TEMPERATE {
@@ -557,7 +560,7 @@ fn tick_forest_controlled(
     }
 
     if climate_phase == CLIMATE_COOLING {
-        region.forest_cover -= config.cooling_forest_damage;
+        region.forest_cover -= config.cooling_forest_damage * region.climate_exposure;
     }
 
     if (region.population as f32) < pop_threshold
@@ -583,7 +586,7 @@ fn tick_forest_uncontrolled(
     }
 
     if climate_phase == CLIMATE_COOLING {
-        region.forest_cover -= config.cooling_forest_damage;
+        region.forest_cover -= config.cooling_forest_damage * region.climate_exposure;
     }
 }
 
@@ -860,6 +863,63 @@ mod tests {
         r.capacity_modifier = 1.0;
         r.prev_turn_water = 0.60;
         r
+    }
+
+    #[test]
+    fn test_climate_exposure_scales_climate_losses_only() {
+        let config = EcologyConfig::default();
+        for &controlled in &[true, false] {
+            for &(phase, base_water_loss, base_forest_loss) in &[
+                (CLIMATE_DROUGHT, config.water_drought, 0.0f32),
+                (CLIMATE_COOLING, config.cooling_water_loss, config.cooling_forest_damage),
+            ] {
+                let mut unit = make_plains_region(0);
+                let mut scaled = make_plains_region(1);
+                if !controlled {
+                    unit.controller_civ = UNCONTROLLED;
+                    scaled.controller_civ = UNCONTROLLED;
+                }
+                scaled.climate_exposure = 1.5;
+                let w0 = unit.water;
+                if controlled {
+                    tick_water_controlled(&mut unit, &config, phase);
+                    tick_water_controlled(&mut scaled, &config, phase);
+                    tick_forest_controlled(&mut unit, &config, phase);
+                    tick_forest_controlled(&mut scaled, &config, phase);
+                } else {
+                    tick_water_uncontrolled(&mut unit, &config, phase);
+                    tick_water_uncontrolled(&mut scaled, &config, phase);
+                    tick_forest_uncontrolled(&mut unit, &config, phase);
+                    tick_forest_uncontrolled(&mut scaled, &config, phase);
+                }
+                // Exposure 1.0 is the legacy arithmetic exactly.
+                assert_eq!(unit.water, w0 - base_water_loss);
+                let extra_water = (unit.water - scaled.water) - 0.5 * base_water_loss;
+                assert!(extra_water.abs() < 1e-6, "phase {phase} water {extra_water}");
+                let extra_forest = (unit.forest_cover - scaled.forest_cover) - 0.5 * base_forest_loss;
+                assert!(extra_forest.abs() < 1e-6, "phase {phase} forest {extra_forest}");
+            }
+        }
+        // Temperate recovery ignores exposure.
+        let mut unit = make_plains_region(0);
+        let mut scaled = make_plains_region(1);
+        scaled.climate_exposure = 1.8;
+        tick_water_controlled(&mut unit, &config, CLIMATE_TEMPERATE);
+        tick_water_controlled(&mut scaled, &config, CLIMATE_TEMPERATE);
+        assert_eq!(unit.water, scaled.water);
+    }
+
+    #[test]
+    fn test_new_terrain_caps_clamp() {
+        for (terrain, caps) in [(6u8, [0.75f32, 0.50, 0.25]), (7, [0.70, 0.95, 0.98]), (8, [0.70, 0.95, 0.50])] {
+            let mut r = make_plains_region(0);
+            r.terrain = terrain;
+            r.soil = 1.0;
+            r.water = 1.0;
+            r.forest_cover = 1.0;
+            clamp_ecology(&mut r);
+            assert_eq!([r.soil, r.water, r.forest_cover], caps);
+        }
     }
 
     #[test]

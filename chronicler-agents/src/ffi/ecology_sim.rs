@@ -177,6 +177,10 @@ impl EcologySimulator {
         let temple_prestige_col = rb
             .column_by_name("temple_prestige")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Geography 2.0: latitude climate exposure (absent on template worlds = 1.0)
+        let climate_exposure_col = rb
+            .column_by_name("climate_exposure")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
         if self.regions.is_empty() {
             // First call: initialize regions.
@@ -236,6 +240,7 @@ impl EcologySimulator {
                     r.endemic_severity = endemic_severity_col.map_or(0.0, |arr| arr.value(i));
                     r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                     r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
+                    r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                     r
                 })
                 .collect();
@@ -286,6 +291,7 @@ impl EcologySimulator {
                 r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
+                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
             }
         }
         Ok(())

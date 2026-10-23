@@ -6,12 +6,19 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Terrain {
     Plains = 0, Mountains = 1, Coast = 2, Forest = 3, Desert = 4, Tundra = 5,
+    // Geography 2.0 (append only; mirrors Python ffi_constants.TERRAIN_MAP).
+    Steppe = 6, Jungle = 7, Marsh = 8,
 }
 
 #[allow(dead_code)]
 impl Terrain {
     pub fn from_u8(v: u8) -> Option<Self> {
-        match v { 0 => Some(Self::Plains), 1 => Some(Self::Mountains), 2 => Some(Self::Coast), 3 => Some(Self::Forest), 4 => Some(Self::Desert), 5 => Some(Self::Tundra), _ => None }
+        match v {
+            0 => Some(Self::Plains), 1 => Some(Self::Mountains), 2 => Some(Self::Coast),
+            3 => Some(Self::Forest), 4 => Some(Self::Desert), 5 => Some(Self::Tundra),
+            6 => Some(Self::Steppe), 7 => Some(Self::Jungle), 8 => Some(Self::Marsh),
+            _ => None,
+        }
     }
 }
 
@@ -86,6 +93,10 @@ pub struct RegionState {
     pub temple_prestige: f32,
     // M58a: Per-good stockpile levels (from Python RegionStockpile)
     pub stockpile: [f32; 8],
+    // Geography 2.0: latitude-band scale on climate-driven ecology losses
+    // (drought water, cooling water and forest). 1.0 = unscaled, which keeps
+    // template-world arithmetic bit-identical.
+    pub climate_exposure: f32,
 }
 
 /// Decode a legacy u32 bitmask into the ascending id list it denotes.
@@ -187,6 +198,7 @@ impl RegionState {
             temple_prestige: 0.0,
             // M58a: Stockpile
             stockpile: [0.0; 8],
+            climate_exposure: 1.0,
         }
     }
 }
@@ -224,6 +236,18 @@ mod tests {
         assert!(r.is_adjacent_to(1));
         assert!(r.is_adjacent_to(3));
         assert!(!r.is_adjacent_to(2));
+    }
+
+    #[test]
+    fn test_terrain_discriminants_append_only() {
+        assert_eq!(Terrain::Tundra as u8, 5);
+        assert_eq!(Terrain::Steppe as u8, 6);
+        assert_eq!(Terrain::Jungle as u8, 7);
+        assert_eq!(Terrain::Marsh as u8, 8);
+        for v in 0..9u8 {
+            assert_eq!(Terrain::from_u8(v).map(|t| t as u8), Some(v));
+        }
+        assert!(Terrain::from_u8(9).is_none());
     }
 
     #[test]

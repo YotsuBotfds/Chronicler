@@ -414,7 +414,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
                 max_prest = max(max_prest, float(getattr(inf, 'temple_prestige', 0) or 0))
         temple_prestiges.append(max_prest)
 
-    return pa.record_batch({
+    columns = {
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
         "carrying_capacity": pa.array([r.carrying_capacity for r in world.regions], type=pa.uint16()),
@@ -551,7 +551,17 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             )
             for g, good_name in enumerate(_FIXED_GOODS)
         },
-    })
+    }
+    if world.geography is not None:
+        # Geography 2.0: latitude-band climate exposure for this turn's phase
+        # (template worlds omit the column; Rust then uses 1.0).
+        from chronicler.climate import get_climate_phase
+        from chronicler.geography import climate_exposure
+        phase = get_climate_phase(world.turn, world.climate_config)
+        columns["climate_exposure"] = pa.array(
+            [climate_exposure(r.latitude_band, phase) for r in world.regions], type=pa.float32(),
+        )
+    return pa.record_batch(columns)
 
 
 def build_region_postpass_patch_batch(world: WorldState) -> pa.RecordBatch:

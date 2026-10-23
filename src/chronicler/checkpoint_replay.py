@@ -311,6 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--civs", type=int, default=4)
     parser.add_argument("--regions", type=int, default=8)
+    parser.add_argument("--worldgen", choices=("auto", "template", "procedural"), default=None)
     parser.add_argument("--turns", type=int, default=50, help="Additional turns to validate")
     parser.add_argument("--split", type=int, default=12, help="Additional turns before checkpoint")
     parser.add_argument("--agents", default="off", help="Only off is supported")
@@ -339,7 +340,8 @@ def main(argv: list[str] | None = None) -> int:
             _reject_unknown_fields(payload, world)
         else:
             from chronicler.world_gen import generate_world
-            world = generate_world(seed=args.seed, num_civs=args.civs, num_regions=args.regions)
+            world = generate_world(seed=args.seed, num_civs=args.civs, num_regions=args.regions,
+                                   worldgen=args.worldgen)
         report = validate_replay(
             world, turns=args.turns, split=args.split,
             checkpoint_path=args.output_dir / "checkpoint.json", runtime=args.runtime,

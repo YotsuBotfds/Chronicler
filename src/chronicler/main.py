@@ -336,6 +336,7 @@ def execute_run(
             seed=seed,
             num_regions=num_regions,
             num_civs=num_civs,
+            worldgen=getattr(args, "worldgen", None),
         )
         start_turn = 0
         fresh_world = True
@@ -1053,6 +1054,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--turns", type=int, default=None, help="Number of simulation turns")
     parser.add_argument("--civs", type=int, default=None, help="Number of civilizations")
     parser.add_argument("--regions", type=int, default=None, help="Number of regions")
+    parser.add_argument("--worldgen", choices=("auto", "template", "procedural"), default=None,
+                        help="World generator: auto (default) uses the region templates up to "
+                             "12 regions and procedural geography above; 'procedural' forces "
+                             "heightmap/Voronoi geography at any size")
     parser.add_argument("--output", type=str, default="output/chronicle.md", help="Output file path")
     parser.add_argument("--state", type=str, default="output/state.json", help="State file path")
     parser.add_argument("--resume", type=str, default=None, help="Resume from a saved state JSON file")

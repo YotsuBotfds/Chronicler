@@ -390,6 +390,10 @@ impl AgentSimulator {
         let temple_prestige_col = rb
             .column_by_name("temple_prestige")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Geography 2.0: latitude climate exposure (absent on template worlds = 1.0)
+        let climate_exposure_col = rb
+            .column_by_name("climate_exposure")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
         // M54a: Ecology schema columns
         let disease_baseline_col = rb
@@ -534,6 +538,7 @@ impl AgentSimulator {
                     // M55a
                     is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
+                    climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -729,6 +734,7 @@ impl AgentSimulator {
                 r.catastrophe_deaths_this_turn = catastrophe_deaths_col.map_or(0, |arr| arr.value(i));
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
+                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {

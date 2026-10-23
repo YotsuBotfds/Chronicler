@@ -1920,6 +1920,56 @@ mod tests {
         }
     }
 
+    /// Geography 2.0: adjacency lists let agents migrate between regions with
+    /// ids >= 32 (the former u32 bitmask silently dropped those neighbours).
+    #[test]
+    fn test_tick_migrates_between_regions_beyond_32() {
+        let n: u16 = 64;
+        let crowded: u16 = 45;
+        let build = || {
+            let mut regions: Vec<RegionState> = (0..n)
+                .map(|i| {
+                    let mut r = make_healthy_region(i);
+                    r.adjacency = (i.saturating_sub(1)..=(i + 1).min(n - 1)).filter(|&x| x != i).collect();
+                    r.controller_civ = 0;
+                    r
+                })
+                .collect();
+            let c = &mut regions[crowded as usize];
+            c.carrying_capacity = 5;
+            c.soil = 0.05;
+            c.water = 0.1;
+            c.population = 300;
+            let mut pool = AgentPool::new(0);
+            for k in 0..300 {
+                pool.spawn(crowded, 0, Occupation::Farmer, 20 + (k % 20) as u16, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            }
+            (regions, pool)
+        };
+        let signals = make_default_signals(1, n as usize);
+        let mut seed = [0u8; 32];
+        seed[0] = 91;
+        let run = || {
+            let (regions, mut pool) = build();
+            let mut pct: Vec<f32> = Vec::new();
+            for turn in 0..12 {
+                if pct.len() < pool.capacity() { pct.resize(pool.capacity(), 0.0); }
+                tick_agents(&mut pool, &regions, &signals, seed, turn, &mut pct, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+            }
+            let mut where_now: Vec<u16> = (0..pool.capacity())
+                .filter(|&s| pool.is_alive(s))
+                .map(|s| pool.regions[s])
+                .collect();
+            where_now.sort_unstable();
+            where_now
+        };
+        let a = run();
+        let moved: Vec<u16> = a.iter().copied().filter(|&r| r != crowded).collect();
+        assert!(!moved.is_empty(), "nobody left the crowded region");
+        assert!(moved.iter().all(|&r| r >= 32), "migrants reached {moved:?}");
+        assert_eq!(a, run(), "tick must stay deterministic");
+    }
+
     #[test]
     fn test_full_tick_produces_death_events() {
         // 500 post-fertility elders -> tick produces death events (event_type=0)
