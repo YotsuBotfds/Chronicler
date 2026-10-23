@@ -122,8 +122,15 @@ def require_fishery_runtime(world: WorldState, runtime) -> None:
 
 
 def economy_yield(world: WorldState, region: Region, slot: int = 0) -> float:
-    """Lagged ecology constraint on economy input; never overwrite permanent yields."""
-    value = region.resource_effective_yields[slot]
+    """Per-worker goods yield for one slot's Phase 2 harvest.
+
+    Reads the realized ``resource_current_yields`` preview (season, climate,
+    ecology, suspension and mineral reserves; see
+    ``ecology.refresh_resource_yields``). When the fishery experiment is
+    enabled, fish slots also carry the lagged catch ratio; the separate catch
+    budget caps their allocated output. Permanent yields are never overwritten.
+    """
+    value = region.resource_current_yields[slot]
     if fishery_enabled(world):
         from chronicler.models import ResourceType
         if region.resource_types[slot] == ResourceType.FISH:

@@ -183,20 +183,23 @@ class ObservedRuntime:
         if enabled:
             # The expected cap comes from the prior independently audited biomass
             # debit, not from trusting the packed production input being tested.
-            close(rows[0]["fishery_catch_budget"], self.previous_catch)
+            close(rows[0]["fishery_catch_budget_0"], self.previous_catch)
         expected, ledger = {}, {k: defaultdict(float) for k in ("production", "consumption", "storage_loss", "cap_overflow", "departures", "arrivals", "returns", "transit_loss")}
         errors = []
         food_suff = {}
         for rid, row in enumerate(rows):
             values = {g: row[f"stockpile_{g}"] for g in GOODS}
-            good = RT_GOOD.get(row["resource_type_0"])
-            if good:
-                production = row["resource_effective_yield_0"] * farmers[rid]
-                budget = row.get("fishery_catch_budget")
+            # Farmer labor is split equally across occupied valid slots; each
+            # fish slot's output is capped by its prior catch budget.
+            occupied = [s for s in range(3) if RT_GOOD.get(row[f"resource_type_{s}"])]
+            for s in occupied:
+                good = RT_GOOD[row[f"resource_type_{s}"]]
+                production = row[f"resource_yield_{s}"] * farmers[rid] / len(occupied)
+                budget = row.get(f"fishery_catch_budget_{s}")
                 if budget is not None:
                     production = min(production, budget)
                 ledger["production"][good] += production
-                if enabled and rid == 0:
+                if enabled and rid == 0 and s == 0:
                     assert production <= self.previous_catch + TOL
                 values[good] += production
             for g in GOODS:

@@ -1931,7 +1931,11 @@ impl AgentSimulator {
         let ri_terrain = col_u8!(&ri_rb, "terrain");
         let ri_storage_pop = col_u16!(&ri_rb, "storage_population");
         let ri_rt0 = col_u8!(&ri_rb, "resource_type_0");
-        let ri_ey0 = col_f32!(&ri_rb, "resource_effective_yield_0");
+        let ri_rt1 = col_u8!(&ri_rb, "resource_type_1");
+        let ri_rt2 = col_u8!(&ri_rb, "resource_type_2");
+        let ri_y0 = col_f32!(&ri_rb, "resource_yield_0");
+        let ri_y1 = col_f32!(&ri_rb, "resource_yield_1");
+        let ri_y2 = col_f32!(&ri_rb, "resource_yield_2");
 
         // Fixed good slot columns
         const GOOD_NAMES: [&str; 8] = ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"];
@@ -1950,10 +1954,31 @@ impl AgentSimulator {
                 region_id: ri_region_ids.value(i),
                 terrain: ri_terrain.value(i),
                 storage_population: ri_storage_pop.value(i),
-                resource_type_0: ri_rt0.value(i),
-                resource_effective_yield_0: ri_ey0.value(i),
+                resource_types: [ri_rt0.value(i), ri_rt1.value(i), ri_rt2.value(i)],
+                resource_yields: [ri_y0.value(i), ri_y1.value(i), ri_y2.value(i)],
+                production_caps: [None; 3],
                 stockpile,
             });
+        }
+
+        // Optional default-off experiment: a fish slot's goods production may
+        // not exceed the previous ecology tick's catch. The kernel applies the
+        // cap after splitting farmer labor across occupied slots, so permanent
+        // effective yields and other slots are untouched.
+        for slot in 0..3 {
+            let name = format!("fishery_catch_budget_{slot}");
+            let Some(column) = ri_rb.column_by_name(&name) else { continue };
+            use arrow::array::Array;
+            let budgets = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))?;
+            for i in 0..n_regions {
+                if budgets.is_null(i) { continue; }
+                let budget = budgets.value(i);
+                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_types[slot] != 3 {
+                    return Err(PyValueError::new_err("invalid fishery catch budget"));
+                }
+                region_inputs[i].production_caps[slot] = Some(budget);
+            }
         }
 
         // --- Derive agent counts from live pool ---
@@ -1993,26 +2018,6 @@ impl AgentSimulator {
                 merchant_count,
                 wealthy_count,
             });
-        }
-
-        // Optional experiment: production may not exceed last ecology's fish catch.
-        // Adjust only kernel input, leaving permanent effective yields untouched.
-        if let Some(column) = ri_rb.column_by_name("fishery_catch_budget") {
-            use arrow::array::Array;
-            let budgets = column.as_any().downcast_ref::<Float32Array>()
-                .ok_or_else(|| PyValueError::new_err("fishery_catch_budget must be Float32"))?;
-            for i in 0..n_regions {
-                if budgets.is_null(i) { continue; }
-                let budget = budgets.value(i);
-                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_type_0 != 3 {
-                    return Err(PyValueError::new_err("invalid fishery catch budget"));
-                }
-                let farmers = agent_counts[i].farmer_count;
-                if farmers > 0 {
-                    region_inputs[i].resource_effective_yield_0 =
-                        region_inputs[i].resource_effective_yield_0.min(budget / farmers as f32);
-                }
-            }
         }
 
         // M58a: Second pass — count transit merchants by their origin region (anchor counting)
@@ -2080,14 +2085,19 @@ impl AgentSimulator {
         }
 
         // --- M58b: Build hybrid delivery input if in hybrid economy mode ---
-        // Note: On the first tick, the delivery buffer is empty (no merchant trips completed yet),
-        // so HybridDeliveryInput will have zero departures/arrivals/returns. The economy kernel
-        // still runs the hybrid code path but with no trade data — effectively producing abstract-
-        // equivalent results. This is the correct cold-start behavior.
+        // The route graph and persistent buffer may not exist before the first
+        // merchant tick. Hybrid cold-start still means zero realized deliveries;
+        // passing None would accidentally execute instantaneous abstract trade.
         let hybrid_delivery = if self.hybrid_economy_mode {
-            self.merchant_delivery_buf.as_ref().map(|buf| {
-                crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions)
-            })
+            let empty_buffer;
+            let buf = match self.merchant_delivery_buf.as_ref() {
+                Some(buf) => buf,
+                None => {
+                    empty_buffer = crate::merchant::DeliveryBuffer::new(n_regions);
+                    &empty_buffer
+                }
+            };
+            Some(crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions))
         } else {
             None
         };

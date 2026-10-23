@@ -629,11 +629,16 @@ pub fn advance_one_hop(pool: &mut AgentPool, slot: usize, master_seed: &[u8; 32]
 }
 
 /// Transition Loading -> Transit (departure).
-/// Validates next hop first; cancels reservation if invalid.
+/// Validates the next hop. For physical (hybrid-economy) cargo it also rechecks
+/// inventory after intervening economy consumption/decay: a stale reservation
+/// shrinks to what is still backed or is canceled, never creating a return.
+/// Shadow-mode cargo is virtual (the abstract economy owns macro stocks), so
+/// its reservation departs unchanged.
 pub fn depart_merchant(
     pool: &mut AgentPool,
     slot: usize,
     graph: &RouteGraph,
+    regions: &[RegionState],
     ledger: &mut ShadowLedger,
     delivery_buf: Option<&mut DeliveryBuffer>,
 ) -> bool {
@@ -650,10 +655,28 @@ pub fn depart_merchant(
         return false;
     }
 
-    // Depart: reserved -> in_transit
     let origin = pool.trip_origin_region[slot] as usize;
     let good = pool.trip_good_slot[slot] as usize;
-    ledger.depart(origin, good, pool.trip_cargo_qty[slot], delivery_buf);
+    let mut qty = pool.trip_cargo_qty[slot];
+    if let Some(buf) = delivery_buf.as_deref().filter(|buf| buf.physical_stock) {
+        // Loading reservations span turns, while the economy may consume or
+        // decay stock in between. Release this reservation before measuring
+        // availability, so only other Loading cargo and departures queued but
+        // not yet debited (including earlier merchants this turn) are withheld.
+        // Afterwards reserved + pending debits never exceed physical stock.
+        ledger.cancel_reservation(origin, good, qty);
+        let available = ledger.available_hybrid(origin, good, &regions[origin].stockpile, buf);
+        qty = qty.min(available);
+        if qty <= 0.0 {
+            reset_trip_fields(pool, slot);
+            return false;
+        }
+        pool.trip_cargo_qty[slot] = qty;
+        ledger.reserve(origin, good, qty);
+    }
+    // Depart: reserved -> in_transit. Physical macro stock is debited once,
+    // when the following economy tick consumes the delivery buffer.
+    ledger.depart(origin, good, qty, delivery_buf);
     pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
     true
 }
@@ -789,20 +812,8 @@ pub fn merchant_mobility_phase(
     // Phase c: Loading invalidation + departure
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_LOADING { continue; }
-        // Economy consumption/storage can shrink physical stocks after Loading
-        // reserved them. Recheck at departure, including debits queued by earlier
-        // merchants this turn; cancelling unbacked cargo must not create a return.
-        if let Some(buf) = delivery_buf.as_deref().filter(|buf| buf.physical_stock) {
-            let origin = pool.trip_origin_region[slot] as usize;
-            let good = pool.trip_good_slot[slot] as usize;
-            let qty = pool.trip_cargo_qty[slot];
-            if regions[origin].stockpile[good] - buf.departure_debits[origin][good] < qty {
-                ledger.cancel_reservation(origin, good, qty);
-                reset_trip_fields(pool, slot);
-                continue;
-            }
-        }
-        depart_merchant(pool, slot, graph, ledger, delivery_buf.as_deref_mut());
+        // Physical (hybrid) cargo is revalidated inside depart_merchant.
+        depart_merchant(pool, slot, graph, regions, ledger, delivery_buf.as_deref_mut());
     }
 
     // Phase d-e: Advance Transit merchants + process arrivals
@@ -1164,7 +1175,7 @@ mod tests {
             &[1, 2], &[2, 1], &[false; 2], &[1.0; 2], 3,
         );
 
-        let departed = depart_merchant(&mut pool, s, &graph, &mut ledger, None);
+        let departed = depart_merchant(&mut pool, s, &graph, &make_test_regions(3), &mut ledger, None);
         assert!(!departed);
         assert_eq!(pool.trip_phase[s], TRIP_PHASE_IDLE);
         assert_eq!(ledger.reserved[0][0], 0.0);
