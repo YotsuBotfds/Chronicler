@@ -332,3 +332,12 @@ def test_large_world_runs(tmp_path, mode):
     if mode == "hybrid":
         # Agents live in regions with ids >= 32 (impossible with u32 masks).
         assert any(r["population"] > 0 for r in state["regions"][32:])
+
+
+def test_cli_worldgen_flag():
+    from chronicler.main import _build_parser
+    parser = _build_parser()
+    assert parser.parse_args([]).worldgen is None
+    assert parser.parse_args(["--worldgen", "procedural"]).worldgen == "procedural"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--worldgen", "hexes"])

@@ -732,8 +732,10 @@ def _connect_components(
     comps = _components(adjacency)
     while len(comps) > 1:
         best = None
-        for other in comps[1:]:
-            for a in comps[0]:
+        # Separate land masses are split by water, so only shores can join.
+        shore = [[k for k in comp if region_bodies[k]] or comp for comp in comps]
+        for other in shore[1:]:
+            for a in shore[0]:
                 for b in other:
                     shares = bool(region_bodies[a] & region_bodies[b])
                     key = (0 if shares else 1, _d2(xs, ys, land_cells[a], land_cells[b]), a, b)
